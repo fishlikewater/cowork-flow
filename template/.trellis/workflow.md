@@ -45,7 +45,7 @@
 - journal 与 session 记录
 - 任务归档
 
-执行由 AI 按 superpowers 方法推进；Trellis 不替代 superpowers，也不替代项目验证命令。
+执行按 superpowers 方法推进；Trellis 不替代 superpowers，也不替代项目验证命令。
 
 ---
 
