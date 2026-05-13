@@ -17,6 +17,10 @@ from pathlib import Path
 
 from .paths import get_repo_root
 
+PATH_TRAVERSAL_PREFIXES = ("./", "../")
+PATH_TRAVERSAL_PART = ".."
+UNSAFE_TASK_PATHS = (".", "..")
+
 
 # =============================================================================
 # Path Safety
@@ -46,7 +50,12 @@ def is_safe_task_path(task_path: str, repo_root: Path | None = None) -> bool:
         return False
 
     # Reject ".", "..", paths starting with "./" or "../", or containing ".."
-    if task_path in (".", "..") or task_path.startswith("./") or task_path.startswith("../") or ".." in task_path:
+    has_path_traversal = (
+        task_path in UNSAFE_TASK_PATHS
+        or task_path.startswith(PATH_TRAVERSAL_PREFIXES)
+        or PATH_TRAVERSAL_PART in task_path
+    )
+    if has_path_traversal:
         print(f"Error: path traversal not allowed: {task_path}", file=sys.stderr)
         return False
 
@@ -88,9 +97,9 @@ def find_task_by_name(task_name: str, tasks_dir: Path) -> Path | None:
         return exact_match
 
     # Try suffix match (e.g., "my-task" matches "01-21-my-task")
-    for d in tasks_dir.iterdir():
-        if d.is_dir() and d.name.endswith(f"-{task_name}"):
-            return d
+    for candidate in tasks_dir.iterdir():
+        if candidate.is_dir() and candidate.name.endswith(f"-{task_name}"):
+            return candidate
 
     return None
 
@@ -128,15 +137,15 @@ def archive_task_dir(task_dir_abs: Path, repo_root: Path | None = None) -> Path 
 
     # Move task to archive
     task_name = task_dir_abs.name
-    dest = month_dir / task_name
+    archive_dest = month_dir / task_name
 
     try:
-        shutil.move(str(task_dir_abs), str(dest))
+        shutil.move(str(task_dir_abs), str(archive_dest))
     except (OSError, IOError, shutil.Error) as e:
         print(f"Error: Failed to move task to archive: {e}", file=sys.stderr)
         return None
 
-    return dest
+    return archive_dest
 
 
 def archive_task_complete(

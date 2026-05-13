@@ -30,6 +30,68 @@ from .paths import (
 # Developer Initialization
 # =============================================================================
 
+INITIAL_JOURNAL_NUMBER = 1
+INDEX_FILE_NAME = "index.md"
+
+
+def _initial_journal_content(name: str, today: str) -> str:
+    """Build the initial journal file content."""
+    return f"""# Development Journal - {name} (Part 1)
+
+> AI development session journal
+> Start date: {today}
+
+---
+
+"""
+
+
+def _initial_index_content(name: str) -> str:
+    """Build the initial workspace index content."""
+    return f"""# Workspace Index - {name}
+
+> Tracks AI development session records.
+
+---
+
+## Current Status
+
+<!-- @@@auto:current-status -->
+- **Current file**: `journal-1.md`
+- **Total Sessions**: 0
+- **Last Active**: -
+<!-- @@@/auto:current-status -->
+
+---
+
+## Active Documents
+
+<!-- @@@auto:active-documents -->
+| File | Lines | Status |
+|------|------|------|
+| `journal-1.md` | ~0 | Current |
+<!-- @@@/auto:active-documents -->
+
+---
+
+## Session History
+
+<!-- @@@auto:session-history -->
+| # | Date | Title | Commit |
+|---|------|------|------|
+<!-- @@@/auto:session-history -->
+
+---
+
+## Notes
+
+- Sessions are appended to the journal file
+- A new journal file is created automatically after the current file exceeds 2000 lines
+- Use `add_session.py` to record sessions
+- New records use English text; legacy records can remain as they are
+"""
+
+
 def init_developer(name: str, repo_root: Path | None = None) -> bool:
     """Initialize developer.
 
@@ -46,7 +108,7 @@ def init_developer(name: str, repo_root: Path | None = None) -> bool:
         True on success, False on error.
     """
     if not name:
-        print("错误：开发者名称不能为空。", file=sys.stderr)
+        print("Error: developer name cannot be empty.", file=sys.stderr)
         return False
 
     if repo_root is None:
@@ -63,88 +125,40 @@ def init_developer(name: str, repo_root: Path | None = None) -> bool:
             encoding="utf-8"
         )
     except (OSError, IOError) as e:
-        print(f"错误：创建 .developer 文件失败：{e}", file=sys.stderr)
+        print(f"Error: failed to create .developer file: {e}", file=sys.stderr)
         return False
 
     # Create workspace directory structure
     try:
         workspace_dir.mkdir(parents=True, exist_ok=True)
     except (OSError, IOError) as e:
-        print(f"错误：创建工作区目录失败：{e}", file=sys.stderr)
+        print(f"Error: failed to create workspace directory: {e}", file=sys.stderr)
         return False
 
     # Create initial journal file
-    journal_file = workspace_dir / f"{FILE_JOURNAL_PREFIX}1.md"
+    journal_file = workspace_dir / f"{FILE_JOURNAL_PREFIX}{INITIAL_JOURNAL_NUMBER}.md"
     if not journal_file.exists():
         today = datetime.now().strftime("%Y-%m-%d")
-        journal_content = f"""# 开发日志 - {name}（第 1 部分）
-
-> AI 开发会话日志
-> 开始时间：{today}
-
----
-
-"""
+        journal_content = _initial_journal_content(name, today)
         try:
             journal_file.write_text(journal_content, encoding="utf-8")
         except (OSError, IOError) as e:
-            print(f"错误：创建日志文件失败：{e}", file=sys.stderr)
+            print(f"Error: failed to create journal file: {e}", file=sys.stderr)
             return False
 
     # Create index.md with markers for auto-update
-    index_file = workspace_dir / "index.md"
+    index_file = workspace_dir / INDEX_FILE_NAME
     if not index_file.exists():
-        index_content = f"""# 工作区索引 - {name}
-
-> 用于跟踪 AI 开发会话记录。
-
----
-
-## 当前状态
-
-<!-- @@@auto:current-status -->
-- **当前文件**：`journal-1.md`
-- **总会话数**：0
-- **最近活跃**：-
-<!-- @@@/auto:current-status -->
-
----
-
-## 活跃文档
-
-<!-- @@@auto:active-documents -->
-| 文件 | 行数 | 状态 |
-|------|------|------|
-| `journal-1.md` | ~0 | 当前 |
-<!-- @@@/auto:active-documents -->
-
----
-
-## 会话历史
-
-<!-- @@@auto:session-history -->
-| # | 日期 | 标题 | 提交 |
-|---|------|------|------|
-<!-- @@@/auto:session-history -->
-
----
-
-## 说明
-
-- 会话会追加到 journal 文件
-- 当前文件超过 2000 行时会自动新建下一份 journal
-- 使用 `add_session.py` 记录会话
-- 新增记录统一使用中文，历史英文记录可保留
-"""
+        index_content = _initial_index_content(name)
         try:
             index_file.write_text(index_content, encoding="utf-8")
         except (OSError, IOError) as e:
-            print(f"错误：创建 index.md 失败：{e}", file=sys.stderr)
+            print(f"Error: failed to create index.md: {e}", file=sys.stderr)
             return False
 
-    print(f"开发者已初始化：{name}")
-    print(f"  .developer 文件：{dev_file}")
-    print(f"  工作区目录：{workspace_dir}")
+    print(f"Developer initialized: {name}")
+    print(f"  .developer file: {dev_file}")
+    print(f"  Workspace directory: {workspace_dir}")
 
     return True
 
@@ -159,8 +173,8 @@ def ensure_developer(repo_root: Path | None = None) -> None:
         repo_root = get_repo_root()
 
     if not check_developer(repo_root):
-        print("错误：开发者身份尚未初始化。", file=sys.stderr)
-        print(f"请执行：python3 ./{DIR_WORKFLOW}/scripts/init_developer.py <your-name>", file=sys.stderr)
+        print("Error: developer identity has not been initialized.", file=sys.stderr)
+        print(f"Run: python3 ./{DIR_WORKFLOW}/scripts/init_developer.py <your-name>", file=sys.stderr)
         sys.exit(1)
 
 
@@ -176,11 +190,11 @@ def show_developer_info(repo_root: Path | None = None) -> None:
     developer = get_developer(repo_root)
 
     if not developer:
-        print("开发者：未初始化")
+        print("Developer: not initialized")
     else:
-        print(f"开发者：{developer}")
-        print(f"工作区：{DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/")
-        print(f"任务目录：{DIR_WORKFLOW}/{DIR_TASKS}/")
+        print(f"Developer: {developer}")
+        print(f"Workspace: {DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/")
+        print(f"Tasks directory: {DIR_WORKFLOW}/{DIR_TASKS}/")
 
 
 # =============================================================================

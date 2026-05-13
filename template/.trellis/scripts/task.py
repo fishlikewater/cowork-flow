@@ -34,10 +34,13 @@ if sys.platform == "win32":
 import argparse
 import json
 import re
-import sys
 from datetime import datetime
 from pathlib import Path
 
+from common.files import (
+    read_json_file as _read_json_file,
+    write_json_file as _write_json_file,
+)
 from common.git_context import _run_git_command
 from common.paths import (
     DIR_WORKFLOW,
@@ -58,6 +61,9 @@ from common.task_utils import (
     archive_task_complete,
 )
 from common.config import get_hooks
+
+CONTEXT_JSONL_FILES = ["implement.jsonl", "check.jsonl", "debug.jsonl"]
+DONE_STATUSES = ("completed", "done")
 
 
 # =============================================================================
@@ -120,30 +126,9 @@ def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
                     print(f"  {result.stderr.strip()}", file=sys.stderr)
         except Exception as e:
             print(
-                colored(f"[WARN] Hook error ({event}): {cmd} — {e}", Colors.YELLOW),
+                colored(f"[WARN] Hook error ({event}): {cmd} - {e}", Colors.YELLOW),
                 file=sys.stderr,
             )
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-def _read_json_file(path: Path) -> dict | None:
-    """Read and parse a JSON file."""
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return None
-
-
-def _write_json_file(path: Path, data: dict) -> bool:
-    """Write dict to JSON file."""
-    try:
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        return True
-    except (OSError, IOError):
-        return False
 
 
 def _slugify(title: str) -> str:
@@ -241,6 +226,36 @@ def _write_jsonl(path: Path, entries: list[dict]) -> None:
     """Write entries to JSONL file."""
     lines = [json.dumps(entry, ensure_ascii=False) for entry in entries]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _iter_jsonl_lines(path: Path):
+    """Yield line number and content from a JSONL file."""
+    with path.open("r", encoding="utf-8") as f:
+        for line_num, line in enumerate(f, start=1):
+            yield line_num, line.rstrip("\n")
+
+
+def _load_task_summary(task_dir: Path) -> dict:
+    """Load task fields needed for tree/list output."""
+    data = _read_json_file(task_dir / FILE_TASK_JSON) or {}
+    return {
+        "status": data.get("status", "unknown"),
+        "assignee": data.get("assignee", "-"),
+        "children": data.get("children", []),
+        "parent": data.get("parent"),
+    }
+
+
+def _load_task_summaries(tasks_dir: Path) -> dict[str, dict]:
+    """Load active task summaries keyed by directory name."""
+    all_tasks: dict[str, dict] = {}
+    if not tasks_dir.is_dir():
+        return all_tasks
+
+    for d in sorted(tasks_dir.iterdir()):
+        if d.is_dir() and d.name != DIR_ARCHIVE:
+            all_tasks[d.name] = _load_task_summary(d)
+    return all_tasks
 
 
 # =============================================================================
@@ -406,24 +421,24 @@ def cmd_init_context(args: argparse.Namespace) -> int:
 
     implement_file = target_dir / "implement.jsonl"
     _write_jsonl(implement_file, implement_entries)
-    print(f"  {colored('✓', Colors.GREEN)} {len(implement_entries)} entries")
+    print(f"  {colored('[OK]', Colors.GREEN)} {len(implement_entries)} entries")
 
     # check.jsonl
     print(colored("Creating check.jsonl...", Colors.CYAN))
     check_entries = get_check_context(dev_type, repo_root)
     check_file = target_dir / "check.jsonl"
     _write_jsonl(check_file, check_entries)
-    print(f"  {colored('✓', Colors.GREEN)} {len(check_entries)} entries")
+    print(f"  {colored('[OK]', Colors.GREEN)} {len(check_entries)} entries")
 
     # debug.jsonl
     print(colored("Creating debug.jsonl...", Colors.CYAN))
     debug_entries = get_debug_context(dev_type, repo_root)
     debug_file = target_dir / "debug.jsonl"
     _write_jsonl(debug_file, debug_entries)
-    print(f"  {colored('✓', Colors.GREEN)} {len(debug_entries)} entries")
+    print(f"  {colored('[OK]', Colors.GREEN)} {len(debug_entries)} entries")
 
     print()
-    print(colored("✓ All context files created", Colors.GREEN))
+    print(colored("[OK] All context files created", Colors.GREEN))
     print()
     print(colored("Next steps:", Colors.BLUE))
     print("  1. Add task-specific specs: python3 task.py add-context <dir> <jsonl> <path>")
@@ -467,10 +482,10 @@ def cmd_add_context(args: argparse.Namespace) -> int:
 
     # Check if already exists
     if jsonl_file.is_file():
-        content = jsonl_file.read_text(encoding="utf-8")
-        if f'"{path}"' in content:
-            print(colored(f"Warning: Entry already exists for {path}", Colors.YELLOW))
-            return 0
+        for _, line in _iter_jsonl_lines(jsonl_file):
+            if f'"{path}"' in line:
+                print(colored(f"Warning: Entry already exists for {path}", Colors.YELLOW))
+                return 0
 
     # Add entry
     entry: dict
@@ -504,17 +519,17 @@ def cmd_validate(args: argparse.Namespace) -> int:
     print()
 
     total_errors = 0
-    for jsonl_name in ["implement.jsonl", "check.jsonl", "debug.jsonl"]:
+    for jsonl_name in CONTEXT_JSONL_FILES:
         jsonl_file = target_dir / jsonl_name
         errors = _validate_jsonl(jsonl_file, repo_root)
         total_errors += errors
 
     print()
     if total_errors == 0:
-        print(colored("✓ All validations passed", Colors.GREEN))
+        print(colored("[OK] All validations passed", Colors.GREEN))
         return 0
     else:
-        print(colored(f"✗ Validation failed ({total_errors} errors)", Colors.RED))
+        print(colored(f"[FAIL] Validation failed ({total_errors} errors)", Colors.RED))
         return 1
 
 
@@ -528,8 +543,7 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path) -> int:
         return 0
 
     line_num = 0
-    for line in jsonl_file.read_text(encoding="utf-8").splitlines():
-        line_num += 1
+    for line_num, line in _iter_jsonl_lines(jsonl_file):
         if not line.strip():
             continue
 
@@ -559,9 +573,9 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path) -> int:
                 errors += 1
 
     if errors == 0:
-        print(f"  {colored(f'{file_name}: ✓ ({line_num} entries)', Colors.GREEN)}")
+        print(f"  {colored(f'{file_name}: [OK] ({line_num} entries)', Colors.GREEN)}")
     else:
-        print(f"  {colored(f'{file_name}: ✗ ({errors} errors)', Colors.RED)}")
+        print(f"  {colored(f'{file_name}: [FAIL] ({errors} errors)', Colors.RED)}")
 
     return errors
 
@@ -582,7 +596,7 @@ def cmd_list_context(args: argparse.Namespace) -> int:
     print(colored("=== Context Files ===", Colors.BLUE))
     print()
 
-    for jsonl_name in ["implement.jsonl", "check.jsonl", "debug.jsonl"]:
+    for jsonl_name in CONTEXT_JSONL_FILES:
         jsonl_file = target_dir / jsonl_name
         if not jsonl_file.is_file():
             continue
@@ -590,7 +604,7 @@ def cmd_list_context(args: argparse.Namespace) -> int:
         print(colored(f"[{jsonl_name}]", Colors.CYAN))
 
         count = 0
-        for line in jsonl_file.read_text(encoding="utf-8").splitlines():
+        for _, line in _iter_jsonl_lines(jsonl_file):
             if not line.strip():
                 continue
 
@@ -608,7 +622,7 @@ def cmd_list_context(args: argparse.Namespace) -> int:
                 print(f"  {colored(f'{count}.', Colors.GREEN)} [DIR] {file_path}")
             else:
                 print(f"  {colored(f'{count}.', Colors.GREEN)} {file_path}")
-            print(f"     {colored('→', Colors.YELLOW)} {reason}")
+            print(f"     {colored('->', Colors.YELLOW)} {reason}")
 
         print()
 
@@ -643,7 +657,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         task_dir = str(full_path)
 
     if set_current_task(task_dir, repo_root):
-        print(colored(f"✓ Current task set to: {task_dir}", Colors.GREEN))
+        print(colored(f"[OK] Current task set to: {task_dir}", Colors.GREEN))
         print()
         print(colored("The hook will now inject context from this task's jsonl files.", Colors.BLUE))
 
@@ -668,7 +682,7 @@ def cmd_finish(args: argparse.Namespace) -> int:
     task_json_path = repo_root / current / FILE_TASK_JSON
 
     clear_current_task(repo_root)
-    print(colored(f"✓ Cleared current task (was: {current})", Colors.GREEN))
+    print(colored(f"[OK] Cleared current task (was: {current})", Colors.GREEN))
 
     if task_json_path.is_file():
         _run_hooks("after_finish", task_json_path, repo_root)
@@ -893,21 +907,16 @@ def cmd_remove_subtask(args: argparse.Namespace) -> int:
 # Command: list
 # =============================================================================
 
-def _get_children_progress(children: list[str], tasks_dir: Path) -> str:
+def _get_children_progress(children: list[str], all_tasks: dict[str, dict]) -> str:
     """Get children progress summary like '[2/3 done]'."""
     if not children:
         return ""
     done_count = 0
     total = len(children)
     for child_name in children:
-        child_dir = tasks_dir / child_name
-        child_json = child_dir / FILE_TASK_JSON
-        if child_json.is_file():
-            data = _read_json_file(child_json)
-            if data:
-                status = data.get("status", "")
-                if status in ("completed", "done"):
-                    done_count += 1
+        status = all_tasks.get(child_name, {}).get("status", "")
+        if status in DONE_STATUSES:
+            done_count += 1
     return f" [{done_count}/{total} done]"
 
 
@@ -929,34 +938,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         print(colored("All active tasks:", Colors.BLUE))
     print()
 
-    # First pass: collect all task data and identify parent/child relationships
-    all_tasks: dict[str, dict] = {}
-    if tasks_dir.is_dir():
-        for d in sorted(tasks_dir.iterdir()):
-            if not d.is_dir() or d.name == "archive":
-                continue
-
-            dir_name = d.name
-            task_json = d / FILE_TASK_JSON
-            status = "unknown"
-            assignee = "-"
-            children: list[str] = []
-            parent: str | None = None
-
-            if task_json.is_file():
-                data = _read_json_file(task_json)
-                if data:
-                    status = data.get("status", "unknown")
-                    assignee = data.get("assignee", "-")
-                    children = data.get("children", [])
-                    parent = data.get("parent")
-
-            all_tasks[dir_name] = {
-                "status": status,
-                "assignee": assignee,
-                "children": children,
-                "parent": parent,
-            }
+    all_tasks = _load_task_summaries(tasks_dir)
 
     # Second pass: display tasks hierarchically
     count = 0
@@ -982,7 +964,7 @@ def cmd_list(args: argparse.Namespace) -> int:
             marker = f" {colored('<- current', Colors.GREEN)}"
 
         # Children progress
-        progress = _get_children_progress(children, tasks_dir) if children else ""
+        progress = _get_children_progress(children, all_tasks) if children else ""
 
         prefix = "  " * indent + "  - "
 

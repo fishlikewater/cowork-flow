@@ -198,8 +198,9 @@ def count_lines(file_path: Path) -> int:
         return 0
 
     try:
-        return len(file_path.read_text(encoding="utf-8").splitlines())
-    except (OSError, IOError):
+        with file_path.open("r", encoding="utf-8") as f:
+            return sum(1 for _ in f)
+    except OSError:
         return 0
 
 
