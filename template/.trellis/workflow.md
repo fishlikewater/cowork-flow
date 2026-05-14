@@ -30,6 +30,7 @@
 
 - `superpowers:brainstorming`：澄清需求、比较方案、形成设计
 - `superpowers:writing-plans`：把设计拆成可执行计划
+- `superpowers:test-driven-development`：按 TDD 循环执行，先用失败测试刻画目标行为，再写最小实现使测试通过，最后在测试保护下重构
 - `superpowers:executing-plans`：按计划顺序执行
 - `superpowers:subagent-driven-development`：在适合时并行拆分独立工作
 - `superpowers:verification-before-completion`：完成前用证据验证
