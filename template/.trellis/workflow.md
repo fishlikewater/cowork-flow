@@ -30,7 +30,7 @@
 
 - `superpowers:brainstorming`：澄清需求、比较方案、形成设计
 - `superpowers:writing-plans`：把设计拆成可执行计划
-- `superpowers:test-driven-development`：按 TDD 循环执行，先用失败测试刻画目标行为，再写最小实现使测试通过，最后在测试保护下重构
+- `superpowers:test-driven-development` 是实现阶段的强制方法。除一次性原型、生成代码、纯配置文件等明确例外并经人工确认外，功能新增、缺陷修复、重构和行为变更都必须按 RED-GREEN-REFACTOR 推进：先写失败测试并确认失败原因正确，再写最小实现使测试通过，最后在测试保护下重构。复杂或难点问题：深度优先
 - `superpowers:executing-plans`：按计划顺序执行
 - `superpowers:subagent-driven-development`：在适合时并行拆分独立工作
 - `superpowers:verification-before-completion`：完成前用证据验证
@@ -216,6 +216,7 @@ python3 ./.trellis/scripts/task.py start <task-dir>
 - 遵循 `.trellis/spec/` 中的相关规范
 - 变更保持聚焦
 - 若执行中发现行为变化升级，立即重新分级并进入 L1 / L2 流程
+- 执行计划中的每个实现步骤必须优先进入 `superpowers:test-driven-development` 循环,不得先写生产代码再补测试。
 
 ---
 
@@ -279,6 +280,7 @@ docs/superpowers/plans/YYYY-MM-DD-<slug>.md
 
 - `superpowers:executing-plans`
 - 或在存在独立并行工作时使用 `superpowers:subagent-driven-development`
+- `superpowers:test-driven-development` 不得先写生产代码再补测试。
 
 执行中必须持续同步：
 
@@ -307,6 +309,7 @@ docs/superpowers/plans/YYYY-MM-DD-<slug>.md
 完成前至少确认：
 
 - 相关测试通过
+- 新增或修改的行为有测试先失败、再通过的验证证据
 - lint / format / build / typecheck 按项目要求通过
 - 行为符合 OpenSpec 或 PRD
 - 相关 `.trellis/spec/` 已同步
