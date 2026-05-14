@@ -34,6 +34,8 @@ if sys.platform == "win32":
 import argparse
 import json
 import re
+import shutil
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -47,6 +49,7 @@ from common.paths import (
     DIR_TASKS,
     DIR_SPEC,
     DIR_ARCHIVE,
+    FILE_CURRENT_TASK,
     FILE_TASK_JSON,
     get_repo_root,
     get_developer,
@@ -82,6 +85,208 @@ class Colors:
 def colored(text: str, color: str) -> str:
     """Apply color to text."""
     return f"{color}{text}{Colors.NC}"
+
+
+def _get_current_task_file_path(repo_root: Path) -> Path:
+    """Build the absolute path to .current-task."""
+    return repo_root / DIR_WORKFLOW / FILE_CURRENT_TASK
+
+
+def _is_current_task_dir(current_task: str, dir_name: str) -> bool:
+    """Check whether the current-task pointer refers to this task directory."""
+    return Path(current_task).name == dir_name
+
+
+def _clear_current_task_or_report(repo_root: Path, current_task: str) -> bool:
+    """Clear .current-task and print a concrete error on failure."""
+    if clear_current_task(repo_root):
+        return True
+
+    current_file = _get_current_task_file_path(repo_root)
+    print(
+        colored(f"Error: Failed to clear current task file: {current_file}", Colors.RED),
+        file=sys.stderr,
+    )
+    print(f"Current task still points to: {current_task}", file=sys.stderr)
+    return False
+
+
+def _write_json_or_report(path: Path, data: dict, label: str) -> bool:
+    """Write JSON data and print a concrete error on failure."""
+    if _write_json_file(path, data):
+        return True
+
+    print(
+        colored(f"Error: Failed to write {label}: {path}", Colors.RED),
+        file=sys.stderr,
+    )
+    return False
+
+
+def _restore_current_task_or_report(repo_root: Path, current_task: str) -> bool:
+    """Restore .current-task after a failed archive attempt."""
+    current_file = _get_current_task_file_path(repo_root)
+
+    try:
+        current_file.parent.mkdir(parents=True, exist_ok=True)
+        current_file.write_text(current_task, encoding="utf-8")
+        return True
+    except OSError:
+        print(
+            colored(f"Error: Failed to restore current task file: {current_file}", Colors.RED),
+            file=sys.stderr,
+        )
+        print(f"Original current task was: {current_task}", file=sys.stderr)
+        return False
+
+
+def _build_archived_task_relationship_updates(
+    dir_name: str,
+    task_data: dict,
+    tasks_dir: Path,
+) -> list[tuple[Path, dict, dict, str]]:
+    """Prepare task relationship updates for an archived task."""
+    updates: list[tuple[Path, dict, dict, str]] = []
+    task_parent = task_data.get("parent")
+    task_children = task_data.get("children", [])
+
+    if task_parent:
+        parent_dir = find_task_by_name(task_parent, tasks_dir)
+        if parent_dir:
+            parent_json = parent_dir / FILE_TASK_JSON
+            if parent_json.is_file():
+                parent_data = _read_json_file(parent_json)
+                if parent_data:
+                    parent_children = parent_data.get("children", [])
+                    if dir_name in parent_children:
+                        updated_parent_data = deepcopy(parent_data)
+                        updated_children = list(parent_children)
+                        updated_children.remove(dir_name)
+                        updated_parent_data["children"] = updated_children
+                        updates.append(
+                            (
+                                parent_json,
+                                parent_data,
+                                updated_parent_data,
+                                f"parent task metadata for {parent_dir.name}",
+                            )
+                        )
+
+    for child_name in task_children:
+        child_dir_path = find_task_by_name(child_name, tasks_dir)
+        if child_dir_path:
+            child_json = child_dir_path / FILE_TASK_JSON
+            if child_json.is_file():
+                child_data = _read_json_file(child_json)
+                if child_data:
+                    updated_child_data = deepcopy(child_data)
+                    updated_child_data["parent"] = None
+                    updates.append(
+                        (
+                            child_json,
+                            child_data,
+                            updated_child_data,
+                            f"child task metadata for {child_dir_path.name}",
+                        )
+                    )
+
+    return updates
+
+
+def _apply_json_updates_with_rollback(
+    updates: list[tuple[Path, dict, dict, str]]
+) -> bool:
+    """Apply a batch of JSON updates and roll back any partial writes on failure."""
+    applied: list[tuple[Path, dict, str]] = []
+
+    for path, original_data, updated_data, label in updates:
+        if not _write_json_or_report(path, updated_data, label):
+            for rollback_path, rollback_data, rollback_label in reversed(applied):
+                if not _write_json_file(rollback_path, rollback_data):
+                    print(
+                        colored(
+                            f"Warning: Failed to roll back {rollback_label}: {rollback_path}",
+                            Colors.YELLOW,
+                        ),
+                        file=sys.stderr,
+                    )
+            return False
+
+        applied.append((path, original_data, label))
+
+    return True
+
+
+def _update_archived_task_relationships(
+    dir_name: str,
+    task_data: dict,
+    tasks_dir: Path,
+) -> bool:
+    """Remove archived task references from active task relationships."""
+    updates = _build_archived_task_relationship_updates(dir_name, task_data, tasks_dir)
+    return _apply_json_updates_with_rollback(updates)
+
+
+def _rollback_archived_task_or_report(
+    task_dir: Path,
+    archive_dest: Path,
+    task_data: dict | None,
+    repo_root: Path,
+    current_task: str | None = None,
+) -> None:
+    """Try to restore the original task location and metadata after archive failure."""
+    print(
+        colored("Warning: Archive failed after partial progress; attempting rollback.", Colors.YELLOW),
+        file=sys.stderr,
+    )
+
+    if archive_dest.exists() and not task_dir.exists():
+        try:
+            shutil.move(str(archive_dest), str(task_dir))
+        except (OSError, IOError, shutil.Error) as e:
+            print(
+                colored(f"Error: Failed to move archived task back to source: {e}", Colors.RED),
+                file=sys.stderr,
+            )
+    elif archive_dest.exists() and task_dir.exists():
+        print(
+            colored(
+                f"Error: Both source and archive paths exist during rollback: {task_dir} | {archive_dest}",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+
+    if task_data and task_dir.is_dir():
+        _write_json_or_report(task_dir / FILE_TASK_JSON, task_data, "restored task metadata")
+
+    if current_task:
+        _restore_current_task_or_report(repo_root, current_task)
+
+
+def _finalize_archived_task_metadata(
+    archive_dest: Path,
+    task_data: dict | None,
+    tasks_dir: Path,
+    dir_name: str,
+    today: str,
+) -> bool:
+    """Write archived task metadata after the directory move succeeds."""
+    if not task_data:
+        return True
+
+    archived_json = archive_dest / FILE_TASK_JSON
+    archived_task_data = deepcopy(task_data)
+    archived_task_data["status"] = "completed"
+    archived_task_data["completedAt"] = today
+    if not _write_json_or_report(
+        archived_json,
+        archived_task_data,
+        "archived task metadata",
+    ):
+        return False
+
+    return _update_archived_task_relationships(dir_name, task_data, tasks_dir)
 
 
 # =============================================================================
@@ -681,7 +886,9 @@ def cmd_finish(args: argparse.Namespace) -> int:
     # Resolve task.json path before clearing
     task_json_path = repo_root / current / FILE_TASK_JSON
 
-    clear_current_task(repo_root)
+    if not _clear_current_task_or_report(repo_root, current):
+        return 1
+
     print(colored(f"[OK] Cleared current task (was: {current})", Colors.GREEN))
 
     if task_json_path.is_file():
@@ -716,54 +923,45 @@ def cmd_archive(args: argparse.Namespace) -> int:
     dir_name = task_dir.name
     task_json_path = task_dir / FILE_TASK_JSON
 
-    # Update status before archiving
     today = datetime.now().strftime("%Y-%m-%d")
+    task_data = None
     if task_json_path.is_file():
-        data = _read_json_file(task_json_path)
-        if data:
-            data["status"] = "completed"
-            data["completedAt"] = today
-            _write_json_file(task_json_path, data)
-
-            # Handle subtask relationships on archive
-            task_parent = data.get("parent")
-            task_children = data.get("children", [])
-
-            # If this is a child, remove from parent's children list
-            if task_parent:
-                parent_dir = find_task_by_name(task_parent, tasks_dir)
-                if parent_dir:
-                    parent_json = parent_dir / FILE_TASK_JSON
-                    if parent_json.is_file():
-                        parent_data = _read_json_file(parent_json)
-                        if parent_data:
-                            parent_children = parent_data.get("children", [])
-                            if dir_name in parent_children:
-                                parent_children.remove(dir_name)
-                                parent_data["children"] = parent_children
-                                _write_json_file(parent_json, parent_data)
-
-            # If this is a parent, clear parent field in all children
-            if task_children:
-                for child_name in task_children:
-                    child_dir_path = find_task_by_name(child_name, tasks_dir)
-                    if child_dir_path:
-                        child_json = child_dir_path / FILE_TASK_JSON
-                        if child_json.is_file():
-                            child_data = _read_json_file(child_json)
-                            if child_data:
-                                child_data["parent"] = None
-                                _write_json_file(child_json, child_data)
+        task_data = _read_json_file(task_json_path)
 
     # Clear if current task
+    cleared_current_task: str | None = None
     current = get_current_task(repo_root)
-    if current and dir_name in current:
-        clear_current_task(repo_root)
+    if current and _is_current_task_dir(current, dir_name):
+        if not _clear_current_task_or_report(repo_root, current):
+            return 1
+        cleared_current_task = current
 
     # Archive
     result = archive_task_complete(task_dir, repo_root)
+    if "archived_to" not in result:
+        if cleared_current_task:
+            _restore_current_task_or_report(repo_root, cleared_current_task)
+        return 1
+
+    archive_dest = Path(result["archived_to"])
+    if not _finalize_archived_task_metadata(
+        archive_dest,
+        task_data,
+        tasks_dir,
+        dir_name,
+        today,
+    ):
+        _rollback_archived_task_or_report(
+            task_dir,
+            archive_dest,
+            task_data,
+            repo_root,
+            current_task=cleared_current_task,
+        )
+        return 1
+
     if "archived_to" in result:
-        archive_dest = Path(result["archived_to"])
+        archived_json = archive_dest / FILE_TASK_JSON
         year_month = archive_dest.parent.name
         print(colored(f"Archived: {dir_name} -> archive/{year_month}/", Colors.GREEN), file=sys.stderr)
 
@@ -775,7 +973,6 @@ def cmd_archive(args: argparse.Namespace) -> int:
         print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{DIR_ARCHIVE}/{year_month}/{dir_name}")
 
         # Run hooks with the archived path
-        archived_json = archive_dest / FILE_TASK_JSON
         _run_hooks("after_archive", archived_json, repo_root)
         return 0
 
