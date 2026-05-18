@@ -1,4 +1,4 @@
-# 模板收敛设计：`.agent` 与 `.flow`
+# 模板收敛设计：`.agent` 与 `.cowork-flow`
 
 ## 背景
 
@@ -12,7 +12,7 @@
 
 这些目录分别承载 Agent 技能、任务状态、项目规范、计划文档和行为变更规格。职责本身有价值，但目录分布偏散，目标项目接入后根目录噪音较高，也容易让使用者误以为需要同时理解多套流程系统。
 
-本次设计目标是让模板更收敛、更内聚：模板应用到具体项目后，根目录只保留 `AGENTS.md`、`.agent/` 和 `.flow/` 三个协作入口，同时保持当前工作流能力不降级。
+本次设计目标是让模板更收敛、更内聚：模板应用到具体项目后，根目录只保留 `AGENTS.md`、`.agent/` 和 `.cowork-flow/` 三个协作入口，同时保持当前工作流能力不降级。
 
 ## 目标
 
@@ -38,10 +38,10 @@
 .
 ├── AGENTS.md
 ├── .agent/
-└── .flow/
+└── .cowork-flow/
 ```
 
-`AGENTS.md` 仍放在根目录，作为主流 Agent 工具默认识别的项目协作入口。它不再指向 `.trellis/`，而是指向 `.flow/` 和 `.agent/`。
+`AGENTS.md` 仍放在根目录，作为主流 Agent 工具默认识别的项目协作入口。它不再指向 `.trellis/`，而是指向 `.cowork-flow/` 和 `.agent/`。
 
 `.agent/` 只承载 Agent 能力：
 
@@ -50,10 +50,10 @@
 └── skills/
 ```
 
-`.flow/` 承载全部流程状态和流程工具：
+`.cowork-flow/` 承载全部流程状态和流程工具：
 
 ```text
-.flow/
+.cowork-flow/
 ├── config.yaml
 ├── workflow.md
 ├── scripts/
@@ -74,7 +74,7 @@
 - 编码前思考原则
 - 简单优先、外科手术式改动、先读后写
 - 测试验证意图
-- 与 `.flow/`、`.agent/` 的入口说明
+- 与 `.cowork-flow/`、`.agent/` 的入口说明
 
 ### `.agent/skills/`
 
@@ -83,25 +83,25 @@
 原 `.agents/skills/` 迁移到 `.agent/skills/`。技能内容中的路径引用统一更新为新结构，例如：
 
 - `.agents/skills/...` -> `.agent/skills/...`
-- `.trellis/workflow.md` -> `.flow/workflow.md`
-- `.trellis/config.yaml` -> `.flow/config.yaml`
-- `.trellis/spec/` -> `.flow/spec/`
-- `docs/superpowers/plans/` -> `.flow/plans/`
+- `.trellis/workflow.md` -> `.cowork-flow/workflow.md`
+- `.trellis/config.yaml` -> `.cowork-flow/config.yaml`
+- `.trellis/spec/` -> `.cowork-flow/spec/`
+- `docs/superpowers/plans/` -> `.cowork-flow/plans/`
 
-### `.flow/spec/`
+### `.cowork-flow/spec/`
 
 长期项目规范目录，承接原 `.trellis/spec/`。
 
 它回答“这个项目长期应该怎么写”，例如后端目录规范、前端组件规范、跨层检查指南等。
 
-### `.flow/changes/`
+### `.cowork-flow/changes/`
 
 行为变更规格目录，替代原 `openspec/changes/`。
 
 它回答“这次为什么改、外部行为改成什么、验收标准是什么”。每个变更目录结构为：
 
 ```text
-.flow/changes/<slug>/
+.cowork-flow/changes/<slug>/
 ├── change.yaml
 ├── proposal.md
 ├── design.md
@@ -111,46 +111,46 @@
 
 `design.md` 用于复杂或跨层变更。简单 L1 变更可以保留空文件模板，或由校验脚本允许缺省。
 
-`.flow/changes/` 不再包含 `tasks.md`，避免和 `.flow/tasks/`、`.flow/plans/` 形成三份任务清单。
+`.cowork-flow/changes/` 不再包含 `tasks.md`，避免和 `.cowork-flow/tasks/`、`.cowork-flow/plans/` 形成三份任务清单。
 
-### `.flow/plans/`
+### `.cowork-flow/plans/`
 
 实现计划目录，承接原 `docs/superpowers/plans/`。
 
 它回答“怎么改、步骤是什么、每步如何验证”。计划可以引用某个 change slug，也可以服务于 L0 文档、测试、重构任务。
 
-### `.flow/tasks/`
+### `.cowork-flow/tasks/`
 
 任务运行状态目录，承接原 `.trellis/tasks/`。
 
 它回答“当前谁在做、任务上下文是什么、任务是否完成或归档”。任务上下文可以引用：
 
-- `.flow/changes/<slug>/proposal.md`
-- `.flow/changes/<slug>/specs/.../spec.md`
-- `.flow/changes/<slug>/design.md`
-- `.flow/plans/<date>-<slug>.md`
-- `.flow/spec/...`
+- `.cowork-flow/changes/<slug>/proposal.md`
+- `.cowork-flow/changes/<slug>/specs/.../spec.md`
+- `.cowork-flow/changes/<slug>/design.md`
+- `.cowork-flow/plans/<date>-<slug>.md`
+- `.cowork-flow/spec/...`
 
-### `.flow/workspace/`
+### `.cowork-flow/workspace/`
 
 开发者工作区，承接原 `.trellis/workspace/`，保存 journal、session 和开发者索引。
 
 ## 自研 Change 脚本
 
-新增 `.flow/scripts/change.py` 替代 OpenSpec CLI 的核心能力。
+新增 `.cowork-flow/scripts/change.py` 替代 OpenSpec CLI 的核心能力。
 
 推荐命令：
 
 ```bash
-python3 ./.flow/scripts/change.py create <slug>
-python3 ./.flow/scripts/change.py validate <slug>
-python3 ./.flow/scripts/change.py archive <slug>
-python3 ./.flow/scripts/change.py list
+python3 ./.cowork-flow/scripts/change.py create <slug>
+python3 ./.cowork-flow/scripts/change.py validate <slug>
+python3 ./.cowork-flow/scripts/change.py archive <slug>
+python3 ./.cowork-flow/scripts/change.py list
 ```
 
 ### `create`
 
-创建 `.flow/changes/<slug>/`，生成：
+创建 `.cowork-flow/changes/<slug>/`，生成：
 
 - `change.yaml`
 - `proposal.md`
@@ -180,13 +180,13 @@ task: null
 
 ### `archive`
 
-将 `.flow/changes/<slug>/` 移动到：
+将 `.cowork-flow/changes/<slug>/` 移动到：
 
 ```text
-.flow/changes/archive/YYYY-MM/<slug>/
+.cowork-flow/changes/archive/YYYY-MM/<slug>/
 ```
 
-归档前必须通过 `validate`。脚本只移动 change 规格，不归档 `.flow/tasks/`；任务归档继续由 task 脚本负责。
+归档前必须通过 `validate`。脚本只移动 change 规格，不归档 `.cowork-flow/tasks/`；任务归档继续由 task 脚本负责。
 
 ### `list`
 
@@ -197,30 +197,30 @@ task: null
 ### L0：无外部行为变化
 
 ```text
-.flow/tasks/ -> 读取 .flow/spec/ -> 简短计划 -> 实现 -> 验证 -> .flow/workspace/ session
+.cowork-flow/tasks/ -> 读取 .cowork-flow/spec/ -> 简短计划 -> 实现 -> 验证 -> .cowork-flow/workspace/ session
 ```
 
-L0 默认不需要 `.flow/changes/`。
+L0 默认不需要 `.cowork-flow/changes/`。
 
 ### L1：局部行为变化
 
 ```text
-.flow/changes/ -> brainstorming -> .flow/plans/ -> .flow/tasks/ -> 实现 -> 验证 -> 归档与 session
+.cowork-flow/changes/ -> brainstorming -> .cowork-flow/plans/ -> .cowork-flow/tasks/ -> 实现 -> 验证 -> 归档与 session
 ```
 
 ### L2：跨层或重要行为变化
 
 ```text
-.flow/changes/ -> design.md -> .flow/plans/ -> .flow/tasks/ -> 多视角审阅 -> 验证 -> 归档与 session
+.cowork-flow/changes/ -> design.md -> .cowork-flow/plans/ -> .cowork-flow/tasks/ -> 多视角审阅 -> 验证 -> 归档与 session
 ```
 
 ## 避免重复的规则
 
-1. `.flow/changes/` 只记录行为契约，不记录实现 checklist。
-2. `.flow/plans/` 记录实现步骤和步骤级验证。
-3. `.flow/tasks/` 记录运行状态、上下文绑定和归档状态。
-4. `.flow/spec/` 记录长期规范，不记录一次性任务状态。
-5. `.flow/workspace/` 记录 session，不作为计划或需求来源。
+1. `.cowork-flow/changes/` 只记录行为契约，不记录实现 checklist。
+2. `.cowork-flow/plans/` 记录实现步骤和步骤级验证。
+3. `.cowork-flow/tasks/` 记录运行状态、上下文绑定和归档状态。
+4. `.cowork-flow/spec/` 记录长期规范，不记录一次性任务状态。
+5. `.cowork-flow/workspace/` 记录 session，不作为计划或需求来源。
 
 ## 迁移范围
 
@@ -229,10 +229,10 @@ L0 默认不需要 `.flow/changes/`。
 - README 中的结构、快速开始和命令示例。
 - 根目录 `template/AGENTS.md` 中的流程入口说明。
 - `template/.agents/` 重命名为 `template/.agent/`。
-- `template/.trellis/` 重命名为 `template/.flow/`。
-- `template/docs/superpowers/plans/` 迁移为 `template/.flow/plans/`。
-- `template/openspec/changes/` 迁移为 `template/.flow/changes/`。
-- `template/openspec/config.yaml` 的有用配置并入 `template/.flow/config.yaml`。
+- `template/.trellis/` 重命名为 `template/.cowork-flow/`。
+- `template/docs/superpowers/plans/` 迁移为 `template/.cowork-flow/plans/`。
+- `template/openspec/changes/` 迁移为 `template/.cowork-flow/changes/`。
+- `template/openspec/config.yaml` 的有用配置并入 `template/.cowork-flow/config.yaml`。
 - Python 脚本中的常量、提示文案、git add 路径和安全路径判断。
 - skills 中所有旧路径引用。
 
@@ -240,9 +240,9 @@ L0 默认不需要 `.flow/changes/`。
 
 实现阶段应优先补测试或脚本级验证：
 
-1. 验证 `.flow/scripts/task.py` 能创建、启动、归档任务。
-2. 验证 `.flow/scripts/change.py create/validate/archive/list` 的成功路径和失败路径。
-3. 验证 `get_context.py`、`init_developer.py`、`add_session.py` 使用 `.flow/`。
+1. 验证 `.cowork-flow/scripts/task.py` 能创建、启动、归档任务。
+2. 验证 `.cowork-flow/scripts/change.py create/validate/archive/list` 的成功路径和失败路径。
+3. 验证 `get_context.py`、`init_developer.py`、`add_session.py` 使用 `.cowork-flow/`。
 4. 验证 README 中的命令可以在模板结构下成立。
 5. 使用全文搜索确认旧路径引用已清理或仅作为迁移说明存在。
 
@@ -258,7 +258,7 @@ L0 默认不需要 `.flow/changes/`。
 
 ### `changes`、`plans`、`tasks` 状态漂移
 
-应对：职责边界写入 `.flow/workflow.md`，并让 `validate` 检查声明的 plan/task 是否存在，但不维护第三份 tasks 清单。
+应对：职责边界写入 `.cowork-flow/workflow.md`，并让 `validate` 检查声明的 plan/task 是否存在，但不维护第三份 tasks 清单。
 
 ### 大量路径替换导致脚本遗漏
 
@@ -266,7 +266,7 @@ L0 默认不需要 `.flow/changes/`。
 
 ## 成功标准
 
-1. 模板应用到目标项目后，根目录协作资产只有 `AGENTS.md`、`.agent/`、`.flow/`。
+1. 模板应用到目标项目后，根目录协作资产只有 `AGENTS.md`、`.agent/`、`.cowork-flow/`。
 2. 当前 L0 / L1 / L2 工作流仍能完整执行。
 3. 不再依赖根目录 `openspec/` 或外部 `openspec` CLI。
 4. task、change、plan 三类状态职责清晰，不重复维护 checklist。
