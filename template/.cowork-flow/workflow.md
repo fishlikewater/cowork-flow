@@ -14,15 +14,15 @@
 
 ## 2. 职责边界
 
-### 2.1 OpenSpec
+### 2.1 cowork-flow change
 
-`OpenSpec` 负责行为变更治理：
+`cowork-flow change` 负责行为变更治理：
 
 - proposal：为什么要改
 - spec：外部行为与验收标准
 - design：重要设计取舍，主要用于复杂或跨层变更
-- tasks：高层里程碑
-- archive：完成后的规格归档
+- change.yaml：变更状态、分级、关联 plan / task
+- archive：完成后的行为规格归档
 
 ### 2.2 superpowers
 
@@ -142,7 +142,7 @@ Trellis 任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 ses
 流程：
 
 ```text
-OpenSpec -> brainstorming -> writing-plans -> Trellis 任务上下文 -> 执行计划 -> 验证 -> 归档与记录
+cowork-flow change -> brainstorming -> writing-plans -> Trellis 任务上下文 -> 执行计划 -> 验证 -> 归档与记录
 ```
 
 ### 5.3 L2：跨层或重要行为变化
@@ -157,7 +157,7 @@ OpenSpec -> brainstorming -> writing-plans -> Trellis 任务上下文 -> 执行�
 流程：
 
 ```text
-OpenSpec -> brainstorming -> design.md -> writing-plans -> Trellis 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录
+cowork-flow change -> brainstorming -> design.md -> writing-plans -> Trellis 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录
 ```
 
 ---
@@ -222,7 +222,7 @@ python3 ./.cowork-flow/scripts/task.py start <task-dir>
 
 ## 7. L1 / L2 标准流程
 
-### 7.1 创建 OpenSpec 变更
+### 7.1 创建 cowork-flow change
 
 ```bash
 python3 ./.cowork-flow/scripts/change.py create <slug>
@@ -236,7 +236,7 @@ python3 ./.cowork-flow/scripts/change.py create <slug>
 - `.cowork-flow/changes/<slug>/specs/.../spec.md`
 - L2 任务需要 `.cowork-flow/changes/<slug>/design.md`
 
-### 7.3 校验 OpenSpec
+### 7.3 校验 cowork-flow change
 
 ```bash
 python3 ./.cowork-flow/scripts/change.py validate <slug>
@@ -312,7 +312,7 @@ python3 ./.cowork-flow/scripts/change.py validate <slug>
 - 相关测试通过
 - 新增或修改的行为有测试先失败、再通过的验证证据
 - lint / format / build / typecheck 按项目要求通过
-- 行为符合 OpenSpec 或 PRD
+- 行为符合 cowork-flow change 规格或 PRD
 - 相关 `.cowork-flow/spec/` 已同步
 - 计划状态与真实进度一致
 - 没有未说明的临时文件、调试输出或绕过逻辑
@@ -360,7 +360,7 @@ python3 ./.cowork-flow/scripts/add_session.py \
 python3 ./.cowork-flow/scripts/task.py archive <task-name>
 ```
 
-行为变更任务还需要归档 OpenSpec：
+行为变更任务还需要归档 cowork-flow change：
 
 ```bash
 python3 ./.cowork-flow/scripts/change.py archive <slug>
@@ -403,9 +403,9 @@ python3 ./.cowork-flow/scripts/change.py archive <slug>
 一个任务只有在以下条件同时满足时，才算完成：
 
 - 需求或 PRD 已满足
-- OpenSpec 或计划中的必要步骤已完成
+- cowork-flow change 规格或计划中的必要步骤已完成
 - 验证命令已按项目要求执行
 - 失败、跳过或无法执行的验证已明确说明
 - 相关规范已更新
-- 计划状态、Trellis 状态、OpenSpec 状态不冲突
+- change metadata、计划状态、Trellis 状态不冲突
 - session 已记录
