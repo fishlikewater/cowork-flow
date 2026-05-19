@@ -43,6 +43,20 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
         self.assertEqual([], tasks_files)
 
+    def test_readme_documents_converged_template_structure(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("AGENTS.md", readme)
+        self.assertIn(".agent/", readme)
+        self.assertIn(".cowork-flow/", readme)
+        self.assertIn("python3 ./.cowork-flow/scripts/change.py create <slug>", readme)
+
+        self.assertNotIn(".trellis/", readme)
+        self.assertNotIn(".agents/", readme)
+        self.assertNotIn("docs/superpowers/", readme)
+        self.assertNotIn("openspec/", readme)
+        self.assertNotIn("openspec new", readme)
+
 
 if __name__ == "__main__":
     unittest.main()
