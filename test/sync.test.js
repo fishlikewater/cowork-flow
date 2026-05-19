@@ -53,6 +53,40 @@ test('sync updates safe template files and preserves protected files', async (t)
   assert.match(io.stdout, /protected=/);
 });
 
+test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  const customAgents = [
+    '# Project Rules',
+    '',
+    'Keep this project-specific introduction.',
+    '',
+    '<!-- COWORK-FLOW:START -->',
+    'old managed workflow instructions',
+    '<!-- COWORK-FLOW:END -->',
+    '',
+    'Keep this project-specific footer.',
+    ''
+  ].join('\n');
+  await writeFile(join(target, 'AGENTS.md'), customAgents, 'utf8');
+  const templateAgents = await readText(join(templateRoot, 'AGENTS.md'));
+  const templateBlock = templateAgents.match(
+    /<!-- COWORK-FLOW:START -->[\s\S]*<!-- COWORK-FLOW:END -->/
+  )[0];
+
+  const code = await main(['sync', target], { io: createIo() });
+
+  assert.equal(code, 0);
+  const syncedAgents = await readText(join(target, 'AGENTS.md'));
+  assert.match(syncedAgents, /Keep this project-specific introduction/);
+  assert.match(syncedAgents, /Keep this project-specific footer/);
+  assert.doesNotMatch(syncedAgents, /old managed workflow instructions/);
+  assert.match(syncedAgents, /每次新会话、重新接手任务/);
+  assert.equal(syncedAgents.match(
+    /<!-- COWORK-FLOW:START -->[\s\S]*<!-- COWORK-FLOW:END -->/
+  )[0], templateBlock);
+});
+
 test('sync does not copy internal superpowers seed material to the target root', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target], { io: createIo() }), 0);

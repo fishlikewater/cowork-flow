@@ -128,7 +128,7 @@ cowork-flow sync .
 cowork-flow sync . --dry-run
 ```
 
-`sync` 默认保护 `AGENTS.md`、`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、`.cowork-flow/spec/`、任务、计划、变更和 workspace 记录。只有明确传入 `--force` 时才覆盖保护文件。
+`sync` 默认刷新 `.agent/skills/`、`.cowork-flow/scripts/` 和 `AGENTS.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留 `AGENTS.md` 托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、`.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
 
 ## 常用入口
 

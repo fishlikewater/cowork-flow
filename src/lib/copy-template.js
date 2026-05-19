@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, copyFile, mkdir, readdir, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
 import { templateRoot } from './paths.js';
@@ -113,6 +113,9 @@ const SAFE_SYNC_FILES = new Set([
   '.cowork-flow/.version'
 ]);
 
+const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';
+const COWORK_FLOW_END = '<!-- COWORK-FLOW:END -->';
+
 function isProtectedSyncFile(relativePath) {
   return PROTECTED_SYNC_FILES.has(relativePath)
     || PROTECTED_SYNC_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
@@ -122,6 +125,48 @@ function isSafeSyncFile(relativePath) {
   return SAFE_SYNC_FILES.has(relativePath)
     || SAFE_SYNC_PREFIXES.some((prefix) => relativePath.startsWith(prefix))
     || relativePath.endsWith('/.gitkeep');
+}
+
+function replaceManagedBlock(targetContent, templateContent) {
+  const targetStart = targetContent.indexOf(COWORK_FLOW_START);
+  const targetEnd = targetContent.indexOf(COWORK_FLOW_END, targetStart + COWORK_FLOW_START.length);
+  const templateStart = templateContent.indexOf(COWORK_FLOW_START);
+  const templateEnd = templateContent.indexOf(COWORK_FLOW_END, templateStart + COWORK_FLOW_START.length);
+
+  if (targetStart === -1 || targetEnd === -1 || templateStart === -1 || templateEnd === -1) {
+    return null;
+  }
+
+  const targetBlockEnd = targetEnd + COWORK_FLOW_END.length;
+  const templateBlockEnd = templateEnd + COWORK_FLOW_END.length;
+  return [
+    targetContent.slice(0, targetStart),
+    templateContent.slice(templateStart, templateBlockEnd),
+    targetContent.slice(targetBlockEnd)
+  ].join('');
+}
+
+async function buildAgentsSyncAction({ source, destination, exists, options }) {
+  if (!exists || options.force) {
+    return {
+      action: exists ? 'update' : 'create',
+      source,
+      destination,
+      relativePath: 'AGENTS.md'
+    };
+  }
+
+  const [templateContent, targetContent] = await Promise.all([
+    readFile(source, 'utf8'),
+    readFile(destination, 'utf8')
+  ]);
+  const content = replaceManagedBlock(targetContent, templateContent);
+
+  if (content === null) {
+    return { action: 'protected', source, destination, relativePath: 'AGENTS.md' };
+  }
+
+  return { action: 'update', source, destination, relativePath: 'AGENTS.md', content };
 }
 
 export async function buildSyncPlan(targetDir, options = {}) {
@@ -140,6 +185,11 @@ export async function buildSyncPlan(targetDir, options = {}) {
     const source = join(templateRoot, file);
     const destination = join(targetDir, file);
     const exists = await pathExists(destination);
+    if (file === 'AGENTS.md') {
+      actions.push(await buildAgentsSyncAction({ source, destination, exists, options }));
+      continue;
+    }
+
     const protectedFile = isProtectedSyncFile(file) && !options.force && exists;
     const safeFile = isSafeSyncFile(file);
 
