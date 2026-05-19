@@ -12,14 +12,7 @@ class TemplateConvergenceTest(unittest.TestCase):
     def test_template_root_has_only_converged_collaboration_entries(self) -> None:
         entries = {path.name for path in TEMPLATE.iterdir()}
 
-        self.assertIn("AGENTS.md", entries)
-        self.assertIn(".agent", entries)
-        self.assertIn(".cowork-flow", entries)
-
-        self.assertNotIn(".agents", entries)
-        self.assertNotIn(".trellis", entries)
-        self.assertNotIn("docs", entries)
-        self.assertNotIn("openspec", entries)
+        self.assertEqual({"AGENTS.md", ".agent", ".cowork-flow"}, entries)
 
     def test_template_does_not_ship_macos_metadata(self) -> None:
         ds_store_files = sorted(
@@ -43,6 +36,22 @@ class TemplateConvergenceTest(unittest.TestCase):
         actual = {path.name for path in (TEMPLATE / ".cowork-flow").iterdir()}
 
         self.assertTrue(expected.issubset(actual))
+
+    def test_required_placeholder_files_exist(self) -> None:
+        expected = [
+            TEMPLATE / ".cowork-flow" / "tasks" / ".gitkeep",
+            TEMPLATE / ".cowork-flow" / "tasks" / "archive" / ".gitkeep",
+            TEMPLATE / ".cowork-flow" / "plans" / ".gitkeep",
+            TEMPLATE / ".cowork-flow" / "changes" / "archive" / ".gitkeep",
+        ]
+
+        missing = [
+            str(path.relative_to(ROOT))
+            for path in expected
+            if not path.is_file()
+        ]
+
+        self.assertEqual([], missing)
 
 
 if __name__ == "__main__":
