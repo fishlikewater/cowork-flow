@@ -46,6 +46,7 @@ from common.files import (
 from common.git_context import _run_git_command
 from common.paths import (
     DIR_WORKFLOW,
+    DIR_AGENT,
     DIR_TASKS,
     DIR_SPEC,
     DIR_ARCHIVE,
@@ -350,7 +351,7 @@ def _resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
 
     Supports:
     - Absolute path: /path/to/task
-    - Relative path: .trellis/tasks/01-31-my-task
+    - Relative path: .cowork-flow/tasks/01-31-my-task
     - Task name: my-task (uses find_task_by_name for lookup)
     """
     if not target_dir:
@@ -360,8 +361,8 @@ def _resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
     if target_dir.startswith("/"):
         return Path(target_dir)
 
-    # Relative path (contains path separator or starts with .trellis)
-    if "/" in target_dir or target_dir.startswith(".trellis"):
+    # Relative path (contains path separator or starts with workflow directory)
+    if "/" in target_dir or target_dir.startswith(DIR_WORKFLOW):
         return repo_root / target_dir
 
     # Task name - try to find in tasks directory
@@ -400,7 +401,7 @@ def get_implement_frontend() -> list[dict]:
 
 
 def _skill_path(name: str) -> str:
-    return f".agents/skills/{name}/SKILL.md"
+    return f"{DIR_AGENT}/skills/{name}/SKILL.md"
 
 
 def get_check_context(dev_type: str, repo_root: Path) -> list[dict]:
@@ -852,7 +853,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     if not full_path.is_dir():
         print(colored(f"Error: Task not found: {task_input}", Colors.RED))
-        print("Hint: Use task name (e.g., 'my-task') or full path (e.g., '.trellis/tasks/01-31-my-task')")
+        print(f"Hint: Use task name (e.g., 'my-task') or full path (e.g., '{DIR_WORKFLOW}/tasks/01-31-my-task')")
         return 1
 
     # Convert to relative path for storage
@@ -980,7 +981,7 @@ def cmd_archive(args: argparse.Namespace) -> int:
 
 
 def _auto_commit_archive(task_name: str, repo_root: Path) -> None:
-    """Stage .trellis/tasks/ changes and commit after archive."""
+    """Stage .cowork-flow/tasks/ changes and commit after archive."""
     tasks_rel = f"{DIR_WORKFLOW}/{DIR_TASKS}"
     _run_git_command(["add", "-A", tasks_rel], cwd=repo_root)
 
@@ -1259,10 +1260,10 @@ List options:
 
 Examples:
   python3 task.py create "Add login feature" --slug add-login
-  python3 task.py create "Child task" --slug child --parent .trellis/tasks/01-21-parent
-  python3 task.py init-context .trellis/tasks/01-21-add-login backend
-  python3 task.py add-context <dir> implement .trellis/spec/backend/auth.md "Auth guidelines"
-  python3 task.py start .trellis/tasks/01-21-add-login
+  python3 task.py create "Child task" --slug child --parent .cowork-flow/tasks/01-21-parent
+  python3 task.py init-context .cowork-flow/tasks/01-21-add-login backend
+  python3 task.py add-context <dir> implement .cowork-flow/spec/backend/auth.md "Auth guidelines"
+  python3 task.py start .cowork-flow/tasks/01-21-add-login
   python3 task.py finish
   python3 task.py archive add-login
   python3 task.py add-subtask parent-task child-task  # Link existing tasks

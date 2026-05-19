@@ -290,16 +290,16 @@ def update_index(
 # =============================================================================
 
 def _auto_commit_workspace(repo_root: Path) -> None:
-    """Stage .trellis/workspace and .trellis/tasks, then commit with a configured message."""
+    """Stage .cowork-flow/workspace and .cowork-flow/tasks, then commit with a configured message."""
     commit_msg = get_session_commit_message(repo_root)
     subprocess.run(
-        ["git", "add", "-A", ".trellis/workspace", ".trellis/tasks"],
+        ["git", "add", "-A", ".cowork-flow/workspace", ".cowork-flow/tasks"],
         cwd=repo_root,
         capture_output=True,
     )
     # Check if there are staged changes
     result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--", ".trellis/workspace", ".trellis/tasks"],
+        ["git", "diff", "--cached", "--quiet", "--", ".cowork-flow/workspace", ".cowork-flow/tasks"],
         cwd=repo_root,
     )
     if result.returncode == 0:
@@ -419,7 +419,7 @@ def main() -> int:
     parser.add_argument("--summary", default="(add summary)", help="Brief summary")
     parser.add_argument("--content-file", help="Path to a file containing detailed content")
     parser.add_argument("--no-commit", action="store_true",
-                        help="Skip automatic .trellis metadata commit")
+                        help="Skip automatic .cowork-flow metadata commit")
 
     args = parser.parse_args()
 

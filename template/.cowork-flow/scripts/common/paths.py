@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Common path utilities for Trellis workflow.
+Common path utilities for Cowork Flow workflow.
 
 Provides:
     get_repo_root          - Get repository root directory
@@ -22,7 +22,9 @@ from pathlib import Path
 # =============================================================================
 
 # Directory names
-DIR_WORKFLOW = ".trellis"
+DIR_WORKFLOW = ".cowork-flow"
+DIR_AGENT = ".agent"
+DIR_CHANGES = "changes"
 DIR_WORKSPACE = "workspace"
 DIR_TASKS = "tasks"
 DIR_ARCHIVE = "archive"
@@ -41,7 +43,7 @@ FILE_JOURNAL_PREFIX = "journal-"
 # =============================================================================
 
 def get_repo_root(start_path: Path | None = None) -> Path:
-    """Find the nearest directory containing .trellis/ folder.
+    """Find the nearest directory containing .cowork-flow/ folder.
 
     This handles nested git repos correctly (e.g., test project inside another repo).
 
@@ -49,17 +51,17 @@ def get_repo_root(start_path: Path | None = None) -> Path:
         start_path: Starting directory to search from. Defaults to current directory.
 
     Returns:
-        Path to repository root, or current directory if no .trellis/ found.
+        Path to repository root, or current directory if no .cowork-flow/ found.
     """
-    current = (start_path or Path.cwd()).resolve()
+    current = (start_path or Path.cwd()).absolute()
 
     while current != current.parent:
         if (current / DIR_WORKFLOW).is_dir():
             return current
         current = current.parent
 
-    # Fallback to current directory if no .trellis/ found
-    return Path.cwd().resolve()
+    # Fallback to current directory if no .cowork-flow/ found
+    return Path.cwd().absolute()
 
 
 # =============================================================================

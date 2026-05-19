@@ -196,5 +196,5 @@ if __name__ == "__main__":
     tasks = get_tasks_dir(repo)
 
     print(f"Tasks dir: {tasks}")
-    print(f"is_safe_task_path('.trellis/tasks/test'): {is_safe_task_path('.trellis/tasks/test', repo)}")
+    print(f"is_safe_task_path('.cowork-flow/tasks/test'): {is_safe_task_path('.cowork-flow/tasks/test', repo)}")
     print(f"is_safe_task_path('../test'): {is_safe_task_path('../test', repo)}")

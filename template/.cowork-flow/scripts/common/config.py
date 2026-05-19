@@ -2,7 +2,7 @@
 """
 Trellis configuration reader.
 
-Reads settings from .trellis/config.yaml with sensible defaults.
+Reads settings from .cowork-flow/config.yaml with sensible defaults.
 """
 
 from __future__ import annotations
