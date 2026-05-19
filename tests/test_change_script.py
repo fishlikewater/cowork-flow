@@ -205,9 +205,18 @@ class ChangeScriptTest(unittest.TestCase):
         (self.repo / ".cowork-flow" / "tasks" / "05-18-active").mkdir()
 
         self.assertEqual(0, self.run_change("archive", "replace-auth").returncode)
+
+        self.assertEqual(0, self.run_change("create", "active-change").returncode)
+        active_yaml = self.repo / ".cowork-flow" / "changes" / "active-change" / "change.yaml"
+        active_content = active_yaml.read_text(encoding="utf-8")
+        active_content = active_content.replace("status: draft", "status: active")
+        active_yaml.write_text(active_content, encoding="utf-8")
+
         listed = self.run_change("list")
 
         self.assertEqual(0, listed.returncode, listed.stderr)
+        self.assertIn("active-change", listed.stdout)
+        self.assertIn("status=active", listed.stdout)
         self.assertIn("replace-auth", listed.stdout)
         self.assertIn("archived", listed.stdout)
         self.assertIn("plan=.cowork-flow/plans/2026-05-18-active.md", listed.stdout)
