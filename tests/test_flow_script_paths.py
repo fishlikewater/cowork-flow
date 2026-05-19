@@ -12,16 +12,17 @@ SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 
 
 class FlowScriptPathsTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
+    def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
-        cls.paths = importlib.import_module("common.paths")
-        cls.task = importlib.import_module("task")
+        self.addCleanup(self._cleanup_imports)
+        self.paths = importlib.import_module("common.paths")
+        self.task = importlib.import_module("task")
 
-    @classmethod
-    def tearDownClass(cls) -> None:
+    def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
+        for module_name in ("task", "common.paths", "common"):
+            sys.modules.pop(module_name, None)
 
     def test_workflow_and_agent_directory_constants_are_current(self) -> None:
         self.assertEqual(".cowork-flow", self.paths.DIR_WORKFLOW)
