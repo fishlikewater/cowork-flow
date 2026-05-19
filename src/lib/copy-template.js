@@ -32,12 +32,20 @@ async function listFiles(root, current = root) {
   return files.sort();
 }
 
+function toTemplatePath(relativePath) {
+  return relativePath.replaceAll('\\', '/');
+}
+
+export function isInternalTemplateFile(relativePath) {
+  return toTemplatePath(relativePath).startsWith('.superpowers/');
+}
+
 export async function buildInitPlan(targetDir, options = {}) {
   const files = await listFiles(templateRoot);
   const actions = [];
 
   for (const file of files) {
-    if (file === '.cowork-flow/.version' || file.startsWith('.superpowers/')) {
+    if (toTemplatePath(file) === '.cowork-flow/.version' || isInternalTemplateFile(file)) {
       continue;
     }
 
@@ -125,7 +133,7 @@ export async function buildSyncPlan(targetDir, options = {}) {
   const actions = [];
 
   for (const file of files) {
-    if (file === '.cowork-flow/.version' || file.startsWith('.superpowers/')) {
+    if (toTemplatePath(file) === '.cowork-flow/.version' || isInternalTemplateFile(file)) {
       continue;
     }
 
