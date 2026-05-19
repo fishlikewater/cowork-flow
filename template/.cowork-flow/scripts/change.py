@@ -16,7 +16,7 @@ from common.paths import DIR_ARCHIVE, DIR_CHANGES, DIR_WORKFLOW, get_repo_root
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 VALID_LEVELS = {"L1", "L2"}
-VALID_STATUSES = {"draft", "archived"}
+VALID_STATUSES = {"draft", "active", "archived"}
 
 
 def _now_iso() -> str:
@@ -96,7 +96,7 @@ def _spec_files(change_dir: Path) -> list[Path]:
     specs_dir = change_dir / "specs"
     if not specs_dir.is_dir():
         return []
-    return sorted(path for path in specs_dir.rglob("*.md") if path.is_file())
+    return sorted(path for path in specs_dir.rglob("spec.md") if path.is_file())
 
 
 def _resolve_link(repo_root: Path, base_dir: str, value: object) -> Path | None:
@@ -141,7 +141,7 @@ def validate_change(repo_root: Path, slug: str, quiet: bool = False) -> bool:
 
         status = metadata.get("status")
         if status not in VALID_STATUSES:
-            errors.append("change.yaml status must be draft or archived")
+            errors.append("change.yaml status must be draft, active, or archived")
 
         level = metadata.get("level")
         if level not in VALID_LEVELS:
