@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Trellis configuration reader.
+cowork-flow configuration reader.
 
 Reads settings from .cowork-flow/config.yaml with sensible defaults.
 """

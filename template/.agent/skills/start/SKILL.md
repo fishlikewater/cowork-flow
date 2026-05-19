@@ -1,6 +1,6 @@
 ---
 name: start
-description: Use when beginning a development session in a project that uses the Trellis workflow template
+description: Use when beginning a development session in a project that uses the cowork-flow template
 ---
 
 # Start Session
@@ -99,18 +99,18 @@ Before entering Task Workflow, classify the change as `L0` / `L1` / `L2` using `
   4. `superpowers:writing-plans` to produce the implementation plan
 - `L2`: Same as `L1`, plus required `design.md`. Multi-perspective review happens after implementation in the review gate.
 
-Only return to the Trellis Task Workflow after the spec and plan gates are complete.
+Only return to the task workflow after the spec and plan gates are complete.
 
-Before Phase 2, always complete this Trellis handoff:
+Before Phase 2, always complete this task handoff:
 
 1. Create or update `.cowork-flow/plans/YYYY-MM-DD-<slug>.md` with the execution checklist
-2. Create or bind a Trellis task directory
+2. Create or bind a task directory
 3. Ensure `prd.md` summarizes the approved `proposal/spec/design/plan`
 4. Add the approved change artifacts and plan into task context
 5. Treat the plan file as a living execution artifact: keep checkbox state and current execution status synced during implementation, not only at the end
 
-- If the task came from **Simple Task**, resume with **Path B Step 2 (Create Task Directory)** and **Step 3 (Write PRD)**, then do the Trellis handoff above and continue to Phase 2.
-- If the task came from **Brainstorm**, reuse the brainstorm-created task directory and PRD, then do the same Trellis handoff and continue with **Path A / Phase 2**.
+- If the task came from **Simple Task**, resume with **Path B Step 2 (Create Task Directory)** and **Step 3 (Write PRD)**, then do the task handoff above and continue to Phase 2.
+- If the task came from **Brainstorm**, reuse the brainstorm-created task directory and PRD, then do the same task handoff and continue with **Path A / Phase 2**.
 
 ---
 
@@ -130,7 +130,7 @@ For simple, well-defined tasks:
 1. Quick confirm: "I understand you want to [goal]. Shall I proceed?"
 2. If no, clarify and confirm again
 3. Determine whether the task is `L0`, `L1`, or `L2`.
-4. **If it is `L1/L2`, complete the Behavior Change Gate first. After that, execute Path B Step 2 and Step 3, complete the Trellis handoff, then continue with Phase 2.**
+4. **If it is `L1/L2`, complete the Behavior Change Gate first. After that, execute Path B Step 2 and Step 3, complete the task handoff, then continue with Phase 2.**
 5. **If it is `L0`, execute ALL steps below without stopping. Do NOT ask for additional confirmation between steps.**
    - Create task directory (Phase 1 Path B, Step 2)
    - Write PRD (Step 3)
@@ -155,7 +155,7 @@ See `$brainstorm` for the full process. Summary:
 4. **Propose approaches** - For architectural decisions
 5. **Confirm final requirements** - Get explicit approval
 6. **If behavior changes are involved, complete the Behavior Change Gate**
-7. **Proceed to Task Workflow** - Reuse the brainstorm-created task directory/PRD, complete the Trellis handoff, then continue from Phase 2 with clear requirements and plan
+7. **Proceed to Task Workflow** - Reuse the brainstorm-created task directory/PRD, complete the task handoff, then continue from Phase 2 with clear requirements and plan
 
 ---
 

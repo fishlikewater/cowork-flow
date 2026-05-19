@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Task Management Script for Trellis workflow.
+Task Management Script for cowork-flow workflow.
 
 Usage:
     python3 task.py create "<title>" [--slug <name>] [--assignee <dev>] [--priority P0|P1|P2|P3] [--parent <dir>]
@@ -1234,7 +1234,7 @@ def cmd_list_archive(args: argparse.Namespace) -> int:
 
 def show_usage() -> None:
     """Show usage help."""
-    print("""Task Management Script for Trellis Workflow
+    print("""Task Management Script for cowork-flow workflow
 
 Usage:
   python3 task.py create <title>                     Create new task directory
@@ -1281,7 +1281,7 @@ Examples:
 def main() -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Task Management Script for Trellis Workflow",
+        description="Task Management Script for cowork-flow workflow",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", help="Commands")

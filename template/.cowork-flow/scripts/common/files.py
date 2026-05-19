@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Common file helpers for Trellis scripts.
-"""
+"""Common file helpers for cowork-flow scripts."""
 
 from __future__ import annotations
 

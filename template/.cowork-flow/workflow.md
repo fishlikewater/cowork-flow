@@ -35,9 +35,9 @@
 - `superpowers:subagent-driven-development`：在适合时并行拆分独立工作
 - `superpowers:verification-before-completion`：完成前用证据验证
 
-### 2.3 Trellis
+### 2.3 任务状态与上下文
 
-`Trellis` 负责承载任务状态与上下文：
+`.cowork-flow` 负责承载任务状态与上下文：
 
 - 当前开发者身份
 - 当前任务
@@ -46,7 +46,7 @@
 - journal 与 session 记录
 - 任务归档
 
-执行按 superpowers 方法推进；Trellis 不替代 superpowers，也不替代项目验证命令。
+执行按 superpowers 方法推进；`.cowork-flow` 不替代 superpowers，也不替代项目验证命令。
 
 ---
 
@@ -127,7 +127,7 @@ done
 流程：
 
 ```text
-Trellis 任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 session
+任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 session
 ```
 
 ### 5.2 L1：局部行为变化
@@ -142,7 +142,7 @@ Trellis 任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 ses
 流程：
 
 ```text
-cowork-flow change -> brainstorming -> writing-plans -> Trellis 任务上下文 -> 执行计划 -> 验证 -> 归档与记录
+cowork-flow change -> brainstorming -> writing-plans -> 任务上下文 -> 执行计划 -> 验证 -> 归档与记录
 ```
 
 ### 5.3 L2：跨层或重要行为变化
@@ -157,14 +157,14 @@ cowork-flow change -> brainstorming -> writing-plans -> Trellis 任务上下文 
 流程：
 
 ```text
-cowork-flow change -> brainstorming -> design.md -> writing-plans -> Trellis 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录
+cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录
 ```
 
 ---
 
 ## 6. L0 标准流程
 
-### 6.1 创建或选择 Trellis 任务
+### 6.1 创建或选择任务
 
 ```bash
 python3 ./.cowork-flow/scripts/task.py list
@@ -265,9 +265,9 @@ python3 ./.cowork-flow/scripts/change.py validate <slug>
 
 不要在 change 目录中维护实现 checklist，避免维护两套细节状态。
 
-### 7.6 创建或绑定 Trellis 任务
+### 7.6 创建或绑定任务
 
-将以下内容加入 Trellis 任务上下文：
+将以下内容加入任务上下文：
 
 - proposal
 - spec
@@ -288,7 +288,7 @@ python3 ./.cowork-flow/scripts/change.py validate <slug>
 
 - plan checkbox
 - plan 当前执行状态
-- Trellis task 状态
+- 任务状态
 - 必要的 `.cowork-flow/spec/` 更新
 
 ---
@@ -407,5 +407,5 @@ python3 ./.cowork-flow/scripts/change.py archive <slug>
 - 验证命令已按项目要求执行
 - 失败、跳过或无法执行的验证已明确说明
 - 相关规范已更新
-- change metadata、计划状态、Trellis 状态不冲突
+- change metadata、计划状态、任务状态不冲突
 - session 已记录

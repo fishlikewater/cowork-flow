@@ -13,7 +13,7 @@ When you learn something valuable (from debugging, implementing, or discussion),
 
 ## Code-Spec First Rule (CRITICAL)
 
-In this Trellis workflow, "spec" for implementation work means **code-spec**:
+In this workflow, "spec" for implementation work means **code-spec**:
 - Executable contracts (not principle-only text)
 - Concrete signatures, payload fields, env keys, and boundary behavior
 - Testable validation/error behavior
