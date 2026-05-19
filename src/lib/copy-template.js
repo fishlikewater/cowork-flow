@@ -61,6 +61,82 @@ export async function buildInitPlan(targetDir, options = {}) {
   return actions;
 }
 
+const PROTECTED_SYNC_FILES = new Set([
+  'AGENTS.md',
+  '.cowork-flow/config.yaml',
+  '.cowork-flow/workflow.md'
+]);
+
+const PROTECTED_SYNC_PREFIXES = [
+  '.cowork-flow/spec/',
+  '.cowork-flow/workspace/',
+  '.cowork-flow/tasks/',
+  '.cowork-flow/changes/',
+  '.cowork-flow/plans/'
+];
+
+const SAFE_SYNC_PREFIXES = [
+  '.agent/skills/',
+  '.cowork-flow/scripts/'
+];
+
+const SAFE_SYNC_FILES = new Set([
+  '.cowork-flow/.gitignore',
+  '.cowork-flow/.version'
+]);
+
+function isProtectedSyncFile(relativePath) {
+  return PROTECTED_SYNC_FILES.has(relativePath)
+    || PROTECTED_SYNC_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
+}
+
+function isSafeSyncFile(relativePath) {
+  return SAFE_SYNC_FILES.has(relativePath)
+    || SAFE_SYNC_PREFIXES.some((prefix) => relativePath.startsWith(prefix))
+    || relativePath.endsWith('/.gitkeep');
+}
+
+export async function buildSyncPlan(targetDir, options = {}) {
+  if (!await pathExists(join(targetDir, '.cowork-flow'))) {
+    throw new Error(`Target is not initialized: ${targetDir}`);
+  }
+
+  const files = await listFiles(templateRoot);
+  const actions = [];
+
+  for (const file of files) {
+    if (file === '.cowork-flow/.version') {
+      continue;
+    }
+
+    const source = join(templateRoot, file);
+    const destination = join(targetDir, file);
+    const exists = await pathExists(destination);
+    const protectedFile = isProtectedSyncFile(file) && !options.force && exists;
+    const safeFile = isSafeSyncFile(file);
+
+    if (protectedFile) {
+      actions.push({ action: 'protected', source, destination, relativePath: file });
+    } else if (exists && (safeFile || options.force)) {
+      actions.push({ action: 'update', source, destination, relativePath: file });
+    } else if (!exists) {
+      actions.push({ action: 'create', source, destination, relativePath: file });
+    } else {
+      actions.push({ action: 'protected', source, destination, relativePath: file });
+    }
+  }
+
+  actions.push({
+    action: 'update',
+    source: null,
+    destination: join(targetDir, '.cowork-flow', '.version'),
+    relativePath: '.cowork-flow/.version',
+    content: `${options.version}\n`
+  });
+
+  return actions;
+}
+
 export function summarizePlan(actions, dryRun = false) {
   const counts = { create: 0, update: 0, skip: 0, protected: 0 };
   for (const action of actions) {

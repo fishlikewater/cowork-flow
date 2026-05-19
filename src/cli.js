@@ -1,4 +1,5 @@
 import { runInit } from './commands/init.js';
+import { runSync } from './commands/sync.js';
 import { readPackageInfo } from './lib/package-info.js';
 
 const HELP = `cowork-flow
@@ -39,7 +40,11 @@ export async function main(argv = process.argv.slice(2), options = {}) {
     }
 
     if (command === 'init') {
-      return runInit(args, { io });
+      return await runInit(args, { io });
+    }
+
+    if (command === 'sync') {
+      return await runSync(args, { io });
     }
 
     io.writeErr(`Unknown command: ${command}\n`);
