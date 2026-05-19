@@ -37,7 +37,7 @@ export async function buildInitPlan(targetDir, options = {}) {
   const actions = [];
 
   for (const file of files) {
-    if (file === '.cowork-flow/.version') {
+    if (file === '.cowork-flow/.version' || file.startsWith('.superpowers/')) {
       continue;
     }
 
@@ -57,6 +57,26 @@ export async function buildInitPlan(targetDir, options = {}) {
     relativePath: '.cowork-flow/.version',
     content: `${options.version}\n`
   });
+
+  return actions;
+}
+
+export async function buildSuperpowersPlan(targetDir, options = {}) {
+  const sourceRoot = join(templateRoot, '.superpowers');
+  if (!await pathExists(sourceRoot)) {
+    return [];
+  }
+
+  const files = await listFiles(sourceRoot);
+  const actions = [];
+
+  for (const file of files) {
+    const source = join(sourceRoot, file);
+    const destination = join(targetDir, '.agent', 'skills', file);
+    const exists = await pathExists(destination);
+    const action = exists ? (options.force ? 'update' : 'skip') : 'create';
+    actions.push({ action, source, destination, relativePath: `.agent/skills/${file}` });
+  }
 
   return actions;
 }
@@ -105,7 +125,7 @@ export async function buildSyncPlan(targetDir, options = {}) {
   const actions = [];
 
   for (const file of files) {
-    if (file === '.cowork-flow/.version') {
+    if (file === '.cowork-flow/.version' || file.startsWith('.superpowers/')) {
       continue;
     }
 

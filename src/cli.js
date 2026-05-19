@@ -41,7 +41,7 @@ export async function main(argv = process.argv.slice(2), options = {}) {
     }
 
     if (command === 'init') {
-      return await runInit(args, { io });
+      return await runInit(args, { io, prompt: options.prompt });
     }
 
     if (command === 'sync') {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
+import { readPackageInfo } from '../src/lib/package-info.js';
 
 function createIo() {
   return {
@@ -30,11 +31,12 @@ test('prints help when no command is provided', async () => {
 
 test('prints version with --version', async () => {
   const io = createIo();
+  const packageInfo = await readPackageInfo();
 
   const code = await main(['--version'], { io });
 
   assert.equal(code, 0);
-  assert.match(io.stdout, /^0\.3\.10\n$/);
+  assert.equal(io.stdout, `${packageInfo.version}\n`);
   assert.equal(io.stderr, '');
 });
 

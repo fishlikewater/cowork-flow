@@ -12,7 +12,11 @@ class TemplateConvergenceTest(unittest.TestCase):
     def test_template_root_has_only_converged_collaboration_entries(self) -> None:
         entries = {path.name for path in TEMPLATE.iterdir()}
 
-        self.assertEqual({"AGENTS.md", ".agent", ".cowork-flow"}, entries)
+        self.assertEqual({"AGENTS.md", ".agent", ".cowork-flow", ".superpowers"}, entries)
+
+    def test_superpowers_is_internal_cli_seed_material(self) -> None:
+        self.assertTrue((TEMPLATE / ".superpowers" / "using-superpowers" / "SKILL.md").is_file())
+        self.assertTrue((TEMPLATE / ".superpowers" / "test-driven-development" / "SKILL.md").is_file())
 
     def test_template_does_not_ship_macos_metadata(self) -> None:
         ds_store_files = sorted(

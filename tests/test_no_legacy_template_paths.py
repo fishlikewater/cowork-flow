@@ -26,7 +26,9 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         text_files = [
             path
             for path in TEMPLATE.rglob("*")
-            if path.is_file() and path.suffix in {".md", ".py", ".yaml", ".gitignore"}
+            if path.is_file()
+            and path.suffix in {".md", ".py", ".yaml", ".gitignore"}
+            and ".superpowers" not in path.parts
         ]
 
         for path in text_files:

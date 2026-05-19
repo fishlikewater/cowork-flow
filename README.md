@@ -93,6 +93,9 @@ npx cowork-flow --help
 cowork-flow init ./my-project
 ```
 
+`init` 会询问你是否已经安装了 Superpowers skills。选择未安装时，会把内置的 `.superpowers/` 技能复制到目标项目的 `.agent/skills/` 下。
+在非交互环境里，这一步会自动跳过询问并默认视为已安装。
+
 初始化到当前项目：
 
 ```bash

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
+import { readPackageInfo } from '../src/lib/package-info.js';
 import { createTempDir, exists, readText } from './helpers/fs.js';
 
 function createIo() {
@@ -22,6 +23,7 @@ function createIo() {
 test('init copies the template into a new target directory', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();
+  const packageInfo = await readPackageInfo();
 
   const code = await main(['init', target], { io });
 
@@ -29,9 +31,41 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, '.agent', 'skills', 'start', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'change.py')), true);
-  assert.equal(await readText(join(target, '.cowork-flow', '.version')), '0.3.10\n');
+  assert.equal(await exists(join(target, '.superpowers')), false);
+  assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${packageInfo.version}\n`);
   assert.match(io.stdout, /created=/);
   assert.equal(io.stderr, '');
+});
+
+test('init bundles superpowers skills into agent skills when user has not installed them', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main(['init', target], {
+    io,
+    prompt: async () => false
+  });
+
+  assert.equal(code, 0);
+  assert.equal(await exists(join(target, '.superpowers')), false);
+  assert.equal(await exists(join(target, '.agent', 'skills', 'using-superpowers', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agent', 'skills', 'test-driven-development', 'SKILL.md')), true);
+  assert.match(io.stdout, /Superpowers skills were bundled into \.agent\/skills/);
+});
+
+test('init skips bundled superpowers skills when user has already installed them', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main(['init', target], {
+    io,
+    prompt: async () => true
+  });
+
+  assert.equal(code, 0);
+  assert.equal(await exists(join(target, '.superpowers')), false);
+  assert.equal(await exists(join(target, '.agent', 'skills', 'using-superpowers', 'SKILL.md')), false);
+  assert.match(io.stdout, /Superpowers skills already installed; skipping bundled skills/);
 });
 
 test('init skips existing files by default', async (t) => {
@@ -66,10 +100,16 @@ test('init dry-run does not write files', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();
 
-  const code = await main(['init', target, '--dry-run'], { io });
+  const code = await main(['init', target, '--dry-run'], {
+    io,
+    prompt: async () => {
+      throw new Error('dry-run must not prompt');
+    }
+  });
 
   assert.equal(code, 0);
   assert.equal(await exists(target), false);
   assert.match(io.stdout, /dry-run/);
   assert.match(io.stdout, /would-create=/);
+  assert.match(io.stdout, /Superpowers prompt skipped in dry-run/);
 });

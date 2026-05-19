@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { templateRoot } from '../src/lib/paths.js';
-import { createTempDir, readText } from './helpers/fs.js';
+import { createTempDir, exists, readText } from './helpers/fs.js';
 
 function createIo() {
   return {
@@ -51,6 +51,17 @@ test('sync updates safe template files and preserves protected files', async (t)
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${(await readPackageInfo()).version}\n`);
   assert.match(io.stdout, /updated=/);
   assert.match(io.stdout, /protected=/);
+});
+
+test('sync does not copy internal superpowers seed material to the target root', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  const io = createIo();
+
+  const code = await main(['sync', target], { io });
+
+  assert.equal(code, 0);
+  assert.equal(await exists(join(target, '.superpowers')), false);
 });
 
 test('sync overwrites protected files with --force', async (t) => {
