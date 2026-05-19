@@ -58,20 +58,74 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 
 ## 快速开始
 
-把模板内容复制到目标项目根目录：
+使用 CLI 把模板内容安装到目标项目根目录：
 
-```powershell
-$target = "C:\path\to\project"
-Get-ChildItem -LiteralPath .\template -Force | Copy-Item -Destination $target -Recurse -Force
+```bash
+npx cowork-flow init ./my-project
 ```
 
-复制后优先完成这些配置：
+也可以先全局安装：
+
+```bash
+npm install -g cowork-flow
+cowork-flow init ./my-project
+```
+
+初始化后优先完成这些配置：
 
 1. 更新 `AGENTS.md` 中的项目名称、技术栈、命令和提交策略。
 2. 更新 `.cowork-flow/config.yaml` 中的验证命令。
 3. 更新 `.cowork-flow/workflow.md` 中与项目流程不一致的门禁、分级和完成定义。
 4. 按项目实际情况调整 `.cowork-flow/spec/`，删除不存在的 frontend、backend 或行为变更场景。
 5. 按团队实践使用 `.cowork-flow/changes/` 管理规格变更，使用 `.cowork-flow/plans/` 管理实现计划和验证状态。
+
+## CLI 使用
+
+查看命令：
+
+```bash
+npx cowork-flow --help
+```
+
+初始化到新项目：
+
+```bash
+cowork-flow init ./my-project
+```
+
+初始化到当前项目：
+
+```bash
+cowork-flow init .
+```
+
+默认不会覆盖已有文件。需要预览时使用：
+
+```bash
+cowork-flow init ./my-project --dry-run
+```
+
+需要明确覆盖已有文件时使用：
+
+```bash
+cowork-flow init ./my-project --force
+```
+
+升级 CLI 本身：
+
+```bash
+cowork-flow update
+npm install -g cowork-flow@latest
+```
+
+同步已初始化项目中的模板脚本和本地技能：
+
+```bash
+cowork-flow sync .
+cowork-flow sync . --dry-run
+```
+
+`sync` 默认保护 `AGENTS.md`、`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、`.cowork-flow/spec/`、任务、计划、变更和 workspace 记录。只有明确传入 `--force` 时才覆盖保护文件。
 
 ## 常用入口
 
@@ -130,3 +184,7 @@ python3 ./.cowork-flow/scripts/add_session.py \
 - 脚本入口和文档中的命令保持一致。
 - 通用 skill 保持可复用，项目专用规则不混入 starter 模板。
 - 示例命令尽量保持最小可用，避免把模板写成某个具体项目的实现方案。
+
+## 发布流程
+
+CI 会运行 Node CLI 测试、npm pack 内容检查和现有 Python 模板测试。发布到 npm 通过 GitHub Actions 的 `Publish npm Package` workflow 完成，需要在仓库 secrets 中配置 `NPM_TOKEN`。
