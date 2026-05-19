@@ -1,1 +1,18 @@
 .worktrees/
+
+# Node
+node_modules/
+npm-debug.log*
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Local editor and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# Package artifacts
+*.tgz
