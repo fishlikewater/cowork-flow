@@ -60,11 +60,11 @@ What broader problems does this bug reveal?
 
 Solidify insights into the system:
 
-- [ ] Update `.trellis/spec/guides/` thinking guides
-- [ ] Update `.trellis/spec/backend/` or `frontend/` docs
+- [ ] Update `.cowork-flow/spec/guides/` thinking guides
+- [ ] Update `.cowork-flow/spec/backend/` or `frontend/` docs
 - [ ] Create issue record (if applicable)
 - [ ] Create feature ticket for root fix
-- [ ] Update `.trellis/spec/` or workflow gates if needed
+- [ ] Update `.cowork-flow/spec/` or workflow gates if needed
 
 ---
 
@@ -122,7 +122,7 @@ Three levels of insight:
    - If it's a cross-layer issue → update `cross-layer-thinking-guide.md`
    - If it's a code reuse issue → update `code-reuse-thinking-guide.md`
    - If it's domain-specific → update `backend/*.md` or `frontend/*.md`
-   - If it's project-specific policy or commands → update `AGENTS.md`, `.trellis/workflow.md`, or `.trellis/config.yaml`
+   - If it's project-specific policy or commands → update `AGENTS.md`, `.cowork-flow/workflow.md`, or `.cowork-flow/config.yaml`
 
 2. **Do not edit reusable skills for project-specific lessons** - Skills should stay generic. Capture project facts in specs, config, workflow, or AGENTS instead.
 

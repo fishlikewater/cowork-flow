@@ -16,11 +16,11 @@ Before handoff, submission, or commit according to the project's policy, use thi
 Do not edit this skill to replace commands or policy. Read project-specific facts from:
 
 1. `AGENTS.md` - test commands, commit policy, language and collaboration rules
-2. `.trellis/workflow.md` - workflow gates and completion definition
-3. `.trellis/config.yaml` - optional verification command lists
-4. `.trellis/spec/` - project-specific implementation contracts
+2. `.cowork-flow/workflow.md` - workflow gates and completion definition
+3. `.cowork-flow/config.yaml` - optional verification command lists
+4. `.cowork-flow/spec/` - project-specific implementation contracts
 
-If verification commands are listed in `.trellis/config.yaml`, run them. If not, use the commands defined in `AGENTS.md` or infer the smallest relevant checks from the project files, then state the assumption.
+If verification commands are listed in `.cowork-flow/config.yaml`, run them. If not, use the commands defined in `AGENTS.md` or infer the smallest relevant checks from the project files, then state the assumption.
 
 ---
 
@@ -28,7 +28,7 @@ If verification commands are listed in `.trellis/config.yaml`, run them. If not,
 
 ### 1. Code Quality
 
-- [ ] Read `AGENTS.md` and `.trellis/config.yaml` for verification commands?
+- [ ] Read `AGENTS.md` and `.cowork-flow/config.yaml` for verification commands?
 - [ ] Static checks pass, if configured?
 - [ ] Build / type check pass, if configured?
 - [ ] Tests pass, if configured?
@@ -38,11 +38,11 @@ If verification commands are listed in `.trellis/config.yaml`, run them. If not,
 ### 2. Code-Spec Sync
 
 **Code-Spec Docs**:
-- [ ] Does `.trellis/spec/backend/` need updates?
+- [ ] Does `.cowork-flow/spec/backend/` need updates?
   - New patterns, new modules, new conventions, if backend specs exist
-- [ ] Does `.trellis/spec/frontend/` need updates?
+- [ ] Does `.cowork-flow/spec/frontend/` need updates?
   - New components, new hooks, new patterns, if frontend specs exist
-- [ ] Does `.trellis/spec/guides/` need updates?
+- [ ] Does `.cowork-flow/spec/guides/` need updates?
   - New cross-layer flows, lessons from bugs, if guide specs exist
 
 **Key Question**: 
@@ -65,7 +65,7 @@ If infra/cross-layer changed but the related spec is still abstract, do NOT fini
 
 ### 2.6. Plan Sync
 
-If this task has a plan file in `docs/superpowers/plans/`:
+If this task has a plan file in `.cowork-flow/plans/`:
 
 - [ ] Completed and verified plan steps are checked (`- [x]`)
 - [ ] Incomplete or blocked steps remain unchecked and are not falsely marked done
@@ -115,7 +115,7 @@ If the change spans multiple layers:
 git status
 git diff --name-only
 
-# 2. Run project verification commands from AGENTS.md or .trellis/config.yaml
+# 2. Run project verification commands from AGENTS.md or .cowork-flow/config.yaml
 
 # 3. Based on changed files, check relevant items above
 ```
@@ -126,13 +126,13 @@ git diff --name-only
 
 | Oversight | Consequence | Check |
 |-----------|-------------|-------|
-| Code-spec docs not updated | Others don't know the change | Check .trellis/spec/ |
+| Code-spec docs not updated | Others don't know the change | Check .cowork-flow/spec/ |
 | Spec text is abstract only | Easy regressions in infra/cross-layer changes | Require signature/contract/matrix/cases/tests |
 | Migration not created | Schema out of sync | Check migration directory |
 | Types/contracts not synced | Runtime errors | Check shared contract definitions |
 | Tests not updated | False confidence | Run full test suite |
 | Console.log left in | Noisy production logs | Search for console.log |
-| Plan checkboxes not synced | Docs drift from real progress | Check `docs/superpowers/plans/` before finishing |
+| Plan checkboxes not synced | Docs drift from real progress | Check `.cowork-flow/plans/` before finishing |
 
 ---
 

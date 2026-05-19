@@ -94,21 +94,23 @@
     - 还剩什么。
     - 如果跟丢上下文，先停下来重新整理。
 
-<!-- TRELLIS:START -->
-# Trellis Instructions
+<!-- COWORK-FLOW:START -->
+# cowork-flow Instructions
 
 These instructions are for AI assistants working in this project.
 
-Use the `/trellis:start` command when starting a new session to:
+Use the `.agent/skills/start` skill when starting a new session to:
 - Initialize your developer identity
 - Understand current project context
 - Read relevant guidelines
 
-Use `@/.trellis/` to learn:
+Use `@/.cowork-flow/` to learn:
 - Development workflow (`workflow.md`)
 - Project structure guidelines (`spec/`)
 - Developer workspace (`workspace/`)
 
-Keep this managed block so 'trellis update' can refresh the instructions.
+Use `@/.agent/skills/` for reusable local skills.
 
-<!-- TRELLIS:END -->
+Keep this managed block so cowork-flow updates can refresh the instructions.
+
+<!-- COWORK-FLOW:END -->

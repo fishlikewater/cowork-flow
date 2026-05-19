@@ -57,9 +57,9 @@
 3. **计划后编码**：复杂或行为变更任务必须先形成可执行计划。
 4. **上下文显式化**：不要依赖记忆，把关键规范、设计、计划写入任务上下文。
 5. **一次一个任务**：避免在多个无关任务之间来回切换。
-6. **执行中回写状态**：计划、任务状态、OpenSpec tasks 和 journal 不应长期漂移。
+6. **执行中回写状态**：计划、任务状态、change metadata 和 journal 不应长期漂移。
 7. **证据先于结论**：未验证前不声称完成、通过或可交付。
-8. **经验沉淀回规范**：实现中发现的契约、坑点、规则应更新到 `.trellis/spec/`。
+8. **经验沉淀回规范**：实现中发现的契约、坑点、规则应更新到 `.cowork-flow/spec/`。
 
 ---
 
@@ -70,8 +70,8 @@
 首次进入项目时执行：
 
 ```bash
-python3 ./.trellis/scripts/get_developer.py
-python3 ./.trellis/scripts/init_developer.py <developer-name>
+python3 ./.cowork-flow/scripts/get_developer.py
+python3 ./.cowork-flow/scripts/init_developer.py <developer-name>
 ```
 
 如果已经存在开发者身份，只需读取当前身份。
@@ -81,8 +81,8 @@ python3 ./.trellis/scripts/init_developer.py <developer-name>
 每次开始工作先执行：
 
 ```bash
-python3 ./.trellis/scripts/get_context.py
-python3 ./.trellis/scripts/task.py list
+python3 ./.cowork-flow/scripts/get_context.py
+python3 ./.cowork-flow/scripts/task.py list
 git status
 git log --oneline -10
 ```
@@ -101,7 +101,7 @@ git log --oneline -10
 
 ```bash
 cat AGENTS.md
-for f in .trellis/spec/frontend/index.md .trellis/spec/backend/index.md .trellis/spec/guides/index.md; do
+for f in .cowork-flow/spec/frontend/index.md .cowork-flow/spec/backend/index.md .cowork-flow/spec/guides/index.md; do
   [ -f "$f" ] && cat "$f"
 done
 ```
@@ -167,8 +167,8 @@ OpenSpec -> brainstorming -> design.md -> writing-plans -> Trellis 任务上下�
 ### 6.1 创建或选择 Trellis 任务
 
 ```bash
-python3 ./.trellis/scripts/task.py list
-python3 ./.trellis/scripts/task.py create "<title>" --slug <task-name>
+python3 ./.cowork-flow/scripts/task.py list
+python3 ./.cowork-flow/scripts/task.py create "<title>" --slug <task-name>
 ```
 
 ### 6.2 写入任务 PRD
@@ -184,7 +184,7 @@ python3 ./.trellis/scripts/task.py create "<title>" --slug <task-name>
 ### 6.3 初始化任务上下文
 
 ```bash
-python3 ./.trellis/scripts/task.py init-context <task-dir> <type>
+python3 ./.cowork-flow/scripts/task.py init-context <task-dir> <type>
 ```
 
 `<type>` 按任务选择：
@@ -200,20 +200,20 @@ python3 ./.trellis/scripts/task.py init-context <task-dir> <type>
 把任务相关规范、代码模式、计划文件加入上下文：
 
 ```bash
-python3 ./.trellis/scripts/task.py add-context <task-dir> implement <path> "<reason>"
-python3 ./.trellis/scripts/task.py add-context <task-dir> check <path> "<reason>"
+python3 ./.cowork-flow/scripts/task.py add-context <task-dir> implement <path> "<reason>"
+python3 ./.cowork-flow/scripts/task.py add-context <task-dir> check <path> "<reason>"
 ```
 
 ### 6.5 激活任务并执行
 
 ```bash
-python3 ./.trellis/scripts/task.py start <task-dir>
+python3 ./.cowork-flow/scripts/task.py start <task-dir>
 ```
 
 执行要求：
 
 - 按 `prd.md` 和上下文实现
-- 遵循 `.trellis/spec/` 中的相关规范
+- 遵循 `.cowork-flow/spec/` 中的相关规范
 - 变更保持聚焦
 - 若执行中发现行为变化升级，立即重新分级并进入 L1 / L2 流程
 - 执行计划中的每个实现步骤必须优先进入 `superpowers:test-driven-development` 循环,不得先写生产代码再补测试。
@@ -225,21 +225,21 @@ python3 ./.trellis/scripts/task.py start <task-dir>
 ### 7.1 创建 OpenSpec 变更
 
 ```bash
-openspec new change <slug>
+python3 ./.cowork-flow/scripts/change.py create <slug>
 ```
 
 ### 7.2 使用 brainstorming 形成方案
 
 使用 `superpowers:brainstorming` 澄清需求、比较方案，并补齐：
 
-- `openspec/changes/<slug>/proposal.md`
-- `openspec/changes/<slug>/specs/.../spec.md`
-- L2 任务需要 `openspec/changes/<slug>/design.md`
+- `.cowork-flow/changes/<slug>/proposal.md`
+- `.cowork-flow/changes/<slug>/specs/.../spec.md`
+- L2 任务需要 `.cowork-flow/changes/<slug>/design.md`
 
 ### 7.3 校验 OpenSpec
 
 ```bash
-openspec validate --strict --type change <slug>
+python3 ./.cowork-flow/scripts/change.py validate <slug>
 ```
 
 ### 7.4 使用 writing-plans 形成计划
@@ -247,7 +247,7 @@ openspec validate --strict --type change <slug>
 使用 `superpowers:writing-plans` 输出可执行计划：
 
 ```text
-docs/superpowers/plans/YYYY-MM-DD-<slug>.md
+.cowork-flow/plans/YYYY-MM-DD-<slug>.md
 ```
 
 计划必须包含：
@@ -257,11 +257,13 @@ docs/superpowers/plans/YYYY-MM-DD-<slug>.md
 - 当前执行状态
 - 阻塞与决策记录位置
 
-### 7.5 回写 OpenSpec tasks
+### 7.5 同步计划与状态边界
 
-`openspec/changes/<slug>/tasks.md` 只保留高层里程碑。
+`.cowork-flow/changes/<slug>/` 只保存 proposal、design、behavior specs 和 change.yaml。
+实现 checklist 只保存在 `.cowork-flow/plans/*.md`。
+任务运行状态只保存在 `.cowork-flow/tasks/`。
 
-细粒度执行状态以 `docs/superpowers/plans/*.md` 为准，避免维护两套细节状态。
+不要在 change 目录中维护实现 checklist，避免维护两套细节状态。
 
 ### 7.6 创建或绑定 Trellis 任务
 
@@ -271,7 +273,7 @@ docs/superpowers/plans/YYYY-MM-DD-<slug>.md
 - spec
 - design，如存在
 - implementation plan
-- 相关 `.trellis/spec/`
+- 相关 `.cowork-flow/spec/`
 - 相关代码模式或契约文件
 
 ### 7.7 按 superpowers 方法执行
@@ -287,8 +289,7 @@ docs/superpowers/plans/YYYY-MM-DD-<slug>.md
 - plan checkbox
 - plan 当前执行状态
 - Trellis task 状态
-- OpenSpec 高层 tasks
-- 必要的 `.trellis/spec/` 更新
+- 必要的 `.cowork-flow/spec/` 更新
 
 ---
 
@@ -298,7 +299,7 @@ docs/superpowers/plans/YYYY-MM-DD-<slug>.md
 
 验证命令按以下顺序读取：
 
-1. `.trellis/config.yaml`
+1. `.cowork-flow/config.yaml`
 2. `AGENTS.md`
 3. 项目现有脚本或配置文件
 
@@ -312,7 +313,7 @@ docs/superpowers/plans/YYYY-MM-DD-<slug>.md
 - 新增或修改的行为有测试先失败、再通过的验证证据
 - lint / format / build / typecheck 按项目要求通过
 - 行为符合 OpenSpec 或 PRD
-- 相关 `.trellis/spec/` 已同步
+- 相关 `.cowork-flow/spec/` 已同步
 - 计划状态与真实进度一致
 - 没有未说明的临时文件、调试输出或绕过逻辑
 
@@ -337,15 +338,15 @@ L2 任务完成前需要多视角审阅：
 
 - 当前 task 状态准确
 - plan checkbox 与真实进度一致
-- OpenSpec tasks 与 plan 高层状态一致
-- `.trellis/spec/` 已沉淀必要经验
+- change metadata 与 plan 高层状态一致
+- `.cowork-flow/spec/` 已沉淀必要经验
 - 工作区状态清晰
 
 ### 9.2 记录 session
 
 ```bash
-python3 ./.trellis/scripts/get_context.py --mode record
-python3 ./.trellis/scripts/add_session.py \
+python3 ./.cowork-flow/scripts/get_context.py --mode record
+python3 ./.cowork-flow/scripts/add_session.py \
   --title "<session-title>" \
   --commit "<commit-or-handoff-ref>" \
   --summary "<summary>"
@@ -356,13 +357,13 @@ python3 ./.trellis/scripts/add_session.py \
 仅在任务真实完成后归档：
 
 ```bash
-python3 ./.trellis/scripts/task.py archive <task-name>
+python3 ./.cowork-flow/scripts/task.py archive <task-name>
 ```
 
 行为变更任务还需要归档 OpenSpec：
 
 ```bash
-openspec archive <slug>
+python3 ./.cowork-flow/scripts/change.py archive <slug>
 ```
 
 ---
@@ -373,14 +374,14 @@ openspec archive <slug>
 
 | 状态 | 持久化位置 |
 |------|------------|
-| 当前开发者 | `.trellis/.developer` |
-| 当前任务 | `.trellis/.current-task` |
-| 任务目标 | `.trellis/tasks/<task>/prd.md` |
-| 任务上下文 | `.trellis/tasks/<task>/*.jsonl` |
-| 行为变更规格 | `openspec/changes/<slug>/` |
-| 执行计划 | `docs/superpowers/plans/*.md` |
-| 项目规范 | `.trellis/spec/` |
-| 会话记录 | `.trellis/workspace/<developer>/journal-*.md` |
+| 当前开发者 | `.cowork-flow/.developer` |
+| 当前任务 | `.cowork-flow/.current-task` |
+| 任务目标 | `.cowork-flow/tasks/<task>/prd.md` |
+| 任务上下文 | `.cowork-flow/tasks/<task>/*.jsonl` |
+| 行为变更规格 | `.cowork-flow/changes/<slug>/` |
+| 执行计划 | `.cowork-flow/plans/*.md` |
+| 项目规范 | `.cowork-flow/spec/` |
+| 会话记录 | `.cowork-flow/workspace/<developer>/journal-*.md` |
 
 如果状态只存在于对话中，就不能视为可靠流程状态。
 

@@ -25,7 +25,7 @@ Initialize your AI development session and begin working on tasks.
 First, read the workflow guide and the project-level collaboration rules:
 
 ```bash
-cat .trellis/workflow.md
+cat .cowork-flow/workflow.md
 cat AGENTS.md
 ```
 
@@ -37,12 +37,12 @@ cat AGENTS.md
 - Project-specific collaboration and documentation rules
 
 > **Important**:
-> Reusable skills are already part of the template. During project onboarding, put project-specific facts in `AGENTS.md`, `.trellis/workflow.md`, `.trellis/config.yaml`, and `.trellis/spec/` rather than editing `SKILL.md`.
+> Reusable skills are already part of the template. During project onboarding, put project-specific facts in `AGENTS.md`, `.cowork-flow/workflow.md`, `.cowork-flow/config.yaml`, and `.cowork-flow/spec/` rather than editing `SKILL.md`.
 
 ### Step 2: Get Current Context
 
 ```bash
-python3 ./.trellis/scripts/get_context.py
+python3 ./.cowork-flow/scripts/get_context.py
 ```
 
 This shows: developer identity, git status, current task (if any), active tasks.
@@ -50,7 +50,7 @@ This shows: developer identity, git status, current task (if any), active tasks.
 ### Step 3: Read Guidelines Index
 
 ```bash
-for f in .trellis/spec/frontend/index.md .trellis/spec/backend/index.md .trellis/spec/guides/index.md; do
+for f in .cowork-flow/spec/frontend/index.md .cowork-flow/spec/backend/index.md .cowork-flow/spec/guides/index.md; do
   [ -f "$f" ] && cat "$f"
 done
 ```
@@ -89,13 +89,13 @@ When user describes a task, classify it:
 
 ### Behavior Change Gate
 
-Before entering Task Workflow, classify the change as `L0` / `L1` / `L2` using `.trellis/workflow.md`.
+Before entering Task Workflow, classify the change as `L0` / `L1` / `L2` using `.cowork-flow/workflow.md`.
 
 - `L0`: No external behavior change. Continue with the existing Task Workflow.
 - `L1`: Behavior change in a bounded module. Do **not** go straight to PRD/Research. First run:
-  1. `openspec new change <slug>`
+  1. `python3 ./.cowork-flow/scripts/change.py create <slug>`
   2. `superpowers:brainstorming` to create or complete `proposal/spec`
-  3. `openspec validate --strict --type change <slug>`
+  3. `python3 ./.cowork-flow/scripts/change.py validate <slug>`
   4. `superpowers:writing-plans` to produce the implementation plan
 - `L2`: Same as `L1`, plus required `design.md`. Multi-perspective review happens after implementation in the review gate.
 
@@ -103,10 +103,10 @@ Only return to the Trellis Task Workflow after the spec and plan gates are compl
 
 Before Phase 2, always complete this Trellis handoff:
 
-1. Update `openspec/changes/<slug>/tasks.md` with the high-level execution checklist
+1. Create or update `.cowork-flow/plans/YYYY-MM-DD-<slug>.md` with the execution checklist
 2. Create or bind a Trellis task directory
 3. Ensure `prd.md` summarizes the approved `proposal/spec/design/plan`
-4. Add the approved OpenSpec artifacts and plan into task context
+4. Add the approved change artifacts and plan into task context
 5. Treat the plan file as a living execution artifact: keep checkbox state and current execution status synced during implementation, not only at the end
 
 - If the task came from **Simple Task**, resume with **Path B Step 2 (Create Task Directory)** and **Step 3 (Write PRD)**, then do the Trellis handoff above and continue to Phase 2.
@@ -202,7 +202,7 @@ If unclear, ask clarifying questions.
 **Step 2: Create Task Directory** `[AI]`
 
 ```bash
-TASK_DIR=$(python3 ./.trellis/scripts/task.py create "<title>" --slug <name>)
+TASK_DIR=$(python3 ./.cowork-flow/scripts/task.py create "<title>" --slug <name>)
 ```
 
 **Step 3: Write PRD** `[AI]`
@@ -253,7 +253,7 @@ Must-have before proceeding:
 
 Based on the confirmed PRD, run a focused research pass and produce:
 
-1. Relevant spec files in `.trellis/spec/`
+1. Relevant spec files in `.cowork-flow/spec/`
 2. Existing code patterns to follow (2-3 examples)
 3. Files that will likely need modification
 
@@ -275,7 +275,7 @@ Use this output format:
 Initialize default context:
 
 ```bash
-python3 ./.trellis/scripts/task.py init-context "$TASK_DIR" <type>
+python3 ./.cowork-flow/scripts/task.py init-context "$TASK_DIR" <type>
 # type: backend | frontend | fullstack
 ```
 
@@ -283,25 +283,25 @@ Add specs found in your research pass:
 
 ```bash
 # For each relevant spec and code pattern:
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
 ```
 
 If this task came through the Behavior Change Gate, add the approved artifacts before coding:
 
 ```bash
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "openspec/changes/<slug>/proposal.md" "Approved change proposal"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "openspec/changes/<slug>/specs/.../spec.md" "Approved behavior spec"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "openspec/changes/<slug>/design.md" "Approved design for L2 changes"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "docs/superpowers/plans/YYYY-MM-DD-<slug>.md" "Approved implementation plan"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" check "openspec/changes/<slug>/specs/.../spec.md" "Check implementation against approved spec"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" check "docs/superpowers/plans/YYYY-MM-DD-<slug>.md" "Check implementation against approved plan"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/proposal.md" "Approved change proposal"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/specs/.../spec.md" "Approved behavior spec"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/design.md" "Approved design for L2 changes"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Approved implementation plan"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check ".cowork-flow/changes/<slug>/specs/.../spec.md" "Check implementation against approved spec"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Check implementation against approved plan"
 ```
 
 **Step 7: Activate Task** `[AI]`
 
 ```bash
-python3 ./.trellis/scripts/task.py start "$TASK_DIR"
+python3 ./.cowork-flow/scripts/task.py start "$TASK_DIR"
 ```
 
 This sets `.current-task` so hooks can inject context.
@@ -316,7 +316,7 @@ Implement the task described in `prd.md`.
 
 - Follow all specs injected into implement context
 - Keep changes scoped to requirements
-- Run the project verification commands from `AGENTS.md` or `.trellis/config.yaml` before finishing
+- Run the project verification commands from `AGENTS.md` or `.cowork-flow/config.yaml` before finishing
 
 **Step 9: Check Quality** `[AI]`
 
@@ -363,13 +363,13 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 
 | Script | Purpose |
 |--------|---------|
-| `python3 ./.trellis/scripts/get_context.py` | Get session context |
-| `python3 ./.trellis/scripts/task.py create` | Create task directory |
-| `python3 ./.trellis/scripts/task.py init-context` | Initialize jsonl files |
-| `python3 ./.trellis/scripts/task.py add-context` | Add spec to jsonl |
-| `python3 ./.trellis/scripts/task.py start` | Set current task |
-| `python3 ./.trellis/scripts/task.py finish` | Clear current task |
-| `python3 ./.trellis/scripts/task.py archive` | Archive completed task |
+| `python3 ./.cowork-flow/scripts/get_context.py` | Get session context |
+| `python3 ./.cowork-flow/scripts/task.py create` | Create task directory |
+| `python3 ./.cowork-flow/scripts/task.py init-context` | Initialize jsonl files |
+| `python3 ./.cowork-flow/scripts/task.py add-context` | Add spec to jsonl |
+| `python3 ./.cowork-flow/scripts/task.py start` | Set current task |
+| `python3 ./.cowork-flow/scripts/task.py finish` | Clear current task |
+| `python3 ./.cowork-flow/scripts/task.py archive` | Archive completed task |
 
 ### Workflow Phases `[AI]`
 

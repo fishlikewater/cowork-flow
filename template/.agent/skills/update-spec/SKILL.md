@@ -1,6 +1,6 @@
 ---
 name: update-spec
-description: Use when capturing implementation lessons, contracts, conventions, or gotchas in .trellis/spec
+description: Use when capturing implementation lessons, contracts, conventions, or gotchas in .cowork-flow/spec
 ---
 
 # Update Code-Spec - Capture Executable Contracts
@@ -50,7 +50,7 @@ Required sections for infra/cross-layer specs:
 ## Spec Structure Overview
 
 ```
-.trellis/spec/
+.cowork-flow/spec/
 ├── backend/           # Backend coding standards
 │   ├── index.md       # Overview and links
 │   └── *.md           # Topic-specific guidelines
@@ -115,7 +115,7 @@ Before editing, read the current code-spec to:
 - Find the right section for your update
 
 ```bash
-cat .trellis/spec/<category>/<file>.md
+cat .cowork-flow/spec/<category>/<file>.md
 ```
 
 ### Step 4: Make the Update

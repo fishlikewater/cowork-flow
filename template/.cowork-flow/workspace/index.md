@@ -33,14 +33,14 @@ workspace/
 ### 新开发者
 
 ```bash
-python3 ./.trellis/scripts/init_developer.py <your-name>
+python3 ./.cowork-flow/scripts/init_developer.py <your-name>
 ```
 
 ### 已初始化开发者
 
 ```bash
-python3 ./.trellis/scripts/get_developer.py
-cat .trellis/workspace/$(python3 ./.trellis/scripts/get_developer.py)/index.md
+python3 ./.cowork-flow/scripts/get_developer.py
+cat .cowork-flow/workspace/$(python3 ./.cowork-flow/scripts/get_developer.py)/index.md
 ```
 
 ---
