@@ -31,6 +31,8 @@ from .paths import (
     get_tasks_dir,
 )
 
+CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -191,6 +193,93 @@ def _get_current_task_snapshot(repo_root: Path) -> CurrentTaskSnapshot:
     )
 
 
+def _jsonl_file_references(jsonl_path: Path) -> list[str]:
+    """读取 JSONL 中声明的文件引用，忽略损坏行。"""
+    references: list[str] = []
+    if not jsonl_path.is_file():
+        return references
+
+    try:
+        lines = jsonl_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, IOError):
+        return references
+
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        file_path = data.get("file")
+        if isinstance(file_path, str) and file_path.strip():
+            references.append(file_path.strip())
+
+    return references
+
+
+def _task_plan_references(repo_root: Path, snapshot: CurrentTaskSnapshot) -> list[str]:
+    """从当前任务上下文中提取 plan 文件引用。"""
+    if not snapshot.path:
+        return []
+
+    task_dir = repo_root / snapshot.path
+    plan_refs: list[str] = []
+    seen: set[str] = set()
+
+    data = snapshot.data or {}
+    metadata_candidates = [
+        data.get("plan"),
+        data.get("planFile"),
+        data.get("meta", {}).get("plan") if isinstance(data.get("meta"), dict) else None,
+        data.get("meta", {}).get("planFile") if isinstance(data.get("meta"), dict) else None,
+    ]
+
+    for candidate in metadata_candidates:
+        if isinstance(candidate, str) and candidate.startswith(f"{DIR_WORKFLOW}/plans/"):
+            seen.add(candidate)
+            plan_refs.append(candidate)
+
+    for jsonl_name in CONTEXT_JSONL_FILES:
+        for reference in _jsonl_file_references(task_dir / jsonl_name):
+            if not reference.startswith(f"{DIR_WORKFLOW}/plans/"):
+                continue
+            if reference in seen:
+                continue
+            seen.add(reference)
+            plan_refs.append(reference)
+
+    return plan_refs
+
+
+def _build_resume_checklist(
+    repo_root: Path,
+    snapshot: CurrentTaskSnapshot,
+) -> dict[str, list[str]]:
+    """构建最小恢复清单，只返回路径和命令，不展开文件内容。"""
+    commands = [f"python3 ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/resume.py"]
+    read_files: list[str] = []
+    notes: list[str] = []
+
+    if not snapshot.path:
+        notes.append("No current task. Use `.agent/skills/start` to classify the next file-changing request.")
+        notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; read details only after a task is selected.")
+        return {"commands": commands, "readFiles": read_files, "notes": notes}
+
+    current_task = snapshot.path
+    commands.append(f"python3 ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/task.py list-context {current_task}")
+
+    if snapshot.has_prd:
+        read_files.append(f"{current_task}/prd.md")
+
+    read_files.extend(_task_plan_references(repo_root, snapshot))
+    notes.append("Read current plan status only when continuing implementation.")
+    notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; follow JSONL references on demand.")
+
+    return {"commands": commands, "readFiles": read_files, "notes": notes}
+
+
 def _current_task_json(snapshot: CurrentTaskSnapshot) -> dict | None:
     """Build the record-mode currentTask JSON object."""
     current_task = snapshot.path
@@ -203,6 +292,45 @@ def _current_task_json(snapshot: CurrentTaskSnapshot) -> dict | None:
         "name": data.get("name") or data.get("id") or "unknown",
         "status": data.get("status", "unknown"),
     }
+
+
+def _append_resume_checklist(
+    lines: list[str],
+    repo_root: Path,
+    snapshot: CurrentTaskSnapshot,
+) -> None:
+    """向文本上下文追加最小恢复清单。"""
+    lines.append("## RESUME CHECKLIST")
+    checklist = _build_resume_checklist(repo_root, snapshot)
+    commands = checklist["commands"]
+    read_files = checklist["readFiles"]
+
+    lines.append(f"- Recovery entrypoint (rerun only if context is stale): {commands[0]}")
+
+    if not snapshot.path:
+        lines.append("- No current task. Run `.agent/skills/start` before editing files.")
+        lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; choose a task first.")
+        lines.append("")
+        return
+
+    current_task = snapshot.path
+    prd_path = f"{current_task}/prd.md"
+    if prd_path in read_files:
+        lines.append(f"- Read current task PRD: {prd_path}")
+    else:
+        lines.append(f"- Current task PRD missing: {prd_path}")
+
+    lines.append(f"- List task context before reading details: {commands[1]}")
+
+    plan_files = [path for path in read_files if path.startswith(f"{DIR_WORKFLOW}/plans/")]
+    if plan_files:
+        for plan_file in plan_files:
+            lines.append(f"- Read current plan status: {plan_file}")
+    else:
+        lines.append("- No plan reference found in task context; do not search all plans unless needed.")
+
+    lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; follow JSONL references on demand.")
+    lines.append("")
 
 
 def _append_current_task(
@@ -297,6 +425,7 @@ def get_context_json(repo_root: Path | None = None) -> dict:
     tasks_dir = get_tasks_dir(repo_root)
     journal_file = get_active_journal_file(repo_root)
     git_snapshot = _get_git_snapshot(repo_root)
+    current_task_snapshot = _get_current_task_snapshot(repo_root)
 
     journal_lines = 0
     journal_relative = ""
@@ -331,6 +460,7 @@ def get_context_json(repo_root: Path | None = None) -> dict:
             "lines": journal_lines,
             "nearLimit": journal_lines > 1800,
         },
+        "resumeChecklist": _build_resume_checklist(repo_root, current_task_snapshot),
     }
 
 
@@ -383,13 +513,15 @@ def get_context_text(repo_root: Path | None = None) -> str:
     git_snapshot = _get_git_snapshot(repo_root)
     _append_git_status(lines, git_snapshot, repo_root)
     _append_recent_commits(lines, git_snapshot)
+    current_task_snapshot = _get_current_task_snapshot(repo_root)
     _append_current_task(
         lines,
-        _get_current_task_snapshot(repo_root),
+        current_task_snapshot,
         include_created=True,
         include_description=True,
         include_prd_hint=True,
     )
+    _append_resume_checklist(lines, repo_root, current_task_snapshot)
 
     # Active tasks
     lines.append("## ACTIVE TASKS")
@@ -503,11 +635,14 @@ def get_context_record_json(repo_root: Path | None = None) -> dict:
                 "meta": data.get("meta", {}),
             })
 
+    current_task_snapshot = _get_current_task_snapshot(repo_root)
+
     return {
         "developer": developer or "",
         "git": _git_json(git_snapshot),
         "myTasks": my_tasks,
-        "currentTask": _current_task_json(_get_current_task_snapshot(repo_root)),
+        "currentTask": _current_task_json(current_task_snapshot),
+        "resumeChecklist": _build_resume_checklist(repo_root, current_task_snapshot),
     }
 
 
@@ -570,7 +705,9 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
     git_snapshot = _get_git_snapshot(repo_root)
     _append_git_status(lines, git_snapshot, repo_root)
     _append_recent_commits(lines, git_snapshot)
-    _append_current_task(lines, _get_current_task_snapshot(repo_root))
+    current_task_snapshot = _get_current_task_snapshot(repo_root)
+    _append_current_task(lines, current_task_snapshot)
+    _append_resume_checklist(lines, repo_root, current_task_snapshot)
 
     lines.append("========================================")
 

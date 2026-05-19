@@ -382,7 +382,10 @@ def _resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
 def get_implement_base() -> list[dict]:
     """Get base implement context entries."""
     return [
+        {"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"},
         {"file": f"{DIR_WORKFLOW}/workflow.md", "reason": "Project workflow and conventions"},
+        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/index.md", "reason": "Pre-implementation thinking guides"},
+        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"},
     ]
 
 
@@ -408,6 +411,7 @@ def get_check_context(dev_type: str, repo_root: Path) -> list[dict]:
     """Get check context entries."""
     entries = [
         {"file": _skill_path("finish-work"), "reason": "Finish work checklist"},
+        {"file": _skill_path("record-session"), "reason": "Session recording and state sync"},
     ]
 
     if dev_type in ("backend", "frontend", "fullstack"):
@@ -420,6 +424,7 @@ def get_debug_context(dev_type: str, repo_root: Path) -> list[dict]:
     """Get debug context entries."""
     entries: list[dict] = [
         {"file": _skill_path("break-loop"), "reason": "Deep bug analysis workflow"},
+        {"file": _skill_path("update-spec"), "reason": "Capture implementation lessons and contracts"},
     ]
 
     if dev_type in ("backend", "frontend", "fullstack"):
@@ -432,6 +437,53 @@ def _write_jsonl(path: Path, entries: list[dict]) -> None:
     """Write entries to JSONL file."""
     lines = [json.dumps(entry, ensure_ascii=False) for entry in entries]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _read_text_if_present(path: Path) -> str:
+    """读取文本文件并返回去空白后的内容；不存在或读取失败时返回空字符串。"""
+    if not path.is_file():
+        return ""
+
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except (OSError, IOError):
+        return ""
+
+
+def _task_start_blockers(task_dir: Path) -> list[str]:
+    """返回启动任务前必须处理的准备阻塞项。"""
+    blockers: list[str] = []
+
+    task_json = task_dir / FILE_TASK_JSON
+    if not task_json.is_file():
+        blockers.append("task.json is missing")
+
+    prd_file = task_dir / "prd.md"
+    if not _read_text_if_present(prd_file):
+        blockers.append("prd.md is missing or empty")
+
+    for jsonl_name in CONTEXT_JSONL_FILES:
+        jsonl_file = task_dir / jsonl_name
+        if not _read_text_if_present(jsonl_file):
+            blockers.append(f"{jsonl_name} is missing or empty")
+
+    return blockers
+
+
+def _task_context_validation_issues(task_dir: Path, repo_root: Path) -> list[str]:
+    """返回任务上下文文件的校验问题。"""
+    issues: list[str] = []
+
+    for jsonl_name in CONTEXT_JSONL_FILES:
+        jsonl_file = task_dir / jsonl_name
+        if not _read_text_if_present(jsonl_file):
+            continue
+
+        error_count = _validate_jsonl(jsonl_file, repo_root)
+        if error_count > 0:
+            issues.append(f"{jsonl_name} has {error_count} validation error(s)")
+
+    return issues
 
 
 def _iter_jsonl_lines(path: Path):
@@ -854,6 +906,28 @@ def cmd_start(args: argparse.Namespace) -> int:
     if not full_path.is_dir():
         print(colored(f"Error: Task not found: {task_input}", Colors.RED))
         print(f"Hint: Use task name (e.g., 'my-task') or full path (e.g., '{DIR_WORKFLOW}/tasks/01-31-my-task')")
+        return 1
+
+    blockers = _task_start_blockers(full_path)
+    if blockers:
+        print(colored("Error: Task is not ready to start yet", Colors.RED), file=sys.stderr)
+        for blocker in blockers:
+            print(f"  - {blocker}", file=sys.stderr)
+        print(
+            "Hint: write prd.md, run python3 ./.cowork-flow/scripts/task.py init-context <dir> <dev_type>, then retry",
+            file=sys.stderr,
+        )
+        return 1
+
+    validation_issues = _task_context_validation_issues(full_path, repo_root)
+    if validation_issues:
+        print(colored("Error: Task context validation failed", Colors.RED), file=sys.stderr)
+        for issue in validation_issues:
+            print(f"  - {issue}", file=sys.stderr)
+        print(
+            "Hint: run python3 ./.cowork-flow/scripts/task.py validate <dir> and fix the reported issues",
+            file=sys.stderr,
+        )
         return 1
 
     # Convert to relative path for storage

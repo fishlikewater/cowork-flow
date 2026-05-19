@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
 FORBIDDEN_PATTERNS = (
+    "OpenSpec",
     "Trellis",
     "trellis",
     ".trellis",
@@ -34,6 +35,33 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         for path in text_files:
             content = path.read_text(encoding="utf-8")
             for pattern in FORBIDDEN_PATTERNS:
+                if pattern in content:
+                    offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
+
+        self.assertEqual([], offenders)
+
+    def test_superpowers_seed_uses_cowork_flow_paths(self) -> None:
+        forbidden_patterns = (
+            "docs/superpowers",
+            "OpenSpec",
+            "openspec new",
+            "openspec validate",
+            "openspec archive",
+            "openspec/changes",
+            "openspec/config.yaml",
+            ".trellis",
+        )
+        offenders: list[str] = []
+        text_files = [
+            path
+            for path in (TEMPLATE / ".superpowers").rglob("*")
+            if path.is_file()
+            and path.suffix in {".md", ".js", ".cjs", ".sh", ".html", ".dot", ".ts"}
+        ]
+
+        for path in text_files:
+            content = path.read_text(encoding="utf-8")
+            for pattern in forbidden_patterns:
                 if pattern in content:
                     offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
 

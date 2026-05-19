@@ -7,6 +7,14 @@ description: Use when beginning a development session in a project that uses the
 
 Initialize your AI development session and begin working on tasks.
 
+<HARD-GATE>
+Any request that changes repository files MUST go through this skill's task workflow.
+Questions may be answered directly, but file edits are at least `L0` and require a task,
+PRD, context initialization, task activation, verification, and session recording.
+Do not use a direct-edit shortcut unless the user explicitly tells you not to use
+cowork-flow for this task.
+</HARD-GATE>
+
 ---
 
 ## Operation Types
@@ -42,10 +50,11 @@ cat AGENTS.md
 ### Step 2: Get Current Context
 
 ```bash
-python3 ./.cowork-flow/scripts/get_context.py
+python3 ./.cowork-flow/scripts/resume.py
 ```
 
-This shows: developer identity, git status, current task (if any), active tasks.
+This shows: developer identity, git status, current task (if any), active tasks, and
+the minimal `RESUME CHECKLIST` for loading task details on demand.
 
 ### Step 3: Read Guidelines Index
 
@@ -71,13 +80,19 @@ When user describes a task, classify it:
 
 | Type | Criteria | Workflow |
 |------|----------|----------|
-| **Question** | User asks about code, architecture, or how something works | Answer directly |
-| **Trivial Fix** | Typo fix, comment update, single-line change, < 5 minutes | Direct Edit |
-| **Simple Task** | Clear goal, 1-2 files, well-defined scope | Quick confirm → Task Workflow |
-| **Complex Task** | Vague goal, multiple files, architectural decisions | **Brainstorm → Task Workflow** |
+| **Question** | User asks about code, architecture, or how something works, and no repository files need to change | Answer directly after session context is loaded |
+| **L0 Change** | Docs, tests, comments, config, small refactors, or any file change without external behavior change | Task Workflow, no Behavior Change Gate |
+| **L1 Change** | Bounded behavior change in one module or one interface | Behavior Change Gate → Task Workflow |
+| **L2 Change** | Cross-layer, architectural, migration, permission, compatibility, release, or security-impacting change | Behavior Change Gate + `design.md` → Task Workflow |
+| **Unclear / Complex** | Vague goal, multiple possible interpretations, or architectural decisions | **Brainstorm → classify L0/L1/L2 → gated workflow** |
 
 ### Decision Rule
 
+> **Any file change must enter L0 / L1 / L2 workflow.**
+>
+> A typo, comment, one-line fix, or "quick" change is still a repository change.
+> Do not treat small size as permission to skip PRD, context, verification, or session recording.
+>
 > **If in doubt, use Brainstorm + Task Workflow.**
 >
 > Task Workflow ensures code-specs are injected to the right context, resulting in higher quality code.
@@ -114,24 +129,24 @@ Before Phase 2, always complete this task handoff:
 
 ---
 
-## Question / Trivial Fix
+## Question Only
 
-For questions or trivial fixes, work directly:
+For questions that do not modify repository files, work directly:
 
-1. Answer question or make the fix
-2. If code was changed, follow the current session convention for verification, business-code commit or handoff, and `$record-session`
+1. Answer the question.
+2. If the answer reveals that files should change, stop and re-enter Task Classification.
+3. Do not modify files from this section.
 
 ---
 
-## Simple Task
+## L0 / Simple Task
 
-For simple, well-defined tasks:
+For simple, well-defined tasks that modify files without external behavior change:
 
-1. Quick confirm: "I understand you want to [goal]. Shall I proceed?"
-2. If no, clarify and confirm again
-3. Determine whether the task is `L0`, `L1`, or `L2`.
-4. **If it is `L1/L2`, complete the Behavior Change Gate first. After that, execute Path B Step 2 and Step 3, complete the task handoff, then continue with Phase 2.**
-5. **If it is `L0`, execute ALL steps below without stopping. Do NOT ask for additional confirmation between steps.**
+1. Clarify only if the goal, scope, or verification method is unclear.
+2. Determine whether the task is `L0`, `L1`, or `L2`.
+3. **If it is `L1/L2`, complete the Behavior Change Gate first. After that, execute Path B Step 2 and Step 3, complete the task handoff, then continue with Phase 2.**
+4. **If it is `L0`, execute ALL steps below without stopping. Do NOT ask for additional confirmation between steps. Do NOT switch to ad hoc direct editing.**
    - Create task directory (Phase 1 Path B, Step 2)
    - Write PRD (Step 3)
    - Research codebase (Phase 2, Step 5)
@@ -339,13 +354,30 @@ Run a quality pass against check context:
 
 ## Continuing Existing Task
 
-If `get_context.py` shows a current task:
+If `resume.py` shows a current task:
 
 1. Read the task's `prd.md` to understand the goal
 2. Check `task.json` for current status
 3. Ask user: "Continue working on <task-name>?"
 
 If yes, resume from the appropriate step (usually Step 7 or 8).
+
+---
+
+## Resume / Context Compression
+
+When a conversation has many rounds, a task runs for a long time, or context was
+compressed, resume with the smallest useful context:
+
+1. Run `python3 ./.cowork-flow/scripts/resume.py`.
+2. Follow the `RESUME CHECKLIST` section.
+3. Read the current task `prd.md`.
+4. Run `python3 ./.cowork-flow/scripts/task.py list-context <task-dir>` and read only the jsonl references needed for the current phase.
+5. If a plan is listed, read its current execution status before continuing implementation.
+
+Do not bulk-read `.cowork-flow/spec/`, all plans, all tasks, or workspace journals
+just because context was compressed. Use the checklist as the minimal recovery
+anchor, then load details on demand.
 
 ---
 
@@ -363,6 +395,7 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 
 | Script | Purpose |
 |--------|---------|
+| `python3 ./.cowork-flow/scripts/resume.py` | Resume session with minimal context checklist |
 | `python3 ./.cowork-flow/scripts/get_context.py` | Get session context |
 | `python3 ./.cowork-flow/scripts/task.py create` | Create task directory |
 | `python3 ./.cowork-flow/scripts/task.py init-context` | Initialize jsonl files |

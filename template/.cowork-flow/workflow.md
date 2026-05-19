@@ -81,7 +81,7 @@ python3 ./.cowork-flow/scripts/init_developer.py <developer-name>
 每次开始工作先执行：
 
 ```bash
-python3 ./.cowork-flow/scripts/get_context.py
+python3 ./.cowork-flow/scripts/resume.py
 python3 ./.cowork-flow/scripts/task.py list
 git status
 git log --oneline -10
@@ -387,7 +387,29 @@ python3 ./.cowork-flow/scripts/change.py archive <slug>
 
 ---
 
-## 11. 禁止事项
+## 11. 恢复与上下文压缩
+
+多轮对话、长任务、中断恢复或上下文压缩后，必须先走最小恢复层，再按需读取细节。
+
+| 层级 | 读取内容 | 使用时机 |
+|------|----------|----------|
+| 最小恢复层 | `resume.py` 输出中的 `RESUME CHECKLIST` | 每次恢复、压缩后、重新接手任务 |
+| 任务执行层 | 当前任务 `prd.md`、当前 plan 状态、`task.py list-context <task-dir>` | 准备继续实现或检查前 |
+| 细节规范层 | jsonl 指向的具体 spec、代码模式或计划段落 | 当前修改确实需要该细节时 |
+
+恢复规则：
+
+- 先执行 `python3 ./.cowork-flow/scripts/resume.py`。
+- 按 `RESUME CHECKLIST` 读取当前 PRD、当前 plan 和 `list-context` 输出。
+- 不要全量重读 `.cowork-flow/spec/`、所有 plan、所有 task 或 workspace journal。
+- 如果 plan 有 `Current Execution Status`，先读该段以确定下一步。
+- 如果 jsonl 指向的规范过多，先根据当前阶段选择最小相关集合。
+
+恢复目标是重建“现在该做什么”和“当前门禁是否满足”，不是把全部历史重新塞进上下文。
+
+---
+
+## 12. 禁止事项
 
 - 不跳过上下文读取直接编码。
 - 不在未验证时声称完成。
@@ -398,7 +420,7 @@ python3 ./.cowork-flow/scripts/change.py archive <slug>
 
 ---
 
-## 12. 完成定义
+## 13. 完成定义
 
 一个任务只有在以下条件同时满足时，才算完成：
 
