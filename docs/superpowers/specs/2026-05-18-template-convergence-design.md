@@ -104,9 +104,8 @@
 .cowork-flow/changes/<slug>/
 ├── change.yaml
 ├── proposal.md
-├── design.md
-└── specs/
-    └── <area>/spec.md
+├── spec.md
+└── design.md
 ```
 
 `design.md` 用于复杂或跨层变更。简单 L1 变更可以保留空文件模板，或由校验脚本允许缺省。
@@ -126,7 +125,7 @@
 它回答“当前谁在做、任务上下文是什么、任务是否完成或归档”。任务上下文可以引用：
 
 - `.cowork-flow/changes/<slug>/proposal.md`
-- `.cowork-flow/changes/<slug>/specs/.../spec.md`
+- `.cowork-flow/changes/<slug>/spec.md`
 - `.cowork-flow/changes/<slug>/design.md`
 - `.cowork-flow/plans/<date>-<slug>.md`
 - `.cowork-flow/spec/...`
@@ -155,7 +154,7 @@ python3 ./.cowork-flow/scripts/change.py list
 - `change.yaml`
 - `proposal.md`
 - `design.md`
-- `specs/.gitkeep`
+- `spec.md`
 
 `change.yaml` 至少包含：
 
@@ -174,7 +173,7 @@ task: null
 
 - `change.yaml` 存在且 slug 匹配目录名。
 - `proposal.md` 存在且非空。
-- 至少存在一个 `specs/**/spec.md`，或明确标记为 documentation-only。
+- `spec.md` 存在且非空，或明确标记为 documentation-only。
 - L2 变更必须有非空 `design.md`。
 - 如果 `change.yaml` 声明了 `plan` 或 `task`，对应文件或目录必须存在。
 

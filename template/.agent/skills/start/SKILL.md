@@ -306,10 +306,10 @@ If this task came through the Behavior Change Gate, add the approved artifacts b
 
 ```bash
 python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/proposal.md" "Approved change proposal"
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/specs/.../spec.md" "Approved behavior spec"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/spec.md" "Approved behavior spec"
 python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/design.md" "Approved design for L2 changes"
 python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Approved implementation plan"
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check ".cowork-flow/changes/<slug>/specs/.../spec.md" "Check implementation against approved spec"
+python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check ".cowork-flow/changes/<slug>/spec.md" "Check implementation against approved spec"
 python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Check implementation against approved plan"
 ```
 

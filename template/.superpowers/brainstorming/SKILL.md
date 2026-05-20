@@ -110,7 +110,7 @@ digraph brainstorming {
 
 - Write the validated change artifacts under `.cowork-flow/changes/<slug>/`
   - `proposal.md` explains why the behavior should change
-  - `specs/.../spec.md` defines external behavior and acceptance criteria
+  - `spec.md` defines external behavior and acceptance criteria
   - `design.md` records important design trade-offs for L2 work
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available

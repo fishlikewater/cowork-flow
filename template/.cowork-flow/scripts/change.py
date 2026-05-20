@@ -92,11 +92,8 @@ def _has_text(path: Path) -> bool:
     return path.is_file() and bool(path.read_text(encoding="utf-8").strip())
 
 
-def _spec_files(change_dir: Path) -> list[Path]:
-    specs_dir = change_dir / "specs"
-    if not specs_dir.is_dir():
-        return []
-    return sorted(path for path in specs_dir.rglob("spec.md") if path.is_file())
+def _spec_file(change_dir: Path) -> Path:
+    return change_dir / "spec.md"
 
 
 def _resolve_link(repo_root: Path, base_dir: str, value: object) -> Path | None:
@@ -151,10 +148,8 @@ def validate_change(repo_root: Path, slug: str, quiet: bool = False) -> bool:
             errors.append("proposal.md is missing or empty")
 
         documentation_only = metadata.get("documentation_only") is True
-        if not documentation_only:
-            specs = _spec_files(change_dir)
-            if not specs or not any(_has_text(spec) for spec in specs):
-                errors.append("specs must include at least one non-empty behavior spec")
+        if not documentation_only and not _has_text(_spec_file(change_dir)):
+            errors.append("spec.md is missing or empty")
 
         if level == "L2" and not _has_text(change_dir / "design.md"):
             errors.append("design.md is required for L2 changes")
@@ -189,13 +184,12 @@ def create_change(args: argparse.Namespace) -> int:
         return 1
 
     change_dir.mkdir(parents=True)
-    (change_dir / "specs").mkdir()
     (change_dir / "proposal.md").write_text(
         f"# {slug}\n\nDescribe the proposed behavior change.\n",
         encoding="utf-8",
     )
     (change_dir / "design.md").write_text("", encoding="utf-8")
-    (change_dir / "specs" / ".gitkeep").write_text("", encoding="utf-8")
+    _spec_file(change_dir).write_text("", encoding="utf-8")
     _write_metadata(
         change_dir,
         {

@@ -233,7 +233,7 @@ python3 ./.cowork-flow/scripts/change.py create <slug>
 使用 `superpowers:brainstorming` 澄清需求、比较方案，并补齐：
 
 - `.cowork-flow/changes/<slug>/proposal.md`
-- `.cowork-flow/changes/<slug>/specs/.../spec.md`
+- `.cowork-flow/changes/<slug>/spec.md`
 - L2 任务需要 `.cowork-flow/changes/<slug>/design.md`
 
 ### 7.3 校验 cowork-flow change

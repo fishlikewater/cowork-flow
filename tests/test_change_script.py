@@ -65,7 +65,8 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertTrue((change_dir / "change.yaml").is_file())
         self.assertTrue((change_dir / "proposal.md").is_file())
         self.assertTrue((change_dir / "design.md").is_file())
-        self.assertTrue((change_dir / "specs" / ".gitkeep").is_file())
+        self.assertTrue((change_dir / "spec.md").is_file())
+        self.assertFalse((change_dir / "specs").exists())
         metadata = self.read_metadata("replace-auth")
         self.assertEqual("replace-auth", metadata["slug"])
         self.assertEqual("draft", metadata["status"])
@@ -86,8 +87,7 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertEqual(0, self.run_change("create", "broken-change").returncode)
         change_dir = self.repo / ".cowork-flow" / "changes" / "broken-change"
         (change_dir / "proposal.md").write_text("", encoding="utf-8")
-        spec = change_dir / "specs" / "backend" / "spec.md"
-        spec.parent.mkdir(parents=True)
+        spec = change_dir / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
         change_yaml = change_dir / "change.yaml"
         content = change_yaml.read_text(encoding="utf-8")
@@ -106,29 +106,28 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertIn("plan", failed.stderr)
         self.assertIn("task", failed.stderr)
 
-    def test_validate_rejects_non_spec_md_files(self) -> None:
+    def test_validate_rejects_non_root_spec_md_files(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
 
         failed = self.run_change("validate", "replace-auth")
         self.assertNotEqual(0, failed.returncode)
-        self.assertIn("specs", failed.stderr)
+        self.assertIn("spec.md", failed.stderr)
 
-        notes = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "specs" / "backend" / "notes.md"
-        notes.parent.mkdir(parents=True)
+        notes = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "notes.md"
         notes.write_text("# Backend notes\n\n- The API returns 200.\n", encoding="utf-8")
 
         still_failed = self.run_change("validate", "replace-auth")
         self.assertNotEqual(0, still_failed.returncode)
-        self.assertIn("specs", still_failed.stderr)
+        self.assertIn("spec.md", still_failed.stderr)
 
-        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "specs" / "backend" / "spec.md"
+        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
 
         passed = self.run_change("validate", "replace-auth")
         self.assertEqual(0, passed.returncode, passed.stderr)
         self.assertIn("valid", passed.stdout)
 
-    def test_validate_allows_documentation_only_without_specs(self) -> None:
+    def test_validate_allows_documentation_only_without_spec(self) -> None:
         self.assertEqual(0, self.run_change("create", "doc-only-change").returncode)
         change_yaml = self.repo / ".cowork-flow" / "changes" / "doc-only-change" / "change.yaml"
         content = change_yaml.read_text(encoding="utf-8")
@@ -141,8 +140,7 @@ class ChangeScriptTest(unittest.TestCase):
 
     def test_validate_requires_design_for_l2_change(self) -> None:
         self.assertEqual(0, self.run_change("create", "cross-layer-auth", "--level", "L2").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "cross-layer-auth" / "specs" / "backend" / "spec.md"
-        spec.parent.mkdir(parents=True)
+        spec = self.repo / ".cowork-flow" / "changes" / "cross-layer-auth" / "spec.md"
         spec.write_text("# Cross-layer behavior\n\n- Frontend and backend share the same contract.\n", encoding="utf-8")
 
         failed = self.run_change("validate", "cross-layer-auth")
@@ -157,8 +155,7 @@ class ChangeScriptTest(unittest.TestCase):
 
     def test_validate_accepts_active_status(self) -> None:
         self.assertEqual(0, self.run_change("create", "active-change").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "active-change" / "specs" / "backend" / "spec.md"
-        spec.parent.mkdir(parents=True)
+        spec = self.repo / ".cowork-flow" / "changes" / "active-change" / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
 
         change_yaml = self.repo / ".cowork-flow" / "changes" / "active-change" / "change.yaml"
@@ -172,8 +169,7 @@ class ChangeScriptTest(unittest.TestCase):
 
     def test_archive_requires_valid_change_and_moves_to_month_archive(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "specs" / "backend" / "spec.md"
-        spec.parent.mkdir(parents=True)
+        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
 
         archived = self.run_change("archive", "replace-auth")
@@ -190,8 +186,7 @@ class ChangeScriptTest(unittest.TestCase):
 
     def test_list_prints_active_and_archived_changes(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "specs" / "backend" / "spec.md"
-        spec.parent.mkdir(parents=True)
+        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
         change_yaml = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "change.yaml"
         content = change_yaml.read_text(encoding="utf-8")

@@ -426,7 +426,7 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertTrue((change_dir / "change.yaml").is_file())
         self.assertTrue((change_dir / "proposal.md").is_file())
         self.assertTrue((change_dir / "design.md").is_file())
-        self.assertTrue((change_dir / "specs" / ".gitkeep").is_file())
+        self.assertTrue((change_dir / "spec.md").is_file())
         self.assertIn("slug: replace-auth", (change_dir / "change.yaml").read_text())
 
     def test_validate_requires_non_empty_behavior_spec_unless_documentation_only(self) -> None:
@@ -434,10 +434,9 @@ class ChangeScriptTest(unittest.TestCase):
 
         failed = self.run_change("validate", "replace-auth")
         self.assertNotEqual(0, failed.returncode)
-        self.assertIn("specs", failed.stderr)
+        self.assertIn("spec.md", failed.stderr)
 
-        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "specs" / "backend" / "spec.md"
-        spec.parent.mkdir(parents=True)
+        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
 
         passed = self.run_change("validate", "replace-auth")
@@ -446,8 +445,7 @@ class ChangeScriptTest(unittest.TestCase):
 
     def test_validate_requires_design_for_l2_change(self) -> None:
         self.assertEqual(0, self.run_change("create", "cross-layer-auth", "--level", "L2").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "cross-layer-auth" / "specs" / "backend" / "spec.md"
-        spec.parent.mkdir(parents=True)
+        spec = self.repo / ".cowork-flow" / "changes" / "cross-layer-auth" / "spec.md"
         spec.write_text("# Cross-layer behavior\n\n- Frontend and backend share the same contract.\n", encoding="utf-8")
 
         failed = self.run_change("validate", "cross-layer-auth")
@@ -462,8 +460,7 @@ class ChangeScriptTest(unittest.TestCase):
 
     def test_archive_requires_valid_change_and_moves_to_month_archive(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "specs" / "backend" / "spec.md"
-        spec.parent.mkdir(parents=True)
+        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
 
         archived = self.run_change("archive", "replace-auth")
@@ -567,11 +564,8 @@ def _non_empty_file(path: Path) -> bool:
     return path.is_file() and bool(path.read_text(encoding="utf-8").strip())
 
 
-def _spec_files(change_dir: Path) -> list[Path]:
-    specs_dir = change_dir / "specs"
-    if not specs_dir.is_dir():
-        return []
-    return sorted(path for path in specs_dir.glob("**/spec.md") if path.is_file())
+def _spec_file(change_dir: Path) -> Path:
+    return change_dir / "spec.md"
 
 
 def _validate_slug(slug: str) -> list[str]:
@@ -606,8 +600,8 @@ def _validate_change(repo_root: Path, slug: str) -> list[str]:
         errors.append("proposal.md is missing or empty")
 
     documentation_only = _is_true(metadata.get("documentation_only"))
-    if not documentation_only and not _spec_files(change_dir):
-        errors.append("specs must contain at least one specs/<area>/spec.md file")
+    if not documentation_only and not _non_empty_file(_spec_file(change_dir)):
+        errors.append("spec.md is missing or empty")
 
     if level == "L2" and not _non_empty_file(change_dir / "design.md"):
         errors.append("design.md is required and must be non-empty for L2 changes")
@@ -639,8 +633,7 @@ def cmd_create(args: argparse.Namespace) -> int:
         print(f"change already exists: {change_dir}", file=sys.stderr)
         return 1
 
-    (change_dir / "specs").mkdir(parents=True)
-    (change_dir / "specs" / ".gitkeep").write_text("", encoding="utf-8")
+    _spec_file(change_dir).write_text("", encoding="utf-8")
     (change_dir / "proposal.md").write_text(
         f"# Proposal: {args.slug}\n\n## Why\n\n## What Changes\n\n## Acceptance Criteria\n",
         encoding="utf-8",
@@ -1213,8 +1206,7 @@ If the command prints a temp directory path, use it as `<tmp>`, then run:
 rtk mkdir -p <tmp>/cowork-flow-smoke
 rtk rsync -a template/ <tmp>/cowork-flow-smoke/
 rtk python3 <tmp>/cowork-flow-smoke/.cowork-flow/scripts/change.py create smoke-change
-rtk mkdir -p <tmp>/cowork-flow-smoke/.cowork-flow/changes/smoke-change/specs/general
-rtk python3 -c "from pathlib import Path; import sys; Path(sys.argv[1]).write_text('# Smoke\n\n- Works.\n', encoding='utf-8')" <tmp>/cowork-flow-smoke/.cowork-flow/changes/smoke-change/specs/general/spec.md
+rtk python3 -c "from pathlib import Path; import sys; Path(sys.argv[1]).write_text('# Smoke\n\n- Works.\n', encoding='utf-8')" <tmp>/cowork-flow-smoke/.cowork-flow/changes/smoke-change/spec.md
 rtk python3 <tmp>/cowork-flow-smoke/.cowork-flow/scripts/change.py validate smoke-change
 rtk python3 <tmp>/cowork-flow-smoke/.cowork-flow/scripts/change.py archive smoke-change
 ```
