@@ -28,6 +28,7 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
     └── .cowork-flow/
         ├── config.yaml
         ├── workflow.md
+        ├── agent-team/
         ├── scripts/
         ├── spec/
         ├── changes/
@@ -55,6 +56,9 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 
 `template/.cowork-flow/plans/`
 保存可执行步骤、验证方式和执行状态。
+
+`template/.cowork-flow/agent-team/`
+保存 agent team 的项目级 registry、适配器和策略。默认适配器是 `codex`，由主 agent 调度 Codex 子 agent；没有子 agent 能力时可退回 `manual` 提示词模式。
 
 ## 快速开始
 
@@ -171,6 +175,17 @@ cowork-flow sync . --dry-run
 ./.cowork-flow/run task create "<title>" --slug <task-name>
 ./.cowork-flow/run task start <task-dir>
 ```
+
+执行 plan 时准备 agent team：
+
+```bash
+./.cowork-flow/run agent-team init
+./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>
+./.cowork-flow/run agent-team next <task-dir>
+./.cowork-flow/run agent-team complete <task-dir>
+```
+
+`agent-team` 命令会生成任务目录内的 dispatch plan、assignments、状态、审阅和 metrics 工件。默认 `codex` 适配器采用主 agent 调度型：脚本生成 Codex-ready 分派文件，主 agent 负责调用子 agent、协调并回写结果。
 
 记录 session：
 

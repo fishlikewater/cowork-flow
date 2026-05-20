@@ -31,6 +31,8 @@ if /I "%COMMAND_NAME%"=="init-developer" goto run_init_developer
 if /I "%COMMAND_NAME%"=="init_developer" goto run_init_developer
 if /I "%COMMAND_NAME%"=="add-session" goto run_add_session
 if /I "%COMMAND_NAME%"=="add_session" goto run_add_session
+if /I "%COMMAND_NAME%"=="agent-team" goto run_agent_team
+if /I "%COMMAND_NAME%"=="agent_team" goto run_agent_team
 
 if exist "%SCRIPTS_DIR%\%COMMAND_NAME%.py" (
   call :run_script "%SCRIPTS_DIR%\%COMMAND_NAME%.py"
@@ -81,6 +83,10 @@ exit /b %ERRORLEVEL%
 call :run_script "%SCRIPTS_DIR%\add_session.py"
 exit /b %ERRORLEVEL%
 
+:run_agent_team
+call :run_script "%SCRIPTS_DIR%\agent_team.py"
+exit /b %ERRORLEVEL%
+
 :print_usage
 echo 用法：
 echo   .\.cowork-flow\run.cmd ^<command^> [args...]
@@ -94,6 +100,7 @@ echo   get-context
 echo   get-developer
 echo   init-developer
 echo   add-session
+echo   agent-team
 echo.
 echo 解释器选择顺序：
 echo   COWORK_FLOW_PYTHON -^> PYTHON -^> python3 -^> python -^> py -3

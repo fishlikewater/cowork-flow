@@ -336,6 +336,7 @@ Implement the task described in `prd.md`.
 - Follow all specs injected into implement context
 - Keep changes scoped to requirements
 - Run the project verification commands from `AGENTS.md` or `.cowork-flow/config.yaml` before finishing
+- If executing an approved plan with independent work, use `agent-team-execution`: run `agent-team prepare`, review the dispatch plan, use `agent-team next` for ready assignments, and finish with `agent-team complete`.
 
 **Step 9: Check Quality** `[AI]`
 

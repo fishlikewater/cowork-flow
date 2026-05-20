@@ -253,6 +253,13 @@ def _task_plan_references(repo_root: Path, snapshot: CurrentTaskSnapshot) -> lis
     return plan_refs
 
 
+def _task_has_agent_team_status(repo_root: Path, snapshot: CurrentTaskSnapshot) -> bool:
+    """Return whether the current task has persisted agent-team runtime state."""
+    if not snapshot.path:
+        return False
+    return (repo_root / snapshot.path / "agent-team" / "status.json").is_file()
+
+
 def _build_resume_checklist(
     repo_root: Path,
     snapshot: CurrentTaskSnapshot,
@@ -269,6 +276,9 @@ def _build_resume_checklist(
 
     current_task = snapshot.path
     commands.append(f"./{DIR_WORKFLOW}/run task list-context {current_task}")
+    if _task_has_agent_team_status(repo_root, snapshot):
+        commands.append(f"./{DIR_WORKFLOW}/run agent-team status {current_task}")
+        commands.append(f"./{DIR_WORKFLOW}/run agent-team next {current_task}")
 
     if snapshot.has_prd:
         read_files.append(f"{current_task}/prd.md")
@@ -328,6 +338,13 @@ def _append_resume_checklist(
             lines.append(f"- Read current plan status: {plan_file}")
     else:
         lines.append("- No plan reference found in task context; do not search all plans unless needed.")
+
+    agent_team_commands = [
+        command for command in commands if f"./{DIR_WORKFLOW}/run agent-team " in command
+    ]
+    if agent_team_commands:
+        lines.append(f"- Check agent-team status: {agent_team_commands[0]}")
+        lines.append(f"- Continue agent-team dispatch: {agent_team_commands[1]}")
 
     lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; follow JSONL references on demand.")
     lines.append("")

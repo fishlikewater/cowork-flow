@@ -21,6 +21,7 @@ print_usage() {
   get-developer
   init-developer
   add-session
+  agent-team
 
 解释器选择顺序：
   COWORK_FLOW_PYTHON -> PYTHON -> python3 -> python -> py -3
@@ -149,6 +150,9 @@ case "$command_name" in
     ;;
   add-session|add_session)
     run_script "$SCRIPTS_DIR/add_session.py" "$@"
+    ;;
+  agent-team|agent_team)
+    run_script "$SCRIPTS_DIR/agent_team.py" "$@"
     ;;
   *)
     if [ -f "$SCRIPTS_DIR/$command_name.py" ]; then

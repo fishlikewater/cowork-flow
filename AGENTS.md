@@ -104,8 +104,9 @@
 3. 任何会修改仓库文件的请求，都必须先分级为 `L0` / `L1` / `L2`，再进入对应流程；不要把“很小”当成可以绕过流程的理由。
 4. `L1` / `L2` 行为变更必须先有 `change -> spec -> plan`；`L2` 还必须有 `design.md`，然后才能进入实现。
 5. 实现前必须把任务上下文写入 `.cowork-flow/tasks/<task>/implement.jsonl`、`check.jsonl`、`debug.jsonl`，并在 `start` 之后再改代码。
-6. 收尾前必须跑验证、同步 plan / task / change 状态，完成 `finish-work` 检查，再按项目策略记录 session。
-7. 多轮对话、长任务恢复或上下文压缩后，先运行 `./.cowork-flow/run resume` 并查看 `RESUME CHECKLIST`；只读取清单列出的 PRD、当前 plan 和 jsonl 引用，不要全量重读 `.cowork-flow/spec/` 或历史 journal。
+6. 执行 plan 时，如存在可独立并行任务，可使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 与 `agent-team next` 生成并执行 agent-team 调度；主 agent 仍负责协调、审阅和状态回写。
+7. 收尾前必须跑验证、同步 plan / task / change 状态，完成 `finish-work` 检查，再按项目策略记录 session。
+8. 多轮对话、长任务恢复或上下文压缩后，先运行 `./.cowork-flow/run resume` 并查看 `RESUME CHECKLIST`；只读取清单列出的 PRD、当前 plan 和 jsonl 引用，不要全量重读 `.cowork-flow/spec/` 或历史 journal。
 
 Use the `.agent/skills/start` skill when starting a new session to:
 - Initialize your developer identity
