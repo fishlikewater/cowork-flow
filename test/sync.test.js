@@ -146,3 +146,17 @@ test('sync creates missing safe placeholder files', async (t) => {
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${(await readPackageInfo()).version}\n`);
   assert.match(io.stdout, /created=/);
 });
+
+test('sync preserves project-level agent-team configuration', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  await mkdir(join(target, '.cowork-flow', 'agent-team'), { recursive: true });
+  await writeFile(join(target, '.cowork-flow', 'agent-team', 'agents.yaml'), 'custom: true\n', 'utf8');
+  const io = createIo();
+
+  const code = await main(['sync', target], { io });
+
+  assert.equal(code, 0);
+  assert.equal(await readText(join(target, '.cowork-flow', 'agent-team', 'agents.yaml')), 'custom: true\n');
+  assert.match(io.stdout, /protected=/);
+});

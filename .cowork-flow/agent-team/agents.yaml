@@ -1,0 +1,68 @@
+# Agent Team Registry
+# Project teams may customize this file after initialization.
+
+default_adapter: codex
+
+agents:
+  implementer:
+    codex_type: worker
+    capabilities:
+      - implementation
+      - test-writing
+    preferred_task_types:
+      - code
+      - test
+    file_patterns:
+      - "src/**"
+      - "template/**"
+      - "tests/**"
+      - "test/**"
+    risk_limits:
+      max_parallel_write_conflicts: 0
+
+  spec-reviewer:
+    codex_type: default
+    capabilities:
+      - spec-review
+      - acceptance-check
+    preferred_task_types:
+      - review
+      - documentation
+    file_patterns:
+      - ".cowork-flow/changes/**"
+      - ".cowork-flow/plans/**"
+      - "README.md"
+      - "template/**"
+    risk_limits:
+      max_parallel_write_conflicts: 0
+
+  quality-reviewer:
+    codex_type: default
+    capabilities:
+      - code-quality-review
+      - test-review
+    preferred_task_types:
+      - review
+      - verification
+    file_patterns:
+      - "src/**"
+      - "template/**"
+      - "tests/**"
+      - "test/**"
+    risk_limits:
+      max_parallel_write_conflicts: 0
+
+  docs-agent:
+    codex_type: worker
+    capabilities:
+      - documentation
+      - workflow-writing
+    preferred_task_types:
+      - docs
+    file_patterns:
+      - "README.md"
+      - "AGENTS.md"
+      - ".cowork-flow/**/*.md"
+      - ".agent/skills/**"
+    risk_limits:
+      max_parallel_write_conflicts: 0

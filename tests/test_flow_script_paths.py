@@ -35,6 +35,9 @@ class FlowScriptPathsTest(unittest.TestCase):
         self.assertEqual(".agent", self.paths.DIR_AGENT)
         self.assertEqual("changes", self.paths.DIR_CHANGES)
 
+    def test_agent_team_script_exists(self) -> None:
+        self.assertTrue((SCRIPTS / "agent_team.py").is_file())
+
     def test_repo_root_detection_uses_cowork_flow_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -257,6 +260,39 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn(
                 ".cowork-flow/tasks/05-19-demo/prd.md",
                 context["resumeChecklist"]["readFiles"],
+            )
+
+    def test_resume_checklist_points_to_agent_team_status_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            task_dir = workflow_dir / "tasks" / "05-19-demo"
+            agent_team_dir = task_dir / "agent-team"
+            agent_team_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (workflow_dir / ".current-task").write_text(
+                ".cowork-flow/tasks/05-19-demo",
+                encoding="utf-8",
+            )
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            (agent_team_dir / "status.json").write_text('{"assignments": {}}\n', encoding="utf-8")
+
+            output = self.git_context.get_context_text(root)
+            context = self.git_context.get_context_json(root)
+
+            self.assertIn(
+                "Check agent-team status: ./.cowork-flow/run agent-team status .cowork-flow/tasks/05-19-demo",
+                output,
+            )
+            self.assertIn(
+                "./.cowork-flow/run agent-team next .cowork-flow/tasks/05-19-demo",
+                context["resumeChecklist"]["commands"],
             )
             serialized = str(context)
             self.assertNotIn("Secret PRD body", serialized)

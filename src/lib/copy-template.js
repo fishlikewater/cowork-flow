@@ -97,6 +97,7 @@ const PROTECTED_SYNC_FILES = new Set([
 
 const PROTECTED_SYNC_PREFIXES = [
   '.cowork-flow/spec/',
+  '.cowork-flow/agent-team/',
   '.cowork-flow/workspace/',
   '.cowork-flow/tasks/',
   '.cowork-flow/changes/',

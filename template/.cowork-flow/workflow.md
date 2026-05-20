@@ -284,6 +284,7 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 
 - `superpowers:executing-plans`
 - 或在存在独立并行工作时使用 `superpowers:subagent-driven-development`
+- 或在执行 plan 时使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度 Codex 子 agent。
 - `superpowers:test-driven-development` 不得先写生产代码再补测试。
 
 执行中必须持续同步：
@@ -291,7 +292,10 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 - plan checkbox
 - plan 当前执行状态
 - 任务状态
+- agent-team status / result / review / retry 工件，如本次执行启用了 agent team
 - 必要的 `.cowork-flow/spec/` 更新
+
+启用 agent team 时，主 agent 仍是协调者：负责审核并行安全性、补充上下文、处理阻塞、集成结果，并在完成前运行 `./.cowork-flow/run agent-team complete <task-dir>`。
 
 ---
 

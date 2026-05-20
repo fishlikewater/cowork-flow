@@ -28,6 +28,7 @@ class TemplateConvergenceTest(unittest.TestCase):
 
     def test_required_flow_subdirectories_exist(self) -> None:
         expected = {
+            "agent-team",
             "changes",
             "config.yaml",
             "plans",
@@ -43,6 +44,13 @@ class TemplateConvergenceTest(unittest.TestCase):
 
     def test_resume_script_exists(self) -> None:
         self.assertTrue((TEMPLATE / ".cowork-flow" / "scripts" / "resume.py").is_file())
+
+    def test_agent_team_runtime_assets_exist(self) -> None:
+        self.assertTrue((TEMPLATE / ".cowork-flow" / "agent-team" / "agents.yaml").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow" / "agent-team" / "adapters.yaml").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow" / "agent-team" / "policy.yaml").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow" / "scripts" / "agent_team.py").is_file())
+        self.assertTrue((TEMPLATE / ".agent" / "skills" / "agent-team-execution" / "SKILL.md").is_file())
 
     def test_required_placeholder_files_exist(self) -> None:
         expected = [

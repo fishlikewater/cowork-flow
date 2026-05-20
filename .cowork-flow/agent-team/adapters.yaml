@@ -1,0 +1,15 @@
+# Agent Team Adapters
+
+default: codex
+fallback: manual
+
+adapters:
+  codex:
+    mode: coordinator-dispatched
+    description: 主 agent 使用 Codex 子 agent 工具执行脚本生成的 assignments。
+    output_file: adapters/codex.json
+
+  manual:
+    mode: prompt-only
+    description: 生成可复制的 assignment prompt，由人或其他宿主执行并回写结果。
+    output_file: adapters/manual.json
