@@ -24,7 +24,7 @@ Do not archive a task while the plan file still shows stale progress.
 ### Step 1: Get Context & Check Tasks
 
 ```bash
-python3 ./.cowork-flow/scripts/get_context.py --mode record
+./.cowork-flow/run get-context --mode record
 ```
 
 [!] Archive tasks whose work is **actually done** — judge by work status, not the `status` field in task.json:
@@ -33,20 +33,20 @@ python3 ./.cowork-flow/scripts/get_context.py --mode record
 - Don't skip archiving just because `status` still says `planning` or `in_progress`
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py archive <task-name>
+./.cowork-flow/run task archive <task-name>
 ```
 
 ### Step 2: One-Click Add Session
 
 ```bash
 # Method 1: Simple parameters
-python3 ./.cowork-flow/scripts/add_session.py \
+./.cowork-flow/run add-session \
   --title "Session Title" \
   --commit "hash1,hash2" \
   --summary "Brief summary of what was done"
 
 # Method 2: Pass detailed content via stdin
-cat << 'EOF' | python3 ./.cowork-flow/scripts/add_session.py --title "Title" --commit "hash"
+cat << 'EOF' | ./.cowork-flow/run add-session --title "Title" --commit "hash"
 | Feature | Description |
 |---------|-------------|
 | Change | Description |
@@ -72,7 +72,7 @@ EOF
 
 | Command | Purpose |
 |---------|---------|
-| `python3 ./.cowork-flow/scripts/get_context.py --mode record` | Get context for record-session |
-| `python3 ./.cowork-flow/scripts/add_session.py --title "..." --commit "..."` | **One-click add session (recommended)** |
-| `python3 ./.cowork-flow/scripts/task.py archive <name>` | Archive completed task (auto-commits) |
-| `python3 ./.cowork-flow/scripts/task.py list` | List active tasks |
+| `./.cowork-flow/run get-context --mode record` | Get context for record-session |
+| `./.cowork-flow/run add-session --title "..." --commit "..."` | **One-click add session (recommended)** |
+| `./.cowork-flow/run task archive <name>` | Archive completed task (auto-commits) |
+| `./.cowork-flow/run task list` | List active tasks |

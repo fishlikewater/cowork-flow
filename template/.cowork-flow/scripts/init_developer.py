@@ -3,7 +3,7 @@
 Initialize developer for workflow.
 
 Usage:
-    python3 init_developer.py <developer-name>
+    ./.cowork-flow/run init-developer <developer-name>
 
 This creates:
     - .cowork-flow/.developer file with developer info

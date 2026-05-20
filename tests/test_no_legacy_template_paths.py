@@ -18,6 +18,7 @@ FORBIDDEN_PATTERNS = (
     "openspec archive",
     "openspec/changes",
     "openspec/config.yaml",
+    "python3 ./.cowork-flow/scripts",
 )
 
 
@@ -81,8 +82,9 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         self.assertIn("AGENTS.md", readme)
         self.assertIn(".agent/", readme)
         self.assertIn(".cowork-flow/", readme)
-        self.assertIn("python3 ./.cowork-flow/scripts/change.py create <slug>", readme)
+        self.assertIn("./.cowork-flow/run change create <slug>", readme)
 
+        self.assertNotIn("python3 ./.cowork-flow/scripts", readme)
         self.assertNotIn(".trellis/", readme)
         self.assertNotIn(".agents/", readme)
         self.assertNotIn("docs/superpowers/", readme)

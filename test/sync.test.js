@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -36,6 +36,8 @@ test('sync updates safe template files and preserves protected files', async (t)
   assert.equal(await main(['init', target], { io: createIo() }), 0);
 
   await writeFile(join(target, '.agent', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, 'AGENTS.md'), 'custom agents\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', '.version'), '0.1.0\n', 'utf8');
   const io = createIo();
@@ -47,6 +49,15 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.agent', 'skills', 'start', 'SKILL.md')),
     await readText(join(templateRoot, '.agent', 'skills', 'start', 'SKILL.md'))
   );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'run')),
+    await readText(join(templateRoot, '.cowork-flow', 'run'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'run.cmd')),
+    await readText(join(templateRoot, '.cowork-flow', 'run.cmd'))
+  );
+  assert.notEqual((await stat(join(target, '.cowork-flow', 'run'))).mode & 0o111, 0);
   assert.equal(await readText(join(target, 'AGENTS.md')), 'custom agents\n');
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${(await readPackageInfo()).version}\n`);
   assert.match(io.stdout, /updated=/);

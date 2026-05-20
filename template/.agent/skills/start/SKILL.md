@@ -44,13 +44,17 @@ cat AGENTS.md
 - Best practices
 - Project-specific collaboration and documentation rules
 
+Command examples use macOS / Linux / Git Bash / WSL syntax. In native Windows
+cmd or PowerShell, replace `./.cowork-flow/run <command>` with
+`.\.cowork-flow\run.cmd <command>`.
+
 > **Important**:
 > Reusable skills are already part of the template. During project onboarding, put project-specific facts in `AGENTS.md`, `.cowork-flow/workflow.md`, `.cowork-flow/config.yaml`, and `.cowork-flow/spec/` rather than editing `SKILL.md`.
 
 ### Step 2: Get Current Context
 
 ```bash
-python3 ./.cowork-flow/scripts/resume.py
+./.cowork-flow/run resume
 ```
 
 This shows: developer identity, git status, current task (if any), active tasks, and
@@ -108,9 +112,9 @@ Before entering Task Workflow, classify the change as `L0` / `L1` / `L2` using `
 
 - `L0`: No external behavior change. Continue with the existing Task Workflow.
 - `L1`: Behavior change in a bounded module. Do **not** go straight to PRD/Research. First run:
-  1. `python3 ./.cowork-flow/scripts/change.py create <slug>`
+  1. `./.cowork-flow/run change create <slug>`
   2. `superpowers:brainstorming` to create or complete `proposal/spec`
-  3. `python3 ./.cowork-flow/scripts/change.py validate <slug>`
+  3. `./.cowork-flow/run change validate <slug>`
   4. `superpowers:writing-plans` to produce the implementation plan
 - `L2`: Same as `L1`, plus required `design.md`. Multi-perspective review happens after implementation in the review gate.
 
@@ -217,7 +221,7 @@ If unclear, ask clarifying questions.
 **Step 2: Create Task Directory** `[AI]`
 
 ```bash
-TASK_DIR=$(python3 ./.cowork-flow/scripts/task.py create "<title>" --slug <name>)
+TASK_DIR=$(./.cowork-flow/run task create "<title>" --slug <name>)
 ```
 
 **Step 3: Write PRD** `[AI]`
@@ -290,7 +294,7 @@ Use this output format:
 Initialize default context:
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py init-context "$TASK_DIR" <type>
+./.cowork-flow/run task init-context "$TASK_DIR" <type>
 # type: backend | frontend | fullstack
 ```
 
@@ -298,25 +302,25 @@ Add specs found in your research pass:
 
 ```bash
 # For each relevant spec and code pattern:
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
+./.cowork-flow/run task add-context "$TASK_DIR" implement "<path>" "<reason>"
+./.cowork-flow/run task add-context "$TASK_DIR" check "<path>" "<reason>"
 ```
 
 If this task came through the Behavior Change Gate, add the approved artifacts before coding:
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/proposal.md" "Approved change proposal"
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/spec.md" "Approved behavior spec"
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/design.md" "Approved design for L2 changes"
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" implement ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Approved implementation plan"
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check ".cowork-flow/changes/<slug>/spec.md" "Check implementation against approved spec"
-python3 ./.cowork-flow/scripts/task.py add-context "$TASK_DIR" check ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Check implementation against approved plan"
+./.cowork-flow/run task add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/proposal.md" "Approved change proposal"
+./.cowork-flow/run task add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/spec.md" "Approved behavior spec"
+./.cowork-flow/run task add-context "$TASK_DIR" implement ".cowork-flow/changes/<slug>/design.md" "Approved design for L2 changes"
+./.cowork-flow/run task add-context "$TASK_DIR" implement ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Approved implementation plan"
+./.cowork-flow/run task add-context "$TASK_DIR" check ".cowork-flow/changes/<slug>/spec.md" "Check implementation against approved spec"
+./.cowork-flow/run task add-context "$TASK_DIR" check ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Check implementation against approved plan"
 ```
 
 **Step 7: Activate Task** `[AI]`
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py start "$TASK_DIR"
+./.cowork-flow/run task start "$TASK_DIR"
 ```
 
 This sets `.current-task` so hooks can inject context.
@@ -369,10 +373,10 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 When a conversation has many rounds, a task runs for a long time, or context was
 compressed, resume with the smallest useful context:
 
-1. Run `python3 ./.cowork-flow/scripts/resume.py`.
+1. Run `./.cowork-flow/run resume`.
 2. Follow the `RESUME CHECKLIST` section.
 3. Read the current task `prd.md`.
-4. Run `python3 ./.cowork-flow/scripts/task.py list-context <task-dir>` and read only the jsonl references needed for the current phase.
+4. Run `./.cowork-flow/run task list-context <task-dir>` and read only the jsonl references needed for the current phase.
 5. If a plan is listed, read its current execution status before continuing implementation.
 
 Do not bulk-read `.cowork-flow/spec/`, all plans, all tasks, or workspace journals
@@ -395,14 +399,14 @@ anchor, then load details on demand.
 
 | Script | Purpose |
 |--------|---------|
-| `python3 ./.cowork-flow/scripts/resume.py` | Resume session with minimal context checklist |
-| `python3 ./.cowork-flow/scripts/get_context.py` | Get session context |
-| `python3 ./.cowork-flow/scripts/task.py create` | Create task directory |
-| `python3 ./.cowork-flow/scripts/task.py init-context` | Initialize jsonl files |
-| `python3 ./.cowork-flow/scripts/task.py add-context` | Add spec to jsonl |
-| `python3 ./.cowork-flow/scripts/task.py start` | Set current task |
-| `python3 ./.cowork-flow/scripts/task.py finish` | Clear current task |
-| `python3 ./.cowork-flow/scripts/task.py archive` | Archive completed task |
+| `./.cowork-flow/run resume` | Resume session with minimal context checklist |
+| `./.cowork-flow/run get-context` | Get session context |
+| `./.cowork-flow/run task create` | Create task directory |
+| `./.cowork-flow/run task init-context` | Initialize jsonl files |
+| `./.cowork-flow/run task add-context` | Add spec to jsonl |
+| `./.cowork-flow/run task start` | Set current task |
+| `./.cowork-flow/run task finish` | Clear current task |
+| `./.cowork-flow/run task archive` | Archive completed task |
 
 ### Workflow Phases `[AI]`
 

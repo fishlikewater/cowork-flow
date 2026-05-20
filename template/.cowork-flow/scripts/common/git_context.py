@@ -258,7 +258,7 @@ def _build_resume_checklist(
     snapshot: CurrentTaskSnapshot,
 ) -> dict[str, list[str]]:
     """构建最小恢复清单，只返回路径和命令，不展开文件内容。"""
-    commands = [f"python3 ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/resume.py"]
+    commands = [f"./{DIR_WORKFLOW}/run resume"]
     read_files: list[str] = []
     notes: list[str] = []
 
@@ -268,7 +268,7 @@ def _build_resume_checklist(
         return {"commands": commands, "readFiles": read_files, "notes": notes}
 
     current_task = snapshot.path
-    commands.append(f"python3 ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/task.py list-context {current_task}")
+    commands.append(f"./{DIR_WORKFLOW}/run task list-context {current_task}")
 
     if snapshot.has_prd:
         read_files.append(f"{current_task}/prd.md")
@@ -503,7 +503,7 @@ def get_context_text(repo_root: Path | None = None) -> str:
     lines.append("## DEVELOPER")
     if not developer:
         lines.append(
-            f"ERROR: Not initialized. Run: python3 ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/init_developer.py <name>"
+            f"ERROR: Not initialized. Run: ./{DIR_WORKFLOW}/run init-developer <name>"
         )
         return "\n".join(lines)
 
@@ -670,7 +670,7 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
     developer = get_developer(repo_root)
     if not developer:
         lines.append(
-            f"ERROR: Not initialized. Run: python3 ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/init_developer.py <name>"
+            f"ERROR: Not initialized. Run: ./{DIR_WORKFLOW}/run init-developer <name>"
         )
         return "\n".join(lines)
 

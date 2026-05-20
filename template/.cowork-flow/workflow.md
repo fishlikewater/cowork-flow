@@ -10,6 +10,8 @@
 
 所有任务都应先明确目标和验收标准，再进入实现；所有完成结论都必须有验证证据支撑。
 
+命令示例默认使用 macOS / Linux / Git Bash / WSL 写法；Windows cmd / PowerShell 中使用 `.\.cowork-flow\run.cmd <command>` 替代 `./.cowork-flow/run <command>`。
+
 ---
 
 ## 2. 职责边界
@@ -70,8 +72,8 @@
 首次进入项目时执行：
 
 ```bash
-python3 ./.cowork-flow/scripts/get_developer.py
-python3 ./.cowork-flow/scripts/init_developer.py <developer-name>
+./.cowork-flow/run get-developer
+./.cowork-flow/run init-developer <developer-name>
 ```
 
 如果已经存在开发者身份，只需读取当前身份。
@@ -81,8 +83,8 @@ python3 ./.cowork-flow/scripts/init_developer.py <developer-name>
 每次开始工作先执行：
 
 ```bash
-python3 ./.cowork-flow/scripts/resume.py
-python3 ./.cowork-flow/scripts/task.py list
+./.cowork-flow/run resume
+./.cowork-flow/run task list
 git status
 git log --oneline -10
 ```
@@ -167,8 +169,8 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 ### 6.1 创建或选择任务
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py list
-python3 ./.cowork-flow/scripts/task.py create "<title>" --slug <task-name>
+./.cowork-flow/run task list
+./.cowork-flow/run task create "<title>" --slug <task-name>
 ```
 
 ### 6.2 写入任务 PRD
@@ -184,7 +186,7 @@ python3 ./.cowork-flow/scripts/task.py create "<title>" --slug <task-name>
 ### 6.3 初始化任务上下文
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py init-context <task-dir> <type>
+./.cowork-flow/run task init-context <task-dir> <type>
 ```
 
 `<type>` 按任务选择：
@@ -200,14 +202,14 @@ python3 ./.cowork-flow/scripts/task.py init-context <task-dir> <type>
 把任务相关规范、代码模式、计划文件加入上下文：
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py add-context <task-dir> implement <path> "<reason>"
-python3 ./.cowork-flow/scripts/task.py add-context <task-dir> check <path> "<reason>"
+./.cowork-flow/run task add-context <task-dir> implement <path> "<reason>"
+./.cowork-flow/run task add-context <task-dir> check <path> "<reason>"
 ```
 
 ### 6.5 激活任务并执行
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py start <task-dir>
+./.cowork-flow/run task start <task-dir>
 ```
 
 执行要求：
@@ -225,7 +227,7 @@ python3 ./.cowork-flow/scripts/task.py start <task-dir>
 ### 7.1 创建 cowork-flow change
 
 ```bash
-python3 ./.cowork-flow/scripts/change.py create <slug>
+./.cowork-flow/run change create <slug>
 ```
 
 ### 7.2 使用 brainstorming 形成方案
@@ -239,7 +241,7 @@ python3 ./.cowork-flow/scripts/change.py create <slug>
 ### 7.3 校验 cowork-flow change
 
 ```bash
-python3 ./.cowork-flow/scripts/change.py validate <slug>
+./.cowork-flow/run change validate <slug>
 ```
 
 ### 7.4 使用 writing-plans 形成计划
@@ -345,8 +347,8 @@ L2 任务完成前需要多视角审阅：
 ### 9.2 记录 session
 
 ```bash
-python3 ./.cowork-flow/scripts/get_context.py --mode record
-python3 ./.cowork-flow/scripts/add_session.py \
+./.cowork-flow/run get-context --mode record
+./.cowork-flow/run add-session \
   --title "<session-title>" \
   --commit "<commit-or-handoff-ref>" \
   --summary "<summary>"
@@ -357,13 +359,13 @@ python3 ./.cowork-flow/scripts/add_session.py \
 仅在任务真实完成后归档：
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py archive <task-name>
+./.cowork-flow/run task archive <task-name>
 ```
 
 行为变更任务还需要归档 cowork-flow change：
 
 ```bash
-python3 ./.cowork-flow/scripts/change.py archive <slug>
+./.cowork-flow/run change archive <slug>
 ```
 
 ---
@@ -399,7 +401,7 @@ python3 ./.cowork-flow/scripts/change.py archive <slug>
 
 恢复规则：
 
-- 先执行 `python3 ./.cowork-flow/scripts/resume.py`。
+- 先执行 `./.cowork-flow/run resume`。
 - 按 `RESUME CHECKLIST` 读取当前 PRD、当前 plan 和 `list-context` 输出。
 - 不要全量重读 `.cowork-flow/spec/`、所有 plan、所有 task 或 workspace journal。
 - 如果 plan 有 `Current Execution Status`，先读该段以确定下一步。

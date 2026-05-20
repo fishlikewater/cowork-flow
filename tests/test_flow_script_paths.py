@@ -220,11 +220,11 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertIn("## RESUME CHECKLIST", output)
             self.assertIn(
-                "Recovery entrypoint (rerun only if context is stale): python3 ./.cowork-flow/scripts/resume.py",
+                "Recovery entrypoint (rerun only if context is stale): ./.cowork-flow/run resume",
                 output,
             )
             self.assertIn("Read current task PRD: .cowork-flow/tasks/05-19-demo/prd.md", output)
-            self.assertIn("List task context before reading details: python3 ./.cowork-flow/scripts/task.py list-context .cowork-flow/tasks/05-19-demo", output)
+            self.assertIn("List task context before reading details: ./.cowork-flow/run task list-context .cowork-flow/tasks/05-19-demo", output)
             self.assertIn("Read current plan status: .cowork-flow/plans/2026-05-19-demo.md", output)
             self.assertIn("Do not bulk-read .cowork-flow/spec/ or workspace journals", output)
 
@@ -251,7 +251,7 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertIn("resumeChecklist", context)
             self.assertEqual(
-                "python3 ./.cowork-flow/scripts/resume.py",
+                "./.cowork-flow/run resume",
                 context["resumeChecklist"]["commands"][0],
             )
             self.assertIn(

@@ -4,8 +4,8 @@
 Add a new session to journal file and update index.md.
 
 Usage:
-    python3 add_session.py --title "Title" --commit "hash" --summary "Summary"
-    echo "content" | python3 add_session.py --title "Title" --commit "hash"
+    ./.cowork-flow/run add-session --title "Title" --commit "hash" --summary "Summary"
+    echo "content" | ./.cowork-flow/run add-session --title "Title" --commit "hash"
 """
 
 from __future__ import annotations

@@ -3,8 +3,8 @@
 Get Session Context for AI Agent.
 
 Usage:
-    python3 get_context.py           Output context in text format
-    python3 get_context.py --json    Output context in JSON format
+    ./.cowork-flow/run get-context           Output context in text format
+    ./.cowork-flow/run get-context --json    Output context in JSON format
 """
 
 from __future__ import annotations
