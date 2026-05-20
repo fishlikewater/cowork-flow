@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
 import { templateRoot } from './paths.js';
@@ -110,7 +110,9 @@ const SAFE_SYNC_PREFIXES = [
 
 const SAFE_SYNC_FILES = new Set([
   '.cowork-flow/.gitignore',
-  '.cowork-flow/.version'
+  '.cowork-flow/.version',
+  '.cowork-flow/run',
+  '.cowork-flow/run.cmd'
 ]);
 
 const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';
@@ -242,6 +244,8 @@ export async function applyPlan(actions, options = {}) {
       await writeFile(item.destination, item.content, 'utf8');
     } else {
       await copyFile(item.source, item.destination);
+      const sourceStats = await stat(item.source);
+      await chmod(item.destination, sourceStats.mode & 0o777);
     }
   }
 }

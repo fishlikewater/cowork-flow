@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "test": "node --test",
-    "test:template": "python3 -m unittest discover tests -v",
+    "test:template": "./template/.cowork-flow/run python -m unittest discover tests -v",
     "pack:check": "npm_config_cache=/tmp/cowork-flow-npm-cache npm pack --dry-run --json",
     "test:all": "npm test && npm run test:template && npm run pack:check"
   },

@@ -4,18 +4,18 @@
 Task Management Script for cowork-flow workflow.
 
 Usage:
-    python3 task.py create "<title>" [--slug <name>] [--assignee <dev>] [--priority P0|P1|P2|P3] [--parent <dir>]
-    python3 task.py init-context <dir> <type>   # Initialize jsonl files
-    python3 task.py add-context <dir> <file> <path> [reason] # Add jsonl entry
-    python3 task.py validate <dir>              # Validate jsonl files
-    python3 task.py list-context <dir>          # List jsonl entries
-    python3 task.py start <dir>                 # Set as current task
-    python3 task.py finish                      # Clear current task
-    python3 task.py archive <task-name>         # Archive completed task
-    python3 task.py list                        # List active tasks
-    python3 task.py list-archive [month]        # List archived tasks
-    python3 task.py add-subtask <parent-dir> <child-dir>     # Link child to parent
-    python3 task.py remove-subtask <parent-dir> <child-dir>  # Unlink child from parent
+    ./.cowork-flow/run task create "<title>" [--slug <name>] [--assignee <dev>] [--priority P0|P1|P2|P3] [--parent <dir>]
+    ./.cowork-flow/run task init-context <dir> <type>   # Initialize jsonl files
+    ./.cowork-flow/run task add-context <dir> <file> <path> [reason] # Add jsonl entry
+    ./.cowork-flow/run task validate <dir>              # Validate jsonl files
+    ./.cowork-flow/run task list-context <dir>          # List jsonl entries
+    ./.cowork-flow/run task start <dir>                 # Set as current task
+    ./.cowork-flow/run task finish                      # Clear current task
+    ./.cowork-flow/run task archive <task-name>         # Archive completed task
+    ./.cowork-flow/run task list                        # List active tasks
+    ./.cowork-flow/run task list-archive [month]        # List archived tasks
+    ./.cowork-flow/run task add-subtask <parent-dir> <child-dir>     # Link child to parent
+    ./.cowork-flow/run task remove-subtask <parent-dir> <child-dir>  # Unlink child from parent
 """
 
 from __future__ import annotations
@@ -630,8 +630,8 @@ def cmd_create(args: argparse.Namespace) -> int:
     print("", file=sys.stderr)
     print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
     print("  1. Create prd.md with requirements", file=sys.stderr)
-    print("  2. Run: python3 task.py init-context <dir> <dev_type>", file=sys.stderr)
-    print("  3. Run: python3 task.py start <dir>", file=sys.stderr)
+    print("  2. Run: ./.cowork-flow/run task init-context <dir> <dev_type>", file=sys.stderr)
+    print("  3. Run: ./.cowork-flow/run task start <dir>", file=sys.stderr)
     print("", file=sys.stderr)
 
     # Output relative path for script chaining
@@ -653,7 +653,7 @@ def cmd_init_context(args: argparse.Namespace) -> int:
 
     if not dev_type:
         print(colored("Error: Missing arguments", Colors.RED))
-        print("Usage: python3 task.py init-context <task-dir> <dev_type>")
+        print("Usage: ./.cowork-flow/run task init-context <task-dir> <dev_type>")
         print("  dev_type: backend | frontend | fullstack | test | docs")
         return 1
 
@@ -699,8 +699,8 @@ def cmd_init_context(args: argparse.Namespace) -> int:
     print(colored("[OK] All context files created", Colors.GREEN))
     print()
     print(colored("Next steps:", Colors.BLUE))
-    print("  1. Add task-specific specs: python3 task.py add-context <dir> <jsonl> <path>")
-    print("  2. Set as current: python3 task.py start <dir>")
+    print("  1. Add task-specific specs: ./.cowork-flow/run task add-context <dir> <jsonl> <path>")
+    print("  2. Set as current: ./.cowork-flow/run task start <dir>")
 
     return 0
 
@@ -914,7 +914,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         for blocker in blockers:
             print(f"  - {blocker}", file=sys.stderr)
         print(
-            "Hint: write prd.md, run python3 ./.cowork-flow/scripts/task.py init-context <dir> <dev_type>, then retry",
+            "Hint: write prd.md, run ./.cowork-flow/run task init-context <dir> <dev_type>, then retry",
             file=sys.stderr,
         )
         return 1
@@ -925,7 +925,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         for issue in validation_issues:
             print(f"  - {issue}", file=sys.stderr)
         print(
-            "Hint: run python3 ./.cowork-flow/scripts/task.py validate <dir> and fix the reported issues",
+            "Hint: run ./.cowork-flow/run task validate <dir> and fix the reported issues",
             file=sys.stderr,
         )
         return 1
@@ -1311,19 +1311,19 @@ def show_usage() -> None:
     print("""Task Management Script for cowork-flow workflow
 
 Usage:
-  python3 task.py create <title>                     Create new task directory
-  python3 task.py create <title> --parent <dir>      Create task as child of parent
-  python3 task.py init-context <dir> <dev_type>      Initialize jsonl files
-  python3 task.py add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
-  python3 task.py validate <dir>                     Validate jsonl files
-  python3 task.py list-context <dir>                 List jsonl entries
-  python3 task.py start <dir>                        Set as current task
-  python3 task.py finish                             Clear current task
-  python3 task.py archive <task-name>                Archive completed task
-  python3 task.py add-subtask <parent> <child>       Link child task to parent
-  python3 task.py remove-subtask <parent> <child>    Unlink child from parent
-  python3 task.py list [--mine] [--status <status>]  List tasks
-  python3 task.py list-archive [YYYY-MM]             List archived tasks
+  ./.cowork-flow/run task create <title>                     Create new task directory
+  ./.cowork-flow/run task create <title> --parent <dir>      Create task as child of parent
+  ./.cowork-flow/run task init-context <dir> <dev_type>      Initialize jsonl files
+  ./.cowork-flow/run task add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
+  ./.cowork-flow/run task validate <dir>                     Validate jsonl files
+  ./.cowork-flow/run task list-context <dir>                 List jsonl entries
+  ./.cowork-flow/run task start <dir>                        Set as current task
+  ./.cowork-flow/run task finish                             Clear current task
+  ./.cowork-flow/run task archive <task-name>                Archive completed task
+  ./.cowork-flow/run task add-subtask <parent> <child>       Link child task to parent
+  ./.cowork-flow/run task remove-subtask <parent> <child>    Unlink child from parent
+  ./.cowork-flow/run task list [--mine] [--status <status>]  List tasks
+  ./.cowork-flow/run task list-archive [YYYY-MM]             List archived tasks
 
 Arguments:
   dev_type: backend | frontend | fullstack | test | docs
@@ -1333,18 +1333,18 @@ List options:
   --status, -s <s>     Filter by status (planning, in_progress, review, completed)
 
 Examples:
-  python3 task.py create "Add login feature" --slug add-login
-  python3 task.py create "Child task" --slug child --parent .cowork-flow/tasks/01-21-parent
-  python3 task.py init-context .cowork-flow/tasks/01-21-add-login backend
-  python3 task.py add-context <dir> implement .cowork-flow/spec/backend/auth.md "Auth guidelines"
-  python3 task.py start .cowork-flow/tasks/01-21-add-login
-  python3 task.py finish
-  python3 task.py archive add-login
-  python3 task.py add-subtask parent-task child-task  # Link existing tasks
-  python3 task.py remove-subtask parent-task child-task
-  python3 task.py list                               # List all active tasks
-  python3 task.py list --mine                        # List my tasks only
-  python3 task.py list --mine --status in_progress   # List my in-progress tasks
+  ./.cowork-flow/run task create "Add login feature" --slug add-login
+  ./.cowork-flow/run task create "Child task" --slug child --parent .cowork-flow/tasks/01-21-parent
+  ./.cowork-flow/run task init-context .cowork-flow/tasks/01-21-add-login backend
+  ./.cowork-flow/run task add-context <dir> implement .cowork-flow/spec/backend/auth.md "Auth guidelines"
+  ./.cowork-flow/run task start .cowork-flow/tasks/01-21-add-login
+  ./.cowork-flow/run task finish
+  ./.cowork-flow/run task archive add-login
+  ./.cowork-flow/run task add-subtask parent-task child-task  # Link existing tasks
+  ./.cowork-flow/run task remove-subtask parent-task child-task
+  ./.cowork-flow/run task list                               # List all active tasks
+  ./.cowork-flow/run task list --mine                        # List my tasks only
+  ./.cowork-flow/run task list --mine --status in_progress   # List my in-progress tasks
 """)
 
 

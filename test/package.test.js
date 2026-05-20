@@ -30,6 +30,8 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('bin/cowork-flow.js'), true);
   assert.equal(files.has('src/cli.js'), true);
   assert.equal(files.has('template/AGENTS.md'), true);
+  assert.equal(files.has('template/.cowork-flow/run'), true);
+  assert.equal(files.has('template/.cowork-flow/run.cmd'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/change.py'), true);
   assert.equal(files.has('template/.agent/skills/start/SKILL.md'), true);
   assert.equal(files.has('template/.superpowers/using-superpowers/SKILL.md'), true);

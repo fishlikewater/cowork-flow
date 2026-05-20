@@ -33,14 +33,14 @@ workspace/
 ### 新开发者
 
 ```bash
-python3 ./.cowork-flow/scripts/init_developer.py <your-name>
+./.cowork-flow/run init-developer <your-name>
 ```
 
 ### 已初始化开发者
 
 ```bash
-python3 ./.cowork-flow/scripts/get_developer.py
-cat .cowork-flow/workspace/$(python3 ./.cowork-flow/scripts/get_developer.py)/index.md
+./.cowork-flow/run get-developer
+cat .cowork-flow/workspace/$(./.cowork-flow/run get-developer)/index.md
 ```
 
 ---

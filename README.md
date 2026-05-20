@@ -132,39 +132,51 @@ cowork-flow sync . --dry-run
 
 ## 常用入口
 
+模板内置统一入口来运行 Python 工作流脚本：
+
+- macOS / Linux / Git Bash / WSL：`./.cowork-flow/run`
+- Windows cmd / PowerShell：`.\.cowork-flow\run.cmd`
+
+入口会按 `COWORK_FLOW_PYTHON`、`PYTHON`、`python3`、`python`、`py -3`
+的顺序查找 Python 3.8+ 解释器，避免不同环境中 `python` / `python3`
+命令不一致的问题。
+
+下面示例使用 macOS / Linux 写法；Windows 原生命令行中把
+`./.cowork-flow/run` 替换为 `.\.cowork-flow\run.cmd`。
+
 初始化或查看开发者身份：
 
 ```bash
-python3 ./.cowork-flow/scripts/get_developer.py
-python3 ./.cowork-flow/scripts/init_developer.py <developer-name>
+./.cowork-flow/run get-developer
+./.cowork-flow/run init-developer <developer-name>
 ```
 
 查看当前上下文：
 
 ```bash
-python3 ./.cowork-flow/scripts/get_context.py
-python3 ./.cowork-flow/scripts/task.py list
+./.cowork-flow/run get-context
+./.cowork-flow/run task list
 ```
 
 创建并验证行为变更：
 
 ```bash
-python3 ./.cowork-flow/scripts/change.py create <slug>
-python3 ./.cowork-flow/scripts/change.py validate <slug>
+./.cowork-flow/run change create <slug>
+./.cowork-flow/run change validate <slug>
 ```
 
 创建并启动任务：
 
 ```bash
-python3 ./.cowork-flow/scripts/task.py create "<title>" --slug <task-name>
-python3 ./.cowork-flow/scripts/task.py start <task-dir>
+./.cowork-flow/run task create "<title>" --slug <task-name>
+./.cowork-flow/run task start <task-dir>
 ```
 
 记录 session：
 
 ```bash
-python3 ./.cowork-flow/scripts/get_context.py --mode record
-python3 ./.cowork-flow/scripts/add_session.py \
+./.cowork-flow/run get-context --mode record
+./.cowork-flow/run add-session \
   --title "<session-title>" \
   --commit "<commit-or-handoff-ref>" \
   --summary "<summary>"
