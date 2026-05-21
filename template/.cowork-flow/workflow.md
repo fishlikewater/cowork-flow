@@ -18,7 +18,7 @@
 
 ### 2.1 cowork-flow change
 
-`cowork-flow change` 负责行为变更治理：
+`cowork-flow change` 负责行为变更治理:
 
 - proposal：为什么要改
 - spec：外部行为与验收标准
@@ -28,7 +28,7 @@
 
 ### 2.2 superpowers
 
-`superpowers` 负责工作方法：
+`superpowers` 负责工作方法:
 
 - `superpowers:brainstorming`：澄清需求、比较方案、形成设计
 - `superpowers:writing-plans`：把设计拆成可执行计划
@@ -39,7 +39,7 @@
 
 ### 2.3 任务状态与上下文
 
-`.cowork-flow` 负责承载任务状态与上下文：
+`.cowork-flow` 负责承载任务状态与上下文:
 
 - 当前开发者身份
 - 当前任务
@@ -280,9 +280,9 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 
 ### 7.7 按 superpowers 方法执行
 
-- 优先使用 `superpowers:subagent-driven-development`开启多agent并行执行
-- 不支持subAgent 模式时，请使用`superpowers:executing-plans`
-- 或在 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 后，于执行 plan 时使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度subAgent。
+- 不支持subAgent 模式时，请使用`superpowers:executing-plans`，否则:
+  - 当`.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true`时，执行 plan 时优先使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度subAgent。
+  - 当`.cowork-flow/config.yaml` 中设置 `agent_team.enabled: false`时，优先使用 `superpowers:subagent-driven-development`开启多agent并行执行
 - 不得先写生产代码再补测试,严格遵循`superpowers:test-driven-development` 
 
 执行中必须持续同步：
