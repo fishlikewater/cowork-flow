@@ -19,6 +19,7 @@ from common.agent_team import (
     render_dispatch_plan,
     write_json,
 )
+from common.config import get_agent_team_enabled
 from common.paths import DIR_WORKFLOW, get_repo_root
 
 
@@ -136,6 +137,15 @@ retry:
 
 TERMINAL_STATUSES = {"done", "approved"}
 MAX_ATTEMPTS = 3
+GATED_COMMANDS = {
+    "prepare",
+    "status",
+    "next",
+    "record-result",
+    "record-review",
+    "retry",
+    "complete",
+}
 
 
 def _agent_team_config_dir(repo_root: Path) -> Path:
@@ -485,6 +495,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if args.command in GATED_COMMANDS and not get_agent_team_enabled(get_repo_root()):
+        print(
+            "Error: agent-team is disabled. Set agent_team.enabled: true in .cowork-flow/config.yaml.",
+            file=sys.stderr,
+        )
+        return 1
     return args.func(args)
 
 

@@ -4,6 +4,7 @@
 node_modules/
 npm-debug.log*
 coverage/
+.tmp/
 
 # Python
 __pycache__/

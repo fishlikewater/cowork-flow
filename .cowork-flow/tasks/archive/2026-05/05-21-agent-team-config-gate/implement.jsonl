@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/changes/agent-team-config-gate/proposal.md", "reason": "Approved change proposal"}
+{"file": ".cowork-flow/changes/agent-team-config-gate/spec.md", "reason": "Approved behavior spec"}
+{"file": ".cowork-flow/plans/2026-05-21-agent-team-config-gate.md", "reason": "Approved implementation plan"}
+{"file": "template/.cowork-flow/scripts/agent_team.py", "reason": "Agent team command runtime"}
+{"file": "template/.cowork-flow/scripts/common/config.py", "reason": "Configuration reader pattern"}

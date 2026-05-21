@@ -37,4 +37,8 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/scripts/change.py'), true);
   assert.equal(files.has('template/.agent/skills/start/SKILL.md'), true);
   assert.equal(files.has('template/.superpowers/using-superpowers/SKILL.md'), true);
+  assert.equal(
+    [...files].some((file) => file.includes('__pycache__') || file.endsWith('.pyc')),
+    false
+  );
 });

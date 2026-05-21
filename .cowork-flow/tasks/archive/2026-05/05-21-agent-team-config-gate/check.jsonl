@@ -1,0 +1,6 @@
+{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agent/skills/record-session/SKILL.md", "reason": "Session recording and state sync"}
+{"file": ".agent/skills/check-cross-layer/SKILL.md", "reason": "Cross-layer consistency check"}
+{"file": ".cowork-flow/changes/agent-team-config-gate/spec.md", "reason": "Check implementation against approved behavior spec"}
+{"file": ".cowork-flow/plans/2026-05-21-agent-team-config-gate.md", "reason": "Check implementation against approved plan"}
+{"file": "tests/test_agent_team_runtime.py", "reason": "Runtime gate tests"}

@@ -52,6 +52,12 @@ class TemplateConvergenceTest(unittest.TestCase):
         self.assertTrue((TEMPLATE / ".cowork-flow" / "scripts" / "agent_team.py").is_file())
         self.assertTrue((TEMPLATE / ".agent" / "skills" / "agent-team-execution" / "SKILL.md").is_file())
 
+    def test_template_config_disables_agent_team_by_default(self) -> None:
+        config = (TEMPLATE / ".cowork-flow" / "config.yaml").read_text(encoding="utf-8")
+
+        self.assertIn("agent_team:", config)
+        self.assertIn("enabled: false", config)
+
     def test_required_placeholder_files_exist(self) -> None:
         expected = [
             TEMPLATE / ".cowork-flow" / "tasks" / ".gitkeep",
