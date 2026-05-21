@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 3
+- **Total Sessions**: 5
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~97 | Current |
+| `journal-1.md` | ~165 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 5 | 2026-05-21 | 调整模板工作流文档可读性 | handoff: workflow doc uncommitted task metadata `aaf811e` |
+| 4 | 2026-05-21 | 优化模板工作流文档 | handoff: template workflow doc uncommitted task metadata `7462331` |
 | 3 | 2026-05-21 | Agent Team Config Gate | - |
 | 2 | 2026-05-21 | Fix Windows update and sync | - |
 | 1 | 2026-05-21 | Agent Team Runtime | - |
