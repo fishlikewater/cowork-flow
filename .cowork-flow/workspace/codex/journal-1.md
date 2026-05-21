@@ -49,7 +49,6 @@
 ### Main Changes
 
 
-
 ### Git Commit
 
 (no code commit; planning or sync session)
@@ -79,7 +78,6 @@ Added a default-disabled agent_team.enabled switch gated agent-team runtime comm
 ### Main Changes
 
 
-
 ### Git Commit
 
 (no code commit; planning or sync session)
@@ -87,6 +85,81 @@ Added a default-disabled agent_team.enabled switch gated agent-team runtime comm
 ### Verification
 
 - [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
+
+
+## Session 4: 优化模板工作流文档
+
+**Date**: 2026-05-21
+**Task**: 优化模板工作流文档
+
+### Summary
+
+压缩 template/.cowork-flow/workflow.md，保留 L0/L1/L2、change、task context、验证、恢复和收尾门禁；文件从 12319 字节降至 8995 字节。
+
+### Main Changes
+
+- Rewrote `template/.cowork-flow/workflow.md` into a compact 11-section structure.
+- Preserved L0 / L1 / L2, change/spec/plan, task context, verification, recovery, session, archive, forbidden items, and completion gates.
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `handoff: template workflow doc uncommitted task metadata 7462331` | See git log |
+
+### Verification
+
+- [OK] Original tracked file size: 12319 bytes.
+- [OK] Current file size: 8995 bytes.
+- [OK] `rg` confirmed key gates and commands remain.
+- [OK] `git diff --check` exited without whitespace errors; Git only reported the repository LF/CRLF conversion warning.
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
+
+
+## Session 5: 调整模板工作流文档可读性
+
+**Date**: 2026-05-21
+**Task**: 调整模板工作流文档可读性
+
+### Summary
+
+根据反馈将 template/.cowork-flow/workflow.md 从过度压缩版调整为结构化精简版：恢复子标题、代码块、短列表和表格；保留 L0/L1/L2、change/spec/plan、任务上下文、验证、恢复、收尾和完成定义；当前大小 11611 字节，低于原始 tracked 版本 12319 字节。
+
+### Main Changes
+
+- Rebalanced `template/.cowork-flow/workflow.md` from dense summary back into editable sections.
+- Restored subheadings, command blocks, short lists, and tables while keeping duplicated prose reduced.
+- Preserved the original `agent_team.enabled: true/false` execution branches.
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `handoff: workflow doc uncommitted task metadata aaf811e` | See git log |
+
+### Verification
+
+- [OK] Original tracked file size: 12319 bytes.
+- [OK] Current file size: 11611 bytes.
+- [OK] `rg` confirmed key gates and commands remain, including `agent_team.enabled: true/false`.
+- [OK] `git diff --check` exited without whitespace errors; Git only reported repository LF/CRLF conversion warnings.
 
 ### Status
 
