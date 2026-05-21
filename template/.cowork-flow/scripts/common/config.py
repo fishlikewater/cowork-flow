@@ -15,6 +15,7 @@ from .paths import DIR_WORKFLOW, get_repo_root
 # Defaults
 DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
+DEFAULT_AGENT_TEAM_ENABLED = False
 
 CONFIG_FILE = "config.yaml"
 
@@ -106,6 +107,23 @@ def get_max_journal_lines(repo_root: Path | None = None) -> int:
         return int(value)
     except (ValueError, TypeError):
         return DEFAULT_MAX_JOURNAL_LINES
+
+
+def _is_true(value: object) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() == "true"
+    return False
+
+
+def get_agent_team_enabled(repo_root: Path | None = None) -> bool:
+    """Return whether agent-team runtime commands are enabled."""
+    config = _load_config(repo_root)
+    agent_team = config.get("agent_team")
+    if not isinstance(agent_team, dict):
+        return DEFAULT_AGENT_TEAM_ENABLED
+    return _is_true(agent_team.get("enabled"))
 
 
 def get_hooks(event: str, repo_root: Path | None = None) -> list[str]:

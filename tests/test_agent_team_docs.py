@@ -14,6 +14,7 @@ class AgentTeamDocsTest(unittest.TestCase):
 
         self.assertIn("./.cowork-flow/run agent-team", readme)
         self.assertIn("codex", readme.lower())
+        self.assertIn("agent_team.enabled", readme)
 
     def test_workflow_documents_agent_team_plan_execution(self) -> None:
         for path in (
@@ -23,6 +24,7 @@ class AgentTeamDocsTest(unittest.TestCase):
             workflow = path.read_text(encoding="utf-8")
             self.assertIn("agent-team prepare", workflow)
             self.assertIn("agent-team next", workflow)
+            self.assertIn("agent_team.enabled", workflow)
 
     def test_start_skill_references_agent_team_execution(self) -> None:
         for path in (
@@ -37,6 +39,7 @@ class AgentTeamDocsTest(unittest.TestCase):
         agents = (TEMPLATE / "AGENTS.md").read_text(encoding="utf-8")
 
         self.assertIn("agent-team", agents)
+        self.assertIn("agent_team.enabled", agents)
         self.assertIn("执行 plan", agents)
 
 

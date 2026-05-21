@@ -12,6 +12,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "template" / ".cowork-flow" / "run"
 WINDOWS_RUNNER = ROOT / "template" / ".cowork-flow" / "run.cmd"
+POSIX_ONLY = unittest.skipIf(
+    os.name == "nt",
+    "POSIX shell runner execution is covered on POSIX hosts",
+)
 
 
 class PythonRunnerTest(unittest.TestCase):
@@ -75,6 +79,7 @@ class PythonRunnerTest(unittest.TestCase):
             return []
         return log_file.read_text(encoding="utf-8").splitlines()
 
+    @POSIX_ONLY
     def test_runner_is_executable_template_entrypoint(self) -> None:
         self.assertTrue(RUNNER.is_file())
         self.assertTrue(os.access(RUNNER, os.X_OK))
@@ -92,6 +97,7 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertIn("task.py", content)
         self.assertIn("REST_ARGS", content)
 
+    @POSIX_ONLY
     def test_python3_is_preferred_when_available(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp_dir = Path(temp_name)
@@ -105,6 +111,7 @@ class PythonRunnerTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(f"{python3} -V", self.read_log(temp_dir)[-1])
 
+    @POSIX_ONLY
     def test_runner_falls_back_to_python_when_python3_is_not_usable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp_dir = Path(temp_name)
@@ -118,6 +125,7 @@ class PythonRunnerTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(f"{python} -V", self.read_log(temp_dir)[-1])
 
+    @POSIX_ONLY
     def test_runner_respects_explicit_python_override(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp_dir = Path(temp_name)
@@ -135,6 +143,7 @@ class PythonRunnerTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(f"{custom_python} -V", self.read_log(temp_dir)[-1])
 
+    @POSIX_ONLY
     def test_runner_rejects_candidates_below_minimum_python_version(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp_dir = Path(temp_name)
@@ -149,6 +158,7 @@ class PythonRunnerTest(unittest.TestCase):
             self.assertIn("Python 3.8+", result.stderr)
             self.assertIn("COWORK_FLOW_PYTHON", result.stderr)
 
+    @POSIX_ONLY
     def test_runner_maps_commands_to_workflow_scripts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp_dir = Path(temp_name)
@@ -162,6 +172,7 @@ class PythonRunnerTest(unittest.TestCase):
             expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "task.py"
             self.assertEqual(f"{python3} {expected_script} list", self.read_log(temp_dir)[-1])
 
+    @POSIX_ONLY
     def test_runner_maps_agent_team_command_to_script(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp_dir = Path(temp_name)

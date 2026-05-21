@@ -178,6 +178,8 @@ cowork-flow sync . --dry-run
 
 执行 plan 时准备 agent team：
 
+默认 `agent_team.enabled: false`。运行 `agent-team prepare/status/next/record-result/record-review/retry/complete` 前，先在 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true`。
+
 ```bash
 ./.cowork-flow/run agent-team init
 ./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>

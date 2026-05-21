@@ -65,3 +65,33 @@
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 3: Agent Team Config Gate
+
+**Date**: 2026-05-21
+**Task**: Agent Team Config Gate
+
+### Summary
+
+Added a default-disabled agent_team.enabled switch gated agent-team runtime commands updated template/docs/tests and made Windows verification scripts cross-platform.
+
+### Main Changes
+
+
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete

@@ -23,11 +23,12 @@ class FlowScriptPathsTest(unittest.TestCase):
         self.paths = importlib.import_module("common.paths")
         self.task = importlib.import_module("task")
         self.git_context = importlib.import_module("common.git_context")
+        self.config = importlib.import_module("common.config")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
-        for module_name in ("task", "common.git_context", "common.paths", "common"):
+        for module_name in ("task", "common.git_context", "common.config", "common.paths", "common"):
             sys.modules.pop(module_name, None)
 
     def test_workflow_and_agent_directory_constants_are_current(self) -> None:
@@ -37,6 +38,37 @@ class FlowScriptPathsTest(unittest.TestCase):
 
     def test_agent_team_script_exists(self) -> None:
         self.assertTrue((SCRIPTS / "agent_team.py").is_file())
+
+    def test_agent_team_is_disabled_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            self.assertFalse(self.config.get_agent_team_enabled(root))
+
+    def test_agent_team_can_be_enabled_with_boolean_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            workflow_dir.mkdir()
+            (workflow_dir / "config.yaml").write_text(
+                "agent_team:\n  enabled: true\n",
+                encoding="utf-8",
+            )
+
+            self.assertTrue(self.config.get_agent_team_enabled(root))
+
+    def test_agent_team_can_be_enabled_with_string_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            workflow_dir.mkdir()
+            (workflow_dir / "config.yaml").write_text(
+                "agent_team:\n  enabled: \"true\"\n",
+                encoding="utf-8",
+            )
+
+            self.assertTrue(self.config.get_agent_team_enabled(root))
 
     def test_repo_root_detection_uses_cowork_flow_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

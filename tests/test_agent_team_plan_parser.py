@@ -18,6 +18,10 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.repo = Path(self.temp.name) / "repo"
         shutil.copytree(TEMPLATE, self.repo)
+        (self.repo / ".cowork-flow" / "config.yaml").write_text(
+            "agent_team:\n  enabled: true\n",
+            encoding="utf-8",
+        )
         self.script = self.repo / ".cowork-flow" / "scripts" / "agent_team.py"
         self.task_dir = self.repo / ".cowork-flow" / "tasks" / "05-21-demo"
         self.task_dir.mkdir(parents=True)
