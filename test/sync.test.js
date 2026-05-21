@@ -38,6 +38,10 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.agent', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'agent-team', 'agents.yaml'), 'old agents\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'config.yaml'), 'custom config\n', 'utf8');
   await writeFile(join(target, 'AGENTS.md'), 'custom agents\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', '.version'), '0.1.0\n', 'utf8');
   const io = createIo();
@@ -57,8 +61,23 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'run.cmd')),
     await readText(join(templateRoot, '.cowork-flow', 'run.cmd'))
   );
-  assert.notEqual((await stat(join(target, '.cowork-flow', 'run'))).mode & 0o111, 0);
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'scripts', 'task.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'task.py'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'workflow.md')),
+    await readText(join(templateRoot, '.cowork-flow', 'workflow.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'agent-team', 'agents.yaml')),
+    await readText(join(templateRoot, '.cowork-flow', 'agent-team', 'agents.yaml'))
+  );
+  if (process.platform !== 'win32') {
+    assert.notEqual((await stat(join(target, '.cowork-flow', 'run'))).mode & 0o111, 0);
+  }
   assert.equal(await readText(join(target, 'AGENTS.md')), 'custom agents\n');
+  assert.equal(await readText(join(target, '.cowork-flow', 'config.yaml')), 'custom config\n');
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${(await readPackageInfo()).version}\n`);
   assert.match(io.stdout, /updated=/);
   assert.match(io.stdout, /protected=/);
@@ -147,7 +166,7 @@ test('sync creates missing safe placeholder files', async (t) => {
   assert.match(io.stdout, /created=/);
 });
 
-test('sync preserves project-level agent-team configuration', async (t) => {
+test('sync refreshes project-level agent-team template files', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target], { io: createIo() }), 0);
   await mkdir(join(target, '.cowork-flow', 'agent-team'), { recursive: true });
@@ -157,6 +176,9 @@ test('sync preserves project-level agent-team configuration', async (t) => {
   const code = await main(['sync', target], { io });
 
   assert.equal(code, 0);
-  assert.equal(await readText(join(target, '.cowork-flow', 'agent-team', 'agents.yaml')), 'custom: true\n');
-  assert.match(io.stdout, /protected=/);
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'agent-team', 'agents.yaml')),
+    await readText(join(templateRoot, '.cowork-flow', 'agent-team', 'agents.yaml'))
+  );
+  assert.match(io.stdout, /updated=/);
 });
