@@ -280,12 +280,10 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 
 ### 7.7 按 superpowers 方法执行
 
-执行时使用：
-
-- `superpowers:executing-plans`
-- 或在存在独立并行工作时使用 `superpowers:subagent-driven-development`
-- 或在执行 plan 时使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度 Codex 子 agent。
-- `superpowers:test-driven-development` 不得先写生产代码再补测试。
+- 优先使用 `superpowers:subagent-driven-development`开启多agent并行执行
+- 不支持subAgent 模式时，请使用`superpowers:executing-plans`
+- 或在执行 plan 时使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度subAgent。
+- 不得先写生产代码再补测试,严格遵循`superpowers:test-driven-development` 
 
 执行中必须持续同步：
 
