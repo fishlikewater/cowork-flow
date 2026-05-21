@@ -90,14 +90,11 @@ export async function buildSuperpowersPlan(targetDir, options = {}) {
 }
 
 const PROTECTED_SYNC_FILES = new Set([
-  'AGENTS.md',
-  '.cowork-flow/config.yaml',
-  '.cowork-flow/workflow.md'
+  '.cowork-flow/config.yaml'
 ]);
 
 const PROTECTED_SYNC_PREFIXES = [
   '.cowork-flow/spec/',
-  '.cowork-flow/agent-team/',
   '.cowork-flow/workspace/',
   '.cowork-flow/tasks/',
   '.cowork-flow/changes/',
@@ -106,7 +103,7 @@ const PROTECTED_SYNC_PREFIXES = [
 
 const SAFE_SYNC_PREFIXES = [
   '.agent/skills/',
-  '.cowork-flow/scripts/'
+  '.cowork-flow/'
 ];
 
 const SAFE_SYNC_FILES = new Set([
@@ -120,14 +117,16 @@ const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';
 const COWORK_FLOW_END = '<!-- COWORK-FLOW:END -->';
 
 function isProtectedSyncFile(relativePath) {
-  return PROTECTED_SYNC_FILES.has(relativePath)
-    || PROTECTED_SYNC_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
+  const templatePath = toTemplatePath(relativePath);
+  return PROTECTED_SYNC_FILES.has(templatePath)
+    || PROTECTED_SYNC_PREFIXES.some((prefix) => templatePath.startsWith(prefix));
 }
 
 function isSafeSyncFile(relativePath) {
-  return SAFE_SYNC_FILES.has(relativePath)
-    || SAFE_SYNC_PREFIXES.some((prefix) => relativePath.startsWith(prefix))
-    || relativePath.endsWith('/.gitkeep');
+  const templatePath = toTemplatePath(relativePath);
+  return SAFE_SYNC_FILES.has(templatePath)
+    || SAFE_SYNC_PREFIXES.some((prefix) => templatePath.startsWith(prefix))
+    || templatePath.endsWith('/.gitkeep');
 }
 
 function replaceManagedBlock(targetContent, templateContent) {

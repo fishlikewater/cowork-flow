@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { runUpdate } from '../src/commands/update.js';
-import { compareVersions } from '../src/lib/package-info.js';
+import { compareVersions, npmCommandOptions } from '../src/lib/package-info.js';
 
 function createIo() {
   return {
@@ -21,6 +21,15 @@ test('compareVersions compares dotted numeric versions', () => {
   assert.equal(compareVersions('0.3.10', '0.3.11'), -1);
   assert.equal(compareVersions('0.3.10', '0.3.10'), 0);
   assert.equal(compareVersions('0.4.0', '0.3.10'), 1);
+});
+
+test('npmCommandOptions enables shell execution on Windows', () => {
+  assert.deepEqual(npmCommandOptions('win32'), { shell: true });
+});
+
+test('npmCommandOptions keeps direct execution on non-Windows platforms', () => {
+  assert.deepEqual(npmCommandOptions('linux'), {});
+  assert.deepEqual(npmCommandOptions('darwin'), {});
 });
 
 test('update reports current status when already latest', async () => {

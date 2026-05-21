@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 
+import { npmCommandOptions } from '../src/lib/package-info.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 const execFileAsync = promisify(execFile);
@@ -19,6 +20,7 @@ test('npm package includes cli source and template assets', async (t) => {
   const result = await execFileAsync('npm', ['pack', '--dry-run', '--json'], {
     cwd: packageRoot,
     encoding: 'utf8',
+    ...npmCommandOptions(),
     env: {
       ...process.env,
       npm_config_cache: npmCache
