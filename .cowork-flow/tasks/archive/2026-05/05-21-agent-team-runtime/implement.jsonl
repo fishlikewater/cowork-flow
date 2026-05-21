@@ -4,9 +4,9 @@
 {"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
 {"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
 {"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
-{"file": ".cowork-flow/changes/agent-team-runtime/proposal.md", "reason": "Approved change proposal"}
-{"file": ".cowork-flow/changes/agent-team-runtime/spec.md", "reason": "Approved behavior spec"}
-{"file": ".cowork-flow/changes/agent-team-runtime/design.md", "reason": "Approved design"}
+{"file": ".cowork-flow/changes/archive/2026-05/agent-team-runtime/proposal.md", "reason": "Approved change proposal"}
+{"file": ".cowork-flow/changes/archive/2026-05/agent-team-runtime/spec.md", "reason": "Approved behavior spec"}
+{"file": ".cowork-flow/changes/archive/2026-05/agent-team-runtime/design.md", "reason": "Approved design"}
 {"file": ".cowork-flow/plans/2026-05-21-agent-team-runtime.md", "reason": "Approved implementation plan"}
 {"file": "src/lib/copy-template.js", "reason": "Template sync protection patterns"}
 {"file": "template/.cowork-flow/scripts/task.py", "reason": "Existing Python workflow command style"}
