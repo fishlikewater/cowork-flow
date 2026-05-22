@@ -167,6 +167,22 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertEqual(0, passed.returncode, passed.stderr)
         self.assertIn("valid", passed.stdout)
 
+    def test_validate_accepts_prefixed_task_link(self) -> None:
+        self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
+        change_dir = self.repo / ".cowork-flow" / "changes" / "replace-auth"
+        spec = change_dir / "spec.md"
+        spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
+        change_yaml = change_dir / "change.yaml"
+        content = change_yaml.read_text(encoding="utf-8")
+        content = content.replace("task: null", "task: .cowork-flow/tasks/05-18-active")
+        change_yaml.write_text(content, encoding="utf-8")
+        (self.repo / ".cowork-flow" / "tasks" / "05-18-active").mkdir()
+
+        passed = self.run_change("validate", "replace-auth")
+
+        self.assertEqual(0, passed.returncode, passed.stderr)
+        self.assertIn("valid", passed.stdout)
+
     def test_archive_requires_valid_change_and_moves_to_month_archive(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
         spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
@@ -183,6 +199,43 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertEqual("archived", metadata["status"])
         self.assertIn("archived_at", metadata)
         datetime.fromisoformat(str(metadata["archived_at"]))
+
+    def test_archive_resumes_when_source_and_destination_match(self) -> None:
+        self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
+        source = self.repo / ".cowork-flow" / "changes" / "replace-auth"
+        spec = source / "spec.md"
+        spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
+        month = datetime.now().astimezone().strftime("%Y-%m")
+        destination = self.repo / ".cowork-flow" / "changes" / "archive" / month / "replace-auth"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, destination)
+
+        archived = self.run_change("archive", "replace-auth")
+
+        self.assertEqual(0, archived.returncode, archived.stderr)
+        self.assertFalse(source.exists())
+        self.assertTrue((destination / "change.yaml").is_file())
+        metadata = self.read_metadata("replace-auth")
+        self.assertEqual("archived", metadata["status"])
+        self.assertIn("archived_at", metadata)
+
+    def test_archive_normalizes_archived_task_link(self) -> None:
+        self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
+        change_dir = self.repo / ".cowork-flow" / "changes" / "replace-auth"
+        spec = change_dir / "spec.md"
+        spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
+        task_dir = self.repo / ".cowork-flow" / "tasks" / "archive" / "2026-05" / "05-18-active"
+        task_dir.mkdir(parents=True)
+        change_yaml = change_dir / "change.yaml"
+        content = change_yaml.read_text(encoding="utf-8")
+        content = content.replace("task: null", "task: .cowork-flow/tasks/archive/2026-05/05-18-active")
+        change_yaml.write_text(content, encoding="utf-8")
+
+        archived = self.run_change("archive", "replace-auth")
+
+        self.assertEqual(0, archived.returncode, archived.stderr)
+        metadata = self.read_metadata("replace-auth")
+        self.assertEqual("archive/2026-05/05-18-active", metadata["task"])
 
     def test_list_prints_active_and_archived_changes(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)

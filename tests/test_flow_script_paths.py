@@ -5,10 +5,12 @@ import contextlib
 import importlib
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 
@@ -221,6 +223,41 @@ class FlowScriptPathsTest(unittest.TestCase):
                 encoding="utf-8"
             ).strip()
             self.assertEqual(".cowork-flow/tasks/05-19-demo", current_task)
+
+    def test_task_archive_resumes_when_source_and_destination_match(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            tasks_dir = workflow_dir / "tasks"
+            task_dir = tasks_dir / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            month = datetime.now().strftime("%Y-%m")
+            archive_dest = tasks_dir / "archive" / month / "05-19-demo"
+            archive_dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(task_dir, archive_dest)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_archive(
+                        argparse.Namespace(name="05-19-demo", no_commit=True)
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertFalse(task_dir.exists())
+            self.assertTrue((archive_dest / "task.json").is_file())
+            self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
 
     def test_context_text_includes_minimal_resume_checklist(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
