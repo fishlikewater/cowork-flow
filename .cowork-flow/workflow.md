@@ -8,47 +8,19 @@
 获取上下文 -> 阅读规范 -> 任务分级 -> 规格与计划 -> 执行实现 -> 验证审阅 -> 状态同步 -> session 记录
 ```
 
-所有任务都应先明确目标和验收标准，再进入实现；所有完成结论都必须有验证证据支撑。
-
-命令示例默认使用 macOS / Linux / Git Bash / WSL 写法；Windows cmd / PowerShell 中使用 `.\.cowork-flow\run.cmd <command>` 替代 `./.cowork-flow/run <command>`。
+所有任务先明确目标和验收标准，再进入实现；所有完成结论都必须有验证证据。命令示例默认使用 macOS / Linux / Git Bash / WSL；Windows cmd / PowerShell 使用 `.\.cowork-flow\run.cmd <command>` 替代 `./.cowork-flow/run <command>`。
 
 ---
 
 ## 2. 职责边界
 
-### 2.1 cowork-flow change
+| 对象 | 负责内容 |
+|------|----------|
+| `cowork-flow change` | 行为变更治理：`proposal` 说明为什么改，`spec` 定义外部行为与验收标准，`design` 记录复杂或跨层设计取舍，`change.yaml` 保存状态/分级/关联 plan 与 task，`archive` 归档完成后的行为规格。 |
+| `superpowers` | 工作方法：`brainstorming` 澄清需求和方案，`writing-plans` 拆可执行计划，`test-driven-development` 约束实现，`executing-plans` 顺序执行，`subagent-driven-development` 并行拆分，`verification-before-completion` 完成前取证。 |
+| `.cowork-flow` | 任务状态和上下文：当前开发者、当前任务、PRD、`implement/check/debug` 上下文、journal、session 记录和任务归档。 |
 
-`cowork-flow change` 负责行为变更治理：
-
-- proposal：为什么要改
-- spec：外部行为与验收标准
-- design：重要设计取舍，主要用于复杂或跨层变更
-- change.yaml：变更状态、分级、关联 plan / task
-- archive：完成后的行为规格归档
-
-### 2.2 superpowers
-
-`superpowers` 负责工作方法：
-
-- `superpowers:brainstorming`：澄清需求、比较方案、形成设计
-- `superpowers:writing-plans`：把设计拆成可执行计划
-- `superpowers:test-driven-development` 是实现阶段的强制方法。除一次性原型、生成代码、纯配置文件等明确例外并经人工确认外，功能新增、缺陷修复、重构和行为变更都必须按 RED-GREEN-REFACTOR 推进：先写失败测试并确认失败原因正确，再写最小实现使测试通过，最后在测试保护下重构。复杂或难点问题：深度优先
-- `superpowers:executing-plans`：按计划顺序执行
-- `superpowers:subagent-driven-development`：在适合时并行拆分独立工作
-- `superpowers:verification-before-completion`：完成前用证据验证
-
-### 2.3 任务状态与上下文
-
-`.cowork-flow` 负责承载任务状态与上下文：
-
-- 当前开发者身份
-- 当前任务
-- 任务 PRD
-- implement / check / debug 上下文
-- journal 与 session 记录
-- 任务归档
-
-执行按 superpowers 方法推进；`.cowork-flow` 不替代 superpowers，也不替代项目验证命令。
+`.cowork-flow` 不替代 superpowers，也不替代项目验证命令。除一次性原型、生成代码、纯配置文件等明确例外并经人工确认外，功能新增、缺陷修复、重构和行为变更都必须按 RED-GREEN-REFACTOR 推进；复杂或难点问题按深度优先。
 
 ---
 
@@ -58,8 +30,8 @@
 2. **规格先行**：有行为变化时，先补规格，再写计划，再实现。
 3. **计划后编码**：复杂或行为变更任务必须先形成可执行计划。
 4. **上下文显式化**：不要依赖记忆，把关键规范、设计、计划写入任务上下文。
-5. **一次一个任务**：避免在多个无关任务之间来回切换。
-6. **执行中回写状态**：计划、任务状态、change metadata 和 journal 不应长期漂移。
+5. **一次一个任务**：避免在多个无关任务之间切换。
+6. **执行中回写状态**：plan、task、change metadata 和 journal 不应长期漂移。
 7. **证据先于结论**：未验证前不声称完成、通过或可交付。
 8. **经验沉淀回规范**：实现中发现的契约、坑点、规则应更新到 `.cowork-flow/spec/`。
 
@@ -69,14 +41,12 @@
 
 ### 4.1 初始化开发者身份
 
-首次进入项目时执行：
+首次进入项目时执行；如果已经存在开发者身份，只需读取当前身份。
 
 ```bash
 ./.cowork-flow/run get-developer
 ./.cowork-flow/run init-developer <developer-name>
 ```
-
-如果已经存在开发者身份，只需读取当前身份。
 
 ### 4.2 获取当前上下文
 
@@ -89,13 +59,7 @@ git status
 git log --oneline -10
 ```
 
-至少确认：
-
-- 当前开发者是谁
-- 是否存在当前任务
-- 是否存在未归档任务
-- 工作区是否干净
-- 最近提交是否影响当前任务
+至少确认当前开发者、当前任务、未归档任务、工作区状态，以及最近提交是否影响当前任务。
 
 ### 4.3 阅读固定入口文件
 
@@ -116,51 +80,11 @@ done
 
 所有任务先分级，再选择流程。
 
-### 5.1 L0：无外部行为变化
-
-适用场景：
-
-- 文档整理
-- 小范围重构
-- 测试补充
-- 注释、格式、脚本清理
-- 不改变用户可观察行为的内部调整
-
-流程：
-
-```text
-任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 session
-```
-
-### 5.2 L1：局部行为变化
-
-适用场景：
-
-- 单模块功能调整
-- 单接口行为变化
-- 局部数据处理逻辑变化
-- 有明确边界的新能力
-
-流程：
-
-```text
-cowork-flow change -> brainstorming -> writing-plans -> 任务上下文 -> 执行计划 -> 验证 -> 归档与记录
-```
-
-### 5.3 L2：跨层或重要行为变化
-
-适用场景：
-
-- 跨前后端或跨服务变更
-- API / DB / 消息 / 缓存 / 文件等契约变化
-- 架构边界变化
-- 影响发布、迁移、安全、权限或兼容性的变更
-
-流程：
-
-```text
-cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录
-```
+| 等级 | 适用场景 | 流程 |
+|------|----------|------|
+| L0：无外部行为变化 | 文档整理、小范围重构、测试补充、注释/格式/脚本清理、不改变用户可观察行为的内部调整 | 任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 session |
+| L1：局部行为变化 | 单模块功能调整、单接口行为变化、局部数据处理逻辑变化、有明确边界的新能力 | cowork-flow change -> brainstorming -> writing-plans -> 任务上下文 -> 执行计划 -> 验证 -> 归档与记录 |
+| L2：跨层或重要行为变化 | 跨前后端或跨服务变更；API / DB / 消息 / 缓存 / 文件等契约变化；架构边界变化；影响发布、迁移、安全、权限或兼容性的变更 | cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录 |
 
 ---
 
@@ -175,13 +99,7 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 
 ### 6.2 写入任务 PRD
 
-在任务目录创建或更新 `prd.md`，至少包含：
-
-- 目标
-- 范围
-- 验收标准
-- 相关文件或模块
-- 验证方式
+在任务目录创建或更新 `prd.md`，至少包含：目标、范围、验收标准、相关文件或模块、验证方式。
 
 ### 6.3 初始化任务上下文
 
@@ -189,13 +107,7 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 ./.cowork-flow/run task init-context <task-dir> <type>
 ```
 
-`<type>` 按任务选择：
-
-- `backend`
-- `frontend`
-- `fullstack`
-- `test`
-- `docs`
+`<type>` 按任务选择：`backend`、`frontend`、`fullstack`、`test`、`docs`。
 
 ### 6.4 补充任务上下文
 
@@ -214,11 +126,11 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 
 执行要求：
 
-- 按 `prd.md` 和上下文实现
-- 遵循 `.cowork-flow/spec/` 中的相关规范
-- 变更保持聚焦
-- 若执行中发现行为变化升级，立即重新分级并进入 L1 / L2 流程
-- 执行计划中的每个实现步骤必须优先进入 `superpowers:test-driven-development` 循环,不得先写生产代码再补测试。
+- 按 `prd.md` 和上下文实现。
+- 遵循 `.cowork-flow/spec/` 中的相关规范。
+- 变更保持聚焦。
+- 若执行中发现行为变化升级，立即重新分级并进入 L1 / L2 流程。
+- 执行计划中的每个实现步骤必须优先进入 `superpowers:test-driven-development` 循环，不得先写生产代码再补测试。
 
 ---
 
@@ -252,40 +164,25 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 .cowork-flow/plans/YYYY-MM-DD-<slug>.md
 ```
 
-计划必须包含：
-
-- 可勾选步骤
-- 每步验证方式
-- 当前执行状态
-- 阻塞与决策记录位置
+计划必须包含可勾选步骤、每步验证方式、当前执行状态、阻塞与决策记录位置。
 
 ### 7.5 同步计划与状态边界
 
-`.cowork-flow/changes/<slug>/` 只保存 proposal、design、behavior specs 和 change.yaml。
-实现 checklist 只保存在 `.cowork-flow/plans/*.md`。
-任务运行状态只保存在 `.cowork-flow/tasks/`。
-
-不要在 change 目录中维护实现 checklist，避免维护两套细节状态。
+- `.cowork-flow/changes/<slug>/` 只保存 proposal、design、behavior specs 和 `change.yaml`。
+- 实现 checklist 只保存在 `.cowork-flow/plans/*.md`。
+- 任务运行状态只保存在 `.cowork-flow/tasks/`。
+- 不要在 change 目录中维护实现 checklist，避免维护两套细节状态。
 
 ### 7.6 创建或绑定任务
 
-将以下内容加入任务上下文：
-
-- proposal
-- spec
-- design，如存在
-- implementation plan
-- 相关 `.cowork-flow/spec/`
-- 相关代码模式或契约文件
+将 proposal、spec、design（如存在）、implementation plan、相关 `.cowork-flow/spec/`、相关代码模式或契约文件加入任务上下文。
 
 ### 7.7 按 superpowers 方法执行
 
-执行时使用：
-
-- `superpowers:executing-plans`
-- 或在存在独立并行工作时使用 `superpowers:subagent-driven-development`
-- 或在 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 后，于执行 plan 时使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度 Codex 子 agent。
-- `superpowers:test-driven-development` 不得先写生产代码再补测试。
+- 不支持 subAgent 模式时，使用 `superpowers:executing-plans`；否则：
+  - 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 时，执行 plan 优先使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度 subAgent。
+  - 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: false` 时，优先使用 `superpowers:subagent-driven-development` 开启多 agent 并行执行。
+- 严格遵循 `superpowers:test-driven-development`，不得先写生产代码再补测试。
 
 执行中必须持续同步：
 
@@ -325,14 +222,7 @@ cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上�
 
 ### 8.3 L2 额外审阅
 
-L2 任务完成前需要多视角审阅：
-
-- 行为契约
-- 数据流
-- 错误处理
-- 兼容性
-- 测试覆盖
-- 发布或迁移风险
+L2 任务完成前需要多视角审阅：行为契约、数据流、错误处理、兼容性、测试覆盖、发布或迁移风险。
 
 ---
 
@@ -340,13 +230,7 @@ L2 任务完成前需要多视角审阅：
 
 ### 9.1 收尾前同步状态
 
-结束前确认：
-
-- 当前 task 状态准确
-- plan checkbox 与真实进度一致
-- change metadata 与 plan 高层状态一致
-- `.cowork-flow/spec/` 已沉淀必要经验
-- 工作区状态清晰
+结束前确认当前 task 状态、plan checkbox、change metadata、必要的 `.cowork-flow/spec/` 沉淀和工作区状态都与真实进度一致。
 
 ### 9.2 记录 session
 
@@ -374,7 +258,7 @@ L2 任务完成前需要多视角审阅：
 
 ---
 
-## 10. 状态持久化规则
+## 10. 状态持久化与恢复
 
 长任务必须把关键状态写入文件，而不是只留在聊天上下文中。
 
@@ -391,11 +275,7 @@ L2 任务完成前需要多视角审阅：
 
 如果状态只存在于对话中，就不能视为可靠流程状态。
 
----
-
-## 11. 恢复与上下文压缩
-
-多轮对话、长任务、中断恢复或上下文压缩后，必须先走最小恢复层，再按需读取细节。
+### 10.1 恢复分层
 
 | 层级 | 读取内容 | 使用时机 |
 |------|----------|----------|
@@ -403,7 +283,7 @@ L2 任务完成前需要多视角审阅：
 | 任务执行层 | 当前任务 `prd.md`、当前 plan 状态、`task.py list-context <task-dir>` | 准备继续实现或检查前 |
 | 细节规范层 | jsonl 指向的具体 spec、代码模式或计划段落 | 当前修改确实需要该细节时 |
 
-恢复规则：
+### 10.2 恢复规则
 
 - 先执行 `./.cowork-flow/run resume`。
 - 按 `RESUME CHECKLIST` 读取当前 PRD、当前 plan 和 `list-context` 输出。
@@ -415,7 +295,7 @@ L2 任务完成前需要多视角审阅：
 
 ---
 
-## 12. 禁止事项
+## 11. 禁止事项
 
 - 不跳过上下文读取直接编码。
 - 不在未验证时声称完成。
@@ -426,7 +306,7 @@ L2 任务完成前需要多视角审阅：
 
 ---
 
-## 13. 完成定义
+## 12. 完成定义
 
 一个任务只有在以下条件同时满足时，才算完成：
 
