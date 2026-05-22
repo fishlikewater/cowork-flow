@@ -1,0 +1,28 @@
+{
+  "id": "date-prefixed-change-names",
+  "name": "date-prefixed-change-names",
+  "title": "Date prefixed change names",
+  "description": "",
+  "status": "completed",
+  "dev_type": "backend",
+  "scope": "L1",
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-22",
+  "completedAt": "2026-05-22",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".cowork-flow/scripts/change.py",
+    "template/.cowork-flow/scripts/change.py",
+    "tests/test_change_script.py"
+  ],
+  "notes": "",
+  "meta": {
+    "change": ".cowork-flow/changes/date-prefixed-change-names",
+    "plan": ".cowork-flow/plans/2026-05-22-date-prefixed-change-names.md"
+  }
+}
