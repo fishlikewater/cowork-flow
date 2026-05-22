@@ -113,9 +113,23 @@ def _resolve_link(repo_root: Path, base_dir: str, value: object) -> Path | None:
         return raw_path
 
     direct = repo_root / raw_path
-    if direct.exists():
+    workflow_base = Path(DIR_WORKFLOW) / base_dir
+    if direct.exists() or raw_path.parts[:2] == workflow_base.parts:
         return direct
-    return repo_root / DIR_WORKFLOW / base_dir / raw_path
+    return repo_root / workflow_base / raw_path
+
+
+def _archived_task_link(repo_root: Path, task_name: str) -> str | None:
+    archive_root = repo_root / DIR_WORKFLOW / "tasks" / DIR_ARCHIVE
+    if not archive_root.is_dir():
+        return None
+
+    matches = [path for path in archive_root.glob(f"*/{task_name}") if path.is_dir()]
+    if len(matches) != 1:
+        return None
+
+    relative = matches[0].relative_to(archive_root)
+    return str(Path(DIR_ARCHIVE) / relative).replace("\\", "/")
 
 
 def _normalize_task_link(repo_root: Path, value: object) -> object:
@@ -125,8 +139,11 @@ def _normalize_task_link(repo_root: Path, value: object) -> object:
     target = _resolve_link(repo_root, "tasks", value)
     tasks_root = repo_root / DIR_WORKFLOW / "tasks"
     archive_root = tasks_root / DIR_ARCHIVE
-    if target is None or not target.exists():
+    if target is None:
         return value
+
+    if not target.exists():
+        return _archived_task_link(repo_root, target.name) or value
 
     try:
         relative = target.resolve().relative_to(archive_root.resolve())
@@ -134,6 +151,14 @@ def _normalize_task_link(repo_root: Path, value: object) -> object:
         return value
 
     return str(Path(DIR_ARCHIVE) / relative).replace("\\", "/")
+
+
+def _normalize_archive_metadata(repo_root: Path, change_dir: Path) -> None:
+    metadata = _read_metadata(change_dir)
+    normalized_task = _normalize_task_link(repo_root, metadata.get("task"))
+    if normalized_task != metadata.get("task"):
+        metadata["task"] = normalized_task
+        _write_metadata(change_dir, metadata)
 
 
 def _validate_link(repo_root: Path, metadata: dict[str, object], field: str, base_dir: str) -> str | None:
@@ -240,10 +265,13 @@ def validate_command(args: argparse.Namespace) -> int:
 def archive_change(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     slug = args.slug
+    source = _change_dir(repo_root, slug)
+    if source.is_dir():
+        _normalize_archive_metadata(repo_root, source)
+
     if not validate_change(repo_root, slug, quiet=True):
         return 1
 
-    source = _change_dir(repo_root, slug)
     month = datetime.now().astimezone().strftime("%Y-%m")
     destination = _archive_dir(repo_root) / month / slug
     result = archive_directory_resumable(source, destination)

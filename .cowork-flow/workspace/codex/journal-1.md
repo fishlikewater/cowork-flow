@@ -232,3 +232,35 @@ Updated change creation so new change directories use MM-DD-slug naming like tas
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 8: Fix change archive after task archive
+
+**Date**: 2026-05-22
+**Task**: Fix change archive after task archive
+
+### Summary
+
+Added regression coverage and fixed change archive to normalize task links when the linked task was already archived; also corrected repo-relative missing-link diagnostics to avoid double workflow prefixes.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `pending` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
