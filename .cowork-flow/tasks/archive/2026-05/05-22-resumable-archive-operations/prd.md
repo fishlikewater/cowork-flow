@@ -13,12 +13,12 @@ Reduce archive-flow failures by making `task archive` and `change archive` safe 
 - Normalize archived task references in archived change metadata.
 
 ## Acceptance Criteria
-- [ ] Regression tests fail before implementation and pass after implementation.
-- [ ] `task archive` can converge from identical source/destination duplicate state.
-- [ ] `change archive` can converge from identical source/destination duplicate state.
-- [ ] `change validate` accepts `.cowork-flow/tasks/<task>` links without constructing a doubled path.
-- [ ] Archived change metadata records `status: archived`, `archived_at`, and normalized archived task path when applicable.
-- [ ] Targeted Python tests and template tests pass.
+- [x] Regression tests fail before implementation and pass after implementation.
+- [x] `task archive` can converge from identical source/destination duplicate state.
+- [x] `change archive` can converge from identical source/destination duplicate state.
+- [x] `change validate` accepts `.cowork-flow/tasks/<task>` links without constructing a doubled path.
+- [x] Archived change metadata records `status: archived`, `archived_at`, and normalized archived task path when applicable.
+- [x] Targeted Python tests and template tests pass.
 
 ## Technical Notes
 - This is an L1 backend/script behavior change.
