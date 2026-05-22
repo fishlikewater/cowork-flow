@@ -1,0 +1,21 @@
+{
+  "id": "release-script-readme",
+  "name": "release-script-readme",
+  "title": "添加 npm release 脚本并更新 README",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-21",
+  "completedAt": "2026-05-21",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
