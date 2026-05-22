@@ -32,6 +32,7 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.agent', 'skills', 'start', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'run.py')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'change.py')), true);
   assert.equal(await exists(join(target, '.superpowers')), false);
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${packageInfo.version}\n`);
