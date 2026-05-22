@@ -215,6 +215,40 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertEqual(0, passed.returncode, passed.stderr)
         self.assertIn("valid", passed.stdout)
 
+    def test_validate_reports_missing_repo_relative_task_without_double_prefix(self) -> None:
+        self.assertEqual(0, self.run_change("create", "missing-task-link").returncode)
+        change_dir = self.change_dir_for("missing-task-link")
+        spec = change_dir / "spec.md"
+        spec.write_text("# Backend behavior\n\n- Missing task links remain invalid.\n", encoding="utf-8")
+        change_yaml = change_dir / "change.yaml"
+        content = change_yaml.read_text(encoding="utf-8")
+        content = content.replace("task: null", "task: .cowork-flow/tasks/missing-task")
+        change_yaml.write_text(content, encoding="utf-8")
+
+        failed = self.run_change("validate", self.change_name_for("missing-task-link"))
+
+        self.assertNotEqual(0, failed.returncode)
+        self.assertIn(".cowork-flow/tasks/missing-task", failed.stderr)
+        self.assertNotIn(".cowork-flow/tasks/.cowork-flow/tasks/missing-task", failed.stderr)
+
+    def test_archive_accepts_task_already_moved_to_archive(self) -> None:
+        self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
+        change_dir = self.change_dir_for("replace-auth")
+        spec = change_dir / "spec.md"
+        spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
+        task_dir = self.repo / ".cowork-flow" / "tasks" / "archive" / "2026-05" / "05-18-active"
+        task_dir.mkdir(parents=True)
+        change_yaml = change_dir / "change.yaml"
+        content = change_yaml.read_text(encoding="utf-8")
+        content = content.replace("task: null", "task: .cowork-flow/tasks/05-18-active")
+        change_yaml.write_text(content, encoding="utf-8")
+
+        archived = self.run_change("archive", self.change_name_for("replace-auth"))
+
+        self.assertEqual(0, archived.returncode, archived.stderr)
+        metadata = self.read_metadata(self.change_name_for("replace-auth"))
+        self.assertEqual("archive/2026-05/05-18-active", metadata["task"])
+
     def test_archive_requires_valid_change_and_moves_to_month_archive(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
         spec = self.change_dir_for("replace-auth") / "spec.md"

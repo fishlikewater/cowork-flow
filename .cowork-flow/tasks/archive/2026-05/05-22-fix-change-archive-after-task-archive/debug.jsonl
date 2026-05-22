@@ -1,0 +1,3 @@
+{"file": ".agent/skills/break-loop/SKILL.md", "reason": "Deep bug analysis workflow"}
+{"file": ".agent/skills/update-spec/SKILL.md", "reason": "Capture implementation lessons and contracts"}
+{"file": ".agent/skills/check-cross-layer/SKILL.md", "reason": "Cross-layer consistency check"}

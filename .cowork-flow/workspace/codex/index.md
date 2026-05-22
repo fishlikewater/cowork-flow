@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~234 | Current |
+| `journal-1.md` | ~266 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 8 | 2026-05-22 | Fix change archive after task archive | pending |
 | 7 | 2026-05-22 | Date-prefixed change names | pending |
 | 6 | 2026-05-21 | 添加 npm release shell 脚本 | handoff-uncommitted |
 | 5 | 2026-05-21 | 调整模板工作流文档可读性 | handoff: workflow doc uncommitted task metadata `aaf811e` |
