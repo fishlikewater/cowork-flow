@@ -61,6 +61,36 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.assertIn("T001-quality-reviewer", dispatch)
         self.assertIn("recommended_agent: implementer", dispatch)
 
+    def test_prepare_uses_configured_agent_registry(self) -> None:
+        (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
+            "default_adapter: manual\n"
+            "\n"
+            "agents:\n"
+            "  implementer:\n"
+            "    agent_type: custom-worker\n"
+            "  spec-reviewer:\n"
+            "    agent_type: custom-spec\n"
+            "  quality-reviewer:\n"
+            "    agent_type: custom-quality\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        runtime = self.task_dir / "agent-team"
+        dispatch = (runtime / "dispatch-plan.yaml").read_text(encoding="utf-8")
+        self.assertIn("adapter: manual", dispatch)
+        self.assertIn("agent_type: custom-worker", dispatch)
+        self.assertIn("agent_type: custom-spec", dispatch)
+        self.assertIn("agent_type: custom-quality", dispatch)
+        self.assertTrue((runtime / "adapters" / "manual.json").is_file())
+
+        next_result = self.run_agent_team("next", str(self.task_dir))
+
+        self.assertEqual(0, next_result.returncode, next_result.stderr)
+        self.assertIn("agent_type=custom-worker", next_result.stdout)
+
     def test_prepare_marks_file_overlap_dependency(self) -> None:
         result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
 
