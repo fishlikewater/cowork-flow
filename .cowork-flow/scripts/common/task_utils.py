@@ -10,11 +10,11 @@ Provides:
 
 from __future__ import annotations
 
-import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from .archive_utils import archive_directory_resumable
 from .paths import get_repo_root
 
 PATH_TRAVERSAL_PREFIXES = ("./", "../")
@@ -139,23 +139,10 @@ def archive_task_dir(task_dir_abs: Path, repo_root: Path | None = None) -> Path 
     task_name = task_dir_abs.name
     archive_dest = month_dir / task_name
 
-    if archive_dest.exists():
-        print(f"Error: archive target already exists: {archive_dest}", file=sys.stderr)
-        print(f"Source task directory is still present: {task_dir_abs}", file=sys.stderr)
-        return None
-
-    try:
-        shutil.move(str(task_dir_abs), str(archive_dest))
-    except (OSError, IOError, shutil.Error) as e:
-        print(f"Error: Failed to move task to archive: {e}", file=sys.stderr)
-        if archive_dest.exists() and task_dir_abs.exists():
-            print("Error: archive move left both source and target paths present.", file=sys.stderr)
-            print(f"  Source: {task_dir_abs}", file=sys.stderr)
-            print(f"  Target: {archive_dest}", file=sys.stderr)
-        elif archive_dest.exists():
-            print(f"Error: archive target path exists after failure: {archive_dest}", file=sys.stderr)
-        elif task_dir_abs.exists():
-            print(f"Error: source task directory is still present: {task_dir_abs}", file=sys.stderr)
+    result = archive_directory_resumable(task_dir_abs, archive_dest)
+    if not result.ok:
+        level = "Warning" if result.partial else "Error"
+        print(f"{level}: {result.message}", file=sys.stderr)
         return None
 
     return archive_dest

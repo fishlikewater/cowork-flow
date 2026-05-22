@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import argparse
 import re
-import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from common.archive_utils import archive_directory_resumable
 from common.paths import DIR_ARCHIVE, DIR_CHANGES, DIR_WORKFLOW, get_repo_root
 
 
@@ -110,6 +110,24 @@ def _resolve_link(repo_root: Path, base_dir: str, value: object) -> Path | None:
     if direct.exists():
         return direct
     return repo_root / DIR_WORKFLOW / base_dir / raw_path
+
+
+def _normalize_task_link(repo_root: Path, value: object) -> object:
+    if not isinstance(value, str) or not value.strip():
+        return value
+
+    target = _resolve_link(repo_root, "tasks", value)
+    tasks_root = repo_root / DIR_WORKFLOW / "tasks"
+    archive_root = tasks_root / DIR_ARCHIVE
+    if target is None or not target.exists():
+        return value
+
+    try:
+        relative = target.resolve().relative_to(archive_root.resolve())
+    except ValueError:
+        return value
+
+    return str(Path(DIR_ARCHIVE) / relative).replace("\\", "/")
 
 
 def _validate_link(repo_root: Path, metadata: dict[str, object], field: str, base_dir: str) -> str | None:
@@ -221,16 +239,16 @@ def archive_change(args: argparse.Namespace) -> int:
     source = _change_dir(repo_root, slug)
     month = datetime.now().astimezone().strftime("%Y-%m")
     destination = _archive_dir(repo_root) / month / slug
-    if destination.exists():
-        print(f"Error: archive destination already exists: {destination}", file=sys.stderr)
+    result = archive_directory_resumable(source, destination)
+    if not result.ok:
+        level = "Warning" if result.partial else "Error"
+        print(f"{level}: {result.message}", file=sys.stderr)
         return 1
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(source), str(destination))
 
     metadata = _read_metadata(destination)
     metadata["status"] = "archived"
     metadata["archived_at"] = _now_iso()
+    metadata["task"] = _normalize_task_link(repo_root, metadata.get("task"))
     _write_metadata(destination, metadata)
 
     print(f"archived {slug}")
