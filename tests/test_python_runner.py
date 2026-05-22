@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "template" / ".cowork-flow" / "run"
 WINDOWS_RUNNER = ROOT / "template" / ".cowork-flow" / "run.cmd"
+PYTHON_RUNNER = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
 POSIX_ONLY = unittest.skipIf(
     os.name == "nt",
     "POSIX shell runner execution is covered on POSIX hosts",
@@ -84,7 +85,7 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertTrue(RUNNER.is_file())
         self.assertTrue(os.access(RUNNER, os.X_OK))
 
-    def test_windows_runner_is_native_cmd_entrypoint(self) -> None:
+    def test_windows_runner_is_thin_python_bootstrap(self) -> None:
         self.assertTrue(WINDOWS_RUNNER.is_file())
         content = WINDOWS_RUNNER.read_text(encoding="utf-8")
 
@@ -94,8 +95,18 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertIn("python", content)
         self.assertIn("py -3", content)
         self.assertIn("Python 3.8+", content)
-        self.assertIn("task.py", content)
-        self.assertIn("REST_ARGS", content)
+        self.assertIn(r"scripts\run.py", content)
+        self.assertNotIn("task.py", content)
+        self.assertNotIn(":run_task", content)
+        self.assertNotIn("REST_ARGS", content)
+
+    def test_shared_python_runner_maps_commands_to_workflow_scripts(self) -> None:
+        self.assertTrue(PYTHON_RUNNER.is_file())
+        content = PYTHON_RUNNER.read_text(encoding="utf-8")
+
+        self.assertIn('"task": "task.py"', content)
+        self.assertIn('"agent-team": "agent_team.py"', content)
+        self.assertIn('"get-context": "get_context.py"', content)
 
     @POSIX_ONLY
     def test_python3_is_preferred_when_available(self) -> None:
@@ -109,7 +120,8 @@ class PythonRunnerTest(unittest.TestCase):
             result = self.run_with_fake_path(temp_dir, ["python", "-V"])
 
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual(f"{python3} -V", self.read_log(temp_dir)[-1])
+            expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
+            self.assertEqual(f"{python3} {expected_script} python -V", self.read_log(temp_dir)[-1])
 
     @POSIX_ONLY
     def test_runner_falls_back_to_python_when_python3_is_not_usable(self) -> None:
@@ -123,7 +135,8 @@ class PythonRunnerTest(unittest.TestCase):
             result = self.run_with_fake_path(temp_dir, ["python", "-V"])
 
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual(f"{python} -V", self.read_log(temp_dir)[-1])
+            expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
+            self.assertEqual(f"{python} {expected_script} python -V", self.read_log(temp_dir)[-1])
 
     @POSIX_ONLY
     def test_runner_respects_explicit_python_override(self) -> None:
@@ -141,7 +154,8 @@ class PythonRunnerTest(unittest.TestCase):
             )
 
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual(f"{custom_python} -V", self.read_log(temp_dir)[-1])
+            expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
+            self.assertEqual(f"{custom_python} {expected_script} python -V", self.read_log(temp_dir)[-1])
 
     @POSIX_ONLY
     def test_runner_rejects_candidates_below_minimum_python_version(self) -> None:
@@ -169,8 +183,8 @@ class PythonRunnerTest(unittest.TestCase):
             result = self.run_with_fake_path(temp_dir, ["task", "list"])
 
             self.assertEqual(0, result.returncode, result.stderr)
-            expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "task.py"
-            self.assertEqual(f"{python3} {expected_script} list", self.read_log(temp_dir)[-1])
+            expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
+            self.assertEqual(f"{python3} {expected_script} task list", self.read_log(temp_dir)[-1])
 
     @POSIX_ONLY
     def test_runner_maps_agent_team_command_to_script(self) -> None:
@@ -183,8 +197,8 @@ class PythonRunnerTest(unittest.TestCase):
             result = self.run_with_fake_path(temp_dir, ["agent-team", "init"])
 
             self.assertEqual(0, result.returncode, result.stderr)
-            expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "agent_team.py"
-            self.assertEqual(f"{python3} {expected_script} init", self.read_log(temp_dir)[-1])
+            expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
+            self.assertEqual(f"{python3} {expected_script} agent-team init", self.read_log(temp_dir)[-1])
 
 
 if __name__ == "__main__":
