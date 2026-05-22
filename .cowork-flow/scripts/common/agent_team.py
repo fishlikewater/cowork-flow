@@ -102,15 +102,63 @@ def _task_dependencies(tasks: list[dict[str, object]]) -> list[dict[str, str]]:
     return dependencies
 
 
-def _role_agent(role: str) -> tuple[str, str]:
-    if role == "implementer":
-        return ("implementer", "worker")
-    if role == "spec-reviewer":
-        return ("spec-reviewer", "default")
-    return ("quality-reviewer", "default")
+DEFAULT_ROLE_TYPES = {
+    "implementer": "worker",
+    "spec-reviewer": "default",
+    "quality-reviewer": "default",
+}
 
 
-def build_dispatch_plan(tasks: list[dict[str, object]]) -> dict[str, object]:
+def load_agent_registry(path: Path) -> dict[str, object]:
+    registry: dict[str, object] = {"default_adapter": "codex", "agents": {}}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return registry
+
+    current_role: str | None = None
+    in_agents = False
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(raw_line) - len(raw_line.lstrip())
+        if indent == 0:
+            in_agents = stripped == "agents:"
+            current_role = None
+            if stripped.startswith("default_adapter:"):
+                registry["default_adapter"] = stripped.partition(":")[2].strip() or "codex"
+            continue
+        if in_agents and indent == 2 and stripped.endswith(":"):
+            current_role = stripped[:-1].strip()
+            agents = registry.setdefault("agents", {})
+            if isinstance(agents, dict):
+                agents.setdefault(current_role, {})
+            continue
+        if in_agents and current_role and indent >= 4 and stripped.startswith(("agent_type:", "codex_type:")):
+            agents = registry.setdefault("agents", {})
+            if isinstance(agents, dict):
+                role_config = agents.setdefault(current_role, {})
+                if isinstance(role_config, dict):
+                    role_config[stripped.partition(":")[0].strip()] = stripped.partition(":")[2].strip()
+    return registry
+
+
+def _role_agent(role: str, registry: dict[str, object] | None = None) -> tuple[str, str]:
+    agents = registry.get("agents", {}) if registry else {}
+    role_config = agents.get(role, {}) if isinstance(agents, dict) else {}
+    agent_type = DEFAULT_ROLE_TYPES.get(role, "default")
+    if isinstance(role_config, dict):
+        configured_type = role_config.get("agent_type", role_config.get("codex_type"))
+        if isinstance(configured_type, str):
+            agent_type = configured_type
+    return (role, agent_type)
+
+
+def build_dispatch_plan(
+    tasks: list[dict[str, object]],
+    registry: dict[str, object] | None = None,
+) -> dict[str, object]:
     assignments: list[dict[str, object]] = []
     task_dependencies = _task_dependencies(tasks)
     dependency_lookup: dict[str, list[str]] = {}
@@ -129,7 +177,7 @@ def build_dispatch_plan(tasks: list[dict[str, object]]) -> dict[str, object]:
             ("quality-reviewer", [f"{task_id}-spec-reviewer"]),
         ]
         for role, depends_on in chain:
-            agent, codex_type = _role_agent(role)
+            agent, agent_type = _role_agent(role, registry)
             assignments.append(
                 {
                     "id": f"{task_id}-{role}",
@@ -137,7 +185,7 @@ def build_dispatch_plan(tasks: list[dict[str, object]]) -> dict[str, object]:
                     "title": task["title"],
                     "role": role,
                     "recommended_agent": agent,
-                    "codex_type": codex_type,
+                    "agent_type": agent_type,
                     "depends_on": depends_on,
                     "files": task.get("files", []),
                     "steps": task.get("steps", []),
@@ -147,7 +195,7 @@ def build_dispatch_plan(tasks: list[dict[str, object]]) -> dict[str, object]:
 
     return {
         "version": 1,
-        "adapter": "codex",
+        "adapter": str(registry.get("default_adapter", "codex")) if registry else "codex",
         "tasks": tasks,
         "task_dependencies": task_dependencies,
         "assignments": assignments,
@@ -176,7 +224,7 @@ def render_dispatch_plan(dispatch_plan: dict[str, object]) -> str:
                 f"    task: {assignment['task']}",
                 f"    role: {assignment['role']}",
                 f"    recommended_agent: {assignment['recommended_agent']}",
-                f"    codex_type: {assignment['codex_type']}",
+                f"    agent_type: {assignment['agent_type']}",
                 "    depends_on:",
             ]
         )
@@ -209,7 +257,7 @@ def build_initial_status(dispatch_plan: dict[str, object]) -> dict[str, object]:
             "role": assignment["role"],
             "task": assignment["task"],
             "recommended_agent": assignment["recommended_agent"],
-            "codex_type": assignment["codex_type"],
+            "agent_type": assignment["agent_type"],
         }
 
     return {"version": 1, "current_batch": 1, "assignments": assignments}
@@ -233,7 +281,7 @@ def render_assignment_prompt(assignment: dict[str, object]) -> str:
             "",
             f"Role: {assignment['role']}",
             f"Recommended agent: {assignment['recommended_agent']}",
-            f"Codex type: {assignment['codex_type']}",
+            f"Agent type: {assignment['agent_type']}",
             "",
             "You are not alone in this codebase. Respect the write boundary, do not revert other agents' edits, and report changed files.",
             "",

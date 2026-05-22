@@ -1,0 +1,21 @@
+{
+  "id": "agent-team-configured-agent",
+  "name": "agent-team-configured-agent",
+  "title": "Use configured agent-team registry",
+  "description": "",
+  "status": "done",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-22",
+  "completedAt": "2026-05-22",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

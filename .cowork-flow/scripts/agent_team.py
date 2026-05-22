@@ -15,6 +15,7 @@ from common.agent_team import (
     build_initial_metrics,
     build_initial_status,
     parse_plan,
+    load_agent_registry,
     render_assignment_prompt,
     render_dispatch_plan,
     write_json,
@@ -31,7 +32,7 @@ default_adapter: codex
 
 agents:
   implementer:
-    codex_type: worker
+    agent_type: worker
     capabilities:
       - implementation
       - test-writing
@@ -47,7 +48,7 @@ agents:
       max_parallel_write_conflicts: 0
 
   spec-reviewer:
-    codex_type: default
+    agent_type: default
     capabilities:
       - spec-review
       - acceptance-check
@@ -63,7 +64,7 @@ agents:
       max_parallel_write_conflicts: 0
 
   quality-reviewer:
-    codex_type: default
+    agent_type: default
     capabilities:
       - code-quality-review
       - test-review
@@ -79,7 +80,7 @@ agents:
       max_parallel_write_conflicts: 0
 
   docs-agent:
-    codex_type: worker
+    agent_type: worker
     capabilities:
       - documentation
       - workflow-writing
@@ -309,7 +310,8 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     ):
         directory.mkdir(parents=True, exist_ok=True)
 
-    dispatch_plan = build_dispatch_plan(tasks)
+    registry = load_agent_registry(_agent_team_config_dir(repo_root) / "agents.yaml")
+    dispatch_plan = build_dispatch_plan(tasks, registry)
     (runtime_dir / "dispatch-plan.yaml").write_text(
         render_dispatch_plan(dispatch_plan),
         encoding="utf-8",
@@ -317,9 +319,9 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     write_json(runtime_dir / "status.json", build_initial_status(dispatch_plan))
     write_json(runtime_dir / "metrics.json", build_initial_metrics(dispatch_plan))
     write_json(
-        adapters_dir / "codex.json",
+        adapters_dir / f"{dispatch_plan['adapter']}.json",
         {
-            "adapter": "codex",
+            "adapter": dispatch_plan["adapter"],
             "mode": "coordinator-dispatched",
             "assignmentCount": len(dispatch_plan["assignments"]),
         },
@@ -371,7 +373,7 @@ def cmd_next(args: argparse.Namespace) -> int:
     for assignment_id, assignment in ready:
         print(
             f"{assignment_id}\trole={assignment['role']}\t"
-            f"agent={assignment['recommended_agent']}\tcodex_type={assignment['codex_type']}"
+            f"agent={assignment['recommended_agent']}\tagent_type={assignment['agent_type']}"
         )
     return 0
 
