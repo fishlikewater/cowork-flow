@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -42,4 +42,13 @@ test('npm package includes cli source and template assets', async (t) => {
     [...files].some((file) => file.includes('__pycache__') || file.endsWith('.pyc')),
     false
   );
+});
+
+test('package metadata exposes release script and synchronized lockfile version', async () => {
+  const packageInfo = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+  const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
+
+  assert.equal(packageInfo.scripts.release, 'sh scripts/release.sh');
+  assert.equal(packageLock.version, packageInfo.version);
+  assert.equal(packageLock.packages[''].version, packageInfo.version);
 });
