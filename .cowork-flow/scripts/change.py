@@ -11,7 +11,13 @@ from datetime import datetime
 from pathlib import Path
 
 from common.archive_utils import archive_directory_resumable
-from common.paths import DIR_ARCHIVE, DIR_CHANGES, DIR_WORKFLOW, get_repo_root
+from common.paths import (
+    DIR_ARCHIVE,
+    DIR_CHANGES,
+    DIR_WORKFLOW,
+    generate_task_date_prefix,
+    get_repo_root,
+)
 
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -196,14 +202,15 @@ def create_change(args: argparse.Namespace) -> int:
     if not _validate_slug(slug):
         return 2
 
-    change_dir = _change_dir(repo_root, slug)
+    dir_name = f"{generate_task_date_prefix()}-{slug}"
+    change_dir = _change_dir(repo_root, dir_name)
     if change_dir.exists():
-        print(f"Error: change already exists: {slug}", file=sys.stderr)
+        print(f"Error: change already exists: {dir_name}", file=sys.stderr)
         return 1
 
     change_dir.mkdir(parents=True)
     (change_dir / "proposal.md").write_text(
-        f"# {slug}\n\nDescribe the proposed behavior change.\n",
+        f"# {dir_name}\n\nDescribe the proposed behavior change.\n",
         encoding="utf-8",
     )
     (change_dir / "design.md").write_text("", encoding="utf-8")
@@ -211,7 +218,7 @@ def create_change(args: argparse.Namespace) -> int:
     _write_metadata(
         change_dir,
         {
-            "slug": slug,
+            "slug": dir_name,
             "status": "draft",
             "level": args.level,
             "created_at": _now_iso(),
@@ -221,7 +228,7 @@ def create_change(args: argparse.Namespace) -> int:
         },
     )
 
-    print(f"created {slug}")
+    print(f"created {dir_name}")
     return 0
 
 

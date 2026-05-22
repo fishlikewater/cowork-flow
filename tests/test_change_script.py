@@ -33,6 +33,13 @@ class ChangeScriptTest(unittest.TestCase):
             check=False,
         )
 
+    def change_dir_for(self, slug: str) -> Path:
+        date_prefix = datetime.now().strftime("%m-%d")
+        return self.repo / ".cowork-flow" / "changes" / f"{date_prefix}-{slug}"
+
+    def change_name_for(self, slug: str) -> str:
+        return self.change_dir_for(slug).name
+
     def read_metadata(self, slug: str) -> dict[str, object]:
         metadata: dict[str, object] = {}
         path = self.repo / ".cowork-flow" / "changes" / slug / "change.yaml"
@@ -61,14 +68,17 @@ class ChangeScriptTest(unittest.TestCase):
         result = self.run_change("create", "replace-auth")
 
         self.assertEqual(0, result.returncode, result.stderr)
-        change_dir = self.repo / ".cowork-flow" / "changes" / "replace-auth"
+        date_prefix = datetime.now().strftime("%m-%d")
+        dir_name = f"{date_prefix}-replace-auth"
+        change_dir = self.repo / ".cowork-flow" / "changes" / dir_name
+        self.assertIn(f"created {dir_name}", result.stdout)
         self.assertTrue((change_dir / "change.yaml").is_file())
         self.assertTrue((change_dir / "proposal.md").is_file())
         self.assertTrue((change_dir / "design.md").is_file())
         self.assertTrue((change_dir / "spec.md").is_file())
         self.assertFalse((change_dir / "specs").exists())
-        metadata = self.read_metadata("replace-auth")
-        self.assertEqual("replace-auth", metadata["slug"])
+        metadata = self.read_metadata(dir_name)
+        self.assertEqual(dir_name, metadata["slug"])
         self.assertEqual("draft", metadata["status"])
         self.assertEqual("L1", metadata["level"])
         self.assertEqual(False, metadata["documentation_only"])
@@ -85,7 +95,7 @@ class ChangeScriptTest(unittest.TestCase):
 
     def test_validate_reports_bad_metadata_and_missing_links(self) -> None:
         self.assertEqual(0, self.run_change("create", "broken-change").returncode)
-        change_dir = self.repo / ".cowork-flow" / "changes" / "broken-change"
+        change_dir = self.change_dir_for("broken-change")
         (change_dir / "proposal.md").write_text("", encoding="utf-8")
         spec = change_dir / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
@@ -97,7 +107,7 @@ class ChangeScriptTest(unittest.TestCase):
         content = content.replace("task: null", "task: missing-task")
         change_yaml.write_text(content, encoding="utf-8")
 
-        failed = self.run_change("validate", "broken-change")
+        failed = self.run_change("validate", self.change_name_for("broken-change"))
 
         self.assertNotEqual(0, failed.returncode)
         self.assertIn("proposal.md", failed.stderr)
@@ -106,70 +116,92 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertIn("plan", failed.stderr)
         self.assertIn("task", failed.stderr)
 
+    def test_validate_accepts_existing_unprefixed_change_directory(self) -> None:
+        change_dir = self.repo / ".cowork-flow" / "changes" / "legacy-change"
+        change_dir.mkdir(parents=True)
+        (change_dir / "proposal.md").write_text("# Legacy change\n", encoding="utf-8")
+        (change_dir / "spec.md").write_text("# Behavior\n\n- Keep legacy names valid.\n", encoding="utf-8")
+        (change_dir / "design.md").write_text("", encoding="utf-8")
+        (change_dir / "change.yaml").write_text(
+            "slug: legacy-change\n"
+            "status: draft\n"
+            "level: L1\n"
+            "created_at: 2026-05-22T00:00:00+08:00\n"
+            "documentation_only: false\n"
+            "plan: null\n"
+            "task: null\n",
+            encoding="utf-8",
+        )
+
+        passed = self.run_change("validate", "legacy-change")
+
+        self.assertEqual(0, passed.returncode, passed.stderr)
+        self.assertIn("legacy-change valid", passed.stdout)
+
     def test_validate_rejects_non_root_spec_md_files(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
 
-        failed = self.run_change("validate", "replace-auth")
+        failed = self.run_change("validate", self.change_name_for("replace-auth"))
         self.assertNotEqual(0, failed.returncode)
         self.assertIn("spec.md", failed.stderr)
 
-        notes = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "notes.md"
+        notes = self.change_dir_for("replace-auth") / "notes.md"
         notes.write_text("# Backend notes\n\n- The API returns 200.\n", encoding="utf-8")
 
-        still_failed = self.run_change("validate", "replace-auth")
+        still_failed = self.run_change("validate", self.change_name_for("replace-auth"))
         self.assertNotEqual(0, still_failed.returncode)
         self.assertIn("spec.md", still_failed.stderr)
 
-        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
+        spec = self.change_dir_for("replace-auth") / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
 
-        passed = self.run_change("validate", "replace-auth")
+        passed = self.run_change("validate", self.change_name_for("replace-auth"))
         self.assertEqual(0, passed.returncode, passed.stderr)
         self.assertIn("valid", passed.stdout)
 
     def test_validate_allows_documentation_only_without_spec(self) -> None:
         self.assertEqual(0, self.run_change("create", "doc-only-change").returncode)
-        change_yaml = self.repo / ".cowork-flow" / "changes" / "doc-only-change" / "change.yaml"
+        change_yaml = self.change_dir_for("doc-only-change") / "change.yaml"
         content = change_yaml.read_text(encoding="utf-8")
         content = content.replace("documentation_only: false", "documentation_only: true")
         change_yaml.write_text(content, encoding="utf-8")
 
-        passed = self.run_change("validate", "doc-only-change")
+        passed = self.run_change("validate", self.change_name_for("doc-only-change"))
         self.assertEqual(0, passed.returncode, passed.stderr)
         self.assertIn("valid", passed.stdout)
 
     def test_validate_requires_design_for_l2_change(self) -> None:
         self.assertEqual(0, self.run_change("create", "cross-layer-auth", "--level", "L2").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "cross-layer-auth" / "spec.md"
+        spec = self.change_dir_for("cross-layer-auth") / "spec.md"
         spec.write_text("# Cross-layer behavior\n\n- Frontend and backend share the same contract.\n", encoding="utf-8")
 
-        failed = self.run_change("validate", "cross-layer-auth")
+        failed = self.run_change("validate", self.change_name_for("cross-layer-auth"))
         self.assertNotEqual(0, failed.returncode)
         self.assertIn("design.md", failed.stderr)
 
-        design = self.repo / ".cowork-flow" / "changes" / "cross-layer-auth" / "design.md"
+        design = self.change_dir_for("cross-layer-auth") / "design.md"
         design.write_text("# Design\n\nUse one explicit API contract.\n", encoding="utf-8")
 
-        passed = self.run_change("validate", "cross-layer-auth")
+        passed = self.run_change("validate", self.change_name_for("cross-layer-auth"))
         self.assertEqual(0, passed.returncode, passed.stderr)
 
     def test_validate_accepts_active_status(self) -> None:
         self.assertEqual(0, self.run_change("create", "active-change").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "active-change" / "spec.md"
+        spec = self.change_dir_for("active-change") / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
 
-        change_yaml = self.repo / ".cowork-flow" / "changes" / "active-change" / "change.yaml"
+        change_yaml = self.change_dir_for("active-change") / "change.yaml"
         content = change_yaml.read_text(encoding="utf-8")
         content = content.replace("status: draft", "status: active")
         change_yaml.write_text(content, encoding="utf-8")
 
-        passed = self.run_change("validate", "active-change")
+        passed = self.run_change("validate", self.change_name_for("active-change"))
         self.assertEqual(0, passed.returncode, passed.stderr)
         self.assertIn("valid", passed.stdout)
 
     def test_validate_accepts_prefixed_task_link(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
-        change_dir = self.repo / ".cowork-flow" / "changes" / "replace-auth"
+        change_dir = self.change_dir_for("replace-auth")
         spec = change_dir / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
         change_yaml = change_dir / "change.yaml"
@@ -178,50 +210,50 @@ class ChangeScriptTest(unittest.TestCase):
         change_yaml.write_text(content, encoding="utf-8")
         (self.repo / ".cowork-flow" / "tasks" / "05-18-active").mkdir()
 
-        passed = self.run_change("validate", "replace-auth")
+        passed = self.run_change("validate", self.change_name_for("replace-auth"))
 
         self.assertEqual(0, passed.returncode, passed.stderr)
         self.assertIn("valid", passed.stdout)
 
     def test_archive_requires_valid_change_and_moves_to_month_archive(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
+        spec = self.change_dir_for("replace-auth") / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
 
-        archived = self.run_change("archive", "replace-auth")
+        archived = self.run_change("archive", self.change_name_for("replace-auth"))
 
         self.assertEqual(0, archived.returncode, archived.stderr)
-        self.assertFalse((self.repo / ".cowork-flow" / "changes" / "replace-auth").exists())
+        self.assertFalse((self.change_dir_for("replace-auth")).exists())
         archive_root = self.repo / ".cowork-flow" / "changes" / "archive"
-        matches = list(archive_root.glob("*/replace-auth/change.yaml"))
+        matches = list(archive_root.glob(f"*/{self.change_name_for('replace-auth')}/change.yaml"))
         self.assertEqual(1, len(matches))
-        metadata = self.read_metadata("replace-auth")
+        metadata = self.read_metadata(self.change_name_for("replace-auth"))
         self.assertEqual("archived", metadata["status"])
         self.assertIn("archived_at", metadata)
         datetime.fromisoformat(str(metadata["archived_at"]))
 
     def test_archive_resumes_when_source_and_destination_match(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
-        source = self.repo / ".cowork-flow" / "changes" / "replace-auth"
+        source = self.change_dir_for("replace-auth")
         spec = source / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
         month = datetime.now().astimezone().strftime("%Y-%m")
-        destination = self.repo / ".cowork-flow" / "changes" / "archive" / month / "replace-auth"
+        destination = self.repo / ".cowork-flow" / "changes" / "archive" / month / self.change_name_for("replace-auth")
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source, destination)
 
-        archived = self.run_change("archive", "replace-auth")
+        archived = self.run_change("archive", self.change_name_for("replace-auth"))
 
         self.assertEqual(0, archived.returncode, archived.stderr)
         self.assertFalse(source.exists())
         self.assertTrue((destination / "change.yaml").is_file())
-        metadata = self.read_metadata("replace-auth")
+        metadata = self.read_metadata(self.change_name_for("replace-auth"))
         self.assertEqual("archived", metadata["status"])
         self.assertIn("archived_at", metadata)
 
     def test_archive_normalizes_archived_task_link(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
-        change_dir = self.repo / ".cowork-flow" / "changes" / "replace-auth"
+        change_dir = self.change_dir_for("replace-auth")
         spec = change_dir / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
         task_dir = self.repo / ".cowork-flow" / "tasks" / "archive" / "2026-05" / "05-18-active"
@@ -231,17 +263,17 @@ class ChangeScriptTest(unittest.TestCase):
         content = content.replace("task: null", "task: .cowork-flow/tasks/archive/2026-05/05-18-active")
         change_yaml.write_text(content, encoding="utf-8")
 
-        archived = self.run_change("archive", "replace-auth")
+        archived = self.run_change("archive", self.change_name_for("replace-auth"))
 
         self.assertEqual(0, archived.returncode, archived.stderr)
-        metadata = self.read_metadata("replace-auth")
+        metadata = self.read_metadata(self.change_name_for("replace-auth"))
         self.assertEqual("archive/2026-05/05-18-active", metadata["task"])
 
     def test_list_prints_active_and_archived_changes(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
-        spec = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "spec.md"
+        spec = self.change_dir_for("replace-auth") / "spec.md"
         spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
-        change_yaml = self.repo / ".cowork-flow" / "changes" / "replace-auth" / "change.yaml"
+        change_yaml = self.change_dir_for("replace-auth") / "change.yaml"
         content = change_yaml.read_text(encoding="utf-8")
         content = content.replace("plan: null", "plan: .cowork-flow/plans/2026-05-18-active.md")
         content = content.replace("task: null", "task: .cowork-flow/tasks/05-18-active")
@@ -252,10 +284,10 @@ class ChangeScriptTest(unittest.TestCase):
         )
         (self.repo / ".cowork-flow" / "tasks" / "05-18-active").mkdir()
 
-        self.assertEqual(0, self.run_change("archive", "replace-auth").returncode)
+        self.assertEqual(0, self.run_change("archive", self.change_name_for("replace-auth")).returncode)
 
         self.assertEqual(0, self.run_change("create", "active-change").returncode)
-        active_yaml = self.repo / ".cowork-flow" / "changes" / "active-change" / "change.yaml"
+        active_yaml = self.change_dir_for("active-change") / "change.yaml"
         active_content = active_yaml.read_text(encoding="utf-8")
         active_content = active_content.replace("status: draft", "status: active")
         active_yaml.write_text(active_content, encoding="utf-8")

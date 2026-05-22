@@ -168,3 +168,67 @@ Added a default-disabled agent_team.enabled switch gated agent-team runtime comm
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 6: 添加 npm release shell 脚本
+
+**Date**: 2026-05-21
+**Task**: 添加 npm release shell 脚本
+
+### Summary
+
+新增 scripts/release.sh，默认 patch 并支持显式版本类型；更新 README 发布说明；补充 release 脚本与 package 元数据测试；npm run test:all 通过。
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `handoff-uncommitted` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
+
+
+## Session 7: Date-prefixed change names
+
+**Date**: 2026-05-22
+**Task**: Date-prefixed change names
+
+### Summary
+
+Updated change creation so new change directories use MM-DD-slug naming like tasks, added regression coverage for prefixed creation and legacy unprefixed validation, and verified change/template tests.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `pending` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
