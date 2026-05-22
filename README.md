@@ -219,4 +219,26 @@ cowork-flow sync . --dry-run
 
 ## 发布流程
 
-CI 会运行 Node CLI 测试、npm pack 内容检查和现有 Python 模板测试。发布到 npm 通过 GitHub Actions 的 `Publish npm Package` workflow 完成，需要在仓库 secrets 中配置 `NPM_TOKEN`。
+发布前先确认本地或 CI 具备 npm 发布凭据，例如已执行 `npm login`，或在 CI 中配置了 `NPM_TOKEN`。
+
+推荐使用 release 脚本发布：
+
+```bash
+npm run release
+```
+
+默认会升级 patch 版本，执行顺序是：
+
+1. `npm run test:all`
+2. `npm version patch`
+3. `npm publish`
+
+需要发布其他版本类型时，把 npm 支持的版本类型传给脚本：
+
+```bash
+npm run release -- minor
+npm run release -- major
+npm run release -- prerelease
+```
+
+脚本会在任一步骤失败时停止后续发布动作。CI 仍会运行 Node CLI 测试、npm pack 内容检查和现有 Python 模板测试；GitHub Actions 的 `Publish npm Package` workflow 仍需要在仓库 secrets 中配置 `NPM_TOKEN`。
