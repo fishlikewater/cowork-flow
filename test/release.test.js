@@ -10,7 +10,35 @@ import { packageRoot } from '../src/lib/paths.js';
 
 const execFileAsync = promisify(execFile);
 
-async function createFakeNpm(t, options = {}) {
+async function createReleaseProject(t) {
+  const tempDir = await mkdtemp(join(tmpdir(), 'cowork-flow-release-project-'));
+  t.after(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  const repo = join(tempDir, 'repo');
+  await mkdir(join(repo, 'scripts'), { recursive: true });
+  await mkdir(join(repo, 'template', '.cowork-flow'), { recursive: true });
+  await writeFile(
+    join(repo, 'scripts', 'release.sh'),
+    await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8'),
+    { encoding: 'utf8', mode: 0o755 }
+  );
+  await writeFile(
+    join(repo, 'package.json'),
+    `${JSON.stringify({ name: 'cowork-flow', version: '0.0.5' }, null, 2)}\n`,
+    'utf8'
+  );
+  await writeFile(
+    join(repo, 'package-lock.json'),
+    `${JSON.stringify({ name: 'cowork-flow', version: '0.0.5', packages: { '': { version: '0.0.5' } } }, null, 2)}\n`,
+    'utf8'
+  );
+  await writeFile(join(repo, 'template', '.cowork-flow', '.version'), '0.0.5\n', 'utf8');
+  return repo;
+}
+
+async function createFakeCommands(t, options = {}) {
   const tempDir = await mkdtemp(join(tmpdir(), 'cowork-flow-release-test-'));
   t.after(async () => {
     await rm(tempDir, { recursive: true, force: true });
@@ -22,13 +50,36 @@ async function createFakeNpm(t, options = {}) {
   await writeFile(logPath, '', 'utf8');
 
   const failWhen = options.failWhen ?? '';
-  const fakeNpmPath = join(binDir, 'npm');
   await writeFile(
-    fakeNpmPath,
+    join(binDir, 'npm'),
     [
       '#!/bin/sh',
-      `printf '%s\\n' "$*" >> "${logPath}"`,
-      `if [ "$*" = "${failWhen}" ]; then exit 7; fi`,
+      `printf 'npm %s\n' "$*" >> "${logPath}"`,
+      `if [ "npm $*" = "${failWhen}" ]; then exit 7; fi`,
+      'if [ "$1" = "version" ]; then',
+      "  node - \"$2\" <<\'NODE\'",
+      'const fs = require("fs");',
+      'const releaseType = process.argv[2];',
+      'const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));',
+      'pkg.version = releaseType === "minor" ? "0.1.0" : "0.0.6";',
+      'fs.writeFileSync("package.json", `${JSON.stringify(pkg, null, 2)}\\n`);',
+      'const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));',
+      'lock.version = pkg.version;',
+      'lock.packages[""].version = pkg.version;',
+      'fs.writeFileSync("package-lock.json", `${JSON.stringify(lock, null, 2)}\\n`);',
+      'NODE',
+      'fi',
+      'exit 0'
+    ].join('\n'),
+    { encoding: 'utf8', mode: 0o755 }
+  );
+
+  await writeFile(
+    join(binDir, 'git'),
+    [
+      '#!/bin/sh',
+      `printf 'git %s\n' "$*" >> "${logPath}"`,
+      `if [ "git $*" = "${failWhen}" ]; then exit 7; fi`,
       'exit 0'
     ].join('\n'),
     { encoding: 'utf8', mode: 0o755 }
@@ -48,61 +99,71 @@ async function readCommands(logPath) {
   return raw.trim().split('\n').filter(Boolean);
 }
 
-test('release shell script defaults to patch and runs verification before publish', async (t) => {
-  const fakeNpm = await createFakeNpm(t);
+test('release shell script defaults to patch and syncs template version before publish', async (t) => {
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t);
 
   const result = await execFileAsync('sh', ['scripts/release.sh'], {
-    cwd: packageRoot,
-    env: fakeNpm.env,
+    cwd: repo,
+    env: fakeCommands.env,
     encoding: 'utf8'
   });
 
   assert.match(result.stdout, /> npm run test:all/);
-  assert.deepEqual(await readCommands(fakeNpm.logPath), [
-    'run test:all',
-    'version patch',
-    'publish'
+  assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.0.6\n');
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run test:all',
+    'npm version patch --no-git-tag-version',
+    'git add package.json package-lock.json template/.cowork-flow/.version',
+    'git commit -m chore(release): 0.0.6',
+    'git tag v0.0.6',
+    'npm publish'
   ]);
 });
 
 test('release shell script accepts explicit npm version type', async (t) => {
-  const fakeNpm = await createFakeNpm(t);
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t);
 
   await execFileAsync('sh', ['scripts/release.sh', 'minor'], {
-    cwd: packageRoot,
-    env: fakeNpm.env,
+    cwd: repo,
+    env: fakeCommands.env,
     encoding: 'utf8'
   });
 
-  assert.deepEqual(await readCommands(fakeNpm.logPath), [
-    'run test:all',
-    'version minor',
-    'publish'
+  assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.1.0\n');
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run test:all',
+    'npm version minor --no-git-tag-version',
+    'git add package.json package-lock.json template/.cowork-flow/.version',
+    'git commit -m chore(release): 0.1.0',
+    'git tag v0.1.0',
+    'npm publish'
   ]);
 });
 
 test('release shell script stops after the first failed command', async (t) => {
-  const fakeNpm = await createFakeNpm(t, { failWhen: 'run test:all' });
+  const fakeCommands = await createFakeCommands(t, { failWhen: 'npm run test:all' });
 
   await assert.rejects(
     execFileAsync('sh', ['scripts/release.sh', 'major'], {
-      cwd: packageRoot,
-      env: fakeNpm.env,
+      cwd: await createReleaseProject(t),
+      env: fakeCommands.env,
       encoding: 'utf8'
     }),
     (error) => error.code === 7
   );
 
-  assert.deepEqual(await readCommands(fakeNpm.logPath), ['run test:all']);
+  assert.deepEqual(await readCommands(fakeCommands.logPath), ['npm run test:all']);
 });
 
 test('release shell script rejects unsupported version type', async (t) => {
-  const fakeNpm = await createFakeNpm(t);
+  const fakeCommands = await createFakeCommands(t);
 
   await assert.rejects(
     execFileAsync('sh', ['scripts/release.sh', 'banana'], {
-      cwd: packageRoot,
-      env: fakeNpm.env,
+      cwd: await createReleaseProject(t),
+      env: fakeCommands.env,
       encoding: 'utf8'
     }),
     (error) => {
@@ -113,5 +174,5 @@ test('release shell script rejects unsupported version type', async (t) => {
     }
   );
 
-  assert.deepEqual(await readCommands(fakeNpm.logPath), []);
+  assert.deepEqual(await readCommands(fakeCommands.logPath), []);
 });

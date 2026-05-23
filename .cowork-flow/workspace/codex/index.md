@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 10
+- **Total Sessions**: 11
 - **Last Active**: 2026-05-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~330 | Current |
+| `journal-1.md` | ~362 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 11 | 2026-05-23 | Clarify parallel agent workflow | pending |
 | 10 | 2026-05-23 | Agent registry optional fields | pending |
 | 9 | 2026-05-23 | Agent registry prompts | pending |
 | 8 | 2026-05-22 | Fix change archive after task archive | pending |

@@ -328,3 +328,35 @@ Added regression coverage and spec notes confirming agent registry fields are op
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 11: Clarify parallel agent workflow
+
+**Date**: 2026-05-23
+**Task**: Clarify parallel agent workflow
+
+### Summary
+
+Clarified workflow guidance so parallel agent execution is conditional on independent low-conflict tasks, with sequential execution and reason recording for high-coupling work.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `pending` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
