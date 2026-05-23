@@ -1,0 +1,4 @@
+{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agent/skills/record-session/SKILL.md", "reason": "Session recording and state sync"}
+{"file": "tests/test_agent_team_docs.py", "reason": "Docs verification"}
+{"file": "tests/test_template_convergence.py", "reason": "Template verification"}

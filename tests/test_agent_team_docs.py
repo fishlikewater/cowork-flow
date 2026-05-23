@@ -25,6 +25,9 @@ class AgentTeamDocsTest(unittest.TestCase):
             self.assertIn("agent-team prepare", workflow)
             self.assertIn("agent-team next", workflow)
             self.assertIn("agent_team.enabled", workflow)
+            self.assertIn("是否存在适合并行执行的独立任务", workflow)
+            self.assertIn("不适合并行", workflow)
+            self.assertIn("不得为了满足流程形式而强行拆分高耦合任务", workflow)
 
     def test_start_skill_references_agent_team_execution(self) -> None:
         for path in (

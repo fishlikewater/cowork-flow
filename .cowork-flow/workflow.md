@@ -179,10 +179,33 @@ done
 
 ### 7.7 按 superpowers 方法执行
 
-- 不支持 subAgent 模式时，使用 `superpowers:executing-plans`；否则：
-  - 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 时，执行 plan 优先使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度 subAgent。
-  - 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: false` 时，优先使用 `superpowers:subagent-driven-development` 开启多 agent 并行执行。
-- 严格遵循 `superpowers:test-driven-development`，不得先写生产代码再补测试。
+执行 plan 前，先判断**是否存在适合并行执行的独立任务**。并行是优化手段，不是完成定义；`agent_team.enabled` 只决定在适合并行时优先使用哪种机制，不决定是否必须并行。
+
+适合并行的条件包括：
+
+- 子任务之间没有共享写文件，或共享写文件已有明确顺序边界。
+- 子任务之间没有强顺序依赖。
+- 每个子任务都有清晰输入、输出和验收方式。
+- 主 agent 能在集成前独立审查每个结果。
+- 并行带来的收益大于调度、审阅和集成成本。
+
+不适合并行的情况包括：
+
+- 改动集中在同一组强耦合文件。
+- 需要密集的 TDD 红绿循环或即时反馈。
+- parser、schema、runtime、测试需要同步演进。
+- 子任务边界不清，拆分后的主要成本会落在集成。
+- 任务规模小于并行调度成本。
+
+不得为了满足流程形式而强行拆分高耦合任务。若不适合并行，必须简要记录不使用并行的理由，并在当前会话中按 plan 顺序执行。
+
+若适合并行：
+
+- 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 时，使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度 subAgent。
+- 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: false` 且宿主支持 subAgent 时，可使用 `superpowers:subagent-driven-development` 开启多 agent 并行执行。
+- 当宿主不支持 subAgent 或任务不适合并行时，使用 `superpowers:executing-plans` 或当前会话顺序执行。
+
+无论是否并行，都必须严格遵循 `superpowers:test-driven-development`，不得先写生产代码再补测试。
 
 执行中必须持续同步：
 

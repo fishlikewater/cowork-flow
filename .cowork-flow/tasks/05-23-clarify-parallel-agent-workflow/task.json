@@ -1,0 +1,25 @@
+{
+  "id": "clarify-parallel-agent-workflow",
+  "name": "clarify-parallel-agent-workflow",
+  "title": "Clarify parallel agent workflow",
+  "description": "",
+  "status": "done",
+  "dev_type": "docs",
+  "scope": "L0",
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-23",
+  "completedAt": "2026-05-23",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".cowork-flow/workflow.md",
+    "template/.cowork-flow/workflow.md",
+    "tests/test_agent_team_docs.py"
+  ],
+  "notes": "Clarified that parallel agent execution is conditional and should not be forced for high-coupling tasks.",
+  "meta": {}
+}
