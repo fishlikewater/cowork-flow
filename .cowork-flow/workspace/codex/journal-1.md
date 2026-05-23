@@ -264,3 +264,67 @@ Added regression coverage and fixed change archive to normalize task links when 
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 9: Agent registry prompts
+
+**Date**: 2026-05-23
+**Task**: Agent registry prompts
+
+### Summary
+
+Made agents.yaml runtime-effective by parsing agent fields and prompts, selecting configured agents by capabilities/task/files, removing codex_type fallback, and updating default agents with practical prompts.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `pending` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
+
+
+## Session 10: Agent registry optional fields
+
+**Date**: 2026-05-23
+**Task**: Agent registry optional fields
+
+### Summary
+
+Added regression coverage and spec notes confirming agent registry fields are optional; prepare succeeds when optional agent fields such as capabilities, file patterns, risk limits, and prompt are omitted.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `pending` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete

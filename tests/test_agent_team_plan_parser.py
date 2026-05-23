@@ -61,6 +61,98 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.assertIn("T001-quality-reviewer", dispatch)
         self.assertIn("recommended_agent: implementer", dispatch)
 
+    def test_prepare_uses_agent_prompt_and_matching_registry_fields(self) -> None:
+        (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
+            "default_adapter: manual\n"
+            "\n"
+            "agents:\n"
+            "  python-builder:\n"
+            "    agent_type: worker\n"
+            "    capabilities:\n"
+            "      - implementation\n"
+            "      - test-writing\n"
+            "    preferred_task_types:\n"
+            "      - code\n"
+            "    file_patterns:\n"
+            "      - \"src/**\"\n"
+            "    risk_limits:\n"
+            "      max_parallel_write_conflicts: 0\n"
+            "    prompt: |\n"
+            "      Build the smallest tested Python change.\n"
+            "      Report exact files and verification commands.\n"
+            "  spec-reviewer:\n"
+            "    agent_type: reviewer\n"
+            "    capabilities:\n"
+            "      - spec-review\n"
+            "    prompt: |\n"
+            "      Check the behavior spec before approving.\n"
+            "  quality-reviewer:\n"
+            "    agent_type: reviewer\n"
+            "    capabilities:\n"
+            "      - code-quality-review\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        runtime = self.task_dir / "agent-team"
+        dispatch = (runtime / "dispatch-plan.yaml").read_text(encoding="utf-8")
+        self.assertIn("recommended_agent: python-builder", dispatch)
+        status = (runtime / "status.json").read_text(encoding="utf-8")
+        self.assertIn('"recommended_agent": "python-builder"', status)
+        assignment = (runtime / "assignments" / "T001-implementer.md").read_text(encoding="utf-8")
+        self.assertIn("## Agent prompt", assignment)
+        self.assertIn("Build the smallest tested Python change.", assignment)
+        self.assertIn("Report exact files and verification commands.", assignment)
+
+    def test_prepare_treats_agent_registry_fields_as_optional(self) -> None:
+        (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
+            "default_adapter: manual\n"
+            "\n"
+            "agents:\n"
+            "  implementer:\n"
+            "  spec-reviewer:\n"
+            "    agent_type: reviewer\n"
+            "  quality-reviewer:\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        runtime = self.task_dir / "agent-team"
+        dispatch = (runtime / "dispatch-plan.yaml").read_text(encoding="utf-8")
+        self.assertIn("recommended_agent: implementer", dispatch)
+        self.assertIn("agent_type: worker", dispatch)
+        self.assertIn("agent_type: reviewer", dispatch)
+        assignment = (runtime / "assignments" / "T001-implementer.md").read_text(encoding="utf-8")
+        self.assertNotIn("## Agent prompt", assignment)
+
+    def test_prepare_ignores_legacy_codex_type_field(self) -> None:
+        (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
+            "default_adapter: manual\n"
+            "\n"
+            "agents:\n"
+            "  implementer:\n"
+            "    codex_type: legacy-worker\n"
+            "  spec-reviewer:\n"
+            "    codex_type: legacy-spec\n"
+            "  quality-reviewer:\n"
+            "    codex_type: legacy-quality\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        dispatch = (self.task_dir / "agent-team" / "dispatch-plan.yaml").read_text(encoding="utf-8")
+        self.assertIn("agent_type: worker", dispatch)
+        self.assertIn("agent_type: default", dispatch)
+        self.assertNotIn("legacy-worker", dispatch)
+        self.assertNotIn("legacy-spec", dispatch)
+        self.assertNotIn("legacy-quality", dispatch)
+
     def test_prepare_uses_configured_agent_registry(self) -> None:
         (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
             "default_adapter: manual\n"

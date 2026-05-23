@@ -52,6 +52,15 @@ class TemplateConvergenceTest(unittest.TestCase):
         self.assertTrue((TEMPLATE / ".cowork-flow" / "scripts" / "agent_team.py").is_file())
         self.assertTrue((TEMPLATE / ".agent" / "skills" / "agent-team-execution" / "SKILL.md").is_file())
 
+    def test_template_agent_registry_defines_prompts_without_legacy_codex_type(self) -> None:
+        agents = (TEMPLATE / ".cowork-flow" / "agent-team" / "agents.yaml").read_text(encoding="utf-8")
+
+        self.assertIn("prompt: |", agents)
+        self.assertIn("tester:", agents)
+        self.assertIn("debugger:", agents)
+        self.assertIn("release-reviewer:", agents)
+        self.assertNotIn("codex_type", agents)
+
     def test_template_config_disables_agent_team_by_default(self) -> None:
         config = (TEMPLATE / ".cowork-flow" / "config.yaml").read_text(encoding="utf-8")
 

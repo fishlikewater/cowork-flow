@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-05-22
+- **Total Sessions**: 10
+- **Last Active**: 2026-05-23
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~266 | Current |
+| `journal-1.md` | ~330 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 10 | 2026-05-23 | Agent registry optional fields | pending |
+| 9 | 2026-05-23 | Agent registry prompts | pending |
 | 8 | 2026-05-22 | Fix change archive after task archive | pending |
 | 7 | 2026-05-22 | Date-prefixed change names | pending |
 | 6 | 2026-05-21 | 添加 npm release shell 脚本 | handoff-uncommitted |

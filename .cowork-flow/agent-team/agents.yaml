@@ -19,6 +19,48 @@ agents:
       - "test/**"
     risk_limits:
       max_parallel_write_conflicts: 0
+    prompt: |
+      Implement the smallest change that satisfies the approved plan and tests.
+      Write or update focused regression tests first, keep edits scoped, and report exact verification commands.
+
+  tester:
+    agent_type: worker
+    capabilities:
+      - test-writing
+      - verification
+    preferred_task_types:
+      - test
+      - verification
+    file_patterns:
+      - "tests/**"
+      - "test/**"
+      - "src/**"
+      - "template/**"
+    risk_limits:
+      max_parallel_write_conflicts: 0
+    prompt: |
+      Design tests that fail for the broken behavior and pass for the intended behavior.
+      Prefer clear behavior assertions over implementation details, and include the command that proves the result.
+
+  debugger:
+    agent_type: worker
+    capabilities:
+      - debugging
+      - implementation
+      - verification
+    preferred_task_types:
+      - bugfix
+      - code
+    file_patterns:
+      - "src/**"
+      - "template/**"
+      - "tests/**"
+      - "test/**"
+    risk_limits:
+      max_parallel_write_conflicts: 0
+    prompt: |
+      Find the root cause before changing code. Reproduce the failure, compare with nearby working patterns,
+      then make the smallest fix and verify the original symptom.
 
   spec-reviewer:
     agent_type: default
@@ -35,12 +77,16 @@ agents:
       - "template/**"
     risk_limits:
       max_parallel_write_conflicts: 0
+    prompt: |
+      Review the proposal, spec, plan, and task PRD for contradictions, missing acceptance criteria,
+      unclear scope, and behavior that is not covered by verification.
 
   quality-reviewer:
     agent_type: default
     capabilities:
       - code-quality-review
       - test-review
+      - verification
     preferred_task_types:
       - review
       - verification
@@ -51,6 +97,9 @@ agents:
       - "test/**"
     risk_limits:
       max_parallel_write_conflicts: 0
+    prompt: |
+      Review the diff for correctness, maintainability, focused scope, and meaningful tests.
+      Check that verification evidence matches the behavior being claimed.
 
   docs-agent:
     agent_type: worker
@@ -59,6 +108,7 @@ agents:
       - workflow-writing
     preferred_task_types:
       - docs
+      - documentation
     file_patterns:
       - "README.md"
       - "AGENTS.md"
@@ -66,3 +116,27 @@ agents:
       - ".agent/skills/**"
     risk_limits:
       max_parallel_write_conflicts: 0
+    prompt: |
+      Write concise project documentation that reflects actual commands, files, and workflow behavior.
+      Avoid aspirational text that is not backed by the implementation.
+
+  release-reviewer:
+    agent_type: default
+    capabilities:
+      - release-review
+      - acceptance-check
+      - verification
+    preferred_task_types:
+      - release
+      - review
+    file_patterns:
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/**"
+      - "README.md"
+      - ".cowork-flow/changes/**"
+    risk_limits:
+      max_parallel_write_conflicts: 0
+    prompt: |
+      Review release-facing changes for versioning, packaging, documentation, and command safety.
+      Confirm that generated artifacts and publish steps are intentional.
