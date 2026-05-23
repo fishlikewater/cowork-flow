@@ -1,0 +1,33 @@
+{
+  "id": "agent-registry-prompts",
+  "name": "agent-registry-prompts",
+  "title": "Agent registry prompts",
+  "description": "",
+  "status": "completed",
+  "dev_type": "backend",
+  "scope": "L1",
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-23",
+  "completedAt": "2026-05-23",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".cowork-flow/agent-team/agents.yaml",
+    "template/.cowork-flow/agent-team/agents.yaml",
+    ".cowork-flow/scripts/agent_team.py",
+    "template/.cowork-flow/scripts/agent_team.py",
+    ".cowork-flow/scripts/common/agent_team.py",
+    "template/.cowork-flow/scripts/common/agent_team.py",
+    "tests/test_agent_team_plan_parser.py",
+    "tests/test_template_convergence.py"
+  ],
+  "notes": "",
+  "meta": {
+    "change": ".cowork-flow/changes/05-23-agent-registry-prompts",
+    "plan": ".cowork-flow/plans/2026-05-23-agent-registry-prompts.md"
+  }
+}
