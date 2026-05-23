@@ -230,8 +230,12 @@ npm run release
 默认会升级 patch 版本，执行顺序是：
 
 1. `npm run test:all`
-2. `npm version patch`
-3. `npm publish`
+2. `npm version patch --no-git-tag-version`
+3. 将 `package.json` 中的新版本同步写入 `template/.cowork-flow/.version`
+4. `git add package.json package-lock.json template/.cowork-flow/.version`
+5. `git commit -m "chore(release): <version>"`
+6. `git tag v<version>`
+7. `npm publish`
 
 需要发布其他版本类型时，把 npm 支持的版本类型传给脚本：
 
