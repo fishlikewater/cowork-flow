@@ -177,7 +177,7 @@ done
 
 将 proposal、spec、design（如存在）、implementation plan、相关 `.cowork-flow/spec/`、相关代码模式或契约文件加入任务上下文。
 
-### 7.7 按 superpowers 方法执行
+### 7.7 执行
 
 执行 plan 前，先判断**是否存在适合并行执行的独立任务**。并行是优化手段，不是完成定义；`agent_team.enabled` 只决定在适合并行时优先使用哪种机制，不决定是否必须并行。
 
