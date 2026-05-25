@@ -7,26 +7,15 @@ description: Use when beginning a development session in a project that uses the
 
 Initialize your AI development session and begin working on tasks.
 
-<HARD-GATE>
 Any request that changes repository files MUST go through this skill's task workflow.
 Questions may be answered directly, but file edits are at least `L0` and require a task,
 PRD, context initialization, task activation, verification, and session recording.
 Do not use a direct-edit shortcut unless the user explicitly tells you not to use
 cowork-flow for this task.
-</HARD-GATE>
 
 ---
 
-## Operation Types
-
-| Marker | Meaning | Executor |
-|--------|---------|----------|
-| `[AI]` | Bash scripts or tool calls executed by AI | You (AI) |
-| `[USER]` | Skills executed by user | User |
-
----
-
-## Initialization `[AI]`
+## Initialization
 
 ### Step 1: Understand Development Workflow
 
@@ -37,7 +26,7 @@ cat .cowork-flow/workflow.md
 cat AGENTS.md
 ```
 
-**Follow the instructions in `workflow.md` and `AGENTS.md`** - they contain:
+**Follow the instructions in `workflow.md`** - they contain:
 - Core principles (Read Before Write, Follow Standards, etc.)
 - File system structure
 - Development process
@@ -47,9 +36,6 @@ cat AGENTS.md
 Command examples use macOS / Linux / Git Bash / WSL syntax. In native Windows
 cmd or PowerShell, replace `./.cowork-flow/run <command>` with
 `.\.cowork-flow\run.cmd <command>`.
-
-> **Important**:
-> Reusable skills are already part of the template. During project onboarding, put project-specific facts in `AGENTS.md`, `.cowork-flow/workflow.md`, `.cowork-flow/config.yaml`, and `.cowork-flow/spec/` rather than editing `SKILL.md`.
 
 ### Step 2: Get Current Context
 
@@ -75,90 +61,6 @@ done
 ### Step 4: Report and Ask
 
 Report what you learned and ask: "What would you like to work on?"
-
----
-
-## Task Classification
-
-When user describes a task, classify it:
-
-| Type | Criteria | Workflow |
-|------|----------|----------|
-| **Question** | User asks about code, architecture, or how something works, and no repository files need to change | Answer directly after session context is loaded |
-| **L0 Change** | Docs, tests, comments, config, small refactors, or any file change without external behavior change | Task Workflow, no Behavior Change Gate |
-| **L1 Change** | Bounded behavior change in one module or one interface | Behavior Change Gate → Task Workflow |
-| **L2 Change** | Cross-layer, architectural, migration, permission, compatibility, release, or security-impacting change | Behavior Change Gate + `design.md` → Task Workflow |
-| **Unclear / Complex** | Vague goal, multiple possible interpretations, or architectural decisions | **Brainstorm → classify L0/L1/L2 → gated workflow** |
-
-### Decision Rule
-
-> **Any file change must enter L0 / L1 / L2 workflow.**
->
-> A typo, comment, one-line fix, or "quick" change is still a repository change.
-> Do not treat small size as permission to skip PRD, context, verification, or session recording.
->
-> **If in doubt, use Brainstorm + Task Workflow.**
->
-> Task Workflow ensures code-specs are injected to the right context, resulting in higher quality code.
-> The overhead is minimal, but the benefit is significant.
-
-> **Subtask Decomposition**: If brainstorm reveals multiple independent work items,
-> consider creating subtasks using `--parent` flag or `add-subtask` command.
-> See the brainstorm skill's Step 8 for details.
-
-### Behavior Change Gate
-
-Before entering Task Workflow, classify the change as `L0` / `L1` / `L2` using `.cowork-flow/workflow.md`.
-
-- `L0`: No external behavior change. Continue with the existing Task Workflow.
-- `L1`: Behavior change in a bounded module. Do **not** go straight to PRD/Research. First run:
-  1. `./.cowork-flow/run change create <slug>`
-  2. `superpowers:brainstorming` to create or complete `proposal/spec`
-  3. `./.cowork-flow/run change validate <slug>`
-  4. `superpowers:writing-plans` to produce the implementation plan
-- `L2`: Same as `L1`, plus required `design.md`. Multi-perspective review happens after implementation in the review gate.
-
-Only return to the task workflow after the spec and plan gates are complete.
-
-Before Phase 2, always complete this task handoff:
-
-1. Create or update `.cowork-flow/plans/YYYY-MM-DD-<slug>.md` with the execution checklist
-2. Create or bind a task directory
-3. Ensure `prd.md` summarizes the approved `proposal/spec/design/plan`
-4. Add the approved change artifacts and plan into task context
-5. Treat the plan file as a living execution artifact: keep checkbox state and current execution status synced during implementation, not only at the end
-
-- If the task came from **Simple Task**, resume with **Path B Step 2 (Create Task Directory)** and **Step 3 (Write PRD)**, then do the task handoff above and continue to Phase 2.
-- If the task came from **Brainstorm**, reuse the brainstorm-created task directory and PRD, then do the same task handoff and continue with **Path A / Phase 2**.
-
----
-
-## Question Only
-
-For questions that do not modify repository files, work directly:
-
-1. Answer the question.
-2. If the answer reveals that files should change, stop and re-enter Task Classification.
-3. Do not modify files from this section.
-
----
-
-## L0 / Simple Task
-
-For simple, well-defined tasks that modify files without external behavior change:
-
-1. Clarify only if the goal, scope, or verification method is unclear.
-2. Determine whether the task is `L0`, `L1`, or `L2`.
-3. **If it is `L1/L2`, complete the Behavior Change Gate first. After that, execute Path B Step 2 and Step 3, complete the task handoff, then continue with Phase 2.**
-4. **If it is `L0`, execute ALL steps below without stopping. Do NOT ask for additional confirmation between steps. Do NOT switch to ad hoc direct editing.**
-   - Create task directory (Phase 1 Path B, Step 2)
-   - Write PRD (Step 3)
-   - Research codebase (Phase 2, Step 5)
-   - Configure context (Step 6)
-   - Activate task (Step 7)
-   - Implement (Phase 3, Step 8)
-   - Check quality (Step 9)
-   - Complete (Step 10)
 
 ---
 
@@ -209,7 +111,7 @@ PRD and task directory already exist from brainstorm. Skip directly to Phase 2.
 
 #### Path B: From Simple Task
 
-**Step 1: Confirm Understanding** `[AI]`
+**Step 1: Confirm Understanding**
 
 Quick confirm:
 - What is the goal?
@@ -218,13 +120,13 @@ Quick confirm:
 
 If unclear, ask clarifying questions.
 
-**Step 2: Create Task Directory** `[AI]`
+**Step 2: Create Task Directory**
 
 ```bash
 TASK_DIR=$(./.cowork-flow/run task create "<title>" --slug <name>)
 ```
 
-**Step 3: Write PRD** `[AI]`
+**Step 3: Write PRD**
 
 Create `prd.md` in the task directory with:
 
@@ -252,7 +154,7 @@ Create `prd.md` in the task directory with:
 
 > Both paths converge here. PRD and task directory must exist before proceeding.
 
-**Step 4: Code-Spec Depth Check** `[AI]`
+**Step 4: Code-Spec Depth Check**
 
 If the task touches infra or cross-layer contracts, do not start implementation until code-spec depth is defined.
 
@@ -268,7 +170,7 @@ Must-have before proceeding:
 - [ ] Validation and error matrix is defined
 - [ ] At least one Good/Base/Bad case is defined
 
-**Step 5: Research the Codebase** `[AI]`
+**Step 5: Research the Codebase**
 
 Based on the confirmed PRD, run a focused research pass and produce:
 
@@ -289,7 +191,7 @@ Use this output format:
 - <path>: <what change>
 ```
 
-**Step 6: Configure Context** `[AI]`
+**Step 6: Configure Context**
 
 Initialize default context:
 
@@ -317,7 +219,7 @@ If this task came through the Behavior Change Gate, add the approved artifacts b
 ./.cowork-flow/run task add-context "$TASK_DIR" check ".cowork-flow/plans/YYYY-MM-DD-<slug>.md" "Check implementation against approved plan"
 ```
 
-**Step 7: Activate Task** `[AI]`
+**Step 7: Activate Task**
 
 ```bash
 ./.cowork-flow/run task start "$TASK_DIR"
@@ -329,7 +231,7 @@ This sets `.current-task` so hooks can inject context.
 
 ### Phase 3: Execute (shared)
 
-**Step 8: Implement** `[AI]`
+**Step 8: Implement**
 
 Implement the task described in `prd.md`.
 
@@ -338,7 +240,7 @@ Implement the task described in `prd.md`.
 - Run the project verification commands from `AGENTS.md` or `.cowork-flow/config.yaml` before finishing
 - If executing an approved plan with independent work, use `agent-team-execution`: run `agent-team prepare`, review the dispatch plan, use `agent-team next` for ready assignments, and finish with `agent-team complete`.
 
-**Step 9: Check Quality** `[AI]`
+**Step 9: Check Quality**
 
 Run a quality pass against check context:
 
@@ -346,7 +248,7 @@ Run a quality pass against check context:
 - Fix issues directly
 - Ensure lint and typecheck pass
 
-**Step 10: Complete** `[AI]`
+**Step 10: Complete**
 
 1. Verify lint and typecheck pass
 2. Report what was implemented
@@ -409,7 +311,7 @@ anchor, then load details on demand.
 | `./.cowork-flow/run task finish` | Clear current task |
 | `./.cowork-flow/run task archive` | Archive completed task |
 
-### Workflow Phases `[AI]`
+### Workflow Phases
 
 | Phase | Purpose | Context Source |
 |-------|---------|----------------|
