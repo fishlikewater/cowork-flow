@@ -111,7 +111,7 @@ test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
   assert.match(syncedAgents, /Keep this project-specific introduction/);
   assert.match(syncedAgents, /Keep this project-specific footer/);
   assert.doesNotMatch(syncedAgents, /old managed workflow instructions/);
-  assert.match(syncedAgents, /每次新会话、重新接手任务/);
+  assert.equal(syncedAgents.includes("Use the `.agent/skills/start` skill when starting a new session"), true);
   assert.equal(syncedAgents.match(
     /<!-- COWORK-FLOW:START -->[\s\S]*<!-- COWORK-FLOW:END -->/
   )[0], templateBlock);

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 15
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~424 | Current |
+| `journal-1.md` | ~488 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 15 | 2026-05-25 | 补齐 test:all 模板测试断言 | uncommitted |
+| 14 | 2026-05-25 | 修复 npm 测试断言 | uncommitted |
 | 13 | 2026-05-25 | Optimize workflow documentation | handoff-no-commit |
 | 12 | 2026-05-25 | Simplify start skill template | - |
 | 11 | 2026-05-23 | Clarify parallel agent workflow | pending |
