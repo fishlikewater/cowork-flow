@@ -1,0 +1,21 @@
+{
+  "id": "optimize-workflow-doc",
+  "name": "optimize-workflow-doc",
+  "title": "Optimize workflow documentation",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-25",
+  "completedAt": null,
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

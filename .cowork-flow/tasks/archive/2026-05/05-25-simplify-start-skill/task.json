@@ -1,0 +1,21 @@
+{
+  "id": "simplify-start-skill",
+  "name": "simplify-start-skill",
+  "title": "Simplify start skill template",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-25",
+  "completedAt": "2026-05-25",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
