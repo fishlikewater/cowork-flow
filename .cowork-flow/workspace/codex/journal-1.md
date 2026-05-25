@@ -360,3 +360,65 @@ Clarified workflow guidance so parallel agent execution is conditional on indepe
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 12: Simplify start skill template
+
+**Date**: 2026-05-25
+**Task**: Simplify start skill template
+
+### Summary
+
+Simplified template start skill into a thin entrypoint that routes to workflow.md, keeps L0/L1/L2 hard gates, preserves resume handling, and retains agent-team execution signals. Verification: frontmatter/static route check passed; git diff --check passed; targeted start agent-team docs test passed except unrelated template AGENTS assertions in broader suite.
+
+### Main Changes
+
+
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
+
+
+## Session 13: Optimize workflow documentation
+
+**Date**: 2026-05-25
+**Task**: Optimize workflow documentation
+
+### Summary
+
+优化 template/.cowork-flow/workflow.md 的流程排版与措辞，明确 subagent 可用且适合拆分时优先使用；验证通过，任务归档因 .current-task Windows ACL 拒绝删除而阻塞。
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `handoff-no-commit` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
