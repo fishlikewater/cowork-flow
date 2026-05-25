@@ -90,8 +90,8 @@ class TemplateConvergenceTest(unittest.TestCase):
             TEMPLATE / ".agent" / "skills" / "start" / "SKILL.md"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("上下文压缩", agents)
-        self.assertIn("resume.py", agents)
+        self.assertIn(".agent/skills/start", agents)
+        self.assertIn(".cowork-flow/", agents)
         self.assertIn("最小恢复层", workflow)
         self.assertIn("不要全量重读", workflow)
         self.assertIn("resume.py", workflow)

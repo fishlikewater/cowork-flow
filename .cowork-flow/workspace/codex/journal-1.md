@@ -422,3 +422,67 @@ Simplified template start skill into a thin entrypoint that routes to workflow.m
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 14: 修复 npm 测试断言
+
+**Date**: 2026-05-25
+**Task**: 修复 npm 测试断言
+
+### Summary
+
+更新 sync AGENTS.md 测试中的过期 managed block 文案断言；复现 npm test 失败后验证 node --test test/sync.test.js 和 npm test 均通过。
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `uncommitted` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
+
+
+## Session 15: 补齐 test:all 模板测试断言
+
+**Date**: 2026-05-25
+**Task**: 补齐 test:all 模板测试断言
+
+### Summary
+
+复现 npm run test:all 失败，确认失败位于 test:template 的过期文档断言；更新 Python 模板文档测试以匹配当前 AGENTS/start skill/workflow 职责边界，并验证 npm run test:all 完整通过。
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `uncommitted` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
