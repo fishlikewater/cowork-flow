@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 11
-- **Last Active**: 2026-05-23
+- **Total Sessions**: 13
+- **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~362 | Current |
+| `journal-1.md` | ~424 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 13 | 2026-05-25 | Optimize workflow documentation | handoff-no-commit |
+| 12 | 2026-05-25 | Simplify start skill template | - |
 | 11 | 2026-05-23 | Clarify parallel agent workflow | pending |
 | 10 | 2026-05-23 | Agent registry optional fields | pending |
 | 9 | 2026-05-23 | Agent registry prompts | pending |

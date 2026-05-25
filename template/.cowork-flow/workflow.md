@@ -5,22 +5,27 @@
 开发过程必须形成稳定闭环：
 
 ```text
-获取上下文 -> 阅读规范 -> 任务分级 -> 规格与计划 -> 执行实现 -> 验证审阅 -> 状态同步 -> session 记录
+获取上下文 -> 阅读规范 -> 任务分级 -> 目标/规格/计划 -> 执行实现 -> 验证审阅 -> 状态同步 -> session 记录
 ```
 
-所有任务先明确目标和验收标准，再进入实现；所有完成结论都必须有验证证据。命令示例默认使用 macOS / Linux / Git Bash / WSL；Windows cmd / PowerShell 使用 `.\.cowork-flow\run.cmd <command>` 替代 `./.cowork-flow/run <command>`。
+所有任务先明确目标和验收标准，再进入实现；所有完成结论都必须有验证证据。
+
+命令示例默认使用 macOS / Linux / Git Bash / WSL；Windows cmd / PowerShell 使用 `.\.cowork-flow\run.cmd <command>` 替代 `./.cowork-flow/run <command>`。
 
 ---
 
 ## 2. 职责边界
 
-| 对象 | 负责内容 |
-|------|----------|
-| `cowork-flow change` | 行为变更治理：`proposal` 说明为什么改，`spec` 定义外部行为与验收标准，`design` 记录复杂或跨层设计取舍，`change.yaml` 保存状态/分级/关联 plan 与 task，`archive` 归档完成后的行为规格。 |
-| `superpowers` | 工作方法：`brainstorming` 澄清需求和方案，`writing-plans` 拆可执行计划，`test-driven-development` 约束实现，`executing-plans` 顺序执行，`subagent-driven-development` 并行拆分，`verification-before-completion` 完成前取证。 |
-| `.cowork-flow` | 任务状态和上下文：当前开发者、当前任务、PRD、`implement/check/debug` 上下文、journal、session 记录和任务归档。 |
+cowork-flow 只负责保存流程状态和任务上下文；具体执行方法由当前 agent 宿主提供。
 
-`.cowork-flow` 不替代 superpowers，也不替代项目验证命令。除一次性原型、生成代码、纯配置文件等明确例外并经人工确认外，功能新增、缺陷修复、重构和行为变更都必须按 RED-GREEN-REFACTOR 推进；复杂或难点问题按深度优先。
+| 对象 | 定位 | 主要产物 |
+|------|------|----------|
+| `cowork-flow change` | 行为变更规格 | `proposal.md`、`spec.md`、`design.md`、`change.yaml` |
+| `.cowork-flow/tasks` | 任务执行上下文 | `prd.md`、`implement.jsonl`、`check.jsonl`、`debug.jsonl` |
+| `.cowork-flow/plans` | 实施计划 | 可执行步骤、验证方式、当前执行状态 |
+| `agent 执行方法` | 需求澄清、计划拆分、TDD、subagent 调度、完成前验证 | 由宿主能力或可用技能提供 |
+
+`.cowork-flow` 不替代 agent 的执行判断，也不替代项目验证命令。
 
 ---
 
@@ -54,6 +59,11 @@
 
 ```bash
 ./.cowork-flow/run resume
+```
+
+如 `resume` 输出不足以判断当前状态，再补充执行：
+
+```bash
 ./.cowork-flow/run task list
 git status
 git log --oneline -10
@@ -80,11 +90,23 @@ done
 
 所有任务先分级，再选择流程。
 
-| 等级 | 适用场景 | 流程 |
-|------|----------|------|
-| L0：无外部行为变化 | 文档整理、小范围重构、测试补充、注释/格式/脚本清理、不改变用户可观察行为的内部调整 | 任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 session |
-| L1：局部行为变化 | 单模块功能调整、单接口行为变化、局部数据处理逻辑变化、有明确边界的新能力 | cowork-flow change -> brainstorming -> writing-plans -> 任务上下文 -> 执行计划 -> 验证 -> 归档与记录 |
-| L2：跨层或重要行为变化 | 跨前后端或跨服务变更；API / DB / 消息 / 缓存 / 文件等契约变化；架构边界变化；影响发布、迁移、安全、权限或兼容性的变更 | cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录 |
+### L0：无外部行为变化
+
+适用：文档整理、小范围重构、测试补充、注释/格式/脚本清理、不改变用户可观察行为的内部调整。
+
+流程：任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 session。
+
+### L1：局部行为变化
+
+适用：单模块功能调整、单接口行为变化、局部数据处理逻辑变化、有明确边界的新能力。
+
+流程：cowork-flow change -> brainstorming -> writing-plans -> 任务上下文 -> 执行计划 -> 验证 -> 归档与记录。
+
+### L2：跨层或重要行为变化
+
+适用：跨前后端或跨服务变更；API / DB / 消息 / 缓存 / 文件等契约变化；架构边界变化；影响发布、迁移、安全、权限或兼容性的变更。
+
+流程：cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录。
 
 ---
 
@@ -130,7 +152,8 @@ done
 - 遵循 `.cowork-flow/spec/` 中的相关规范。
 - 变更保持聚焦。
 - 若执行中发现行为变化升级，立即重新分级并进入 L1 / L2 流程。
-- 执行计划中的每个实现步骤必须优先进入 `superpowers:test-driven-development` 循环，不得先写生产代码再补测试。
+- 涉及代码逻辑或行为时，必须优先进入 `superpowers:test-driven-development` 循环，不得先写生产代码再补测试。
+- 纯文档、格式或说明性修改按 PRD 验收标准验证，不强行补无意义测试。
 
 ---
 
@@ -179,33 +202,37 @@ done
 
 ### 7.7 执行
 
-执行 plan 前，先判断**是否存在适合并行执行的独立任务**。并行是优化手段，不是完成定义；`agent_team.enabled` 只决定在适合并行时优先使用哪种机制，不决定是否必须并行。
+执行 plan 前，先判断**是否存在适合拆分的独立任务**。
 
-适合并行的条件包括：
+只要宿主支持 subAgent，且任务适合拆分，就应优先采用 subagent 执行。`agent_team.enabled` 只决定是否使用 cowork-flow 内置 agent-team 调度，不决定是否可以使用 subagent。
+
+并行是优化手段，不是完成定义；不得为了满足流程形式而强行拆分高耦合任务。
+
+适合使用 subagent 的条件包括：
 
 - 子任务之间没有共享写文件，或共享写文件已有明确顺序边界。
 - 子任务之间没有强顺序依赖。
 - 每个子任务都有清晰输入、输出和验收方式。
 - 主 agent 能在集成前独立审查每个结果。
-- 并行带来的收益大于调度、审阅和集成成本。
+- subagent 带来的收益大于调度、审阅和集成成本。
 
-不适合并行的情况包括：
+不适合使用 subagent 的情况包括：
 
 - 改动集中在同一组强耦合文件。
 - 需要密集的 TDD 红绿循环或即时反馈。
 - parser、schema、runtime、测试需要同步演进。
 - 子任务边界不清，拆分后的主要成本会落在集成。
-- 任务规模小于并行调度成本。
+- 任务规模小于 subagent 调度成本。
 
-不得为了满足流程形式而强行拆分高耦合任务。若不适合并行，必须简要记录不使用并行的理由，并在当前会话中按 plan 顺序执行。
+若不适合使用 subagent，必须简要记录理由，并在当前会话中按 plan 顺序执行。
 
-若适合并行：
+若适合使用 subagent：
 
-- 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 时，使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取可并行 assignments，由主 agent 审核并调度 subAgent。
-- 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: false` 且宿主支持 subAgent 时，可使用 `superpowers:subagent-driven-development` 开启多 agent 并行执行。
-- 当宿主不支持 subAgent 或任务不适合并行时，使用 `superpowers:executing-plans` 或当前会话顺序执行。
+- 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 时，优先使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取 assignments，由主 agent 审核并调度 subAgent。
+- 当 `agent_team.enabled: false` 但宿主支持 subAgent 时，使用 `superpowers:subagent-driven-development` 或宿主等价机制开启多 agent 执行。
+- 当宿主不支持 subAgent 或任务不适合拆分时，使用 `superpowers:executing-plans` 或当前会话顺序执行。
 
-无论是否并行，都必须严格遵循 `superpowers:test-driven-development`，不得先写生产代码再补测试。
+无论是否使用 subagent，都必须严格遵循 `superpowers:test-driven-development`，不得先写生产代码再补测试。
 
 执行中必须持续同步：
 
@@ -236,7 +263,7 @@ done
 完成前至少确认：
 
 - 相关测试通过
-- 新增或修改的行为有测试先失败、再通过的验证证据
+- 新增或修改的代码行为有测试先失败、再通过的验证证据
 - lint / format / build / typecheck 按项目要求通过
 - 行为符合 cowork-flow change 规格或 PRD
 - 相关 `.cowork-flow/spec/` 已同步
@@ -277,6 +304,13 @@ L2 任务完成前需要多视角审阅：行为契约、数据流、错误处�
 
 ```bash
 ./.cowork-flow/run change archive <slug>
+```
+
+在windows下遇到归档异常,尝试使用下面脚本修复：
+
+```bash
+$user = "$env:USERDOMAIN\$env:USERNAME"
+icacls .\.cowork-flow /grant "$($user):(OI)(CI)(F)" /T
 ```
 
 ---
@@ -337,6 +371,6 @@ L2 任务完成前需要多视角审阅：行为契约、数据流、错误处�
 - cowork-flow change 规格或计划中的必要步骤已完成
 - 验证命令已按项目要求执行
 - 失败、跳过或无法执行的验证已明确说明
-- 相关规范已更新
+- 必要的相关规范已更新，或已说明无需更新
 - change metadata、计划状态、任务状态不冲突
 - session 已记录

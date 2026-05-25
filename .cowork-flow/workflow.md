@@ -14,13 +14,16 @@
 
 ## 2. 职责边界
 
-| 对象 | 负责内容 |
-|------|----------|
-| `cowork-flow change` | 行为变更治理：`proposal` 说明为什么改，`spec` 定义外部行为与验收标准，`design` 记录复杂或跨层设计取舍，`change.yaml` 保存状态/分级/关联 plan 与 task，`archive` 归档完成后的行为规格。 |
-| `superpowers` | 工作方法：`brainstorming` 澄清需求和方案，`writing-plans` 拆可执行计划，`test-driven-development` 约束实现，`executing-plans` 顺序执行，`subagent-driven-development` 并行拆分，`verification-before-completion` 完成前取证。 |
-| `.cowork-flow` | 任务状态和上下文：当前开发者、当前任务、PRD、`implement/check/debug` 上下文、journal、session 记录和任务归档。 |
+cowork-flow 只负责保存流程状态和任务上下文；具体执行方法由当前 agent 宿主提供。
 
-`.cowork-flow` 不替代 superpowers，也不替代项目验证命令。除一次性原型、生成代码、纯配置文件等明确例外并经人工确认外，功能新增、缺陷修复、重构和行为变更都必须按 RED-GREEN-REFACTOR 推进；复杂或难点问题按深度优先。
+| 对象 | 定位 | 主要产物 |
+|------|------|----------|
+| `cowork-flow change` | 行为变更规格 | `proposal.md`、`spec.md`、`design.md`、`change.yaml` |
+| `.cowork-flow/tasks` | 任务执行上下文 | `prd.md`、`implement.jsonl`、`check.jsonl`、`debug.jsonl` |
+| `.cowork-flow/plans` | 实施计划 | 可执行步骤、验证方式、当前执行状态 |
+| `agent 执行方法` | 需求澄清、计划拆分、TDD、subagent 调度、完成前验证 | 由宿主能力或可用技能提供 |
+
+`.cowork-flow` 不替代 agent 的执行判断，也不替代项目验证命令。
 
 ---
 
