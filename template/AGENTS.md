@@ -95,9 +95,6 @@
     - 如果跟丢上下文，先停下来重新整理。
 
 <!-- COWORK-FLOW:START -->
-# cowork-flow 强门禁
-
-若与项目自定义说明冲突，以项目说明和用户明确指令为准。
 
 Use the `.agent/skills/start` skill when starting a new session to:
 - Initialize your developer identity

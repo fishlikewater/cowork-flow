@@ -282,6 +282,13 @@ L2 任务完成前需要多视角审阅：行为契约、数据流、错误处�
 ./.cowork-flow/run change archive <slug>
 ```
 
+在 Windows 下遇到归档异常，尝试使用下面脚本修复：
+
+```bash
+$user = "$env:USERDOMAIN\$env:USERNAME"
+icacls .\.cowork-flow /grant "$($user):(OI)(CI)(F)" /T
+```
+
 ---
 
 ## 10. 状态持久化与恢复
