@@ -10,6 +10,7 @@ from pathlib import Path
 TASK_RE = re.compile(r"^#{2,3} Task\s+(\d+):\s*(.+?)\s*$")
 FILE_RE = re.compile(r"^-\s+(Create|Modify|Test):\s+`([^`]+)`")
 DEP_RE = re.compile(r"depends on Task\s+(\d+)", re.IGNORECASE)
+TERMINAL_TASK_RE = re.compile(r"(final|integration|verify|verification|验收|集成|最终|全量|收尾)", re.IGNORECASE)
 
 
 def parse_plan(text: str) -> list[dict[str, object]]:
@@ -96,6 +97,25 @@ def _task_dependencies(tasks: list[dict[str, object]]) -> list[dict[str, str]]:
                         "task": task_id,
                         "depends_on_task": str(previous["id"]),
                         "reason": "file-overlap",
+                    }
+                )
+
+        title = task.get("title", "")
+        if isinstance(title, str) and TERMINAL_TASK_RE.search(title):
+            existing = {
+                dependency["depends_on_task"]
+                for dependency in dependencies
+                if dependency["task"] == task_id
+            }
+            for previous in tasks[:index]:
+                previous_id = str(previous["id"])
+                if previous_id in existing:
+                    continue
+                dependencies.append(
+                    {
+                        "task": task_id,
+                        "depends_on_task": previous_id,
+                        "reason": "terminal-task",
                     }
                 )
 
@@ -447,13 +467,17 @@ def _render_named_items(title: str, items: object) -> list[str]:
 
 
 def render_assignment_prompt(assignment: dict[str, object]) -> str:
+    agent_type = assignment["agent_type"]
     lines = [
         f"# {assignment['id']}",
         "",
         f"Role: {assignment['role']}",
         f"Recommended agent: {assignment['recommended_agent']}",
-        f"Agent type: {assignment['agent_type']}",
+        f"Agent type: {agent_type}",
+        f"Spawn target agent type: {agent_type}",
         f"Task: {assignment.get('title', '')}",
+        "",
+        f"Spawn one {agent_type} agent for this assignment. Use this file as the complete worker prompt.",
         "",
     ]
     agent_prompt = assignment.get("agent_prompt")

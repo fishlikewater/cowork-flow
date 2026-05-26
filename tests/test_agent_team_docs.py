@@ -39,17 +39,29 @@ class AgentTeamDocsTest(unittest.TestCase):
             self.assertIn("agent-team-execution", skill)
             self.assertIn("agent-team complete", skill)
 
-    def test_agent_team_execution_skill_requires_codex_spawn_agent_when_available(self) -> None:
+    def test_agent_team_execution_skill_uses_codex_subagent_orchestration_language(self) -> None:
         for path in (
             ROOT / ".agent" / "skills" / "agent-team-execution" / "SKILL.md",
             TEMPLATE / ".agent" / "skills" / "agent-team-execution" / "SKILL.md",
         ):
             skill = path.read_text(encoding="utf-8")
-            self.assertIn("spawn_agent", skill)
-            self.assertIn("wait_agent", skill)
-            self.assertIn("close_agent", skill)
-            self.assertIn("multi_agent", skill)
-            self.assertIn("Only fall back to manual", skill)
+            self.assertIn("fresh worker per assignment", skill.lower())
+            self.assertIn("worker result handling", skill.lower())
+            self.assertIn("record-result", skill)
+            self.assertIn("record-review", skill)
+            self.assertIn("Spawn one", skill)
+            self.assertIn("wait for all requested results", skill)
+            self.assertIn("summarize each result", skill)
+            self.assertIn("agent_type", skill)
+            self.assertIn("default`, `worker`, and `explorer", skill)
+            self.assertIn("recommended_agent", skill)
+            self.assertIn("Subagent Evidence Gate", skill)
+            self.assertIn("Do not treat wording in the final answer as evidence", skill)
+            self.assertIn("item type shows an agent thread", skill)
+            self.assertIn("If no subagent evidence appears", skill)
+            self.assertNotIn("Tool Capability Check", skill)
+            self.assertNotIn("visible in the current tool list", skill)
+            self.assertNotIn("Only fall back to manual", skill)
 
     def test_template_agents_mentions_agent_team_runtime(self) -> None:
         agents = (TEMPLATE / "AGENTS.md").read_text(encoding="utf-8")

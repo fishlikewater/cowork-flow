@@ -10,20 +10,61 @@ Use this skill after a task is active and an approved `.cowork-flow/plans/*.md` 
 ## Process
 
 1. Run `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>`.
-2. Review `agent-team/dispatch-plan.yaml` for unsafe parallelism, file conflicts, missing context, or weak agent matches.
+2. Review `agent-team/dispatch-plan.yaml` for unsafe parallelism, file conflicts, missing context, or weak agent matches. If the graph is unsafe, fix the plan dependencies or split assignments, then rerun `prepare`.
 3. Run `./.cowork-flow/run agent-team next <task-dir>` to get ready assignments.
-4. In Codex with `[features] multi_agent = true`, dispatch each ready assignment with `spawn_agent` using the generated `agent-team/assignments/<assignment-id>.md` prompt content. Dispatch multiple ready assignments in parallel only after confirming their write files do not overlap.
-5. Collect each spawned worker result with `wait_agent`, then call `close_agent` to free the worker slot. Tell each worker it is not alone in the codebase, must respect the write boundary, must not revert others' edits, and must list changed files.
-6. Only fall back to manual prompt execution when the current host does not expose `spawn_agent`, `wait_agent`, or `close_agent`. Do not use manual execution merely because the assignment is stored as Markdown.
-7. While workers run, coordinate: answer questions, unblock context gaps, and integrate non-conflicting results.
-8. Record outputs with `record-result` and reviews with `record-review`.
-9. Use `retry` only after adding missing context, changing agent choice, or splitting an oversized assignment.
-10. Run `complete` before claiming the agent team work is done.
+4. Dispatch ready assignments using the Dispatch Protocol below.
+5. While workers run, coordinate: answer questions, unblock context gaps, and integrate non-conflicting results.
+6. Record implementer outputs with `record-result` and reviewer outputs with `record-review`.
+7. Use `retry` only after adding missing context, changing agent choice, or splitting an oversized assignment.
+8. Repeat `next -> dispatch -> record` until no assignments remain.
+9. Run `./.cowork-flow/run agent-team complete <task-dir>` before claiming the agent team work is done.
+
+## Dispatch Protocol
+
+Do not invoke `superpowers:subagent-driven-development` from this skill. Agent-team has its own persisted state machine; use Codex subagent orchestration directly and keep `agent-team` as the source of truth for ready assignments, results, reviews, retries, and completion.
+
+### Codex Orchestration Prompt
+
+- Ask Codex explicitly to spawn subagents. Use this wording for each ready batch: `Spawn one <agent_type> agent per ready assignment, wait for all requested results, and summarize each result by assignment id.`
+- Codex handles spawning, routing follow-up instructions, waiting for results, and closing completed agent threads. Do not look for an `agent-team` spawn subcommand; the Python script only prepares state and prompts.
+- Use `/agent` in interactive CLI sessions when you need to inspect, steer, stop, or close active agent threads.
+
+### Subagent Evidence Gate
+
+- Do not treat wording in the final answer as evidence that a subagent actually ran. Phrases like "worker reported" or "explorer agent result" can be produced by the parent agent without a real child thread.
+- Before recording any assignment result, confirm real subagent evidence from the Codex host: visible subagent activity in the app or CLI, `/agent` showing the child thread, JSON event output whose item type shows an agent thread or agent job, or a successful `spawn_agents_on_csv` output written by child workers.
+- If no subagent evidence appears, stop before `record-result` or `record-review`. Report that the Codex runtime did not expose or start subagents for this batch, include the exact dispatch prompt or command used, and keep the assignment ready for retry in a working runtime.
+- In `codex exec --json` experiments, inspect the event stream. A run that only shows the parent thread plus ordinary `command_execution` items is not a successful subagent dispatch, even if the final answer claims an agent result.
+
+### Fresh Worker Per Assignment
+
+- Spawn one agent per ready assignment. Use the assignment's `agent_type` as the Codex spawn target; built-in Codex agent types include `default`, `worker`, and `explorer`, and project or personal custom agents may add more.
+- Treat `recommended_agent` as the agent-team registry match and prompt source, not as the Codex spawn target unless it also names a real Codex custom agent.
+- Spawn a fresh worker for each ready assignment. Do not reuse the main agent context as the worker context.
+- Use `agent-team/assignments/<assignment-id>.md` as the worker prompt body.
+- Add this scene-setting to every worker prompt: it is not alone in the codebase, it must respect the listed write boundary, it must not revert other agents' edits, and it must report changed files plus exact verification commands.
+- Dispatch multiple ready assignments in parallel only after confirming their write files do not overlap. If they overlap, dispatch them sequentially or repair the dependency graph.
+
+### Worker Result Handling
+
+- Wait for the consolidated Codex response for the requested batch before recording results.
+- Treat worker statuses as follows:
+  - `DONE`: inspect changed files and verification evidence, then record `done` with `record-result`.
+  - `DONE_WITH_CONCERNS`: inspect the concerns before recording; retry if they affect correctness or scope.
+  - `NEEDS_CONTEXT`: add the missing context to the assignment or task context, then use `retry`.
+  - `BLOCKED`: decide whether to add context, choose a stronger agent, split the assignment, or stop for coordinator decision.
+
+### Review Chain
+
+- After an implementer is recorded, let `agent-team next` unlock that task's spec reviewer. Dispatch the reviewer as a fresh worker using its generated assignment prompt.
+- If the spec reviewer rejects or flags gaps, record the review result, retry the implementer with the specific gaps, then rerun the review.
+- Only after spec review is approved should the quality reviewer run. If quality review rejects, retry the implementer with the specific issues and rerun the review chain.
+- Do not let implementer self-review replace `record-review` for spec or quality assignments.
 
 ## Rules
 
 - The script suggests; the main agent decides.
 - Do not parallelize assignments with overlapping write files.
 - Do not skip spec review or quality review.
-- In Codex, `agent-team` is coordinator-dispatched: the Python script generates assignments, and the main agent performs the real `spawn_agent` / `wait_agent` / `close_agent` calls.
+- In Codex, `agent-team` is coordinator-dispatched: the Python script generates assignments, and the main agent performs the real subagent dispatch calls while preserving `agent-team` state.
 - Do not rely on chat history for state; write results through `agent-team` commands.

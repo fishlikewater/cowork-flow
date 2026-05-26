@@ -224,13 +224,13 @@ done
 - 子任务边界不清，拆分后的主要成本会落在集成。
 - 任务规模小于 subagent 调度成本。
 
-若不适合使用 subagent，必须简要记录理由，并在当前会话中按 plan 顺序执行。
+若不适合使用 subagent，必须简要记录理由，并按 `superpowers`方法论执行。
 
 若适合使用 subagent：
 
 - 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 时，优先使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取 assignments，由主 agent 审核并调度 subAgent。
-- 当 `agent_team.enabled: false` 但宿主支持 subAgent 时，使用 `superpowers:subagent-driven-development` 或宿主等价机制开启多 agent 执行。
-- 当宿主不支持 subAgent 或任务不适合拆分时，使用 `superpowers:executing-plans` 或当前会话顺序执行。
+- 当 `agent_team.enabled: false` 或者`agent_team`执行失败，使用 `superpowers`并行执行 或宿主等价机制开启多 agent 执行。
+- 当宿主不支持 subAgent 或任务不适合拆分时，按 `superpowers`方法论执行。
 
 无论是否使用 subagent，都必须严格遵循 `superpowers:test-driven-development`，不得先写生产代码再补测试。
 

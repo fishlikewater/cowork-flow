@@ -119,6 +119,8 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.assertIn("## Agent prompt", assignment)
         self.assertIn("Build the smallest tested Python change.", assignment)
         self.assertIn("Report exact files and verification commands.", assignment)
+        self.assertIn("Spawn target agent type: worker", assignment)
+        self.assertIn("Spawn one worker agent for this assignment", assignment)
 
     def test_prepare_treats_agent_registry_fields_as_optional(self) -> None:
         (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
@@ -204,6 +206,38 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         dispatch = (self.task_dir / "agent-team" / "dispatch-plan.yaml").read_text(encoding="utf-8")
         self.assertIn("reason: file-overlap", dispatch)
         self.assertIn("depends_on_task: T001", dispatch)
+
+    def test_prepare_keeps_final_verification_task_after_previous_tasks(self) -> None:
+        self.plan_file.write_text(
+            "# Plan\n\n"
+            "### Task 1: Add API\n\n"
+            "**Files:**\n"
+            "- Modify: `src/api.py`\n\n"
+            "- [ ] **Step 1: Implement API**\n\n"
+            "### Task 2: Add UI\n\n"
+            "**Files:**\n"
+            "- Modify: `src/ui.py`\n\n"
+            "- [ ] **Step 1: Implement UI**\n\n"
+            "### Task 3: 最终集成验证任务\n\n"
+            "**Files:**\n"
+            "- Test: `tests/integration.test.py`\n\n"
+            "- [ ] **Step 1: Run final verification**\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        dispatch = (self.task_dir / "agent-team" / "dispatch-plan.yaml").read_text(encoding="utf-8")
+        self.assertIn("task: T003\n    depends_on_task: T001\n    reason: terminal-task", dispatch)
+        self.assertIn("task: T003\n    depends_on_task: T002\n    reason: terminal-task", dispatch)
+
+        next_result = self.run_agent_team("next", str(self.task_dir))
+
+        self.assertEqual(0, next_result.returncode, next_result.stderr)
+        self.assertIn("T001-implementer", next_result.stdout)
+        self.assertIn("T002-implementer", next_result.stdout)
+        self.assertNotIn("T003-implementer", next_result.stdout)
 
     def test_prepare_rejects_unparseable_plan(self) -> None:
         self.plan_file.write_text("# Broken\n\nNo task headings here.\n", encoding="utf-8")
