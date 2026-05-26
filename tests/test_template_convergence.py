@@ -59,6 +59,10 @@ class TemplateConvergenceTest(unittest.TestCase):
         self.assertIn("tester:", agents)
         self.assertIn("debugger:", agents)
         self.assertIn("release-reviewer:", agents)
+        self.assertIn('      - "src/**"', agents)
+        self.assertIn('      - ".agent/skills/**"', agents)
+        self.assertIn('      - "package.json"', agents)
+        self.assertIn("Use the assignment brief as the source of truth", agents)
         self.assertNotIn("codex_type", agents)
 
     def test_template_config_disables_agent_team_by_default(self) -> None:

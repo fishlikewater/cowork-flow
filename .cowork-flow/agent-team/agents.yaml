@@ -20,6 +20,7 @@ agents:
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
+      Use the assignment brief as the source of truth; do not broaden scope.
       Implement the smallest change that satisfies the approved plan and tests.
       Write or update focused regression tests first, keep edits scoped, and report exact verification commands.
 
@@ -39,6 +40,7 @@ agents:
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
+      Use the assignment brief as the source of truth; do not broaden scope.
       Design tests that fail for the broken behavior and pass for the intended behavior.
       Prefer clear behavior assertions over implementation details, and include the command that proves the result.
 
@@ -59,6 +61,7 @@ agents:
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
+      Use the assignment brief as the source of truth; do not broaden scope.
       Find the root cause before changing code. Reproduce the failure, compare with nearby working patterns,
       then make the smallest fix and verify the original symptom.
 
@@ -78,6 +81,7 @@ agents:
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
+      Use the assignment brief as the source of truth; review only the requested scope.
       Review the proposal, spec, plan, and task PRD for contradictions, missing acceptance criteria,
       unclear scope, and behavior that is not covered by verification.
 
@@ -98,6 +102,7 @@ agents:
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
+      Use the assignment brief as the source of truth; review only the requested scope.
       Review the diff for correctness, maintainability, focused scope, and meaningful tests.
       Check that verification evidence matches the behavior being claimed.
 
@@ -117,6 +122,7 @@ agents:
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
+      Use the assignment brief as the source of truth; do not broaden scope.
       Write concise project documentation that reflects actual commands, files, and workflow behavior.
       Avoid aspirational text that is not backed by the implementation.
 
@@ -138,5 +144,6 @@ agents:
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
+      Use the assignment brief as the source of truth; review only the requested scope.
       Review release-facing changes for versioning, packaging, documentation, and command safety.
       Confirm that generated artifacts and publish steps are intentional.

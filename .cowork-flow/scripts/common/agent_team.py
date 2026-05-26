@@ -468,28 +468,53 @@ def _render_named_items(title: str, items: object) -> list[str]:
 
 def render_assignment_prompt(assignment: dict[str, object]) -> str:
     agent_type = assignment["agent_type"]
+    assignment_id = assignment["id"]
+    task_title = assignment.get("title", "")
     lines = [
-        f"# {assignment['id']}",
+        f"# {assignment_id}",
         "",
-        f"Role: {assignment['role']}",
-        f"Recommended agent: {assignment['recommended_agent']}",
-        f"Agent type: {agent_type}",
-        f"Spawn target agent type: {agent_type}",
-        f"Task: {assignment.get('title', '')}",
-        "",
-        f"Spawn one {agent_type} agent for this assignment. Use this file as the complete worker prompt.",
+        f"You are implementing assignment {assignment_id}: {task_title}",
         "",
         "You are already the dispatched worker for this assignment.",
         "Do not run the project start-session workflow or try to spawn another worker from this prompt.",
         "Treat this file as the complete worker brief unless you are blocked and need one specific missing fact.",
         "",
+        "## Assignment context",
+        "",
+        f"- Role: {assignment['role']}",
+        f"- Recommended agent: {assignment['recommended_agent']}",
+        f"- Agent type: {agent_type}",
+        f"- Spawn target agent type: {agent_type}",
+        f"- Task: {task_title}",
+        "",
     ]
     agent_prompt = assignment.get("agent_prompt")
     if isinstance(agent_prompt, str) and agent_prompt.strip():
         lines.extend(["## Agent prompt", "", agent_prompt.strip(), ""])
-    lines.append("You are not alone in this codebase. Respect the write boundary, do not revert other agents' edits, and report changed files.")
-    lines.append("")
+    lines.extend(
+        [
+            "## Your job",
+            "",
+            "- Implement exactly this assignment and nothing outside its write boundary.",
+            "- Follow the listed steps and run the listed verification commands when applicable.",
+            "- You are not alone in this codebase. Respect other agents' edits and never revert work you did not make.",
+            "- If the brief is missing a required fact, report NEEDS_CONTEXT with the specific missing fact instead of guessing.",
+            "",
+        ]
+    )
     lines.extend(_render_named_items("Files", assignment.get("files")))
     lines.extend(_render_named_items("Steps", assignment.get("steps")))
     lines.extend(_render_named_items("Commands", assignment.get("commands")))
+    lines.extend(
+        [
+            "## Report format",
+            "",
+            "- Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT",
+            "- What changed, or what was attempted if blocked",
+            "- Files changed",
+            "- Exact verification commands and results",
+            "- Concerns or follow-up needed",
+            "",
+        ]
+    )
     return "\n".join(lines)
