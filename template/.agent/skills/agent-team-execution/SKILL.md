@@ -23,11 +23,20 @@ Use this skill after a task is active and an approved `.cowork-flow/plans/*.md` 
 
 Do not invoke `superpowers:subagent-driven-development` from this skill. Agent-team has its own persisted state machine; use Codex subagent orchestration directly and keep `agent-team` as the source of truth for ready assignments, results, reviews, retries, and completion.
 
-### Codex Orchestration Prompt
+### Codex Tool Dispatch
 
-- Ask Codex explicitly to spawn subagents. Use this wording for each ready batch: `Spawn one <agent_type> agent per ready assignment, wait for all requested results, and summarize each result by assignment id.`
-- Codex handles spawning, routing follow-up instructions, waiting for results, and closing completed agent threads. Do not look for an `agent-team` spawn subcommand; the Python script only prepares state and prompts.
+- In Codex hosts that expose real multi-agent tools, dispatch workers with `spawn_agent`, wait for all requested results with `wait_agent`, and close completed child threads with `close_agent`.
+- For each ready assignment, read `agent-team/assignments/<assignment-id>.md` and use that file's body as the child `message`.
+- When `agent-team/adapters/codex.json` provides `suggestedTaskName`, pass that value as the child `task_name` so the Codex App can start from a readable label instead of a raw assignment id.
+- After each `spawn_agent` call returns, immediately capture the host-provided `nickname` and canonical `task_name`, then persist them with `./.cowork-flow/run agent-team record-spawn <task-dir> --assignment <id> --task-name <returned-task-name> [--nickname <returned-nickname>]`.
+- `prepare` also emits `agent-team/assignments/<assignment-id>.context.json`. If a worker needs cowork-flow recovery, route it through `./.cowork-flow/run --context-file <that-file> resume` instead of plain `resume`.
+- Set `agent_type` from the assignment and pass `fork_turns: none` so the worker starts as a fresh child thread instead of inheriting coordinator history.
+- The child `message` must be the assignment prompt body only. Do not prepend coordinator dispatch wording such as `Spawn one ... agent`, because that wording can leak into the child thread and make it think it is the coordinator.
+- Treat `recommended_agent` as the registry match and prompt source, not as the Codex spawn target unless it also names a real Codex custom agent.
+- Prefer the host `nickname` for human-facing display once it is available. Do not invent your own alias when the host already returned one.
+- After dispatching a ready batch, wait for all requested results, summarize each result by assignment id, then record outcomes through `agent-team`.
 - Use `/agent` in interactive CLI sessions when you need to inspect, steer, stop, or close active agent threads.
+- Only fall back to manual or another host-level dispatch path if the current Codex host does not expose real subagent tools.
 
 ### Subagent Evidence Gate
 
@@ -39,11 +48,9 @@ Do not invoke `superpowers:subagent-driven-development` from this skill. Agent-t
 ### Fresh Worker Per Assignment
 
 - Spawn one agent per ready assignment. Use the assignment's `agent_type` as the Codex spawn target; built-in Codex agent types include `default`, `worker`, and `explorer`, and project or personal custom agents may add more.
-- Do not request a full-history fork when you also specify `agent_type`. In Codex hosts that expose real subagent dispatch tools, full-history fork cannot be combined with `agent_type` and the spawn call will be rejected.
-- Treat `recommended_agent` as the agent-team registry match and prompt source, not as the Codex spawn target unless it also names a real Codex custom agent.
+- Keep `fork_turns: none`; do not request a full-history fork for these worker dispatches.
 - Spawn a fresh worker for each ready assignment. Do not reuse the main agent context as the worker context.
-- When the host offers fork controls, prefer a fresh child thread with explicit prompt context over inherited full history. Put the assignment Markdown, write boundary, and any needed task facts directly in the worker prompt.
-- Use `agent-team/assignments/<assignment-id>.md` as the worker prompt body.
+- Put the assignment Markdown, write boundary, and any needed task facts directly in the worker prompt body.
 - Add this scene-setting to every worker prompt: it is not alone in the codebase, it must respect the listed write boundary, it must not revert other agents' edits, and it must report changed files plus exact verification commands.
 - Dispatch multiple ready assignments in parallel only after confirming their write files do not overlap. If they overlap, dispatch them sequentially or repair the dependency graph.
 

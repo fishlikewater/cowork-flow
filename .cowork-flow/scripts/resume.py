@@ -3,10 +3,34 @@
 
 from __future__ import annotations
 
+import argparse
+
+from common.execution_context import (
+    build_internal_execution_context_parser,
+    build_worker_resume_text,
+    execution_context_from_namespace,
+)
 from common.git_context import get_context_text
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Resume cowork-flow session context",
+        parents=[build_internal_execution_context_parser()],
+    )
+    args = parser.parse_args(argv)
+    context = execution_context_from_namespace(args)
+
+    if context.is_worker:
+        print("========================================")
+        print("COWORK-FLOW WORKER RESUME")
+        print("========================================")
+        print("Use this only when a dispatched worker needs assignment-scoped recovery.")
+        print("Do not switch back into the coordinator workflow from this entrypoint.")
+        print("")
+        print(build_worker_resume_text(context))
+        return 0
+
     print("========================================")
     print("COWORK-FLOW RESUME")
     print("========================================")

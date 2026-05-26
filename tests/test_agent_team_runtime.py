@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -84,6 +85,7 @@ class AgentTeamRuntimeTest(unittest.TestCase):
             ("prepare", str(task_dir), "--plan", str(plan_file)),
             ("status", str(task_dir)),
             ("next", str(task_dir)),
+            ("record-spawn", str(task_dir), "--assignment", "impl-1", "--task-name", "/root/impl-1"),
             ("record-result", str(task_dir), "--assignment", "impl-1", "--status", "done"),
             ("record-review", str(task_dir), "--assignment", "impl-1", "--status", "approved"),
             ("retry", str(task_dir), "--assignment", "impl-1", "--reason", "needs_context"),
@@ -108,6 +110,52 @@ class AgentTeamRuntimeTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertTrue((task_dir / "agent-team" / "status.json").is_file())
+
+    def test_prepare_writes_structured_codex_spawn_metadata(self) -> None:
+        (self.repo / ".cowork-flow" / "config.yaml").write_text(
+            "agent_team:\n  enabled: true\n",
+            encoding="utf-8",
+        )
+        task_dir, plan_file = self.create_ready_task()
+
+        result = self.run_agent_team("prepare", str(task_dir), "--plan", str(plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(
+            (task_dir / "agent-team" / "adapters" / "codex.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual("codex", payload["adapter"])
+        self.assertEqual("coordinator-dispatched", payload["mode"])
+        self.assertEqual(True, payload["spawnDefaults"]["spawnAgent"])
+        self.assertEqual("none", payload["spawnDefaults"]["forkTurns"])
+        self.assertEqual("assignment-file", payload["spawnDefaults"]["promptSource"])
+        self.assertEqual(
+            ["nickname", "task_name", "assignmentId"],
+            payload["spawnResult"]["displayNamePreference"],
+        )
+        self.assertEqual(
+            ["task_name", "nickname"],
+            payload["spawnResult"]["captureFields"],
+        )
+        self.assertIn("record-spawn", payload["spawnResult"]["recordSpawnCommandTemplate"])
+        self.assertEqual("worker", payload["assignments"][0]["agentType"])
+        self.assertEqual("implementer", payload["assignments"][0]["recommendedAgent"])
+        self.assertEqual(
+            "implement_add_shared_helper",
+            payload["assignments"][0]["suggestedTaskName"],
+        )
+        self.assertEqual("assignments/T001-implementer.md", payload["assignments"][0]["promptFile"])
+        self.assertEqual("assignments/T001-implementer.context.json", payload["assignments"][0]["contextFile"])
+        context_file = task_dir / "agent-team" / "assignments" / "T001-implementer.context.json"
+        self.assertTrue(context_file.is_file())
+        worker_context = json.loads(context_file.read_text(encoding="utf-8"))
+        self.assertEqual("worker", worker_context["mode"])
+        self.assertEqual(".cowork-flow/tasks/05-21-demo", worker_context["taskDir"])
+        self.assertEqual("T001-implementer", worker_context["assignment"])
+        self.assertEqual(
+            ".cowork-flow/tasks/05-21-demo/agent-team/assignments/T001-implementer.md",
+            worker_context["promptFile"],
+        )
 
 
 if __name__ == "__main__":
