@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 
-TASK_RE = re.compile(r"^### Task\s+(\d+):\s*(.+?)\s*$")
+TASK_RE = re.compile(r"^#{2,3} Task\s+(\d+):\s*(.+?)\s*$")
 FILE_RE = re.compile(r"^-\s+(Create|Modify|Test):\s+`([^`]+)`")
 DEP_RE = re.compile(r"depends on Task\s+(\d+)", re.IGNORECASE)
 
