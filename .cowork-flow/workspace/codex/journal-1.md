@@ -486,3 +486,67 @@ Simplified template start skill into a thin entrypoint that routes to workflow.m
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 16: Harden agent-team review contract
+
+**Date**: 2026-05-26
+**Task**: Harden agent-team review contract
+
+### Summary
+
+Added role-specific agent-team reviewer prompts, stricter result/review status gates, approved review payload validation, in-progress spawn tracking, and explicit SUBAGENT-STOP guidance after an ad hoc review subagent entered start recovery instead of returning a review.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `uncommitted` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
+
+
+## Session 17: Strengthen agent-team worker start guard
+
+**Date**: 2026-05-26
+**Task**: Strengthen agent-team worker start guard
+
+### Summary
+
+After user review, replaced the soft SUBAGENT-STOP hint with a top-of-message COWORK-FLOW-WORKER marker, taught the start skill to skip when that marker appears, and documented bounded wait plus adapter_failed retry for child threads that enter start/resume or return no valid role-specific report.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `uncommitted` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete

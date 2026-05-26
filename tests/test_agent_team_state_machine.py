@@ -58,6 +58,11 @@ class AgentTeamStateMachineTest(unittest.TestCase):
         path.write_text('{"changedFiles": ["src/shared/helper.js"]}\n', encoding="utf-8")
         return path
 
+    def context_file(self, assignment_id: str) -> Path:
+        path = self.task_dir / "agent-team" / "assignments" / f"{assignment_id}.context.json"
+        self.assertTrue(path.is_file())
+        return path
+
     def test_next_outputs_ready_assignments_only(self) -> None:
         result = self.run_agent_team("next", str(self.task_dir))
 
@@ -83,6 +88,12 @@ class AgentTeamStateMachineTest(unittest.TestCase):
         assignment = status["assignments"]["T001-implementer"]
         self.assertEqual("/root/t001_implementer", assignment["spawn_task_name"])
         self.assertEqual("Hilbert", assignment["spawn_nickname"])
+        self.assertEqual("in_progress", assignment["status"])
+
+        next_result = self.run_agent_team("next", str(self.task_dir))
+
+        self.assertEqual(0, next_result.returncode, next_result.stderr)
+        self.assertNotIn("T001-implementer", next_result.stdout)
 
         status_result = self.run_agent_team("status", str(self.task_dir), "--verbose")
 
@@ -90,6 +101,23 @@ class AgentTeamStateMachineTest(unittest.TestCase):
         self.assertIn("T001-implementer", status_result.stdout)
         self.assertIn("label=Hilbert", status_result.stdout)
         self.assertIn("task_name=/root/t001_implementer", status_result.stdout)
+
+    def test_record_spawn_rejects_pending_assignment(self) -> None:
+        result = self.run_agent_team(
+            "record-spawn",
+            str(self.task_dir),
+            "--assignment",
+            "T001-spec-reviewer",
+            "--task-name",
+            "/root/t001_spec_reviewer",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("assignment is not ready", result.stderr)
+        status = self.status_data()
+        assignment = status["assignments"]["T001-spec-reviewer"]
+        self.assertEqual("pending", assignment["status"])
+        self.assertIsNone(assignment["spawn_task_name"])
 
     def test_record_result_appends_attempt_history_and_unblocks_spec_review(self) -> None:
         result = self.run_agent_team(
@@ -111,6 +139,289 @@ class AgentTeamStateMachineTest(unittest.TestCase):
         metrics = self.metrics_data()
         self.assertEqual(1, metrics["attempts"])
         self.assertEqual(1, metrics["successfulAssignments"])
+
+    def test_worker_report_writes_assignment_outbox_without_mutating_status(self) -> None:
+        self.run_agent_team(
+            "record-spawn",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--task-name",
+            "/root/t001_implementer",
+        )
+
+        result = self.run_agent_team(
+            "--execution-context-file",
+            str(self.context_file("T001-implementer")),
+            "worker-report",
+            "--status",
+            "done",
+            "--file",
+            str(self.result_payload()),
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        outbox = self.task_dir / "agent-team" / "outbox" / "T001-implementer.json"
+        self.assertTrue(outbox.is_file())
+        report = json.loads(outbox.read_text(encoding="utf-8"))
+        self.assertEqual("T001-implementer", report["assignment"])
+        self.assertEqual("implementer", report["role"])
+        self.assertEqual("done", report["status"])
+        self.assertEqual({"changedFiles": ["src/shared/helper.js"]}, report["payload"])
+        status = self.status_data()
+        self.assertEqual("in_progress", status["assignments"]["T001-implementer"]["status"])
+        self.assertEqual(0, status["assignments"]["T001-implementer"]["attempts"])
+        self.assertFalse((self.task_dir / "agent-team" / "results" / "T001-implementer-attempt-1.json").exists())
+
+    def test_worker_report_cannot_write_for_another_assignment(self) -> None:
+        result = self.run_agent_team(
+            "--execution-context-file",
+            str(self.context_file("T001-implementer")),
+            "worker-report",
+            "--assignment",
+            "T001-spec-reviewer",
+            "--status",
+            "done",
+            "--file",
+            str(self.result_payload()),
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("worker-report assignment must match worker context", result.stderr)
+        self.assertFalse((self.task_dir / "agent-team" / "outbox" / "T001-spec-reviewer.json").exists())
+
+    def test_collect_requires_worker_outbox_not_chat_answer(self) -> None:
+        result = self.run_agent_team(
+            "collect",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("worker report not found", result.stderr)
+        status = self.status_data()
+        self.assertEqual("ready", status["assignments"]["T001-implementer"]["status"])
+        self.assertEqual(0, status["assignments"]["T001-implementer"]["attempts"])
+
+    def test_collect_advances_status_from_worker_outbox(self) -> None:
+        self.run_agent_team(
+            "record-spawn",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--task-name",
+            "/root/t001_implementer",
+        )
+        report = self.run_agent_team(
+            "--execution-context-file",
+            str(self.context_file("T001-implementer")),
+            "worker-report",
+            "--status",
+            "done",
+            "--file",
+            str(self.result_payload()),
+        )
+        self.assertEqual(0, report.returncode, report.stderr)
+
+        result = self.run_agent_team(
+            "collect",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("collected T001-implementer status=done", result.stdout)
+        status = self.status_data()
+        self.assertEqual("done", status["assignments"]["T001-implementer"]["status"])
+        self.assertEqual(1, status["assignments"]["T001-implementer"]["attempts"])
+        self.assertEqual("ready", status["assignments"]["T001-spec-reviewer"]["status"])
+        copied = self.task_dir / "agent-team" / "results" / "T001-implementer-attempt-1.json"
+        self.assertEqual(
+            {"changedFiles": ["src/shared/helper.js"]},
+            json.loads(copied.read_text(encoding="utf-8")),
+        )
+
+    def test_collect_rejects_pending_assignment_outbox(self) -> None:
+        review = self.repo / "review.json"
+        review.write_text('{"decision": "approved"}\n', encoding="utf-8")
+        report = self.run_agent_team(
+            "--execution-context-file",
+            str(self.context_file("T001-spec-reviewer")),
+            "worker-report",
+            "--status",
+            "approved",
+            "--file",
+            str(review),
+        )
+        self.assertEqual(0, report.returncode, report.stderr)
+
+        result = self.run_agent_team(
+            "collect",
+            str(self.task_dir),
+            "--assignment",
+            "T001-spec-reviewer",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("assignment is not ready or in_progress", result.stderr)
+        status = self.status_data()
+        self.assertEqual("pending", status["assignments"]["T001-spec-reviewer"]["status"])
+        self.assertEqual(0, status["assignments"]["T001-spec-reviewer"]["attempts"])
+
+    def test_worker_report_approved_review_requires_approved_payload(self) -> None:
+        self.run_agent_team(
+            "record-result",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--status",
+            "done",
+            "--file",
+            str(self.result_payload()),
+        )
+
+        result = self.run_agent_team(
+            "--execution-context-file",
+            str(self.context_file("T001-spec-reviewer")),
+            "worker-report",
+            "--status",
+            "approved",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("approved review requires --file", result.stderr)
+        self.assertFalse((self.task_dir / "agent-team" / "outbox" / "T001-spec-reviewer.json").exists())
+
+    def test_record_result_rejects_review_statuses(self) -> None:
+        result = self.run_agent_team(
+            "record-result",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--status",
+            "approved",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("record-result status must be one of", result.stderr)
+        status = self.status_data()
+        self.assertEqual("ready", status["assignments"]["T001-implementer"]["status"])
+        self.assertEqual(0, status["assignments"]["T001-implementer"]["attempts"])
+
+    def test_record_review_rejects_result_statuses(self) -> None:
+        self.run_agent_team(
+            "record-result",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--status",
+            "done",
+            "--file",
+            str(self.result_payload()),
+        )
+
+        result = self.run_agent_team(
+            "record-review",
+            str(self.task_dir),
+            "--assignment",
+            "T001-spec-reviewer",
+            "--status",
+            "done",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("record-review status must be one of", result.stderr)
+        status = self.status_data()
+        self.assertEqual("ready", status["assignments"]["T001-spec-reviewer"]["status"])
+        self.assertEqual(0, status["assignments"]["T001-spec-reviewer"]["attempts"])
+
+    def test_record_review_approved_requires_payload(self) -> None:
+        self.run_agent_team(
+            "record-result",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--status",
+            "done",
+            "--file",
+            str(self.result_payload()),
+        )
+
+        result = self.run_agent_team(
+            "record-review",
+            str(self.task_dir),
+            "--assignment",
+            "T001-spec-reviewer",
+            "--status",
+            "approved",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("approved review requires --file", result.stderr)
+        status = self.status_data()
+        self.assertEqual("ready", status["assignments"]["T001-spec-reviewer"]["status"])
+        self.assertEqual(0, status["assignments"]["T001-spec-reviewer"]["attempts"])
+
+    def test_record_review_approved_rejects_payload_without_approved_decision(self) -> None:
+        self.run_agent_team(
+            "record-result",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--status",
+            "done",
+            "--file",
+            str(self.result_payload()),
+        )
+        review = self.repo / "review.json"
+        review.write_text('{"decision": "changes_requested"}\n', encoding="utf-8")
+
+        result = self.run_agent_team(
+            "record-review",
+            str(self.task_dir),
+            "--assignment",
+            "T001-spec-reviewer",
+            "--status",
+            "approved",
+            "--file",
+            str(review),
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("approved review payload must include", result.stderr)
+        status = self.status_data()
+        self.assertEqual("ready", status["assignments"]["T001-spec-reviewer"]["status"])
+        self.assertEqual(0, status["assignments"]["T001-spec-reviewer"]["attempts"])
+
+    def test_record_review_changes_requested_does_not_unlock_quality_review(self) -> None:
+        self.run_agent_team(
+            "record-result",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--status",
+            "done",
+            "--file",
+            str(self.result_payload()),
+        )
+
+        result = self.run_agent_team(
+            "record-review",
+            str(self.task_dir),
+            "--assignment",
+            "T001-spec-reviewer",
+            "--status",
+            "changes_requested",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        status = self.status_data()
+        self.assertEqual("changes_requested", status["assignments"]["T001-spec-reviewer"]["status"])
+        self.assertEqual("pending", status["assignments"]["T001-quality-reviewer"]["status"])
+        metrics = self.metrics_data()
+        self.assertEqual(1, metrics["reviewReworks"])
 
     def test_record_review_approved_unblocks_quality_review(self) -> None:
         self.run_agent_team(

@@ -5,6 +5,7 @@ description: Use when starting or resuming work in a project that uses the cowor
 
 <SUBAGENT-STOP>
 If you were dispatched as a subagent to execute a specific assignment, skip this skill.
+If the current user message contains `<COWORK-FLOW-WORKER>`, `Assignment ID:`, or `You are already the dispatched worker`, skip this skill.
 </SUBAGENT-STOP>
 
 # Start Session
@@ -34,11 +35,11 @@ done
 ```
 
 5. Report current context:
-   - current developer
-   - current task
-   - active tasks
-   - worktree state
-   - anything that may affect the next step
+    - current developer
+    - current task
+    - active tasks
+    - worktree state
+    - anything that may affect the next step
 
 Command examples use macOS / Linux / Git Bash / WSL syntax. In native Windows cmd or PowerShell, replace `./.cowork-flow/run <command>` with `.\.cowork-flow\run.cmd <command>`.
 
@@ -58,12 +59,12 @@ Use this path when the user only wants explanation, analysis, or review, and no 
 Use this path for any repository edit, including small docs, comments, tests, refactors, or behavior changes.
 
 1. Classify the task using `.cowork-flow/workflow.md`:
-   - `L0`: no external behavior change
-   - `L1`: bounded behavior change
-   - `L2`: cross-layer or important behavior change
+    - `L0`: no external behavior change
+    - `L1`: bounded behavior change
+    - `L2`: cross-layer or important behavior change
 2. Follow the matching workflow in `.cowork-flow/workflow.md`:
-   - `L0`: section 6
-   - `L1` / `L2`: section 7
+    - `L0`: section 6
+    - `L1` / `L2`: section 7
 3. Before editing files, ensure task context exists under `.cowork-flow/tasks/<task>/`.
 4. Before handoff, follow workflow verification, state sync, and session recording requirements.
 

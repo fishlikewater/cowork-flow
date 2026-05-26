@@ -5,6 +5,7 @@ description: Use when starting or resuming work in a project that uses the cowor
 
 <SUBAGENT-STOP>
 If you were dispatched as a subagent to execute a specific assignment, skip this skill.
+If the current user message contains `<COWORK-FLOW-WORKER>`, `Assignment ID:`, or `You are already the dispatched worker`, skip this skill.
 </SUBAGENT-STOP>
 
 # Start Session

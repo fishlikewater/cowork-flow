@@ -96,7 +96,7 @@ agents:
       then make the smallest fix and verify the original symptom.
 
   spec-reviewer:
-    agent_type: default
+    agent_type: worker
     capabilities:
       - spec-review
       - acceptance-check
@@ -115,7 +115,7 @@ agents:
       unclear scope, and behavior that is not covered by verification.
 
   quality-reviewer:
-    agent_type: default
+    agent_type: worker
     capabilities:
       - code-quality-review
       - test-review
@@ -217,6 +217,9 @@ retry:
 }
 
 TERMINAL_STATUSES = {"done", "approved"}
+RESULT_STATUSES = {"blocked", "done", "done_with_concerns", "needs_context"}
+REVIEW_STATUSES = {"approved", "blocked", "changes_requested", "needs_context"}
+REVIEW_ROLES = {"spec-reviewer", "quality-reviewer"}
 MAX_ATTEMPTS = 3
 GATED_COMMANDS = {
     "prepare",
@@ -225,9 +228,12 @@ GATED_COMMANDS = {
     "record-spawn",
     "record-result",
     "record-review",
+    "worker-report",
+    "collect",
     "retry",
     "complete",
 }
+WORKER_ALLOWED_COMMANDS = {"worker-report"}
 
 
 def _agent_team_config_dir(repo_root: Path) -> Path:
@@ -305,6 +311,79 @@ def _copy_payload(source: str | None, destination_dir: Path, assignment_id: str,
     shutil.copyfile(source_path, destination_dir / f"{assignment_id}-attempt-{attempt}.json")
 
 
+def _write_payload(payload: object, destination_dir: Path, assignment_id: str, attempt: int) -> None:
+    if payload is None:
+        return
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    (destination_dir / f"{assignment_id}-attempt-{attempt}.json").write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _status_error(command: str, allowed: set[str]) -> str:
+    return f"{command} status must be one of: {', '.join(sorted(allowed))}"
+
+
+def _validate_status(command: str, status: str, allowed: set[str]) -> bool:
+    if status in allowed:
+        return True
+    print(f"Error: {_status_error(command, allowed)}", file=sys.stderr)
+    return False
+
+
+def _read_payload_file(payload_file: str) -> tuple[bool, object | None]:
+    path = Path(payload_file)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        print(f"Error: payload file not found: {payload_file}", file=sys.stderr)
+        return False, None
+    except json.JSONDecodeError:
+        print(f"Error: payload file is not valid JSON: {payload_file}", file=sys.stderr)
+        return False, None
+    except OSError as error:
+        print(f"Error: failed to read payload file: {error}", file=sys.stderr)
+        return False, None
+    return True, payload
+
+
+def _validate_approved_review_payload_data(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        print("Error: approved review payload must be a JSON object", file=sys.stderr)
+        return False
+
+    decision = payload.get("decision")
+    status = payload.get("status")
+    if decision == "approved" or status == "approved":
+        return True
+
+    print(
+        "Error: approved review payload must include decision=approved or status=approved",
+        file=sys.stderr,
+    )
+    return False
+
+
+def _validate_approved_review_payload(payload_file: str | None) -> bool:
+    if not payload_file:
+        print("Error: approved review requires --file with a JSON review payload", file=sys.stderr)
+        return False
+
+    ok, payload = _read_payload_file(payload_file)
+    if not ok:
+        return False
+    return _validate_approved_review_payload_data(payload)
+
+
+def _role_statuses(role: str) -> set[str]:
+    return REVIEW_STATUSES if role in REVIEW_ROLES else RESULT_STATUSES
+
+
+def _outbox_file(task_dir: Path, assignment_id: str) -> Path:
+    return _runtime_dir(task_dir) / "outbox" / f"{assignment_id}.json"
+
+
 def _assignment_display_label(assignment_id: str, assignment: dict[str, object]) -> str:
     nickname = assignment.get("spawn_nickname")
     if isinstance(nickname, str) and nickname.strip():
@@ -322,6 +401,8 @@ def _record_assignment(
     payload_file: str | None,
     *,
     review: bool,
+    payload_data: object | None = None,
+    verb: str = "recorded",
 ) -> int:
     status_data = _load_status(task_dir)
     metrics = _load_metrics(task_dir)
@@ -336,7 +417,10 @@ def _record_assignment(
     attempt = int(assignment["attempts"])
 
     destination = _runtime_dir(task_dir) / ("reviews" if review else "results")
-    _copy_payload(payload_file, destination, assignment_id, attempt)
+    if payload_data is None:
+        _copy_payload(payload_file, destination, assignment_id, attempt)
+    else:
+        _write_payload(payload_data, destination, assignment_id, attempt)
 
     metrics["attempts"] = int(metrics.get("attempts", 0)) + 1
     if status in TERMINAL_STATUSES:
@@ -349,7 +433,7 @@ def _record_assignment(
     _unlock_ready_assignments(status_data)
     _save_json(_runtime_dir(task_dir) / "status.json", status_data)
     _save_json(_runtime_dir(task_dir) / "metrics.json", metrics)
-    print(f"recorded {assignment_id} status={status} attempt={attempt}")
+    print(f"{verb} {assignment_id} status={status} attempt={attempt}")
     return 0
 
 
@@ -396,6 +480,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         assignments_dir,
         runtime_dir / "results",
         runtime_dir / "reviews",
+        runtime_dir / "outbox",
         runtime_dir / "blockers",
         adapters_dir,
     ):
@@ -516,6 +601,14 @@ def cmd_record_spawn(args: argparse.Namespace) -> int:
         return 1
 
     assignment = assignments[args.assignment]
+    if assignment.get("status") != "ready":
+        print(
+            f"Error: assignment is not ready: {args.assignment} status={assignment.get('status', 'unknown')}",
+            file=sys.stderr,
+        )
+        return 1
+
+    assignment["status"] = "in_progress"
     assignment["spawn_task_name"] = args.task_name
     assignment["spawn_nickname"] = args.nickname.strip() if args.nickname else None
     _save_json(_runtime_dir(task_dir) / "status.json", status_data)
@@ -528,6 +621,8 @@ def cmd_record_spawn(args: argparse.Namespace) -> int:
 
 
 def cmd_record_result(args: argparse.Namespace) -> int:
+    if not _validate_status("record-result", args.status, RESULT_STATUSES):
+        return 1
     task_dir = _resolve_path(get_repo_root(), args.task_dir)
     try:
         return _record_assignment(task_dir, args.assignment, args.status, args.file, review=False)
@@ -537,12 +632,135 @@ def cmd_record_result(args: argparse.Namespace) -> int:
 
 
 def cmd_record_review(args: argparse.Namespace) -> int:
+    if not _validate_status("record-review", args.status, REVIEW_STATUSES):
+        return 1
+    if args.status == "approved" and not _validate_approved_review_payload(args.file):
+        return 1
     task_dir = _resolve_path(get_repo_root(), args.task_dir)
     try:
         return _record_assignment(task_dir, args.assignment, args.status, args.file, review=True)
     except FileNotFoundError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
+
+
+def cmd_worker_report(args: argparse.Namespace) -> int:
+    execution_context = execution_context_from_namespace(args)
+    if not execution_context.is_worker:
+        print("Error: worker-report requires worker execution context", file=sys.stderr)
+        return 2
+
+    context_assignment = execution_context.assignment
+    assignment_id = args.assignment or context_assignment
+    if assignment_id != context_assignment:
+        print("Error: worker-report assignment must match worker context", file=sys.stderr)
+        return 1
+    if not execution_context.task_dir or not assignment_id:
+        print("Error: worker-report requires task dir and assignment context", file=sys.stderr)
+        return 2
+
+    task_dir = _resolve_path(get_repo_root(), execution_context.task_dir)
+    try:
+        status_data = _load_status(task_dir)
+    except FileNotFoundError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    assignments = status_data["assignments"]
+    if assignment_id not in assignments:
+        print(f"Error: assignment not found: {assignment_id}", file=sys.stderr)
+        return 1
+
+    assignment = assignments[assignment_id]
+    role = str(assignment.get("role", ""))
+    if not _validate_status("worker-report", args.status, _role_statuses(role)):
+        return 1
+
+    if role in REVIEW_ROLES and args.status == "approved" and not args.file:
+        print("Error: approved review requires --file with a JSON review payload", file=sys.stderr)
+        return 1
+
+    payload: object | None = None
+    if args.file:
+        ok, payload = _read_payload_file(args.file)
+        if not ok:
+            return 1
+    if role in REVIEW_ROLES and args.status == "approved" and not _validate_approved_review_payload_data(payload):
+        return 1
+
+    report = {
+        "version": 1,
+        "source": "worker-report",
+        "assignment": assignment_id,
+        "role": role,
+        "status": args.status,
+        "payload": payload,
+    }
+    outbox = _outbox_file(task_dir, assignment_id)
+    outbox.parent.mkdir(parents=True, exist_ok=True)
+    _save_json(outbox, report)
+    print(f"worker report saved {assignment_id} status={args.status}")
+    return 0
+
+
+def cmd_collect(args: argparse.Namespace) -> int:
+    task_dir = _resolve_path(get_repo_root(), args.task_dir)
+    try:
+        status_data = _load_status(task_dir)
+    except FileNotFoundError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    assignments = status_data["assignments"]
+    if args.assignment not in assignments:
+        print(f"Error: assignment not found: {args.assignment}", file=sys.stderr)
+        return 1
+
+    outbox = _outbox_file(task_dir, args.assignment)
+    if not outbox.is_file():
+        print(f"Error: worker report not found: {outbox}", file=sys.stderr)
+        return 1
+
+    try:
+        report = _load_json(outbox)
+    except json.JSONDecodeError:
+        print(f"Error: worker report is not valid JSON: {outbox}", file=sys.stderr)
+        return 1
+
+    if report.get("assignment") != args.assignment:
+        print("Error: worker report assignment does not match requested assignment", file=sys.stderr)
+        return 1
+
+    assignment = assignments[args.assignment]
+    if assignment.get("status") not in {"ready", "in_progress"}:
+        print(
+            f"Error: assignment is not ready or in_progress: {args.assignment} status={assignment.get('status', 'unknown')}",
+            file=sys.stderr,
+        )
+        return 1
+
+    role = str(assignment.get("role", ""))
+    if report.get("role") != role:
+        print("Error: worker report role does not match assignment role", file=sys.stderr)
+        return 1
+
+    status = report.get("status")
+    if not isinstance(status, str) or not _validate_status("collect", status, _role_statuses(role)):
+        return 1
+
+    payload = report.get("payload")
+    if role in REVIEW_ROLES and status == "approved" and not _validate_approved_review_payload_data(payload):
+        return 1
+
+    return _record_assignment(
+        task_dir,
+        args.assignment,
+        status,
+        None,
+        review=role in REVIEW_ROLES,
+        payload_data=payload,
+        verb="collected",
+    )
 
 
 def cmd_retry(args: argparse.Namespace) -> int:
@@ -641,6 +859,17 @@ def build_parser() -> argparse.ArgumentParser:
     record_review_parser.add_argument("--file", help="JSON payload file")
     record_review_parser.set_defaults(func=cmd_record_review)
 
+    worker_report_parser = subparsers.add_parser("worker-report", help="Write worker report to assignment outbox")
+    worker_report_parser.add_argument("--assignment", help="Assignment id; defaults to worker context assignment")
+    worker_report_parser.add_argument("--status", required=True, help="Worker report status")
+    worker_report_parser.add_argument("--file", help="JSON payload file")
+    worker_report_parser.set_defaults(func=cmd_worker_report)
+
+    collect_parser = subparsers.add_parser("collect", help="Collect a worker outbox report")
+    collect_parser.add_argument("task_dir", help="Task directory")
+    collect_parser.add_argument("--assignment", required=True, help="Assignment id")
+    collect_parser.set_defaults(func=cmd_collect)
+
     retry_parser = subparsers.add_parser("retry", help="Record assignment retry")
     retry_parser.add_argument("task_dir", help="Task directory")
     retry_parser.add_argument("--assignment", required=True, help="Assignment id")
@@ -658,7 +887,7 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     execution_context = execution_context_from_namespace(args)
-    if execution_context.is_worker:
+    if execution_context.is_worker and args.command not in WORKER_ALLOWED_COMMANDS:
         print(
             worker_command_block_message(
                 execution_context,
@@ -667,6 +896,9 @@ def main() -> int:
             ),
             file=sys.stderr,
         )
+        return 2
+    if not execution_context.is_worker and args.command in WORKER_ALLOWED_COMMANDS:
+        print("Error: worker-report requires worker execution context", file=sys.stderr)
         return 2
     if args.command in GATED_COMMANDS and not get_agent_team_enabled(get_repo_root()):
         print(
