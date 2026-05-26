@@ -66,6 +66,31 @@ class AgentTeamStateMachineTest(unittest.TestCase):
         self.assertIn("T003-implementer", result.stdout)
         self.assertNotIn("T001-spec-reviewer", result.stdout)
 
+    def test_record_spawn_persists_host_nickname_and_status_prefers_it(self) -> None:
+        result = self.run_agent_team(
+            "record-spawn",
+            str(self.task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--task-name",
+            "/root/t001_implementer",
+            "--nickname",
+            "Hilbert",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        status = self.status_data()
+        assignment = status["assignments"]["T001-implementer"]
+        self.assertEqual("/root/t001_implementer", assignment["spawn_task_name"])
+        self.assertEqual("Hilbert", assignment["spawn_nickname"])
+
+        status_result = self.run_agent_team("status", str(self.task_dir), "--verbose")
+
+        self.assertEqual(0, status_result.returncode, status_result.stderr)
+        self.assertIn("T001-implementer", status_result.stdout)
+        self.assertIn("label=Hilbert", status_result.stdout)
+        self.assertIn("task_name=/root/t001_implementer", status_result.stdout)
+
     def test_record_result_appends_attempt_history_and_unblocks_spec_review(self) -> None:
         result = self.run_agent_team(
             "record-result",

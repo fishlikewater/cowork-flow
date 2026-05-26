@@ -65,6 +65,11 @@ from common.task_utils import (
     archive_task_complete,
 )
 from common.config import get_hooks
+from common.execution_context import (
+    build_internal_execution_context_parser,
+    execution_context_from_namespace,
+    worker_command_block_message,
+)
 
 CONTEXT_JSONL_FILES = ["implement.jsonl", "check.jsonl", "debug.jsonl"]
 DONE_STATUSES = ("completed", "done")
@@ -1357,6 +1362,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Task Management Script for cowork-flow workflow",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[build_internal_execution_context_parser()],
     )
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
@@ -1421,10 +1427,32 @@ def main() -> int:
     p_listarch.add_argument("month", nargs="?", help="Month (YYYY-MM)")
 
     args = parser.parse_args()
+    execution_context = execution_context_from_namespace(args)
 
     if not args.command:
         show_usage()
         return 1
+
+    worker_blocked_commands = {
+        "create",
+        "init-context",
+        "add-context",
+        "start",
+        "finish",
+        "archive",
+        "add-subtask",
+        "remove-subtask",
+    }
+    if execution_context.is_worker and args.command in worker_blocked_commands:
+        print(
+            worker_command_block_message(
+                execution_context,
+                f"task {args.command}",
+                "Workers must not activate, archive, or mutate cowork-flow task state.",
+            ),
+            file=sys.stderr,
+        )
+        return 2
 
     commands = {
         "create": cmd_create,

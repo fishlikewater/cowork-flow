@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from common.agent_team import (
+    build_adapter_payload,
     build_dispatch_plan,
     build_initial_metrics,
     build_initial_status,
@@ -21,6 +22,11 @@ from common.agent_team import (
     write_json,
 )
 from common.config import get_agent_team_enabled
+from common.execution_context import (
+    build_internal_execution_context_parser,
+    execution_context_from_namespace,
+    worker_command_block_message,
+)
 from common.paths import DIR_WORKFLOW, get_repo_root
 
 
@@ -216,6 +222,7 @@ GATED_COMMANDS = {
     "prepare",
     "status",
     "next",
+    "record-spawn",
     "record-result",
     "record-review",
     "retry",
@@ -296,6 +303,16 @@ def _copy_payload(source: str | None, destination_dir: Path, assignment_id: str,
         raise FileNotFoundError(f"payload file not found: {source}")
     destination_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source_path, destination_dir / f"{assignment_id}-attempt-{attempt}.json")
+
+
+def _assignment_display_label(assignment_id: str, assignment: dict[str, object]) -> str:
+    nickname = assignment.get("spawn_nickname")
+    if isinstance(nickname, str) and nickname.strip():
+        return nickname.strip()
+    task_name = assignment.get("spawn_task_name")
+    if isinstance(task_name, str) and task_name.strip():
+        return task_name.strip()
+    return assignment_id
 
 
 def _record_assignment(
@@ -386,24 +403,40 @@ def cmd_prepare(args: argparse.Namespace) -> int:
 
     registry = load_agent_registry(_agent_team_config_dir(repo_root) / "agents.yaml")
     dispatch_plan = build_dispatch_plan(tasks, registry)
+    try:
+        task_dir_relative = task_dir.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        task_dir_relative = str(task_dir)
+    for assignment in dispatch_plan["assignments"]:
+        assignment_id = str(assignment["id"])
+        assignment["worker_context_file"] = (
+            f"{task_dir_relative}/agent-team/assignments/{assignment_id}.context.json"
+        )
+        assignment["worker_prompt_file"] = (
+            f"{task_dir_relative}/agent-team/assignments/{assignment_id}.md"
+        )
     (runtime_dir / "dispatch-plan.yaml").write_text(
         render_dispatch_plan(dispatch_plan),
         encoding="utf-8",
     )
     write_json(runtime_dir / "status.json", build_initial_status(dispatch_plan))
     write_json(runtime_dir / "metrics.json", build_initial_metrics(dispatch_plan))
-    write_json(
-        adapters_dir / f"{dispatch_plan['adapter']}.json",
-        {
-            "adapter": dispatch_plan["adapter"],
-            "mode": "coordinator-dispatched",
-            "assignmentCount": len(dispatch_plan["assignments"]),
-        },
-    )
+    write_json(adapters_dir / f"{dispatch_plan['adapter']}.json", build_adapter_payload(dispatch_plan))
 
     for assignment in dispatch_plan["assignments"]:
         prompt_path = assignments_dir / f"{assignment['id']}.md"
+        context_path = assignments_dir / f"{assignment['id']}.context.json"
         prompt_path.write_text(render_assignment_prompt(assignment), encoding="utf-8")
+        write_json(
+            context_path,
+            {
+                "version": 1,
+                "mode": "worker",
+                "taskDir": task_dir_relative,
+                "assignment": assignment["id"],
+                "promptFile": assignment["worker_prompt_file"],
+            },
+        )
 
     print(f"prepared agent-team runtime assignments={len(dispatch_plan['assignments'])}")
     return 0
@@ -424,6 +457,23 @@ def cmd_status(args: argparse.Namespace) -> int:
 
     for status_name in sorted(counts):
         print(f"{status_name}: {counts[status_name]}")
+    if getattr(args, "verbose", False):
+        for assignment_id in sorted(status_data["assignments"]):
+            assignment = status_data["assignments"][assignment_id]
+            display_label = _assignment_display_label(assignment_id, assignment)
+            parts = [
+                assignment_id,
+                f"status={assignment.get('status', 'unknown')}",
+                f"role={assignment.get('role', 'unknown')}",
+                f"label={display_label}",
+            ]
+            spawn_task_name = assignment.get("spawn_task_name")
+            if isinstance(spawn_task_name, str) and spawn_task_name.strip():
+                parts.append(f"task_name={spawn_task_name.strip()}")
+            spawn_nickname = assignment.get("spawn_nickname")
+            if isinstance(spawn_nickname, str) and spawn_nickname.strip():
+                parts.append(f"nickname={spawn_nickname.strip()}")
+            print("\t".join(parts))
     return 0
 
 
@@ -449,6 +499,31 @@ def cmd_next(args: argparse.Namespace) -> int:
             f"{assignment_id}\trole={assignment['role']}\t"
             f"agent={assignment['recommended_agent']}\tagent_type={assignment['agent_type']}"
         )
+    return 0
+
+
+def cmd_record_spawn(args: argparse.Namespace) -> int:
+    task_dir = _resolve_path(get_repo_root(), args.task_dir)
+    try:
+        status_data = _load_status(task_dir)
+    except FileNotFoundError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    assignments = status_data["assignments"]
+    if args.assignment not in assignments:
+        print(f"Error: assignment not found: {args.assignment}", file=sys.stderr)
+        return 1
+
+    assignment = assignments[args.assignment]
+    assignment["spawn_task_name"] = args.task_name
+    assignment["spawn_nickname"] = args.nickname.strip() if args.nickname else None
+    _save_json(_runtime_dir(task_dir) / "status.json", status_data)
+
+    label = _assignment_display_label(args.assignment, assignment)
+    print(
+        f"recorded spawn {args.assignment} task_name={args.task_name} label={label}"
+    )
     return 0
 
 
@@ -522,7 +597,10 @@ def cmd_complete(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Manage Cowork Flow agent team runtime")
+    parser = argparse.ArgumentParser(
+        description="Manage Cowork Flow agent team runtime",
+        parents=[build_internal_execution_context_parser()],
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("init", help="Initialize agent team configuration")
@@ -535,11 +613,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     status_parser = subparsers.add_parser("status", help="Show agent team status")
     status_parser.add_argument("task_dir", help="Task directory")
+    status_parser.add_argument("--verbose", action="store_true", help="Show per-assignment details")
     status_parser.set_defaults(func=cmd_status)
 
     next_parser = subparsers.add_parser("next", help="Show ready assignments")
     next_parser.add_argument("task_dir", help="Task directory")
     next_parser.set_defaults(func=cmd_next)
+
+    record_spawn_parser = subparsers.add_parser("record-spawn", help="Record spawned agent details")
+    record_spawn_parser.add_argument("task_dir", help="Task directory")
+    record_spawn_parser.add_argument("--assignment", required=True, help="Assignment id")
+    record_spawn_parser.add_argument("--task-name", required=True, help="Canonical task_name returned by spawn_agent")
+    record_spawn_parser.add_argument("--nickname", help="Host-provided nickname returned by spawn_agent")
+    record_spawn_parser.set_defaults(func=cmd_record_spawn)
 
     record_result_parser = subparsers.add_parser("record-result", help="Record assignment result")
     record_result_parser.add_argument("task_dir", help="Task directory")
@@ -571,6 +657,17 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    execution_context = execution_context_from_namespace(args)
+    if execution_context.is_worker:
+        print(
+            worker_command_block_message(
+                execution_context,
+                f"agent-team {args.command}",
+                "Workers must not inspect or mutate agent-team coordinator state.",
+            ),
+            file=sys.stderr,
+        )
+        return 2
     if args.command in GATED_COMMANDS and not get_agent_team_enabled(get_repo_root()):
         print(
             "Error: agent-team is disabled. Set agent_team.enabled: true in .cowork-flow/config.yaml.",
