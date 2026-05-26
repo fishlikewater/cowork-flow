@@ -88,6 +88,7 @@ class AgentTeamRuntimeTest(unittest.TestCase):
             ("record-spawn", str(task_dir), "--assignment", "impl-1", "--task-name", "/root/impl-1"),
             ("record-result", str(task_dir), "--assignment", "impl-1", "--status", "done"),
             ("record-review", str(task_dir), "--assignment", "impl-1", "--status", "approved"),
+            ("collect", str(task_dir), "--assignment", "impl-1"),
             ("retry", str(task_dir), "--assignment", "impl-1", "--reason", "needs_context"),
             ("complete", str(task_dir)),
         )

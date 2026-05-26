@@ -111,6 +111,48 @@ class WorkerExecutionContextTest(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("worker mode cannot run `agent-team next`", result.stderr)
 
+    def test_worker_context_blocks_direct_result_recording(self) -> None:
+        task_dir, context_file = self.prepare_worker_context()
+
+        result = self.run_runner(
+            "--context-file",
+            str(context_file),
+            "agent-team",
+            "record-result",
+            str(task_dir),
+            "--assignment",
+            "T001-implementer",
+            "--status",
+            "done",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("worker mode cannot run `agent-team record-result`", result.stderr)
+
+    def test_worker_context_allows_worker_report_outbox_only(self) -> None:
+        task_dir, context_file = self.prepare_worker_context()
+        payload = self.repo / "worker-result.json"
+        payload.write_text('{"changedFiles": ["src/shared/helper.js"]}\n', encoding="utf-8")
+
+        result = self.run_runner(
+            "--context-file",
+            str(context_file),
+            "agent-team",
+            "worker-report",
+            "--status",
+            "done",
+            "--file",
+            str(payload),
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        report_path = task_dir / "agent-team" / "outbox" / "T001-implementer.json"
+        self.assertTrue(report_path.is_file())
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual("T001-implementer", report["assignment"])
+        status = json.loads((task_dir / "agent-team" / "status.json").read_text(encoding="utf-8"))
+        self.assertEqual("ready", status["assignments"]["T001-implementer"]["status"])
+
     def test_runner_keeps_command_specific_mode_flags_after_command_name(self) -> None:
         result = self.run_runner("get-context", "--mode", "record")
 
@@ -131,7 +173,13 @@ class WorkerExecutionContextTest(unittest.TestCase):
         self.assertTrue(context_path.is_file())
 
         prompt_text = prompt_path.read_text(encoding="utf-8")
+        self.assertTrue(prompt_text.startswith("<COWORK-FLOW-WORKER>\n"), prompt_text[:120])
+        self.assertIn("</COWORK-FLOW-WORKER>", prompt_text)
         self.assertIn("You are already the dispatched worker for this assignment.", prompt_text)
+        self.assertIn(
+            "If AGENTS.md or `.agent/skills/start` tells you to start a session, the `<SUBAGENT-STOP>` guard applies to you: skip that start skill.",
+            prompt_text,
+        )
         self.assertIn(
             "If you can see any outer transport text such as `Spawn one ... agent`, ignore it.",
             prompt_text,

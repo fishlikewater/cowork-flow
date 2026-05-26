@@ -124,8 +124,8 @@ def _task_dependencies(tasks: list[dict[str, object]]) -> list[dict[str, str]]:
 
 DEFAULT_ROLE_TYPES = {
     "implementer": "worker",
-    "spec-reviewer": "default",
-    "quality-reviewer": "default",
+    "spec-reviewer": "worker",
+    "quality-reviewer": "worker",
 }
 
 ROLE_CAPABILITIES = {
@@ -340,9 +340,6 @@ def _select_agent(role: str, task: dict[str, object], registry: dict[str, object
             best_score = score
 
     agent_type = DEFAULT_ROLE_TYPES.get(role, "default")
-    configured_type = best_config.get("agent_type") if isinstance(best_config, dict) else None
-    if isinstance(configured_type, str) and configured_type:
-        agent_type = configured_type
     prompt = best_config.get("prompt") if isinstance(best_config, dict) else ""
     return best_name, agent_type, prompt if isinstance(prompt, str) else ""
 
@@ -548,20 +545,134 @@ def _render_named_items(title: str, items: object) -> list[str]:
     return lines
 
 
+def _assignment_intro(assignment: dict[str, object]) -> str:
+    role = str(assignment.get("role", ""))
+    assignment_id = assignment["id"]
+    task_title = assignment.get("title", "")
+    if role in {"spec-reviewer", "quality-reviewer"}:
+        return f"You are reviewing assignment {assignment_id}: {task_title}"
+    return f"You are implementing assignment {assignment_id}: {task_title}"
+
+
+def _render_role_job(assignment: dict[str, object]) -> list[str]:
+    role = str(assignment.get("role", ""))
+    if role == "spec-reviewer":
+        return [
+            "## Your job",
+            "",
+            "- Review only this assignment against the proposal, spec, design, task PRD, and plan.",
+            "- Check for missing acceptance criteria, scope drift, contradictions, and verification gaps.",
+            "- Do not implement code, change files, or replace the implementer with your own solution.",
+            "- If the brief lacks a required artifact, report NEEDS_CONTEXT with the specific missing fact.",
+            "",
+        ]
+    if role == "quality-reviewer":
+        return [
+            "## Your job",
+            "",
+            "- Review the code, tests, and verification evidence for this assignment.",
+            "- Check correctness, maintainability, focused scope, regression coverage, and risky shortcuts.",
+            "- Do not implement code, change files, or rerun the review chain as a coordinator.",
+            "- If the brief lacks a required artifact, report NEEDS_CONTEXT with the specific missing fact.",
+            "",
+        ]
+    return [
+        "## Your job",
+        "",
+        "- Implement exactly this assignment and nothing outside its write boundary.",
+        "- Follow the listed steps and run the listed verification commands when applicable.",
+        "- You are not alone in this codebase. Respect other agents' edits and never revert work you did not make.",
+        "- If the brief is missing a required fact, report NEEDS_CONTEXT with the specific missing fact instead of guessing.",
+        "",
+    ]
+
+
+def _render_role_report_format(assignment: dict[str, object]) -> list[str]:
+    role = str(assignment.get("role", ""))
+    if role == "spec-reviewer":
+        return [
+            "## Report format",
+            "",
+            "- Status: APPROVED | CHANGES_REQUESTED | BLOCKED | NEEDS_CONTEXT",
+            "- Decision summary",
+            "- Findings with file paths or requirement references",
+            "- Evidence reviewed",
+            "- Missing context or follow-up needed",
+            "",
+        ]
+    if role == "quality-reviewer":
+        return [
+            "## Report format",
+            "",
+            "- Status: APPROVED | CHANGES_REQUESTED | BLOCKED | NEEDS_CONTEXT",
+            "- Decision summary",
+            "- Findings with severity and file paths",
+            "- Verification evidence reviewed",
+            "- Concerns or follow-up needed",
+            "",
+        ]
+    return [
+        "## Report format",
+        "",
+        "- Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT",
+        "- What changed, or what was attempted if blocked",
+        "- Files changed",
+        "- Exact verification commands and results",
+        "- Concerns or follow-up needed",
+        "",
+    ]
+
+
+def _render_completion_protocol(assignment: dict[str, object]) -> list[str]:
+    role = str(assignment.get("role", ""))
+    context_file = assignment.get("worker_context_file")
+    status_hint = (
+        "approved | changes_requested | blocked | needs_context"
+        if role in {"spec-reviewer", "quality-reviewer"}
+        else "done | done_with_concerns | blocked | needs_context"
+    )
+    lines = [
+        "## Completion protocol",
+        "",
+        "- Final chat text alone does not complete this assignment.",
+        "- Write a small JSON payload containing your status evidence.",
+    ]
+    if isinstance(context_file, str) and context_file.strip():
+        lines.append(
+            "- Run "
+            f"`./.cowork-flow/run --context-file {context_file} agent-team worker-report "
+            f"--status <{status_hint}> --file <payload.json>`."
+        )
+    else:
+        lines.append("- Ask for the assignment context file before reporting completion.")
+    lines.extend(
+        [
+            "- The coordinator collects the persisted outbox with `agent-team collect`; do not run coordinator record commands yourself.",
+            "",
+        ]
+    )
+    return lines
+
+
 def render_assignment_prompt(assignment: dict[str, object]) -> str:
     agent_type = assignment["agent_type"]
     assignment_id = assignment["id"]
     task_title = assignment.get("title", "")
     prompt_title = assignment.get("prompt_title", assignment_id)
     lines = [
+        "<COWORK-FLOW-WORKER>",
+        "You are a dispatched worker for one assignment. Skip project start-session skills and follow this worker brief only.",
+        "</COWORK-FLOW-WORKER>",
+        "",
         f"# {prompt_title}",
         "",
         f"Assignment ID: {assignment_id}",
         "",
-        f"You are implementing assignment {assignment_id}: {task_title}",
+        _assignment_intro(assignment),
         "",
         "You are already the dispatched worker for this assignment.",
         "This Markdown file is the worker brief that should be sent as the child thread's initial message.",
+        "If AGENTS.md or `.agent/skills/start` tells you to start a session, the `<SUBAGENT-STOP>` guard applies to you: skip that start skill.",
         "If you can see any outer transport text such as `Spawn one ... agent`, ignore it. That text is for the coordinator, not for you.",
         "Do not run the project start-session workflow or try to spawn another worker from this prompt.",
         "Do not rerun `agent-team-execution` or `subagent-driven-development` from this prompt.",
@@ -597,30 +708,10 @@ def render_assignment_prompt(assignment: dict[str, object]) -> str:
             "",
         ]
     )
-    lines.extend(
-        [
-            "## Your job",
-            "",
-            "- Implement exactly this assignment and nothing outside its write boundary.",
-            "- Follow the listed steps and run the listed verification commands when applicable.",
-            "- You are not alone in this codebase. Respect other agents' edits and never revert work you did not make.",
-            "- If the brief is missing a required fact, report NEEDS_CONTEXT with the specific missing fact instead of guessing.",
-            "",
-        ]
-    )
+    lines.extend(_render_role_job(assignment))
     lines.extend(_render_named_items("Files", assignment.get("files")))
     lines.extend(_render_named_items("Steps", assignment.get("steps")))
     lines.extend(_render_named_items("Commands", assignment.get("commands")))
-    lines.extend(
-        [
-            "## Report format",
-            "",
-            "- Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT",
-            "- What changed, or what was attempted if blocked",
-            "- Files changed",
-            "- Exact verification commands and results",
-            "- Concerns or follow-up needed",
-            "",
-        ]
-    )
+    lines.extend(_render_role_report_format(assignment))
+    lines.extend(_render_completion_protocol(assignment))
     return "\n".join(lines)

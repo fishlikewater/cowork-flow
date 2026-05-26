@@ -1,0 +1,31 @@
+{
+  "id": "agent-team-review-contract",
+  "name": "agent-team-review-contract",
+  "title": "Harden agent-team review contract",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": "backend",
+  "scope": "agent-team runtime review contract",
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-26",
+  "completedAt": null,
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".cowork-flow/scripts/common/agent_team.py",
+    ".cowork-flow/scripts/agent_team.py",
+    "template/.cowork-flow/scripts/common/agent_team.py",
+    "template/.cowork-flow/scripts/agent_team.py",
+    ".agent/skills/agent-team-execution/SKILL.md",
+    "template/.agent/skills/agent-team-execution/SKILL.md"
+  ],
+  "notes": "L2 change 05-26-agent-team-review-contract",
+  "meta": {
+    "change": ".cowork-flow/changes/05-26-agent-team-review-contract",
+    "plan": ".cowork-flow/plans/2026-05-26-agent-team-review-contract.md"
+  }
+}

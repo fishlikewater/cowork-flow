@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -116,7 +117,8 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         status = (runtime / "status.json").read_text(encoding="utf-8")
         self.assertIn('"recommended_agent": "python-builder"', status)
         assignment = (runtime / "assignments" / "T001-implementer.md").read_text(encoding="utf-8")
-        self.assertTrue(assignment.startswith("# Implement: Add shared helper\n"))
+        self.assertTrue(assignment.startswith("<COWORK-FLOW-WORKER>\n"))
+        self.assertIn("# Implement: Add shared helper\n", assignment)
         self.assertIn("Assignment ID: T001-implementer", assignment)
         self.assertIn("## Agent prompt", assignment)
         self.assertIn("Build the smallest tested Python change.", assignment)
@@ -133,6 +135,53 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.assertIn("Implement exactly this assignment", assignment)
         self.assertIn("## Report format", assignment)
         self.assertNotIn("Spawn one worker agent for this assignment", assignment)
+
+    def test_prepare_writes_role_specific_reviewer_prompts(self) -> None:
+        result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        runtime = self.task_dir / "agent-team" / "assignments"
+        spec_review = (runtime / "T001-spec-reviewer.md").read_text(encoding="utf-8")
+        quality_review = (runtime / "T001-quality-reviewer.md").read_text(encoding="utf-8")
+
+        self.assertIn("Review only this assignment", spec_review)
+        self.assertIn("proposal, spec, design, task PRD, and plan", spec_review)
+        self.assertIn("Status: APPROVED | CHANGES_REQUESTED | BLOCKED | NEEDS_CONTEXT", spec_review)
+        self.assertIn("Findings with file paths or requirement references", spec_review)
+        self.assertNotIn("Implement exactly this assignment", spec_review)
+        self.assertNotIn("Files changed", spec_review)
+
+        self.assertIn("Review the code, tests, and verification evidence", quality_review)
+        self.assertIn("Status: APPROVED | CHANGES_REQUESTED | BLOCKED | NEEDS_CONTEXT", quality_review)
+        self.assertIn("Findings with severity and file paths", quality_review)
+        self.assertNotIn("Implement exactly this assignment", quality_review)
+        self.assertNotIn("Files changed", quality_review)
+
+    def test_prepare_forces_reviewers_to_worker_host_type(self) -> None:
+        result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        runtime = self.task_dir / "agent-team"
+        dispatch = (runtime / "dispatch-plan.yaml").read_text(encoding="utf-8")
+        status = json.loads((runtime / "status.json").read_text(encoding="utf-8"))
+        payload = json.loads((runtime / "adapters" / "codex.json").read_text(encoding="utf-8"))
+
+        for assignment_id in (
+            "T001-implementer",
+            "T001-spec-reviewer",
+            "T001-quality-reviewer",
+        ):
+            with self.subTest(assignment=assignment_id):
+                self.assertEqual("worker", status["assignments"][assignment_id]["agent_type"])
+
+        self.assertIn("id: T001-spec-reviewer\n    task: T001\n    role: spec-reviewer\n    recommended_agent: spec-reviewer\n    agent_type: worker", dispatch)
+        self.assertIn("id: T001-quality-reviewer\n    task: T001\n    role: quality-reviewer\n    recommended_agent: quality-reviewer\n    agent_type: worker", dispatch)
+        assignment_types = {
+            item["assignmentId"]: item["agentType"]
+            for item in payload["assignments"]
+        }
+        self.assertEqual("worker", assignment_types["T001-spec-reviewer"])
+        self.assertEqual("worker", assignment_types["T001-quality-reviewer"])
 
     def test_prepare_treats_agent_registry_fields_as_optional(self) -> None:
         (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
@@ -153,7 +202,7 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         dispatch = (runtime / "dispatch-plan.yaml").read_text(encoding="utf-8")
         self.assertIn("recommended_agent: implementer", dispatch)
         self.assertIn("agent_type: worker", dispatch)
-        self.assertIn("agent_type: reviewer", dispatch)
+        self.assertNotIn("agent_type: reviewer", dispatch)
         assignment = (runtime / "assignments" / "T001-implementer.md").read_text(encoding="utf-8")
         self.assertNotIn("## Agent prompt", assignment)
 
@@ -176,12 +225,12 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         dispatch = (self.task_dir / "agent-team" / "dispatch-plan.yaml").read_text(encoding="utf-8")
         self.assertIn("agent_type: worker", dispatch)
-        self.assertIn("agent_type: default", dispatch)
+        self.assertNotIn("agent_type: default", dispatch)
         self.assertNotIn("legacy-worker", dispatch)
         self.assertNotIn("legacy-spec", dispatch)
         self.assertNotIn("legacy-quality", dispatch)
 
-    def test_prepare_uses_configured_agent_registry(self) -> None:
+    def test_prepare_uses_configured_agent_registry_but_keeps_worker_host_type(self) -> None:
         (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
             "default_adapter: manual\n"
             "\n"
@@ -201,15 +250,19 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         runtime = self.task_dir / "agent-team"
         dispatch = (runtime / "dispatch-plan.yaml").read_text(encoding="utf-8")
         self.assertIn("adapter: manual", dispatch)
-        self.assertIn("agent_type: custom-worker", dispatch)
-        self.assertIn("agent_type: custom-spec", dispatch)
-        self.assertIn("agent_type: custom-quality", dispatch)
+        self.assertIn("recommended_agent: implementer", dispatch)
+        self.assertIn("recommended_agent: spec-reviewer", dispatch)
+        self.assertIn("recommended_agent: quality-reviewer", dispatch)
+        self.assertIn("agent_type: worker", dispatch)
+        self.assertNotIn("custom-worker", dispatch)
+        self.assertNotIn("custom-spec", dispatch)
+        self.assertNotIn("custom-quality", dispatch)
         self.assertTrue((runtime / "adapters" / "manual.json").is_file())
 
         next_result = self.run_agent_team("next", str(self.task_dir))
 
         self.assertEqual(0, next_result.returncode, next_result.stderr)
-        self.assertIn("agent_type=custom-worker", next_result.stdout)
+        self.assertIn("agent_type=worker", next_result.stdout)
 
     def test_prepare_marks_file_overlap_dependency(self) -> None:
         result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))

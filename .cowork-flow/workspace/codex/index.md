@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 15
-- **Last Active**: 2026-05-25
+- **Total Sessions**: 17
+- **Last Active**: 2026-05-26
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~488 | Current |
+| `journal-1.md` | ~552 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 17 | 2026-05-26 | Strengthen agent-team worker start guard | uncommitted |
+| 16 | 2026-05-26 | Harden agent-team review contract | uncommitted |
 | 15 | 2026-05-25 | 补齐 test:all 模板测试断言 | uncommitted |
 | 14 | 2026-05-25 | 修复 npm 测试断言 | uncommitted |
 | 13 | 2026-05-25 | Optimize workflow documentation | handoff-no-commit |
