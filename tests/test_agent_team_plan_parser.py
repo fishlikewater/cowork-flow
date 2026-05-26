@@ -61,6 +61,20 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.assertIn("T001-quality-reviewer", dispatch)
         self.assertIn("recommended_agent: implementer", dispatch)
 
+    def test_prepare_accepts_two_hash_task_headings(self) -> None:
+        self.plan_file.write_text(
+            SAMPLE_PLAN.read_text(encoding="utf-8").replace("### Task", "## Task"),
+            encoding="utf-8",
+        )
+
+        result = self.run_agent_team("prepare", str(self.task_dir), "--plan", str(self.plan_file))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        dispatch = (self.task_dir / "agent-team" / "dispatch-plan.yaml").read_text(encoding="utf-8")
+        self.assertIn("T001-implementer", dispatch)
+        self.assertIn("T002-implementer", dispatch)
+        self.assertIn("T003-implementer", dispatch)
+
     def test_prepare_uses_agent_prompt_and_matching_registry_fields(self) -> None:
         (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(
             "default_adapter: manual\n"

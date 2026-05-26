@@ -39,6 +39,18 @@ class AgentTeamDocsTest(unittest.TestCase):
             self.assertIn("agent-team-execution", skill)
             self.assertIn("agent-team complete", skill)
 
+    def test_agent_team_execution_skill_requires_codex_spawn_agent_when_available(self) -> None:
+        for path in (
+            ROOT / ".agent" / "skills" / "agent-team-execution" / "SKILL.md",
+            TEMPLATE / ".agent" / "skills" / "agent-team-execution" / "SKILL.md",
+        ):
+            skill = path.read_text(encoding="utf-8")
+            self.assertIn("spawn_agent", skill)
+            self.assertIn("wait_agent", skill)
+            self.assertIn("close_agent", skill)
+            self.assertIn("multi_agent", skill)
+            self.assertIn("Only fall back to manual", skill)
+
     def test_template_agents_mentions_agent_team_runtime(self) -> None:
         agents = (TEMPLATE / "AGENTS.md").read_text(encoding="utf-8")
 

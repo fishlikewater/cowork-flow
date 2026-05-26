@@ -13,10 +13,6 @@ agents:
       - code
       - test
     file_patterns:
-      - "src/**"
-      - "template/**"
-      - "tests/**"
-      - "test/**"
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
@@ -32,10 +28,6 @@ agents:
       - test
       - verification
     file_patterns:
-      - "tests/**"
-      - "test/**"
-      - "src/**"
-      - "template/**"
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
@@ -52,10 +44,6 @@ agents:
       - bugfix
       - code
     file_patterns:
-      - "src/**"
-      - "template/**"
-      - "tests/**"
-      - "test/**"
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
@@ -71,10 +59,6 @@ agents:
       - review
       - documentation
     file_patterns:
-      - ".cowork-flow/changes/**"
-      - ".cowork-flow/plans/**"
-      - "README.md"
-      - "template/**"
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
@@ -91,10 +75,6 @@ agents:
       - review
       - verification
     file_patterns:
-      - "src/**"
-      - "template/**"
-      - "tests/**"
-      - "test/**"
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
@@ -110,10 +90,6 @@ agents:
       - docs
       - documentation
     file_patterns:
-      - "README.md"
-      - "AGENTS.md"
-      - ".cowork-flow/**/*.md"
-      - ".agent/skills/**"
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
@@ -130,11 +106,6 @@ agents:
       - release
       - review
     file_patterns:
-      - "package.json"
-      - "package-lock.json"
-      - "scripts/**"
-      - "README.md"
-      - ".cowork-flow/changes/**"
     risk_limits:
       max_parallel_write_conflicts: 0
     prompt: |
