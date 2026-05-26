@@ -3,6 +3,10 @@ name: start
 description: Use when starting or resuming work in a project that uses the cowork-flow template, after context compression, or before any request that may modify repository files. Initialize session context and route work into the L0/L1/L2 workflow.
 ---
 
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific assignment, skip this skill.
+</SUBAGENT-STOP>
+
 # Start Session
 
 Use this skill as the entrypoint for cowork-flow projects.
@@ -80,4 +84,3 @@ When resuming after a long task, a new session, or context compression:
 2. Follow `RESUME CHECKLIST` from `resume.py`.
 3. Read only the current PRD, current plan status, and the jsonl references needed for the current phase.
 4. Do not bulk-read `.cowork-flow/spec/`, all plans, all tasks, or workspace journals.
-

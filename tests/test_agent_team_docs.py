@@ -39,6 +39,16 @@ class AgentTeamDocsTest(unittest.TestCase):
             self.assertIn("agent-team-execution", skill)
             self.assertIn("agent-team complete", skill)
 
+    def test_start_skill_skips_for_dispatched_subagents(self) -> None:
+        for path in (
+            ROOT / ".agent" / "skills" / "start" / "SKILL.md",
+            TEMPLATE / ".agent" / "skills" / "start" / "SKILL.md",
+        ):
+            skill = path.read_text(encoding="utf-8")
+            self.assertIn("<SUBAGENT-STOP>", skill)
+            self.assertIn("If you were dispatched as a subagent", skill)
+            self.assertIn("skip this skill", skill)
+
     def test_agent_team_execution_skill_uses_codex_subagent_orchestration_language(self) -> None:
         for path in (
             ROOT / ".agent" / "skills" / "agent-team-execution" / "SKILL.md",

@@ -121,6 +121,8 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.assertIn("Report exact files and verification commands.", assignment)
         self.assertIn("Spawn target agent type: worker", assignment)
         self.assertIn("Spawn one worker agent for this assignment", assignment)
+        self.assertIn("You are already the dispatched worker for this assignment.", assignment)
+        self.assertIn("Do not run the project start-session workflow", assignment)
 
     def test_prepare_treats_agent_registry_fields_as_optional(self) -> None:
         (self.repo / ".cowork-flow" / "agent-team" / "agents.yaml").write_text(

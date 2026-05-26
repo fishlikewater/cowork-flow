@@ -479,6 +479,10 @@ def render_assignment_prompt(assignment: dict[str, object]) -> str:
         "",
         f"Spawn one {agent_type} agent for this assignment. Use this file as the complete worker prompt.",
         "",
+        "You are already the dispatched worker for this assignment.",
+        "Do not run the project start-session workflow or try to spawn another worker from this prompt.",
+        "Treat this file as the complete worker brief unless you are blocked and need one specific missing fact.",
+        "",
     ]
     agent_prompt = assignment.get("agent_prompt")
     if isinstance(agent_prompt, str) and agent_prompt.strip():
