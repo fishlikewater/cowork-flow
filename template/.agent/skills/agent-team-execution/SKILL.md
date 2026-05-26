@@ -39,8 +39,10 @@ Do not invoke `superpowers:subagent-driven-development` from this skill. Agent-t
 ### Fresh Worker Per Assignment
 
 - Spawn one agent per ready assignment. Use the assignment's `agent_type` as the Codex spawn target; built-in Codex agent types include `default`, `worker`, and `explorer`, and project or personal custom agents may add more.
+- Do not request a full-history fork when you also specify `agent_type`. In Codex hosts that expose real subagent dispatch tools, full-history fork cannot be combined with `agent_type` and the spawn call will be rejected.
 - Treat `recommended_agent` as the agent-team registry match and prompt source, not as the Codex spawn target unless it also names a real Codex custom agent.
 - Spawn a fresh worker for each ready assignment. Do not reuse the main agent context as the worker context.
+- When the host offers fork controls, prefer a fresh child thread with explicit prompt context over inherited full history. Put the assignment Markdown, write boundary, and any needed task facts directly in the worker prompt.
 - Use `agent-team/assignments/<assignment-id>.md` as the worker prompt body.
 - Add this scene-setting to every worker prompt: it is not alone in the codebase, it must respect the listed write boundary, it must not revert other agents' edits, and it must report changed files plus exact verification commands.
 - Dispatch multiple ready assignments in parallel only after confirming their write files do not overlap. If they overlap, dispatch them sequentially or repair the dependency graph.
