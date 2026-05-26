@@ -1,14 +1,20 @@
 # Agent Team Codex Dispatch Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make agent-team parse current writing-plans task headings and clearly require real Codex subagent dispatch when multi-agent support is enabled.
+**Goal:** Make agent-team parse current writing-plans task headings and align Codex dispatch guidance with the official subagent documentation and observed runtime behavior.
 
-**Architecture:** Keep `agent-team` as a coordinator-dispatched runtime: Python generates assignments and state, while the main agent performs Codex `spawn_agent` / `wait_agent` / `close_agent` calls. Parser compatibility is a minimal regex change applied to both project and template copies.
+**Architecture:** Keep `agent-team` as a coordinator-dispatched runtime: Python generates assignments and state, while the main agent asks Codex to spawn child agents through natural-language orchestration prompts. The runtime must treat visible child-thread evidence as the success condition, rather than trusting final-answer wording.
 
 **Tech Stack:** Python standard library, unittest, Markdown skill documentation.
 
-**Current Execution Status:** Task 1 and Task 2 implemented; change validation and agent-team regression tests passed.
+## Current Execution Status
+
+- `2026-05-26`: Parser compatibility for `## Task N:` and `### Task N:` implemented in root and template runtimes.
+- `2026-05-26`: Final-verification terminal-task dependency rule implemented so end-state tasks do not become first-batch ready.
+- `2026-05-26`: `agent-team-execution` rewritten to use official Codex natural-language orchestration wording, plus a subagent evidence gate that blocks false-positive recording when no child-thread evidence exists.
+- `2026-05-26`: Real Codex experiments run with `codex exec --json` showed no child-agent events for the standard `Spawn one explorer agent...` prompt under the current runtime/provider, so the skill now requires explicit runtime evidence before `record-result` / `record-review`.
+- `2026-05-26`: Verification passed with `npm run test:all`.
 
 ---
 
@@ -39,7 +45,7 @@ Run: `python3 -m unittest tests.test_agent_team_plan_parser.AgentTeamPlanParserT
 
 Expected after implementation: pass.
 
-### Task 2: Document Codex Spawn-Agent Protocol
+### Task 2: Document Codex Dispatch Protocol
 
 **Files:**
 - Modify: `tests/test_agent_team_docs.py`
@@ -48,20 +54,20 @@ Expected after implementation: pass.
 
 - [x] **Step 1: Write failing documentation regression test**
 
-Assert root and template `agent-team-execution` skills mention `spawn_agent`, `wait_agent`, `close_agent`, `multi_agent`, and the manual fallback boundary.
+Assert root and template `agent-team-execution` skills describe fresh worker dispatch, worker result handling, Codex orchestration wording, `agent_type` / `recommended_agent` usage, and the runtime evidence boundary for true subagent execution.
 
 - [x] **Step 2: Run test and verify failure**
 
-Run: `python3 -m unittest tests.test_agent_team_docs.AgentTeamDocsTest.test_agent_team_execution_skill_requires_codex_spawn_agent_when_available -v`
+Run: `python3 -m unittest tests.test_agent_team_docs.AgentTeamDocsTest.test_agent_team_execution_skill_uses_codex_subagent_orchestration_language -v`
 
-Expected before implementation: fail because the skill only says to dispatch ready assignments generically.
+Expected before implementation: fail because the skill still described deprecated literal tool names or lacked the evidence gate.
 
 - [x] **Step 3: Update skill instructions**
 
-State that Codex with `[features] multi_agent = true` must dispatch ready assignments with `spawn_agent`, collect results with `wait_agent`, and call `close_agent`; manual fallback is allowed only when those tools are unavailable.
+State that agent-team should use official Codex natural-language orchestration prompts, map `agent_type` to real Codex agent names, and require visible child-thread or job evidence before recording assignment outcomes.
 
 - [x] **Step 4: Run test and verify pass**
 
-Run: `python3 -m unittest tests.test_agent_team_docs.AgentTeamDocsTest.test_agent_team_execution_skill_requires_codex_spawn_agent_when_available -v`
+Run: `python3 -m unittest tests.test_agent_team_docs.AgentTeamDocsTest.test_agent_team_execution_skill_uses_codex_subagent_orchestration_language -v`
 
 Expected after implementation: pass.
