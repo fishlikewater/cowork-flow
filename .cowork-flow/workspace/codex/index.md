@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 17
-- **Last Active**: 2026-05-26
+- **Total Sessions**: 18
+- **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~552 | Current |
+| `journal-1.md` | ~584 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 18 | 2026-05-27 | Harden worker-scoped agent-team context | uncommitted |
 | 17 | 2026-05-26 | Strengthen agent-team worker start guard | uncommitted |
 | 16 | 2026-05-26 | Harden agent-team review contract | uncommitted |
 | 15 | 2026-05-25 | 补齐 test:all 模板测试断言 | uncommitted |

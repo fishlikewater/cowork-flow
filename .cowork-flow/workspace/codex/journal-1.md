@@ -550,3 +550,35 @@ After user review, replaced the soft SUBAGENT-STOP hint with a top-of-message CO
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 18: Harden worker-scoped agent-team context
+
+**Date**: 2026-05-27
+**Task**: Harden worker-scoped agent-team context
+
+### Summary
+
+Added assignment-scoped allowedContext, blocked premature worker-report outbox writes, documented worker context handling, fixed Windows verification blockers, and verified with npm run test:all.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `uncommitted` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete
