@@ -582,3 +582,35 @@ Added assignment-scoped allowedContext, blocked premature worker-report outbox w
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 19: Implement subagent safe recovery
+
+**Date**: 2026-05-27
+**Task**: Implement subagent safe recovery
+
+### Summary
+
+Added explicit execution authority gates, generic subagent scoped recovery, start preflight guidance, and doctor safety checks; verified with npm run test:all.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `uncommitted` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, current task is complete

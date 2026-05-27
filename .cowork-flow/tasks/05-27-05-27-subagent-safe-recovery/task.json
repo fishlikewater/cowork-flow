@@ -1,0 +1,21 @@
+{
+  "id": "05-27-subagent-safe-recovery",
+  "name": "05-27-subagent-safe-recovery",
+  "title": "Subagent safe recovery",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-27",
+  "completedAt": null,
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
