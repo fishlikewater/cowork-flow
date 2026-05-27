@@ -13,7 +13,7 @@
 ## Current Execution Status
 
 - Baseline: `npm run test:all` passed before implementation on 2026-05-26.
-- Status: extending implementation after user review. The previous plain-language `<SUBAGENT-STOP>` hint was too soft, so worker briefs now start with `<COWORK-FLOW-WORKER>`, the start skill recognizes that marker, and agent-team execution requires bounded waits plus `adapter_failed` retry when a child starts the main-session flow or returns no valid report. The follow-up hardening adds worker host identity for reviewers plus `worker-report` outbox and coordinator `collect`.
+- Status: complete on 2026-05-27. Added assignment-scoped `allowedContext`, worker resume context display, pending-assignment `worker-report` rejection, Windows-safe workflow/release tests, and repo-relative missing-link validation. Completed five review/refactor iterations and full verification.
 - Parallelism: not using agent-team for this change because parser/runtime/prompt/tests are tightly coupled and require a short TDD loop in the same files.
 
 ---
@@ -215,6 +215,6 @@ python3 -m unittest tests.test_agent_team_plan_parser tests.test_agent_team_stat
 
 Observed after implementation: 41 tests passed.
 
-- [ ] **Step 4: Run full verification and record session**
+- [x] **Step 4: Run full verification and record session**
 
-Run focused full agent-team suite, `npm run test:all`, and `change validate`; then record the session and mark this follow-up complete.
+Ran focused full agent-team suite, `npm run test:all`, and `change validate 05-26-agent-team-review-contract` on 2026-05-27. Observed: focused tests passed, `npm run test:all` passed with Windows shell-only release tests skipped, and change validation passed.

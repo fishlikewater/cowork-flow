@@ -10,8 +10,10 @@ from pathlib import Path
 from .paths import DIR_WORKFLOW, get_repo_root
 
 
+MODE_NONE = "none"
 MODE_COORDINATOR = "coordinator"
 MODE_WORKER = "worker"
+MODE_SUBAGENT = "subagent"
 
 
 class ExecutionContextError(ValueError):
@@ -20,20 +22,31 @@ class ExecutionContextError(ValueError):
 
 @dataclass(frozen=True)
 class ExecutionContext:
-    mode: str = MODE_COORDINATOR
+    mode: str = MODE_NONE
     assignment: str | None = None
     task_dir: str | None = None
     prompt_file: str | None = None
     context_file: str | None = None
+    title: str | None = None
+    role: str | None = None
+    goal: str | None = None
 
     @property
     def is_worker(self) -> bool:
         return self.mode == MODE_WORKER
 
     @property
+    def is_coordinator(self) -> bool:
+        return self.mode == MODE_COORDINATOR
+
+    @property
+    def is_subagent(self) -> bool:
+        return self.mode == MODE_SUBAGENT
+
+    @property
     def is_default(self) -> bool:
         return (
-            self.mode == MODE_COORDINATOR
+            self.mode == MODE_NONE
             and self.assignment is None
             and self.task_dir is None
             and self.prompt_file is None
@@ -70,7 +83,7 @@ def _build_parser(
     context_file_flag: str,
 ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(add_help=add_help)
-    parser.add_argument(mode_flag, choices=[MODE_COORDINATOR, MODE_WORKER], help=argparse.SUPPRESS)
+    parser.add_argument(mode_flag, choices=[MODE_NONE, MODE_COORDINATOR, MODE_WORKER, MODE_SUBAGENT], help=argparse.SUPPRESS)
     parser.add_argument(assignment_flag, help=argparse.SUPPRESS)
     parser.add_argument(task_dir_flag, help=argparse.SUPPRESS)
     parser.add_argument(prompt_file_flag, help=argparse.SUPPRESS)
@@ -112,13 +125,16 @@ def _context_from_values(
     if context_file:
         file_data = _load_context_file(context_file)
 
-    resolved_mode = _strip(mode) or _strip(file_data.get("mode")) or MODE_COORDINATOR
-    if resolved_mode not in {MODE_COORDINATOR, MODE_WORKER}:
+    resolved_mode = _strip(mode) or _strip(file_data.get("mode")) or MODE_NONE
+    if resolved_mode not in {MODE_NONE, MODE_COORDINATOR, MODE_WORKER, MODE_SUBAGENT}:
         raise ExecutionContextError(f"unsupported execution mode: {resolved_mode}")
 
     resolved_assignment = _strip(assignment) or _strip(file_data.get("assignment"))
     resolved_task_dir = _strip(task_dir) or _strip(file_data.get("taskDir"))
     resolved_prompt_file = _strip(prompt_file) or _strip(file_data.get("promptFile"))
+    resolved_title = _strip(file_data.get("title"))
+    resolved_role = _strip(file_data.get("role"))
+    resolved_goal = _strip(file_data.get("goal"))
 
     if resolved_mode == MODE_WORKER:
         if not resolved_task_dir or not resolved_assignment:
@@ -129,8 +145,14 @@ def _context_from_values(
             resolved_prompt_file = (
                 f"{resolved_task_dir}/agent-team/assignments/{resolved_assignment}.md"
             )
+    elif resolved_mode == MODE_SUBAGENT:
+        if not resolved_title:
+            raise ExecutionContextError("subagent mode requires title (pass --context-file from subagent init)")
+    elif resolved_mode == MODE_COORDINATOR:
+        if resolved_assignment or resolved_prompt_file:
+            raise ExecutionContextError("assignment-scoped execution fields require worker mode")
     elif resolved_assignment or resolved_task_dir or resolved_prompt_file:
-        raise ExecutionContextError("assignment-scoped execution fields require worker mode")
+        raise ExecutionContextError("scoped execution fields require worker, coordinator, or subagent mode")
 
     return ExecutionContext(
         mode=resolved_mode,
@@ -138,6 +160,9 @@ def _context_from_values(
         task_dir=resolved_task_dir,
         prompt_file=resolved_prompt_file,
         context_file=_strip(context_file),
+        title=resolved_title,
+        role=resolved_role,
+        goal=resolved_goal,
     )
 
 
@@ -233,6 +258,18 @@ def build_worker_resume_text(
             f"- Read worker brief: {context.prompt_file or '(missing prompt file)'}",
         ]
     )
+    context_data = _load_context_file(context.context_file) if context.context_file else {}
+    allowed_context = context_data.get("allowedContext")
+    if isinstance(allowed_context, list) and allowed_context:
+        lines.extend(["", "## Allowed context"])
+        for item in allowed_context:
+            if not isinstance(item, dict):
+                continue
+            file_value = item.get("file")
+            reason = item.get("reason")
+            if isinstance(file_value, str) and file_value.strip():
+                suffix = f" - {reason}" if isinstance(reason, str) and reason.strip() else ""
+                lines.append(f"- {file_value}{suffix}")
     if context.task_dir and (repo_root / context.task_dir / "prd.md").is_file():
         lines.append(f"- Read task PRD: {context.task_dir}/prd.md")
     lines.extend(
@@ -250,4 +287,76 @@ def build_worker_resume_text(
             "========================================",
         ]
     )
+    return "\n".join(lines)
+
+
+def build_subagent_resume_text(
+    context: ExecutionContext,
+    repo_root: Path | None = None,
+) -> str:
+    if repo_root is None:
+        repo_root = get_repo_root()
+    context_data = _load_context_file(context.context_file) if context.context_file else {}
+    allowed_context = context_data.get("allowedContext")
+    forbidden_actions = context_data.get("forbiddenActions")
+    status_file = context_data.get("statusFile")
+    events_file = context_data.get("eventsFile")
+    lines = [
+        "========================================",
+        "COWORK-FLOW SUBAGENT RESUME",
+        "========================================",
+        "Use this only for a delegated subagent's own scoped recovery.",
+        "Do not switch back into the coordinator workflow from this entrypoint.",
+        "",
+        "## SUBAGENT CONTEXT",
+        f"Mode: {context.mode}",
+        f"Title: {context.title or 'unknown'}",
+        f"Role: {context.role or 'unknown'}",
+        f"Goal: {context.goal or 'unknown'}",
+    ]
+    if context.context_file:
+        lines.append(f"Context file: {context.context_file}")
+    if isinstance(allowed_context, list) and allowed_context:
+        lines.extend(["", "## Allowed context"])
+        for item in allowed_context:
+            if isinstance(item, str) and item.strip():
+                lines.append(f"- {item.strip()}")
+            elif isinstance(item, dict):
+                file_value = item.get("file")
+                reason = item.get("reason")
+                if isinstance(file_value, str) and file_value.strip():
+                    suffix = f" - {reason}" if isinstance(reason, str) and reason.strip() else ""
+                    lines.append(f"- {file_value}{suffix}")
+    if isinstance(forbidden_actions, list) and forbidden_actions:
+        lines.extend(["", "## Forbidden actions"])
+        for action in forbidden_actions:
+            if isinstance(action, str) and action.strip():
+                lines.append(f"- {action.strip()}")
+    if isinstance(status_file, str) and status_file.strip():
+        status_path = repo_root / status_file
+        if status_path.is_file():
+            try:
+                status = json.loads(status_path.read_text(encoding="utf-8"))
+                lines.extend(["", "## Current status", f"Status: {status.get('status', 'unknown')}"])
+                note = status.get("note")
+                if isinstance(note, str) and note.strip():
+                    lines.append(f"Note: {note}")
+            except (json.JSONDecodeError, OSError):
+                lines.extend(["", "## Current status", f"Status file unreadable: {status_file}"])
+    if isinstance(events_file, str) and events_file.strip():
+        events_path = repo_root / events_file
+        if events_path.is_file():
+            events = events_path.read_text(encoding="utf-8").splitlines()[-5:]
+            if events:
+                lines.extend(["", "## Recent events"])
+                lines.extend(f"- {event}" for event in events)
+    lines.extend([
+        "",
+        "## RULES",
+        "- Read only prompt-named files and allowed context unless you ask for more context.",
+        "- Do not run task start, agent-team next, collect, retry, complete, or unscoped resume.",
+        "- Stop only with success, needs_context, or blocked status evidence.",
+        "",
+        "========================================",
+    ])
     return "\n".join(lines)

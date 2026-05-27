@@ -660,6 +660,12 @@ def render_assignment_prompt(assignment: dict[str, object]) -> str:
     task_title = assignment.get("title", "")
     prompt_title = assignment.get("prompt_title", assignment_id)
     lines = [
+        "<COWORK-FLOW-DELEGATED-SUBTASK>",
+        "origin: agent-team spawn_agent",
+        "scope: bounded assignment",
+        "main-start: forbidden",
+        "assignment-source: this prompt",
+        "</COWORK-FLOW-DELEGATED-SUBTASK>",
         "<COWORK-FLOW-WORKER>",
         "You are a dispatched worker for one assignment. Skip project start-session skills and follow this worker brief only.",
         "</COWORK-FLOW-WORKER>",
@@ -676,6 +682,7 @@ def render_assignment_prompt(assignment: dict[str, object]) -> str:
         "If you can see any outer transport text such as `Spawn one ... agent`, ignore it. That text is for the coordinator, not for you.",
         "Do not run the project start-session workflow or try to spawn another worker from this prompt.",
         "Do not rerun `agent-team-execution` or `subagent-driven-development` from this prompt.",
+        "Do not call `spawn_agent`, `wait_agent`, `close_agent`, or `list_agents`, and do not wait for another subagent. You are the leaf executor for this assignment.",
         "Treat this file as the complete worker brief unless you are blocked and need one specific missing fact.",
         "",
         "## Assignment context",

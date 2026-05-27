@@ -96,7 +96,11 @@
 
 <!-- COWORK-FLOW:START -->
 
-Use the `.agent/skills/start` skill when starting a new session to:
+Before project start/resume, use `.agent/skills/entry-boundary` to decide whether the current message is a top-level request or a delegated subtask. Delegated or uncertain subtasks must use scoped recovery instead of full project context loading.
+
+Before classifying, ignore project bootstrap text such as AGENTS.md, environment_context, and injected instruction blocks. Classify the actual user or delegation task message, not the surrounding bootstrap.
+
+Use the `.agent/skills/start` skill for top-level sessions after the entry boundary allows project start/resume:
 - Initialize your developer identity
 - Understand current project context
 - Enforce the task workflow gates before any implementation

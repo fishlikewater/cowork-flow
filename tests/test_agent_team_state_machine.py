@@ -38,8 +38,22 @@ class AgentTeamStateMachineTest(unittest.TestCase):
         self.temp.cleanup()
 
     def run_agent_team(self, *args: str) -> subprocess.CompletedProcess[str]:
+        command_args = list(args)
+        coordinator_commands = {
+            "next",
+            "record-spawn",
+            "record-result",
+            "record-review",
+            "collect",
+            "retry",
+            "complete",
+        }
+        if command_args and command_args[0] in coordinator_commands:
+            context_file = self.task_dir / "agent-team" / "coordinator.context.json"
+            if context_file.is_file():
+                command_args = ["--execution-context-file", str(context_file), *command_args]
         return subprocess.run(
-            [sys.executable, str(self.script), *args],
+            [sys.executable, str(self.script), *command_args],
             cwd=self.repo,
             text=True,
             stdout=subprocess.PIPE,
@@ -244,18 +258,12 @@ class AgentTeamStateMachineTest(unittest.TestCase):
         )
 
     def test_collect_rejects_pending_assignment_outbox(self) -> None:
-        review = self.repo / "review.json"
-        review.write_text('{"decision": "approved"}\n', encoding="utf-8")
-        report = self.run_agent_team(
-            "--execution-context-file",
-            str(self.context_file("T001-spec-reviewer")),
-            "worker-report",
-            "--status",
-            "approved",
-            "--file",
-            str(review),
+        outbox_dir = self.task_dir / "agent-team" / "outbox"
+        outbox_dir.mkdir(exist_ok=True)
+        (outbox_dir / "T001-spec-reviewer.json").write_text(
+            '{"version": 1, "source": "worker-report", "assignment": "T001-spec-reviewer", "role": "spec-reviewer", "status": "approved", "payload": {"decision": "approved"}}\n',
+            encoding="utf-8",
         )
-        self.assertEqual(0, report.returncode, report.stderr)
 
         result = self.run_agent_team(
             "collect",
@@ -270,6 +278,23 @@ class AgentTeamStateMachineTest(unittest.TestCase):
         self.assertEqual("pending", status["assignments"]["T001-spec-reviewer"]["status"])
         self.assertEqual(0, status["assignments"]["T001-spec-reviewer"]["attempts"])
 
+    def test_worker_report_rejects_pending_assignment(self) -> None:
+        review = self.repo / "review.json"
+        review.write_text('{"decision": "approved"}\n', encoding="utf-8")
+
+        result = self.run_agent_team(
+            "--execution-context-file",
+            str(self.context_file("T001-spec-reviewer")),
+            "worker-report",
+            "--status",
+            "approved",
+            "--file",
+            str(review),
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("assignment is not ready or in_progress", result.stderr)
+        self.assertFalse((self.task_dir / "agent-team" / "outbox" / "T001-spec-reviewer.json").exists())
     def test_worker_report_approved_review_requires_approved_payload(self) -> None:
         self.run_agent_team(
             "record-result",

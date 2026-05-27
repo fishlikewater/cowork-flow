@@ -93,9 +93,21 @@ class AgentTeamRuntimeTest(unittest.TestCase):
             ("complete", str(task_dir)),
         )
 
+        coordinator_commands = {
+            "next",
+            "record-spawn",
+            "record-result",
+            "record-review",
+            "collect",
+            "retry",
+            "complete",
+        }
         for args in cases:
             with self.subTest(command=args[0]):
-                result = self.run_agent_team(*args)
+                command_args = args
+                if args[0] in coordinator_commands:
+                    command_args = ("--execution-mode", "coordinator", "--execution-task-dir", str(task_dir), *args)
+                result = self.run_agent_team(*command_args)
 
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn("agent_team.enabled", result.stderr)

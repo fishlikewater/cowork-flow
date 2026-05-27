@@ -37,8 +37,22 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.temp.cleanup()
 
     def run_agent_team(self, *args: str) -> subprocess.CompletedProcess[str]:
+        command_args = list(args)
+        coordinator_commands = {
+            "next",
+            "record-spawn",
+            "record-result",
+            "record-review",
+            "collect",
+            "retry",
+            "complete",
+        }
+        if command_args and command_args[0] in coordinator_commands:
+            context_file = self.task_dir / "agent-team" / "coordinator.context.json"
+            if context_file.is_file():
+                command_args = ["--execution-context-file", str(context_file), *command_args]
         return subprocess.run(
-            [sys.executable, str(self.script), *args],
+            [sys.executable, str(self.script), *command_args],
             cwd=self.repo,
             text=True,
             stdout=subprocess.PIPE,
@@ -61,6 +75,16 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         self.assertIn("T001-spec-reviewer", dispatch)
         self.assertIn("T001-quality-reviewer", dispatch)
         self.assertIn("recommended_agent: implementer", dispatch)
+        context = json.loads((runtime / "assignments" / "T001-implementer.context.json").read_text(encoding="utf-8"))
+        self.assertEqual("worker", context["mode"])
+        self.assertEqual("T001-implementer", context["assignment"])
+        self.assertEqual(".cowork-flow/tasks/05-21-demo/agent-team/assignments/T001-implementer.md", context["promptFile"])
+        self.assertIn("allowedContext", context)
+        allowed_context = context["allowedContext"]
+        self.assertIn({"file": ".cowork-flow/tasks/05-21-demo/prd.md", "reason": "Task PRD"}, allowed_context)
+        self.assertIn({"file": ".cowork-flow/tasks/05-21-demo/implement.jsonl", "reason": "Task implementation context index"}, allowed_context)
+        self.assertIn({"file": "AGENTS.md", "reason": "implement context: AGENTS.md"}, allowed_context)
+
 
     def test_prepare_accepts_two_hash_task_headings(self) -> None:
         self.plan_file.write_text(
@@ -117,7 +141,8 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         status = (runtime / "status.json").read_text(encoding="utf-8")
         self.assertIn('"recommended_agent": "python-builder"', status)
         assignment = (runtime / "assignments" / "T001-implementer.md").read_text(encoding="utf-8")
-        self.assertTrue(assignment.startswith("<COWORK-FLOW-WORKER>\n"))
+        self.assertTrue(assignment.startswith("<COWORK-FLOW-DELEGATED-SUBTASK>\n"))
+        self.assertIn("<COWORK-FLOW-WORKER>", assignment)
         self.assertIn("# Implement: Add shared helper\n", assignment)
         self.assertIn("Assignment ID: T001-implementer", assignment)
         self.assertIn("## Agent prompt", assignment)
