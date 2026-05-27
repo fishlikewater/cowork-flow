@@ -7,6 +7,7 @@ import argparse
 
 from common.execution_context import (
     build_internal_execution_context_parser,
+    build_subagent_resume_text,
     build_worker_resume_text,
     execution_context_from_namespace,
 )
@@ -29,6 +30,10 @@ def main(argv: list[str] | None = None) -> int:
         print("Do not switch back into the coordinator workflow from this entrypoint.")
         print("")
         print(build_worker_resume_text(context))
+        return 0
+
+    if context.is_subagent:
+        print(build_subagent_resume_text(context))
         return 0
 
     print("========================================")

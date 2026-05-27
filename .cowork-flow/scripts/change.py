@@ -161,10 +161,17 @@ def _normalize_archive_metadata(repo_root: Path, change_dir: Path) -> None:
         _write_metadata(change_dir, metadata)
 
 
+
+def _display_path(repo_root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
 def _validate_link(repo_root: Path, metadata: dict[str, object], field: str, base_dir: str) -> str | None:
     target = _resolve_link(repo_root, base_dir, metadata.get(field))
     if target is not None and not target.exists():
-        return f"{field} points to missing path: {target}"
+        return f"{field} points to missing path: {_display_path(repo_root, target)}"
     return None
 
 

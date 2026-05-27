@@ -234,6 +234,16 @@ GATED_COMMANDS = {
     "complete",
 }
 WORKER_ALLOWED_COMMANDS = {"worker-report"}
+COORDINATOR_REQUIRED_COMMANDS = {
+    "next",
+    "record-spawn",
+    "record-result",
+    "record-review",
+    "collect",
+    "retry",
+    "complete",
+}
+COORDINATOR_CAPABILITIES = [f"agent-team:{command}" for command in sorted(COORDINATOR_REQUIRED_COMMANDS)]
 
 
 def _agent_team_config_dir(repo_root: Path) -> Path:
@@ -263,6 +273,49 @@ def _task_ready(task_dir: Path) -> list[str]:
         if not path.is_file() or not path.read_text(encoding="utf-8").strip():
             missing.append(name)
     return missing
+
+
+def _relative_to_repo(repo_root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _task_context_entries(task_dir: Path, task_dir_relative: str) -> list[dict[str, str]]:
+    entries = [
+        {"file": f"{task_dir_relative}/prd.md", "reason": "Task PRD"},
+        {"file": f"{task_dir_relative}/implement.jsonl", "reason": "Task implementation context index"},
+        {"file": f"{task_dir_relative}/check.jsonl", "reason": "Task check context index"},
+        {"file": f"{task_dir_relative}/debug.jsonl", "reason": "Task debug context index"},
+    ]
+    seen = {entry["file"] for entry in entries}
+    for name, label in (
+        ("implement.jsonl", "implement context"),
+        ("check.jsonl", "check context"),
+        ("debug.jsonl", "debug context"),
+    ):
+        context_index = task_dir / name
+        if not context_index.is_file():
+            continue
+        for raw_line in context_index.read_text(encoding="utf-8").splitlines():
+            stripped = raw_line.strip()
+            if not stripped:
+                continue
+            try:
+                item = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            file_value = item.get("file") if isinstance(item, dict) else None
+            if not isinstance(file_value, str) or not file_value.strip():
+                continue
+            file_path = file_value.strip()
+            if file_path in seen:
+                continue
+            seen.add(file_path)
+            reason = item.get("reason") if isinstance(item.get("reason"), str) else file_path
+            entries.append({"file": file_path, "reason": f"{label}: {reason}"})
+    return entries
 
 
 def _runtime_dir(task_dir: Path) -> Path:
@@ -488,10 +541,8 @@ def cmd_prepare(args: argparse.Namespace) -> int:
 
     registry = load_agent_registry(_agent_team_config_dir(repo_root) / "agents.yaml")
     dispatch_plan = build_dispatch_plan(tasks, registry)
-    try:
-        task_dir_relative = task_dir.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        task_dir_relative = str(task_dir)
+    task_dir_relative = _relative_to_repo(repo_root, task_dir)
+    allowed_context = _task_context_entries(task_dir, task_dir_relative)
     for assignment in dispatch_plan["assignments"]:
         assignment_id = str(assignment["id"])
         assignment["worker_context_file"] = (
@@ -506,6 +557,15 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     )
     write_json(runtime_dir / "status.json", build_initial_status(dispatch_plan))
     write_json(runtime_dir / "metrics.json", build_initial_metrics(dispatch_plan))
+    write_json(
+        runtime_dir / "coordinator.context.json",
+        {
+            "mode": "coordinator",
+            "kind": "agent-team-coordinator",
+            "taskDir": task_dir_relative,
+            "capabilities": COORDINATOR_CAPABILITIES,
+        },
+    )
     write_json(adapters_dir / f"{dispatch_plan['adapter']}.json", build_adapter_payload(dispatch_plan))
 
     for assignment in dispatch_plan["assignments"]:
@@ -520,6 +580,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
                 "taskDir": task_dir_relative,
                 "assignment": assignment["id"],
                 "promptFile": assignment["worker_prompt_file"],
+                "allowedContext": allowed_context,
             },
         )
 
@@ -672,6 +733,13 @@ def cmd_worker_report(args: argparse.Namespace) -> int:
         return 1
 
     assignment = assignments[assignment_id]
+    if assignment.get("status") not in {"ready", "in_progress"}:
+        print(
+            f"Error: assignment is not ready or in_progress: {assignment_id} status={assignment.get('status', 'unknown')}",
+            file=sys.stderr,
+        )
+        return 1
+
     role = str(assignment.get("role", ""))
     if not _validate_status("worker-report", args.status, _role_statuses(role)):
         return 1
@@ -894,6 +962,18 @@ def main() -> int:
                 f"agent-team {args.command}",
                 "Workers must not inspect or mutate agent-team coordinator state.",
             ),
+            file=sys.stderr,
+        )
+        return 2
+    if execution_context.is_subagent and args.command in COORDINATOR_REQUIRED_COMMANDS:
+        print(
+            f"Error: agent-team {args.command} requires coordinator execution context",
+            file=sys.stderr,
+        )
+        return 2
+    if args.command in COORDINATOR_REQUIRED_COMMANDS and not execution_context.is_coordinator:
+        print(
+            f"Error: agent-team {args.command} requires coordinator execution context",
             file=sys.stderr,
         )
         return 2

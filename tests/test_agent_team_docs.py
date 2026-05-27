@@ -50,6 +50,11 @@ class AgentTeamDocsTest(unittest.TestCase):
             self.assertIn("<COWORK-FLOW-WORKER>", skill)
             self.assertIn("current user message", skill)
             self.assertIn("skip this skill", skill)
+            self.assertIn("HARD ENTRY GATE", skill)
+            self.assertIn("MAIN_SESSION", skill)
+            self.assertIn("DELEGATED_SUBTASK", skill)
+            self.assertIn("UNCERTAIN", skill)
+            self.assertIn("scoped recovery", skill)
 
     def test_agent_team_execution_skill_uses_codex_subagent_orchestration_language(self) -> None:
         for path in (
@@ -92,8 +97,54 @@ class AgentTeamDocsTest(unittest.TestCase):
             self.assertIn("Only fall back to manual", skill)
             self.assertIn("worker host identity", skill)
             self.assertIn("coordinator collects the persisted outbox", skill)
+            self.assertIn("allowedContext", skill)
+            self.assertIn("assignment-scoped context", skill)
+            self.assertIn("ready or in_progress", skill)
             self.assertNotIn("Use this wording for each ready batch", skill)
             self.assertNotIn("Spawn one <agent_type> agent per ready assignment", skill)
+
+
+    def test_entry_boundary_skill_routes_delegated_subtasks_to_scoped_recovery(self) -> None:
+        for path in (
+            ROOT / ".agent" / "skills" / "entry-boundary" / "SKILL.md",
+            TEMPLATE / ".agent" / "skills" / "entry-boundary" / "SKILL.md",
+        ):
+            skill = path.read_text(encoding="utf-8")
+            self.assertIn("MAIN_SESSION", skill)
+            self.assertIn("DELEGATED_SUBTASK", skill)
+            self.assertIn("UNCERTAIN", skill)
+            self.assertIn("scoped recovery", skill)
+            self.assertIn("--context-file <context.json> resume", skill)
+            self.assertIn("must not activate tasks", skill)
+            self.assertIn("<COWORK-FLOW-DELEGATED-SUBTASK>", skill)
+            self.assertIn("Delegated signals override main-session signals", skill)
+            self.assertIn("concrete task, working directory, commands, and output format", skill)
+            self.assertIn("assignment prompt is the first source of truth", skill)
+            self.assertIn("Classify the actual user or delegation task message", skill)
+            self.assertIn("leaf executor", skill)
+            self.assertIn("Do not call spawn_agent, wait_agent, close_agent, or list_agents", skill)
+            self.assertIn("unless the assignment explicitly says coordinator", skill)
+
+    def test_start_skill_is_hard_gate_after_entry_boundary(self) -> None:
+        for path in (
+            ROOT / ".agent" / "skills" / "start" / "SKILL.md",
+            TEMPLATE / ".agent" / "skills" / "start" / "SKILL.md",
+        ):
+            skill = path.read_text(encoding="utf-8")
+            self.assertIn("HARD ENTRY GATE", skill)
+            self.assertIn("Do not reclassify delegated work as MAIN_SESSION", skill)
+            self.assertIn("If entry-boundary returned DELEGATED_SUBTASK or UNCERTAIN, stop immediately", skill)
+            self.assertIn("<COWORK-FLOW-DELEGATED-SUBTASK>", skill)
+
+    def test_agents_keeps_entry_boundary_guidance_lightweight(self) -> None:
+        for path in (ROOT / "AGENTS.md", TEMPLATE / "AGENTS.md"):
+            agents = path.read_text(encoding="utf-8")
+            self.assertIn(".agent/skills/entry-boundary", agents)
+            self.assertIn("Delegated or uncertain subtasks must use scoped recovery", agents)
+            self.assertIn("Classify the actual user or delegation task message", agents)
+            self.assertNotIn("worker-report", agents)
+            self.assertNotIn("coordinator.context.json", agents)
+            self.assertNotIn("outbox", agents)
 
     def test_template_agents_mentions_agent_team_runtime(self) -> None:
         agents = (TEMPLATE / "AGENTS.md").read_text(encoding="utf-8")

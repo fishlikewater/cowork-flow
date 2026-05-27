@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -9,6 +9,25 @@ import { promisify } from 'node:util';
 import { packageRoot } from '../src/lib/paths.js';
 
 const execFileAsync = promisify(execFile);
+const shellRunner = (() => {
+  for (const candidate of ['sh', 'bash']) {
+    try {
+      execFileSync(candidate, ['-c', 'exit 0'], { stdio: 'ignore' });
+      return candidate;
+    } catch {
+      // Try next shell candidate.
+    }
+  }
+  return null;
+})();
+
+function skipWithoutShell(t) {
+  if (shellRunner === null) {
+    t.skip('POSIX shell is not available on this host');
+    return true;
+  }
+  return false;
+}
 
 async function createReleaseProject(t) {
   const tempDir = await mkdtemp(join(tmpdir(), 'cowork-flow-release-project-'));
@@ -100,10 +119,11 @@ async function readCommands(logPath) {
 }
 
 test('release shell script defaults to patch and syncs template version before publish', async (t) => {
+  if (skipWithoutShell(t)) return;
   const fakeCommands = await createFakeCommands(t);
   const repo = await createReleaseProject(t);
 
-  const result = await execFileAsync('sh', ['scripts/release.sh'], {
+  const result = await execFileAsync(shellRunner, ['scripts/release.sh'], {
     cwd: repo,
     env: fakeCommands.env,
     encoding: 'utf8'
@@ -122,10 +142,11 @@ test('release shell script defaults to patch and syncs template version before p
 });
 
 test('release shell script accepts explicit npm version type', async (t) => {
+  if (skipWithoutShell(t)) return;
   const fakeCommands = await createFakeCommands(t);
   const repo = await createReleaseProject(t);
 
-  await execFileAsync('sh', ['scripts/release.sh', 'minor'], {
+  await execFileAsync(shellRunner, ['scripts/release.sh', 'minor'], {
     cwd: repo,
     env: fakeCommands.env,
     encoding: 'utf8'
@@ -143,10 +164,11 @@ test('release shell script accepts explicit npm version type', async (t) => {
 });
 
 test('release shell script stops after the first failed command', async (t) => {
+  if (skipWithoutShell(t)) return;
   const fakeCommands = await createFakeCommands(t, { failWhen: 'npm run test:all' });
 
   await assert.rejects(
-    execFileAsync('sh', ['scripts/release.sh', 'major'], {
+    execFileAsync(shellRunner, ['scripts/release.sh', 'major'], {
       cwd: await createReleaseProject(t),
       env: fakeCommands.env,
       encoding: 'utf8'
@@ -158,10 +180,11 @@ test('release shell script stops after the first failed command', async (t) => {
 });
 
 test('release shell script rejects unsupported version type', async (t) => {
+  if (skipWithoutShell(t)) return;
   const fakeCommands = await createFakeCommands(t);
 
   await assert.rejects(
-    execFileAsync('sh', ['scripts/release.sh', 'banana'], {
+    execFileAsync(shellRunner, ['scripts/release.sh', 'banana'], {
       cwd: await createReleaseProject(t),
       env: fakeCommands.env,
       encoding: 'utf8'

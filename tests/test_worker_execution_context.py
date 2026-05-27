@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -46,8 +47,11 @@ class WorkerExecutionContextTest(unittest.TestCase):
         )
 
     def run_workflow(self, *args: str) -> subprocess.CompletedProcess[str]:
+        command = [str(self.workflow), *args]
+        if os.name == "nt":
+            command = [str(self.repo / ".cowork-flow" / "run.cmd"), *args]
         return subprocess.run(
-            ["/bin/sh", str(self.workflow), *args],
+            command,
             cwd=self.repo,
             text=True,
             stdout=subprocess.PIPE,
@@ -92,6 +96,10 @@ class WorkerExecutionContextTest(unittest.TestCase):
         self.assertIn("COWORK-FLOW WORKER RESUME", result.stdout)
         self.assertIn("Assignment: T001-implementer", result.stdout)
         self.assertIn("Read worker brief", result.stdout)
+        self.assertIn("Allowed context", result.stdout)
+        self.assertIn(".cowork-flow/tasks/05-21-demo/prd.md", result.stdout)
+        self.assertIn("implement context: AGENTS.md", result.stdout)
+
         self.assertNotIn("agent-team next", result.stdout)
         self.assertNotIn("Current task set to", result.stdout)
 
@@ -173,7 +181,8 @@ class WorkerExecutionContextTest(unittest.TestCase):
         self.assertTrue(context_path.is_file())
 
         prompt_text = prompt_path.read_text(encoding="utf-8")
-        self.assertTrue(prompt_text.startswith("<COWORK-FLOW-WORKER>\n"), prompt_text[:120])
+        self.assertTrue(prompt_text.startswith("<COWORK-FLOW-DELEGATED-SUBTASK>\n"), prompt_text[:120])
+        self.assertIn("<COWORK-FLOW-WORKER>", prompt_text)
         self.assertIn("</COWORK-FLOW-WORKER>", prompt_text)
         self.assertIn("You are already the dispatched worker for this assignment.", prompt_text)
         self.assertIn(

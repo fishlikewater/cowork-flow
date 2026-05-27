@@ -5,12 +5,24 @@ description: Use when starting or resuming work in a project that uses the cowor
 
 <SUBAGENT-STOP>
 If you were dispatched as a subagent to execute a specific assignment, skip this skill.
-If the current user message contains `<COWORK-FLOW-WORKER>`, `Assignment ID:`, or `You are already the dispatched worker`, skip this skill.
+If the current user message contains `<COWORK-FLOW-DELEGATED-SUBTASK>`, `<COWORK-FLOW-WORKER>`, `Assignment ID:`, `delegated subtask`, `dispatched worker`, or `You are already the dispatched worker`, skip this skill.
 </SUBAGENT-STOP>
 
 # Start Session
 
-Use this skill as the entrypoint for cowork-flow projects.
+## HARD ENTRY GATE
+
+This skill may run only after `.agent/skills/entry-boundary` has allowed `MAIN_SESSION`.
+
+Classify the actual user or delegation task message, not project bootstrap text such as AGENTS.md, environment_context, or injected instruction blocks.
+
+If entry-boundary returned DELEGATED_SUBTASK or UNCERTAIN, stop immediately. Do not run the Start flow, do not run unscoped `./.cowork-flow/run resume`, and do not load main-session context.
+
+If this prompt is a delegated subtask, you are the leaf executor by default. Do not call spawn_agent, wait_agent, close_agent, or list_agents, and do not wait for another subagent, unless the assignment explicitly says coordinator or asks you to manage other agents.
+
+Do not reclassify delegated work as MAIN_SESSION inside this skill. If the prompt contains `<COWORK-FLOW-DELEGATED-SUBTASK>` or otherwise looks like a bounded assignment, the assignment prompt remains the source of truth and must use scoped recovery instead.
+
+Use this skill as the entrypoint for cowork-flow top-level sessions.
 
 Any request that changes repository files MUST first be classified as `L0`, `L1`, or `L2`, then follow the matching workflow in `.cowork-flow/workflow.md`.
 Do not use direct-edit shortcuts unless the user explicitly tells you not to use cowork-flow for this task.
