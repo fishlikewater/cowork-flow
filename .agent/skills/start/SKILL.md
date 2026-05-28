@@ -5,7 +5,7 @@ description: Use when starting or resuming work in a project that uses the cowor
 
 <SUBAGENT-STOP>
 If you were dispatched as a subagent to execute a specific assignment, skip this skill.
-If the current user message contains `<COWORK-FLOW-DELEGATED-SUBTASK>`, `<COWORK-FLOW-WORKER>`, `Assignment ID:`, `delegated subtask`, `dispatched worker`, or `You are already the dispatched worker`, skip this skill.
+If the current user message contains `Assignment ID:`, `delegated subtask`, `dispatched worker`, or `You are already the dispatched worker`, skip this skill.
 </SUBAGENT-STOP>
 
 # Start Session
@@ -20,7 +20,7 @@ If entry-boundary returned DELEGATED_SUBTASK or UNCERTAIN, stop immediately. Do 
 
 If this prompt is a delegated subtask, you are the leaf executor by default. Do not call spawn_agent, wait_agent, close_agent, or list_agents, and do not wait for another subagent, unless the assignment explicitly says coordinator or asks you to manage other agents.
 
-Do not reclassify delegated work as MAIN_SESSION inside this skill. If the prompt contains `<COWORK-FLOW-DELEGATED-SUBTASK>` or otherwise looks like a bounded assignment, the assignment prompt remains the source of truth and must use scoped recovery instead.
+Do not reclassify delegated work as MAIN_SESSION inside this skill. If the prompt looks like a bounded assignment, the assignment prompt remains the source of truth and must use scoped recovery instead.
 
 Use this skill as the entrypoint for cowork-flow top-level sessions.
 

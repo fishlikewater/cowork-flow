@@ -141,21 +141,14 @@ class AgentTeamPlanParserTest(unittest.TestCase):
         status = (runtime / "status.json").read_text(encoding="utf-8")
         self.assertIn('"recommended_agent": "python-builder"', status)
         assignment = (runtime / "assignments" / "T001-implementer.md").read_text(encoding="utf-8")
-        self.assertTrue(assignment.startswith("<COWORK-FLOW-DELEGATED-SUBTASK>\n"))
-        self.assertIn("<COWORK-FLOW-WORKER>", assignment)
         self.assertIn("# Implement: Add shared helper\n", assignment)
         self.assertIn("Assignment ID: T001-implementer", assignment)
         self.assertIn("## Agent prompt", assignment)
         self.assertIn("Build the smallest tested Python change.", assignment)
         self.assertIn("Report exact files and verification commands.", assignment)
         self.assertIn("Spawn target agent type: worker", assignment)
-        self.assertIn("You are already the dispatched worker for this assignment.", assignment)
-        self.assertIn("This Markdown file is the worker brief", assignment)
-        self.assertIn("If you can see any outer transport text such as `Spawn one ... agent`, ignore it.", assignment)
-        self.assertIn("Do not run the project start-session workflow", assignment)
-        self.assertIn("Do not rerun `agent-team-execution` or `subagent-driven-development`", assignment)
+        self.assertIn("Treat this file as the complete worker brief", assignment)
         self.assertIn("--context-file", assignment)
-        self.assertIn("Do not run unscoped cowork-flow workflow commands", assignment)
         self.assertIn("## Your job", assignment)
         self.assertIn("Implement exactly this assignment", assignment)
         self.assertIn("## Report format", assignment)
@@ -340,3 +333,6 @@ class AgentTeamPlanParserTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+

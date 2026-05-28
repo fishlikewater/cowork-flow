@@ -93,23 +93,6 @@
     - 如果跟丢上下文，先停下来重新整理。
 
 <!-- COWORK-FLOW:START -->
-
-Before project start/resume, use `.agent/skills/entry-boundary` to decide whether the current message is a top-level request or a delegated subtask. Delegated or uncertain subtasks must use scoped recovery instead of full project context loading.
-
-Before classifying, ignore project bootstrap text such as AGENTS.md, environment_context, and injected instruction blocks. Classify the actual user or delegation task message, not the surrounding bootstrap.
-
-Use the `.agent/skills/start` skill for top-level sessions after the entry boundary allows project start/resume:
-- Initialize your developer identity
-- Understand current project context
-- Enforce the task workflow gates before any implementation
-
-Use `@/.cowork-flow/` to learn:
-- Development workflow (`workflow.md`)
-- Project structure guidelines (`spec/`)
-- Developer workspace (`workspace/`)
-
-Use `@/.agent/skills/` for reusable local skills.
-
-Keep this managed block so cowork-flow updates can refresh the instructions.
-
+`.cowork-flow/workflow.md` — development workflow, task classification (L0/L1/L2)
+`.cowork-flow/spec/` — project specifications
 <!-- COWORK-FLOW:END -->

@@ -14,7 +14,7 @@ Classify the current message as exactly one:
 Classify the actual user or delegation task message, not project bootstrap text such as AGENTS.md, environment_context, or injected instruction blocks. Bootstrap text constrains behavior, but it is not the task being classified.
 
 - `MAIN_SESSION`: the user is directly asking this agent to work in this repository, or explicitly says `not a subagent`, `main agent`, or `run full cowork-flow start`.
-- `DELEGATED_SUBTASK`: the message is delegated work. Strong signals include `<COWORK-FLOW-DELEGATED-SUBTASK>`, `you are a subagent`, `delegated subtask`, `dispatched worker`, `Assignment ID`, `child thread`, `you are explorer`, `you are worker`, `you are reviewer`, `only investigate`, `do not modify files`, or a bounded report format such as `return/output findings`.
+- `DELEGATED_SUBTASK`: the message is delegated work. Strong signals include `you are a subagent`, `delegated subtask`, `dispatched worker`, `Assignment ID`, `child thread`, `you are explorer`, `you are worker`, `you are reviewer`, `only investigate`, `do not modify files`, or a bounded report format such as `return/output findings`.
 - `UNCERTAIN`: neither side is clear.
 
 Delegated signals override main-session signals. If a prompt contains a concrete task, working directory, commands, and output format, treat it as `DELEGATED_SUBTASK` even when repository `AGENTS.md` also mentions top-level start/resume rules.
@@ -26,12 +26,10 @@ When in doubt, choose `UNCERTAIN`. This avoids pulling a delegated subtask into 
 cowork-flow dispatchers SHOULD put this marker at the top of spawned child prompts when they control the prompt shape:
 
 ```text
-<COWORK-FLOW-DELEGATED-SUBTASK>
 origin: spawn_agent
 scope: bounded
 main-start: forbidden
 assignment-source: this prompt
-</COWORK-FLOW-DELEGATED-SUBTASK>
 ```
 
 The marker is a strong signal, not the only signal. Other tools may dispatch subtasks without it; classify those by the bounded task shape above.

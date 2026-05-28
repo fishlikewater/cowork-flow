@@ -6,7 +6,6 @@
 
 `agent-team prepare` 生成的 `agent-team/assignments/<assignment-id>.md` 必须继续包含通用 worker 护栏：
 
-- 文件开头必须包含 `<COWORK-FLOW-WORKER>` 标记，供 agent 和 start 技能快速识别这是 assignment-scoped worker prompt。
 - assignment id、role、recommended agent、agent type、task title。
 - `You are already the dispatched worker for this assignment.`
 - 明确 `.agent/skills/start` 的 `<SUBAGENT-STOP>` guard 适用于该子线程，看到 start-session 指令时必须跳过主会话入口。

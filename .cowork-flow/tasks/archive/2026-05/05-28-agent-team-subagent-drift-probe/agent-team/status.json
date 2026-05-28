@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "current_batch": 1,
+  "assignments": {
+    "T001-implementer": {
+      "status": "done",
+      "attempts": 3,
+      "depends_on": [],
+      "role": "implementer",
+      "task": "T001",
+      "recommended_agent": "implementer",
+      "agent_type": "worker",
+      "spawn_task_name": "/root/implement_documentation_scope_probe_retry2",
+      "spawn_nickname": "Ramanujan",
+      "agent_prompt": "Use the assignment brief as the source of truth; do not broaden scope.\nImplement the smallest change that satisfies the approved plan and tests.\nWrite or update focused regression tests first, keep edits scoped, and report exact verification commands.",
+      "last_retry_reason": "needs_clearer_scope_after_done_with_concerns"
+    },
+    "T001-spec-reviewer": {
+      "status": "ready",
+      "attempts": 0,
+      "depends_on": [
+        "T001-implementer"
+      ],
+      "role": "spec-reviewer",
+      "task": "T001",
+      "recommended_agent": "spec-reviewer",
+      "agent_type": "worker",
+      "spawn_task_name": null,
+      "spawn_nickname": null,
+      "agent_prompt": "Use the assignment brief as the source of truth; review only the requested scope.\nReview the proposal, spec, plan, and task PRD for contradictions, missing acceptance criteria,\nunclear scope, and behavior that is not covered by verification."
+    },
+    "T001-quality-reviewer": {
+      "status": "pending",
+      "attempts": 0,
+      "depends_on": [
+        "T001-spec-reviewer"
+      ],
+      "role": "quality-reviewer",
+      "task": "T001",
+      "recommended_agent": "quality-reviewer",
+      "agent_type": "worker",
+      "spawn_task_name": null,
+      "spawn_nickname": null,
+      "agent_prompt": "Use the assignment brief as the source of truth; review only the requested scope.\nReview the diff for correctness, maintainability, focused scope, and meaningful tests.\nCheck that verification evidence matches the behavior being claimed."
+    },
+    "T002-implementer": {
+      "status": "done_with_concerns",
+      "attempts": 3,
+      "depends_on": [],
+      "role": "implementer",
+      "task": "T002",
+      "recommended_agent": "implementer",
+      "agent_type": "worker",
+      "spawn_task_name": "/root/implement_node_cli_surface_probe_retry2",
+      "spawn_nickname": "Euclid",
+      "agent_prompt": "Use the assignment brief as the source of truth; do not broaden scope.\nImplement the smallest change that satisfies the approved plan and tests.\nWrite or update focused regression tests first, keep edits scoped, and report exact verification commands.",
+      "last_retry_reason": "needs_rtk_from_first_command_after_done_with_concerns"
+    },
+    "T002-spec-reviewer": {
+      "status": "pending",
+      "attempts": 0,
+      "depends_on": [
+        "T002-implementer"
+      ],
+      "role": "spec-reviewer",
+      "task": "T002",
+      "recommended_agent": "spec-reviewer",
+      "agent_type": "worker",
+      "spawn_task_name": null,
+      "spawn_nickname": null,
+      "agent_prompt": "Use the assignment brief as the source of truth; review only the requested scope.\nReview the proposal, spec, plan, and task PRD for contradictions, missing acceptance criteria,\nunclear scope, and behavior that is not covered by verification."
+    },
+    "T002-quality-reviewer": {
+      "status": "pending",
+      "attempts": 0,
+      "depends_on": [
+        "T002-spec-reviewer"
+      ],
+      "role": "quality-reviewer",
+      "task": "T002",
+      "recommended_agent": "quality-reviewer",
+      "agent_type": "worker",
+      "spawn_task_name": null,
+      "spawn_nickname": null,
+      "agent_prompt": "Use the assignment brief as the source of truth; review only the requested scope.\nReview the diff for correctness, maintainability, focused scope, and meaningful tests.\nCheck that verification evidence matches the behavior being claimed."
+    }
+  }
+}

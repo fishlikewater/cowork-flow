@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -256,6 +257,47 @@ class AgentTeamStateMachineTest(unittest.TestCase):
             {"changedFiles": ["src/shared/helper.js"]},
             json.loads(copied.read_text(encoding="utf-8")),
         )
+
+    def test_parallel_collect_preserves_all_assignment_state(self) -> None:
+        payloads = {}
+        for assignment_id in ("T001-implementer", "T003-implementer"):
+            payload = self.repo / f"{assignment_id}.json"
+            payload.write_text(json.dumps({"assignment": assignment_id}) + "\n", encoding="utf-8")
+            payloads[assignment_id] = payload
+            report = self.run_agent_team(
+                "--execution-context-file",
+                str(self.context_file(assignment_id)),
+                "worker-report",
+                "--status",
+                "done",
+                "--file",
+                str(payload),
+            )
+            self.assertEqual(0, report.returncode, report.stderr)
+
+        def collect(assignment_id: str) -> subprocess.CompletedProcess[str]:
+            return self.run_agent_team("collect", str(self.task_dir), "--assignment", assignment_id)
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(collect, payloads))
+
+        for result in results:
+            self.assertEqual(0, result.returncode, result.stderr)
+
+        status = self.status_data()
+        self.assertEqual("done", status["assignments"]["T001-implementer"]["status"])
+        self.assertEqual("done", status["assignments"]["T003-implementer"]["status"])
+        self.assertEqual("ready", status["assignments"]["T001-spec-reviewer"]["status"])
+        self.assertEqual("ready", status["assignments"]["T003-spec-reviewer"]["status"])
+        metrics = self.metrics_data()
+        self.assertEqual(2, metrics["attempts"])
+        self.assertEqual(2, metrics["successfulAssignments"])
+        for assignment_id in payloads:
+            copied = self.task_dir / "agent-team" / "results" / f"{assignment_id}-attempt-1.json"
+            self.assertEqual(
+                {"assignment": assignment_id},
+                json.loads(copied.read_text(encoding="utf-8")),
+            )
 
     def test_collect_rejects_pending_assignment_outbox(self) -> None:
         outbox_dir = self.task_dir / "agent-team" / "outbox"

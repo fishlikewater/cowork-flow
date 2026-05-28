@@ -272,14 +272,24 @@ def build_worker_resume_text(
                 lines.append(f"- {file_value}{suffix}")
     if context.task_dir and (repo_root / context.task_dir / "prd.md").is_file():
         lines.append(f"- Read task PRD: {context.task_dir}/prd.md")
+    lines.append("- Follow only the files, steps, and commands named in the worker brief.")
+
+    forbidden_actions = context_data.get("forbiddenActions")
+    if isinstance(forbidden_actions, list) and forbidden_actions:
+        lines.extend(["", "## FORBIDDEN ACTIONS"])
+        for action in forbidden_actions:
+            if isinstance(action, str) and action.strip():
+                lines.append(f"- {action.strip()}")
+
     lines.extend(
         [
-            "- Follow only the files, steps, and commands named in the worker brief.",
             "",
             "## RULES",
-            "- Do not switch into coordinator behavior from this worker-scoped context.",
+            "- You are the leaf executor for this assignment. Do not switch into coordinator behavior.",
             "- Do not run unscoped cowork-flow workflow commands from this worker thread.",
-            "- If you are blocked, report NEEDS_CONTEXT instead of activating tasks or coordinating other workers.",
+            "- If you are blocked by missing context, unclear scope, or ambiguous requirements, report NEEDS_CONTEXT",
+            "  with the specific missing fact. The coordinator will update the assignment context and retry.",
+            "- Do not activate tasks, coordinate other workers, or elevate your own permissions.",
             "",
             f"Use scoped cowork-flow commands like: ./{DIR_WORKFLOW}/run --context-file "
             f"{context.context_file or '<assignment-context.json>'} resume",

@@ -181,22 +181,6 @@ class WorkerExecutionContextTest(unittest.TestCase):
         self.assertTrue(context_path.is_file())
 
         prompt_text = prompt_path.read_text(encoding="utf-8")
-        self.assertTrue(prompt_text.startswith("<COWORK-FLOW-DELEGATED-SUBTASK>\n"), prompt_text[:120])
-        self.assertIn("<COWORK-FLOW-WORKER>", prompt_text)
-        self.assertIn("</COWORK-FLOW-WORKER>", prompt_text)
-        self.assertIn("You are already the dispatched worker for this assignment.", prompt_text)
-        self.assertIn(
-            "If AGENTS.md or `.agent/skills/start` tells you to start a session, the `<SUBAGENT-STOP>` guard applies to you: skip that start skill.",
-            prompt_text,
-        )
-        self.assertIn(
-            "If you can see any outer transport text such as `Spawn one ... agent`, ignore it.",
-            prompt_text,
-        )
-        self.assertIn(
-            "Do not run unscoped cowork-flow workflow commands such as `./.cowork-flow/run resume`, `task start`, or `agent-team next`.",
-            prompt_text,
-        )
         self.assertNotIn("Spawn one worker agent for this assignment", prompt_text)
 
         relative_context = context_path.relative_to(self.repo).as_posix()
@@ -230,3 +214,54 @@ class WorkerExecutionContextTest(unittest.TestCase):
 
         self.assertNotEqual(0, start_result.returncode)
         self.assertIn("worker mode cannot run `task start`", start_result.stderr)
+
+    def test_worker_context_contains_forbidden_actions(self) -> None:
+        _, context_file = self.prepare_worker_context()
+
+        context_data = json.loads(context_file.read_text(encoding="utf-8"))
+
+        self.assertIn("forbiddenActions", context_data)
+        forbidden = context_data["forbiddenActions"]
+        self.assertIsInstance(forbidden, list)
+        self.assertIn("full-start", forbidden)
+        self.assertIn("unscoped-resume", forbidden)
+        self.assertIn("task-start", forbidden)
+        self.assertIn("agent-team:next", forbidden)
+        self.assertIn("agent-team:collect", forbidden)
+        self.assertIn("agent-team:retry", forbidden)
+        self.assertIn("agent-team:complete", forbidden)
+
+    def test_worker_resume_renders_forbidden_actions(self) -> None:
+        _, context_file = self.prepare_worker_context()
+
+        result = self.run_runner("--context-file", str(context_file), "resume")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("COWORK-FLOW WORKER RESUME", result.stdout)
+        self.assertIn("FORBIDDEN ACTIONS", result.stdout)
+        self.assertIn("full-start", result.stdout)
+        self.assertIn("agent-team:next", result.stdout)
+        self.assertIn("agent-team:collect", result.stdout)
+
+    def test_worker_resume_does_not_print_main_session_checklist(self) -> None:
+        _, context_file = self.prepare_worker_context()
+
+        result = self.run_runner("--context-file", str(context_file), "resume")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("RESUME CHECKLIST", result.stdout)
+        self.assertNotIn("CURRENT TASK", result.stdout)
+
+    def test_worker_resume_includes_needs_context_guidance(self) -> None:
+        _, context_file = self.prepare_worker_context()
+
+        result = self.run_runner("--context-file", str(context_file), "resume")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("NEEDS_CONTEXT", result.stdout)
+        self.assertIn("leaf executor", result.stdout)
+        self.assertIn("Do not activate tasks, coordinate other workers, or elevate your own permissions", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()

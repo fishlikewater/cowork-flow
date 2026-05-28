@@ -5,9 +5,12 @@
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import shutil
 import sys
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from common.agent_team import (
@@ -221,6 +224,8 @@ RESULT_STATUSES = {"blocked", "done", "done_with_concerns", "needs_context"}
 REVIEW_STATUSES = {"approved", "blocked", "changes_requested", "needs_context"}
 REVIEW_ROLES = {"spec-reviewer", "quality-reviewer"}
 MAX_ATTEMPTS = 3
+LOCK_TIMEOUT_SECONDS = 10
+LOCK_POLL_SECONDS = 0.05
 GATED_COMMANDS = {
     "prepare",
     "status",
@@ -327,7 +332,41 @@ def _load_json(path: Path) -> dict[str, object]:
 
 
 def _save_json(path: Path, data: dict[str, object]) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temp_path.replace(path)
+
+
+class AgentTeamLockTimeout(TimeoutError):
+    pass
+
+
+@contextmanager
+def _agent_team_state_lock(task_dir: Path):
+    lock_dir = _runtime_dir(task_dir) / ".state.lock"
+    lock_dir.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + LOCK_TIMEOUT_SECONDS
+    while True:
+        try:
+            lock_dir.mkdir()
+            break
+        except FileExistsError as error:
+            if time.monotonic() >= deadline:
+                raise AgentTeamLockTimeout(f"timed out waiting for agent-team state lock: {lock_dir}") from error
+            time.sleep(LOCK_POLL_SECONDS)
+    try:
+        yield
+    finally:
+        try:
+            lock_dir.rmdir()
+        except FileNotFoundError:
+            pass
+
+
+def _lock_error(error: AgentTeamLockTimeout) -> int:
+    print(f"Error: {error}", file=sys.stderr)
+    return 1
 
 
 def _load_status(task_dir: Path) -> dict[str, object]:
@@ -457,6 +496,31 @@ def _record_assignment(
     payload_data: object | None = None,
     verb: str = "recorded",
 ) -> int:
+    try:
+        with _agent_team_state_lock(task_dir):
+            return _record_assignment_unlocked(
+                task_dir,
+                assignment_id,
+                status,
+                payload_file,
+                review=review,
+                payload_data=payload_data,
+                verb=verb,
+            )
+    except AgentTeamLockTimeout as error:
+        return _lock_error(error)
+
+
+def _record_assignment_unlocked(
+    task_dir: Path,
+    assignment_id: str,
+    status: str,
+    payload_file: str | None,
+    *,
+    review: bool,
+    payload_data: object | None = None,
+    verb: str = "recorded",
+) -> int:
     status_data = _load_status(task_dir)
     metrics = _load_metrics(task_dir)
     assignments = status_data["assignments"]
@@ -572,6 +636,15 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         prompt_path = assignments_dir / f"{assignment['id']}.md"
         context_path = assignments_dir / f"{assignment['id']}.context.json"
         prompt_path.write_text(render_assignment_prompt(assignment), encoding="utf-8")
+        worker_forbidden = [
+            "full-start",
+            "unscoped-resume",
+            "task-start",
+            "agent-team:next",
+            "agent-team:collect",
+            "agent-team:retry",
+            "agent-team:complete",
+        ]
         write_json(
             context_path,
             {
@@ -581,6 +654,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
                 "assignment": assignment["id"],
                 "promptFile": assignment["worker_prompt_file"],
                 "allowedContext": allowed_context,
+                "forbiddenActions": worker_forbidden,
             },
         )
 
@@ -651,28 +725,30 @@ def cmd_next(args: argparse.Namespace) -> int:
 def cmd_record_spawn(args: argparse.Namespace) -> int:
     task_dir = _resolve_path(get_repo_root(), args.task_dir)
     try:
-        status_data = _load_status(task_dir)
+        with _agent_team_state_lock(task_dir):
+            status_data = _load_status(task_dir)
+            assignments = status_data["assignments"]
+            if args.assignment not in assignments:
+                print(f"Error: assignment not found: {args.assignment}", file=sys.stderr)
+                return 1
+
+            assignment = assignments[args.assignment]
+            if assignment.get("status") != "ready":
+                print(
+                    f"Error: assignment is not ready: {args.assignment} status={assignment.get('status', 'unknown')}",
+                    file=sys.stderr,
+                )
+                return 1
+
+            assignment["status"] = "in_progress"
+            assignment["spawn_task_name"] = args.task_name
+            assignment["spawn_nickname"] = args.nickname.strip() if args.nickname else None
+            _save_json(_runtime_dir(task_dir) / "status.json", status_data)
     except FileNotFoundError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
-
-    assignments = status_data["assignments"]
-    if args.assignment not in assignments:
-        print(f"Error: assignment not found: {args.assignment}", file=sys.stderr)
-        return 1
-
-    assignment = assignments[args.assignment]
-    if assignment.get("status") != "ready":
-        print(
-            f"Error: assignment is not ready: {args.assignment} status={assignment.get('status', 'unknown')}",
-            file=sys.stderr,
-        )
-        return 1
-
-    assignment["status"] = "in_progress"
-    assignment["spawn_task_name"] = args.task_name
-    assignment["spawn_nickname"] = args.nickname.strip() if args.nickname else None
-    _save_json(_runtime_dir(task_dir) / "status.json", status_data)
+    except AgentTeamLockTimeout as error:
+        return _lock_error(error)
 
     label = _assignment_display_label(args.assignment, assignment)
     print(
@@ -774,89 +850,93 @@ def cmd_worker_report(args: argparse.Namespace) -> int:
 def cmd_collect(args: argparse.Namespace) -> int:
     task_dir = _resolve_path(get_repo_root(), args.task_dir)
     try:
-        status_data = _load_status(task_dir)
+        with _agent_team_state_lock(task_dir):
+            status_data = _load_status(task_dir)
+            assignments = status_data["assignments"]
+            if args.assignment not in assignments:
+                print(f"Error: assignment not found: {args.assignment}", file=sys.stderr)
+                return 1
+
+            outbox = _outbox_file(task_dir, args.assignment)
+            if not outbox.is_file():
+                print(f"Error: worker report not found: {outbox}", file=sys.stderr)
+                return 1
+
+            try:
+                report = _load_json(outbox)
+            except json.JSONDecodeError:
+                print(f"Error: worker report is not valid JSON: {outbox}", file=sys.stderr)
+                return 1
+
+            if report.get("assignment") != args.assignment:
+                print("Error: worker report assignment does not match requested assignment", file=sys.stderr)
+                return 1
+
+            assignment = assignments[args.assignment]
+            if assignment.get("status") not in {"ready", "in_progress"}:
+                print(
+                    f"Error: assignment is not ready or in_progress: {args.assignment} status={assignment.get('status', 'unknown')}",
+                    file=sys.stderr,
+                )
+                return 1
+
+            role = str(assignment.get("role", ""))
+            if report.get("role") != role:
+                print("Error: worker report role does not match assignment role", file=sys.stderr)
+                return 1
+
+            status = report.get("status")
+            if not isinstance(status, str) or not _validate_status("collect", status, _role_statuses(role)):
+                return 1
+
+            payload = report.get("payload")
+            if role in REVIEW_ROLES and status == "approved" and not _validate_approved_review_payload_data(payload):
+                return 1
+
+            return _record_assignment_unlocked(
+                task_dir,
+                args.assignment,
+                status,
+                None,
+                review=role in REVIEW_ROLES,
+                payload_data=payload,
+                verb="collected",
+            )
     except FileNotFoundError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
-
-    assignments = status_data["assignments"]
-    if args.assignment not in assignments:
-        print(f"Error: assignment not found: {args.assignment}", file=sys.stderr)
-        return 1
-
-    outbox = _outbox_file(task_dir, args.assignment)
-    if not outbox.is_file():
-        print(f"Error: worker report not found: {outbox}", file=sys.stderr)
-        return 1
-
-    try:
-        report = _load_json(outbox)
-    except json.JSONDecodeError:
-        print(f"Error: worker report is not valid JSON: {outbox}", file=sys.stderr)
-        return 1
-
-    if report.get("assignment") != args.assignment:
-        print("Error: worker report assignment does not match requested assignment", file=sys.stderr)
-        return 1
-
-    assignment = assignments[args.assignment]
-    if assignment.get("status") not in {"ready", "in_progress"}:
-        print(
-            f"Error: assignment is not ready or in_progress: {args.assignment} status={assignment.get('status', 'unknown')}",
-            file=sys.stderr,
-        )
-        return 1
-
-    role = str(assignment.get("role", ""))
-    if report.get("role") != role:
-        print("Error: worker report role does not match assignment role", file=sys.stderr)
-        return 1
-
-    status = report.get("status")
-    if not isinstance(status, str) or not _validate_status("collect", status, _role_statuses(role)):
-        return 1
-
-    payload = report.get("payload")
-    if role in REVIEW_ROLES and status == "approved" and not _validate_approved_review_payload_data(payload):
-        return 1
-
-    return _record_assignment(
-        task_dir,
-        args.assignment,
-        status,
-        None,
-        review=role in REVIEW_ROLES,
-        payload_data=payload,
-        verb="collected",
-    )
+    except AgentTeamLockTimeout as error:
+        return _lock_error(error)
 
 
 def cmd_retry(args: argparse.Namespace) -> int:
     task_dir = _resolve_path(get_repo_root(), args.task_dir)
     try:
-        status_data = _load_status(task_dir)
-        metrics = _load_metrics(task_dir)
+        with _agent_team_state_lock(task_dir):
+            status_data = _load_status(task_dir)
+            metrics = _load_metrics(task_dir)
+            assignments = status_data["assignments"]
+            if args.assignment not in assignments:
+                print(f"Error: assignment not found: {args.assignment}", file=sys.stderr)
+                return 1
+
+            assignment = assignments[args.assignment]
+            assignment["attempts"] = int(assignment.get("attempts", 0)) + 1
+            assignment["last_retry_reason"] = args.reason
+            if int(assignment["attempts"]) >= MAX_ATTEMPTS:
+                assignment["status"] = "needs-coordinator-decision"
+            else:
+                assignment["status"] = "ready"
+
+            metrics["attempts"] = int(metrics.get("attempts", 0)) + 1
+            metrics["failedAssignments"] = int(metrics.get("failedAssignments", 0)) + 1
+            _save_json(_runtime_dir(task_dir) / "status.json", status_data)
+            _save_json(_runtime_dir(task_dir) / "metrics.json", metrics)
     except FileNotFoundError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
-
-    assignments = status_data["assignments"]
-    if args.assignment not in assignments:
-        print(f"Error: assignment not found: {args.assignment}", file=sys.stderr)
-        return 1
-
-    assignment = assignments[args.assignment]
-    assignment["attempts"] = int(assignment.get("attempts", 0)) + 1
-    assignment["last_retry_reason"] = args.reason
-    if int(assignment["attempts"]) >= MAX_ATTEMPTS:
-        assignment["status"] = "needs-coordinator-decision"
-    else:
-        assignment["status"] = "ready"
-
-    metrics["attempts"] = int(metrics.get("attempts", 0)) + 1
-    metrics["failedAssignments"] = int(metrics.get("failedAssignments", 0)) + 1
-    _save_json(_runtime_dir(task_dir) / "status.json", status_data)
-    _save_json(_runtime_dir(task_dir) / "metrics.json", metrics)
+    except AgentTeamLockTimeout as error:
+        return _lock_error(error)
     print(f"retry recorded {args.assignment} attempt={assignment['attempts']}")
     return 0
 

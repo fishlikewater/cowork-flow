@@ -27,7 +27,6 @@
 - reviewer prompt 不再包含 `Implement exactly this assignment` 或 `Files changed`。
 - spec reviewer prompt 包含 review-only、acceptance/spec/PRD/plan 检查和 `APPROVED | CHANGES_REQUESTED | BLOCKED | NEEDS_CONTEXT` 报告格式。
 - quality reviewer prompt 包含 code/test/verification review 语义。
-- assignment prompt 以 `<COWORK-FLOW-WORKER>` 标记开头，并明确 `.agent/skills/start` 的 `<SUBAGENT-STOP>` guard 适用于已派发子线程，避免子线程进入主会话恢复流程。
 - assignment prompt 包含 completion protocol，明确最终聊天文本不完成 assignment，worker 必须用 scoped context 写 `worker-report`。
 - spec-reviewer / quality-reviewer assignment 的 `agent_type` 为 `worker`，registry 不能把内建执行链改回 `default` 或自定义 coordinator-like host type。
 - `agent-team-execution` 明确要求 bounded wait；子线程进入 start/resume 或无有效报告时关闭子线程并 `retry --reason adapter_failed`。

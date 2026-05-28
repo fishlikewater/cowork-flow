@@ -1,0 +1,21 @@
+{
+  "id": "agent-team-subagent-drift-probe",
+  "name": "agent-team-subagent-drift-probe",
+  "title": "Agent team subagent drift probe",
+  "description": "Verify agent-team dispatched subagents stay within assignment scope",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P3",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-28",
+  "completedAt": "2026-05-28",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -21,7 +21,7 @@ max_journal_lines: 2000
 # Disabled by default. Set to true before using agent-team runtime commands such
 # as prepare/status/next/record-result/record-review/retry/complete.
 agent_team:
-  enabled: false
+  enabled: true
 
 #-------------------------------------------------------------------------------
 # Task Lifecycle Hooks
