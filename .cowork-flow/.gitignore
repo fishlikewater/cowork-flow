@@ -1,8 +1,8 @@
 # Developer identity (local only)
 .developer
 
-# Current task pointer (each dev works on different task)
-.current-task
+# Session-scoped active task pointers are runtime-only
+.runtime/
 
 # Ralph Loop state file
 .ralph-state.json

@@ -65,7 +65,6 @@ from .paths import (
     DIR_SPEC,
     DIR_SCRIPTS,
     FILE_DEVELOPER,
-    FILE_CURRENT_TASK,
     FILE_TASK_JSON,
     FILE_JOURNAL_PREFIX,
     get_repo_root,
@@ -75,10 +74,5 @@ from .paths import (
     get_workspace_dir,
     get_active_journal_file,
     count_lines,
-    get_current_task,
-    get_current_task_abs,
-    set_current_task,
-    clear_current_task,
-    has_current_task,
     generate_task_date_prefix,
 )

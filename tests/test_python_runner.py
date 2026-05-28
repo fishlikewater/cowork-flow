@@ -105,7 +105,7 @@ class PythonRunnerTest(unittest.TestCase):
         content = PYTHON_RUNNER.read_text(encoding="utf-8")
 
         self.assertIn('"task": "task.py"', content)
-        self.assertIn('"agent-team": "agent_team.py"', content)
+        self.assertNotIn('"agent' + '-team": "agent' + '_team.py"', content)
         self.assertIn('"get-context": "get_context.py"', content)
 
     @POSIX_ONLY
@@ -185,21 +185,6 @@ class PythonRunnerTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
             self.assertEqual(f"{python3} {expected_script} task list", self.read_log(temp_dir)[-1])
-
-    @POSIX_ONLY
-    def test_runner_maps_agent_team_command_to_script(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_name:
-            temp_dir = Path(temp_name)
-            fake_bin = temp_dir / "bin"
-            fake_bin.mkdir()
-            python3 = self.make_fake_python(fake_bin, "python3")
-
-            result = self.run_with_fake_path(temp_dir, ["agent-team", "init"])
-
-            self.assertEqual(0, result.returncode, result.stderr)
-            expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
-            self.assertEqual(f"{python3} {expected_script} agent-team init", self.read_log(temp_dir)[-1])
-
 
 if __name__ == "__main__":
     unittest.main()

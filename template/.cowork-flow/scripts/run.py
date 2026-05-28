@@ -26,13 +26,11 @@ COMMAND_SCRIPTS = {
     "init_developer": "init_developer.py",
     "add-session": "add_session.py",
     "add_session": "add_session.py",
-    "agent-team": "agent_team.py",
-    "agent_team": "agent_team.py",
     "subagent": "subagent.py",
     "doctor": "doctor.py",
 }
 
-CONTEXT_AWARE_COMMANDS = {"resume", "task", "agent-team", "subagent"}
+CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}
 
 
 def print_usage() -> None:
@@ -51,7 +49,6 @@ Common commands:
   get-developer
   init-developer
   add-session
-  agent-team
   subagent
   doctor
 """.rstrip()
