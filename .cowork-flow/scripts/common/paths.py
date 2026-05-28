@@ -33,7 +33,6 @@ DIR_SCRIPTS = "scripts"
 
 # File names
 FILE_DEVELOPER = ".developer"
-FILE_CURRENT_TASK = ".current-task"
 FILE_TASK_JSON = "task.json"
 FILE_JOURNAL_PREFIX = "journal-"
 
@@ -207,123 +206,6 @@ def count_lines(file_path: Path) -> int:
 
 
 # =============================================================================
-# Current Task Management
-# =============================================================================
-
-def _get_current_task_file(repo_root: Path | None = None) -> Path:
-    """Get .current-task file path.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Path to .current-task file.
-    """
-    if repo_root is None:
-        repo_root = get_repo_root()
-    return repo_root / DIR_WORKFLOW / FILE_CURRENT_TASK
-
-
-def get_current_task(repo_root: Path | None = None) -> str | None:
-    """Get current task directory path (relative to repo_root).
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Relative path to current task directory or None.
-    """
-    current_file = _get_current_task_file(repo_root)
-
-    if not current_file.is_file():
-        return None
-
-    try:
-        return current_file.read_text(encoding="utf-8").strip()
-    except (OSError, IOError):
-        return None
-
-
-def get_current_task_abs(repo_root: Path | None = None) -> Path | None:
-    """Get current task directory absolute path.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Absolute path to current task directory or None.
-    """
-    if repo_root is None:
-        repo_root = get_repo_root()
-
-    relative = get_current_task(repo_root)
-    if relative:
-        return repo_root / relative
-    return None
-
-
-def set_current_task(task_path: str, repo_root: Path | None = None) -> bool:
-    """Set current task.
-
-    Args:
-        task_path: Task directory path (relative to repo_root).
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        True on success, False on error.
-    """
-    if repo_root is None:
-        repo_root = get_repo_root()
-
-    if not task_path:
-        return False
-
-    # Verify task directory exists
-    full_path = repo_root / task_path
-    if not full_path.is_dir():
-        return False
-
-    current_file = _get_current_task_file(repo_root)
-
-    try:
-        current_file.write_text(task_path, encoding="utf-8")
-        return True
-    except (OSError, IOError):
-        return False
-
-
-def clear_current_task(repo_root: Path | None = None) -> bool:
-    """Clear current task.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        True on success.
-    """
-    current_file = _get_current_task_file(repo_root)
-
-    try:
-        if current_file.is_file():
-            current_file.unlink()
-        return True
-    except (OSError, IOError):
-        return False
-
-
-def has_current_task(repo_root: Path | None = None) -> bool:
-    """Check if has current task.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        True if current task is set.
-    """
-    return get_current_task(repo_root) is not None
-
-
-# =============================================================================
 # Task ID Generation
 # =============================================================================
 
@@ -347,4 +229,3 @@ if __name__ == "__main__":
     print(f"Tasks dir: {get_tasks_dir(repo)}")
     print(f"Workspace dir: {get_workspace_dir(repo)}")
     print(f"Journal file: {get_active_journal_file(repo)}")
-    print(f"Current task: {get_current_task(repo)}")

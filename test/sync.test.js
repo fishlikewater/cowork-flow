@@ -40,7 +40,8 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
-  await writeFile(join(target, '.cowork-flow', 'agent-team', 'agents.yaml'), 'old agents\n', 'utf8');
+  await mkdir(join(target, '.codex', 'agents'), { recursive: true });
+  await writeFile(join(target, '.codex', 'agents', 'cowork-implement.toml'), 'old agent\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'config.yaml'), 'custom config\n', 'utf8');
   await writeFile(join(target, 'AGENTS.md'), 'custom agents\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', '.version'), '0.1.0\n', 'utf8');
@@ -70,8 +71,8 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(templateRoot, '.cowork-flow', 'workflow.md'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'agent-team', 'agents.yaml')),
-    await readText(join(templateRoot, '.cowork-flow', 'agent-team', 'agents.yaml'))
+    await readText(join(target, '.codex', 'agents', 'cowork-implement.toml')),
+    await readText(join(templateRoot, '.codex', 'agents', 'cowork-implement.toml'))
   );
   if (process.platform !== 'win32') {
     assert.notEqual((await stat(join(target, '.cowork-flow', 'run'))).mode & 0o111, 0);
@@ -165,19 +166,19 @@ test('sync creates missing safe placeholder files', async (t) => {
   assert.match(io.stdout, /created=/);
 });
 
-test('sync refreshes project-level agent-team template files', async (t) => {
+test('sync refreshes project-level cowork agent template files', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target], { io: createIo() }), 0);
-  await mkdir(join(target, '.cowork-flow', 'agent-team'), { recursive: true });
-  await writeFile(join(target, '.cowork-flow', 'agent-team', 'agents.yaml'), 'custom: true\n', 'utf8');
+  await mkdir(join(target, '.codex', 'agents'), { recursive: true });
+  await writeFile(join(target, '.codex', 'agents', 'cowork-check.toml'), 'custom: true\n', 'utf8');
   const io = createIo();
 
   const code = await main(['sync', target], { io });
 
   assert.equal(code, 0);
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'agent-team', 'agents.yaml')),
-    await readText(join(templateRoot, '.cowork-flow', 'agent-team', 'agents.yaml'))
+    await readText(join(target, '.codex', 'agents', 'cowork-check.toml')),
+    await readText(join(templateRoot, '.codex', 'agents', 'cowork-check.toml'))
   );
   assert.match(io.stdout, /updated=/);
 });

@@ -7,4 +7,5 @@ test('internal template files are detected with windows separators', () => {
   assert.equal(isInternalTemplateFile('.superpowers\\using-superpowers\\SKILL.md'), true);
   assert.equal(isInternalTemplateFile('.superpowers/using-superpowers/SKILL.md'), true);
   assert.equal(isInternalTemplateFile('.cowork-flow\\scripts\\change.py'), false);
+  assert.equal(isInternalTemplateFile('.codex\\agents\\cowork-implement.toml'), false);
 });

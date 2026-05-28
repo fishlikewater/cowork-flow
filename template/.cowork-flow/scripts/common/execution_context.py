@@ -142,9 +142,7 @@ def _context_from_values(
                 "worker mode requires task dir and assignment (pass --context-file or --task-dir with --assignment)"
             )
         if not resolved_prompt_file:
-            resolved_prompt_file = (
-                f"{resolved_task_dir}/agent-team/assignments/{resolved_assignment}.md"
-            )
+            raise ExecutionContextError("worker mode requires prompt file")
     elif resolved_mode == MODE_SUBAGENT:
         if not resolved_title:
             raise ExecutionContextError("subagent mode requires title (pass --context-file from subagent init)")
@@ -364,7 +362,7 @@ def build_subagent_resume_text(
         "",
         "## RULES",
         "- Read only prompt-named files and allowed context unless you ask for more context.",
-        "- Do not run task start, agent-team next, collect, retry, complete, or unscoped resume.",
+        "- Do not run task start, task finish, task archive, or unscoped resume.",
         "- Stop only with success, needs_context, or blocked status evidence.",
         "",
         "========================================",

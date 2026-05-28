@@ -9,8 +9,9 @@ Usage:
     ./.cowork-flow/run task add-context <dir> <file> <path> [reason] # Add jsonl entry
     ./.cowork-flow/run task validate <dir>              # Validate jsonl files
     ./.cowork-flow/run task list-context <dir>          # List jsonl entries
-    ./.cowork-flow/run task start <dir>                 # Set as current task
-    ./.cowork-flow/run task finish                      # Clear current task
+    ./.cowork-flow/run task start <dir>                 # Set as current session task
+    ./.cowork-flow/run task current                     # Show current session task
+    ./.cowork-flow/run task finish                      # Clear current session task
     ./.cowork-flow/run task archive <task-name>         # Archive completed task
     ./.cowork-flow/run task list                        # List active tasks
     ./.cowork-flow/run task list-archive [month]        # List archived tasks
@@ -35,20 +36,22 @@ from common.files import (
     write_json_file as _write_json_file,
 )
 from common.git_context import _run_git_command
+from common.active_task import (
+    clear_active_task,
+    clear_task_from_sessions,
+    get_active_task,
+    set_active_task,
+)
 from common.paths import (
     DIR_WORKFLOW,
     DIR_AGENT,
     DIR_TASKS,
     DIR_SPEC,
     DIR_ARCHIVE,
-    FILE_CURRENT_TASK,
     FILE_TASK_JSON,
     get_repo_root,
     get_developer,
     get_tasks_dir,
-    get_current_task,
-    set_current_task,
-    clear_current_task,
     generate_task_date_prefix,
 )
 from common.task_utils import (
@@ -84,30 +87,6 @@ def colored(text: str, color: str) -> str:
     return f"{color}{text}{Colors.NC}"
 
 
-def _get_current_task_file_path(repo_root: Path) -> Path:
-    """Build the absolute path to .current-task."""
-    return repo_root / DIR_WORKFLOW / FILE_CURRENT_TASK
-
-
-def _is_current_task_dir(current_task: str, dir_name: str) -> bool:
-    """Check whether the current-task pointer refers to this task directory."""
-    return Path(current_task).name == dir_name
-
-
-def _clear_current_task_or_report(repo_root: Path, current_task: str) -> bool:
-    """Clear .current-task and print a concrete error on failure."""
-    if clear_current_task(repo_root):
-        return True
-
-    current_file = _get_current_task_file_path(repo_root)
-    print(
-        colored(f"Error: Failed to clear current task file: {current_file}", Colors.RED),
-        file=sys.stderr,
-    )
-    print(f"Current task still points to: {current_task}", file=sys.stderr)
-    return False
-
-
 def _write_json_or_report(path: Path, data: dict, label: str) -> bool:
     """Write JSON data and print a concrete error on failure."""
     if _write_json_file(path, data):
@@ -118,23 +97,6 @@ def _write_json_or_report(path: Path, data: dict, label: str) -> bool:
         file=sys.stderr,
     )
     return False
-
-
-def _restore_current_task_or_report(repo_root: Path, current_task: str) -> bool:
-    """Restore .current-task after a failed archive attempt."""
-    current_file = _get_current_task_file_path(repo_root)
-
-    try:
-        current_file.parent.mkdir(parents=True, exist_ok=True)
-        current_file.write_text(current_task, encoding="utf-8")
-        return True
-    except OSError:
-        print(
-            colored(f"Error: Failed to restore current task file: {current_file}", Colors.RED),
-            file=sys.stderr,
-        )
-        print(f"Original current task was: {current_task}", file=sys.stderr)
-        return False
 
 
 def _build_archived_task_relationship_updates(
@@ -228,8 +190,6 @@ def _rollback_archived_task_or_report(
     task_dir: Path,
     archive_dest: Path,
     task_data: dict | None,
-    repo_root: Path,
-    current_task: str | None = None,
 ) -> None:
     """Try to restore the original task location and metadata after archive failure."""
     print(
@@ -256,10 +216,6 @@ def _rollback_archived_task_or_report(
 
     if task_data and task_dir.is_dir():
         _write_json_or_report(task_dir / FILE_TASK_JSON, task_data, "restored task metadata")
-
-    if current_task:
-        _restore_current_task_or_report(repo_root, current_task)
-
 
 def _finalize_archived_task_metadata(
     archive_dest: Path,
@@ -934,38 +890,64 @@ def cmd_start(args: argparse.Namespace) -> int:
     except ValueError:
         task_dir = str(full_path)
 
-    if set_current_task(task_dir, repo_root):
-        print(colored(f"[OK] Current task set to: {task_dir}", Colors.GREEN))
-        print()
-        print(colored("The hook will now inject context from this task's jsonl files.", Colors.BLUE))
-
-        task_json_path = full_path / FILE_TASK_JSON
-        _run_hooks("after_start", task_json_path, repo_root)
-        return 0
-    else:
-        print(colored("Error: Failed to set current task", Colors.RED))
+    active = set_active_task(repo_root, task_dir)
+    if active is None:
+        print(
+            colored(
+                "Error: Missing session context. Set COWORK_FLOW_CONTEXT_ID or run inside Codex session.",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
         return 1
+
+    print(colored(f"[OK] Current session task set to: {task_dir}", Colors.GREEN))
+    print()
+    print(colored("The hook will now inject context from this task's jsonl files.", Colors.BLUE))
+
+    task_json_path = full_path / FILE_TASK_JSON
+    _run_hooks("after_start", task_json_path, repo_root)
+    return 0
 
 
 def cmd_finish(args: argparse.Namespace) -> int:
     """Clear current task."""
     repo_root = get_repo_root()
-    current = get_current_task(repo_root)
+    active = get_active_task(repo_root)
 
-    if not current:
-        print(colored("No current task set", Colors.YELLOW))
+    if not active.task_path:
+        print(colored("No current task set for this session", Colors.YELLOW))
         return 0
 
     # Resolve task.json path before clearing
-    task_json_path = repo_root / current / FILE_TASK_JSON
+    task_json_path = repo_root / active.task_path / FILE_TASK_JSON
+    clear_active_task(repo_root)
 
-    if not _clear_current_task_or_report(repo_root, current):
-        return 1
-
-    print(colored(f"[OK] Cleared current task (was: {current})", Colors.GREEN))
+    print(colored(f"[OK] Cleared current session task (was: {active.task_path})", Colors.GREEN))
 
     if task_json_path.is_file():
         _run_hooks("after_finish", task_json_path, repo_root)
+    return 0
+
+
+def cmd_current(args: argparse.Namespace) -> int:
+    """Show current session task."""
+    repo_root = get_repo_root()
+    active = get_active_task(repo_root)
+    if not active.context_key:
+        print(
+            colored(
+                "Error: Missing session context. Set COWORK_FLOW_CONTEXT_ID or run inside Codex session.",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    if not active.task_path:
+        print("Current task: (none)")
+        return 0
+    print(f"Current task: {active.task_path}")
+    print(f"Source: {active.source}:{active.context_key}")
     return 0
 
 
@@ -1001,19 +983,9 @@ def cmd_archive(args: argparse.Namespace) -> int:
     if task_json_path.is_file():
         task_data = _read_json_file(task_json_path)
 
-    # Clear if current task
-    cleared_current_task: str | None = None
-    current = get_current_task(repo_root)
-    if current and _is_current_task_dir(current, dir_name):
-        if not _clear_current_task_or_report(repo_root, current):
-            return 1
-        cleared_current_task = current
-
     # Archive
     result = archive_task_complete(task_dir, repo_root)
     if "archived_to" not in result:
-        if cleared_current_task:
-            _restore_current_task_or_report(repo_root, cleared_current_task)
         return 1
 
     archive_dest = Path(result["archived_to"])
@@ -1028,10 +1000,10 @@ def cmd_archive(args: argparse.Namespace) -> int:
             task_dir,
             archive_dest,
             task_data,
-            repo_root,
-            current_task=cleared_current_task,
         )
         return 1
+
+    clear_task_from_sessions(repo_root, f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
 
     archived_json = archive_dest / FILE_TASK_JSON
     year_month = archive_dest.parent.name
@@ -1191,7 +1163,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     """List active tasks."""
     repo_root = get_repo_root()
     tasks_dir = get_tasks_dir(repo_root)
-    current_task = get_current_task(repo_root)
+    current_task = get_active_task(repo_root).task_path
     developer = get_developer(repo_root)
     filter_mine = args.mine
     filter_status = args.status
@@ -1386,11 +1358,14 @@ def main() -> int:
     p_listctx.add_argument("dir", help="Task directory")
 
     # start
-    p_start = subparsers.add_parser("start", help="Set current task")
+    p_start = subparsers.add_parser("start", help="Set current session task")
     p_start.add_argument("dir", help="Task directory")
 
+    # current
+    subparsers.add_parser("current", help="Show current session task")
+
     # finish
-    subparsers.add_parser("finish", help="Clear current task")
+    subparsers.add_parser("finish", help="Clear current session task")
 
     # archive
     p_archive = subparsers.add_parser("archive", help="Archive task")
@@ -1451,6 +1426,7 @@ def main() -> int:
         "validate": cmd_validate,
         "list-context": cmd_list_context,
         "start": cmd_start,
+        "current": cmd_current,
         "finish": cmd_finish,
         "archive": cmd_archive,
         "add-subtask": cmd_add_subtask,

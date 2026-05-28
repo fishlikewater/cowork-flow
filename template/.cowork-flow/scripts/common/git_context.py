@@ -15,6 +15,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .active_task import get_active_task
 from .files import read_json_file as _read_json_file
 from .paths import (
     DIR_SCRIPTS,
@@ -25,7 +26,6 @@ from .paths import (
     FILE_TASK_JSON,
     count_lines,
     get_active_journal_file,
-    get_current_task,
     get_developer,
     get_repo_root,
     get_tasks_dir,
@@ -177,7 +177,7 @@ def _append_recent_commits(lines: list[str], git_snapshot: GitSnapshot) -> None:
 
 def _get_current_task_snapshot(repo_root: Path) -> CurrentTaskSnapshot:
     """Collect current-task metadata once for text and JSON renderers."""
-    current_task = get_current_task(repo_root)
+    current_task = get_active_task(repo_root).task_path
     if not current_task:
         return CurrentTaskSnapshot(path=None, data=None, has_prd=False)
 
@@ -253,13 +253,6 @@ def _task_plan_references(repo_root: Path, snapshot: CurrentTaskSnapshot) -> lis
     return plan_refs
 
 
-def _task_has_agent_team_status(repo_root: Path, snapshot: CurrentTaskSnapshot) -> bool:
-    """Return whether the current task has persisted agent-team runtime state."""
-    if not snapshot.path:
-        return False
-    return (repo_root / snapshot.path / "agent-team" / "status.json").is_file()
-
-
 def _build_resume_checklist(
     repo_root: Path,
     snapshot: CurrentTaskSnapshot,
@@ -270,15 +263,12 @@ def _build_resume_checklist(
     notes: list[str] = []
 
     if not snapshot.path:
-        notes.append("No current task. Use `.agent/skills/start` to classify the next file-changing request.")
+        notes.append("No current task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
         notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; read details only after a task is selected.")
         return {"commands": commands, "readFiles": read_files, "notes": notes}
 
     current_task = snapshot.path
     commands.append(f"./{DIR_WORKFLOW}/run task list-context {current_task}")
-    if _task_has_agent_team_status(repo_root, snapshot):
-        commands.append(f"./{DIR_WORKFLOW}/run agent-team status {current_task}")
-        commands.append(f"./{DIR_WORKFLOW}/run agent-team next {current_task}")
 
     if snapshot.has_prd:
         read_files.append(f"{current_task}/prd.md")
@@ -318,7 +308,7 @@ def _append_resume_checklist(
     lines.append(f"- Recovery entrypoint (rerun only if context is stale): {commands[0]}")
 
     if not snapshot.path:
-        lines.append("- No current task. Run `.agent/skills/start` before editing files.")
+        lines.append("- No current task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
         lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; choose a task first.")
         lines.append("")
         return
@@ -338,13 +328,6 @@ def _append_resume_checklist(
             lines.append(f"- Read current plan status: {plan_file}")
     else:
         lines.append("- No plan reference found in task context; do not search all plans unless needed.")
-
-    agent_team_commands = [
-        command for command in commands if f"./{DIR_WORKFLOW}/run agent-team " in command
-    ]
-    if agent_team_commands:
-        lines.append(f"- Check agent-team status: {agent_team_commands[0]}")
-        lines.append(f"- Continue agent-team dispatch: {agent_team_commands[1]}")
 
     lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; follow JSONL references on demand.")
     lines.append("")

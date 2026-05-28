@@ -13,7 +13,7 @@ Load plan, review critically, execute all tasks, report when complete.
 
 **Note:** Tell your human partner that Superpowers works much better with access to subagents. The quality of its work will be significantly higher if run on a platform with subagent support (such as Claude Code or Codex). If subagents are available, use superpowers:subagent-driven-development instead of this skill.
 
-If the project includes cowork-flow `agent-team` runtime and the plan has independent tasks, prefer `agent-team-execution` so dispatch plans, results, reviews, retries, and metrics are persisted in the task directory.
+If the project includes cowork-flow fixed agents and the plan has independent tasks, dispatch implementation work to `cowork-implement` and verification work to `cowork-check`. The first line of each dispatch must be `Active task: <task-dir>` so the worker can load task context explicitly.
 
 ## The Process
 

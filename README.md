@@ -176,18 +176,15 @@ cowork-flow sync . --dry-run
 ./.cowork-flow/run task start <task-dir>
 ```
 
-执行 plan 时准备 agent team：
+执行 plan 时使用固定 cowork agents：
 
-默认 `agent_team.enabled: false`。运行 `agent-team prepare/status/next/record-result/record-review/retry/complete` 前，先在 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true`。
+主会话负责创建/启动任务、维护计划与收口验证；可并行的实现或检查工作派发给固定角色 agent。派发首行写明当前任务目录：
 
-```bash
-./.cowork-flow/run agent-team init
-./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>
-./.cowork-flow/run agent-team next <task-dir>
-./.cowork-flow/run agent-team complete <task-dir>
+```text
+Active task: <task-dir>
 ```
 
-`agent-team` 命令会生成任务目录内的 dispatch plan、assignments、状态、审阅和 metrics 工件。默认 `codex` 适配器采用主 agent 调度型：脚本生成 Codex-ready 分派文件，主 agent 负责调用子 agent、协调并回写结果。
+默认角色为 `cowork-research`、`cowork-implement`、`cowork-check`，任务上下文由 agent 根据 active task 自行加载。
 
 记录 session：
 

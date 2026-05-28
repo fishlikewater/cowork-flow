@@ -1,376 +1,189 @@
-# 标准开发工作流
+# Cowork Flow 工作流
 
-## 1. 流程目标
+## 1. 目标
 
-开发过程必须形成稳定闭环：
+默认执行模型固定为：
 
 ```text
-获取上下文 -> 阅读规范 -> 任务分级 -> 目标/规格/计划 -> 执行实现 -> 验证审阅 -> 状态同步 -> session 记录
+Plan -> Implement -> Check -> Finish
 ```
 
-所有任务先明确目标和验收标准，再进入实现；所有完成结论都必须有验证证据。
+核心路径：
 
-命令示例默认使用 macOS / Linux / Git Bash / WSL；Windows cmd / PowerShell 使用 `.\.cowork-flow\run.cmd <command>` 替代 `./.cowork-flow/run <command>`。
+1. Plan: 建立任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
+2. Implement: 主会话派发 `cowork-implement`，首行必须是 `Active task: <task-dir>`。
+3. Check: 主会话派发 `cowork-check`，首行必须是 `Active task: <task-dir>`。
+4. Finish: 主会话做最终验证、同步规格、提交、归档、记录 session。
 
----
+`cowork-flow` 只保存项目状态、任务上下文和恢复线索；实际执行由主会话和固定 `cowork-*` agent 完成。
 
-## 2. 职责边界
+## 2. 状态文件
 
-cowork-flow 只负责保存流程状态和任务上下文；具体执行方法由当前 agent 宿主提供。
+| 状态 | 文件 |
+| --- | --- |
+| 开发者身份 | `.cowork-flow/.developer` |
+| 当前会话任务 | `.cowork-flow/.runtime/sessions/<context-key>.json` |
+| 任务目标 | `.cowork-flow/tasks/<task>/prd.md` |
+| 实现上下文 | `.cowork-flow/tasks/<task>/implement.jsonl` |
+| 检查上下文 | `.cowork-flow/tasks/<task>/check.jsonl` |
+| 调试上下文 | `.cowork-flow/tasks/<task>/debug.jsonl` |
+| 行为变更 | `.cowork-flow/changes/<slug>/` |
+| 实施计划 | `.cowork-flow/plans/*.md` |
+| 项目规格 | `.cowork-flow/spec/` |
+| 会话记录 | `.cowork-flow/workspace/<developer>/journal-*.md` |
 
-| 对象 | 定位 | 主要产物 |
-|------|------|----------|
-| `cowork-flow change` | 行为变更规格 | `proposal.md`、`spec.md`、`design.md`、`change.yaml` |
-| `.cowork-flow/tasks` | 任务执行上下文 | `prd.md`、`implement.jsonl`、`check.jsonl`、`debug.jsonl` |
-| `.cowork-flow/plans` | 实施计划 | 可执行步骤、验证方式、当前执行状态 |
-| `agent 执行方法` | 需求澄清、计划拆分、TDD、subagent 调度、完成前验证 | 由宿主能力或可用技能提供 |
+当前任务是 session-scoped。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID` 或 `CODEX_THREAD_ID` 时，不得猜测当前任务。
 
-`.cowork-flow` 不替代 agent 的执行判断，也不替代项目验证命令。
+## 3. 固定 Agent
 
----
+### cowork-research
 
-## 3. 核心原则
+- 只做调研。
+- 只写入 `<task>/research/`。
+- 不改代码、不改规格、不改任务状态、不操作 git。
 
-1. **先读后写**：动手前先读取项目规则、任务上下文和相关规范。
-2. **规格先行**：有行为变化时，先补规格，再写计划，再实现。
-3. **计划后编码**：复杂或行为变更任务必须先形成可执行计划。
-4. **上下文显式化**：不要依赖记忆，把关键规范、设计、计划写入任务上下文。
-5. **一次一个任务**：避免在多个无关任务之间切换。
-6. **执行中回写状态**：plan、task、change metadata 和 journal 不应长期漂移。
-7. **证据先于结论**：未验证前不声称完成、通过或可交付。
-8. **经验沉淀回规范**：实现中发现的契约、坑点、规则应更新到 `.cowork-flow/spec/`。
+### cowork-implement
 
----
+- 读取 `<task>/prd.md`、`<task>/info.md`、`<task>/implement.jsonl` 和 JSONL 指向的文件。
+- 按任务范围实现。
+- 不启动其他 agent，不提交，不归档，不运行 task start/finish/archive。
+- 汇报改动文件和验证命令。
 
-## 4. 会话开始流程
+### cowork-check
 
-### 4.1 初始化开发者身份
+- 读取 `<task>/prd.md`、`<task>/check.jsonl` 和 `git diff`。
+- 检查行为、测试、规格同步和遗漏。
+- 范围内问题直接修复。
+- 不提交、不归档、不启动其他 agent。
 
-首次进入项目时执行；如果已经存在开发者身份，只需读取当前身份。
+每次派发提示必须以这一行开头：
 
-```bash
-./.cowork-flow/run get-developer
-./.cowork-flow/run init-developer <developer-name>
+```text
+Active task: .cowork-flow/tasks/<task>
 ```
 
-### 4.2 获取当前上下文
+## 4. 任务分级
 
-每次开始工作先执行：
+### L0: 无外部行为变化
 
-```bash
-./.cowork-flow/run resume
-```
+适用：文档、格式、小范围重构、注释、脚本整理、测试补充，且不改变用户可观察行为。
 
-如 `resume` 输出不足以判断当前状态，再补充执行：
+流程：读取规则 -> 创建或选择任务 -> 写 PRD -> 初始化上下文 -> 实现 -> 验证 -> 记录 session。
 
-```bash
-./.cowork-flow/run task list
-git status
-git log --oneline -10
-```
+### L1: 局部行为变化
 
-至少确认当前开发者、当前任务、未归档任务、工作区状态，以及最近提交是否影响当前任务。
+适用：单模块功能、局部接口行为、局部数据处理逻辑，边界清晰。
 
-### 4.3 阅读固定入口文件
+流程：change -> brainstorming -> spec -> plan -> task context -> Implement -> Check -> Finish。
 
-开始编码前至少读取：
+### L2: 跨层或重要行为变化
 
-```bash
-cat AGENTS.md
-for f in .cowork-flow/spec/frontend/index.md .cowork-flow/spec/backend/index.md .cowork-flow/spec/guides/index.md; do
-  [ -f "$f" ] && cat "$f"
-done
-```
+适用：API / DB / 消息 / 权限 / 文件格式 / 架构边界 / 发布迁移 / 安全策略等变化。
 
-然后根据索引读取与当前任务相关的细分规范。
+流程：change -> brainstorming -> design.md -> spec -> plan -> task context -> Implement -> Check -> Finish -> cross-layer review。
 
----
+## 5. Plan 阶段
 
-## 5. 任务分级
-
-所有任务先分级，再选择流程。
-
-### L0：无外部行为变化
-
-适用：文档整理、小范围重构、测试补充、注释/格式/脚本清理、不改变用户可观察行为的内部调整。
-
-流程：任务 -> 读取规范 -> 简短计划 -> 实现 -> 验证 -> 记录 session。
-
-### L1：局部行为变化
-
-适用：单模块功能调整、单接口行为变化、局部数据处理逻辑变化、有明确边界的新能力。
-
-流程：cowork-flow change -> brainstorming -> writing-plans -> 任务上下文 -> 执行计划 -> 验证 -> 归档与记录。
-
-### L2：跨层或重要行为变化
-
-适用：跨前后端或跨服务变更；API / DB / 消息 / 缓存 / 文件等契约变化；架构边界变化；影响发布、迁移、安全、权限或兼容性的变更。
-
-流程：cowork-flow change -> brainstorming -> design.md -> writing-plans -> 任务上下文 -> 执行计划 -> 多视角审阅 -> 验证 -> 归档与记录。
-
----
-
-## 6. L0 标准流程
-
-### 6.1 创建或选择任务
+1. 读取 `AGENTS.md`、本文件、相关 `.cowork-flow/spec/` 索引。
+2. 创建或确认任务：
 
 ```bash
-./.cowork-flow/run task list
 ./.cowork-flow/run task create "<title>" --slug <task-name>
 ```
 
-### 6.2 写入任务 PRD
-
-在任务目录创建或更新 `prd.md`，至少包含：目标、范围、验收标准、相关文件或模块、验证方式。
-
-### 6.3 初始化任务上下文
+3. 写 `prd.md`，至少包含目标、范围、验收标准、相关文件、验证方式。
+4. 初始化上下文：
 
 ```bash
 ./.cowork-flow/run task init-context <task-dir> <type>
-```
-
-`<type>` 按任务选择：`backend`、`frontend`、`fullstack`、`test`、`docs`。
-
-### 6.4 补充任务上下文
-
-把任务相关规范、代码模式、计划文件加入上下文：
-
-```bash
 ./.cowork-flow/run task add-context <task-dir> implement <path> "<reason>"
 ./.cowork-flow/run task add-context <task-dir> check <path> "<reason>"
 ```
 
-### 6.5 激活任务并执行
+5. 对 L1/L2 创建 change；L2 必须有 `design.md`。
+6. 写 `.cowork-flow/plans/YYYY-MM-DD-<slug>.md`，每步带验证命令。
+7. 启动当前会话任务：
 
 ```bash
 ./.cowork-flow/run task start <task-dir>
 ```
 
-执行要求：
+Windows PowerShell 使用：
 
-- 按 `prd.md` 和上下文实现。
-- 遵循 `.cowork-flow/spec/` 中的相关规范。
-- 变更保持聚焦。
-- 若执行中发现行为变化升级，立即重新分级并进入 L1 / L2 流程。
-- 涉及代码逻辑或行为时，必须优先进入 `superpowers:test-driven-development` 循环，不得先写生产代码再补测试。
-- 纯文档、格式或说明性修改按 PRD 验收标准验证，不强行补无意义测试。
-
----
-
-## 7. L1 / L2 标准流程
-
-### 7.1 创建 cowork-flow change
-
-```bash
-./.cowork-flow/run change create <slug>
+```powershell
+.\.cowork-flow\run.cmd task start <task-dir>
 ```
 
-### 7.2 使用 brainstorming 形成方案
+## 6. Implement 阶段
 
-使用 `superpowers:brainstorming` 澄清需求、比较方案，并补齐：
-
-- `.cowork-flow/changes/<slug>/proposal.md`
-- `.cowork-flow/changes/<slug>/spec.md`
-- L2 任务需要 `.cowork-flow/changes/<slug>/design.md`
-
-### 7.3 校验 cowork-flow change
-
-```bash
-./.cowork-flow/run change validate <slug>
-```
-
-### 7.4 使用 writing-plans 形成计划
-
-使用 `superpowers:writing-plans` 输出可执行计划：
+默认派发 `cowork-implement`。派发消息第一行：
 
 ```text
-.cowork-flow/plans/YYYY-MM-DD-<slug>.md
+Active task: .cowork-flow/tasks/<task>
 ```
 
-计划必须包含可勾选步骤、每步验证方式、当前执行状态、阻塞与决策记录位置。
+派发内容应包含当前计划步骤、范围边界和期望验证命令。
 
-### 7.5 同步计划与状态边界
+如果用户明确要求主会话 inline 执行，或当前任务正在修改 subagent/runtime 行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
 
-- `.cowork-flow/changes/<slug>/` 只保存 proposal、design、behavior specs 和 `change.yaml`。
-- 实现 checklist 只保存在 `.cowork-flow/plans/*.md`。
-- 任务运行状态只保存在 `.cowork-flow/tasks/`。
-- 不要在 change 目录中维护实现 checklist，避免维护两套细节状态。
+涉及行为变化时，先写失败测试，再实现，再验证变绿。
 
-### 7.6 创建或绑定任务
+## 7. Check 阶段
 
-将 proposal、spec、design（如存在）、implementation plan、相关 `.cowork-flow/spec/`、相关代码模式或契约文件加入任务上下文。
+默认派发 `cowork-check`。派发消息第一行：
 
-### 7.7 执行
-
-执行 plan 前，先判断**是否存在适合拆分的独立任务**。
-
-只要宿主支持 subAgent，且任务适合拆分，就应优先采用 subagent 执行。`agent_team.enabled` 只决定是否使用 cowork-flow 内置 agent-team 调度，不决定是否可以使用 subagent。
-
-并行是优化手段，不是完成定义；不得为了满足流程形式而强行拆分高耦合任务。
-
-适合使用 subagent 的条件包括：
-
-- 子任务之间没有共享写文件，或共享写文件已有明确顺序边界。
-- 子任务之间没有强顺序依赖。
-- 每个子任务都有清晰输入、输出和验收方式。
-- 主 agent 能在集成前独立审查每个结果。
-- subagent 带来的收益大于调度、审阅和集成成本。
-
-不适合使用 subagent 的情况包括：
-
-- 改动集中在同一组强耦合文件。
-- 需要密集的 TDD 红绿循环或即时反馈。
-- parser、schema、runtime、测试需要同步演进。
-- 子任务边界不清，拆分后的主要成本会落在集成。
-- 任务规模小于 subagent 调度成本。
-
-若不适合使用 subagent，必须简要记录理由，并按 `superpowers`方法论执行。
-
-若适合使用 subagent：
-
-- 当 `.cowork-flow/config.yaml` 中设置 `agent_team.enabled: true` 时，优先使用 `./.cowork-flow/run agent-team prepare <task-dir> --plan <plan-file>` 生成调度图，再用 `./.cowork-flow/run agent-team next <task-dir>` 获取 assignments，由主 agent 审核并调度 subAgent。
-- 当 `agent_team.enabled: false` 或者`agent_team`执行失败，使用 `superpowers`并行执行 或宿主等价机制开启多 agent 执行。
-- 当宿主不支持 subAgent 或任务不适合拆分时，按 `superpowers`方法论执行。
-
-无论是否使用 subagent，都必须严格遵循 `superpowers:test-driven-development`，不得先写生产代码再补测试。
-
-执行中必须持续同步：
-
-- plan checkbox
-- plan 当前执行状态
-- 任务状态
-- agent-team status / result / review / retry 工件，如本次执行启用了 agent team
-- 必要的 `.cowork-flow/spec/` 更新
-
-启用 agent team 时，主 agent 仍是协调者：负责审核并行安全性、补充上下文、处理阻塞、集成结果，并在完成前运行 `./.cowork-flow/run agent-team complete <task-dir>`。
-
----
-
-## 8. 验证与审阅
-
-### 8.1 验证命令来源
-
-验证命令按以下顺序读取：
-
-1. `.cowork-flow/config.yaml`
-2. `AGENTS.md`
-3. 项目现有脚本或配置文件
-
-如果需要推断验证命令，必须明确说明推断依据。
-
-### 8.2 完成前检查
-
-完成前至少确认：
-
-- 相关测试通过
-- 新增或修改的代码行为有测试先失败、再通过的验证证据
-- lint / format / build / typecheck 按项目要求通过
-- 行为符合 cowork-flow change 规格或 PRD
-- 相关 `.cowork-flow/spec/` 已同步
-- 计划状态与真实进度一致
-- 没有未说明的临时文件、调试输出或绕过逻辑
-
-### 8.3 L2 额外审阅
-
-L2 任务完成前需要多视角审阅：行为契约、数据流、错误处理、兼容性、测试覆盖、发布或迁移风险。
-
----
-
-## 9. 会话结束流程
-
-### 9.1 收尾前同步状态
-
-结束前确认当前 task 状态、plan checkbox、change metadata、必要的 `.cowork-flow/spec/` 沉淀和工作区状态都与真实进度一致。
-
-### 9.2 记录 session
-
-```bash
-./.cowork-flow/run get-context --mode record
-./.cowork-flow/run add-session \
-  --title "<session-title>" \
-  --commit "<commit-or-handoff-ref>" \
-  --summary "<summary>"
+```text
+Active task: .cowork-flow/tasks/<task>
 ```
 
-### 9.3 归档任务
+检查内容：
 
-仅在任务真实完成后归档：
+- PRD 验收标准是否满足。
+- `git diff` 是否只包含预期范围。
+- 测试是否覆盖关键行为。
+- `.cowork-flow/spec/` 是否需要更新。
+- plan checkbox 和执行状态是否真实。
+
+如果用户明确要求主会话 inline 检查，可以不派发 `cowork-check`，但必须执行等价的 diff、测试、规格同步检查。
+
+## 8. Finish 阶段
+
+完成前必须确认：
+
+- 当前 session 存在任务，或明确说明本次是无任务只读工作。
+- `cowork-check` 或等价最终检查已执行。
+- 所有声明通过的验证都有命令输出依据。
+- 规格已更新，或明确判断无需更新。
+- 计划状态、任务状态、change metadata 不冲突。
+- 提交在归档和 session 记录之前完成。
+- 不纳入无关脏改。
+
+推荐顺序：
 
 ```bash
+git status --short
+git diff --check
+npm run test:all
+git add <expected files>
+git commit -m "<message>"
 ./.cowork-flow/run task archive <task-name>
+./.cowork-flow/run add-session --title "<title>" --commit "<commit>" --summary "<summary>"
 ```
 
-行为变更任务还需要归档 cowork-flow change：
+## 9. 恢复规则
 
-```bash
-./.cowork-flow/run change archive <slug>
-```
+恢复时只读取最小上下文：
 
-在windows下遇到归档异常,尝试使用下面脚本修复：
+1. 运行 `./.cowork-flow/run resume`。
+2. 按 `RESUME CHECKLIST` 读取当前任务 PRD、计划状态和 JSONL 指向文件。
+3. 不批量读取所有 spec、所有 plans、所有 tasks 或 workspace journal。
+4. 不存在当前 session task 时，先创建或启动任务。
 
-```bash
-$user = "$env:USERDOMAIN\$env:USERNAME"
-icacls .\.cowork-flow /grant "$($user):(OI)(CI)(F)" /T
-```
+## 10. 禁止事项
 
----
-
-## 10. 状态持久化与恢复
-
-长任务必须把关键状态写入文件，而不是只留在聊天上下文中。
-
-| 状态 | 持久化位置 |
-|------|------------|
-| 当前开发者 | `.cowork-flow/.developer` |
-| 当前任务 | `.cowork-flow/.current-task` |
-| 任务目标 | `.cowork-flow/tasks/<task>/prd.md` |
-| 任务上下文 | `.cowork-flow/tasks/<task>/*.jsonl` |
-| 行为变更规格 | `.cowork-flow/changes/<slug>/` |
-| 执行计划 | `.cowork-flow/plans/*.md` |
-| 项目规范 | `.cowork-flow/spec/` |
-| 会话记录 | `.cowork-flow/workspace/<developer>/journal-*.md` |
-
-如果状态只存在于对话中，就不能视为可靠流程状态。
-
-### 10.1 恢复分层
-
-| 层级 | 读取内容 | 使用时机 |
-|------|----------|----------|
-| 最小恢复层 | `resume.py` 输出中的 `RESUME CHECKLIST` | 每次恢复、压缩后、重新接手任务 |
-| 任务执行层 | 当前任务 `prd.md`、当前 plan 状态、`task.py list-context <task-dir>` | 准备继续实现或检查前 |
-| 细节规范层 | jsonl 指向的具体 spec、代码模式或计划段落 | 当前修改确实需要该细节时 |
-
-### 10.2 恢复规则
-
-- 先执行 `./.cowork-flow/run resume`。
-- 按 `RESUME CHECKLIST` 读取当前 PRD、当前 plan 和 `list-context` 输出。
-- 不要全量重读 `.cowork-flow/spec/`、所有 plan、所有 task 或 workspace journal。
-- 如果 plan 有 `Current Execution Status`，先读该段以确定下一步。
-- 如果 jsonl 指向的规范过多，先根据当前阶段选择最小相关集合。
-
-恢复目标是重建“现在该做什么”和“当前门禁是否满足”，不是把全部历史重新塞进上下文。
-
----
-
-## 11. 禁止事项
-
-- 不跳过上下文读取直接编码。
-- 不在未验证时声称完成。
-- 不把 reusable skill 改成项目临时清单。
-- 不维护互相冲突的任务状态。
-- 不在行为变化未补规格时直接实现。
-- 不在计划未同步时记录 session 或归档任务。
-
----
-
-## 12. 完成定义
-
-一个任务只有在以下条件同时满足时，才算完成：
-
-- 需求或 PRD 已满足
-- cowork-flow change 规格或计划中的必要步骤已完成
-- 验证命令已按项目要求执行
-- 失败、跳过或无法执行的验证已明确说明
-- 必要的相关规范已更新，或已说明无需更新
-- change metadata、计划状态、任务状态不冲突
-- session 已记录
+- 不在没有任务上下文时直接修改文件。
+- 不在没有失败测试时实现行为变化。
+- 不维护第二套执行状态。
+- 不把口头状态当成可靠状态。
+- 不把验证未运行说成通过。
+- 不把旧运行模型作为 fallback。

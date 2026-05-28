@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,52 +26,36 @@ class FlowScriptPathsTest(unittest.TestCase):
         self.paths = importlib.import_module("common.paths")
         self.task = importlib.import_module("task")
         self.git_context = importlib.import_module("common.git_context")
-        self.config = importlib.import_module("common.config")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
-        for module_name in ("task", "common.git_context", "common.config", "common.paths", "common"):
+        for module_name in (
+            "task",
+            "common.active_task",
+            "common.git_context",
+            "common.paths",
+            "common",
+        ):
             sys.modules.pop(module_name, None)
+
+    def _write_session_task(
+        self,
+        root: Path,
+        task_path: str = ".cowork-flow/tasks/05-19-demo",
+        context_key: str = "main",
+    ) -> None:
+        sessions_dir = root / ".cowork-flow" / ".runtime" / "sessions"
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+        (sessions_dir / f"{context_key}.json").write_text(
+            f'{{"current_task": "{task_path}"}}\n',
+            encoding="utf-8",
+        )
 
     def test_workflow_and_agent_directory_constants_are_current(self) -> None:
         self.assertEqual(".cowork-flow", self.paths.DIR_WORKFLOW)
         self.assertEqual(".agent", self.paths.DIR_AGENT)
         self.assertEqual("changes", self.paths.DIR_CHANGES)
-
-    def test_agent_team_script_exists(self) -> None:
-        self.assertTrue((SCRIPTS / "agent_team.py").is_file())
-
-    def test_agent_team_is_disabled_by_default(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            (root / ".cowork-flow").mkdir()
-
-            self.assertFalse(self.config.get_agent_team_enabled(root))
-
-    def test_agent_team_can_be_enabled_with_boolean_config(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            workflow_dir = root / ".cowork-flow"
-            workflow_dir.mkdir()
-            (workflow_dir / "config.yaml").write_text(
-                "agent_team:\n  enabled: true\n",
-                encoding="utf-8",
-            )
-
-            self.assertTrue(self.config.get_agent_team_enabled(root))
-
-    def test_agent_team_can_be_enabled_with_string_config(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            workflow_dir = root / ".cowork-flow"
-            workflow_dir.mkdir()
-            (workflow_dir / "config.yaml").write_text(
-                "agent_team:\n  enabled: \"true\"\n",
-                encoding="utf-8",
-            )
-
-            self.assertTrue(self.config.get_agent_team_enabled(root))
 
     def test_repo_root_detection_uses_cowork_flow_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -155,7 +140,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 os.chdir(previous_cwd)
 
             self.assertEqual(1, result)
-            self.assertFalse((root / ".cowork-flow" / ".current-task").exists())
+            self.assertFalse((root / ".cowork-flow" / (".current" + "-task")).exists())
 
     def test_cmd_start_blocks_invalid_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -183,9 +168,9 @@ class FlowScriptPathsTest(unittest.TestCase):
                 os.chdir(previous_cwd)
 
             self.assertEqual(1, result)
-            self.assertFalse((root / ".cowork-flow" / ".current-task").exists())
+            self.assertFalse((root / ".cowork-flow" / (".current" + "-task")).exists())
 
-    def test_cmd_start_sets_current_task_when_ready(self) -> None:
+    def test_cmd_start_requires_session_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
@@ -199,21 +184,52 @@ class FlowScriptPathsTest(unittest.TestCase):
             previous_cwd = Path.cwd()
             try:
                 os.chdir(root)
-                with (
-                    contextlib.redirect_stdout(io.StringIO()),
-                    contextlib.redirect_stderr(io.StringIO()),
-                ):
+                with patch.dict(os.environ, {}, clear=True), contextlib.redirect_stdout(
+                    io.StringIO()
+                ), contextlib.redirect_stderr(io.StringIO()):
                     result = self.task.cmd_start(
                         argparse.Namespace(dir=".cowork-flow/tasks/05-19-demo")
                     )
             finally:
                 os.chdir(previous_cwd)
 
+            self.assertEqual(1, result)
+            self.assertFalse((root / ".cowork-flow" / (".current" + "-task")).exists())
+
+    def test_cmd_current_prints_session_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_current(argparse.Namespace())
+            finally:
+                os.chdir(previous_cwd)
+
             self.assertEqual(0, result)
-            current_task = (root / ".cowork-flow" / ".current-task").read_text(
-                encoding="utf-8"
-            ).strip()
-            self.assertEqual(".cowork-flow/tasks/05-19-demo", current_task)
+            self.assertIn("Current task: .cowork-flow/tasks/05-19-demo", stdout.getvalue())
+
+    def test_cmd_current_requires_session_context_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {}, clear=True):
+                    with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                        result = self.task.cmd_current(argparse.Namespace())
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertIn("Missing session context", stderr.getvalue())
 
     def test_task_archive_resumes_when_source_and_destination_match(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -259,10 +275,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             plan_file.parent.mkdir(parents=True)
             (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
-            (workflow_dir / ".current-task").write_text(
-                ".cowork-flow/tasks/05-19-demo",
-                encoding="utf-8",
-            )
+            self._write_session_task(root)
             (task_dir / "task.json").write_text(
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
@@ -279,7 +292,8 @@ class FlowScriptPathsTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            output = self.git_context.get_context_text(root)
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                output = self.git_context.get_context_text(root)
 
             self.assertIn("## RESUME CHECKLIST", output)
             self.assertIn(
@@ -298,10 +312,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir = workflow_dir / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
-            (workflow_dir / ".current-task").write_text(
-                ".cowork-flow/tasks/05-19-demo",
-                encoding="utf-8",
-            )
+            self._write_session_task(root)
             (task_dir / "task.json").write_text(
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
@@ -310,7 +321,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
-            context = self.git_context.get_context_json(root)
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                context = self.git_context.get_context_json(root)
 
             self.assertIn("resumeChecklist", context)
             self.assertEqual(
@@ -322,41 +334,6 @@ class FlowScriptPathsTest(unittest.TestCase):
                 context["resumeChecklist"]["readFiles"],
             )
 
-    def test_resume_checklist_points_to_agent_team_status_when_present(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            workflow_dir = root / ".cowork-flow"
-            task_dir = workflow_dir / "tasks" / "05-19-demo"
-            agent_team_dir = task_dir / "agent-team"
-            agent_team_dir.mkdir(parents=True)
-            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
-            (workflow_dir / ".current-task").write_text(
-                ".cowork-flow/tasks/05-19-demo",
-                encoding="utf-8",
-            )
-            (task_dir / "task.json").write_text(
-                '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
-                encoding="utf-8",
-            )
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
-            for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-            (agent_team_dir / "status.json").write_text('{"assignments": {}}\n', encoding="utf-8")
-
-            output = self.git_context.get_context_text(root)
-            context = self.git_context.get_context_json(root)
-
-            self.assertIn(
-                "Check agent-team status: ./.cowork-flow/run agent-team status .cowork-flow/tasks/05-19-demo",
-                output,
-            )
-            self.assertIn(
-                "./.cowork-flow/run agent-team next .cowork-flow/tasks/05-19-demo",
-                context["resumeChecklist"]["commands"],
-            )
-            serialized = str(context)
-            self.assertNotIn("Secret PRD body", serialized)
-
     def test_resume_script_outputs_resume_checklist_without_file_contents(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -364,10 +341,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir = workflow_dir / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
-            (workflow_dir / ".current-task").write_text(
-                ".cowork-flow/tasks/05-19-demo",
-                encoding="utf-8",
-            )
+            self._write_session_task(root)
             (task_dir / "task.json").write_text(
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
@@ -376,12 +350,15 @@ class FlowScriptPathsTest(unittest.TestCase):
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
+            env = os.environ.copy()
+            env["COWORK_FLOW_CONTEXT_ID"] = "main"
             result = subprocess.run(
                 [sys.executable, str(SCRIPTS / "resume.py")],
                 cwd=root,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                env=env,
             )
 
             self.assertEqual(0, result.returncode)

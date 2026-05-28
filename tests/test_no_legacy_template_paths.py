@@ -76,6 +76,18 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
         self.assertEqual([], tasks_files)
 
+    def test_legacy_team_runtime_removed(self) -> None:
+        legacy_script = "agent" + "_team.py"
+        removed = [
+            ROOT / ".cowork-flow" / "scripts" / legacy_script,
+            ROOT / ".cowork-flow" / "scripts" / "common" / legacy_script,
+            ROOT / "template" / ".cowork-flow" / "scripts" / legacy_script,
+            ROOT / "template" / ".cowork-flow" / "scripts" / "common" / legacy_script,
+        ]
+
+        for path in removed:
+            self.assertFalse(path.exists(), str(path))
+
     def test_readme_documents_converged_template_structure(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
 

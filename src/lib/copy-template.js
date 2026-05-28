@@ -102,6 +102,7 @@ const PROTECTED_SYNC_PREFIXES = [
 ];
 
 const SAFE_SYNC_PREFIXES = [
+  '.codex/agents/',
   '.agent/skills/',
   '.cowork-flow/'
 ];

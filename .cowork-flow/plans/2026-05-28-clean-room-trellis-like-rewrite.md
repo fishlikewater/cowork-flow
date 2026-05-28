@@ -54,7 +54,7 @@
 
 ## Current Execution Status
 
-Not started. Design change exists at `.cowork-flow/changes/05-28-clean-room-trellis-like-rewrite/`.
+Full verification complete and committed.
 
 ---
 
@@ -65,7 +65,7 @@ Not started. Design change exists at `.cowork-flow/changes/05-28-clean-room-trel
 - Create: `template/.cowork-flow/scripts/common/active_task.py`
 - Test: `tests/test_active_task_runtime.py`
 
-- [ ] **Step 1: Write failing tests for context-key behavior**
+- [x] **Step 1: Write failing tests for context-key behavior**
 
 Create `tests/test_active_task_runtime.py`:
 
@@ -98,13 +98,13 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertIsNone(self.active_task.resolve_context_key())
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m unittest tests.test_active_task_runtime -v`
 
 Expected: FAIL or ERROR because `common.active_task` does not exist.
 
-- [ ] **Step 3: Implement context key helper**
+- [x] **Step 3: Implement context key helper**
 
 Add `.cowork-flow/scripts/common/active_task.py` and mirror it to `template/.cowork-flow/scripts/common/active_task.py`:
 
@@ -156,13 +156,13 @@ def sessions_dir(repo_root: Path) -> Path:
     return repo_root / DIR_WORKFLOW / DIR_RUNTIME / DIR_SESSIONS
 ```
 
-- [ ] **Step 4: Run test to verify context-key tests pass**
+- [x] **Step 4: Run test to verify context-key tests pass**
 
 Run: `python -m unittest tests.test_active_task_runtime -v`
 
 Expected: PASS for the three context-key tests.
 
-- [ ] **Step 5: Add failing tests for session pointer read/write/clear**
+- [x] **Step 5: Add failing tests for session pointer read/write/clear**
 
 Append to `tests/test_active_task_runtime.py`:
 
@@ -193,13 +193,13 @@ Append to `tests/test_active_task_runtime.py`:
                 self.assertEqual(None, self.active_task.get_active_task(root).task_path)
 ```
 
-- [ ] **Step 6: Run test to verify pointer tests fail**
+- [x] **Step 6: Run test to verify pointer tests fail**
 
 Run: `python -m unittest tests.test_active_task_runtime -v`
 
 Expected: FAIL because `set_active_task`, `get_active_task`, and `clear_active_task` are missing.
 
-- [ ] **Step 7: Implement session pointer functions**
+- [x] **Step 7: Implement session pointer functions**
 
 Add to both active_task files:
 
@@ -278,7 +278,7 @@ def clear_task_from_sessions(repo_root: Path, task_path: str) -> int:
     return cleared
 ```
 
-- [ ] **Step 8: Run test to verify runtime passes**
+- [x] **Step 8: Run test to verify runtime passes**
 
 Run: `python -m unittest tests.test_active_task_runtime -v`
 
@@ -299,7 +299,7 @@ Expected: PASS.
 - Modify: `template/.cowork-flow/scripts/resume.py`
 - Test: `tests/test_flow_script_paths.py`
 
-- [ ] **Step 1: Write failing test that `task start` requires context key**
+- [x] **Step 1: Write failing test that `task start` requires context key**
 
 Replace `test_cmd_start_sets_current_task_when_ready` in `tests/test_flow_script_paths.py` with:
 
@@ -327,7 +327,7 @@ Replace `test_cmd_start_sets_current_task_when_ready` in `tests/test_flow_script
             self.assertFalse((root / ".cowork-flow" / ".current-task").exists())
 ```
 
-- [ ] **Step 2: Add import needed by the test**
+- [x] **Step 2: Add import needed by the test**
 
 At top of `tests/test_flow_script_paths.py`, add:
 
@@ -335,13 +335,13 @@ At top of `tests/test_flow_script_paths.py`, add:
 from unittest.mock import patch
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_cmd_start_requires_session_context_key -v`
 
 Expected: FAIL because current code writes `.current-task`.
 
-- [ ] **Step 4: Modify task start/finish to use active_task**
+- [x] **Step 4: Modify task start/finish to use active_task**
 
 In both task scripts, import:
 
@@ -381,7 +381,7 @@ In `cmd_archive`, replace current-task cleanup with:
     clear_task_from_sessions(repo_root, f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
 ```
 
-- [ ] **Step 5: Remove `.current-task` helpers from paths**
+- [x] **Step 5: Remove `.current-task` helpers from paths**
 
 In both `paths.py`, delete:
 
@@ -395,7 +395,7 @@ In both `paths.py`, delete:
 
 Keep unrelated path helpers unchanged.
 
-- [ ] **Step 6: Add a `task current` command**
+- [x] **Step 6: Add a `task current` command**
 
 In both task scripts, add parser:
 
@@ -422,13 +422,13 @@ def cmd_current(args: argparse.Namespace) -> int:
 
 Register `"current": cmd_current`.
 
-- [ ] **Step 7: Run focused task tests**
+- [x] **Step 7: Run focused task tests**
 
 Run: `python -m unittest tests.test_flow_script_paths -v`
 
 Expected: initial failures only where tests still assert `.current-task`.
 
-- [ ] **Step 8: Update resume/git_context to use active_task**
+- [x] **Step 8: Update resume/git_context to use active_task**
 
 In both `git_context.py`, replace `get_current_task(repo_root)` with `get_active_task(repo_root).task_path`.
 
@@ -438,7 +438,7 @@ Update no-task notes to say:
 No current task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.
 ```
 
-- [ ] **Step 9: Update remaining tests that reference `.current-task`**
+- [x] **Step 9: Update remaining tests that reference `.current-task`**
 
 Search:
 
@@ -446,7 +446,7 @@ Run: `rg -n "\.current-task|get_current_task|set_current_task|clear_current_task
 
 For each remaining test, either delete obsolete assertion or change it to `.runtime/sessions/<key>.json`.
 
-- [ ] **Step 10: Run focused tests**
+- [x] **Step 10: Run focused tests**
 
 Run: `python -m unittest tests.test_active_task_runtime tests.test_flow_script_paths -v`
 
@@ -468,7 +468,7 @@ Expected: PASS.
 - Test: `tests/test_cowork_agents.py`
 - Modify: `tests/test_agent_team_docs.py` or delete if fully obsolete.
 
-- [ ] **Step 1: Write failing tests for new agent definitions**
+- [x] **Step 1: Write failing tests for new agent definitions**
 
 Create `tests/test_cowork_agents.py`:
 
@@ -505,13 +505,13 @@ class CoworkAgentsTest(unittest.TestCase):
         self.assertFalse((ROOT / "template" / ".agent" / "skills" / "agent-team-execution" / "SKILL.md").exists())
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m unittest tests.test_cowork_agents -v`
 
 Expected: FAIL because files still missing and old skill exists.
 
-- [ ] **Step 3: Add `cowork-implement` agent definition**
+- [x] **Step 3: Add `cowork-implement` agent definition**
 
 Create root and template `cowork-implement.toml`:
 
@@ -549,7 +549,7 @@ multi_agent = false
 enabled = false
 ```
 
-- [ ] **Step 4: Add `cowork-check` and `cowork-research` definitions**
+- [x] **Step 4: Add `cowork-check` and `cowork-research` definitions**
 
 Use the same root/template mirror pattern.
 
@@ -569,7 +569,7 @@ Do not modify code, specs, task state, or git.
 Persist findings to Markdown files.
 ```
 
-- [ ] **Step 5: Delete old agent-team skill files**
+- [x] **Step 5: Delete old agent-team skill files**
 
 Delete:
 
@@ -580,7 +580,7 @@ template/.agent/skills/agent-team-execution/SKILL.md
 
 If directories become empty, delete the directories too.
 
-- [ ] **Step 6: Run new agent tests**
+- [x] **Step 6: Run new agent tests**
 
 Run: `python -m unittest tests.test_cowork_agents -v`
 
@@ -601,7 +601,7 @@ Expected: PASS.
 - Modify: `template/.agent/skills/check-cross-layer/SKILL.md`
 - Test: `tests/test_workflow_trellis_like.py`
 
-- [ ] **Step 1: Write failing workflow tests**
+- [x] **Step 1: Write failing workflow tests**
 
 Create `tests/test_workflow_trellis_like.py`:
 
@@ -636,13 +636,13 @@ class WorkflowTrellisLikeTest(unittest.TestCase):
         self.assertNotIn("agent-team prepare", text)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m unittest tests.test_workflow_trellis_like -v`
 
 Expected: FAIL because old workflow still references agent-team.
 
-- [ ] **Step 3: Rewrite workflow mainline**
+- [x] **Step 3: Rewrite workflow mainline**
 
 In both workflow files, replace L1/L2 execution routing with:
 
@@ -656,7 +656,7 @@ Default execution flow:
 
 Remove default recommendations to use `agent-team`.
 
-- [ ] **Step 4: Update start skill**
+- [x] **Step 4: Update start skill**
 
 In both start skills:
 
@@ -670,7 +670,7 @@ For verification, dispatch cowork-check unless user explicitly asks for inline r
 Every dispatch prompt must start with `Active task: <task-dir>`.
 ```
 
-- [ ] **Step 5: Update finish/check skills**
+- [x] **Step 5: Update finish/check skills**
 
 Remove agent-team status/complete requirements.
 
@@ -683,7 +683,7 @@ Finish skill must check:
 - work committed before archive/session
 ```
 
-- [ ] **Step 6: Run workflow tests**
+- [x] **Step 6: Run workflow tests**
 
 Run: `python -m unittest tests.test_workflow_trellis_like -v`
 
@@ -710,7 +710,7 @@ Expected: PASS.
 - Modify/Delete: `tests/test_subagent_recovery.py`
 - Modify: `tests/test_no_legacy_template_paths.py`
 
-- [ ] **Step 1: Write failing test that CLI no longer exposes agent-team**
+- [x] **Step 1: Write failing test that CLI no longer exposes agent-team**
 
 Add to `tests/test_no_legacy_template_paths.py`:
 
@@ -727,19 +727,19 @@ def test_agent_team_runtime_removed() -> None:
         assert not path.exists(), str(path)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m unittest tests.test_no_legacy_template_paths -v`
 
 Expected: FAIL because agent-team scripts still exist.
 
-- [ ] **Step 3: Remove agent-team scripts/config**
+- [x] **Step 3: Remove agent-team scripts/config**
 
 Delete root and template paths listed above.
 
 Remove `agent-team` command routing from both `run.py` files.
 
-- [ ] **Step 4: Remove obsolete tests**
+- [x] **Step 4: Remove obsolete tests**
 
 Delete tests that only verify old assignment/outbox/review-chain behavior:
 
@@ -752,13 +752,13 @@ tests/test_agent_team_state_machine.py
 
 If any assertion still matters for new fixed agents, move it into `tests/test_cowork_agents.py` or `tests/test_workflow_trellis_like.py`.
 
-- [ ] **Step 5: Search for stale references**
+- [x] **Step 5: Search for stale references**
 
 Run: `rg -n "agent-team|agent_team|worker-report|record-spawn|record-review|collect|retry" .cowork-flow template .agent tests src test`
 
 Expected: only archived historical records under `.cowork-flow/tasks/archive` or `.cowork-flow/changes/archive` may remain. No active scripts, skills, templates, or tests should reference old runtime.
 
-- [ ] **Step 6: Run focused removal tests**
+- [x] **Step 6: Run focused removal tests**
 
 Run: `python -m unittest tests.test_no_legacy_template_paths tests.test_cowork_agents tests.test_workflow_trellis_like -v`
 
@@ -775,13 +775,13 @@ Expected: PASS.
 - Modify: `scripts/run-template-tests.js` if it enumerates removed tests
 - Test: Node and Python template tests
 
-- [ ] **Step 1: Run template path tests to find stale expectations**
+- [x] **Step 1: Run template path tests to find stale expectations**
 
 Run: `npm test -- test/template-paths.test.js`
 
 Expected: FAIL if tests still expect agent-team files or `.current-task`.
 
-- [ ] **Step 2: Update Node template tests**
+- [x] **Step 2: Update Node template tests**
 
 Adjust assertions to expect:
 
@@ -792,13 +792,13 @@ assert.equal(isInternalTemplateFile('.codex\\agents\\cowork-implement.toml'), fa
 
 Remove assertions for deleted agent-team assets.
 
-- [ ] **Step 3: Run Python template tests**
+- [x] **Step 3: Run Python template tests**
 
 Run: `npm run test:template`
 
 Expected: identify stale references.
 
-- [ ] **Step 4: Fix stale template references**
+- [x] **Step 4: Fix stale template references**
 
 For each failure:
 
@@ -806,7 +806,7 @@ For each failure:
 - replace agent-team execution text with cowork fixed-agent flow
 - remove tests for deleted scripts
 
-- [ ] **Step 5: Run focused template verification**
+- [x] **Step 5: Run focused template verification**
 
 Run: `npm run test:template`
 
@@ -820,7 +820,7 @@ Expected: PASS.
 - Modify: `.cowork-flow/changes/05-28-clean-room-trellis-like-rewrite/change.yaml`
 - Modify: `.cowork-flow/plans/2026-05-28-clean-room-trellis-like-rewrite.md`
 
-- [ ] **Step 1: Update plan execution status**
+- [x] **Step 1: Update plan execution status**
 
 Change `Current Execution Status` to:
 
@@ -828,7 +828,7 @@ Change `Current Execution Status` to:
 Implementation complete pending full verification.
 ```
 
-- [ ] **Step 2: Link plan in change metadata**
+- [x] **Step 2: Link plan in change metadata**
 
 Set in `change.yaml`:
 
@@ -836,25 +836,25 @@ Set in `change.yaml`:
 plan: .cowork-flow/plans/2026-05-28-clean-room-trellis-like-rewrite.md
 ```
 
-- [ ] **Step 3: Validate change**
+- [x] **Step 3: Validate change**
 
 Run: `.\.cowork-flow\run.cmd change validate 05-28-clean-room-trellis-like-rewrite`
 
 Expected: `05-28-clean-room-trellis-like-rewrite valid`
 
-- [ ] **Step 4: Run full verification**
+- [x] **Step 4: Run full verification**
 
 Run: `npm run test:all`
 
 Expected: PASS.
 
-- [ ] **Step 5: Search for forbidden stale paths**
+- [x] **Step 5: Search for forbidden stale paths**
 
 Run: `rg -n "\.current-task|agent-team prepare|agent-team next|worker-report|record-spawn" .cowork-flow template .agent tests src test`
 
 Expected: no active-path matches. Archived historical task/change records are acceptable only under archive directories.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Commit after user-approved implementation:
 
