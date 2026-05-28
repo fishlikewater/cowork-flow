@@ -37,6 +37,13 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             self.assertIsNone(self.active_task.resolve_context_key())
 
+    def test_context_key_can_use_codex_hook_input(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                "codex_thread-123",
+                self.active_task.resolve_context_key({"thread_id": "thread-123"}),
+            )
+
     def test_set_and_get_active_task_require_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

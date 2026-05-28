@@ -34,41 +34,29 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'run.py')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'change.py')), true);
+  assert.equal(await exists(join(target, '.codex', 'config.toml')), true);
+  assert.equal(await exists(join(target, '.codex', 'hooks.json')), true);
+  assert.equal(await exists(join(target, '.codex', 'hooks', 'inject-workflow-state.py')), true);
   assert.equal(await exists(join(target, '.superpowers')), false);
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${packageInfo.version}\n`);
   assert.match(io.stdout, /created=/);
   assert.equal(io.stderr, '');
 });
 
-test('init bundles superpowers skills into agent skills when user has not installed them', async (t) => {
+test('init installs clean-room cowork-flow skills directly', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();
 
-  const code = await main(['init', target], {
-    io,
-    prompt: async () => false
-  });
+  const code = await main(['init', target], { io });
 
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.superpowers')), false);
-  assert.equal(await exists(join(target, '.agent', 'skills', 'using-superpowers', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agent', 'skills', 'test-driven-development', 'SKILL.md')), true);
-  assert.match(io.stdout, /Superpowers skills were bundled into \.agent\/skills/);
-});
-
-test('init skips bundled superpowers skills when user has already installed them', async (t) => {
-  const target = join(await createTempDir(t), 'demo');
-  const io = createIo();
-
-  const code = await main(['init', target], {
-    io,
-    prompt: async () => true
-  });
-
-  assert.equal(code, 0);
-  assert.equal(await exists(join(target, '.superpowers')), false);
+  assert.equal(await exists(join(target, '.agent', 'skills', 'before-dev', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agent', 'skills', 'check', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agent', 'skills', 'continue', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agent', 'skills', 'meta', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agent', 'skills', 'python-design', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agent', 'skills', 'using-superpowers', 'SKILL.md')), false);
-  assert.match(io.stdout, /Superpowers skills already installed; skipping bundled skills/);
 });
 
 test('init skips existing files by default', async (t) => {
@@ -114,5 +102,4 @@ test('init dry-run does not write files', async (t) => {
   assert.equal(await exists(target), false);
   assert.match(io.stdout, /dry-run/);
   assert.match(io.stdout, /would-create=/);
-  assert.match(io.stdout, /Superpowers prompt skipped in dry-run/);
 });

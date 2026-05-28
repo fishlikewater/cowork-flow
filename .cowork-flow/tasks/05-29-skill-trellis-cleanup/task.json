@@ -1,0 +1,21 @@
+{
+  "id": "skill-trellis-cleanup",
+  "name": "skill-trellis-cleanup",
+  "title": "Trellis-like skill cleanup",
+  "description": "Remove legacy Superpowers seed flow, add clean-room Trellis-like skills, and audit all skill descriptions.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-29",
+  "completedAt": null,
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

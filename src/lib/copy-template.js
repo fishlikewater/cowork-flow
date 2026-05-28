@@ -36,16 +36,12 @@ function toTemplatePath(relativePath) {
   return relativePath.replaceAll('\\', '/');
 }
 
-export function isInternalTemplateFile(relativePath) {
-  return toTemplatePath(relativePath).startsWith('.superpowers/');
-}
-
 export async function buildInitPlan(targetDir, options = {}) {
   const files = await listFiles(templateRoot);
   const actions = [];
 
   for (const file of files) {
-    if (toTemplatePath(file) === '.cowork-flow/.version' || isInternalTemplateFile(file)) {
+    if (toTemplatePath(file) === '.cowork-flow/.version') {
       continue;
     }
 
@@ -69,26 +65,6 @@ export async function buildInitPlan(targetDir, options = {}) {
   return actions;
 }
 
-export async function buildSuperpowersPlan(targetDir, options = {}) {
-  const sourceRoot = join(templateRoot, '.superpowers');
-  if (!await pathExists(sourceRoot)) {
-    return [];
-  }
-
-  const files = await listFiles(sourceRoot);
-  const actions = [];
-
-  for (const file of files) {
-    const source = join(sourceRoot, file);
-    const destination = join(targetDir, '.agent', 'skills', file);
-    const exists = await pathExists(destination);
-    const action = exists ? (options.force ? 'update' : 'skip') : 'create';
-    actions.push({ action, source, destination, relativePath: `.agent/skills/${file}` });
-  }
-
-  return actions;
-}
-
 const PROTECTED_SYNC_FILES = new Set([
   '.cowork-flow/config.yaml'
 ]);
@@ -102,7 +78,7 @@ const PROTECTED_SYNC_PREFIXES = [
 ];
 
 const SAFE_SYNC_PREFIXES = [
-  '.codex/agents/',
+  '.codex/',
   '.agent/skills/',
   '.cowork-flow/'
 ];
@@ -181,7 +157,7 @@ export async function buildSyncPlan(targetDir, options = {}) {
   const actions = [];
 
   for (const file of files) {
-    if (toTemplatePath(file) === '.cowork-flow/.version' || isInternalTemplateFile(file)) {
+    if (toTemplatePath(file) === '.cowork-flow/.version') {
       continue;
     }
 

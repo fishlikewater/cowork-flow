@@ -36,8 +36,16 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/run.cmd'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/run.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/change.py'), true);
+  assert.equal(files.has('template/.codex/config.toml'), true);
+  assert.equal(files.has('template/.codex/hooks.json'), true);
+  assert.equal(files.has('template/.codex/hooks/inject-workflow-state.py'), true);
   assert.equal(files.has('template/.agent/skills/start/SKILL.md'), true);
-  assert.equal(files.has('template/.superpowers/using-superpowers/SKILL.md'), true);
+  assert.equal(files.has('template/.agent/skills/before-dev/SKILL.md'), true);
+  assert.equal(files.has('template/.agent/skills/check/SKILL.md'), true);
+  assert.equal(files.has('template/.agent/skills/continue/SKILL.md'), true);
+  assert.equal(files.has('template/.agent/skills/meta/SKILL.md'), true);
+  assert.equal(files.has('template/.agent/skills/python-design/SKILL.md'), true);
+  assert.equal([...files].some((file) => file.startsWith('template/.superpowers/')), false);
   assert.equal(
     [...files].some((file) => file.includes('__pycache__') || file.endsWith('.pyc')),
     false

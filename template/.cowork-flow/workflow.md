@@ -11,11 +11,31 @@ Plan -> Implement -> Check -> Finish
 核心路径：
 
 1. Plan: 建立任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
-2. Implement: 主会话派发 `cowork-implement`，首行必须是 `Active task: <task-dir>`。
-3. Check: 主会话派发 `cowork-check`，首行必须是 `Active task: <task-dir>`。
+2. Implement: 主会话用 `spawn_agent` 派发 `cowork-implement`，`fork_turns="none"`，首行必须是 `Active task: <task-dir>`。
+3. Check: 主会话用 `spawn_agent` 派发 `cowork-check`，`fork_turns="none"`，首行必须是 `Active task: <task-dir>`。
 4. Finish: 主会话做最终验证、同步规格、提交、归档、记录 session。
 
 `cowork-flow` 只保存项目状态、任务上下文和恢复线索；实际执行由主会话和固定 `cowork-*` agent 完成。
+
+## 1.1 Hook 注入状态
+
+`.codex/hooks/inject-workflow-state.py` 每轮读取当前 session task，并把下面的 `[workflow-state:*]` 片段注入 Codex 上下文。`workflow.md` 是状态提示的唯一来源；修改流程时必须同步这些片段。
+
+[workflow-state:no_task]
+No active task for this session. For read-only Q&A, answer directly. For implementation, refactor, behavior change, or multi-step work, create or start a task first, then continue through Plan -> Implement -> Check -> Finish.
+[/workflow-state:no_task]
+
+[workflow-state:planning]
+Current task is in planning. Finish prd.md, curate implement.jsonl and check.jsonl with spec/research files, then run task start before dispatching cowork-implement.
+[/workflow-state:planning]
+
+[workflow-state:in_progress]
+Current task is active. Main session dispatches cowork-implement first, then cowork-check. Every spawn_agent call uses fork_turns="none" and a first line of Active task: <task-dir>. Main session waits, verifies child output, lists agents, and closes children.
+[/workflow-state:in_progress]
+
+[workflow-state:completed]
+Current task is completed. Main session should verify the final diff, commit intended files, archive the task, and record the session. Do not dispatch new implementation work against this completed task.
+[/workflow-state:completed]
 
 ## 2. 状态文件
 
@@ -61,6 +81,28 @@ Plan -> Implement -> Check -> Finish
 ```text
 Active task: .cowork-flow/tasks/<task>
 ```
+
+## 3.1 固定 Agent 派发入口
+
+固定 `cowork-*` agent 使用 Codex 原生 subagent 工具，由主会话负责派发、等待、验收和关闭。派发必须用 `fork_turns="none"`，避免子线程继承主会话历史。
+
+主会话派发约定：
+
+```python
+spawn_agent(
+    agent_type="cowork-implement",
+    fork_turns="none",
+    message="Active task: .cowork-flow/tasks/<task>\n\n<assignment>",
+)
+```
+
+等待与验收约定：
+
+- 用 `wait_agent` 等待子 agent 返回。
+- 用 `list_agents` 确认没有遗留 running child。
+- 验收子 agent 汇报的文件、命令和结果；不只信“已完成”文本。
+- 完成或失败后用 `close_agent` 关闭子 agent。
+- 子 agent 自身是 leaf executor；不得再调用 `spawn_agent`、`wait_agent`、`list_agents`、`close_agent`。
 
 ## 4. 任务分级
 
@@ -116,7 +158,7 @@ Windows PowerShell 使用：
 
 ## 6. Implement 阶段
 
-默认派发 `cowork-implement`。派发消息第一行：
+默认派发 `cowork-implement`。派发调用必须设置 `fork_turns="none"`，消息第一行：
 
 ```text
 Active task: .cowork-flow/tasks/<task>
@@ -130,7 +172,7 @@ Active task: .cowork-flow/tasks/<task>
 
 ## 7. Check 阶段
 
-默认派发 `cowork-check`。派发消息第一行：
+默认派发 `cowork-check`。派发调用必须设置 `fork_turns="none"`，消息第一行：
 
 ```text
 Active task: .cowork-flow/tasks/<task>

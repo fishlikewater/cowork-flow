@@ -15,6 +15,7 @@ from .paths import DIR_WORKFLOW, get_repo_root
 # Defaults
 DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
+DEFAULT_CODEX_DISPATCH_MODE = "sub-agent"
 
 CONFIG_FILE = "config.yaml"
 
@@ -126,3 +127,15 @@ def get_hooks(event: str, repo_root: Path | None = None) -> list[str]:
     if isinstance(commands, list):
         return [str(c) for c in commands]
     return []
+
+
+def get_codex_dispatch_mode(repo_root: Path | None = None) -> str:
+    """Get the Codex dispatch mode used by workflow-state hooks."""
+    config = _load_config(repo_root)
+    codex = config.get("codex")
+    if not isinstance(codex, dict):
+        return DEFAULT_CODEX_DISPATCH_MODE
+    mode = codex.get("dispatch_mode")
+    if mode in {"sub-agent", "inline"}:
+        return str(mode)
+    return DEFAULT_CODEX_DISPATCH_MODE

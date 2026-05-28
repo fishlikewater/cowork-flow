@@ -1,0 +1,21 @@
+{
+  "id": "05-28-subagent-command-smoke-test",
+  "name": "05-28-subagent-command-smoke-test",
+  "title": "Subagent command smoke test",
+  "description": "Verify two bounded subagents can execute explicit read-only commands and report exact outputs.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-28",
+  "completedAt": null,
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

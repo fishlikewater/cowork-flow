@@ -8,16 +8,49 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CoworkAgentsTest(unittest.TestCase):
+    def test_skill_set_is_direct_and_trellis_like(self) -> None:
+        expected = {
+            "before-dev",
+            "brainstorming",
+            "break-loop",
+            "check",
+            "continue",
+            "entry-boundary",
+            "finish-work",
+            "meta",
+            "python-design",
+            "start",
+            "update-spec",
+            "writing-plans",
+        }
+        for base in (ROOT / ".agent" / "skills", ROOT / "template" / ".agent" / "skills"):
+            actual = {path.name for path in base.iterdir() if path.is_dir()}
+            self.assertEqual(expected, actual)
+
     def test_codex_agent_definitions_exist_in_root_and_template(self) -> None:
         for base in (ROOT / ".codex" / "agents", ROOT / "template" / ".codex" / "agents"):
             self.assertTrue((base / "cowork-research.toml").is_file())
             self.assertTrue((base / "cowork-implement.toml").is_file())
             self.assertTrue((base / "cowork-check.toml").is_file())
 
+        for path in (
+            ROOT / ".codex" / "config.toml",
+            ROOT / ".codex" / "hooks.json",
+            ROOT / ".codex" / "hooks" / "inject-workflow-state.py",
+            ROOT / "template" / ".codex" / "config.toml",
+            ROOT / "template" / ".codex" / "hooks.json",
+            ROOT / "template" / ".codex" / "hooks" / "inject-workflow-state.py",
+        ):
+            self.assertTrue(path.is_file(), str(path))
+
     def test_agents_require_active_task_and_disable_multi_agent(self) -> None:
         for path in (
+            ROOT / ".codex" / "agents" / "cowork-research.toml",
             ROOT / ".codex" / "agents" / "cowork-implement.toml",
             ROOT / ".codex" / "agents" / "cowork-check.toml",
+            ROOT / "template" / ".codex" / "agents" / "cowork-research.toml",
+            ROOT / "template" / ".codex" / "agents" / "cowork-implement.toml",
+            ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("Active task:", text)
@@ -28,11 +61,27 @@ class CoworkAgentsTest(unittest.TestCase):
     def test_legacy_execution_skill_removed(self) -> None:
         legacy_skills = (
             "agent" + "-team-execution",
+            "dispatching-parallel-agents",
             "subagent-driven-development",
             "requesting-code-review",
+            "using-superpowers",
+            "check-cross-layer",
+            "record-session",
+            "executing-plans",
+            "finishing-a-development-branch",
+            "receiving-code-review",
+            "systematic-debugging",
+            "test-driven-development",
+            "using-git-worktrees",
+            "verification-before-completion",
+            "writing-skills",
         )
         for legacy_skill in legacy_skills:
             self.assertFalse((ROOT / ".agent" / "skills" / legacy_skill / "SKILL.md").exists())
             self.assertFalse(
                 (ROOT / "template" / ".agent" / "skills" / legacy_skill / "SKILL.md").exists()
             )
+
+    def test_external_codex_runner_is_not_part_of_fixed_agent_model(self) -> None:
+        self.assertFalse((ROOT / ".cowork-flow" / "scripts" / "agent.py").exists())
+        self.assertFalse((ROOT / "template" / ".cowork-flow" / "scripts" / "agent.py").exists())

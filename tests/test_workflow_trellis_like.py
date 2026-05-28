@@ -13,6 +13,17 @@ class WorkflowTrellisLikeTest(unittest.TestCase):
         self.assertIn("cowork-research", text)
         self.assertIn("cowork-implement", text)
         self.assertIn("cowork-check", text)
+        self.assertIn("spawn_agent", text)
+        self.assertIn("fork_turns=\"none\"", text)
+        self.assertIn("[workflow-state:no_task]", text)
+        self.assertIn("[workflow-state:planning]", text)
+        self.assertIn("[workflow-state:in_progress]", text)
+        self.assertIn("[workflow-state:completed]", text)
+        self.assertIn("wait_agent", text)
+        self.assertIn("list_agents", text)
+        self.assertIn("close_agent", text)
+        self.assertNotIn("agent run cowork-implement", text)
+        self.assertNotIn("codex exec", text)
         self.assertNotIn("agent" + "-team prepare", text)
         self.assertNotIn("agent" + "-team next", text)
 
@@ -43,6 +54,8 @@ class WorkflowTrellisLikeTest(unittest.TestCase):
             self.assertIn("cowork-implement", text)
             self.assertIn("cowork-check", text)
             self.assertIn("Active task:", text)
+            self.assertIn("spawn_agent", text)
+            self.assertIn("fork_turns=\"none\"", text)
             self.assertNotIn("subagent-driven-development", text)
 
     def test_template_workflow_matches_new_terms(self) -> None:
