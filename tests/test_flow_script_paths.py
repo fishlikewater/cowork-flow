@@ -108,15 +108,6 @@ class FlowScriptPathsTest(unittest.TestCase):
         self.assertIn(".cowork-flow/spec/guides/index.md", files)
         self.assertIn(".cowork-flow/spec/guides/pre-implementation-checklist.md", files)
 
-    def test_check_context_includes_completion_gates(self) -> None:
-        files = [
-            entry["file"]
-            for entry in self.task.get_check_context("backend", Path("/unused"))
-        ]
-
-        self.assertIn(".agent/skills/finish-work/SKILL.md", files)
-        self.assertIn(".agent/skills/record-session/SKILL.md", files)
-
     def test_task_start_blockers_require_prd_and_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -22,15 +22,6 @@ from __future__ import annotations
 
 import sys
 
-# IMPORTANT: Force stdout to use UTF-8 on Windows
-# This fixes UnicodeEncodeError when outputting non-ASCII characters
-if sys.platform == "win32":
-    import io as _io
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
-    elif hasattr(sys.stdout, "detach"):
-        sys.stdout = _io.TextIOWrapper(sys.stdout.detach(), encoding="utf-8", errors="replace")  # type: ignore[union-attr]
-
 import argparse
 import json
 import re
@@ -308,6 +299,7 @@ def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
         repo_root: Repository root for cwd and config lookup.
     """
     import os
+    import shlex
     import subprocess
 
     commands = get_hooks(event, repo_root)
@@ -319,8 +311,7 @@ def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
     for cmd in commands:
         try:
             result = subprocess.run(
-                cmd,
-                shell=True,
+                shlex.split(cmd),
                 cwd=repo_root,
                 env=env,
                 capture_output=True,
@@ -412,7 +403,7 @@ def _skill_path(name: str) -> str:
     return f"{DIR_AGENT}/skills/{name}/SKILL.md"
 
 
-def get_check_context(dev_type: str, repo_root: Path) -> list[dict]:
+def get_check_context(dev_type: str) -> list[dict]:
     """Get check context entries."""
     entries = [
         {"file": _skill_path("finish-work"), "reason": "Finish work checklist"},
@@ -425,7 +416,7 @@ def get_check_context(dev_type: str, repo_root: Path) -> list[dict]:
     return entries
 
 
-def get_debug_context(dev_type: str, repo_root: Path) -> list[dict]:
+def get_debug_context(dev_type: str) -> list[dict]:
     """Get debug context entries."""
     entries: list[dict] = [
         {"file": _skill_path("break-loop"), "reason": "Deep bug analysis workflow"},
@@ -688,14 +679,14 @@ def cmd_init_context(args: argparse.Namespace) -> int:
 
     # check.jsonl
     print(colored("Creating check.jsonl...", Colors.CYAN))
-    check_entries = get_check_context(dev_type, repo_root)
+    check_entries = get_check_context(dev_type)
     check_file = target_dir / "check.jsonl"
     _write_jsonl(check_file, check_entries)
     print(f"  {colored('[OK]', Colors.GREEN)} {len(check_entries)} entries")
 
     # debug.jsonl
     print(colored("Creating debug.jsonl...", Colors.CYAN))
-    debug_entries = get_debug_context(dev_type, repo_root)
+    debug_entries = get_debug_context(dev_type)
     debug_file = target_dir / "debug.jsonl"
     _write_jsonl(debug_file, debug_entries)
     print(f"  {colored('[OK]', Colors.GREEN)} {len(debug_entries)} entries")
@@ -806,9 +797,11 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path) -> int:
         return 0
 
     line_num = 0
+    entry_count = 0
     for line_num, line in _iter_jsonl_lines(jsonl_file):
         if not line.strip():
             continue
+        entry_count += 1
 
         try:
             data = json.loads(line)
@@ -836,7 +829,7 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path) -> int:
                 errors += 1
 
     if errors == 0:
-        print(f"  {colored(f'{file_name}: [OK] ({line_num} entries)', Colors.GREEN)}")
+        print(f"  {colored(f'{file_name}: [OK] ({entry_count} entries)', Colors.GREEN)}")
     else:
         print(f"  {colored(f'{file_name}: [FAIL] ({errors} errors)', Colors.RED)}")
 
@@ -1040,23 +1033,20 @@ def cmd_archive(args: argparse.Namespace) -> int:
         )
         return 1
 
-    if "archived_to" in result:
-        archived_json = archive_dest / FILE_TASK_JSON
-        year_month = archive_dest.parent.name
-        print(colored(f"Archived: {dir_name} -> archive/{year_month}/", Colors.GREEN), file=sys.stderr)
+    archived_json = archive_dest / FILE_TASK_JSON
+    year_month = archive_dest.parent.name
+    print(colored(f"Archived: {dir_name} -> archive/{year_month}/", Colors.GREEN), file=sys.stderr)
 
-        # Auto-commit unless --no-commit
-        if not getattr(args, "no_commit", False):
-            _auto_commit_archive(dir_name, repo_root)
+    # Auto-commit unless --no-commit
+    if not getattr(args, "no_commit", False):
+        _auto_commit_archive(dir_name, repo_root)
 
-        # Return the archive path
-        print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{DIR_ARCHIVE}/{year_month}/{dir_name}")
+    # Return the archive path
+    print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{DIR_ARCHIVE}/{year_month}/{dir_name}")
 
-        # Run hooks with the archived path
-        _run_hooks("after_archive", archived_json, repo_root)
-        return 0
-
-    return 1
+    # Run hooks with the archived path
+    _run_hooks("after_archive", archived_json, repo_root)
+    return 0
 
 
 def _auto_commit_archive(task_name: str, repo_root: Path) -> None:

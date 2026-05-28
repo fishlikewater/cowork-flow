@@ -16,12 +16,10 @@ REQUIRED_START_SNIPPETS = [
     "DELEGATED_SUBTASK",
     "UNCERTAIN",
     "Do not reclassify delegated work as MAIN_SESSION",
-    "<COWORK-FLOW-DELEGATED-SUBTASK>",
     "scoped recovery",
 ]
 
 REQUIRED_ENTRY_BOUNDARY_SNIPPETS = [
-    "<COWORK-FLOW-DELEGATED-SUBTASK>",
     "Delegated signals override main-session signals",
     "assignment prompt is the first source of truth",
 ]

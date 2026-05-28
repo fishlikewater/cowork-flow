@@ -47,7 +47,6 @@ class AgentTeamDocsTest(unittest.TestCase):
             skill = path.read_text(encoding="utf-8")
             self.assertIn("<SUBAGENT-STOP>", skill)
             self.assertIn("If you were dispatched as a subagent", skill)
-            self.assertIn("<COWORK-FLOW-WORKER>", skill)
             self.assertIn("current user message", skill)
             self.assertIn("skip this skill", skill)
             self.assertIn("HARD ENTRY GATE", skill)
@@ -116,7 +115,6 @@ class AgentTeamDocsTest(unittest.TestCase):
             self.assertIn("scoped recovery", skill)
             self.assertIn("--context-file <context.json> resume", skill)
             self.assertIn("must not activate tasks", skill)
-            self.assertIn("<COWORK-FLOW-DELEGATED-SUBTASK>", skill)
             self.assertIn("Delegated signals override main-session signals", skill)
             self.assertIn("concrete task, working directory, commands, and output format", skill)
             self.assertIn("assignment prompt is the first source of truth", skill)
@@ -134,25 +132,26 @@ class AgentTeamDocsTest(unittest.TestCase):
             self.assertIn("HARD ENTRY GATE", skill)
             self.assertIn("Do not reclassify delegated work as MAIN_SESSION", skill)
             self.assertIn("If entry-boundary returned DELEGATED_SUBTASK or UNCERTAIN, stop immediately", skill)
-            self.assertIn("<COWORK-FLOW-DELEGATED-SUBTASK>", skill)
 
     def test_agents_keeps_entry_boundary_guidance_lightweight(self) -> None:
         for path in (ROOT / "AGENTS.md", TEMPLATE / "AGENTS.md"):
             agents = path.read_text(encoding="utf-8")
-            self.assertIn(".agent/skills/entry-boundary", agents)
-            self.assertIn("Delegated or uncertain subtasks must use scoped recovery", agents)
-            self.assertIn("Classify the actual user or delegation task message", agents)
+            self.assertIn(".cowork-flow/workflow.md", agents)
+            self.assertIn(".cowork-flow/spec/", agents)
             self.assertNotIn("worker-report", agents)
             self.assertNotIn("coordinator.context.json", agents)
             self.assertNotIn("outbox", agents)
+            self.assertNotIn("Classify the actual user or delegation task message", agents)
 
     def test_template_agents_mentions_agent_team_runtime(self) -> None:
         agents = (TEMPLATE / "AGENTS.md").read_text(encoding="utf-8")
 
-        self.assertIn(".agent/skills/start", agents)
         self.assertIn(".cowork-flow/", agents)
         self.assertIn("workflow.md", agents)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+

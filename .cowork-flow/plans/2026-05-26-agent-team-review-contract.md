@@ -55,8 +55,6 @@ Expected: fails on the new prompt and state-machine expectations.
 
 Added the explicit `.agent/skills/start` / `<SUBAGENT-STOP>` skip line after an ad hoc review subagent entered start-session recovery instead of returning a review.
 
-After user review, strengthened this from a plain-language hint into a top-of-message `<COWORK-FLOW-WORKER>` marker plus start-skill recognition.
-
 Add helpers that render `## Your job` and `## Report format` differently for implementer, spec-reviewer, and quality-reviewer. Keep existing common worker guardrails unchanged.
 
 - [x] **Step 2: Verify prompt tests GREEN**

@@ -1,7 +1,8 @@
 slug: 05-26-agent-team-review-contract
-status: active
+status: archived
 level: L2
 created_at: 2026-05-26T20:36:33+08:00
 documentation_only: false
 plan: .cowork-flow/plans/2026-05-26-agent-team-review-contract.md
-task: .cowork-flow/tasks/05-26-agent-team-review-contract
+task: archive/2026-05/05-26-agent-team-review-contract
+archived_at: 2026-05-28T13:34:15+08:00

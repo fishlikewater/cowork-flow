@@ -1,0 +1,72 @@
+{
+  "adapter": "codex",
+  "mode": "coordinator-dispatched",
+  "assignmentCount": 6,
+  "spawnDefaults": {
+    "spawnAgent": true,
+    "forkTurns": "none",
+    "promptSource": "assignment-file"
+  },
+  "spawnResult": {
+    "captureFields": [
+      "task_name",
+      "nickname"
+    ],
+    "displayNamePreference": [
+      "nickname",
+      "task_name",
+      "assignmentId"
+    ],
+    "recordSpawnCommandTemplate": "./.cowork-flow/run agent-team record-spawn {taskDir} --assignment {assignmentId} --task-name {task_name} [--nickname {nickname}]"
+  },
+  "assignments": [
+    {
+      "assignmentId": "T001-implementer",
+      "agentType": "worker",
+      "recommendedAgent": "implementer",
+      "suggestedTaskName": "implement_documentation_scope_probe",
+      "promptFile": "assignments/T001-implementer.md",
+      "contextFile": "assignments/T001-implementer.context.json"
+    },
+    {
+      "assignmentId": "T001-spec-reviewer",
+      "agentType": "worker",
+      "recommendedAgent": "spec-reviewer",
+      "suggestedTaskName": "spec_review_documentation_scope_probe",
+      "promptFile": "assignments/T001-spec-reviewer.md",
+      "contextFile": "assignments/T001-spec-reviewer.context.json"
+    },
+    {
+      "assignmentId": "T001-quality-reviewer",
+      "agentType": "worker",
+      "recommendedAgent": "quality-reviewer",
+      "suggestedTaskName": "quality_review_documentation_scope_probe",
+      "promptFile": "assignments/T001-quality-reviewer.md",
+      "contextFile": "assignments/T001-quality-reviewer.context.json"
+    },
+    {
+      "assignmentId": "T002-implementer",
+      "agentType": "worker",
+      "recommendedAgent": "implementer",
+      "suggestedTaskName": "implement_node_cli_surface_probe",
+      "promptFile": "assignments/T002-implementer.md",
+      "contextFile": "assignments/T002-implementer.context.json"
+    },
+    {
+      "assignmentId": "T002-spec-reviewer",
+      "agentType": "worker",
+      "recommendedAgent": "spec-reviewer",
+      "suggestedTaskName": "spec_review_node_cli_surface_probe",
+      "promptFile": "assignments/T002-spec-reviewer.md",
+      "contextFile": "assignments/T002-spec-reviewer.context.json"
+    },
+    {
+      "assignmentId": "T002-quality-reviewer",
+      "agentType": "worker",
+      "recommendedAgent": "quality-reviewer",
+      "suggestedTaskName": "quality_review_node_cli_surface_probe",
+      "promptFile": "assignments/T002-quality-reviewer.md",
+      "contextFile": "assignments/T002-quality-reviewer.context.json"
+    }
+  ]
+}

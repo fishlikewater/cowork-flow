@@ -660,15 +660,11 @@ def render_assignment_prompt(assignment: dict[str, object]) -> str:
     task_title = assignment.get("title", "")
     prompt_title = assignment.get("prompt_title", assignment_id)
     lines = [
-        "<COWORK-FLOW-DELEGATED-SUBTASK>",
         "origin: agent-team spawn_agent",
         "scope: bounded assignment",
         "main-start: forbidden",
         "assignment-source: this prompt",
-        "</COWORK-FLOW-DELEGATED-SUBTASK>",
-        "<COWORK-FLOW-WORKER>",
         "You are a dispatched worker for one assignment. Skip project start-session skills and follow this worker brief only.",
-        "</COWORK-FLOW-WORKER>",
         "",
         f"# {prompt_title}",
         "",
@@ -706,14 +702,20 @@ def render_assignment_prompt(assignment: dict[str, object]) -> str:
             "- If the assignment boundary or acceptance criteria are unclear, ask now or report NEEDS_CONTEXT before changing code.",
             "- Do not guess, broaden scope, or switch into coordinator behavior from this worker brief.",
             (
-                "- If you need cowork-flow recovery, use the scoped command "
-                f"`./.cowork-flow/run --context-file {worker_context_file} resume`."
+                "- Use scoped recovery after context compaction: "
+                f"`./.cowork-flow/run --context-file {worker_context_file} resume` "
+                "restores this assignment scope without loading main-session context."
                 if isinstance(worker_context_file, str) and worker_context_file.strip()
-                else "- If you need cowork-flow recovery, ask for the assignment context file instead of running unscoped workflow commands."
+                else "- If you need cowork-flow recovery, ask for the assignment context file."
             ),
             "- Do not run unscoped cowork-flow workflow commands such as `./.cowork-flow/run resume`, `task start`, or `agent-team next`.",
+            (
+                "- The assignment context file (`.context.json`) enforces your worker role at runtime: "
+                "`agent-team next`, `collect`, `retry`, and `complete` are forbidden in worker mode "
+                "and will fail with a runtime gate error."
+            ),
             "",
-        ]
+            ]
     )
     lines.extend(_render_role_job(assignment))
     lines.extend(_render_named_items("Files", assignment.get("files")))

@@ -1,0 +1,46 @@
+version: 1
+adapter: codex
+task_dependencies:
+assignments:
+  - id: T001-implementer
+    task: T001
+    role: implementer
+    recommended_agent: implementer
+    agent_type: worker
+    depends_on:
+      - none
+  - id: T001-spec-reviewer
+    task: T001
+    role: spec-reviewer
+    recommended_agent: spec-reviewer
+    agent_type: worker
+    depends_on:
+      - T001-implementer
+  - id: T001-quality-reviewer
+    task: T001
+    role: quality-reviewer
+    recommended_agent: quality-reviewer
+    agent_type: worker
+    depends_on:
+      - T001-spec-reviewer
+  - id: T002-implementer
+    task: T002
+    role: implementer
+    recommended_agent: implementer
+    agent_type: worker
+    depends_on:
+      - none
+  - id: T002-spec-reviewer
+    task: T002
+    role: spec-reviewer
+    recommended_agent: spec-reviewer
+    agent_type: worker
+    depends_on:
+      - T002-implementer
+  - id: T002-quality-reviewer
+    task: T002
+    role: quality-reviewer
+    recommended_agent: quality-reviewer
+    agent_type: worker
+    depends_on:
+      - T002-spec-reviewer

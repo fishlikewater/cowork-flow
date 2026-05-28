@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "mode": "worker",
+  "taskDir": ".cowork-flow/tasks/05-28-agent-team-subagent-drift-probe",
+  "assignment": "T001-spec-reviewer",
+  "promptFile": ".cowork-flow/tasks/05-28-agent-team-subagent-drift-probe/agent-team/assignments/T001-spec-reviewer.md",
+  "allowedContext": [
+    {
+      "file": ".cowork-flow/tasks/05-28-agent-team-subagent-drift-probe/prd.md",
+      "reason": "Task PRD"
+    },
+    {
+      "file": ".cowork-flow/tasks/05-28-agent-team-subagent-drift-probe/implement.jsonl",
+      "reason": "Task implementation context index"
+    },
+    {
+      "file": ".cowork-flow/tasks/05-28-agent-team-subagent-drift-probe/check.jsonl",
+      "reason": "Task check context index"
+    },
+    {
+      "file": ".cowork-flow/tasks/05-28-agent-team-subagent-drift-probe/debug.jsonl",
+      "reason": "Task debug context index"
+    },
+    {
+      "file": "AGENTS.md",
+      "reason": "implement context: Project collaboration rules and workflow gates"
+    },
+    {
+      "file": ".cowork-flow/workflow.md",
+      "reason": "implement context: Project workflow and conventions"
+    },
+    {
+      "file": ".cowork-flow/spec/guides/index.md",
+      "reason": "implement context: Pre-implementation thinking guides"
+    },
+    {
+      "file": ".cowork-flow/spec/guides/pre-implementation-checklist.md",
+      "reason": "implement context: Mandatory pre-coding checklist"
+    },
+    {
+      "file": ".cowork-flow/spec/backend/index.md",
+      "reason": "implement context: Backend development guide"
+    },
+    {
+      "file": ".cowork-flow/plans/2026-05-28-agent-team-subagent-drift-probe.md",
+      "reason": "implement context: Agent-team probe implementation plan"
+    },
+    {
+      "file": ".agent/skills/agent-team-execution/SKILL.md",
+      "reason": "implement context: Agent-team execution protocol"
+    },
+    {
+      "file": ".agent/skills/finish-work/SKILL.md",
+      "reason": "check context: Finish work checklist"
+    },
+    {
+      "file": ".agent/skills/record-session/SKILL.md",
+      "reason": "check context: Session recording and state sync"
+    },
+    {
+      "file": ".agent/skills/break-loop/SKILL.md",
+      "reason": "debug context: Deep bug analysis workflow"
+    },
+    {
+      "file": ".agent/skills/update-spec/SKILL.md",
+      "reason": "debug context: Capture implementation lessons and contracts"
+    }
+  ],
+  "forbiddenActions": [
+    "full-start",
+    "unscoped-resume",
+    "task-start",
+    "agent-team:next",
+    "agent-team:collect",
+    "agent-team:retry",
+    "agent-team:complete"
+  ]
+}

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 19
-- **Last Active**: 2026-05-27
+- **Total Sessions**: 20
+- **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~616 | Current |
+| `journal-1.md` | ~648 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 20 | 2026-05-28 | Archive all active requirements | pending |
 | 19 | 2026-05-27 | Implement subagent safe recovery | uncommitted |
 | 18 | 2026-05-27 | Harden worker-scoped agent-team context | uncommitted |
 | 17 | 2026-05-26 | Strengthen agent-team worker start guard | uncommitted |
