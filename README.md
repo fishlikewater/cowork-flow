@@ -23,12 +23,13 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 ├── README.md
 └── template/
     ├── AGENTS.md
+    ├── .codex/
+    │   └── agents/
     ├── .agent/
     │   └── skills/
     └── .cowork-flow/
         ├── config.yaml
         ├── workflow.md
-        ├── agent-team/
         ├── scripts/
         ├── spec/
         ├── changes/
@@ -45,6 +46,9 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 `template/.agent/skills/`
 本地技能入口，覆盖开始工作、收尾验证、记录 session、更新规范、跨层检查等常见协作动作。这里的 skill 应保持通用，不承载某个业务项目的一次性细节。
 
+`template/.codex/agents/`
+固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`。主会话负责计划与收口，派发给子 agent 的提示词首行使用 `Active task: <task-dir>`。
+
 `template/.cowork-flow/`
 工作流目录，包含流程说明、任务状态、开发者工作区、项目规范、行为变更规格、实现计划和辅助脚本。`.cowork-flow/config.yaml` 用于填写项目自己的 lint、build、test 等验证命令。
 
@@ -56,9 +60,6 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 
 `template/.cowork-flow/plans/`
 保存可执行步骤、验证方式和执行状态。
-
-`template/.cowork-flow/agent-team/`
-保存 agent team 的项目级 registry、适配器和策略。默认适配器是 `codex`，由主 agent 调度 Codex 子 agent；没有子 agent 能力时可退回 `manual` 提示词模式。
 
 ## 快速开始
 

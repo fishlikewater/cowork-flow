@@ -4,7 +4,7 @@ description: Use when starting or resuming work in a project that uses cowork-fl
 ---
 
 <SUBAGENT-STOP>
-If you were dispatched as a subagent to execute a specific assignment, skip this skill.
+If you were dispatched as a subagent to execute a bounded delegated task, skip this skill.
 If the current user message contains `Assignment ID:`, `delegated subtask`, `dispatched worker`, or `You are already the dispatched worker`, skip this skill.
 </SUBAGENT-STOP>
 
@@ -12,7 +12,7 @@ If the current user message contains `Assignment ID:`, `delegated subtask`, `dis
 
 ## Entry Gate
 
-This skill is for the main session only. If the prompt is a bounded delegated assignment, stop and follow the assignment prompt instead. Do not run unscoped resume and do not load broad project context from a worker.
+This skill is for the main session only. If the prompt is a bounded delegated task, stop and follow that prompt instead. Do not run unscoped resume and do not load broad project context from a worker.
 
 Any request that changes repository files must be routed through:
 

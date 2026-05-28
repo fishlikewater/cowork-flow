@@ -19,6 +19,13 @@ FORBIDDEN_PATTERNS = (
     "openspec/changes",
     "openspec/config.yaml",
     "python3 ./.cowork-flow/scripts",
+    "agent-team",
+    "agent_team",
+    "agent-team-execution",
+    "subagent-driven-development",
+    "requesting-code-review",
+    "worker-report",
+    ".current-task",
 )
 
 
@@ -51,6 +58,12 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             "openspec/changes",
             "openspec/config.yaml",
             ".trellis",
+            "agent-team-execution",
+            "subagent-driven-development",
+            "requesting-code-review",
+            "agent-team prepare",
+            "agent_team.enabled",
+            ".current-task",
         )
         offenders: list[str] = []
         text_files = [
@@ -102,6 +115,8 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         self.assertNotIn("docs/superpowers/", readme)
         self.assertNotIn("openspec/", readme)
         self.assertNotIn("openspec new", readme)
+        self.assertNotIn("agent-team", readme)
+        self.assertNotIn("agent_team", readme)
 
 
 if __name__ == "__main__":
