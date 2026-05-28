@@ -1,6 +1,6 @@
 # Clean-room Trellis-like Rewrite Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Do not use subagent-driven-development for this rewrite, because the work changes subagent behavior itself. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use cowork-flow fixed agents for execution where the task does not modify agent/runtime behavior. For runtime rewrites, execute inline and use `cowork-check` or an equivalent final check. Every dispatch prompt must start with `Active task: <task-dir>`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild cowork-flow's default execution model around session-scoped tasks and fixed `cowork-research` / `cowork-implement` / `cowork-check` subagents, removing old agent-team-centered paths.
 

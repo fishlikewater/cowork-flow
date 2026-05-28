@@ -1,6 +1,6 @@
 # Release Script README Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use cowork-flow fixed agents for execution: dispatch implementation tasks to `cowork-implement` and verification tasks to `cowork-check`. Every dispatch prompt must start with `Active task: <task-dir>`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 添加 npm release shell 脚本，默认 patch 升级版本、发布前完整验证，并同步 README 发布说明。
 
