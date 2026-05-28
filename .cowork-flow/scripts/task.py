@@ -361,28 +361,19 @@ def _skill_path(name: str) -> str:
 
 def get_check_context(dev_type: str) -> list[dict]:
     """Get check context entries."""
-    entries = [
-        {"file": _skill_path("finish-work"), "reason": "Finish work checklist"},
-        {"file": _skill_path("record-session"), "reason": "Session recording and state sync"},
+    return [
+        {"file": _skill_path("check"), "reason": "Quality, contract, and template consistency check"},
+        {"file": _skill_path("finish-work"), "reason": "Finish, archive, and session recording gate"},
     ]
-
-    if dev_type in ("backend", "frontend", "fullstack"):
-        entries.append({"file": _skill_path("check-cross-layer"), "reason": "Cross-layer consistency check"})
-
-    return entries
 
 
 def get_debug_context(dev_type: str) -> list[dict]:
     """Get debug context entries."""
-    entries: list[dict] = [
+    return [
         {"file": _skill_path("break-loop"), "reason": "Deep bug analysis workflow"},
         {"file": _skill_path("update-spec"), "reason": "Capture implementation lessons and contracts"},
+        {"file": _skill_path("check"), "reason": "Verify the fix and related contracts"},
     ]
-
-    if dev_type in ("backend", "frontend", "fullstack"):
-        entries.append({"file": _skill_path("check-cross-layer"), "reason": "Cross-layer consistency check"})
-
-    return entries
 
 
 def _write_jsonl(path: Path, entries: list[dict]) -> None:
@@ -903,7 +894,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     print(colored(f"[OK] Current session task set to: {task_dir}", Colors.GREEN))
     print()
-    print(colored("The hook will now inject context from this task's jsonl files.", Colors.BLUE))
+    print(colored("Fixed agents will load context from this task's jsonl files.", Colors.BLUE))
 
     task_json_path = full_path / FILE_TASK_JSON
     _run_hooks("after_start", task_json_path, repo_root)

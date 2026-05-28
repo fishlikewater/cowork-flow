@@ -1,0 +1,10 @@
+# Project-scoped Codex defaults for cowork-flow.
+# Codex reads this file only when the project is trusted in user config.
+
+project_doc_fallback_filenames = ["AGENTS.md"]
+
+# Hooks are registered by .codex/hooks.json. Codex still requires the user-level
+# hooks feature and one-time hook approval; project config cannot enable that.
+#
+# Keep multi_agent_v2 tuning out of project config. Codex versions differ in
+# accepted feature-table syntax, so concurrency belongs in user-level config.

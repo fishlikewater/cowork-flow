@@ -1,83 +1,49 @@
 ---
 name: entry-boundary
-description: Use before project start/resume in cowork-flow projects to decide whether the current message is a top-level user request or a delegated subtask, and route delegated/uncertain work to scoped recovery instead of full project context loading.
+description: Use before project start/resume in cowork-flow projects to decide whether the current prompt is a main-session request or a bounded delegated subtask.
 ---
 
 # Entry Boundary
 
-Use this before `.agent/skills/start` or any full project `resume`.
+Use this before `start` or any full project resume.
+
+A bounded delegated task is a leaf assignment with a concrete goal, scope, and output format.
 
 ## Classify
 
-Classify the current message as exactly one:
+Classify the current prompt as one of:
 
-Classify the actual user or delegation task message, not project bootstrap text such as AGENTS.md, environment_context, or injected instruction blocks. Bootstrap text constrains behavior, but it is not the task being classified.
+- `MAIN_SESSION`: the user is directly asking this agent to work in the repository.
+- `DELEGATED_SUBTASK`: the prompt is a bounded child assignment, worker request, reviewer task, explorer task, or command-only task.
+- `UNCERTAIN`: the prompt is not clear enough to load broad project context.
 
-- `MAIN_SESSION`: the user is directly asking this agent to work in this repository, or explicitly says `not a subagent`, `main agent`, or `run full cowork-flow start`.
-- `DELEGATED_SUBTASK`: the message is a bounded delegated task. Strong signals include `you are a subagent`, `delegated subtask`, `dispatched worker`, `Assignment ID`, `child thread`, `you are explorer`, `you are worker`, `you are reviewer`, `only investigate`, `do not modify files`, or a bounded report format such as `return/output findings`.
-- `UNCERTAIN`: neither side is clear.
+Classify the actual task message, not injected project rules, `AGENTS.md`, or environment text.
 
-Delegated signals override main-session signals. If a prompt contains a concrete task, working directory, commands, and output format, treat it as `DELEGATED_SUBTASK` even when repository `AGENTS.md` also mentions top-level start/resume rules.
-
-When in doubt, choose `UNCERTAIN`. This avoids pulling a delegated subtask into the main coordinator workflow.
-
-## Delegation Marker
-
-cowork-flow dispatchers SHOULD put the active task at the top of spawned child prompts when they control the prompt shape:
+Fixed-agent prompts normally start with:
 
 ```text
 Active task: <task-dir>
-scope: bounded
-main-start: forbidden
 ```
 
-The marker is a strong signal, not the only signal. Other tools may dispatch subtasks without it; classify those by the bounded task shape above.
-
-For `DELEGATED_SUBTASK`, the delegation prompt is the first source of truth. Project rules may constrain how work is done, but they must not replace the delegated goal with main-session recovery.
+Treat that marker as a strong delegated-subtask signal when the rest of the prompt is bounded.
 
 ## Route
 
-### MAIN_SESSION
+For `MAIN_SESSION`, use `start`.
 
-Run `.agent/skills/start` and follow the normal cowork-flow project workflow.
+For `DELEGATED_SUBTASK`:
 
-### DELEGATED_SUBTASK with scoped context
+- Follow the delegated prompt first.
+- Do not run unscoped `.cowork-flow/run resume`.
+- Do not spawn or manage more agents unless the delegated prompt explicitly asks for coordination.
+- Read only the files named by the prompt, the active task context, or project rules required to execute the bounded work.
 
-Do not run `.agent/skills/start` and do not run unscoped `./.cowork-flow/run resume`.
-Recover only the subtask scope:
+For `UNCERTAIN`, do safe read-only inspection or ask a short clarification question.
 
-```bash
-./.cowork-flow/run --context-file <context.json> resume
-```
-
-### DELEGATED_SUBTASK without scoped context
-
-Do not run `.agent/skills/start`.
-Create scoped recovery state for this delegated task, then continue only within that recorded scope:
-
-```bash
-./.cowork-flow/run subagent init --title "<short title>" --role <role> --goal "<assigned goal>"
-```
-
-Add `--allowed-context <path>` for any prompt-named files the subtask may read.
-
-### UNCERTAIN
-
-Do not run full start/resume. Use safe-read only, or create a generic subagent context if the assigned scope is clear enough. Ask for clarification only if the boundary cannot be recovered from the prompt.
-
-## Output Shape
-
-Keep the decision short:
+## Output
 
 ```text
 Boundary: MAIN_SESSION | DELEGATED_SUBTASK | UNCERTAIN
-Action: run start | scoped resume | subagent init | safe-read only
-Reason: <one or two signals>
+Action: start | execute delegated prompt | safe-read | clarify
+Reason: <signals used>
 ```
-
-## Rules
-
-- This skill is a routing gate, not a project context loader.
-- A `DELEGATED_SUBTASK` is a leaf executor by default: execute the delegated task in this prompt directly. Do not call spawn_agent, wait_agent, close_agent, or list_agents, and do not wait for another subagent, unless the prompt explicitly says coordinator or asks you to manage other agents.
-- Delegated or uncertain work must not activate tasks, run coordinator mutation commands, or load main-session resume context.
-- Scoped recovery is allowed and expected for delegated subtasks; the boundary prevents only main coordinator recovery.

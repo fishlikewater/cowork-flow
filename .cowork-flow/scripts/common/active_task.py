@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import os
 import json
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from collections.abc import Mapping
 from pathlib import Path
 
 from .paths import DIR_WORKFLOW
@@ -26,7 +27,17 @@ def _sanitize(raw: str) -> str:
     return safe[:160]
 
 
-def resolve_context_key() -> str | None:
+def _first_input_value(values: Mapping[str, object] | None, names: tuple[str, ...]) -> str | None:
+    if values is None:
+        return None
+    for name in names:
+        value = values.get(name)
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def resolve_context_key(values: Mapping[str, object] | None = None) -> str | None:
     explicit = os.environ.get("COWORK_FLOW_CONTEXT_ID")
     if explicit and explicit.strip():
         return _sanitize(explicit)
@@ -38,6 +49,40 @@ def resolve_context_key() -> str | None:
     codex_thread = os.environ.get("CODEX_THREAD_ID")
     if codex_thread and codex_thread.strip():
         return f"codex_{_sanitize(codex_thread)}"
+
+    input_explicit = _first_input_value(
+        values,
+        (
+            "COWORK_FLOW_CONTEXT_ID",
+            "cowork_flow_context_id",
+            "context_id",
+        ),
+    )
+    if input_explicit:
+        return _sanitize(input_explicit)
+
+    input_session = _first_input_value(
+        values,
+        (
+            "CODEX_SESSION_ID",
+            "codex_session_id",
+            "session_id",
+        ),
+    )
+    if input_session:
+        return f"codex_{_sanitize(input_session)}"
+
+    input_thread = _first_input_value(
+        values,
+        (
+            "CODEX_THREAD_ID",
+            "codex_thread_id",
+            "thread_id",
+            "conversation_id",
+        ),
+    )
+    if input_thread:
+        return f"codex_{_sanitize(input_thread)}"
 
     return None
 
@@ -86,8 +131,8 @@ def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
     return ActiveTask(normalized, context_key, "session")
 
 
-def get_active_task(repo_root: Path) -> ActiveTask:
-    context_key = resolve_context_key()
+def get_active_task(repo_root: Path, values: Mapping[str, object] | None = None) -> ActiveTask:
+    context_key = resolve_context_key(values)
     if not context_key:
         return ActiveTask(None, None, "missing-context")
     data = _read_json(_session_path(repo_root, context_key))

@@ -15,6 +15,15 @@ session_commit_message: "chore: record journal"
 max_journal_lines: 2000
 
 #-------------------------------------------------------------------------------
+# Codex Runtime
+#-------------------------------------------------------------------------------
+
+# sub-agent: main session dispatches cowork-* fixed agents.
+# inline: main session performs implementation and check work directly.
+codex:
+  dispatch_mode: "sub-agent"
+
+#-------------------------------------------------------------------------------
 # Task Lifecycle Hooks
 #-------------------------------------------------------------------------------
 

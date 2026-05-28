@@ -1,53 +1,32 @@
 ---
 name: finish-work
-description: Use when finishing cowork-flow implementation work before commit, archive, session recording, or handoff.
+description: Use when implementation and verification are complete and cowork-flow work needs final scope review, commit/archive/session recording, or handoff.
 ---
 
 # Finish Work
 
-Use this in the main session after implementation and check work are done.
+Use this in the main session after implementation and `check` are complete.
 
-## Required Inputs
+## Gate
 
-Read:
+Before claiming completion, verify:
 
-1. `AGENTS.md`
-2. `.cowork-flow/workflow.md`
-3. Current task PRD and plan
-4. `.cowork-flow/config.yaml` if present
+- Current task exists, or the work was explicitly read-only/no-task.
+- `check` or equivalent final review ran.
+- `git diff` was reviewed for scope.
+- Relevant tests, build, lint, or focused validation ran.
+- `.cowork-flow/spec/` was updated when the change created durable knowledge.
+- Plan checkboxes and task status match reality.
+- No unrelated dirty files are staged.
 
-## Completion Gate
+## Sequence
 
-Before claiming completion:
+1. Run `git status --short`.
+2. Run `git diff --check`.
+3. Run focused tests and then broader project verification when appropriate.
+4. Update the plan/task status.
+5. If commit policy allows, stage only expected files and commit.
+6. Archive completed task/change artifacts when requested or required by workflow.
+7. Record the session with `.cowork-flow/run add-session` after code policy is satisfied.
 
-- [ ] A current session task exists, or this was explicitly read-only/no-task work.
-- [ ] `cowork-check` ran, or an equivalent final inline check ran.
-- [ ] `git diff` was reviewed for scope.
-- [ ] Relevant tests/build/lint were run, or blocked commands are stated with reason.
-- [ ] `.cowork-flow/spec/` was updated, or explicitly judged unchanged.
-- [ ] Plan checkboxes and `Current Execution Status` match reality.
-- [ ] No unrelated dirty files are staged.
-- [ ] Commit is created before task archive or session recording when commit policy requires it.
-
-## Verification Source Order
-
-1. `.cowork-flow/config.yaml`
-2. `AGENTS.md`
-3. Existing package/test scripts
-4. Smallest focused command inferred from changed files
-
-Do not report a command as passing unless it was run and the output was checked.
-
-## Finish Sequence
-
-```bash
-git status --short
-git diff --check
-# run focused tests and then full project verification when appropriate
-git add <expected files>
-git commit -m "<message>"
-./.cowork-flow/run task archive <task-name>
-./.cowork-flow/run add-session --title "<title>" --commit "<commit>" --summary "<summary>"
-```
-
-If the project or user asks not to commit, stop before staging and report the verified state.
+If the user asks not to commit, stop before staging and report the verified state.

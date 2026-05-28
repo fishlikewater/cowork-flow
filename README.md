@@ -44,10 +44,13 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 项目级协作入口，包含编码前思考、简单优先、外科手术式改动、验证优先等基础原则。接入项目后，应把项目名称、技术栈、运行命令、测试命令和提交策略补齐。
 
 `template/.agent/skills/`
-本地技能入口，覆盖开始工作、收尾验证、记录 session、更新规范、跨层检查等常见协作动作。这里的 skill 应保持通用，不承载某个业务项目的一次性细节。
+本地技能入口，覆盖 start、before-dev、brainstorming、writing-plans、check、finish-work、continue、meta、python-design、update-spec 和 break-loop 等协作动作。这里的 skill 应保持通用，不承载某个业务项目的一次性细节。
 
 `template/.codex/agents/`
-固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`。主会话负责计划与收口，派发给子 agent 的提示词首行使用 `Active task: <task-dir>`。
+固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`。主会话负责计划与收口，并用 Codex `spawn_agent` 派发固定 agent；派发必须使用 `fork_turns="none"`，提示词首行使用 `Active task: <task-dir>`。
+
+`template/.codex/config.toml`、`template/.codex/hooks.json`、`template/.codex/hooks/`
+Codex 项目级配置与每轮上下文注入入口。hook 会读取当前 session task、`.cowork-flow/workflow.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。
 
 `template/.cowork-flow/`
 工作流目录，包含流程说明、任务状态、开发者工作区、项目规范、行为变更规格、实现计划和辅助脚本。`.cowork-flow/config.yaml` 用于填写项目自己的 lint、build、test 等验证命令。
@@ -98,8 +101,7 @@ npx cowork-flow --help
 cowork-flow init ./my-project
 ```
 
-`init` 会询问你是否已经安装了 Superpowers skills。选择未安装时，会把内置的 `.superpowers/` 技能复制到目标项目的 `.agent/skills/` 下。
-在非交互环境里，这一步会自动跳过询问并默认视为已安装。
+`init` 会直接复制模板中的 `.agent/skills/`、`.codex/` 和 `.cowork-flow/`，不会在初始化时询问或复制额外技能包。
 
 初始化到当前项目：
 
@@ -179,13 +181,19 @@ cowork-flow sync . --dry-run
 
 执行 plan 时使用固定 cowork agents：
 
-主会话负责创建/启动任务、维护计划与收口验证；可并行的实现或检查工作派发给固定角色 agent。派发首行写明当前任务目录：
+主会话负责创建/启动任务、维护计划与收口验证；可并行的实现或检查工作通过 Codex subagent 交给固定角色 agent。
 
-```text
-Active task: <task-dir>
+```python
+spawn_agent(
+    agent_type="cowork-implement",
+    fork_turns="none",
+    message="Active task: <task-dir>\n\n<assignment>",
+)
 ```
 
-默认角色为 `cowork-research`、`cowork-implement`、`cowork-check`，任务上下文由 agent 根据 active task 自行加载。
+默认角色为 `cowork-research`、`cowork-implement`、`cowork-check`，任务上下文由 agent 根据 active task 自行加载。主会话必须用 `wait_agent` 等待结果，验收输出，再用 `list_agents` / `close_agent` 收口。
+
+Codex hook 启用后，每轮会自动注入 `<workflow-state>`，其中包含当前任务、状态来源和下一步流程提示。hook 不替代主会话验收；它只负责把 task 状态和 workflow gate 放进上下文。
 
 记录 session：
 

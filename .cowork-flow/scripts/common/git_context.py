@@ -647,7 +647,7 @@ def get_context_record_json(repo_root: Path | None = None) -> dict:
 
 
 def get_context_text_record(repo_root: Path | None = None) -> str:
-    """Get context as formatted text for record-session mode.
+    """Get context as formatted text for session recording mode.
 
     Focused output: MY ACTIVE TASKS first (with [!!!] emphasis),
     then GIT STATUS, RECENT COMMITS, CURRENT TASK.
@@ -656,7 +656,7 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
         repo_root: Repository root path. Defaults to auto-detected.
 
     Returns:
-        Formatted text output for record-session.
+        Formatted text output for session recording.
     """
     if repo_root is None:
         repo_root = get_repo_root()
@@ -744,7 +744,7 @@ def main() -> None:
         "-m",
         choices=["default", "record"],
         default="default",
-        help="Output mode: default (full context) or record (for record-session)",
+        help="Output mode: default (full context) or record (for session recording)",
     )
 
     args = parser.parse_args()
