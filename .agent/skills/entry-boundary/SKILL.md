@@ -14,7 +14,7 @@ Classify the current message as exactly one:
 Classify the actual user or delegation task message, not project bootstrap text such as AGENTS.md, environment_context, or injected instruction blocks. Bootstrap text constrains behavior, but it is not the task being classified.
 
 - `MAIN_SESSION`: the user is directly asking this agent to work in this repository, or explicitly says `not a subagent`, `main agent`, or `run full cowork-flow start`.
-- `DELEGATED_SUBTASK`: the message is delegated work. Strong signals include `you are a subagent`, `delegated subtask`, `dispatched worker`, `Assignment ID`, `child thread`, `you are explorer`, `you are worker`, `you are reviewer`, `only investigate`, `do not modify files`, or a bounded report format such as `return/output findings`.
+- `DELEGATED_SUBTASK`: the message is a bounded delegated task. Strong signals include `you are a subagent`, `delegated subtask`, `dispatched worker`, `Assignment ID`, `child thread`, `you are explorer`, `you are worker`, `you are reviewer`, `only investigate`, `do not modify files`, or a bounded report format such as `return/output findings`.
 - `UNCERTAIN`: neither side is clear.
 
 Delegated signals override main-session signals. If a prompt contains a concrete task, working directory, commands, and output format, treat it as `DELEGATED_SUBTASK` even when repository `AGENTS.md` also mentions top-level start/resume rules.
@@ -23,18 +23,17 @@ When in doubt, choose `UNCERTAIN`. This avoids pulling a delegated subtask into 
 
 ## Delegation Marker
 
-cowork-flow dispatchers SHOULD put this marker at the top of spawned child prompts when they control the prompt shape:
+cowork-flow dispatchers SHOULD put the active task at the top of spawned child prompts when they control the prompt shape:
 
 ```text
-origin: spawn_agent
+Active task: <task-dir>
 scope: bounded
 main-start: forbidden
-assignment-source: this prompt
 ```
 
 The marker is a strong signal, not the only signal. Other tools may dispatch subtasks without it; classify those by the bounded task shape above.
 
-For `DELEGATED_SUBTASK`, the assignment prompt is the first source of truth. Project rules may constrain how work is done, but they must not replace the assigned goal with main-session recovery.
+For `DELEGATED_SUBTASK`, the delegation prompt is the first source of truth. Project rules may constrain how work is done, but they must not replace the delegated goal with main-session recovery.
 
 ## Route
 
@@ -79,6 +78,6 @@ Reason: <one or two signals>
 ## Rules
 
 - This skill is a routing gate, not a project context loader.
-- A `DELEGATED_SUBTASK` is a leaf executor by default: execute the assignment in this prompt directly. Do not call spawn_agent, wait_agent, close_agent, or list_agents, and do not wait for another subagent, unless the assignment explicitly says coordinator or asks you to manage other agents.
+- A `DELEGATED_SUBTASK` is a leaf executor by default: execute the delegated task in this prompt directly. Do not call spawn_agent, wait_agent, close_agent, or list_agents, and do not wait for another subagent, unless the prompt explicitly says coordinator or asks you to manage other agents.
 - Delegated or uncertain work must not activate tasks, run coordinator mutation commands, or load main-session resume context.
 - Scoped recovery is allowed and expected for delegated subtasks; the boundary prevents only main coordinator recovery.

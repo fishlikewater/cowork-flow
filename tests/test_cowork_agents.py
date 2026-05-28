@@ -26,8 +26,13 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("enabled = false", text)
 
     def test_legacy_execution_skill_removed(self) -> None:
-        legacy_skill = "agent" + "-team-execution"
-        self.assertFalse((ROOT / ".agent" / "skills" / legacy_skill / "SKILL.md").exists())
-        self.assertFalse(
-            (ROOT / "template" / ".agent" / "skills" / legacy_skill / "SKILL.md").exists()
+        legacy_skills = (
+            "agent" + "-team-execution",
+            "subagent-driven-development",
+            "requesting-code-review",
         )
+        for legacy_skill in legacy_skills:
+            self.assertFalse((ROOT / ".agent" / "skills" / legacy_skill / "SKILL.md").exists())
+            self.assertFalse(
+                (ROOT / "template" / ".agent" / "skills" / legacy_skill / "SKILL.md").exists()
+            )

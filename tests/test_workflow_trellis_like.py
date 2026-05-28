@@ -21,6 +21,29 @@ class WorkflowTrellisLikeTest(unittest.TestCase):
         self.assertIn("Plan -> Implement -> Check -> Finish", text)
         self.assertIn("Active task:", text)
         self.assertNotIn("agent" + "-team-execution", text)
+        self.assertNotIn("specific assignment", text)
+        self.assertIn("bounded delegated task", text)
+
+    def test_entry_boundary_matches_fixed_agent_prompts(self) -> None:
+        for path in (
+            ROOT / ".agent" / "skills" / "entry-boundary" / "SKILL.md",
+            ROOT / "template" / ".agent" / "skills" / "entry-boundary" / "SKILL.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("Active task:", text)
+            self.assertIn("bounded delegated task", text)
+            self.assertNotIn("assignment-source", text)
+
+    def test_writing_plans_routes_to_fixed_agents(self) -> None:
+        for path in (
+            ROOT / ".agent" / "skills" / "writing-plans" / "SKILL.md",
+            ROOT / "template" / ".agent" / "skills" / "writing-plans" / "SKILL.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("cowork-implement", text)
+            self.assertIn("cowork-check", text)
+            self.assertIn("Active task:", text)
+            self.assertNotIn("subagent-driven-development", text)
 
     def test_template_workflow_matches_new_terms(self) -> None:
         text = (ROOT / "template" / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
