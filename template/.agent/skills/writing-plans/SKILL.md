@@ -11,7 +11,7 @@ Create a plan that another agent can execute without guessing.
 
 Read:
 
-- Current task PRD.
+- Active task PRD.
 - Relevant change spec/design files.
 - Relevant `.cowork-flow/spec/` indexes and target specs.
 - Files that define the contracts being changed.

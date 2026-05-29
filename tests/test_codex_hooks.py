@@ -71,7 +71,7 @@ class CodexHooksTest(unittest.TestCase):
             sessions = root / ".cowork-flow" / ".runtime" / "sessions"
             sessions.mkdir(parents=True)
             (sessions / "codex_demo-session.json").write_text(
-                '{"current_task": ".cowork-flow/tasks/05-29-demo"}\n',
+                '{"active_task_path": ".cowork-flow/tasks/05-29-demo"}\n',
                 encoding="utf-8",
             )
 

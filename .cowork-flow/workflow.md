@@ -26,15 +26,15 @@ No active task for this session. For read-only Q&A, answer directly. For impleme
 [/workflow-state:no_task]
 
 [workflow-state:planning]
-Current task is in planning. Finish prd.md, curate implement.jsonl and check.jsonl with spec/research files, then run task start before dispatching cowork-implement.
+The active task is in planning. Finish prd.md, curate implement.jsonl and check.jsonl with spec/research files, then run task start before dispatching cowork-implement.
 [/workflow-state:planning]
 
 [workflow-state:in_progress]
-Current task is active. Main session dispatches cowork-implement work according to the plan, then cowork-check after integration. Every spawn_agent call uses fork_turns="none" and a first line of Active task: <task-dir>. Main session waits, verifies child output, lists agents, and closes children.
+The active task is in progress. Main session dispatches cowork-implement work according to the plan, then cowork-check after integration. Every spawn_agent call uses fork_turns="none" and a first line of Active task: <task-dir>. Main session waits, verifies child output, lists agents, and closes children.
 [/workflow-state:in_progress]
 
 [workflow-state:completed]
-Current task is completed. Main session should verify the final diff, commit intended files, archive the task, and record the session. Do not dispatch new implementation work against this completed task.
+The active task is completed. Main session should verify the final diff, commit intended files, archive the task, and record the session. Do not dispatch new implementation work against this completed task.
 [/workflow-state:completed]
 
 ## 2. 状态文件

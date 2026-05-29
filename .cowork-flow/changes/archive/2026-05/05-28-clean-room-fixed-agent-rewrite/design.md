@@ -34,7 +34,7 @@ main session
 
 ```json
 {
-  "current_task": ".cowork-flow/tasks/05-28-example",
+  "active_task_path": ".cowork-flow/tasks/05-28-example",
   "platform": "codex",
   "last_seen_at": "2026-05-28T00:00:00Z"
 }

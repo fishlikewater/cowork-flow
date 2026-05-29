@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import sys
 import tempfile
@@ -68,7 +69,16 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 active = self.active_task.set_active_task(
                     root, ".cowork-flow/tasks/05-28-demo"
                 )
+                session_file = (
+                    self.active_task.sessions_dir(root) / f"{active.context_key}.json"
+                )
+                session_data = json.loads(session_file.read_text(encoding="utf-8"))
                 self.assertEqual(".cowork-flow/tasks/05-28-demo", active.task_path)
+                self.assertEqual(
+                    ".cowork-flow/tasks/05-28-demo",
+                    session_data.get("active_task_path"),
+                )
+                self.assertNotIn("current_task", session_data)
                 self.assertEqual(
                     ".cowork-flow/tasks/05-28-demo",
                     self.active_task.get_active_task(root).task_path,
@@ -82,11 +92,11 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             sessions = self.active_task.sessions_dir(root)
             sessions.mkdir(parents=True)
             (sessions / "main.json").write_text(
-                '{"current_task": ".cowork-flow/tasks/05-28-demo"}\n',
+                '{"active_task_path": ".cowork-flow/tasks/05-28-demo"}\n',
                 encoding="utf-8",
             )
             (sessions / "other.json").write_text(
-                '{"current_task": ".cowork-flow/tasks/05-28-other"}\n',
+                '{"active_task_path": ".cowork-flow/tasks/05-28-other"}\n',
                 encoding="utf-8",
             )
 

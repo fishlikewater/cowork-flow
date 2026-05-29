@@ -11,8 +11,8 @@ Use this immediately before code edits.
 
 1. `AGENTS.md`
 2. `.cowork-flow/workflow.md`
-3. Current task `prd.md`
-4. Current task `implement.jsonl`
+3. Active task `prd.md`
+4. Active task `implement.jsonl`
 5. Relevant `.cowork-flow/spec/*/index.md`
 6. Any exact files named by the task, plan, or user
 

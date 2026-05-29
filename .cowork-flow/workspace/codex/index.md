@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 21
+- **Total Sessions**: 22
 - **Last Active**: 2026-05-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~680 | Current |
+| `journal-1.md` | ~712 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 22 | 2026-05-29 | Rename active task runtime field | pending |
 | 21 | 2026-05-29 | Close out workflow cleanup | pending |
 | 20 | 2026-05-28 | Archive all active requirements | pending |
 | 19 | 2026-05-27 | Implement subagent safe recovery | uncommitted |

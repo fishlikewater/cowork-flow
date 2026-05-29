@@ -26,6 +26,8 @@ FORBIDDEN_PATTERNS = (
     "using-superpowers",
     "worker-report",
     ".current-task",
+    "current_task",
+    "currentTask",
     "agent run",
     "codex exec",
 )
