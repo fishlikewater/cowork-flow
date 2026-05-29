@@ -108,6 +108,8 @@ spawn_agent(
 
 并行执行采用 clean-room 的 parallel sessions 模型：
 
+- 用户无需在需求输入时声明是否并行；Plan 阶段由主会话评估并行可行性。
+- 开发计划必须明确执行策略：串行执行，或列出可并行的 low-conflict slices。
 - 多个独立任务优先拆成多个 Codex sessions；只要存在写入冲突风险，就用独立 `git worktree` 隔离。
 - 单个 task 内只允许低冲突的 low-conflict slices 并行；每个 slice 必须写清 file ownership、dependencies、expected outputs 和验证命令。
 - 同一文件、同一行为链、依赖未合并或验收标准不清的工作不得并行，改为串行。

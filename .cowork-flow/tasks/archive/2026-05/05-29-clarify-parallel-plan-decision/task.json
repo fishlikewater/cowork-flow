@@ -1,0 +1,21 @@
+{
+  "id": "clarify-parallel-plan-decision",
+  "name": "clarify-parallel-plan-decision",
+  "title": "Clarify parallel planning decision",
+  "description": "Clarify that parallel execution is evaluated during planning and does not require user predeclaration.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-29",
+  "completedAt": "2026-05-29",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
