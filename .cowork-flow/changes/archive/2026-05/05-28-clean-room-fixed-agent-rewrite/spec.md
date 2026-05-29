@@ -1,10 +1,10 @@
-# Specification: Clean-room Trellis-like Rewrite
+# Specification: Clean-room Fixed-Agent Rewrite
 
 ## 许可边界
 
 - 实现必须是 clean-room 重写。
-- 可以借鉴 Trellis 的架构思想和公开行为模式。
-- 不复制 Trellis 源码、模板正文、脚本实现或 agent 配置文本。
+- 可以借鉴 公开架构思想和行为模式。
+- 不复制 外部项目源码、模板正文、脚本实现或 agent 配置文本。
 - 保留当前项目目录命名风格：`.cowork-flow/`、`.agent/skills/`、`template/.cowork-flow/`。
 
 ## 工作流主线

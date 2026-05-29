@@ -43,6 +43,13 @@ Start with:
 - Avoid placeholders such as TODO, TBD, "handle edge cases", or "write tests".
 - Keep root/template parity explicit when both copies exist.
 
+## Parallel Work
+
+- Parallel work items belong in the plan only when they are independent low-conflict slices.
+- Each parallel item must name file ownership, dependencies, expected outputs, and verification commands.
+- Use separate sessions, and use a separate `git worktree` when independent tasks may write overlapping project areas.
+- After parallel items finish, include one final integrated verification step before Check/Finish.
+
 ## Self-Review
 
 Before handoff:

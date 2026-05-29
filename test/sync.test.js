@@ -33,7 +33,7 @@ test('sync fails when the target has not been initialized', async (t) => {
 
 test('sync updates safe template files and preserves protected files', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
 
   await writeFile(join(target, '.agent', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
@@ -91,7 +91,7 @@ test('sync updates safe template files and preserves protected files', async (t)
 
 test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
   const customAgents = [
     '# Project Rules',
     '',
@@ -124,7 +124,7 @@ test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
 
 test('sync preserves direct skill layout without legacy seed material', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
   const io = createIo();
 
   const code = await main(['sync', target], { io });
@@ -136,7 +136,7 @@ test('sync preserves direct skill layout without legacy seed material', async (t
 
 test('sync overwrites protected files with --force', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
   await writeFile(join(target, 'AGENTS.md'), 'custom agents\n', 'utf8');
 
   const code = await main(['sync', target, '--force'], { io: createIo() });
@@ -147,7 +147,7 @@ test('sync overwrites protected files with --force', async (t) => {
 
 test('sync dry-run does not write safe file updates', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
   await writeFile(join(target, '.agent', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
   const io = createIo();
 
@@ -174,7 +174,7 @@ test('sync creates missing safe placeholder files', async (t) => {
 
 test('sync refreshes project-level cowork agent template files', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
   await mkdir(join(target, '.codex', 'agents'), { recursive: true });
   await writeFile(join(target, '.codex', 'agents', 'cowork-check.toml'), 'custom: true\n', 'utf8');
   const io = createIo();

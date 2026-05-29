@@ -1,12 +1,12 @@
-# 05-28-clean-room-trellis-like-rewrite
+# 05-28-clean-room-fixed-agent-rewrite
 
 ## 背景
 
-当前项目借鉴了 Trellis 的思路，但实现上仍以 `agent-team` 为中心，存在上下文边界重、状态机复杂、子 agent 可能误入主流程的问题。
+当前项目借鉴了 公开工作流思路，但实现上仍以 `agent-team` 为中心，存在上下文边界重、状态机复杂、子 agent 可能误入主流程的问题。
 
 ## 目标
 
-把 cowork-flow 重新组织成一个 clean-room 的 Trellis-like 工作流：
+把 cowork-flow 重新组织成一个 clean-room 的 fixed-agent 工作流：
 
 - 主线变成 `task -> prd -> context -> implement -> check -> finish`
 - 子 agent 固定为 `research / implement / check`
@@ -25,7 +25,7 @@
 
 ## 不做的事
 
-- 不复制 Trellis 源码
+- 不复制 外部项目源码
 - 不引入 `.current-task` fallback
 - 不保留双轨上下文模型
 - 不把旧 agent-team 状态机当作默认主路径

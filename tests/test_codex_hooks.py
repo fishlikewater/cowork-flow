@@ -59,6 +59,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("<workflow-state>", context)
         self.assertIn("Status: no_task", context)
         self.assertIn("create or start a task first", context)
+        self.assertNotIn("<subagent-notice>", context)
 
     def test_hook_resolves_active_task_from_codex_input(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

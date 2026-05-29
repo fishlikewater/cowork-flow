@@ -2,7 +2,7 @@
 
 cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它把项目说明、任务流转、规格治理、开发计划和会话记录放在一套可复制的目录结构里，帮助团队在项目早期就建立清晰的工作闭环。
 
-这个仓库本身不绑定具体技术栈，也不提供业务代码脚手架。它提供的是协作与治理基础设施：你可以把 `template/` 复制到目标项目中，再按目标项目的真实情况补充技术栈、验证命令、目录规范和提交策略。
+这个仓库本身不绑定具体技术栈，也不提供业务代码脚手架。它提供的是协作与治理基础设施：你可以把 `template/` 复制到目标项目中，再按目标项目的真实情况补充技术栈、质量门禁、目录规范和提交策略。
 
 ## 适用场景
 
@@ -53,7 +53,7 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 Codex 项目级配置与每轮上下文注入入口。hook 会读取当前 session task、`.cowork-flow/workflow.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。
 
 `template/.cowork-flow/`
-工作流目录，包含流程说明、任务状态、开发者工作区、项目规范、行为变更规格、实现计划和辅助脚本。`.cowork-flow/config.yaml` 用于填写项目自己的 lint、build、test 等验证命令。
+工作流目录，包含流程说明、任务状态、开发者工作区、项目规范、行为变更规格、实现计划和辅助脚本。`.cowork-flow/config.yaml` 只承载真实接线的 session/journal, Codex hint, and task lifecycle hook settings。
 
 `template/.cowork-flow/spec/`
 项目规范目录，预置了 backend、frontend 和 guides 三类说明。接入时应按项目事实保留、改写或删除对应规范。
@@ -72,17 +72,23 @@ Codex 项目级配置与每轮上下文注入入口。hook 会读取当前 sessi
 npx cowork-flow init ./my-project
 ```
 
+`init` 会显式要求开发者身份。交互式终端会提示输入；脚本或 CI 请传入：
+
+```bash
+npx cowork-flow init ./my-project --developer <your-name>
+```
+
 也可以先全局安装：
 
 ```bash
 npm install -g cowork-flow
-cowork-flow init ./my-project
+cowork-flow init ./my-project --developer <your-name>
 ```
 
 初始化后优先完成这些配置：
 
 1. 更新 `AGENTS.md` 中的项目名称、技术栈、命令和提交策略。
-2. 更新 `.cowork-flow/config.yaml` 中的验证命令。
+2. 按需调整 `.cowork-flow/config.yaml` 中的 session/journal, Codex hint, and task lifecycle hook settings。
 3. 更新 `.cowork-flow/workflow.md` 中与项目流程不一致的门禁、分级和完成定义。
 4. 按项目实际情况调整 `.cowork-flow/spec/`，删除不存在的 frontend、backend 或行为变更场景。
 5. 按团队实践使用 `.cowork-flow/changes/` 管理规格变更，使用 `.cowork-flow/plans/` 管理实现计划和验证状态。
@@ -101,7 +107,7 @@ npx cowork-flow --help
 cowork-flow init ./my-project
 ```
 
-`init` 会直接复制模板中的 `.agent/skills/`、`.codex/` 和 `.cowork-flow/`，不会在初始化时询问或复制额外技能包。
+`init` 会直接复制模板中的 `.agent/skills/`、`.codex/` 和 `.cowork-flow/`，并初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会提示输入开发者名称；非交互式环境必须传入 `--developer <name>`。`init` 不会复制额外技能包。
 
 初始化到当前项目：
 
@@ -118,8 +124,10 @@ cowork-flow init ./my-project --dry-run
 需要明确覆盖已有文件时使用：
 
 ```bash
-cowork-flow init ./my-project --force
+cowork-flow init ./my-project --force --developer <your-name>
 ```
+
+`--force` 不会静默覆盖既有 `.cowork-flow/.developer`；如需重设身份，请先显式处理旧身份文件。
 
 升级 CLI 本身：
 

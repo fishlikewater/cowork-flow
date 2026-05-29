@@ -2,7 +2,7 @@
 
 ## Goal
 
-Verify the fixed cowork-flow agent execution contract can execute explicit read-only commands and report exact command outputs while matching the Trellis-style Codex subagent flow.
+Verify the fixed cowork-flow agent execution contract can execute explicit read-only commands and report exact command outputs while matching the fixed-agent Codex subagent flow.
 
 ## Main Session Contract
 

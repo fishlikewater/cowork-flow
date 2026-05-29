@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -7,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-class WorkflowTrellisLikeTest(unittest.TestCase):
+class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_workflow_uses_fixed_agent_mainline(self) -> None:
         text = (ROOT / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
         self.assertIn("cowork-research", text)
@@ -35,6 +37,17 @@ class WorkflowTrellisLikeTest(unittest.TestCase):
         self.assertNotIn("specific assignment", text)
         self.assertIn("bounded delegated task", text)
 
+    def test_start_skill_mentions_parallel_session_model(self) -> None:
+        for path in (
+            ROOT / ".agent" / "skills" / "start" / "SKILL.md",
+            ROOT / "template" / ".agent" / "skills" / "start" / "SKILL.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("parallel sessions", text)
+            self.assertIn("separate `git worktree`", text)
+            self.assertIn("low-conflict slices", text)
+            self.assertIn("final integrated verification", text)
+
     def test_entry_boundary_matches_fixed_agent_prompts(self) -> None:
         for path in (
             ROOT / ".agent" / "skills" / "entry-boundary" / "SKILL.md",
@@ -44,6 +57,24 @@ class WorkflowTrellisLikeTest(unittest.TestCase):
             self.assertIn("Active task:", text)
             self.assertIn("bounded delegated task", text)
             self.assertNotIn("assignment-source", text)
+
+    def test_doctor_subagent_safety_matches_entry_boundary_model(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / ".cowork-flow" / "scripts" / "doctor.py"),
+                "--subagent-safety",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(
+            0,
+            result.returncode,
+            msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
 
     def test_writing_plans_routes_to_fixed_agents(self) -> None:
         for path in (
@@ -62,3 +93,29 @@ class WorkflowTrellisLikeTest(unittest.TestCase):
         text = (ROOT / "template" / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
         self.assertIn("cowork-implement", text)
         self.assertNotIn("agent" + "-team prepare", text)
+
+    def test_workflow_documents_parallel_operations(self) -> None:
+        for path in (
+            ROOT / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("parallel sessions", text)
+            self.assertIn("git worktree", text)
+            self.assertIn("low-conflict slices", text)
+            self.assertIn("file ownership", text)
+            self.assertIn("dependencies", text)
+            self.assertIn("expected outputs", text)
+            self.assertIn("final integrated verification", text)
+
+    def test_writing_plan_skills_require_parallel_scope_fields(self) -> None:
+        for path in (
+            ROOT / ".agent" / "skills" / "writing-plans" / "SKILL.md",
+            ROOT / "template" / ".agent" / "skills" / "writing-plans" / "SKILL.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("Parallel work items", text)
+            self.assertIn("file ownership", text)
+            self.assertIn("dependencies", text)
+            self.assertIn("expected outputs", text)
+            self.assertIn("verification commands", text)
