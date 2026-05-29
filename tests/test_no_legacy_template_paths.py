@@ -127,6 +127,30 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             self.assertNotIn("(none yet)", text)
             self.assertNotIn("| 开发者 | 最近活跃 | 会话数 | 当前文件 |", text)
 
+    def test_spec_files_ship_generic_defaults_without_fill_in_placeholders(self) -> None:
+        forbidden = (
+            "<按项目",
+            "按项目填写",
+            "项目定制位",
+            "可保留占位",
+            "请替换为项目",
+            "TODO",
+            "TBD",
+        )
+        offenders: list[str] = []
+
+        for spec_root in (
+            ROOT / ".cowork-flow" / "spec",
+            TEMPLATE / ".cowork-flow" / "spec",
+        ):
+            for path in spec_root.rglob("*.md"):
+                text = path.read_text(encoding="utf-8")
+                for pattern in forbidden:
+                    if pattern in text:
+                        offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
+
+        self.assertEqual([], offenders)
+
 
 if __name__ == "__main__":
     unittest.main()

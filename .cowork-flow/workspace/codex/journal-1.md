@@ -710,3 +710,35 @@ Renamed session runtime field to active_task_path, updated active-task wording, 
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 23: Replace spec placeholders with defaults
+
+**Date**: 2026-05-29
+**Task**: Replace spec placeholders with defaults
+
+### Summary
+
+Replaced template spec placeholder entries with reusable generic defaults, added regression coverage, and archived the task.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `pending` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
