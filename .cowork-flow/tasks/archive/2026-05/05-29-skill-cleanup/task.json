@@ -1,0 +1,21 @@
+{
+  "id": "skill-cleanup",
+  "name": "skill-cleanup",
+  "title": "Skill cleanup",
+  "description": "Remove legacy Superpowers seed flow, add clean-room fixed-agent skills, and audit all skill descriptions.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-29",
+  "completedAt": "2026-05-29",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

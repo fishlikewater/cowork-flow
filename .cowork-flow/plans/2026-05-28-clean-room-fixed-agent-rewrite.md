@@ -1,4 +1,4 @@
-# Clean-room Trellis-like Rewrite Implementation Plan
+# Clean-room Fixed-Agent Rewrite Implementation Plan
 
 > **For agentic workers:** Use cowork-flow fixed agents for execution where the task does not modify agent/runtime behavior. For runtime rewrites, execute inline and use `cowork-check` or an equivalent final check. Every dispatch prompt must start with `Active task: <task-dir>`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -599,11 +599,11 @@ Expected: PASS.
 - Modify: `template/.agent/skills/finish-work/SKILL.md`
 - Modify: `.agent/skills/check-cross-layer/SKILL.md`
 - Modify: `template/.agent/skills/check-cross-layer/SKILL.md`
-- Test: `tests/test_workflow_trellis_like.py`
+- Test: `tests/test_workflow_parallel_sessions.py`
 
 - [x] **Step 1: Write failing workflow tests**
 
-Create `tests/test_workflow_trellis_like.py`:
+Create `tests/test_workflow_parallel_sessions.py`:
 
 ```python
 from __future__ import annotations
@@ -615,7 +615,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-class WorkflowTrellisLikeTest(unittest.TestCase):
+class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_workflow_uses_fixed_agent_mainline(self) -> None:
         text = (ROOT / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
         self.assertIn("cowork-research", text)
@@ -638,7 +638,7 @@ class WorkflowTrellisLikeTest(unittest.TestCase):
 
 - [x] **Step 2: Run test to verify it fails**
 
-Run: `python -m unittest tests.test_workflow_trellis_like -v`
+Run: `python -m unittest tests.test_workflow_parallel_sessions -v`
 
 Expected: FAIL because old workflow still references agent-team.
 
@@ -685,7 +685,7 @@ Finish skill must check:
 
 - [x] **Step 6: Run workflow tests**
 
-Run: `python -m unittest tests.test_workflow_trellis_like -v`
+Run: `python -m unittest tests.test_workflow_parallel_sessions -v`
 
 Expected: PASS.
 
@@ -750,7 +750,7 @@ tests/test_agent_team_runtime.py
 tests/test_agent_team_state_machine.py
 ```
 
-If any assertion still matters for new fixed agents, move it into `tests/test_cowork_agents.py` or `tests/test_workflow_trellis_like.py`.
+If any assertion still matters for new fixed agents, move it into `tests/test_cowork_agents.py` or `tests/test_workflow_parallel_sessions.py`.
 
 - [x] **Step 5: Search for stale references**
 
@@ -760,7 +760,7 @@ Expected: only archived historical records under `.cowork-flow/tasks/archive` or
 
 - [x] **Step 6: Run focused removal tests**
 
-Run: `python -m unittest tests.test_no_legacy_template_paths tests.test_cowork_agents tests.test_workflow_trellis_like -v`
+Run: `python -m unittest tests.test_no_legacy_template_paths tests.test_cowork_agents tests.test_workflow_parallel_sessions -v`
 
 Expected: PASS.
 
@@ -817,8 +817,8 @@ Expected: PASS.
 ### Task 7: Full Verification and Change Metadata
 
 **Files:**
-- Modify: `.cowork-flow/changes/05-28-clean-room-trellis-like-rewrite/change.yaml`
-- Modify: `.cowork-flow/plans/2026-05-28-clean-room-trellis-like-rewrite.md`
+- Modify: `.cowork-flow/changes/05-28-clean-room-fixed-agent-rewrite/change.yaml`
+- Modify: `.cowork-flow/plans/2026-05-28-clean-room-fixed-agent-rewrite.md`
 
 - [x] **Step 1: Update plan execution status**
 
@@ -833,14 +833,14 @@ Implementation complete pending full verification.
 Set in `change.yaml`:
 
 ```yaml
-plan: .cowork-flow/plans/2026-05-28-clean-room-trellis-like-rewrite.md
+plan: .cowork-flow/plans/2026-05-28-clean-room-fixed-agent-rewrite.md
 ```
 
 - [x] **Step 3: Validate change**
 
-Run: `.\.cowork-flow\run.cmd change validate 05-28-clean-room-trellis-like-rewrite`
+Run: `.\.cowork-flow\run.cmd change validate 05-28-clean-room-fixed-agent-rewrite`
 
-Expected: `05-28-clean-room-trellis-like-rewrite valid`
+Expected: `05-28-clean-room-fixed-agent-rewrite valid`
 
 - [x] **Step 4: Run full verification**
 

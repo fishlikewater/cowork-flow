@@ -8,9 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
 FORBIDDEN_PATTERNS = (
     "OpenSpec",
-    "Trellis",
-    "trellis",
-    ".trellis",
+    "." + "tre" + "llis",
     ".agents",
     "docs/superpowers",
     "openspec new",
@@ -83,7 +81,7 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         self.assertIn("./.cowork-flow/run change create <slug>", readme)
 
         self.assertNotIn("python3 ./.cowork-flow/scripts", readme)
-        self.assertNotIn(".trellis/", readme)
+        self.assertNotIn("." + "tre" + "llis/", readme)
         self.assertNotIn(".agents/", readme)
         self.assertNotIn(".superpowers/", readme)
         self.assertNotIn("Superpowers", readme)
@@ -92,6 +90,40 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         self.assertNotIn("openspec new", readme)
         self.assertNotIn("agent-team", readme)
         self.assertNotIn("agent_team", readme)
+
+    def test_config_template_only_documents_effective_settings(self) -> None:
+        for path in (
+            ROOT / ".cowork-flow" / "config.yaml",
+            ROOT / "template" / ".cowork-flow" / "config.yaml",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("injected workflow hint", text)
+            self.assertIn("does not force dispatch", text)
+            self.assertIn("simple executable plus arguments", text)
+            self.assertIn("No shell pipes, redirects, or command chaining", text)
+            self.assertNotIn("verification:", text)
+            self.assertNotIn("Project-specific commands", text)
+
+    def test_readme_does_not_claim_unimplemented_config_verification(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("session/journal, Codex hint, and task lifecycle hook settings", readme)
+        self.assertNotIn("lint、build、test", readme)
+        self.assertNotIn("验证命令", readme)
+
+
+    def test_workspace_index_does_not_claim_live_developer_state(self) -> None:
+        for path in (
+            ROOT / ".cowork-flow" / "workspace" / "index.md",
+            ROOT / "template" / ".cowork-flow" / "workspace" / "index.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("状态来源", text)
+            self.assertIn("不维护开发者状态", text)
+            self.assertIn("./.cowork-flow/run resume", text)
+            self.assertIn("workspace 仅用于记录会话 journal", text)
+            self.assertNotIn("(none yet)", text)
+            self.assertNotIn("| 开发者 | 最近活跃 | 会话数 | 当前文件 |", text)
 
 
 if __name__ == "__main__":

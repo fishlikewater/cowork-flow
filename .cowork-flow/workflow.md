@@ -30,7 +30,7 @@ Current task is in planning. Finish prd.md, curate implement.jsonl and check.jso
 [/workflow-state:planning]
 
 [workflow-state:in_progress]
-Current task is active. Main session dispatches cowork-implement first, then cowork-check. Every spawn_agent call uses fork_turns="none" and a first line of Active task: <task-dir>. Main session waits, verifies child output, lists agents, and closes children.
+Current task is active. Main session dispatches cowork-implement work according to the plan, then cowork-check after integration. Every spawn_agent call uses fork_turns="none" and a first line of Active task: <task-dir>. Main session waits, verifies child output, lists agents, and closes children.
 [/workflow-state:in_progress]
 
 [workflow-state:completed]
@@ -103,6 +103,17 @@ spawn_agent(
 - 验收子 agent 汇报的文件、命令和结果；不只信“已完成”文本。
 - 完成或失败后用 `close_agent` 关闭子 agent。
 - 子 agent 自身是 leaf executor；不得再调用 `spawn_agent`、`wait_agent`、`list_agents`、`close_agent`。
+
+## 3.2 parallel sessions
+
+并行执行采用 clean-room 的 parallel sessions 模型：
+
+- 多个独立任务优先拆成多个 Codex sessions；只要存在写入冲突风险，就用独立 `git worktree` 隔离。
+- 单个 task 内只允许低冲突的 low-conflict slices 并行；每个 slice 必须写清 file ownership、dependencies、expected outputs 和验证命令。
+- 同一文件、同一行为链、依赖未合并或验收标准不清的工作不得并行，改为串行。
+- 主会话是唯一协调者：派发所有子 agent 后逐个 `wait_agent`，核对子 agent 汇报的文件、命令和产物，再 `list_agents` / `close_agent` 收口。
+- 多个实现 slice 合并后必须再执行 final integrated verification；不能把各子 agent 的局部通过当成整体通过。
+- 固定 `cowork-*` agent 仍是 leaf executor；并行不允许子 agent 再派发 agent，也不引入旧集中式状态机。
 
 ## 4. 任务分级
 

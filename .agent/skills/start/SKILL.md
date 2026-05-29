@@ -28,6 +28,13 @@ Report current task, workflow state, blockers, and the next phase.
 - Before coding: use `before-dev`.
 - After implementation: use `check`, then `finish-work`.
 
+## Parallel Route
+
+- Use parallel sessions for independent tasks.
+- Use a separate `git worktree` when independent sessions may write files.
+- Inside one task, dispatch parallel agents only for low-conflict slices with clear ownership.
+- After parallel slices finish, run final integrated verification before Check/Finish.
+
 ## Fixed Agents
 
 The main session owns coordination:

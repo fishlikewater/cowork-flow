@@ -16,12 +16,6 @@ TAG_RE = re.compile(
     re.DOTALL,
 )
 
-SUBAGENT_NOTICE = """<subagent-notice>
-If this thread was spawned by a parent agent with an explicit assignment, execute that assignment directly.
-Do not start or archive tasks, and do not call spawn_agent, wait_agent, list_agents, or close_agent.
-</subagent-notice>"""
-
-
 def _find_repo_root(start: Path) -> Path | None:
     current = start.resolve()
     while True:
@@ -106,7 +100,6 @@ def _build_context(
 
     return "\n\n".join(
         [
-            SUBAGENT_NOTICE,
             f"<codex-mode>{dispatch_mode}</codex-mode>",
             f"<workflow-state>\n{header}\n{body}\n</workflow-state>",
         ]

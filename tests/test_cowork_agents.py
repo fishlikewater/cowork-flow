@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CoworkAgentsTest(unittest.TestCase):
-    def test_skill_set_is_direct_and_trellis_like(self) -> None:
+    def test_skill_set_is_direct_and_fixed_agent_based(self) -> None:
         expected = {
             "before-dev",
             "brainstorming",

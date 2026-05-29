@@ -12,16 +12,20 @@ from common.paths import get_repo_root
 
 
 REQUIRED_START_SNIPPETS = [
-    "HARD ENTRY GATE",
-    "DELEGATED_SUBTASK",
-    "UNCERTAIN",
-    "Do not reclassify delegated work as MAIN_SESSION",
-    "scoped recovery",
+    "This skill is for the main session",
+    "bounded delegated task should use `entry-boundary`",
+    "Main repository changes follow `Plan -> Implement -> Check -> Finish`",
 ]
 
 REQUIRED_ENTRY_BOUNDARY_SNIPPETS = [
-    "Delegated signals override main-session signals",
-    "assignment prompt is the first source of truth",
+    "MAIN_SESSION",
+    "DELEGATED_SUBTASK",
+    "UNCERTAIN",
+    "Classify the actual task message",
+    "Active task: <task-dir>",
+    "Follow the delegated prompt first",
+    "Do not run unscoped `.cowork-flow/run resume`",
+    "Do not spawn or manage more agents",
 ]
 
 

@@ -1,9 +1,9 @@
-# Design: Clean-room Trellis-like Rewrite
+# Design: Clean-room Fixed-Agent Rewrite
 
 ## Assumptions
 
 - 用户接受大刀阔斧重构。
-- 项目继续使用 MIT 授权空间，因此不能复制 Trellis AGPL 代码。
+- 项目继续使用 MIT 授权空间，因此不能复制 external project AGPL 代码。
 - 目录命名保留 cowork-flow 风格。
 - 旧模型中不符合新主线的代码可以删除。
 

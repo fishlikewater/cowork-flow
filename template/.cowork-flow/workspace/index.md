@@ -20,11 +20,16 @@ workspace/
 
 ---
 
-## 活跃开发者
+## 状态来源
 
-| 开发者 | 最近活跃 | 会话数 | 当前文件 |
-|--------|----------|--------|----------|
-| (none yet) | - | - | - |
+此文件只说明 workspace 的用途和目录约定，不维护开发者状态。
+
+真实状态以以下位置为准：
+
+- 当前开发者：`.cowork-flow/.developer`
+- 当前开发者索引：`.cowork-flow/workspace/<developer>/index.md`
+- 当前 journal：`.cowork-flow/workspace/<developer>/journal-*.md`
+- 会话恢复摘要：`./.cowork-flow/run resume`
 
 ---
 
@@ -47,6 +52,8 @@ cat .cowork-flow/workspace/$(./.cowork-flow/run get-developer)/index.md
 
 ## 记录约定
 
+- workspace 仅用于记录会话 journal，不作为任务流程控制面。
+- 当前任务状态以 `.cowork-flow/tasks/` 和 `run resume` 输出为准。
 - 单个 journal 文件最多 `2000` 行
 - 超过上限后，创建 `journal-{N+1}.md`
 - 新建文件后，更新个人 `index.md`
@@ -92,4 +99,4 @@ cat .cowork-flow/workspace/$(./.cowork-flow/run get-developer)/index.md
 
 ---
 
-**语言约定**：新增记录默认使用中文；如果项目统一使用英文，请在复制后整体改口径。
+**语言约定**：新增记录默认使用中文；如果项目统一使用英文，请整体改口径。

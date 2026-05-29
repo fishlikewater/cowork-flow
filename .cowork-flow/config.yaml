@@ -18,8 +18,10 @@ max_journal_lines: 2000
 # Codex Runtime
 #-------------------------------------------------------------------------------
 
-# sub-agent: main session dispatches cowork-* fixed agents.
-# inline: main session performs implementation and check work directly.
+# This controls only the injected workflow hint (<codex-mode>...).
+# It does not force dispatch or disable tools at runtime.
+# sub-agent: hint that main session should dispatch cowork-* fixed agents.
+# inline: hint that main session should perform implementation/check directly.
 codex:
   dispatch_mode: "sub-agent"
 
@@ -27,32 +29,18 @@ codex:
 # Task Lifecycle Hooks
 #-------------------------------------------------------------------------------
 
-# Shell commands to run after task lifecycle events.
+# Commands to run after task lifecycle events.
 # Each hook receives TASK_JSON_PATH environment variable pointing to task.json.
+# Commands use simple executable plus arguments and run without a shell.
+# No shell pipes, redirects, or command chaining (|, >, &&).
 # Hook failures print a warning but do not block the main operation.
 #
 # hooks:
 #   after_create:
-#     - "echo 'Task created'"
+#     - "python scripts/on_task_event.py after_create"
 #   after_start:
-#     - "echo 'Task started'"
+#     - "python scripts/on_task_event.py after_start"
 #   after_finish:
-#     - "echo 'Task finished'"
+#     - "python scripts/on_task_event.py after_finish"
 #   after_archive:
-#     - "echo 'Task archived'"
-
-#-------------------------------------------------------------------------------
-# Verification Commands
-#-------------------------------------------------------------------------------
-
-# Project-specific commands used by reusable skills such as finish-work.
-# Fill these in when applying the template to a project; do not edit SKILL.md
-# just to replace lint/test/build commands.
-#
-# verification:
-#   lint:
-#     - "pnpm lint"
-#   build:
-#     - "pnpm build"
-#   test:
-#     - "pnpm test"
+#     - "python scripts/on_task_event.py after_archive"
