@@ -45,6 +45,8 @@ Start with:
 
 ## Parallel Work
 
+- Do not require the user to predeclare parallel execution; evaluate parallel feasibility while writing the plan.
+- Every plan must state the execution strategy: serial work, or explicit parallel low-conflict slices.
 - Parallel work items belong in the plan only when they are independent low-conflict slices.
 - Each parallel item must name file ownership, dependencies, expected outputs, and verification commands.
 - Use separate sessions, and use a separate `git worktree` when independent tasks may write overlapping project areas.

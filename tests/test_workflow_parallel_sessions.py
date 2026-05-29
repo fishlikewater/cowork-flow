@@ -101,6 +101,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("parallel sessions", text)
+            self.assertIn("用户无需在需求输入时声明是否并行", text)
+            self.assertIn("Plan 阶段由主会话评估并行可行性", text)
+            self.assertIn("开发计划必须明确执行策略", text)
             self.assertIn("git worktree", text)
             self.assertIn("low-conflict slices", text)
             self.assertIn("file ownership", text)
@@ -115,6 +118,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("Parallel work items", text)
+            self.assertIn("Do not require the user to predeclare parallel execution", text)
+            self.assertIn("Every plan must state the execution strategy", text)
             self.assertIn("file ownership", text)
             self.assertIn("dependencies", text)
             self.assertIn("expected outputs", text)

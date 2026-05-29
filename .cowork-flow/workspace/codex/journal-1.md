@@ -742,3 +742,35 @@ Replaced template spec placeholder entries with reusable generic defaults, added
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 24: Clarify parallel planning decision
+
+**Date**: 2026-05-29
+**Task**: Clarify parallel planning decision
+
+### Summary
+
+Clarified that users do not predeclare parallel execution; Plan evaluates feasibility and records serial or parallel execution strategy.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `pending` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

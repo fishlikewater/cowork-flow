@@ -1,0 +1,6 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": "template/.cowork-flow/workflow.md", "reason": "Template workflow parallel planning rule"}
+{"file": "template/.agent/skills/writing-plans/SKILL.md", "reason": "Template plan guidance for parallel slices"}
