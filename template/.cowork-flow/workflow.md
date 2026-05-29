@@ -11,8 +11,8 @@ Plan -> Implement -> Check -> Finish
 核心路径：
 
 1. Plan: 建立任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
-2. Implement: 主会话用 `spawn_agent` 派发 `cowork-implement`，`fork_turns="none"`，首行必须是 `Active task: <task-dir>`。
-3. Check: 主会话用 `spawn_agent` 派发 `cowork-check`，`fork_turns="none"`，首行必须是 `Active task: <task-dir>`。
+2. Implement: 主会话用 `spawn_agent` 派发 `cowork-implement`，`fork_turns="none"`，先发 `COWORK_DISPATCH_V1` 信封并等待 `COWORK_ACK`。
+3. Check: 主会话用 `spawn_agent` 派发 `cowork-check`，`fork_turns="none"`，先发 `COWORK_DISPATCH_V1` 信封并等待 `COWORK_ACK`。
 4. Finish: 主会话做最终验证、同步规格、提交、归档、记录 session。
 
 `cowork-flow` 只保存项目状态、任务上下文和恢复线索；实际执行由主会话和固定 `cowork-*` agent 完成。
@@ -30,7 +30,7 @@ The active task is in planning. Finish prd.md, curate implement.jsonl and check.
 [/workflow-state:planning]
 
 [workflow-state:in_progress]
-The active task is in progress. Main session dispatches cowork-implement work according to the plan, then cowork-check after integration. Every spawn_agent call uses fork_turns="none" and a first line of Active task: <task-dir>. Main session waits, verifies child output, lists agents, and closes children.
+The active task is in progress. Main session dispatches cowork-implement work according to the plan, then cowork-check after integration. Every spawn_agent call uses fork_turns="none" and a COWORK_DISPATCH_V1 envelope. Main session waits for COWORK_ACK, sends EXECUTE with followup_task, verifies child output, lists agents, and closes children.
 [/workflow-state:in_progress]
 
 [workflow-state:completed]
@@ -76,7 +76,7 @@ The active task is completed. Main session should verify the final diff, commit 
 - 范围内问题直接修复。
 - 不提交、不归档、不启动其他 agent。
 
-每次派发提示必须以这一行开头：
+兼容旧派发时，提示仍可用这一行开头：
 
 ```text
 Active task: .cowork-flow/tasks/<task>
@@ -92,17 +92,37 @@ Active task: .cowork-flow/tasks/<task>
 spawn_agent(
     agent_type="cowork-implement",
     fork_turns="none",
-    message="Active task: .cowork-flow/tasks/<task>\n\n<assignment>",
+    message=(
+        "COWORK_DISPATCH_V1\n"
+        "dispatch_id: <unique-id>\n"
+        "task_dir: .cowork-flow/tasks/<task>\n"
+        "agent_type: cowork-implement\n"
+        "role: implement\n"
+        "context_file: <context-file>\n"
+        "ack_token: <ack-token>\n"
+        "COWORK_DISPATCH_END\n\n"
+        "Return only: COWORK_ACK <dispatch_id> <ack_token>"
+    ),
 )
 ```
 
 等待与验收约定：
 
+- Use `wait_agent` for `COWORK_ACK <dispatch_id> <ack_token>` before execution.
+- Missing or mismatched `COWORK_ACK` means the task is not dispatched.
+- Only after a matching ACK, send `EXECUTE <dispatch_id>` with `followup_task`.
+- If a child reports another `dispatch_id`, close that child and respawn the intended task.
 - 用 `wait_agent` 等待子 agent 返回。
 - 用 `list_agents` 确认没有遗留 running child。
 - 验收子 agent 汇报的文件、命令和结果；不只信“已完成”文本。
 - 完成或失败后用 `close_agent` 关闭子 agent。
 - 子 agent 自身是 leaf executor；不得再调用 `spawn_agent`、`wait_agent`、`list_agents`、`close_agent`。
+
+Generic worker boundary:
+
+- Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.
+- Generic `worker` dispatch is best-effort only.
+- If a generic worker does not ACK after one retry, close it and do not execute the task.
 
 ## 3.2 parallel sessions
 
@@ -171,7 +191,7 @@ Windows PowerShell 使用：
 
 ## 6. Implement 阶段
 
-默认派发 `cowork-implement`。派发调用必须设置 `fork_turns="none"`，消息第一行：
+默认派发 `cowork-implement`。派发调用必须设置 `fork_turns="none"`，优先使用 `COWORK_DISPATCH_V1` 信封；兼容旧消息时第一行：
 
 ```text
 Active task: .cowork-flow/tasks/<task>
@@ -185,7 +205,7 @@ Active task: .cowork-flow/tasks/<task>
 
 ## 7. Check 阶段
 
-默认派发 `cowork-check`。派发调用必须设置 `fork_turns="none"`，消息第一行：
+默认派发 `cowork-check`。派发调用必须设置 `fork_turns="none"`，优先使用 `COWORK_DISPATCH_V1` 信封；兼容旧消息时第一行：
 
 ```text
 Active task: .cowork-flow/tasks/<task>

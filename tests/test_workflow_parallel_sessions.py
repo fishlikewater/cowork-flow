@@ -29,6 +29,38 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("agent" + "-team prepare", text)
         self.assertNotIn("agent" + "-team next", text)
 
+    def test_workflow_requires_dispatch_ack_gate(self) -> None:
+        required_markers = (
+            "COWORK_DISPATCH_V1",
+            "COWORK_DISPATCH_END",
+            "COWORK_ACK",
+            "followup_task",
+            "ack_token",
+            "dispatch_id",
+            "Missing or mismatched `COWORK_ACK` means the task is not dispatched.",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
+    def test_workflow_limits_generic_worker_to_best_effort(self) -> None:
+        required_markers = (
+            "Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.",
+            "Generic `worker` dispatch is best-effort only.",
+            "If a generic worker does not ACK after one retry, close it and do not execute the task.",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
     def test_start_skill_routes_to_fixed_agents(self) -> None:
         text = (ROOT / ".agent" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Plan -> Implement -> Check -> Finish", text)

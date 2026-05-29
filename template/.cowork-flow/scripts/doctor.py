@@ -28,6 +28,23 @@ REQUIRED_ENTRY_BOUNDARY_SNIPPETS = [
     "Do not spawn or manage more agents",
 ]
 
+REQUIRED_FIXED_AGENT_SNIPPETS = [
+    "COWORK_DISPATCH_V1",
+    "COWORK_DISPATCH_END",
+    "COWORK_ACK",
+    "EXECUTE <dispatch_id>",
+    "agent_type is not",
+    "mismatched dispatch_id",
+]
+
+REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
+    "COWORK_DISPATCH_V1",
+    "COWORK_ACK",
+    "followup_task",
+    "Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.",
+    "Generic `worker` dispatch is best-effort only.",
+]
+
 
 def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> None:
     if not path.is_file():
@@ -52,6 +69,20 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.agent/skills/entry-boundary/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_ENTRY_BOUNDARY_SNIPPETS, errors)
+    for rel in (
+        ".codex/agents/cowork-research.toml",
+        ".codex/agents/cowork-implement.toml",
+        ".codex/agents/cowork-check.toml",
+        "template/.codex/agents/cowork-research.toml",
+        "template/.codex/agents/cowork-implement.toml",
+        "template/.codex/agents/cowork-check.toml",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_FIXED_AGENT_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/workflow.md",
+        "template/.cowork-flow/workflow.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_DISPATCH_SNIPPETS, errors)
     for rel in (
         ".cowork-flow/scripts/subagent.py",
         "template/.cowork-flow/scripts/subagent.py",

@@ -58,6 +58,44 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
 
+    def test_agents_require_dispatch_ack_protocol(self) -> None:
+        fixed_agents = {
+            "cowork-research": "research",
+            "cowork-implement": "implement",
+            "cowork-check": "check",
+        }
+        for base in (ROOT / ".codex" / "agents", ROOT / "template" / ".codex" / "agents"):
+            for agent_name, workflow_role in fixed_agents.items():
+                path = base / f"{agent_name}.toml"
+                text = path.read_text(encoding="utf-8")
+                required_markers = (
+                    "COWORK_DISPATCH_V1",
+                    "COWORK_DISPATCH_END",
+                    "COWORK_ACK",
+                    "dispatch_id",
+                    "ack_token",
+                    "EXECUTE <dispatch_id>",
+                    "mismatched dispatch_id",
+                    f"agent_type: {agent_name}",
+                    f"role: {workflow_role}",
+                    f"agent_type is not `{agent_name}`",
+                    f"legacy role `{agent_name}` is accepted",
+                    "role names another fixed agent",
+                )
+                for marker in required_markers:
+                    self.assertIn(marker, text, f"{marker} missing from {path}")
+
+    def test_doctor_checks_fixed_agent_protocol(self) -> None:
+        doctor = ROOT / ".cowork-flow" / "scripts" / "doctor.py"
+        text = doctor.read_text(encoding="utf-8")
+        for marker in (
+            "COWORK_DISPATCH_V1",
+            "COWORK_ACK",
+            "EXECUTE <dispatch_id>",
+            "agent_type is not",
+        ):
+            self.assertIn(marker, text)
+
     def test_legacy_execution_skill_removed(self) -> None:
         legacy_skills = (
             "agent" + "-team-execution",
