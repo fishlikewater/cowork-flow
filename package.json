@@ -1,6 +1,6 @@
 {
   "name": "cowork-flow",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "CLI for installing and maintaining cowork-flow collaboration templates.",
   "type": "module",
   "bin": {
