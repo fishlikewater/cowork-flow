@@ -17,7 +17,7 @@ Main repository changes follow `Plan -> Implement -> Check -> Finish`.
 4. Read the active task PRD and JSONL indexes only when a task is active.
 5. Read relevant `.cowork-flow/spec/*/index.md` files before code changes.
 
-Report current task, workflow state, blockers, and the next phase.
+Report active task, workflow state, blockers, and the next phase.
 
 ## Route
 

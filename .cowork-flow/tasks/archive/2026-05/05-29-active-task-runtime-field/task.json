@@ -1,0 +1,21 @@
+{
+  "id": "active-task-runtime-field",
+  "name": "active-task-runtime-field",
+  "title": "Rename active task runtime field",
+  "description": "Rename the session runtime JSON field to active_task_path to avoid confusion with legacy .current-task.",
+  "status": "completed",
+  "dev_type": "backend",
+  "scope": "runtime",
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-29",
+  "completedAt": "2026-05-29",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "Renamed session runtime field to active_task_path and updated matching root/template wording.",
+  "meta": {}
+}

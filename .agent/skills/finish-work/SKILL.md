@@ -11,7 +11,7 @@ Use this in the main session after implementation and `check` are complete.
 
 Before claiming completion, verify:
 
-- Current task exists, or the work was explicitly read-only/no-task.
+- Active task exists, or the work was explicitly read-only/no-task.
 - `check` or equivalent final review ran.
 - `git diff` was reviewed for scope.
 - Relevant tests, build, lint, or focused validation ran.

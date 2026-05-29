@@ -48,7 +48,7 @@ class FlowScriptPathsTest(unittest.TestCase):
         sessions_dir = root / ".cowork-flow" / ".runtime" / "sessions"
         sessions_dir.mkdir(parents=True, exist_ok=True)
         (sessions_dir / f"{context_key}.json").write_text(
-            f'{{"current_task": "{task_path}"}}\n',
+            f'{{"active_task_path": "{task_path}"}}\n',
             encoding="utf-8",
         )
 
@@ -212,7 +212,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 os.chdir(previous_cwd)
 
             self.assertEqual(0, result)
-            self.assertIn("Current task: .cowork-flow/tasks/05-19-demo", stdout.getvalue())
+            self.assertIn("Active task: .cowork-flow/tasks/05-19-demo", stdout.getvalue())
 
     def test_cmd_current_requires_session_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -300,7 +300,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 "Recovery entrypoint (rerun only if context is stale): ./.cowork-flow/run resume",
                 output,
             )
-            self.assertIn("Read current task PRD: .cowork-flow/tasks/05-19-demo/prd.md", output)
+            self.assertIn("Read active task PRD: .cowork-flow/tasks/05-19-demo/prd.md", output)
             self.assertIn("List task context before reading details: ./.cowork-flow/run task list-context .cowork-flow/tasks/05-19-demo", output)
             self.assertIn("Read current plan status: .cowork-flow/plans/2026-05-19-demo.md", output)
             self.assertIn("Do not bulk-read .cowork-flow/spec/ or workspace journals", output)
@@ -323,7 +323,14 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
                 context = self.git_context.get_context_json(root)
+                record_context = self.git_context.get_context_record_json(root)
 
+            self.assertIn("activeTask", record_context)
+            self.assertNotIn("currentTask", record_context)
+            self.assertEqual(
+                ".cowork-flow/tasks/05-19-demo",
+                record_context["activeTask"]["path"],
+            )
             self.assertIn("resumeChecklist", context)
             self.assertEqual(
                 "./.cowork-flow/run resume",

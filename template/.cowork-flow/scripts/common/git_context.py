@@ -47,7 +47,7 @@ class GitSnapshot:
 
 
 @dataclass(frozen=True)
-class CurrentTaskSnapshot:
+class ActiveTaskSnapshot:
     path: str | None
     data: dict | None
     has_prd: bool
@@ -175,21 +175,21 @@ def _append_recent_commits(lines: list[str], git_snapshot: GitSnapshot) -> None:
     lines.append("")
 
 
-def _get_current_task_snapshot(repo_root: Path) -> CurrentTaskSnapshot:
-    """Collect current-task metadata once for text and JSON renderers."""
-    current_task = get_active_task(repo_root).task_path
-    if not current_task:
-        return CurrentTaskSnapshot(path=None, data=None, has_prd=False)
+def _get_active_task_snapshot(repo_root: Path) -> ActiveTaskSnapshot:
+    """Collect active-task metadata once for text and JSON renderers."""
+    active_task = get_active_task(repo_root).task_path
+    if not active_task:
+        return ActiveTaskSnapshot(path=None, data=None, has_prd=False)
 
-    current_task_dir = repo_root / current_task
-    task_json_path = current_task_dir / FILE_TASK_JSON
+    active_task_dir = repo_root / active_task
+    task_json_path = active_task_dir / FILE_TASK_JSON
     data = None
     if task_json_path.is_file():
         data = _read_json_file(task_json_path)
-    return CurrentTaskSnapshot(
-        path=current_task,
+    return ActiveTaskSnapshot(
+        path=active_task,
         data=data,
-        has_prd=(current_task_dir / "prd.md").is_file(),
+        has_prd=(active_task_dir / "prd.md").is_file(),
     )
 
 
@@ -219,7 +219,7 @@ def _jsonl_file_references(jsonl_path: Path) -> list[str]:
     return references
 
 
-def _task_plan_references(repo_root: Path, snapshot: CurrentTaskSnapshot) -> list[str]:
+def _task_plan_references(repo_root: Path, snapshot: ActiveTaskSnapshot) -> list[str]:
     """从当前任务上下文中提取 plan 文件引用。"""
     if not snapshot.path:
         return []
@@ -255,7 +255,7 @@ def _task_plan_references(repo_root: Path, snapshot: CurrentTaskSnapshot) -> lis
 
 def _build_resume_checklist(
     repo_root: Path,
-    snapshot: CurrentTaskSnapshot,
+    snapshot: ActiveTaskSnapshot,
 ) -> dict[str, list[str]]:
     """构建最小恢复清单，只返回路径和命令，不展开文件内容。"""
     commands = [f"./{DIR_WORKFLOW}/run resume"]
@@ -263,15 +263,15 @@ def _build_resume_checklist(
     notes: list[str] = []
 
     if not snapshot.path:
-        notes.append("No current task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
+        notes.append("No active task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
         notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; read details only after a task is selected.")
         return {"commands": commands, "readFiles": read_files, "notes": notes}
 
-    current_task = snapshot.path
-    commands.append(f"./{DIR_WORKFLOW}/run task list-context {current_task}")
+    active_task = snapshot.path
+    commands.append(f"./{DIR_WORKFLOW}/run task list-context {active_task}")
 
     if snapshot.has_prd:
-        read_files.append(f"{current_task}/prd.md")
+        read_files.append(f"{active_task}/prd.md")
 
     read_files.extend(_task_plan_references(repo_root, snapshot))
     notes.append("Read current plan status only when continuing implementation.")
@@ -280,15 +280,15 @@ def _build_resume_checklist(
     return {"commands": commands, "readFiles": read_files, "notes": notes}
 
 
-def _current_task_json(snapshot: CurrentTaskSnapshot) -> dict | None:
-    """Build the record-mode currentTask JSON object."""
-    current_task = snapshot.path
+def _active_task_json(snapshot: ActiveTaskSnapshot) -> dict | None:
+    """Build the record-mode activeTask JSON object."""
+    active_task = snapshot.path
     data = snapshot.data
-    if not current_task or not data:
+    if not active_task or not data:
         return None
 
     return {
-        "path": current_task,
+        "path": active_task,
         "name": data.get("name") or data.get("id") or "unknown",
         "status": data.get("status", "unknown"),
     }
@@ -297,7 +297,7 @@ def _current_task_json(snapshot: CurrentTaskSnapshot) -> dict | None:
 def _append_resume_checklist(
     lines: list[str],
     repo_root: Path,
-    snapshot: CurrentTaskSnapshot,
+    snapshot: ActiveTaskSnapshot,
 ) -> None:
     """向文本上下文追加最小恢复清单。"""
     lines.append("## RESUME CHECKLIST")
@@ -308,17 +308,17 @@ def _append_resume_checklist(
     lines.append(f"- Recovery entrypoint (rerun only if context is stale): {commands[0]}")
 
     if not snapshot.path:
-        lines.append("- No current task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
+        lines.append("- No active task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
         lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; choose a task first.")
         lines.append("")
         return
 
-    current_task = snapshot.path
-    prd_path = f"{current_task}/prd.md"
+    active_task = snapshot.path
+    prd_path = f"{active_task}/prd.md"
     if prd_path in read_files:
-        lines.append(f"- Read current task PRD: {prd_path}")
+        lines.append(f"- Read active task PRD: {prd_path}")
     else:
-        lines.append(f"- Current task PRD missing: {prd_path}")
+        lines.append(f"- Active task PRD missing: {prd_path}")
 
     lines.append(f"- List task context before reading details: {commands[1]}")
 
@@ -333,22 +333,22 @@ def _append_resume_checklist(
     lines.append("")
 
 
-def _append_current_task(
+def _append_active_task(
     lines: list[str],
-    snapshot: CurrentTaskSnapshot,
+    snapshot: ActiveTaskSnapshot,
     include_created: bool = False,
     include_description: bool = False,
     include_prd_hint: bool = False,
 ) -> None:
-    """Append the CURRENT TASK section to text output."""
-    lines.append("## CURRENT TASK")
-    current_task = snapshot.path
-    if not current_task:
+    """Append the ACTIVE TASK section to text output."""
+    lines.append("## ACTIVE TASK")
+    active_task = snapshot.path
+    if not active_task:
         lines.append("(none)")
         lines.append("")
         return
 
-    lines.append(f"Path: {current_task}")
+    lines.append(f"Path: {active_task}")
     data = snapshot.data
     if data:
         lines.append(f"Name: {data.get('name') or data.get('id') or 'unknown'}")
@@ -425,7 +425,7 @@ def get_context_json(repo_root: Path | None = None) -> dict:
     tasks_dir = get_tasks_dir(repo_root)
     journal_file = get_active_journal_file(repo_root)
     git_snapshot = _get_git_snapshot(repo_root)
-    current_task_snapshot = _get_current_task_snapshot(repo_root)
+    active_task_snapshot = _get_active_task_snapshot(repo_root)
 
     journal_lines = 0
     journal_relative = ""
@@ -460,7 +460,7 @@ def get_context_json(repo_root: Path | None = None) -> dict:
             "lines": journal_lines,
             "nearLimit": journal_lines > 1800,
         },
-        "resumeChecklist": _build_resume_checklist(repo_root, current_task_snapshot),
+        "resumeChecklist": _build_resume_checklist(repo_root, active_task_snapshot),
     }
 
 
@@ -513,15 +513,15 @@ def get_context_text(repo_root: Path | None = None) -> str:
     git_snapshot = _get_git_snapshot(repo_root)
     _append_git_status(lines, git_snapshot, repo_root)
     _append_recent_commits(lines, git_snapshot)
-    current_task_snapshot = _get_current_task_snapshot(repo_root)
-    _append_current_task(
+    active_task_snapshot = _get_active_task_snapshot(repo_root)
+    _append_active_task(
         lines,
-        current_task_snapshot,
+        active_task_snapshot,
         include_created=True,
         include_description=True,
         include_prd_hint=True,
     )
-    _append_resume_checklist(lines, repo_root, current_task_snapshot)
+    _append_resume_checklist(lines, repo_root, active_task_snapshot)
 
     # Active tasks
     lines.append("## ACTIVE TASKS")
@@ -602,7 +602,7 @@ def get_context_text(repo_root: Path | None = None) -> str:
 def get_context_record_json(repo_root: Path | None = None) -> dict:
     """Get record-mode context as a dictionary.
 
-    Focused on: my active tasks, git status, current task.
+    Focused on: my active tasks, git status, active task.
     """
     if repo_root is None:
         repo_root = get_repo_root()
@@ -635,14 +635,14 @@ def get_context_record_json(repo_root: Path | None = None) -> dict:
                 "meta": data.get("meta", {}),
             })
 
-    current_task_snapshot = _get_current_task_snapshot(repo_root)
+    active_task_snapshot = _get_active_task_snapshot(repo_root)
 
     return {
         "developer": developer or "",
         "git": _git_json(git_snapshot),
         "myTasks": my_tasks,
-        "currentTask": _current_task_json(current_task_snapshot),
-        "resumeChecklist": _build_resume_checklist(repo_root, current_task_snapshot),
+        "activeTask": _active_task_json(active_task_snapshot),
+        "resumeChecklist": _build_resume_checklist(repo_root, active_task_snapshot),
     }
 
 
@@ -650,7 +650,7 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
     """Get context as formatted text for session recording mode.
 
     Focused output: MY ACTIVE TASKS first (with [!!!] emphasis),
-    then GIT STATUS, RECENT COMMITS, CURRENT TASK.
+    then GIT STATUS, RECENT COMMITS, ACTIVE TASK.
 
     Args:
         repo_root: Repository root path. Defaults to auto-detected.
@@ -705,9 +705,9 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
     git_snapshot = _get_git_snapshot(repo_root)
     _append_git_status(lines, git_snapshot, repo_root)
     _append_recent_commits(lines, git_snapshot)
-    current_task_snapshot = _get_current_task_snapshot(repo_root)
-    _append_current_task(lines, current_task_snapshot)
-    _append_resume_checklist(lines, repo_root, current_task_snapshot)
+    active_task_snapshot = _get_active_task_snapshot(repo_root)
+    _append_active_task(lines, active_task_snapshot)
+    _append_resume_checklist(lines, repo_root, active_task_snapshot)
 
     lines.append("========================================")
 

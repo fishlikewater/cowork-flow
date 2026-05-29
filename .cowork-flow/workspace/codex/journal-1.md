@@ -678,3 +678,35 @@ Archived active workflow tasks and change after validation.
 ### Follow-up Actions
 
 - None, current task is complete
+
+
+## Session 22: Rename active task runtime field
+
+**Date**: 2026-05-29
+**Task**: Rename active task runtime field
+
+### Summary
+
+Renamed session runtime field to active_task_path, updated active-task wording, and archived the completed task.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `pending` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

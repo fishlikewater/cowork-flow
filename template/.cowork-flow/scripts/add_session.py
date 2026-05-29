@@ -185,7 +185,7 @@ def generate_session_content(
 
 ### Follow-up Actions
 
-- None, current task is complete
+- None, active task is complete
 """
 
 

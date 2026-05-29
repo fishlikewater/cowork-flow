@@ -20,10 +20,10 @@ Use this to recover the next actionable step without rereading the whole reposit
 
 State:
 
-- Current task and phase.
+- Active task and phase.
 - Completed work.
 - Next step.
 - Blockers.
 - Verification still required.
 
-Avoid broad archive/history scans unless the current task explicitly depends on them.
+Avoid broad archive/history scans unless the active task explicitly depends on them.

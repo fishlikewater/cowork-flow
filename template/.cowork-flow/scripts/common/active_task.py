@@ -13,6 +13,7 @@ from .paths import DIR_WORKFLOW
 
 DIR_RUNTIME = ".runtime"
 DIR_SESSIONS = "sessions"
+FIELD_ACTIVE_TASK_PATH = "active_task_path"
 
 
 @dataclass(frozen=True)
@@ -123,7 +124,7 @@ def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
     _write_json(
         _session_path(repo_root, context_key),
         {
-            "current_task": normalized,
+            FIELD_ACTIVE_TASK_PATH: normalized,
             "platform": "codex" if context_key.startswith("codex_") else "manual",
             "last_seen_at": _now(),
         },
@@ -136,7 +137,7 @@ def get_active_task(repo_root: Path, values: Mapping[str, object] | None = None)
     if not context_key:
         return ActiveTask(None, None, "missing-context")
     data = _read_json(_session_path(repo_root, context_key))
-    task_path = data.get("current_task")
+    task_path = data.get(FIELD_ACTIVE_TASK_PATH)
     if isinstance(task_path, str) and task_path.strip():
         return ActiveTask(task_path.strip(), context_key, "session")
     return ActiveTask(None, context_key, "empty-session")
@@ -160,7 +161,7 @@ def clear_task_from_sessions(repo_root: Path, task_path: str) -> int:
     normalized = task_path.replace("\\", "/")
     for path in root.glob("*.json"):
         data = _read_json(path)
-        if data.get("current_task") == normalized:
+        if data.get(FIELD_ACTIVE_TASK_PATH) == normalized:
             path.unlink()
             cleared += 1
     return cleared

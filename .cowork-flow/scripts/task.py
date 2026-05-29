@@ -9,9 +9,9 @@ Usage:
     ./.cowork-flow/run task add-context <dir> <file> <path> [reason] # Add jsonl entry
     ./.cowork-flow/run task validate <dir>              # Validate jsonl files
     ./.cowork-flow/run task list-context <dir>          # List jsonl entries
-    ./.cowork-flow/run task start <dir>                 # Set as current session task
-    ./.cowork-flow/run task current                     # Show current session task
-    ./.cowork-flow/run task finish                      # Clear current session task
+    ./.cowork-flow/run task start <dir>                 # Set active session task
+    ./.cowork-flow/run task current                     # Show active session task
+    ./.cowork-flow/run task finish                      # Clear active session task
     ./.cowork-flow/run task archive <task-name>         # Archive completed task
     ./.cowork-flow/run task list                        # List active tasks
     ./.cowork-flow/run task list-archive [month]        # List archived tasks
@@ -837,7 +837,7 @@ def cmd_list_context(args: argparse.Namespace) -> int:
 # =============================================================================
 
 def cmd_start(args: argparse.Namespace) -> int:
-    """Set current task."""
+    """Set active task for this session."""
     repo_root = get_repo_root()
     task_input = args.dir
 
@@ -892,7 +892,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
-    print(colored(f"[OK] Current session task set to: {task_dir}", Colors.GREEN))
+    print(colored(f"[OK] Active session task set to: {task_dir}", Colors.GREEN))
     print()
     print(colored("Fixed agents will load context from this task's jsonl files.", Colors.BLUE))
 
@@ -902,19 +902,19 @@ def cmd_start(args: argparse.Namespace) -> int:
 
 
 def cmd_finish(args: argparse.Namespace) -> int:
-    """Clear current task."""
+    """Clear active task for this session."""
     repo_root = get_repo_root()
     active = get_active_task(repo_root)
 
     if not active.task_path:
-        print(colored("No current task set for this session", Colors.YELLOW))
+        print(colored("No active task set for this session", Colors.YELLOW))
         return 0
 
     # Resolve task.json path before clearing
     task_json_path = repo_root / active.task_path / FILE_TASK_JSON
     clear_active_task(repo_root)
 
-    print(colored(f"[OK] Cleared current session task (was: {active.task_path})", Colors.GREEN))
+    print(colored(f"[OK] Cleared active session task (was: {active.task_path})", Colors.GREEN))
 
     if task_json_path.is_file():
         _run_hooks("after_finish", task_json_path, repo_root)
@@ -922,7 +922,7 @@ def cmd_finish(args: argparse.Namespace) -> int:
 
 
 def cmd_current(args: argparse.Namespace) -> int:
-    """Show current session task."""
+    """Show active session task."""
     repo_root = get_repo_root()
     active = get_active_task(repo_root)
     if not active.context_key:
@@ -935,9 +935,9 @@ def cmd_current(args: argparse.Namespace) -> int:
         )
         return 1
     if not active.task_path:
-        print("Current task: (none)")
+        print("Active task: (none)")
         return 0
-    print(f"Current task: {active.task_path}")
+    print(f"Active task: {active.task_path}")
     print(f"Source: {active.source}:{active.context_key}")
     return 0
 
@@ -1154,7 +1154,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     """List active tasks."""
     repo_root = get_repo_root()
     tasks_dir = get_tasks_dir(repo_root)
-    current_task = get_active_task(repo_root).task_path
+    active_task = get_active_task(repo_root).task_path
     developer = get_developer(repo_root)
     filter_mine = args.mine
     filter_status = args.status
@@ -1190,8 +1190,8 @@ def cmd_list(args: argparse.Namespace) -> int:
 
         relative_path = f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}"
         marker = ""
-        if relative_path == current_task:
-            marker = f" {colored('<- current', Colors.GREEN)}"
+        if relative_path == active_task:
+            marker = f" {colored('<- active', Colors.GREEN)}"
 
         # Children progress
         progress = _get_children_progress(children, all_tasks) if children else ""
@@ -1275,8 +1275,8 @@ Usage:
   ./.cowork-flow/run task add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
   ./.cowork-flow/run task validate <dir>                     Validate jsonl files
   ./.cowork-flow/run task list-context <dir>                 List jsonl entries
-  ./.cowork-flow/run task start <dir>                        Set as current task
-  ./.cowork-flow/run task finish                             Clear current task
+  ./.cowork-flow/run task start <dir>                        Set active session task
+  ./.cowork-flow/run task finish                             Clear active session task
   ./.cowork-flow/run task archive <task-name>                Archive completed task
   ./.cowork-flow/run task add-subtask <parent> <child>       Link child task to parent
   ./.cowork-flow/run task remove-subtask <parent> <child>    Unlink child from parent
@@ -1349,14 +1349,14 @@ def main() -> int:
     p_listctx.add_argument("dir", help="Task directory")
 
     # start
-    p_start = subparsers.add_parser("start", help="Set current session task")
+    p_start = subparsers.add_parser("start", help="Set active session task")
     p_start.add_argument("dir", help="Task directory")
 
     # current
-    subparsers.add_parser("current", help="Show current session task")
+    subparsers.add_parser("current", help="Show active session task")
 
     # finish
-    subparsers.add_parser("finish", help="Clear current session task")
+    subparsers.add_parser("finish", help="Clear active session task")
 
     # archive
     p_archive = subparsers.add_parser("archive", help="Archive task")

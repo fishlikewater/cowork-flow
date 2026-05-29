@@ -9,7 +9,7 @@ Use this after implementation and before `finish-work`.
 
 ## Steps
 
-1. Read current task PRD, plan, and `check.jsonl`.
+1. Read active task PRD, plan, and `check.jsonl`.
 2. Review `git diff --name-only` and `git diff`.
 3. Check contracts across caller/callee, command output, persisted state, templates, and docs.
 4. Confirm `.cowork-flow/spec/` is updated or explicitly unchanged.
