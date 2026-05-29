@@ -1,6 +1,6 @@
 ---
 name: meta
-description: Use when modifying cowork-flow itself: .cowork-flow runtime, template files, .codex hooks/agents, .agent skills, workflow docs, or generated project structure.
+description: Use when modifying cowork-flow itself .cowork-flow runtime, template files, .codex hooks/agents, .agent skills, workflow docs, or generated project structure.
 ---
 
 # Meta
