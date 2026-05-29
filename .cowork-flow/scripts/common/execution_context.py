@@ -309,6 +309,12 @@ def build_subagent_resume_text(
     forbidden_actions = context_data.get("forbiddenActions")
     status_file = context_data.get("statusFile")
     events_file = context_data.get("eventsFile")
+    dispatch_id = context_data.get("dispatchId")
+    ack_token = context_data.get("ackToken")
+    dispatch_status = context_data.get("dispatchStatus")
+    agent_type = context_data.get("agentType")
+    dispatch_reliability = context_data.get("dispatchReliability")
+    expected_ack = context_data.get("expectedAck")
     lines = [
         "========================================",
         "COWORK-FLOW SUBAGENT RESUME",
@@ -322,6 +328,18 @@ def build_subagent_resume_text(
         f"Role: {context.role or 'unknown'}",
         f"Goal: {context.goal or 'unknown'}",
     ]
+    if isinstance(dispatch_id, str) and dispatch_id.strip():
+        lines.append(f"Dispatch ID: {dispatch_id}")
+    if isinstance(dispatch_status, str) and dispatch_status.strip():
+        lines.append(f"Dispatch status: {dispatch_status}")
+    if isinstance(agent_type, str) and agent_type.strip():
+        lines.append(f"Agent type: {agent_type}")
+    if isinstance(dispatch_reliability, str) and dispatch_reliability.strip():
+        lines.append(f"Dispatch reliability: {dispatch_reliability}")
+    if isinstance(ack_token, str) and ack_token.strip():
+        lines.append(f"ACK token: {ack_token}")
+    if isinstance(expected_ack, str) and expected_ack.strip():
+        lines.append(f"Expected ACK: {expected_ack}")
     if context.context_file:
         lines.append(f"Context file: {context.context_file}")
     if isinstance(allowed_context, list) and allowed_context:
@@ -361,6 +379,10 @@ def build_subagent_resume_text(
     lines.extend([
         "",
         "## RULES",
+        "- If you have not acknowledged this dispatch, first return only: COWORK_ACK <dispatch_id> <ack_token>.",
+        "- Execute only after the coordinator sends EXECUTE <dispatch_id> for this same dispatch.",
+        "- If a message names a different dispatch_id, report needs_context and do not execute it.",
+        "- Generic worker dispatch is best-effort only; no ACK means the coordinator must close or retry it.",
         "- Read only prompt-named files and allowed context unless you ask for more context.",
         "- Do not run task start, task finish, task archive, or unscoped resume.",
         "- Stop only with success, needs_context, or blocked status evidence.",
