@@ -1,0 +1,21 @@
+{
+  "id": "generic-spec-defaults",
+  "name": "generic-spec-defaults",
+  "title": "Replace spec placeholders with defaults",
+  "description": "Replace template spec placeholder entries with reusable generic defaults.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-29",
+  "completedAt": "2026-05-29",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
