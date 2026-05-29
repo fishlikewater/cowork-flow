@@ -37,7 +37,9 @@ Start with:
 - Each task names exact files to create, modify, or test.
 - Each step is small enough to execute and verify independently.
 - Include commands and expected results.
-- Include tests before implementation when behavior can be tested.
+- Include a failing test before implementation when behavior can be tested.
+- Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mocks without behavior, or snapshot empty structure.
+- For complex problems, test depth first: cover invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.
 - Avoid placeholders such as TODO, TBD, "handle edge cases", or "write tests".
 - Keep root/template parity explicit when both copies exist.
 

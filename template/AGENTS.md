@@ -2,7 +2,7 @@
 
 请与项目自身规范合并使用；如有冲突，以项目规范和用户明确指令为准。
 
-## 0. 项目定制位
+## 项目定制位
 
 - 项目名称：`<按项目填写>`
 - 主要技术栈：`<按项目填写>`
@@ -12,14 +12,9 @@
 - 文档语言：默认 `中文`，如需英文请整体改口径
 ---
 
-## 0.1 委托任务优先
+## 0. 委托任务优先
 
-如果当前 prompt 明确说明你是 `subagent`、`worker`、`dispatched worker`、`命令执行 worker`，或包含 `唯一任务` / `只执行下面命令` / `不要运行 start/resume`，该 prompt 就是具体任务。
-
-- 先执行委托 prompt 中的具体任务，不要只确认已读取 `AGENTS.md`。
-- 不要把本文件、环境说明或项目 bootstrap 文本当成待完成任务。
-- 除非委托 prompt 明确要求，否则不要运行 start/resume，不要派发其他 agent。
-- 仍需遵守 `rtk`、只读/可写范围和输出格式要求。
+如果当前 prompt 是 subagent/worker/命令执行等有边界的委托任务，先执行委托 prompt；不要把 AGENTS.md、环境说明或 bootstrap 文本当成任务。除非委托 prompt 明确要求，否则不要运行 start/resume，不要再派发 agent。
 
 ## 1. 编码前先思考
 
@@ -93,6 +88,9 @@
 - 测试应表达行为背后的业务意图，而不只是覆盖表面输出。
 - 新增或修改测试时，确保它能在关键逻辑被破坏时失败。
 - 修 bug 时，优先补回归验证。
+- 能用测试表达的行为，优先先写能失败的测试，再实现最小修复。
+- 禁止为了满足流程而编写无意义的简单测试，例如只断言函数存在、mock 被调用、空快照或与实现同义的断言。
+- 复杂问题的测试应深度优先：优先覆盖业务不变量、跨层契约、状态流转、错误边界和真实回归路径，再补窄单元测试。
 - 不把“测试未运行”说成“测试通过”。
 
 ## 9. 阶段性检查
@@ -104,6 +102,5 @@
     - 如果跟丢上下文，先停下来重新整理。
 
 <!-- COWORK-FLOW:START -->
-`.cowork-flow/workflow.md` — development workflow, task classification (L0/L1/L2)
-`.cowork-flow/spec/` — project specifications
+项目流程以 `.cowork-flow/workflow.md` 为准；项目规范从 `.cowork-flow/spec/` 读取。
 <!-- COWORK-FLOW:END -->
