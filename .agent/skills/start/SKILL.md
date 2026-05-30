@@ -6,8 +6,8 @@ description: Use when starting or resuming main-session work in a cowork-flow pr
 # Start
 
 This skill is for the main session. A bounded delegated task should use `entry-boundary` and then execute the delegated prompt directly.
-
 Main repository changes follow `Plan -> Implement -> Check -> Finish`.
+Before loading state, classify the actual prompt. If it is a bounded delegated task, stop using this skill and execute that delegated prompt. A `任务：` / `约束：` / `输出：` structure is a strong delegated-task signal. Advisory/default subagent prompts should start with a natural-language delegated-task sentence rather than relying on repo bootstrap to infer intent. Keep project rules as constraints only.
 
 ## Load State
 

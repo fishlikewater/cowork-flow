@@ -1,0 +1,21 @@
+{
+  "id": "05-30-delegated-bootstrap-classifier",
+  "name": "05-30-delegated-bootstrap-classifier",
+  "title": "Harden delegated bootstrap classification",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-05-30",
+  "completedAt": null,
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

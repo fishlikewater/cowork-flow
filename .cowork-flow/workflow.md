@@ -25,6 +25,10 @@ Plan -> Implement -> Check -> Finish
 No active task for this session. For read-only Q&A, answer directly. For implementation, refactor, behavior change, or multi-step work, create or start a task first, then continue through Plan -> Implement -> Check -> Finish.
 [/workflow-state:no_task]
 
+[workflow-state:delegated_subtask]
+The current prompt looks like a bounded delegated subtask. Follow the delegated prompt first. Do not run start/resume, create or activate a task, or switch into main-session coordination unless the delegated prompt explicitly asks for that. Keep project rules visible as constraints, not as the task.
+[/workflow-state:delegated_subtask]
+
 [workflow-state:planning]
 The active task is in planning. Finish prd.md, curate implement.jsonl and check.jsonl with spec/research files, then run task start before dispatching cowork-implement.
 [/workflow-state:planning]
@@ -123,6 +127,7 @@ Generic worker boundary:
 - Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.
 - Generic `worker` dispatch is best-effort only.
 - If a generic worker does not ACK after one retry, close it and do not execute the task.
+- For advisory/default subagents without a hard envelope, the first sentence must explicitly say this is a bounded delegated task, not a main-session start request. This is a natural-language first-screen boundary, not a new runtime state machine.
 
 ## 3.2 parallel sessions
 

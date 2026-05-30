@@ -18,6 +18,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("spawn_agent", text)
         self.assertIn("fork_turns=\"none\"", text)
         self.assertIn("[workflow-state:no_task]", text)
+        self.assertIn("[workflow-state:delegated_subtask]", text)
         self.assertIn("[workflow-state:planning]", text)
         self.assertIn("[workflow-state:in_progress]", text)
         self.assertIn("[workflow-state:completed]", text)
@@ -52,6 +53,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.",
             "Generic `worker` dispatch is best-effort only.",
             "If a generic worker does not ACK after one retry, close it and do not execute the task.",
+            "natural-language first-screen boundary",
         )
         for path in (
             ROOT / ".cowork-flow" / "workflow.md",
@@ -68,6 +70,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("agent" + "-team-execution", text)
         self.assertNotIn("specific assignment", text)
         self.assertIn("bounded delegated task", text)
+        self.assertIn("Before loading state", text)
+        self.assertIn("任务：` / `约束：` / `输出：", text)
+        self.assertIn("natural-language delegated-task sentence", text)
+        self.assertIn("Keep project rules as constraints only", text)
 
     def test_start_skill_mentions_parallel_session_model(self) -> None:
         for path in (
@@ -88,6 +94,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("Active task:", text)
             self.assertIn("bounded delegated task", text)
+            self.assertIn("When there is no hard marker", text)
+            self.assertIn("strong delegated-subtask signals", text)
+            self.assertIn("natural-language first sentence", text)
+            self.assertIn("project rules remain constraints", text)
             self.assertNotIn("assignment-source", text)
 
     def test_doctor_subagent_safety_matches_entry_boundary_model(self) -> None:
