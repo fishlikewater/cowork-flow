@@ -75,4 +75,5 @@ from .paths import (
     get_active_journal_file,
     count_lines,
     generate_task_date_prefix,
+    ensure_task_date_prefix,
 )

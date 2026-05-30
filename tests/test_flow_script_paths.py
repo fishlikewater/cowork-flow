@@ -79,6 +79,71 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertEqual(task_dir, resolved)
 
+    def test_cmd_create_adds_date_prefix_to_plain_slug(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            date_prefix = datetime.now().strftime("%m-%d")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_create(
+                        argparse.Namespace(
+                            title="Demo task",
+                            slug="demo-task",
+                            assignee="codex",
+                            priority="P2",
+                            description=None,
+                            parent=None,
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            dir_name = f"{date_prefix}-demo-task"
+            self.assertEqual(0, result)
+            self.assertTrue((root / ".cowork-flow" / "tasks" / dir_name / "task.json").is_file())
+            self.assertIn(dir_name, stdout.getvalue())
+
+    def test_cmd_create_keeps_existing_date_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            date_prefix = datetime.now().strftime("%m-%d")
+            slug = f"{date_prefix}-demo-task"
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_create(
+                        argparse.Namespace(
+                            title="Demo task",
+                            slug=slug,
+                            assignee="codex",
+                            priority="P2",
+                            description=None,
+                            parent=None,
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            task_dir = root / ".cowork-flow" / "tasks" / slug
+            doubled = root / ".cowork-flow" / "tasks" / f"{date_prefix}-{slug}"
+            self.assertEqual(0, result)
+            self.assertTrue((task_dir / "task.json").is_file())
+            self.assertFalse(doubled.exists())
+            self.assertIn(slug, stdout.getvalue())
+
     def test_default_context_references_new_skill_directory(self) -> None:
         self.assertEqual(
             ".agent/skills/finish-work/SKILL.md",

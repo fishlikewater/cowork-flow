@@ -86,6 +86,21 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertIsNone(metadata["task"])
         datetime.fromisoformat(str(metadata["created_at"]))
 
+    def test_create_keeps_existing_date_prefix(self) -> None:
+        date_prefix = datetime.now().strftime("%m-%d")
+        slug = f"{date_prefix}-replace-auth"
+
+        result = self.run_change("create", slug)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        change_dir = self.repo / ".cowork-flow" / "changes" / slug
+        doubled = self.repo / ".cowork-flow" / "changes" / f"{date_prefix}-{slug}"
+        self.assertIn(f"created {slug}", result.stdout)
+        self.assertTrue((change_dir / "change.yaml").is_file())
+        self.assertFalse(doubled.exists())
+        metadata = self.read_metadata(slug)
+        self.assertEqual(slug, metadata["slug"])
+
     def test_create_rejects_invalid_slug(self) -> None:
         result = self.run_change("create", "Invalid_Slug")
 

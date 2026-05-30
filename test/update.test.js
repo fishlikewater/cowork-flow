@@ -48,20 +48,40 @@ test('update reports current status when already latest', async () => {
   assert.match(io.stdout, /already up to date/);
 });
 
-test('update prints recommended install command when a newer version exists', async () => {
+test('update installs latest package when a newer version exists', async () => {
+  const io = createIo();
+  const installs = [];
+
+  const code = await runUpdate([], {
+    io,
+    readPackageInfo: async () => ({ version: '0.3.10' }),
+    fetchLatestVersion: async () => '0.3.11',
+    runGlobalInstall: async (spec) => {
+      installs.push(spec);
+      return 0;
+    }
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(installs, ['cowork-flow@latest']);
+  assert.match(io.stdout, /current=0\.3\.10/);
+  assert.match(io.stdout, /latest=0\.3\.11/);
+  assert.match(io.stdout, /installed cowork-flow@latest/);
+});
+
+test('update returns install exit code when global install fails', async () => {
   const io = createIo();
 
   const code = await runUpdate([], {
     io,
     readPackageInfo: async () => ({ version: '0.3.10' }),
     fetchLatestVersion: async () => '0.3.11',
-    runGlobalInstall: async () => 0
+    runGlobalInstall: async () => 42
   });
 
-  assert.equal(code, 0);
+  assert.equal(code, 42);
   assert.match(io.stdout, /current=0\.3\.10/);
   assert.match(io.stdout, /latest=0\.3\.11/);
-  assert.match(io.stdout, /npm install -g cowork-flow@latest/);
 });
 
 test('update degrades to manual command when latest query fails', async () => {
@@ -82,7 +102,7 @@ test('update degrades to manual command when latest query fails', async () => {
   assert.match(io.stderr, /registry offline/);
 });
 
-test('update runs global install only when --global and --yes are both provided', async () => {
+test('update accepts legacy --global --yes flags', async () => {
   const io = createIo();
   const installs = [];
 
