@@ -774,3 +774,35 @@ Clarified that users do not predeclare parallel execution; Plan evaluates feasib
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 25: Harden delegated bootstrap classification
+
+**Date**: 2026-05-30
+**Task**: Harden delegated bootstrap classification
+
+### Summary
+
+Made delegated subtask prompts win first-screen classification over project bootstrap, fixed hook Python runner invocation, and verified with tests plus real subagent smoke checks.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `057bf63` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
