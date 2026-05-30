@@ -35,6 +35,7 @@ DIR_SCRIPTS = "scripts"
 FILE_DEVELOPER = ".developer"
 FILE_TASK_JSON = "task.json"
 FILE_JOURNAL_PREFIX = "journal-"
+TASK_DATE_PREFIX_PATTERN = re.compile(r"^\d{2}-\d{2}-")
 
 
 # =============================================================================
@@ -216,6 +217,13 @@ def generate_task_date_prefix() -> str:
         Date prefix string (e.g., "01-21").
     """
     return datetime.now().strftime("%m-%d")
+
+
+def ensure_task_date_prefix(slug: str) -> str:
+    """Return slug with one MM-DD prefix."""
+    if TASK_DATE_PREFIX_PATTERN.match(slug):
+        return slug
+    return f"{generate_task_date_prefix()}-{slug}"
 
 
 # =============================================================================

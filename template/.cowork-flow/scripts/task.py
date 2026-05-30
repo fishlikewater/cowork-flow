@@ -52,7 +52,7 @@ from common.paths import (
     get_repo_root,
     get_developer,
     get_tasks_dir,
-    generate_task_date_prefix,
+    ensure_task_date_prefix,
 )
 from common.task_utils import (
     find_task_by_name,
@@ -511,8 +511,7 @@ def cmd_create(args: argparse.Namespace) -> int:
 
     # Create task directory with MM-DD-slug format
     tasks_dir = get_tasks_dir(repo_root)
-    date_prefix = generate_task_date_prefix()
-    dir_name = f"{date_prefix}-{slug}"
+    dir_name = ensure_task_date_prefix(slug)
     task_dir = tasks_dir / dir_name
     task_json_path = task_dir / FILE_TASK_JSON
 

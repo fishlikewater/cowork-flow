@@ -133,7 +133,6 @@ cowork-flow init ./my-project --force --developer <your-name>
 
 ```bash
 cowork-flow update
-npm install -g cowork-flow@latest
 ```
 
 同步已初始化项目中的模板脚本和本地技能：

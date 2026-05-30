@@ -1,0 +1,4 @@
+{"file": ".agent/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": ".cowork-flow/plans/2026-05-30-date-prefix-idempotent.md", "reason": "Check implementation against plan"}
+{"file": ".cowork-flow/changes/05-30-date-prefix-idempotent/spec.md", "reason": "Check implementation against behavior spec"}

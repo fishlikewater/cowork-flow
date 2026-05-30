@@ -15,7 +15,7 @@ from common.paths import (
     DIR_ARCHIVE,
     DIR_CHANGES,
     DIR_WORKFLOW,
-    generate_task_date_prefix,
+    ensure_task_date_prefix,
     get_repo_root,
 )
 
@@ -234,7 +234,7 @@ def create_change(args: argparse.Namespace) -> int:
     if not _validate_slug(slug):
         return 2
 
-    dir_name = f"{generate_task_date_prefix()}-{slug}"
+    dir_name = ensure_task_date_prefix(slug)
     change_dir = _change_dir(repo_root, dir_name)
     if change_dir.exists():
         print(f"Error: change already exists: {dir_name}", file=sys.stderr)

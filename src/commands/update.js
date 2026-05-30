@@ -5,18 +5,12 @@ import {
   runGlobalInstall
 } from '../lib/package-info.js';
 
-function parseUpdateArgs(args) {
-  const options = { global: false, yes: false };
+function validateUpdateArgs(args) {
   for (const arg of args) {
-    if (arg === '--global') {
-      options.global = true;
-    } else if (arg === '--yes') {
-      options.yes = true;
-    } else {
+    if (arg !== '--global' && arg !== '--yes') {
       throw new Error(`Unknown update option: ${arg}`);
     }
   }
-  return options;
 }
 
 export async function runUpdate(args, deps = {}) {
@@ -24,7 +18,7 @@ export async function runUpdate(args, deps = {}) {
   const readInfo = deps.readPackageInfo ?? readPackageInfo;
   const fetchLatest = deps.fetchLatestVersion ?? fetchLatestVersion;
   const installGlobal = deps.runGlobalInstall ?? runGlobalInstall;
-  const options = parseUpdateArgs(args);
+  validateUpdateArgs(args);
   const packageInfo = await readInfo();
   const current = packageInfo.version;
   const installCommand = 'npm install -g cowork-flow@latest';
@@ -47,14 +41,9 @@ export async function runUpdate(args, deps = {}) {
     return 0;
   }
 
-  if (options.global && options.yes) {
-    const code = await installGlobal('cowork-flow@latest');
-    if (code === 0) {
-      io.writeOut('installed cowork-flow@latest\n');
-    }
-    return code;
+  const code = await installGlobal('cowork-flow@latest');
+  if (code === 0) {
+    io.writeOut('installed cowork-flow@latest\n');
   }
-
-  io.writeOut(`Run: ${installCommand}\n`);
-  return 0;
+  return code;
 }

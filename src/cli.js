@@ -10,7 +10,7 @@ const HELP = `cowork-flow
 
 Usage:
   cowork-flow init [target] [--developer <name>] [--dry-run] [--force]
-  cowork-flow update [--global] [--yes]
+  cowork-flow update
   cowork-flow sync [target] [--dry-run] [--force]
   cowork-flow --version
   cowork-flow --help
