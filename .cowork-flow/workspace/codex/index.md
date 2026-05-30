@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 24
-- **Last Active**: 2026-05-29
+- **Total Sessions**: 25
+- **Last Active**: 2026-05-30
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~776 | Current |
+| `journal-1.md` | ~808 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 25 | 2026-05-30 | Harden delegated bootstrap classification | `057bf63` |
 | 24 | 2026-05-29 | Clarify parallel planning decision | pending |
 | 23 | 2026-05-29 | Replace spec placeholders with defaults | pending |
 | 22 | 2026-05-29 | Rename active task runtime field | pending |
