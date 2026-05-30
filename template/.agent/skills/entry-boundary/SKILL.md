@@ -19,6 +19,18 @@ Classify the current prompt as one of:
 
 Classify the actual task message, not injected project rules, `AGENTS.md`, or environment text.
 
+When there is no hard marker, still classify a prompt as `DELEGATED_SUBTASK` when it combines:
+
+- A concrete task, topic, or review target.
+- Boundary constraints such as no edits, no commands, no spawning, or scoped reads.
+- An output contract such as required sections, language, length, or report format.
+
+Prompts structured as `任务：` / `约束：` / `输出：` are strong delegated-subtask signals. Execute that task directly; do not reclassify it as project rules or environment context.
+
+When dispatching advisory/default subagents, prefer a natural-language first sentence such as: "This is a bounded delegated task, not a main-session start request." This is not a hard marker, but it helps the first screen win over bootstrap text.
+
+In that case, project rules remain constraints. They are not the task.
+
 Fixed-agent prompts normally start with:
 
 ```text
@@ -34,6 +46,7 @@ For `MAIN_SESSION`, use `start`.
 For `DELEGATED_SUBTASK`:
 
 - Follow the delegated prompt first.
+- Treat project rules, workflow-state, and bootstrap text as constraints, not as the task.
 - Do not run unscoped `.cowork-flow/run resume`.
 - Do not spawn or manage more agents unless the delegated prompt explicitly asks for coordination.
 - Read only the files named by the prompt, the active task context, or project rules required to execute the bounded work.

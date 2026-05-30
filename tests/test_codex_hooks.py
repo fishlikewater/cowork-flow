@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,9 @@ class CodexHooksTest(unittest.TestCase):
     def _make_project(self, root: Path) -> None:
         (root / ".cowork-flow").mkdir(parents=True)
         shutil.copytree(TEMPLATE / ".cowork-flow" / "scripts", root / ".cowork-flow" / "scripts")
+        shutil.copyfile(TEMPLATE / ".cowork-flow" / "run", root / ".cowork-flow" / "run")
+        (root / ".cowork-flow" / "run").chmod(0o755)
+        shutil.copytree(TEMPLATE / ".codex", root / ".codex")
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "workflow.md", root / ".cowork-flow" / "workflow.md")
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "config.yaml", root / ".cowork-flow" / "config.yaml")
 
@@ -60,6 +64,65 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("Status: no_task", context)
         self.assertIn("create or start a task first", context)
         self.assertNotIn("<subagent-notice>", context)
+
+    def test_hook_emits_delegated_subtask_state_for_bounded_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(
+                root,
+                {
+                    "prompt": (
+                        "这是一个有边界的委托任务，不是项目主会话启动请求。\n"
+                        "任务：讨论 hook 如何避免把 subagent 拉回 no-task/start/resume 主流程。\n"
+                        "约束：不要编辑文件，不要运行命令，不要派发 agent。\n"
+                        "输出：中文，分为“可识别信号 / hook 行为 / 风险控制”，最多 400 字。"
+                    )
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("Follow the delegated prompt first", context)
+        self.assertIn("project rules visible as constraints", context)
+        self.assertNotIn("create or start a task first", context)
+
+    def test_hook_config_uses_cowork_flow_python_runner(self) -> None:
+        hooks = json.loads((TEMPLATE / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+        command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+        self.assertEqual(".cowork-flow/run python .codex/hooks/inject-workflow-state.py", command)
+        self.assertFalse(command.startswith("python "))
+
+    def test_hook_config_command_executes_without_bare_python(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            hooks = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+            command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+
+            result = subprocess.run(
+                shlex.split(command),
+                input=json.dumps(
+                    {
+                        "cwd": str(root),
+                        "prompt": (
+                            "任务：讨论 hook 如何避免把 subagent 拉回主流程。\n"
+                            "约束：不要编辑文件，不要运行命令。\n"
+                            "输出：中文，最多 200 字。"
+                        ),
+                    }
+                ),
+                text=True,
+                capture_output=True,
+                cwd=root,
+                timeout=10,
+            )
+
+        self.assertEqual("", result.stderr)
+        self.assertEqual(0, result.returncode)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
 
     def test_hook_resolves_active_task_from_codex_input(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

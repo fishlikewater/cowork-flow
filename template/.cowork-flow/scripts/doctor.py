@@ -45,6 +45,10 @@ REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
     "Generic `worker` dispatch is best-effort only.",
 ]
 
+REQUIRED_HOOK_SNIPPETS = [
+    ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
+]
+
 
 def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> None:
     if not path.is_file():
@@ -83,6 +87,11 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.cowork-flow/workflow.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_DISPATCH_SNIPPETS, errors)
+    for rel in (
+        ".codex/hooks.json",
+        "template/.codex/hooks.json",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_HOOK_SNIPPETS, errors)
     for rel in (
         ".cowork-flow/scripts/subagent.py",
         "template/.cowork-flow/scripts/subagent.py",

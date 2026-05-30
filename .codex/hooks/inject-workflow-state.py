@@ -15,6 +15,61 @@ TAG_RE = re.compile(
     r"\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n(.*?)\n\s*\[/workflow-state:\1\]",
     re.DOTALL,
 )
+PROMPT_KEYS = ("prompt", "user_prompt", "userPrompt", "message", "input")
+DELEGATED_MARKERS = (
+    "COWORK_DISPATCH_V1",
+    "COWORK_DELEGATED_TASK_V1",
+    "DELEGATED_SUBTASK",
+)
+DELEGATED_TERMS = (
+    "delegated task",
+    "delegated subtask",
+    "bounded delegated",
+    "subagent",
+    "sub-agent",
+    "worker",
+    "reviewer",
+    "explorer",
+    "委托任务",
+    "委托 prompt",
+    "子任务",
+    "子线程",
+)
+TASK_TERMS = (
+    "task:",
+    "topic:",
+    "focus:",
+    "任务：",
+    "任务:",
+    "主题：",
+    "目标：",
+    "审视",
+    "讨论",
+    "review",
+    "inspect",
+)
+BOUNDARY_TERMS = (
+    "do not edit",
+    "do not run",
+    "do not spawn",
+    "return concise analysis only",
+    "不要编辑",
+    "不要运行",
+    "不要派发",
+    "不要只确认",
+    "只输出",
+    "不要改",
+)
+OUTPUT_TERMS = (
+    "output:",
+    "required output",
+    "return in",
+    "max ",
+    "最多",
+    "输出：",
+    "输出:",
+    "分为",
+)
 
 def _find_repo_root(start: Path) -> Path | None:
     current = start.resolve()
@@ -32,6 +87,34 @@ def _read_hook_input() -> dict[str, Any]:
     except (json.JSONDecodeError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _extract_prompt(hook_input: dict[str, Any]) -> str:
+    values: list[str] = []
+    for key in PROMPT_KEYS:
+        value = hook_input.get(key)
+        if isinstance(value, str) and value.strip():
+            values.append(value)
+    return "\n".join(values)
+
+
+def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
+    return any(term in text for term in terms)
+
+
+def _is_delegated_prompt(hook_input: dict[str, Any]) -> bool:
+    prompt = _extract_prompt(hook_input)
+    if not prompt.strip():
+        return False
+    if any(marker in prompt for marker in DELEGATED_MARKERS):
+        return True
+
+    lowered = prompt.lower()
+    has_task = _contains_any(lowered, TASK_TERMS)
+    has_delegated_role = _contains_any(lowered, DELEGATED_TERMS)
+    has_boundary = _contains_any(lowered, BOUNDARY_TERMS)
+    has_output = _contains_any(lowered, OUTPUT_TERMS)
+    return has_task and (has_delegated_role or has_boundary) and (has_output or has_boundary)
 
 
 def _load_breadcrumbs(root: Path) -> dict[str, str]:
@@ -120,6 +203,10 @@ def main() -> int:
     breadcrumbs = _load_breadcrumbs(root)
     dispatch_mode = _get_dispatch_mode(root)
     task_path, status, source = _get_active_task(root, hook_input)
+    if _is_delegated_prompt(hook_input):
+        task_path = None
+        status = "delegated_subtask"
+        source = "prompt"
     additional_context = _build_context(task_path, status, source, breadcrumbs, dispatch_mode)
 
     print(
