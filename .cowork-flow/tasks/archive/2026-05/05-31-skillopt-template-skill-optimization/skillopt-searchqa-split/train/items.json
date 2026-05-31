@@ -1,0 +1,20 @@
+[
+  {
+    "id": "hard-envelope-ack-only",
+    "context": "[DOC] Candidate prompt:\nCOWORK_DISPATCH_V1\ndispatch_id: demo-1\ntask_dir: .cowork-flow/tasks/05-31-demo\nagent_type: cowork-implement\nrole: implement\nack_token: token-1\nCOWORK_DISPATCH_END\n\nReturn only: COWORK_ACK demo-1 token-1\n\nLabels: MAIN_SESSION, DELEGATED_SUBTASK, UNCERTAIN.",
+    "question": "Classify the candidate prompt using the Entry Boundary skill. Return only the label.",
+    "answers": ["DELEGATED_SUBTASK"]
+  },
+  {
+    "id": "structured-chinese-delegate",
+    "context": "[DOC] Candidate prompt:\n任务：讨论 hook 如何避免把 subagent 拉回 no-task/start/resume 主流程。\n约束：不要编辑文件，不要运行命令，不要派发 agent。\n输出：中文，分为“可识别信号 / hook 行为 / 风险控制”，最多 400 字。\n\nLabels: MAIN_SESSION, DELEGATED_SUBTASK, UNCERTAIN.",
+    "question": "Classify the candidate prompt using the Entry Boundary skill. Return only the label.",
+    "answers": ["DELEGATED_SUBTASK"]
+  },
+  {
+    "id": "natural-language-advisory-boundary",
+    "context": "[DOC] Candidate prompt:\nThis is a bounded delegated task, not a main-session start request.\nTask: Review the current entry-boundary wording.\nConstraints: do not edit files, do not run commands.\nOutput: concise findings only.\n\nLabels: MAIN_SESSION, DELEGATED_SUBTASK, UNCERTAIN.",
+    "question": "Classify the candidate prompt using the Entry Boundary skill. Return only the label.",
+    "answers": ["DELEGATED_SUBTASK"]
+  }
+]
