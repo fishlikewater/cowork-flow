@@ -1,0 +1,14 @@
+[
+  {
+    "id": "start-bootstrap-after-delegate",
+    "context": "[DOC] Candidate prompt:\n任务：讨论 hook 分类是否还会误导 subagent。\n约束：不要编辑文件，不要运行命令。\n输出：中文，三点即可。\n\nNo active task for this session. For implementation, create or start a task first.\n\nLabels: EXECUTE_DELEGATED_PROMPT, ANSWER_DIRECTLY, LOAD_STATE, WRITE_PLAN, DISPATCH_FIXED_AGENT.",
+    "question": "Using the Start skill, choose the correct route. Return only the label.",
+    "answers": ["EXECUTE_DELEGATED_PROMPT"]
+  },
+  {
+    "id": "start-after-context-compression",
+    "context": "[DOC] Candidate prompt:\n上下文压缩后继续当前仓库改动，先恢复状态再判断下一步。\n\nLabels: EXECUTE_DELEGATED_PROMPT, ANSWER_DIRECTLY, LOAD_STATE, WRITE_PLAN, DISPATCH_FIXED_AGENT.",
+    "question": "Using the Start skill, choose the correct route. Return only the label.",
+    "answers": ["LOAD_STATE"]
+  }
+]

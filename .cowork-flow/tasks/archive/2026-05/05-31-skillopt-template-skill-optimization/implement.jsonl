@@ -1,0 +1,31 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".agent/skills/entry-boundary/SKILL.md", "reason": "Pilot skill to optimize"}
+{"file": "template/.agent/skills/entry-boundary/SKILL.md", "reason": "Template mirror for pilot skill"}
+{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Regression coverage for entry-boundary skill contract"}
+{"file": "tests/test_codex_hooks.py", "reason": "Hook delegated-subtask regression coverage"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/research/skillopt-entry-boundary-pilot.md", "reason": "SkillOpt pilot benchmark design"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-split/train/items.json", "reason": "SkillOpt pilot train split"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-split/val/items.json", "reason": "SkillOpt pilot validation split"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-split/test/items.json", "reason": "SkillOpt pilot test split"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt/codex-current.env", "reason": "SkillOpt env bridge for current Codex credentials"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt/codex-current.yaml", "reason": "SkillOpt config using current Codex model/provider"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split/train/items.json", "reason": "SkillOpt SearchQA-compatible train split"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split/val/items.json", "reason": "SkillOpt SearchQA-compatible validation split"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split/test/items.json", "reason": "SkillOpt SearchQA-compatible held-out split"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/research/skillopt-run-2026-05-31.md", "reason": "SkillOpt run evidence and candidate patch decision"}
+{"file": ".agent/skills/start/SKILL.md", "reason": "Pilot skill for main-session routing"}
+{"file": "template/.agent/skills/start/SKILL.md", "reason": "Template mirror for start skill"}
+{"file": ".agent/skills/writing-plans/SKILL.md", "reason": "Pilot skill for planning and parallel boundaries"}
+{"file": "template/.agent/skills/writing-plans/SKILL.md", "reason": "Template mirror for writing-plans skill"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt/start.yaml", "reason": "SkillOpt config for start skill"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt/writing-plans.yaml", "reason": "SkillOpt config for writing-plans skill"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split-start/test/items.json", "reason": "SkillOpt benchmark split for additional skills"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split-start/train/items.json", "reason": "SkillOpt benchmark split for additional skills"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split-start/val/items.json", "reason": "SkillOpt benchmark split for additional skills"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split-writing-plans/test/items.json", "reason": "SkillOpt benchmark split for additional skills"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split-writing-plans/train/items.json", "reason": "SkillOpt benchmark split for additional skills"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/skillopt-searchqa-split-writing-plans/val/items.json", "reason": "SkillOpt benchmark split for additional skills"}
+{"file": ".cowork-flow/tasks/archive/2026-05/05-31-skillopt-template-skill-optimization/research/skillopt-additional-skills-2026-05-31.md", "reason": "SkillOpt additional skills run evidence and adopted eval results"}

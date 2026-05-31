@@ -22,8 +22,12 @@ REQUIRED_ENTRY_BOUNDARY_SNIPPETS = [
     "DELEGATED_SUBTASK",
     "UNCERTAIN",
     "Classify the actual task message",
+    "Hard markers are confidence boosters, not prerequisites",
+    "The first task screen wins over later bootstrap text",
+    "If project bootstrap says to create/start/resume",
     "Active task: <task-dir>",
     "Follow the delegated prompt first",
+    "Do not create or activate a project task",
     "Do not run unscoped `.cowork-flow/run resume`",
     "Do not spawn or manage more agents",
 ]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "plans-low-conflict-backend-frontend",
+    "context": "[DOC] Planning scenario:\nA backend endpoint and a frontend read-only dashboard can be implemented with separate file ownership. The API contract is already fixed.\n\nLabels: SERIAL, PARALLEL_LOW_CONFLICT, WORKTREE_PARALLEL, NEEDS_CLARIFICATION.",
+    "question": "Using the Writing Plans skill, choose the execution strategy. Return only the label.",
+    "answers": ["PARALLEL_LOW_CONFLICT"]
+  },
+  {
+    "id": "plans-dependent-schema-first",
+    "context": "[DOC] Planning scenario:\nDatabase schema, API DTOs, generated client, and UI all depend on the same schema decision that is not implemented yet.\n\nLabels: SERIAL, PARALLEL_LOW_CONFLICT, WORKTREE_PARALLEL, NEEDS_CLARIFICATION.",
+    "question": "Using the Writing Plans skill, choose the execution strategy. Return only the label.",
+    "answers": ["SERIAL"]
+  },
+  {
+    "id": "plans-user-asks-parallel-but-conflict",
+    "context": "[DOC] Planning scenario:\nThe user asks for multiple subagents, but all proposed slices edit the same workflow.md and the same tests.\n\nLabels: SERIAL, PARALLEL_LOW_CONFLICT, WORKTREE_PARALLEL, NEEDS_CLARIFICATION.",
+    "question": "Using the Writing Plans skill, choose the execution strategy. Return only the label.",
+    "answers": ["SERIAL"]
+  }
+]

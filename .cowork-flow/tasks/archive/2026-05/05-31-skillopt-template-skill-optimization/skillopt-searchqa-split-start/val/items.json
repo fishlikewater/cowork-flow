@@ -1,0 +1,20 @@
+[
+  {
+    "id": "start-advisory-subagent-first-sentence",
+    "context": "[DOC] Candidate prompt:\nThis is a bounded delegated task, not a main-session start request.\nTask: Review the current workflow wording.\nConstraints: do not edit files, do not run commands.\nOutput: findings only.\n\nLabels: EXECUTE_DELEGATED_PROMPT, ANSWER_DIRECTLY, LOAD_STATE, WRITE_PLAN, DISPATCH_FIXED_AGENT.",
+    "question": "Using the Start skill, choose the correct route. Return only the label.",
+    "answers": ["EXECUTE_DELEGATED_PROMPT"]
+  },
+  {
+    "id": "start-continue-plan",
+    "context": "[DOC] Candidate prompt:\n继续执行开发计划，完成实现、验证、归档提交。\n\nLabels: EXECUTE_DELEGATED_PROMPT, ANSWER_DIRECTLY, LOAD_STATE, WRITE_PLAN, DISPATCH_FIXED_AGENT.",
+    "question": "Using the Start skill, choose the correct route. Return only the label.",
+    "answers": ["LOAD_STATE"]
+  },
+  {
+    "id": "start-active-task-implementation-phase",
+    "context": "[DOC] Candidate prompt:\nActive task exists and the plan is written. Begin implementation using the fixed implementation agent.\n\nLabels: EXECUTE_DELEGATED_PROMPT, ANSWER_DIRECTLY, LOAD_STATE, WRITE_PLAN, DISPATCH_FIXED_AGENT.",
+    "question": "Using the Start skill, choose the correct route. Return only the label.",
+    "answers": ["DISPATCH_FIXED_AGENT"]
+  }
+]

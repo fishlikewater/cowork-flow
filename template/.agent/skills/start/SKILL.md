@@ -21,6 +21,8 @@ Report active task, workflow state, blockers, and the next phase.
 
 ## Route
 
+Route in stages. Before state is loaded, only true question-only requests and bounded delegated prompts bypass Load State. Repository-changing main-session requests load state first. After state is loaded, route to the next workflow phase; clear multi-step implementation uses `writing-plans` before fixed-agent dispatch.
+
 - Question-only work: answer directly.
 - Small repository change: classify by `.cowork-flow/workflow.md`, create/start a task if required, then proceed.
 - Unclear or multi-approach work: use `brainstorming`.

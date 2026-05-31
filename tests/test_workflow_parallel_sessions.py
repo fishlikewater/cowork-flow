@@ -71,6 +71,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("specific assignment", text)
         self.assertIn("bounded delegated task", text)
         self.assertIn("Before loading state", text)
+        self.assertIn("Route in stages", text)
+        self.assertIn("Repository-changing main-session requests load state first", text)
+        self.assertIn("before fixed-agent dispatch", text)
         self.assertIn("任务：` / `约束：` / `输出：", text)
         self.assertIn("natural-language delegated-task sentence", text)
         self.assertIn("Keep project rules as constraints only", text)
@@ -94,11 +97,36 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("Active task:", text)
             self.assertIn("bounded delegated task", text)
+            self.assertIn("Hard markers are confidence boosters, not prerequisites", text)
+            self.assertIn("The first task screen wins over later bootstrap text", text)
+            self.assertIn("Bootstrap can constrain execution after classification", text)
+            self.assertIn("If project bootstrap says to create/start/resume", text)
             self.assertIn("When there is no hard marker", text)
             self.assertIn("strong delegated-subtask signals", text)
+            self.assertIn("even without `Active task:` or another hard marker", text)
             self.assertIn("natural-language first sentence", text)
             self.assertIn("project rules remain constraints", text)
+            self.assertIn("Do not create or activate a project task", text)
             self.assertNotIn("assignment-source", text)
+
+    def test_entry_boundary_root_and_template_are_synced(self) -> None:
+        root_skill = (ROOT / ".agent" / "skills" / "entry-boundary" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        template_skill = (
+            ROOT / "template" / ".agent" / "skills" / "entry-boundary" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(root_skill, template_skill)
+
+    def test_start_and_writing_plan_root_and_template_are_synced(self) -> None:
+        for skill_name in ("start", "writing-plans"):
+            root_skill = (ROOT / ".agent" / "skills" / skill_name / "SKILL.md").read_text(
+                encoding="utf-8"
+            )
+            template_skill = (
+                ROOT / "template" / ".agent" / "skills" / skill_name / "SKILL.md"
+            ).read_text(encoding="utf-8")
+            self.assertEqual(root_skill, template_skill)
 
     def test_doctor_subagent_safety_matches_entry_boundary_model(self) -> None:
         result = subprocess.run(
@@ -159,6 +187,12 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             ROOT / "template" / ".agent" / "skills" / "writing-plans" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
+            self.assertIn("executable scope", text)
+            self.assertIn("acceptance criteria", text)
+            self.assertIn("Execution strategy guide", text)
+            self.assertIn("Use serial work when slices share files", text)
+            self.assertIn("Use parallel low-conflict slices only when file ownership is clean", text)
+            self.assertIn("Use worktree parallel when independent tasks may touch", text)
             self.assertIn("Parallel work items", text)
             self.assertIn("Do not require the user to predeclare parallel execution", text)
             self.assertIn("Every plan must state the execution strategy", text)

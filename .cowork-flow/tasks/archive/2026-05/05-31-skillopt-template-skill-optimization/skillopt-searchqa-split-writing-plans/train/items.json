@@ -1,0 +1,26 @@
+[
+  {
+    "id": "plans-independent-ui-and-docs",
+    "context": "[DOC] Planning scenario:\nThe requirement touches an admin UI component and an unrelated README section. File ownership can be separated, and each slice has its own tests.\n\nLabels: SERIAL, PARALLEL_LOW_CONFLICT, WORKTREE_PARALLEL, NEEDS_CLARIFICATION.",
+    "question": "Using the Writing Plans skill, choose the execution strategy. Return only the label.",
+    "answers": ["PARALLEL_LOW_CONFLICT"]
+  },
+  {
+    "id": "plans-shared-parser-and-tests",
+    "context": "[DOC] Planning scenario:\nThe requirement changes one parser, its shared validation helper, and tests for the same behavior chain. Multiple workers would edit the same files.\n\nLabels: SERIAL, PARALLEL_LOW_CONFLICT, WORKTREE_PARALLEL, NEEDS_CLARIFICATION.",
+    "question": "Using the Writing Plans skill, choose the execution strategy. Return only the label.",
+    "answers": ["SERIAL"]
+  },
+  {
+    "id": "plans-independent-product-slices-overlap-risk",
+    "context": "[DOC] Planning scenario:\nTwo independent product tasks can proceed at the same time, but both may write package metadata and generated assets in the same repository.\n\nLabels: SERIAL, PARALLEL_LOW_CONFLICT, WORKTREE_PARALLEL, NEEDS_CLARIFICATION.",
+    "question": "Using the Writing Plans skill, choose the execution strategy. Return only the label.",
+    "answers": ["WORKTREE_PARALLEL"]
+  },
+  {
+    "id": "plans-missing-acceptance",
+    "context": "[DOC] Planning scenario:\nThe user says 'make it better' without target files, acceptance criteria, or behavioral outcome.\n\nLabels: SERIAL, PARALLEL_LOW_CONFLICT, WORKTREE_PARALLEL, NEEDS_CLARIFICATION.",
+    "question": "Using the Writing Plans skill, choose the execution strategy. Return only the label.",
+    "answers": ["NEEDS_CLARIFICATION"]
+  }
+]
