@@ -1,0 +1,21 @@
+{
+  "id": "post-ack-grace-runtime-config",
+  "name": "post-ack-grace-runtime-config",
+  "title": "Make post_ack_execution_grace_ms runtime effective",
+  "description": "Read and expose codex.post_ack_execution_grace_ms through runtime workflow state so changing config affects coordination behavior.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-01",
+  "completedAt": "2026-06-01",
+  "commit": "fbaedf0",
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
