@@ -1,0 +1,21 @@
+{
+  "id": "06-01-subagent-startup-grace",
+  "name": "06-01-subagent-startup-grace",
+  "title": "Delay subagent close during post-ACK context loading",
+  "description": "Prevent main-session coordination guidance from closing a spawned subagent after ACK/EXECUTE while it is still loading task context.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-01",
+  "completedAt": "2026-06-01",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

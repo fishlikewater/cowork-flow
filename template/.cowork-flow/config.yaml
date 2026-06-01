@@ -24,6 +24,11 @@ max_journal_lines: 2000
 # inline: hint that main session should perform implementation/check directly.
 codex:
   dispatch_mode: "sub-agent"
+  # Grace duration after each subagent ACKs and receives EXECUTE.
+  # This is a per-dispatch duration, not a shared/global deadline.
+  # During this window, missing output or missing compass/status files do not
+  # prove the child is stuck while it loads task context.
+  post_ack_execution_grace_ms: 300000
 
 #-------------------------------------------------------------------------------
 # Task Lifecycle Hooks
