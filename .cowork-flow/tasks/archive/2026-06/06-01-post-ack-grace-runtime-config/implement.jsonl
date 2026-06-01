@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".codex/hooks/inject-workflow-state.py", "reason": "Hook that injects runtime workflow context"}
+{"file": ".cowork-flow/scripts/common/config.py", "reason": "Runtime config reader for codex settings"}
+{"file": "tests/test_codex_hooks.py", "reason": "Regression tests for hook-injected runtime config"}
+{"file": "template/.cowork-flow/scripts/common/config.py", "reason": "Template runtime config reader mirror"}
+{"file": "template/.codex/hooks/inject-workflow-state.py", "reason": "Template hook mirror"}

@@ -806,3 +806,39 @@ Made delegated subtask prompts win first-screen classification over project boot
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 26: Make post_ack_execution_grace_ms runtime effective
+
+**Date**: 2026-06-01
+**Task**: Make post_ack_execution_grace_ms runtime effective
+
+### Summary
+
+Added runtime config parsing and hook injection for codex.post_ack_execution_grace_ms, with tests for custom values and fallback behavior.
+
+### Main Changes
+
+- Added `get_codex_post_ack_execution_grace_ms()` with default and invalid-value fallback behavior.
+- Injected resolved `post_ack_execution_grace_ms` into hook-provided `<codex-runtime>` context.
+- Mirrored runtime changes to `template/` and added hook regression coverage.
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `fbaedf0` | See git log |
+
+### Verification
+
+- [OK] `.cowork-flow/run python -m unittest tests.test_codex_hooks tests.test_workflow_parallel_sessions`
+- [OK] `npm run test:all`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
