@@ -63,6 +63,50 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
+    def test_workflow_requires_execution_grace_after_ack_before_closing_subagents(self) -> None:
+        required_markers = (
+            "post-ACK execution grace",
+            "After `EXECUTE <dispatch_id>`",
+            "execute_sent_at[dispatch_id]",
+            "deadline[dispatch_id] = execute_sent_at[dispatch_id] + codex.post_ack_execution_grace_ms",
+            "shared/global deadline",
+            "no reply or no compass/status file",
+            "Do not call `close_agent` only",
+            "review checkpoint for that child only",
+            "progress, compass, or status files",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
+        skill_markers = (
+            "post-ACK execution grace",
+            "codex.post_ack_execution_grace_ms",
+            "execute_sent_at[dispatch_id]",
+            "shared/global deadline",
+            "missing output or missing compass/status file",
+            "review checkpoint for that child only",
+            "Only close after wrong dispatch evidence, child completion, or user cancellation.",
+        )
+        for path in (
+            ROOT / ".agent" / "skills" / "start" / "SKILL.md",
+            ROOT / "template" / ".agent" / "skills" / "start" / "SKILL.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in skill_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
+        for path in (
+            ROOT / ".cowork-flow" / "config.yaml",
+            ROOT / "template" / ".cowork-flow" / "config.yaml",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertRegex(text, r"post_ack_execution_grace_ms:\s*300000\b", f"grace config missing from {path}")
+
     def test_start_skill_routes_to_fixed_agents(self) -> None:
         text = (ROOT / ".agent" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Plan -> Implement -> Check -> Finish", text)

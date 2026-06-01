@@ -34,7 +34,7 @@ The active task is in planning. Finish prd.md, curate implement.jsonl and check.
 [/workflow-state:planning]
 
 [workflow-state:in_progress]
-The active task is in progress. Main session dispatches cowork-implement work according to the plan, then cowork-check after integration. Every spawn_agent call uses fork_turns="none" and a COWORK_DISPATCH_V1 envelope. Main session waits for COWORK_ACK, sends EXECUTE with followup_task, verifies child output, lists agents, and closes children.
+The active task is in progress. Main session dispatches cowork-implement work according to the plan, then cowork-check after integration. Every spawn_agent call uses fork_turns="none" and a COWORK_DISPATCH_V1 envelope. Main session waits for COWORK_ACK, sends EXECUTE with followup_task, then uses per-dispatch post-ACK execution grace while each child loads context. Main session verifies child output, lists agents, and closes children only after completion or clear failure evidence.
 [/workflow-state:in_progress]
 
 [workflow-state:completed]
@@ -115,7 +115,16 @@ spawn_agent(
 - Use `wait_agent` for `COWORK_ACK <dispatch_id> <ack_token>` before execution.
 - Missing or mismatched `COWORK_ACK` means the task is not dispatched.
 - Only after a matching ACK, send `EXECUTE <dispatch_id>` with `followup_task`.
+- Record `execute_sent_at[dispatch_id]` when `EXECUTE <dispatch_id>` is sent.
+- Compute `deadline[dispatch_id] = execute_sent_at[dispatch_id] + codex.post_ack_execution_grace_ms`; do not use a shared/global deadline across children.
+- After `EXECUTE <dispatch_id>`, no reply or no compass/status file while the child loads context is inconclusive.
+- Use post-ACK execution grace for execution startup before judging execution health. The default is `300000` ms and can be configured with `codex.post_ack_execution_grace_ms` in `.cowork-flow/config.yaml`.
+- Do not call `close_agent` only because the executing child has not produced a compass/status file.
+- If `list_agents` still shows the child running, continue waiting through post-ACK execution grace instead of closing it.
+- Post-ACK execution grace expiration for one `dispatch_id` is a review checkpoint for that child only, not a close trigger and not evidence about other children.
+- If progress, compass, or status files exist, continue waiting and do not close solely because grace expired.
 - If a child reports another `dispatch_id`, close that child and respawn the intended task.
+- An executing child may be closed only after wrong-dispatch evidence, child completion, or user cancellation.
 - 用 `wait_agent` 等待子 agent 返回。
 - 用 `list_agents` 确认没有遗留 running child。
 - 验收子 agent 汇报的文件、命令和结果；不只信“已完成”文本。
