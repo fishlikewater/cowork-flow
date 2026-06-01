@@ -16,6 +16,7 @@ from .paths import DIR_WORKFLOW, get_repo_root
 DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
 DEFAULT_CODEX_DISPATCH_MODE = "sub-agent"
+DEFAULT_CODEX_POST_ACK_EXECUTION_GRACE_MS = 300000
 
 CONFIG_FILE = "config.yaml"
 
@@ -139,3 +140,19 @@ def get_codex_dispatch_mode(repo_root: Path | None = None) -> str:
     if mode in {"sub-agent", "inline"}:
         return str(mode)
     return DEFAULT_CODEX_DISPATCH_MODE
+
+
+def get_codex_post_ack_execution_grace_ms(repo_root: Path | None = None) -> int:
+    """Get the post-ACK execution grace duration for Codex subagent dispatch."""
+    config = _load_config(repo_root)
+    codex = config.get("codex")
+    if not isinstance(codex, dict):
+        return DEFAULT_CODEX_POST_ACK_EXECUTION_GRACE_MS
+    value = codex.get("post_ack_execution_grace_ms", DEFAULT_CODEX_POST_ACK_EXECUTION_GRACE_MS)
+    try:
+        parsed = int(value)
+    except (ValueError, TypeError):
+        return DEFAULT_CODEX_POST_ACK_EXECUTION_GRACE_MS
+    if parsed <= 0:
+        return DEFAULT_CODEX_POST_ACK_EXECUTION_GRACE_MS
+    return parsed

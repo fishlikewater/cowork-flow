@@ -144,6 +144,21 @@ def _get_dispatch_mode(root: Path) -> str:
         return "sub-agent"
 
 
+def _get_post_ack_execution_grace_ms(root: Path) -> int:
+    _load_common(root)
+    try:
+        from common.config import (  # type: ignore[import-not-found]
+            DEFAULT_CODEX_POST_ACK_EXECUTION_GRACE_MS,
+            get_codex_post_ack_execution_grace_ms,
+        )
+    except Exception:
+        return 300000
+    try:
+        return get_codex_post_ack_execution_grace_ms(root)
+    except Exception:
+        return DEFAULT_CODEX_POST_ACK_EXECUTION_GRACE_MS
+
+
 def _get_active_task(root: Path, hook_input: dict[str, Any]) -> tuple[str | None, str, str]:
     _load_common(root)
     try:
@@ -174,6 +189,7 @@ def _build_context(
     source: str,
     breadcrumbs: dict[str, str],
     dispatch_mode: str,
+    post_ack_execution_grace_ms: int,
 ) -> str:
     body = breadcrumbs.get(status) or "Refer to .cowork-flow/workflow.md for the current step."
     if task_path is None:
@@ -184,6 +200,11 @@ def _build_context(
     return "\n\n".join(
         [
             f"<codex-mode>{dispatch_mode}</codex-mode>",
+            (
+                "<codex-runtime>\n"
+                f"post_ack_execution_grace_ms: {post_ack_execution_grace_ms}\n"
+                "</codex-runtime>"
+            ),
             f"<workflow-state>\n{header}\n{body}\n</workflow-state>",
         ]
     )
@@ -202,12 +223,20 @@ def main() -> int:
 
     breadcrumbs = _load_breadcrumbs(root)
     dispatch_mode = _get_dispatch_mode(root)
+    post_ack_execution_grace_ms = _get_post_ack_execution_grace_ms(root)
     task_path, status, source = _get_active_task(root, hook_input)
     if _is_delegated_prompt(hook_input):
         task_path = None
         status = "delegated_subtask"
         source = "prompt"
-    additional_context = _build_context(task_path, status, source, breadcrumbs, dispatch_mode)
+    additional_context = _build_context(
+        task_path,
+        status,
+        source,
+        breadcrumbs,
+        dispatch_mode,
+        post_ack_execution_grace_ms,
+    )
 
     print(
         json.dumps(

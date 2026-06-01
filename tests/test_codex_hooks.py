@@ -159,6 +159,46 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("<codex-mode>inline</codex-mode>", context)
 
+    def test_hook_reads_post_ack_execution_grace_from_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            (root / ".cowork-flow" / "config.yaml").write_text(
+                "codex:\n  post_ack_execution_grace_ms: 12345\n",
+                encoding="utf-8",
+            )
+
+            data = self._run_hook(root, {})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("<codex-runtime>", context)
+        self.assertIn("post_ack_execution_grace_ms: 12345", context)
+
+    def test_hook_falls_back_to_default_post_ack_execution_grace(self) -> None:
+        for value in ("nope", "0", "-1"):
+            with self.subTest(value=value):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    self._make_project(root)
+                    (root / ".cowork-flow" / "config.yaml").write_text(
+                        f"codex:\n  post_ack_execution_grace_ms: {value}\n",
+                        encoding="utf-8",
+                    )
+
+                    data = self._run_hook(root, {})
+
+                context = data["hookSpecificOutput"]["additionalContext"]
+                self.assertIn("post_ack_execution_grace_ms: 300000", context)
+
+    def test_hook_runtime_files_root_and_template_are_synced(self) -> None:
+        for rel in (
+            Path(".codex/hooks/inject-workflow-state.py"),
+            Path(".cowork-flow/scripts/common/config.py"),
+        ):
+            root_text = (ROOT / rel).read_text(encoding="utf-8")
+            template_text = (TEMPLATE / rel).read_text(encoding="utf-8")
+            self.assertEqual(root_text, template_text, f"{rel} root/template mismatch")
+
 
 if __name__ == "__main__":
     unittest.main()
