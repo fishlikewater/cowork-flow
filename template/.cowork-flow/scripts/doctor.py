@@ -15,6 +15,10 @@ REQUIRED_START_SNIPPETS = [
     "This skill is for the main session",
     "bounded delegated task should use `entry-boundary`",
     "Main repository changes follow `Plan -> Implement -> Check -> Finish`",
+    "post-ACK execution grace",
+    "codex.post_ack_execution_grace_ms",
+    "execute_sent_at[dispatch_id]",
+    "shared/global deadline",
 ]
 
 REQUIRED_ENTRY_BOUNDARY_SNIPPETS = [
@@ -45,6 +49,12 @@ REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
     "COWORK_DISPATCH_V1",
     "COWORK_ACK",
     "followup_task",
+    "post-ACK execution grace",
+    "codex.post_ack_execution_grace_ms",
+    "execute_sent_at[dispatch_id]",
+    "deadline[dispatch_id] = execute_sent_at[dispatch_id] + codex.post_ack_execution_grace_ms",
+    "shared/global deadline",
+    "After `EXECUTE <dispatch_id>`, no reply or no compass/status file while the child loads context is inconclusive.",
     "Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.",
     "Generic `worker` dispatch is best-effort only.",
 ]
