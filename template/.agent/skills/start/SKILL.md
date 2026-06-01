@@ -13,9 +13,10 @@ Before loading state, classify the actual prompt. If it is a bounded delegated t
 
 1. Read `AGENTS.md`.
 2. Read `.cowork-flow/workflow.md`.
-3. Run `.cowork-flow/run resume` or `.\.cowork-flow\run.cmd resume` on Windows.
-4. Read the active task PRD and JSONL indexes only when a task is active.
-5. Read relevant `.cowork-flow/spec/*/index.md` files before code changes.
+3. Read `.cowork-flow/config.yaml` for `codex.post_ack_execution_grace_ms`.
+4. Run `.cowork-flow/run resume` or `.\.cowork-flow\run.cmd resume` on Windows.
+5. Read the active task PRD and JSONL indexes only when a task is active.
+6. Read relevant `.cowork-flow/spec/*/index.md` files before code changes.
 
 Report active task, workflow state, blockers, and the next phase.
 
@@ -51,4 +52,8 @@ Every dispatch prompt starts with:
 Active task: <task-dir>
 ```
 
-After dispatch, use `wait_agent`, review the output, inspect `list_agents`, and `close_agent`.
+Prefer the `COWORK_DISPATCH_V1` envelope for `cowork-*` subagents, then wait for `COWORK_ACK <dispatch_id> <ack_token>` before sending `EXECUTE <dispatch_id>`.
+
+Use per-dispatch post-ACK execution grace after sending `EXECUTE`. The default duration is `300000` ms and can be configured with `codex.post_ack_execution_grace_ms` in `.cowork-flow/config.yaml`. Record `execute_sent_at[dispatch_id]` and compute `deadline[dispatch_id] = execute_sent_at[dispatch_id] + codex.post_ack_execution_grace_ms`; do not use a shared/global deadline across children. After `EXECUTE`, missing output or missing compass/status file is not proof that the child is stuck. Do not close a child only because it is still reading startup rules, AGENTS.md, workflow docs, specs, or task context. If `list_agents` still shows it running, continue waiting through grace. Grace expiration for one `dispatch_id` is a review checkpoint for that child only, not a close trigger and not evidence about other children. If progress, compass, or status files exist, keep waiting. Only close after wrong dispatch evidence, child completion, or user cancellation.
+
+After execution, use `wait_agent`, review the output, inspect `list_agents`, and `close_agent`.
