@@ -7,15 +7,33 @@ import {
   summarizePlan
 } from '../lib/copy-template.js';
 import { readPackageInfo } from '../lib/package-info.js';
+import { formatPlatformList, parsePlatformSelection } from '../lib/platforms.js';
 
 function parseInitArgs(args) {
-  const options = { developer: null, dryRun: false, force: false, target: process.cwd() };
+  const options = {
+    developer: null,
+    dryRun: false,
+    force: false,
+    platforms: [],
+    target: process.cwd()
+  };
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === '--dry-run') {
       options.dryRun = true;
     } else if (arg === '--force') {
       options.force = true;
+    } else if (arg === '--platform' || arg === '--platforms') {
+      const value = args[index + 1];
+      if (!value || value.startsWith('--')) {
+        throw new Error('Missing value for --platform');
+      }
+      options.platforms.push(value);
+      index += 1;
+    } else if (arg.startsWith('--platform=')) {
+      options.platforms.push(arg.slice('--platform='.length));
+    } else if (arg.startsWith('--platforms=')) {
+      options.platforms.push(arg.slice('--platforms='.length));
     } else if (arg === '--developer') {
       const value = args[index + 1];
       if (!value || value.startsWith('--')) {
@@ -83,6 +101,18 @@ async function resolveDeveloperName(options, prompt) {
   }
 
   return { existing: false, name: normalizeDeveloperName(name) };
+}
+
+async function resolvePlatforms(options, prompt) {
+  if (options.platforms.length > 0) {
+    return parsePlatformSelection(options.platforms);
+  }
+
+  let answer = null;
+  if (typeof prompt === 'function') {
+    answer = await prompt('Platform(s) [codex, opencode, both]: ');
+  }
+  return parsePlatformSelection(answer);
 }
 
 function todayIsoDate() {
@@ -176,15 +206,18 @@ export async function runInit(args, { io, prompt }) {
 
 export async function runInitWithOptions(args, { io, prompt }) {
   const options = parseInitArgs(args);
+  const platforms = await resolvePlatforms(options, prompt);
   const developer = await resolveDeveloperName(options, prompt);
   const packageInfo = await readPackageInfo();
   const plan = await buildInitPlan(options.target, {
     force: options.force,
+    platforms,
     version: packageInfo.version
   });
 
   await applyPlan(plan, { dryRun: options.dryRun });
   io.writeOut(summarizePlan(plan, options.dryRun));
+  io.writeOut(`Platforms: ${formatPlatformList(platforms)}\n`);
 
   if (options.dryRun) {
     if (developer.existing) {

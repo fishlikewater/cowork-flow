@@ -25,6 +25,10 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
     ├── AGENTS.md
     ├── .codex/
     │   └── agents/
+    ├── .opencode/
+    │   ├── agents/
+    │   ├── commands/
+    │   └── plugins/
     ├── .agent/
     │   └── skills/
     └── .cowork-flow/
@@ -52,6 +56,9 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 `template/.codex/config.toml`、`template/.codex/hooks.json`、`template/.codex/hooks/`
 Codex 项目级配置与每轮上下文注入入口。hook 会读取当前 session task、`.cowork-flow/workflow.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。
 
+`template/.opencode/agents/`、`template/.opencode/commands/`、`template/.opencode/plugins/`
+OpenCode 项目级固定 agent、slash command 和系统上下文注入插件。插件会读取 `.cowork-flow/spec/registry.json`，注入短 contract digest。
+
 `template/.cowork-flow/`
 工作流目录，包含流程说明、任务状态、开发者工作区、项目规范、行为变更规格、实现计划和辅助脚本。`.cowork-flow/config.yaml` 只承载真实接线的 session/journal, Codex hint, and task lifecycle hook settings。
 
@@ -69,20 +76,20 @@ Codex 项目级配置与每轮上下文注入入口。hook 会读取当前 sessi
 使用 CLI 把模板内容安装到目标项目根目录：
 
 ```bash
-npx cowork-flow init ./my-project
+npx cowork-flow init ./my-project --platform codex
 ```
 
-`init` 会显式要求开发者身份。交互式终端会提示输入；脚本或 CI 请传入：
+`init` 会显式要求平台和开发者身份。平台可选 `codex`、`opencode` 或 `both`。交互式终端会提示输入；脚本或 CI 请传入：
 
 ```bash
-npx cowork-flow init ./my-project --developer <your-name>
+npx cowork-flow init ./my-project --platform codex --developer <your-name>
 ```
 
 也可以先全局安装：
 
 ```bash
 npm install -g cowork-flow
-cowork-flow init ./my-project --developer <your-name>
+cowork-flow init ./my-project --platform codex --developer <your-name>
 ```
 
 初始化后优先完成这些配置：
@@ -104,27 +111,27 @@ npx cowork-flow --help
 初始化到新项目：
 
 ```bash
-cowork-flow init ./my-project
+cowork-flow init ./my-project --platform codex
 ```
 
-`init` 会直接复制模板中的 `.agent/skills/`、`.codex/` 和 `.cowork-flow/`，并初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会提示输入开发者名称；非交互式环境必须传入 `--developer <name>`。`init` 不会复制额外技能包。
+`init` 会直接复制模板中的通用 `.agent/skills/`、`.cowork-flow/`，并按 `--platform` 只复制对应 host 目录：`codex` 复制 `.codex/`，`opencode` 复制 `.opencode/`，`both` 或 `--platform codex,opencode` 同时复制两者。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会提示输入平台和开发者名称；非交互式环境必须传入 `--platform <codex|opencode|both>` 与 `--developer <name>`。`init` 不会复制额外技能包。
 
 初始化到当前项目：
 
 ```bash
-cowork-flow init .
+cowork-flow init . --platform opencode
 ```
 
 默认不会覆盖已有文件。需要预览时使用：
 
 ```bash
-cowork-flow init ./my-project --dry-run
+cowork-flow init ./my-project --platform both --dry-run
 ```
 
 需要明确覆盖已有文件时使用：
 
 ```bash
-cowork-flow init ./my-project --force --developer <your-name>
+cowork-flow init ./my-project --platform codex --force --developer <your-name>
 ```
 
 `--force` 不会静默覆盖既有 `.cowork-flow/.developer`；如需重设身份，请先显式处理旧身份文件。
@@ -142,7 +149,7 @@ cowork-flow sync .
 cowork-flow sync . --dry-run
 ```
 
-`sync` 默认刷新 `.agent/skills/`、`.cowork-flow/scripts/` 和 `AGENTS.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留 `AGENTS.md` 托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、`.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
+`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者。通用部分默认刷新 `.agent/skills/`、`.cowork-flow/scripts/` 和 `AGENTS.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留 `AGENTS.md` 托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、`.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
 
 ## 常用入口
 

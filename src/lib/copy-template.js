@@ -3,6 +3,7 @@ import { access, chmod, copyFile, mkdir, readFile, readdir, stat, writeFile } fr
 import { dirname, join, relative } from 'node:path';
 
 import { templateRoot } from './paths.js';
+import { shouldIncludeForPlatforms } from './platforms.js';
 
 async function pathExists(path) {
   try {
@@ -39,8 +40,13 @@ function toTemplatePath(relativePath) {
 export async function buildInitPlan(targetDir, options = {}) {
   const files = await listFiles(templateRoot);
   const actions = [];
+  const platforms = options.platforms ?? [];
 
   for (const file of files) {
+    if (!shouldIncludeForPlatforms(file, platforms)) {
+      continue;
+    }
+
     if (toTemplatePath(file) === '.cowork-flow/.version') {
       continue;
     }
@@ -156,8 +162,13 @@ export async function buildSyncPlan(targetDir, options = {}) {
 
   const files = await listFiles(templateRoot);
   const actions = [];
+  const platforms = options.platforms ?? await detectInstalledPlatforms(targetDir);
 
   for (const file of files) {
+    if (!shouldIncludeForPlatforms(file, platforms)) {
+      continue;
+    }
+
     if (toTemplatePath(file) === '.cowork-flow/.version') {
       continue;
     }
@@ -193,6 +204,17 @@ export async function buildSyncPlan(targetDir, options = {}) {
   });
 
   return actions;
+}
+
+export async function detectInstalledPlatforms(targetDir) {
+  const platforms = [];
+  if (await pathExists(join(targetDir, '.codex'))) {
+    platforms.push('codex');
+  }
+  if (await pathExists(join(targetDir, '.opencode'))) {
+    platforms.push('opencode');
+  }
+  return platforms;
 }
 
 export function summarizePlan(actions, dryRun = false) {

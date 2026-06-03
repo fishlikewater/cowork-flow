@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 27
+- **Total Sessions**: 28
 - **Last Active**: 2026-06-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~874 | Current |
+| `journal-1.md` | ~904 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 28 | 2026-06-03 | CLI platform-select init and sync | - |
 | 27 | 2026-06-03 | OpenCode contract digest parity | - |
 | 26 | 2026-06-01 | Make post_ack_execution_grace_ms runtime effective | `fbaedf0` |
 | 25 | 2026-05-30 | Harden delegated bootstrap classification | `057bf63` |

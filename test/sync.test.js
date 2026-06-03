@@ -33,7 +33,10 @@ test('sync fails when the target has not been initialized', async (t) => {
 
 test('sync updates safe template files and preserves protected files', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
+  assert.equal(
+    await main(['init', target, '--developer', 'codex', '--platform', 'codex,opencode'], { io: createIo() }),
+    0
+  );
 
   await writeFile(join(target, '.agent', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
@@ -97,7 +100,7 @@ test('sync updates safe template files and preserves protected files', async (t)
 
 test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
   const customAgents = [
     '# Project Rules',
     '',
@@ -130,7 +133,7 @@ test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
 
 test('sync preserves direct skill layout without legacy seed material', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
   const io = createIo();
 
   const code = await main(['sync', target], { io });
@@ -142,7 +145,7 @@ test('sync preserves direct skill layout without legacy seed material', async (t
 
 test('sync overwrites protected files with --force', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
   await writeFile(join(target, 'AGENTS.md'), 'custom agents\n', 'utf8');
 
   const code = await main(['sync', target, '--force'], { io: createIo() });
@@ -153,7 +156,7 @@ test('sync overwrites protected files with --force', async (t) => {
 
 test('sync dry-run does not write safe file updates', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
   await writeFile(join(target, '.agent', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
   const io = createIo();
 
@@ -175,12 +178,14 @@ test('sync creates missing safe placeholder files', async (t) => {
 
   assert.equal(code, 0);
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${(await readPackageInfo()).version}\n`);
+  assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.opencode')), false);
   assert.match(io.stdout, /created=/);
 });
 
-test('sync refreshes project-level cowork agent template files', async (t) => {
+test('sync refreshes codex assets without creating opencode assets', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
   await mkdir(join(target, '.codex', 'agents'), { recursive: true });
   await writeFile(join(target, '.codex', 'agents', 'cowork-check.toml'), 'custom: true\n', 'utf8');
   const io = createIo();
@@ -192,12 +197,14 @@ test('sync refreshes project-level cowork agent template files', async (t) => {
     await readText(join(target, '.codex', 'agents', 'cowork-check.toml')),
     await readText(join(templateRoot, '.codex', 'agents', 'cowork-check.toml'))
   );
+  assert.equal(await exists(join(target, '.opencode')), false);
+  assert.match(io.stdout, /Platforms: codex/);
   assert.match(io.stdout, /updated=/);
 });
 
-test('sync refreshes project-level opencode agent template files', async (t) => {
+test('sync refreshes opencode assets without creating codex assets', async (t) => {
   const target = await createTempDir(t);
-  assert.equal(await main(['init', target, '--developer', 'codex'], { io: createIo() }), 0);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'opencode'], { io: createIo() }), 0);
   await mkdir(join(target, '.opencode', 'agents'), { recursive: true });
   await writeFile(join(target, '.opencode', 'agents', 'cowork-check.md'), 'custom: true\n', 'utf8');
   const io = createIo();
@@ -209,5 +216,32 @@ test('sync refreshes project-level opencode agent template files', async (t) => 
     await readText(join(target, '.opencode', 'agents', 'cowork-check.md')),
     await readText(join(templateRoot, '.opencode', 'agents', 'cowork-check.md'))
   );
+  assert.equal(await exists(join(target, '.codex')), false);
+  assert.match(io.stdout, /Platforms: opencode/);
+  assert.match(io.stdout, /updated=/);
+});
+
+test('sync refreshes both host asset sets when both are installed', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main(['init', target, '--developer', 'codex', '--platform', 'codex,opencode'], { io: createIo() }),
+    0
+  );
+  await writeFile(join(target, '.codex', 'hooks.json'), 'old codex hooks\n', 'utf8');
+  await writeFile(join(target, '.opencode', 'plugins', 'cowork-flow.js'), 'old opencode plugin\n', 'utf8');
+  const io = createIo();
+
+  const code = await main(['sync', target], { io });
+
+  assert.equal(code, 0);
+  assert.equal(
+    await readText(join(target, '.codex', 'hooks.json')),
+    await readText(join(templateRoot, '.codex', 'hooks.json'))
+  );
+  assert.equal(
+    await readText(join(target, '.opencode', 'plugins', 'cowork-flow.js')),
+    await readText(join(templateRoot, '.opencode', 'plugins', 'cowork-flow.js'))
+  );
+  assert.match(io.stdout, /Platforms: codex, opencode/);
   assert.match(io.stdout, /updated=/);
 });
