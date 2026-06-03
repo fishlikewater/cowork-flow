@@ -43,6 +43,13 @@ class CoworkAgentsTest(unittest.TestCase):
         ):
             self.assertTrue(path.is_file(), str(path))
 
+    def test_opencode_agent_definitions_exist_in_root_and_template(self) -> None:
+        for base in (ROOT / ".opencode", ROOT / "template" / ".opencode"):
+            for name in ("cowork-research", "cowork-implement", "cowork-check"):
+                self.assertTrue((base / "agents" / f"{name}.md").is_file())
+                self.assertTrue((base / "commands" / f"{name}.md").is_file())
+            self.assertTrue((base / "plugins" / "cowork-flow.js").is_file())
+
     def test_agents_require_active_task_and_disable_multi_agent(self) -> None:
         for path in (
             ROOT / ".codex" / "agents" / "cowork-research.toml",
@@ -90,9 +97,12 @@ class CoworkAgentsTest(unittest.TestCase):
         text = doctor.read_text(encoding="utf-8")
         for marker in (
             "COWORK_DISPATCH_V1",
+            "COWORK_DELEGATION_V1",
+            "COWORK_ENTRY_CONTRACT_V1",
             "COWORK_ACK",
             "EXECUTE <dispatch_id>",
             "agent_type is not",
+            "cmd_host_adapters",
         ):
             self.assertIn(marker, text)
 

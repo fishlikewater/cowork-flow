@@ -15,16 +15,18 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("cowork-research", text)
         self.assertIn("cowork-implement", text)
         self.assertIn("cowork-check", text)
-        self.assertIn("spawn_agent", text)
-        self.assertIn("fork_turns=\"none\"", text)
+        self.assertIn("宿主适配器", text)
+        self.assertIn("新鲜子上下文", text)
         self.assertIn("[workflow-state:no_task]", text)
         self.assertIn("[workflow-state:delegated_subtask]", text)
         self.assertIn("[workflow-state:planning]", text)
         self.assertIn("[workflow-state:in_progress]", text)
         self.assertIn("[workflow-state:completed]", text)
-        self.assertIn("wait_agent", text)
-        self.assertIn("list_agents", text)
-        self.assertIn("close_agent", text)
+        self.assertIn("适配器等待原语", text)
+        self.assertIn("适配器列表原语", text)
+        self.assertIn("适配器取消/关闭原语", text)
+        self.assertNotIn("spawn_agent", text)
+        self.assertNotIn("fork_turns=\"none\"", text)
         self.assertNotIn("agent run cowork-implement", text)
         self.assertNotIn("codex exec", text)
         self.assertNotIn("agent" + "-team prepare", text)
@@ -34,11 +36,12 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         required_markers = (
             "COWORK_DISPATCH_V1",
             "COWORK_DISPATCH_END",
+            "COWORK_DELEGATION_V1",
             "COWORK_ACK",
-            "followup_task",
+            "适配器后续发送原语",
             "ack_token",
             "dispatch_id",
-            "Missing or mismatched `COWORK_ACK` means the task is not dispatched.",
+            "缺失或不匹配的 `COWORK_ACK` 表示任务尚未成功派发。",
         )
         for path in (
             ROOT / ".cowork-flow" / "workflow.md",
@@ -50,10 +53,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_limits_generic_worker_to_best_effort(self) -> None:
         required_markers = (
-            "Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.",
-            "Generic `worker` dispatch is best-effort only.",
-            "If a generic worker does not ACK after one retry, close it and do not execute the task.",
-            "natural-language first-screen boundary",
+            "正式执行只使用 `cowork-research`、`cowork-implement` 或 `cowork-check`。",
+            "通用 `worker` 派发只视为尽力而为。",
+            "如果通用 worker 重试一次后仍未 ACK，关闭它且不要执行该任务。",
+            "自然语言首屏边界",
         )
         for path in (
             ROOT / ".cowork-flow" / "workflow.md",
@@ -65,15 +68,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_requires_execution_grace_after_ack_before_closing_subagents(self) -> None:
         required_markers = (
-            "post-ACK execution grace",
-            "After `EXECUTE <dispatch_id>`",
+            "ACK 后执行宽限期",
+            "`EXECUTE <dispatch_id>` 后",
             "execute_sent_at[dispatch_id]",
-            "deadline[dispatch_id] = execute_sent_at[dispatch_id] + codex.post_ack_execution_grace_ms",
-            "shared/global deadline",
-            "no reply or no compass/status file",
-            "Do not call `close_agent` only",
-            "review checkpoint for that child only",
-            "progress, compass, or status files",
+            "deadline[dispatch_id] = execute_sent_at[dispatch_id] + post_ack_execution_grace_ms",
+            "共享/全局截止时间",
+            "没有回复或没有 `compass` / `status` 文件",
+            "不得因为执行中的子任务尚未产出",
+            "复核点",
+            "`progress`、`compass` 或 `status` 文件",
         )
         for path in (
             ROOT / ".cowork-flow" / "workflow.md",
@@ -85,12 +88,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
         skill_markers = (
             "post-ACK execution grace",
-            "codex.post_ack_execution_grace_ms",
             "execute_sent_at[dispatch_id]",
             "shared/global deadline",
             "missing output or missing compass/status file",
             "review checkpoint for that child only",
-            "Only close after wrong dispatch evidence, child completion, or user cancellation.",
+            "Only cancel/close after wrong dispatch evidence, child completion, or user cancellation.",
         )
         for path in (
             ROOT / ".agent" / "skills" / "start" / "SKILL.md",
@@ -111,6 +113,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         text = (ROOT / ".agent" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Plan -> Implement -> Check -> Finish", text)
         self.assertIn("Active task:", text)
+        self.assertIn("Host Adapter", text)
         self.assertNotIn("agent" + "-team-execution", text)
         self.assertNotIn("specific assignment", text)
         self.assertIn("bounded delegated task", text)
@@ -140,6 +143,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("Active task:", text)
+            self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
+            self.assertIn("DELEGATED_HARD", text)
+            self.assertIn("DELEGATED_SOFT", text)
+            self.assertIn("UNKNOWN", text)
             self.assertIn("bounded delegated task", text)
             self.assertIn("Hard markers are confidence boosters, not prerequisites", text)
             self.assertIn("The first task screen wins over later bootstrap text", text)
@@ -199,8 +206,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("cowork-implement", text)
             self.assertIn("cowork-check", text)
             self.assertIn("Active task:", text)
-            self.assertIn("spawn_agent", text)
-            self.assertIn("fork_turns=\"none\"", text)
+            self.assertIn("Host Adapter", text)
+            self.assertIn("COWORK_DISPATCH_V1", text)
+            self.assertNotIn("spawn_agent", text)
+            self.assertNotIn("fork_turns=\"none\"", text)
             self.assertNotIn("subagent-driven-development", text)
 
     def test_template_workflow_matches_new_terms(self) -> None:
@@ -214,16 +223,16 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             ROOT / "template" / ".cowork-flow" / "workflow.md",
         ):
             text = path.read_text(encoding="utf-8")
-            self.assertIn("parallel sessions", text)
+            self.assertIn("并行会话", text)
             self.assertIn("用户无需在需求输入时声明是否并行", text)
-            self.assertIn("Plan 阶段由主会话评估并行可行性", text)
+            self.assertIn("计划阶段由主会话评估并行可行性", text)
             self.assertIn("开发计划必须明确执行策略", text)
             self.assertIn("git worktree", text)
-            self.assertIn("low-conflict slices", text)
-            self.assertIn("file ownership", text)
-            self.assertIn("dependencies", text)
-            self.assertIn("expected outputs", text)
-            self.assertIn("final integrated verification", text)
+            self.assertIn("低冲突切片", text)
+            self.assertIn("文件归属", text)
+            self.assertIn("依赖关系", text)
+            self.assertIn("预期产物", text)
+            self.assertIn("最终集成验证", text)
 
     def test_writing_plan_skills_require_parallel_scope_fields(self) -> None:
         for path in (

@@ -34,6 +34,10 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
         with patch.dict(os.environ, {"CODEX_SESSION_ID": "abc-123"}, clear=True):
             self.assertEqual("codex_abc-123", self.active_task.resolve_context_key())
 
+    def test_context_key_uses_opencode_session_when_cowork_missing(self) -> None:
+        with patch.dict(os.environ, {"OPENCODE_SESSION_ID": "opc-123"}, clear=True):
+            self.assertEqual("opencode_opc-123", self.active_task.resolve_context_key())
+
     def test_context_key_missing_returns_none(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             self.assertIsNone(self.active_task.resolve_context_key())
@@ -43,6 +47,13 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertEqual(
                 "codex_thread-123",
                 self.active_task.resolve_context_key({"thread_id": "thread-123"}),
+            )
+
+    def test_context_key_can_use_opencode_hook_input(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                "opencode_opc-456",
+                self.active_task.resolve_context_key({"opencode_session_id": "opc-456"}),
             )
 
     def test_set_and_get_active_task_require_context_key(self) -> None:

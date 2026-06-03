@@ -37,6 +37,9 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.codex', 'config.toml')), true);
   assert.equal(await exists(join(target, '.codex', 'hooks.json')), true);
   assert.equal(await exists(join(target, '.codex', 'hooks', 'inject-workflow-state.py')), true);
+  assert.equal(await exists(join(target, '.opencode', 'agents', 'cowork-implement.md')), true);
+  assert.equal(await exists(join(target, '.opencode', 'commands', 'cowork-implement.md')), true);
+  assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
   assert.equal(await exists(join(target, '.superpowers')), false);
   assert.match(await readText(join(target, '.cowork-flow', '.developer')), /^name=codex\ninitialized_at=.+\n$/);
   assert.equal(await exists(join(target, '.cowork-flow', 'workspace', 'codex', 'index.md')), true);

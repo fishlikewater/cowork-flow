@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "contracts": [
+    {
+      "id": "COWORK_ENTRY_CONTRACT_V1",
+      "path": ".cowork-flow/spec/entry-contract.md",
+      "digest": [
+        "Classify the actual task message before start, resume, archive, commit, or delegation.",
+        "Structured delegation envelopes override project bootstrap text."
+      ],
+      "readWhen": [
+        "before task start/resume/archive",
+        "before subagent dispatch",
+        "when prompt and bootstrap text conflict"
+      ]
+    },
+    {
+      "id": "COWORK_DELEGATION_V1",
+      "path": ".cowork-flow/spec/delegation-envelope.md",
+      "digest": [
+        "Hard delegation uses COWORK_DELEGATION_V1, COWORK_ACK, then EXECUTE.",
+        "Soft/default delegated work is advisory and cannot satisfy formal Implement or Check."
+      ],
+      "readWhen": [
+        "before formal subagent dispatch",
+        "when a prompt contains COWORK_DELEGATION_V1",
+        "when using a generic worker"
+      ]
+    },
+    {
+      "id": "HOST_ADAPTER_CAPABILITIES_V1",
+      "path": ".cowork-flow/spec/capabilities.md",
+      "digest": [
+        "Formal subagent work requires dispatchSubagent, freshChildContext, waitChild, listChildren, and cancelChild.",
+        "Missing required host capabilities fall back to inline_or_manual."
+      ],
+      "readWhen": [
+        "before choosing host primitives",
+        "when adding or changing host adapters"
+      ]
+    },
+    {
+      "id": "HOST_ADAPTER_SCHEMA_V1",
+      "path": ".cowork-flow/spec/adapter.schema.json",
+      "digest": [
+        "Adapter declarations must define capabilities, dispatch, contracts, and fallback.",
+        "Adapters describe host primitives; workflow.md stays host-neutral."
+      ],
+      "readWhen": [
+        "before editing adapter.yaml",
+        "before adding a new host adapter"
+      ]
+    }
+  ]
+}

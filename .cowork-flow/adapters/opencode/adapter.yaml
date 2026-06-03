@@ -1,0 +1,27 @@
+schemaVersion: 1
+host: opencode
+displayName: OpenCode
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: shim
+  waitChild: native
+  listChildren: native
+  cancelChild: native
+  stateInjection: plugin
+  backgroundChild: experimental
+dispatch:
+  primitive: task
+  agentsPath: .opencode/agents
+  commandsPath: .opencode/commands
+  pluginsPath: .opencode/plugins
+  backgroundRequiresEnv: OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+contracts:
+  entry: COWORK_ENTRY_CONTRACT_V1
+  envelope: COWORK_DISPATCH_V1
+  delegation: COWORK_DELEGATION_V1
+  ackRequired: true
+  executeRequired: true
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual

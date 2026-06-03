@@ -16,15 +16,20 @@ REQUIRED_START_SNIPPETS = [
     "bounded delegated task should use `entry-boundary`",
     "Main repository changes follow `Plan -> Implement -> Check -> Finish`",
     "post-ACK execution grace",
-    "codex.post_ack_execution_grace_ms",
+    "post_ack_execution_grace_ms",
     "execute_sent_at[dispatch_id]",
     "shared/global deadline",
+    "Host Adapter",
 ]
 
 REQUIRED_ENTRY_BOUNDARY_SNIPPETS = [
+    "COWORK_ENTRY_CONTRACT_V1",
     "MAIN_SESSION",
-    "DELEGATED_SUBTASK",
-    "UNCERTAIN",
+    "DELEGATED_HARD",
+    "DELEGATED_SOFT",
+    "READ_ONLY",
+    "COMMAND_ONLY",
+    "UNKNOWN",
     "Classify the actual task message",
     "Hard markers are confidence boosters, not prerequisites",
     "The first task screen wins over later bootstrap text",
@@ -47,20 +52,73 @@ REQUIRED_FIXED_AGENT_SNIPPETS = [
 
 REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
     "COWORK_DISPATCH_V1",
+    "COWORK_DELEGATION_V1",
     "COWORK_ACK",
-    "followup_task",
-    "post-ACK execution grace",
-    "codex.post_ack_execution_grace_ms",
+    "适配器后续发送原语",
+    "ACK 后执行宽限期",
     "execute_sent_at[dispatch_id]",
-    "deadline[dispatch_id] = execute_sent_at[dispatch_id] + codex.post_ack_execution_grace_ms",
-    "shared/global deadline",
-    "After `EXECUTE <dispatch_id>`, no reply or no compass/status file while the child loads context is inconclusive.",
-    "Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.",
-    "Generic `worker` dispatch is best-effort only.",
+    "deadline[dispatch_id] = execute_sent_at[dispatch_id] + post_ack_execution_grace_ms",
+    "共享/全局截止时间",
+    "`EXECUTE <dispatch_id>` 后，子任务加载上下文期间没有回复或没有 `compass` / `status` 文件，不能判定异常。",
+    "正式执行只使用 `cowork-research`、`cowork-implement` 或 `cowork-check`。",
+    "通用 `worker` 派发只视为尽力而为。",
+    "宿主适配器契约",
 ]
 
 REQUIRED_HOOK_SNIPPETS = [
     ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
+]
+
+REQUIRED_ENTRY_CONTRACT_SNIPPETS = [
+    "COWORK_ENTRY_CONTRACT_V1",
+    "DELEGATED_HARD",
+    "DELEGATED_SOFT",
+    "UNKNOWN",
+    "Entry classification happens before task start",
+    "Structured delegation envelopes override project bootstrap text",
+]
+
+REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
+    '"schemaVersion": 1',
+    '"COWORK_ENTRY_CONTRACT_V1"',
+    '"COWORK_DELEGATION_V1"',
+    '"HOST_ADAPTER_CAPABILITIES_V1"',
+    '"HOST_ADAPTER_SCHEMA_V1"',
+    '"readWhen"',
+    '".cowork-flow/spec/entry-contract.md"',
+    '".cowork-flow/spec/delegation-envelope.md"',
+    '".cowork-flow/spec/capabilities.md"',
+    '".cowork-flow/spec/adapter.schema.json"',
+]
+
+REQUIRED_ADAPTER_SNIPPETS = [
+    "schemaVersion: 1",
+    "capabilities:",
+    "dispatchSubagent:",
+    "freshChildContext:",
+    "sendFollowup:",
+    "waitChild:",
+    "listChildren:",
+    "cancelChild:",
+    "stateInjection:",
+    "backgroundChild:",
+    "contracts:",
+    "entry: COWORK_ENTRY_CONTRACT_V1",
+    "envelope: COWORK_DISPATCH_V1",
+    "ackRequired: true",
+    "executeRequired: true",
+    "leafExecutor: true",
+]
+
+REQUIRED_OPENCODE_SNIPPETS = [
+    "mode: subagent",
+    "task: deny",
+    "COWORK_ENTRY_CONTRACT_V1",
+    "COWORK_DISPATCH_V1",
+    "COWORK_DELEGATION_V1",
+    "COWORK_ACK",
+    "EXECUTE <dispatch_id>",
+    "leaf",
 ]
 
 
@@ -72,6 +130,84 @@ def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> 
     for snippet in snippets:
         if snippet not in text:
             errors.append(f"{path} missing snippet: {snippet}")
+
+
+def cmd_entry_contract(_: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    errors: list[str] = []
+    for rel in (
+        ".cowork-flow/spec/entry-contract.md",
+        "template/.cowork-flow/spec/entry-contract.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CONTRACT_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/spec/registry.json",
+        "template/.cowork-flow/spec/registry.json",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/spec/delegation-envelope.md",
+        "template/.cowork-flow/spec/delegation-envelope.md",
+    ):
+        _check_file_contains(
+            repo_root / rel,
+            ["COWORK_DELEGATION_V1", "COWORK_ACK", "EXECUTE <dispatch_id>", "DELEGATED_SOFT"],
+            errors,
+        )
+    for rel in (
+        ".agent/skills/entry-boundary/SKILL.md",
+        "template/.agent/skills/entry-boundary/SKILL.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_BOUNDARY_SNIPPETS, errors)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    print("entry contract checks passed")
+    return 0
+
+
+def cmd_host_adapters(_: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    errors: list[str] = []
+    for rel in (
+        ".cowork-flow/spec/adapter.schema.json",
+        "template/.cowork-flow/spec/adapter.schema.json",
+        ".cowork-flow/spec/capabilities.md",
+        "template/.cowork-flow/spec/capabilities.md",
+    ):
+        _check_file_contains(
+            repo_root / rel,
+            ["dispatchSubagent", "freshChildContext", "native", "shim", "plugin", "experimental", "unsupported"],
+            errors,
+        )
+    for rel in (
+        ".cowork-flow/adapters/codex/adapter.yaml",
+        ".cowork-flow/adapters/opencode/adapter.yaml",
+        "template/.cowork-flow/adapters/codex/adapter.yaml",
+        "template/.cowork-flow/adapters/opencode/adapter.yaml",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
+    for rel in (
+        ".opencode/agents/cowork-research.md",
+        ".opencode/agents/cowork-implement.md",
+        ".opencode/agents/cowork-check.md",
+        "template/.opencode/agents/cowork-research.md",
+        "template/.opencode/agents/cowork-implement.md",
+        "template/.opencode/agents/cowork-check.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_OPENCODE_SNIPPETS, errors)
+    for rel in (
+        ".opencode/plugins/cowork-flow.js",
+        "template/.opencode/plugins/cowork-flow.js",
+    ):
+        _check_file_contains(repo_root / rel, ["experimental.chat.system.transform", "COWORK_ENTRY_CONTRACT_V1"], errors)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    print("host adapter checks passed")
+    return 0
 
 
 def cmd_subagent_safety(_: argparse.Namespace) -> int:
@@ -114,6 +250,23 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     ):
         if not (repo_root / rel).is_file():
             errors.append(f"missing file: {rel}")
+    for rel in (
+        ".cowork-flow/spec/entry-contract.md",
+        "template/.cowork-flow/spec/entry-contract.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CONTRACT_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/spec/registry.json",
+        "template/.cowork-flow/spec/registry.json",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/adapters/codex/adapter.yaml",
+        ".cowork-flow/adapters/opencode/adapter.yaml",
+        "template/.cowork-flow/adapters/codex/adapter.yaml",
+        "template/.cowork-flow/adapters/opencode/adapter.yaml",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
@@ -125,6 +278,8 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="cowork-flow diagnostics")
     parser.add_argument("--subagent-safety", action="store_true", help="Check subagent safety wiring")
+    parser.add_argument("--entry-contract", action="store_true", help="Check entry classification contract")
+    parser.add_argument("--host-adapters", action="store_true", help="Check host adapter declarations")
     return parser
 
 
@@ -133,6 +288,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.subagent_safety:
         return cmd_subagent_safety(args)
+    if args.entry_contract:
+        return cmd_entry_contract(args)
+    if args.host_adapters:
+        return cmd_host_adapters(args)
     parser.print_help()
     return 0
 

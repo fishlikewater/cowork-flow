@@ -27,7 +27,7 @@ Start with:
 ```markdown
 # <Feature> Implementation Plan
 
-> For agentic workers: use `spawn_agent(agent_type="cowork-implement", fork_turns="none")` for implementation and `spawn_agent(agent_type="cowork-check", fork_turns="none")` for verification. Every dispatch prompt starts with `Active task: <task-dir>`.
+> For agentic workers: dispatch `cowork-implement` and `cowork-check` through the active Host Adapter. Every formal dispatch uses `COWORK_DISPATCH_V1` or `COWORK_DELEGATION_V1`; legacy dispatch may start with `Active task: <task-dir>`.
 
 **Goal:** <one sentence>
 **Architecture:** <2-3 sentences>
