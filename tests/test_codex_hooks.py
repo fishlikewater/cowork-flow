@@ -122,6 +122,71 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("Status: delegated_subtask", context)
         self.assertIn("COWORK_ENTRY_CONTRACT_V1", context)
 
+    def test_hook_treats_generic_worker_dispatch_as_delegated_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(
+                root,
+                {
+                    "prompt": (
+                        "COWORK_DISPATCH_V1\n"
+                        "dispatch_id: d2\n"
+                        "agent_type: worker\n"
+                        "role: generic-worker\n"
+                        "context_file: .cowork-flow/subagents/demo/context.json\n"
+                        "ack_token: t2\n"
+                        "dispatch_reliability: best-effort\n"
+                        "COWORK_DISPATCH_END\n\n"
+                        "Return only: COWORK_ACK d2 t2"
+                    )
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+
+    def test_hook_treats_default_agent_brief_as_delegated_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(
+                root,
+                {
+                    "prompt": (
+                        "Task: inspect one file for a bounded delegated task\n"
+                        "Agent type: default\n"
+                        "Constraint: do not run the project start-session workflow; do not run resume.\n"
+                        "Output: return exactly three bullet findings."
+                    )
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+
+    def test_hook_treats_explorer_brief_as_delegated_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(
+                root,
+                {
+                    "prompt": (
+                        "Task: inspect route wiring only.\n"
+                        "Agent type: explorer\n"
+                        "Constraint: do not run project start or resume; read only.\n"
+                        "Output: concise findings with line references."
+                    )
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+
     def test_hook_config_uses_cowork_flow_python_runner(self) -> None:
         hooks = json.loads((TEMPLATE / ".codex" / "hooks.json").read_text(encoding="utf-8"))
         command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]

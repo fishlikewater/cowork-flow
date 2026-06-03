@@ -237,11 +237,20 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         ".codex/agents/cowork-research.toml",
         ".codex/agents/cowork-implement.toml",
         ".codex/agents/cowork-check.toml",
+        ".codex/agents/worker.toml",
+        ".codex/agents/default.toml",
+        ".codex/agents/explorer.toml",
         "template/.codex/agents/cowork-research.toml",
         "template/.codex/agents/cowork-implement.toml",
         "template/.codex/agents/cowork-check.toml",
+        "template/.codex/agents/worker.toml",
+        "template/.codex/agents/default.toml",
+        "template/.codex/agents/explorer.toml",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_FIXED_AGENT_SNIPPETS, errors)
+        snippets = REQUIRED_FIXED_AGENT_SNIPPETS
+        if rel.endswith(("worker.toml", "default.toml", "explorer.toml")):
+            snippets = ["COWORK_ACK", "EXECUTE <dispatch_id>", "start", "resume"]
+        _check_file_contains(repo_root / rel, snippets, errors)
     for rel in (
         ".cowork-flow/workflow.md",
         "template/.cowork-flow/workflow.md",

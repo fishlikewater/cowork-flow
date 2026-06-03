@@ -137,6 +137,7 @@ COWORK_DISPATCH_END
 
 - 正式执行只使用 `cowork-research`、`cowork-implement` 或 `cowork-check`。
 - 通用 `worker` 派发只视为尽力而为。
+- 对 Codex 默认 `worker`、`default`、`explorer`，项目级 `.codex/agents/*.toml` 负责阻止首屏被 bootstrap / start / resume 拉偏；这不改变正式执行仍以固定 `cowork-*` 代理为主线。
 - 如果通用 worker 重试一次后仍未 ACK，关闭它且不要执行该任务。
 - 没有硬信封的建议型/默认子代理一律视为 `DELEGATED_SOFT`。首句仍应说明这是有边界的委托任务，不是主会话启动请求；这只是自然语言首屏边界，不是正式执行证据。建议型输出不能满足正式实现或检查完成条件。
 

@@ -32,6 +32,9 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertTrue((base / "cowork-research.toml").is_file())
             self.assertTrue((base / "cowork-implement.toml").is_file())
             self.assertTrue((base / "cowork-check.toml").is_file())
+            self.assertTrue((base / "worker.toml").is_file())
+            self.assertTrue((base / "default.toml").is_file())
+            self.assertTrue((base / "explorer.toml").is_file())
 
         for path in (
             ROOT / ".codex" / "config.toml",
@@ -62,6 +65,22 @@ class CoworkAgentsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("Active task:", text)
             self.assertIn("MUST NOT spawn", text)
+            self.assertIn("multi_agent = false", text)
+            self.assertIn("enabled = false", text)
+
+    def test_default_agent_overrides_block_start_resume_drift(self) -> None:
+        for path in (
+            ROOT / ".codex" / "agents" / "worker.toml",
+            ROOT / ".codex" / "agents" / "default.toml",
+            ROOT / ".codex" / "agents" / "explorer.toml",
+            ROOT / "template" / ".codex" / "agents" / "worker.toml",
+            ROOT / "template" / ".codex" / "agents" / "default.toml",
+            ROOT / "template" / ".codex" / "agents" / "explorer.toml",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("bootstrap", text)
+            self.assertIn("start", text)
+            self.assertIn("resume", text)
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
 
