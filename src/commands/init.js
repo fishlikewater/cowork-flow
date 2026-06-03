@@ -7,7 +7,11 @@ import {
   summarizePlan
 } from '../lib/copy-template.js';
 import { readPackageInfo } from '../lib/package-info.js';
-import { formatPlatformList, parsePlatformSelection } from '../lib/platforms.js';
+import {
+  SUPPORTED_PLATFORMS,
+  formatPlatformList,
+  parsePlatformSelection
+} from '../lib/platforms.js';
 
 function parseInitArgs(args) {
   const options = {
@@ -103,16 +107,23 @@ async function resolveDeveloperName(options, prompt) {
   return { existing: false, name: normalizeDeveloperName(name) };
 }
 
-async function resolvePlatforms(options, prompt) {
+async function resolvePlatforms(options, selectPlatforms) {
   if (options.platforms.length > 0) {
     return parsePlatformSelection(options.platforms);
   }
 
-  let answer = null;
-  if (typeof prompt === 'function') {
-    answer = await prompt('Platform(s) [codex, opencode, both]: ');
+  let selected = null;
+  if (typeof selectPlatforms === 'function') {
+    selected = await selectPlatforms({
+      message: 'Select platforms to set up',
+      choices: SUPPORTED_PLATFORMS.map((platform) => ({
+        label: platform === 'codex' ? 'Codex' : 'OpenCode',
+        value: platform
+      })),
+      defaultSelected: ['codex']
+    });
   }
-  return parsePlatformSelection(answer);
+  return parsePlatformSelection(selected);
 }
 
 function todayIsoDate() {
@@ -200,13 +211,13 @@ async function initializeDeveloper(target, developer) {
   }
 }
 
-export async function runInit(args, { io, prompt }) {
-  return runInitWithOptions(args, { io, prompt });
+export async function runInit(args, { io, prompt, selectPlatforms }) {
+  return runInitWithOptions(args, { io, prompt, selectPlatforms });
 }
 
-export async function runInitWithOptions(args, { io, prompt }) {
+export async function runInitWithOptions(args, { io, prompt, selectPlatforms }) {
   const options = parseInitArgs(args);
-  const platforms = await resolvePlatforms(options, prompt);
+  const platforms = await resolvePlatforms(options, selectPlatforms);
   const developer = await resolveDeveloperName(options, prompt);
   const packageInfo = await readPackageInfo();
   const plan = await buildInitPlan(options.target, {

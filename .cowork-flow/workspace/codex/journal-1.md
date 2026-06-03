@@ -902,3 +902,33 @@ Added init platform selection for Codex/OpenCode assets and sync host auto-detec
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 29: Fix CLI platform selector and adapter filtering
+
+**Date**: 2026-06-03
+**Task**: Fix CLI platform selector and adapter filtering
+
+### Summary
+
+Filtered .cowork-flow/adapters by selected host platform and replaced platform text prompt with a checkbox-style multi-select selector.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

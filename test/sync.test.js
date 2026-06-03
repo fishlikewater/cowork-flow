@@ -188,6 +188,7 @@ test('sync refreshes codex assets without creating opencode assets', async (t) =
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
   await mkdir(join(target, '.codex', 'agents'), { recursive: true });
   await writeFile(join(target, '.codex', 'agents', 'cowork-check.toml'), 'custom: true\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml'), 'old codex adapter\n', 'utf8');
   const io = createIo();
 
   const code = await main(['sync', target], { io });
@@ -197,7 +198,12 @@ test('sync refreshes codex assets without creating opencode assets', async (t) =
     await readText(join(target, '.codex', 'agents', 'cowork-check.toml')),
     await readText(join(templateRoot, '.codex', 'agents', 'cowork-check.toml'))
   );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')),
+    await readText(join(templateRoot, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml'))
+  );
   assert.equal(await exists(join(target, '.opencode')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
   assert.match(io.stdout, /Platforms: codex/);
   assert.match(io.stdout, /updated=/);
 });
@@ -207,6 +213,7 @@ test('sync refreshes opencode assets without creating codex assets', async (t) =
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'opencode'], { io: createIo() }), 0);
   await mkdir(join(target, '.opencode', 'agents'), { recursive: true });
   await writeFile(join(target, '.opencode', 'agents', 'cowork-check.md'), 'custom: true\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml'), 'old opencode adapter\n', 'utf8');
   const io = createIo();
 
   const code = await main(['sync', target], { io });
@@ -216,7 +223,12 @@ test('sync refreshes opencode assets without creating codex assets', async (t) =
     await readText(join(target, '.opencode', 'agents', 'cowork-check.md')),
     await readText(join(templateRoot, '.opencode', 'agents', 'cowork-check.md'))
   );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')),
+    await readText(join(templateRoot, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml'))
+  );
   assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
   assert.match(io.stdout, /Platforms: opencode/);
   assert.match(io.stdout, /updated=/);
 });
