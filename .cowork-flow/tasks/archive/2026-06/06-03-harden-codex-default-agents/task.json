@@ -1,0 +1,21 @@
+{
+  "id": "06-03-harden-codex-default-agents",
+  "name": "06-03-harden-codex-default-agents",
+  "title": "Harden Codex default agents",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-03",
+  "completedAt": "2026-06-03",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
