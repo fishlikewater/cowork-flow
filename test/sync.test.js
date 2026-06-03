@@ -180,6 +180,8 @@ test('sync creates missing safe placeholder files', async (t) => {
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${(await readPackageInfo()).version}\n`);
   assert.equal(await exists(join(target, '.codex')), false);
   assert.equal(await exists(join(target, '.opencode')), false);
+  assert.equal(await exists(join(target, '.claude')), false);
+  assert.equal(await exists(join(target, 'CLAUDE.md')), false);
   assert.match(io.stdout, /created=/);
 });
 
@@ -233,14 +235,65 @@ test('sync refreshes opencode assets without creating codex assets', async (t) =
   assert.match(io.stdout, /updated=/);
 });
 
-test('sync refreshes both host asset sets when both are installed', async (t) => {
+test('sync refreshes claude-code assets without creating codex or opencode assets', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'claude'], { io: createIo() }), 0);
+  await mkdir(join(target, '.claude', 'agents'), { recursive: true });
+  await writeFile(join(target, '.claude', 'agents', 'cowork-check.md'), 'custom: true\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml'), 'old claude adapter\n', 'utf8');
+  await writeFile(join(target, 'CLAUDE.md'), [
+    '# Custom Claude Rules',
+    '',
+    'Keep this project-specific introduction.',
+    '',
+    '<!-- COWORK-FLOW:START -->',
+    'old managed claude instructions',
+    '<!-- COWORK-FLOW:END -->',
+    '',
+    'Keep this project-specific footer.',
+    ''
+  ].join('\n'), 'utf8');
+  const templateClaude = await readText(join(templateRoot, 'CLAUDE.md'));
+  const templateBlock = templateClaude.match(
+    /<!-- COWORK-FLOW:START -->[\s\S]*<!-- COWORK-FLOW:END -->/
+  )[0];
+  const io = createIo();
+
+  const code = await main(['sync', target], { io });
+
+  assert.equal(code, 0);
+  assert.equal(
+    await readText(join(target, '.claude', 'agents', 'cowork-check.md')),
+    await readText(join(templateRoot, '.claude', 'agents', 'cowork-check.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')),
+    await readText(join(templateRoot, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml'))
+  );
+  const syncedClaude = await readText(join(target, 'CLAUDE.md'));
+  assert.match(syncedClaude, /Keep this project-specific introduction/);
+  assert.match(syncedClaude, /Keep this project-specific footer/);
+  assert.doesNotMatch(syncedClaude, /old managed claude instructions/);
+  assert.equal(syncedClaude.match(
+    /<!-- COWORK-FLOW:START -->[\s\S]*<!-- COWORK-FLOW:END -->/
+  )[0], templateBlock);
+  assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
+  assert.equal(await exists(join(target, '.opencode')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
+  assert.match(io.stdout, /Platforms: claude-code/);
+  assert.match(io.stdout, /updated=/);
+});
+
+test('sync refreshes all host asset sets when all are installed', async (t) => {
   const target = await createTempDir(t);
   assert.equal(
-    await main(['init', target, '--developer', 'codex', '--platform', 'codex,opencode'], { io: createIo() }),
+    await main(['init', target, '--developer', 'codex', '--platform', 'all'], { io: createIo() }),
     0
   );
   await writeFile(join(target, '.codex', 'hooks.json'), 'old codex hooks\n', 'utf8');
   await writeFile(join(target, '.opencode', 'plugins', 'cowork-flow.js'), 'old opencode plugin\n', 'utf8');
+  await writeFile(join(target, '.claude', 'commands', 'cowork-check.md'), 'old claude command\n', 'utf8');
   const io = createIo();
 
   const code = await main(['sync', target], { io });
@@ -254,6 +307,10 @@ test('sync refreshes both host asset sets when both are installed', async (t) =>
     await readText(join(target, '.opencode', 'plugins', 'cowork-flow.js')),
     await readText(join(templateRoot, '.opencode', 'plugins', 'cowork-flow.js'))
   );
-  assert.match(io.stdout, /Platforms: codex, opencode/);
+  assert.equal(
+    await readText(join(target, '.claude', 'commands', 'cowork-check.md')),
+    await readText(join(templateRoot, '.claude', 'commands', 'cowork-check.md'))
+  );
+  assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
   assert.match(io.stdout, /updated=/);
 });

@@ -10,7 +10,7 @@ import { readPackageInfo } from './lib/package-info.js';
 const HELP = `cowork-flow
 
 Usage:
-  cowork-flow init [target] --platform <codex|opencode|both> [--developer <name>] [--dry-run] [--force]
+  cowork-flow init [target] --platform <codex|opencode|claude-code|all> [--developer <name>] [--dry-run] [--force]
   cowork-flow update
   cowork-flow sync [target] [--dry-run] [--force]
   cowork-flow --version

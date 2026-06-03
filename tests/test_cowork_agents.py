@@ -53,6 +53,14 @@ class CoworkAgentsTest(unittest.TestCase):
                 self.assertTrue((base / "commands" / f"{name}.md").is_file())
             self.assertTrue((base / "plugins" / "cowork-flow.js").is_file())
 
+    def test_claude_code_agent_definitions_exist_in_root_and_template(self) -> None:
+        for base in (ROOT / ".claude", ROOT / "template" / ".claude"):
+            for name in ("cowork-research", "cowork-implement", "cowork-check"):
+                self.assertTrue((base / "agents" / f"{name}.md").is_file())
+                self.assertTrue((base / "commands" / f"{name}.md").is_file())
+        self.assertTrue((ROOT / "CLAUDE.md").is_file())
+        self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
+
     def test_agents_require_active_task_and_disable_multi_agent(self) -> None:
         for path in (
             ROOT / ".codex" / "agents" / "cowork-research.toml",
@@ -122,6 +130,8 @@ class CoworkAgentsTest(unittest.TestCase):
             "EXECUTE <dispatch_id>",
             "agent_type is not",
             "cmd_host_adapters",
+            ".cowork-flow/adapters/claude-code/adapter.yaml",
+            ".claude/agents/cowork-implement.md",
         ):
             self.assertIn(marker, text)
 

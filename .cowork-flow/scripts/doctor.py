@@ -121,6 +121,24 @@ REQUIRED_OPENCODE_SNIPPETS = [
     "leaf",
 ]
 
+REQUIRED_CLAUDE_AGENT_SNIPPETS = [
+    "COWORK_ENTRY_CONTRACT_V1",
+    "COWORK_DISPATCH_V1",
+    "COWORK_DELEGATION_V1",
+    "host: claude-code",
+    "COWORK_ACK",
+    "EXECUTE <dispatch_id>",
+    "leaf",
+    "Do not use the Task tool or invoke subagents",
+]
+
+REQUIRED_CLAUDE_COMMAND_SNIPPETS = [
+    "COWORK_DELEGATION_V1",
+    "host: claude-code",
+    "COWORK_ACK",
+    "EXECUTE <dispatch_id>",
+]
+
 
 def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> None:
     if not path.is_file():
@@ -184,8 +202,10 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     for rel in (
         ".cowork-flow/adapters/codex/adapter.yaml",
         ".cowork-flow/adapters/opencode/adapter.yaml",
+        ".cowork-flow/adapters/claude-code/adapter.yaml",
         "template/.cowork-flow/adapters/codex/adapter.yaml",
         "template/.cowork-flow/adapters/opencode/adapter.yaml",
+        "template/.cowork-flow/adapters/claude-code/adapter.yaml",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
     for rel in (
@@ -197,6 +217,33 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         "template/.opencode/agents/cowork-check.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_OPENCODE_SNIPPETS, errors)
+    for rel in (
+        ".claude/agents/cowork-research.md",
+        ".claude/agents/cowork-implement.md",
+        ".claude/agents/cowork-check.md",
+        "template/.claude/agents/cowork-research.md",
+        "template/.claude/agents/cowork-implement.md",
+        "template/.claude/agents/cowork-check.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_AGENT_SNIPPETS, errors)
+    for rel in (
+        ".claude/commands/cowork-research.md",
+        ".claude/commands/cowork-implement.md",
+        ".claude/commands/cowork-check.md",
+        "template/.claude/commands/cowork-research.md",
+        "template/.claude/commands/cowork-implement.md",
+        "template/.claude/commands/cowork-check.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_COMMAND_SNIPPETS, errors)
+    for rel in (
+        "CLAUDE.md",
+        "template/CLAUDE.md",
+    ):
+        _check_file_contains(
+            repo_root / rel,
+            ["<!-- COWORK-FLOW:START -->", "COWORK_DELEGATION_V1", ".claude/agents/cowork-implement.md"],
+            errors,
+        )
     for rel in (
         ".opencode/plugins/cowork-flow.js",
         "template/.opencode/plugins/cowork-flow.js",
@@ -282,8 +329,10 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     for rel in (
         ".cowork-flow/adapters/codex/adapter.yaml",
         ".cowork-flow/adapters/opencode/adapter.yaml",
+        ".cowork-flow/adapters/claude-code/adapter.yaml",
         "template/.cowork-flow/adapters/codex/adapter.yaml",
         "template/.cowork-flow/adapters/opencode/adapter.yaml",
+        "template/.cowork-flow/adapters/claude-code/adapter.yaml",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
     if errors:

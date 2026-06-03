@@ -32,13 +32,17 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('bin/cowork-flow.js'), true);
   assert.equal(files.has('src/cli.js'), true);
   assert.equal(files.has('template/AGENTS.md'), true);
+  assert.equal(files.has('template/CLAUDE.md'), true);
   assert.equal(files.has('template/.cowork-flow/run'), true);
   assert.equal(files.has('template/.cowork-flow/run.cmd'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/run.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/change.py'), true);
+  assert.equal(files.has('template/.cowork-flow/adapters/claude-code/adapter.yaml'), true);
   assert.equal(files.has('template/.codex/config.toml'), true);
   assert.equal(files.has('template/.codex/hooks.json'), true);
   assert.equal(files.has('template/.codex/hooks/inject-workflow-state.py'), true);
+  assert.equal(files.has('template/.claude/agents/cowork-implement.md'), true);
+  assert.equal(files.has('template/.claude/commands/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/agents/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/commands/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/plugins/cowork-flow.js'), true);

@@ -86,6 +86,7 @@ const PROTECTED_SYNC_PREFIXES = [
 const SAFE_SYNC_PREFIXES = [
   '.codex/',
   '.opencode/',
+  '.claude/',
   '.agent/skills/',
   '.cowork-flow/'
 ];
@@ -132,13 +133,13 @@ function replaceManagedBlock(targetContent, templateContent) {
   ].join('');
 }
 
-async function buildAgentsSyncAction({ source, destination, exists, options }) {
+async function buildManagedBlockSyncAction({ source, destination, exists, options, relativePath }) {
   if (!exists || options.force) {
     return {
       action: exists ? 'update' : 'create',
       source,
       destination,
-      relativePath: 'AGENTS.md'
+      relativePath
     };
   }
 
@@ -149,10 +150,10 @@ async function buildAgentsSyncAction({ source, destination, exists, options }) {
   const content = replaceManagedBlock(targetContent, templateContent);
 
   if (content === null) {
-    return { action: 'protected', source, destination, relativePath: 'AGENTS.md' };
+    return { action: 'protected', source, destination, relativePath };
   }
 
-  return { action: 'update', source, destination, relativePath: 'AGENTS.md', content };
+  return { action: 'update', source, destination, relativePath, content };
 }
 
 export async function buildSyncPlan(targetDir, options = {}) {
@@ -176,8 +177,8 @@ export async function buildSyncPlan(targetDir, options = {}) {
     const source = join(templateRoot, file);
     const destination = join(targetDir, file);
     const exists = await pathExists(destination);
-    if (file === 'AGENTS.md') {
-      actions.push(await buildAgentsSyncAction({ source, destination, exists, options }));
+    if (file === 'AGENTS.md' || file === 'CLAUDE.md') {
+      actions.push(await buildManagedBlockSyncAction({ source, destination, exists, options, relativePath: file }));
       continue;
     }
 
@@ -213,6 +214,9 @@ export async function detectInstalledPlatforms(targetDir) {
   }
   if (await pathExists(join(targetDir, '.opencode'))) {
     platforms.push('opencode');
+  }
+  if (await pathExists(join(targetDir, '.claude')) || await pathExists(join(targetDir, 'CLAUDE.md'))) {
+    platforms.push('claude-code');
   }
   return platforms;
 }

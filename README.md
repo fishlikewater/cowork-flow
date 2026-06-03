@@ -23,8 +23,12 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 ├── README.md
 └── template/
     ├── AGENTS.md
+    ├── CLAUDE.md
     ├── .codex/
     │   └── agents/
+    ├── .claude/
+    │   ├── agents/
+    │   └── commands/
     ├── .opencode/
     │   ├── agents/
     │   ├── commands/
@@ -56,6 +60,9 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 `template/.codex/config.toml`、`template/.codex/hooks.json`、`template/.codex/hooks/`
 Codex 项目级配置与每轮上下文注入入口。hook 会读取当前 session task、`.cowork-flow/workflow.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。
 
+`template/CLAUDE.md`、`template/.claude/agents/`、`template/.claude/commands/`
+Claude Code 项目级记忆、固定 agent 和 slash command。固定 agent 使用 `COWORK_DISPATCH_V1` / `COWORK_DELEGATION_V1` 握手，先 ACK 再等待 `EXECUTE <dispatch_id>`，避免被项目 bootstrap 或无任务首屏上下文拉偏。
+
 `template/.opencode/agents/`、`template/.opencode/commands/`、`template/.opencode/plugins/`
 OpenCode 项目级固定 agent、slash command 和系统上下文注入插件。插件会读取 `.cowork-flow/spec/registry.json`，注入短 contract digest。
 
@@ -79,7 +86,7 @@ OpenCode 项目级固定 agent、slash command 和系统上下文注入插件。
 npx cowork-flow init ./my-project --platform codex
 ```
 
-`init` 会显式要求平台和开发者身份。平台可选 `codex`、`opencode` 或 `both`。交互式终端会提示输入；脚本或 CI 请传入：
+`init` 会显式要求平台和开发者身份。平台可选 `codex`、`opencode`、`claude-code`、`all`，其中 `both` 仍作为兼容别名表示 `codex,opencode`。交互式终端会提示输入；脚本或 CI 请传入：
 
 ```bash
 npx cowork-flow init ./my-project --platform codex --developer <your-name>
@@ -114,7 +121,7 @@ npx cowork-flow --help
 cowork-flow init ./my-project --platform codex
 ```
 
-`init` 会直接复制模板中的通用 `.agent/skills/` 和 `.cowork-flow/`，并按 `--platform` 只复制对应 host 资产：`codex` 复制 `.codex/` 与 `.cowork-flow/adapters/codex/`，`opencode` 复制 `.opencode/` 与 `.cowork-flow/adapters/opencode/`，`both` 或 `--platform codex,opencode` 同时复制两者。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会先显示 checkbox 多选界面选择平台，再提示开发者名称；非交互式环境必须传入 `--platform <codex|opencode|both>` 与 `--developer <name>`。`init` 不会复制额外技能包。
+`init` 会直接复制模板中的通用 `.agent/skills/` 和 `.cowork-flow/`，并按 `--platform` 只复制对应 host 资产：`codex` 复制 `.codex/` 与 `.cowork-flow/adapters/codex/`，`opencode` 复制 `.opencode/` 与 `.cowork-flow/adapters/opencode/`，`claude-code` 复制 `CLAUDE.md`、`.claude/` 与 `.cowork-flow/adapters/claude-code/`，`all` 或 `--platform codex,opencode,claude-code` 同时复制三者。`both` 保持兼容，只复制 Codex 和 OpenCode。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会先显示 checkbox 多选界面选择平台，再提示开发者名称；非交互式环境必须传入 `--platform <codex|opencode|claude-code|all>` 与 `--developer <name>`。`init` 不会复制额外技能包。
 
 初始化到当前项目：
 
@@ -125,7 +132,7 @@ cowork-flow init . --platform opencode
 默认不会覆盖已有文件。需要预览时使用：
 
 ```bash
-cowork-flow init ./my-project --platform both --dry-run
+cowork-flow init ./my-project --platform all --dry-run
 ```
 
 需要明确覆盖已有文件时使用：
