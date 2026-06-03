@@ -51,7 +51,7 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 本地技能入口，覆盖 start、before-dev、brainstorming、writing-plans、check、finish-work、continue、meta、python-design、update-spec 和 break-loop 等协作动作。这里的 skill 应保持通用，不承载某个业务项目的一次性细节。
 
 `template/.codex/agents/`
-固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`。主会话负责计划与收口，并用 Codex `spawn_agent` 派发固定 agent；派发必须使用 `fork_turns="none"`，提示词首行使用 `Active task: <task-dir>`。
+固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`，以及对 Codex 默认 `worker`、`default`、`explorer` 的项目级防漂移约束。主会话负责计划与收口，并用 Codex `spawn_agent` 派发固定 agent；派发必须使用 `fork_turns="none"`，提示词首行使用 `Active task: <task-dir>`。
 
 `template/.codex/config.toml`、`template/.codex/hooks.json`、`template/.codex/hooks/`
 Codex 项目级配置与每轮上下文注入入口。hook 会读取当前 session task、`.cowork-flow/workflow.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。

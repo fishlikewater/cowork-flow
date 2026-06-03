@@ -112,13 +112,17 @@ def _build_dispatch_message(
             f"context_file: {_relative(get_repo_root(), context_file)}",
             f"ack_token: {ack_token}",
             f"dispatch_reliability: {dispatch_reliability}",
+        ]
+    )
+    if dispatch_reliability == "best-effort":
+        lines.append("This generic worker dispatch is best-effort only.")
+    lines.extend(
+        [
             "COWORK_DISPATCH_END",
             "",
             f"Return only: COWORK_ACK {dispatch_id} {ack_token}",
         ]
     )
-    if dispatch_reliability == "best-effort":
-        lines.insert(7, "This generic worker dispatch is best-effort only.")
     return "\n".join(lines)
 
 

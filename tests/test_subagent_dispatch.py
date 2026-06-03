@@ -184,7 +184,11 @@ class SubagentDispatchTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual("worker", payload["agentType"])
             self.assertEqual("best-effort", payload["dispatchReliability"])
+            self.assertIn("COWORK_DISPATCH_V1", payload["dispatchMessage"])
+            self.assertIn("agent_type: worker", payload["dispatchMessage"])
             self.assertIn("best-effort", payload["dispatchMessage"])
+            self.assertIn("COWORK_DISPATCH_END", payload["dispatchMessage"])
+            self.assertIn("Return only: COWORK_ACK", payload["dispatchMessage"])
 
     def test_init_rejects_generic_worker_with_fixed_role(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

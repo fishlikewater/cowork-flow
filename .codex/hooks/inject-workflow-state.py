@@ -24,6 +24,9 @@ DELEGATED_MARKERS = (
     "DELEGATED_HARD",
     "DELEGATED_SOFT",
     "DELEGATED_SUBTASK",
+    "agent_type: worker",
+    "agent_type: default",
+    "agent_type: explorer",
 )
 DELEGATED_TERMS = (
     "delegated task",
@@ -31,9 +34,13 @@ DELEGATED_TERMS = (
     "bounded delegated",
     "subagent",
     "sub-agent",
-    "worker",
     "reviewer",
     "explorer",
+    "worker brief",
+    "leaf executor",
+    "spawn_agent",
+    "agent_type",
+    "best-effort",
     "委托任务",
     "委托 prompt",
     "子任务",
@@ -56,6 +63,11 @@ BOUNDARY_TERMS = (
     "do not edit",
     "do not run",
     "do not spawn",
+    "do not run start",
+    "do not run resume",
+    "do not run task-start",
+    "do not run project start",
+    "do not run the project start-session workflow",
     "return concise analysis only",
     "不要编辑",
     "不要运行",
@@ -68,6 +80,8 @@ OUTPUT_TERMS = (
     "output:",
     "required output",
     "return in",
+    "return exactly",
+    "return only",
     "max ",
     "最多",
     "输出：",
@@ -136,11 +150,33 @@ def _is_delegated_prompt(hook_input: dict[str, Any]) -> bool:
         return True
 
     lowered = prompt.lower()
+    has_agent_dispatch_signal = any(
+        term in lowered
+        for term in (
+            "spawn_agent(",
+            "agent_type=\"worker\"",
+            "agent_type='worker'",
+            "agent_type=\"default\"",
+            "agent_type='default'",
+            "agent_type=\"explorer\"",
+            "agent_type='explorer'",
+            "agent type: worker",
+            "agent type: default",
+            "agent type: explorer",
+            "worker brief",
+            "leaf executor",
+            "best-effort",
+        )
+    )
     has_task = _contains_any(lowered, TASK_TERMS)
     has_delegated_role = _contains_any(lowered, DELEGATED_TERMS)
     has_boundary = _contains_any(lowered, BOUNDARY_TERMS)
     has_output = _contains_any(lowered, OUTPUT_TERMS)
-    return has_task and (has_delegated_role or has_boundary) and (has_output or has_boundary)
+    return (
+        has_task
+        and (has_delegated_role or has_boundary or has_agent_dispatch_signal)
+        and (has_output or has_boundary or has_agent_dispatch_signal)
+    )
 
 
 def _load_breadcrumbs(root: Path) -> dict[str, str]:
