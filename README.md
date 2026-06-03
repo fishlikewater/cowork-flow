@@ -114,7 +114,7 @@ npx cowork-flow --help
 cowork-flow init ./my-project --platform codex
 ```
 
-`init` 会直接复制模板中的通用 `.agent/skills/`、`.cowork-flow/`，并按 `--platform` 只复制对应 host 目录：`codex` 复制 `.codex/`，`opencode` 复制 `.opencode/`，`both` 或 `--platform codex,opencode` 同时复制两者。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会提示输入平台和开发者名称；非交互式环境必须传入 `--platform <codex|opencode|both>` 与 `--developer <name>`。`init` 不会复制额外技能包。
+`init` 会直接复制模板中的通用 `.agent/skills/` 和 `.cowork-flow/`，并按 `--platform` 只复制对应 host 资产：`codex` 复制 `.codex/` 与 `.cowork-flow/adapters/codex/`，`opencode` 复制 `.opencode/` 与 `.cowork-flow/adapters/opencode/`，`both` 或 `--platform codex,opencode` 同时复制两者。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会先显示 checkbox 多选界面选择平台，再提示开发者名称；非交互式环境必须传入 `--platform <codex|opencode|both>` 与 `--developer <name>`。`init` 不会复制额外技能包。
 
 初始化到当前项目：
 
@@ -149,7 +149,7 @@ cowork-flow sync .
 cowork-flow sync . --dry-run
 ```
 
-`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者。通用部分默认刷新 `.agent/skills/`、`.cowork-flow/scripts/` 和 `AGENTS.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留 `AGENTS.md` 托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、`.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
+`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者；对应 `.cowork-flow/adapters/<host>/` 也按识别出的平台同步。通用部分默认刷新 `.agent/skills/`、`.cowork-flow/scripts/` 和 `AGENTS.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留 `AGENTS.md` 托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、`.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
 
 ## 常用入口
 

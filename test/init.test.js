@@ -37,6 +37,8 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.codex', 'config.toml')), true);
   assert.equal(await exists(join(target, '.codex', 'hooks.json')), true);
   assert.equal(await exists(join(target, '.codex', 'hooks', 'inject-workflow-state.py')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.superpowers')), false);
   assert.match(await readText(join(target, '.cowork-flow', '.developer')), /^name=codex\ninitialized_at=.+\n$/);
@@ -59,6 +61,8 @@ test('init copies only opencode host assets when platform is opencode', async (t
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.opencode', 'agents', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.opencode', 'commands', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
@@ -80,6 +84,8 @@ test('init copies multiple selected host platforms', async (t) => {
 
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.codex', 'hooks.json')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
   assert.match(io.stdout, /Platforms: codex, opencode/);
 });
@@ -182,26 +188,31 @@ test('init fails without a developer in non-interactive mode', async (t) => {
   assert.match(io.stderr, /--developer <name>/);
 });
 
-test('init prompts for platform and developer when prompt is available', async (t) => {
+test('init uses platform selector and then prompts for developer', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();
   const prompts = [];
+  const selectorCalls = [];
 
   const code = await main(['init', target], {
     io,
+    selectPlatforms: async (request) => {
+      selectorCalls.push(request);
+      return ['opencode'];
+    },
     prompt: async (message) => {
       prompts.push(message);
-      if (/Platform/.test(message)) {
-        return 'opencode';
-      }
       return 'alice';
     }
   });
 
   assert.equal(code, 0);
-  assert.match(prompts[0], /Platform/);
-  assert.match(prompts[1], /Developer name/);
+  assert.match(selectorCalls[0].message, /Select platforms/);
+  assert.equal(selectorCalls[0].choices.length, 2);
+  assert.match(prompts[0], /Developer name/);
   assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.opencode', 'agents', 'cowork-implement.md')), true);
   assert.match(await readText(join(target, '.cowork-flow', '.developer')), /^name=alice\ninitialized_at=.+\n$/);
   assert.equal(await exists(join(target, '.cowork-flow', 'workspace', 'alice', 'journal-1.md')), true);
