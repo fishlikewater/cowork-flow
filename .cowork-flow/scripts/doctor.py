@@ -201,7 +201,17 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         ".opencode/plugins/cowork-flow.js",
         "template/.opencode/plugins/cowork-flow.js",
     ):
-        _check_file_contains(repo_root / rel, ["experimental.chat.system.transform", "COWORK_ENTRY_CONTRACT_V1"], errors)
+        _check_file_contains(
+            repo_root / rel,
+            [
+                "experimental.chat.system.transform",
+                ".cowork-flow\", \"spec\", \"registry.json",
+                "<contract-digest fingerprint=",
+                "read_before",
+                "COWORK_ENTRY_CONTRACT_V1",
+            ],
+            errors,
+        )
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
