@@ -92,7 +92,11 @@ test('init copies only claude-code host assets when platform is claude-code', as
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.claude', 'agents', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.claude', 'commands', 'cowork-implement.md')), true);
+  assert.equal(await exists(join(target, '.claude', 'skills', 'start', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
+  assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
   assert.match(await readText(join(target, 'CLAUDE.md')), /COWORK_DELEGATION_V1/);
+  assert.match(await readText(join(target, 'CLAUDE.md')), /@AGENTS\.md/);
   assert.match(io.stdout, /Platforms: claude-code/);
 });
 
@@ -116,6 +120,9 @@ test('init copies all selected host platforms', async (t) => {
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
   assert.equal(await exists(join(target, '.claude', 'agents', 'cowork-check.md')), true);
+  assert.equal(await exists(join(target, '.claude', 'skills', 'check', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
+  assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
 });
 

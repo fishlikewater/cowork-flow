@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".cowork-flow/run python .claude/hooks/inject-workflow-state.py"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".cowork-flow/run python .claude/hooks/inject-workflow-state.py"
+          }
+        ]
+      }
+    ]
+  }
+}

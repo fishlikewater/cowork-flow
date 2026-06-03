@@ -8,6 +8,11 @@ import argparse
 import sys
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
+    tomllib = None  # type: ignore[assignment]
+
 from common.paths import get_repo_root
 
 
@@ -139,6 +144,23 @@ REQUIRED_CLAUDE_COMMAND_SNIPPETS = [
     "EXECUTE <dispatch_id>",
 ]
 
+REQUIRED_CLAUDE_SKILL_SNIPPETS = [
+    "name:",
+    "description:",
+]
+
+REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS = [
+    ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+    "UserPromptSubmit",
+    "SessionStart",
+]
+
+REQUIRED_CLAUDE_HOOK_SCRIPT_SNIPPETS = [
+    '<cowork-runtime host="claude-code" adapter="claude-code.hooks">',
+    "hookSpecificOutput",
+    "additionalContext",
+]
+
 
 def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> None:
     if not path.is_file():
@@ -148,6 +170,20 @@ def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> 
     for snippet in snippets:
         if snippet not in text:
             errors.append(f"{path} missing snippet: {snippet}")
+
+
+def _check_toml_parseable(path: Path, errors: list[str]) -> dict | None:
+    if not path.is_file():
+        errors.append(f"missing file: {path}")
+        return None
+    if tomllib is None:
+        return None
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        errors.append(f"{path} is not valid TOML: {exc}")
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def cmd_entry_contract(_: argparse.Namespace) -> int:
@@ -209,6 +245,19 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
     for rel in (
+        ".cowork-flow/adapters/claude-code/adapter.yaml",
+        "template/.cowork-flow/adapters/claude-code/adapter.yaml",
+    ):
+        _check_file_contains(
+            repo_root / rel,
+            [
+                "skillsPath: .claude/skills",
+                "settingsPath: .claude/settings.json",
+                "hooksPath: .claude/hooks",
+            ],
+            errors,
+        )
+    for rel in (
         ".opencode/agents/cowork-research.md",
         ".opencode/agents/cowork-implement.md",
         ".opencode/agents/cowork-check.md",
@@ -236,12 +285,37 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_COMMAND_SNIPPETS, errors)
     for rel in (
+        ".claude/skills/start/SKILL.md",
+        ".claude/skills/entry-boundary/SKILL.md",
+        ".claude/skills/check/SKILL.md",
+        "template/.claude/skills/start/SKILL.md",
+        "template/.claude/skills/entry-boundary/SKILL.md",
+        "template/.claude/skills/check/SKILL.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_SKILL_SNIPPETS, errors)
+    for rel in (
+        ".claude/settings.json",
+        "template/.claude/settings.json",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
+    for rel in (
+        ".claude/hooks/inject-workflow-state.py",
+        "template/.claude/hooks/inject-workflow-state.py",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SCRIPT_SNIPPETS, errors)
+    for rel in (
         "CLAUDE.md",
         "template/CLAUDE.md",
     ):
         _check_file_contains(
             repo_root / rel,
-            ["<!-- COWORK-FLOW:START -->", "COWORK_DELEGATION_V1", ".claude/agents/cowork-implement.md"],
+            [
+                "@AGENTS.md",
+                "<!-- COWORK-FLOW:START -->",
+                "COWORK_DELEGATION_V1",
+                ".claude/agents/cowork-implement.md",
+                ".claude/skills/",
+            ],
             errors,
         )
     for rel in (
@@ -298,6 +372,9 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         if rel.endswith(("worker.toml", "default.toml", "explorer.toml")):
             snippets = ["COWORK_ACK", "EXECUTE <dispatch_id>", "start", "resume"]
         _check_file_contains(repo_root / rel, snippets, errors)
+        data = _check_toml_parseable(repo_root / rel, errors)
+        if data is not None and data.get("name") != Path(rel).stem:
+            errors.append(f"{rel} name must match filename")
     for rel in (
         ".cowork-flow/workflow.md",
         "template/.cowork-flow/workflow.md",
@@ -335,6 +412,29 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.cowork-flow/adapters/claude-code/adapter.yaml",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/adapters/claude-code/adapter.yaml",
+        "template/.cowork-flow/adapters/claude-code/adapter.yaml",
+    ):
+        _check_file_contains(
+            repo_root / rel,
+            [
+                "skillsPath: .claude/skills",
+                "settingsPath: .claude/settings.json",
+                "hooksPath: .claude/hooks",
+            ],
+            errors,
+        )
+    for rel in (
+        ".claude/settings.json",
+        "template/.claude/settings.json",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
+    for rel in (
+        ".claude/hooks/inject-workflow-state.py",
+        "template/.claude/hooks/inject-workflow-state.py",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SCRIPT_SNIPPETS, errors)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

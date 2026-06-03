@@ -88,6 +88,10 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIs(contracts["ackRequired"], True)
                 self.assertIs(contracts["executeRequired"], True)
                 self.assertIs(contracts["leafExecutor"], True)
+                if host == "claude-code":
+                    self.assertEqual(".claude/skills", adapter["dispatch"]["skillsPath"])
+                    self.assertEqual(".claude/settings.json", adapter["dispatch"]["settingsPath"])
+                    self.assertEqual(".claude/hooks", adapter["dispatch"]["hooksPath"])
 
     def test_workflow_is_host_neutral(self) -> None:
         banned = ("spawn_agent", "fork_turns", "wait_agent", "list_agents", "close_agent", "codex exec")
@@ -147,8 +151,29 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("COWORK_DELEGATION_V1", text)
                 self.assertIn("host: claude-code", text)
 
+            for name in ("start", "entry-boundary", "check"):
+                text = (base / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn("name:", text)
+                self.assertIn("description:", text)
+
+            settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+                settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"],
+            )
+            self.assertEqual(
+                ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+                settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+            )
+            hook = (base / "hooks" / "inject-workflow-state.py").read_text(encoding="utf-8")
+            self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', hook)
+            self.assertIn("hookSpecificOutput", hook)
+            self.assertIn("additionalContext", hook)
+
         for path in (ROOT / "CLAUDE.md", ROOT / "template" / "CLAUDE.md"):
             text = path.read_text(encoding="utf-8")
+            self.assertIn("@AGENTS.md", text)
             self.assertIn("<!-- COWORK-FLOW:START -->", text)
             self.assertIn("COWORK_DELEGATION_V1", text)
             self.assertIn(".claude/agents/cowork-implement.md", text)
+            self.assertIn(".claude/skills/", text)
