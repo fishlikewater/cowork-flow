@@ -38,6 +38,10 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
         with patch.dict(os.environ, {"OPENCODE_SESSION_ID": "opc-123"}, clear=True):
             self.assertEqual("opencode_opc-123", self.active_task.resolve_context_key())
 
+    def test_context_key_uses_claude_session_when_cowork_missing(self) -> None:
+        with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-123"}, clear=True):
+            self.assertEqual("claude_claude-123", self.active_task.resolve_context_key())
+
     def test_context_key_missing_returns_none(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             self.assertIsNone(self.active_task.resolve_context_key())
@@ -54,6 +58,13 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertEqual(
                 "opencode_opc-456",
                 self.active_task.resolve_context_key({"opencode_session_id": "opc-456"}),
+            )
+
+    def test_context_key_can_use_claude_hook_input(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                "claude_claude-456",
+                self.active_task.resolve_context_key({"claude_session_id": "claude-456"}),
             )
 
     def test_set_and_get_active_task_require_context_key(self) -> None:
@@ -96,6 +107,25 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 )
                 self.active_task.clear_active_task(root)
                 self.assertIsNone(self.active_task.get_active_task(root).task_path)
+
+    def test_set_active_task_marks_claude_platform(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            task_dir = root / ".cowork-flow" / "tasks" / "05-28-demo"
+            task_dir.mkdir(parents=True)
+
+            with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "main"}, clear=True):
+                active = self.active_task.set_active_task(
+                    root, ".cowork-flow/tasks/05-28-demo"
+                )
+                session_file = (
+                    self.active_task.sessions_dir(root) / f"{active.context_key}.json"
+                )
+                session_data = json.loads(session_file.read_text(encoding="utf-8"))
+
+            self.assertEqual("claude_main", active.context_key)
+            self.assertEqual("claude-code", session_data.get("platform"))
 
     def test_clear_task_from_sessions_removes_matching_pointers_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

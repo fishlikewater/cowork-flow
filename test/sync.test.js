@@ -240,6 +240,10 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'claude'], { io: createIo() }), 0);
   await mkdir(join(target, '.claude', 'agents'), { recursive: true });
   await writeFile(join(target, '.claude', 'agents', 'cowork-check.md'), 'custom: true\n', 'utf8');
+  await mkdir(join(target, '.claude', 'skills', 'start'), { recursive: true });
+  await writeFile(join(target, '.claude', 'skills', 'start', 'SKILL.md'), 'old claude skill\n', 'utf8');
+  await writeFile(join(target, '.claude', 'settings.json'), '{"hooks": {}}\n', 'utf8');
+  await writeFile(join(target, '.claude', 'hooks', 'inject-workflow-state.py'), 'old claude hook\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml'), 'old claude adapter\n', 'utf8');
   await writeFile(join(target, 'CLAUDE.md'), [
     '# Custom Claude Rules',
@@ -270,9 +274,22 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
     await readText(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')),
     await readText(join(templateRoot, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml'))
   );
+  assert.equal(
+    await readText(join(target, '.claude', 'skills', 'start', 'SKILL.md')),
+    await readText(join(templateRoot, '.claude', 'skills', 'start', 'SKILL.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.claude', 'settings.json')),
+    await readText(join(templateRoot, '.claude', 'settings.json'))
+  );
+  assert.equal(
+    await readText(join(target, '.claude', 'hooks', 'inject-workflow-state.py')),
+    await readText(join(templateRoot, '.claude', 'hooks', 'inject-workflow-state.py'))
+  );
   const syncedClaude = await readText(join(target, 'CLAUDE.md'));
   assert.match(syncedClaude, /Keep this project-specific introduction/);
   assert.match(syncedClaude, /Keep this project-specific footer/);
+  assert.match(syncedClaude, /@AGENTS\.md/);
   assert.doesNotMatch(syncedClaude, /old managed claude instructions/);
   assert.equal(syncedClaude.match(
     /<!-- COWORK-FLOW:START -->[\s\S]*<!-- COWORK-FLOW:END -->/
@@ -294,6 +311,9 @@ test('sync refreshes all host asset sets when all are installed', async (t) => {
   await writeFile(join(target, '.codex', 'hooks.json'), 'old codex hooks\n', 'utf8');
   await writeFile(join(target, '.opencode', 'plugins', 'cowork-flow.js'), 'old opencode plugin\n', 'utf8');
   await writeFile(join(target, '.claude', 'commands', 'cowork-check.md'), 'old claude command\n', 'utf8');
+  await writeFile(join(target, '.claude', 'skills', 'check', 'SKILL.md'), 'old claude skill\n', 'utf8');
+  await writeFile(join(target, '.claude', 'settings.json'), '{"hooks": {}}\n', 'utf8');
+  await writeFile(join(target, '.claude', 'hooks', 'inject-workflow-state.py'), 'old claude hook\n', 'utf8');
   const io = createIo();
 
   const code = await main(['sync', target], { io });
@@ -310,6 +330,18 @@ test('sync refreshes all host asset sets when all are installed', async (t) => {
   assert.equal(
     await readText(join(target, '.claude', 'commands', 'cowork-check.md')),
     await readText(join(templateRoot, '.claude', 'commands', 'cowork-check.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.claude', 'skills', 'check', 'SKILL.md')),
+    await readText(join(templateRoot, '.claude', 'skills', 'check', 'SKILL.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.claude', 'settings.json')),
+    await readText(join(templateRoot, '.claude', 'settings.json'))
+  );
+  assert.equal(
+    await readText(join(target, '.claude', 'hooks', 'inject-workflow-state.py')),
+    await readText(join(templateRoot, '.claude', 'hooks', 'inject-workflow-state.py'))
   );
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
   assert.match(io.stdout, /updated=/);

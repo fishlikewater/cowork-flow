@@ -56,7 +56,7 @@
 | 项目规格 | `.cowork-flow/spec/` |
 | 会话记录 | `.cowork-flow/workspace/<developer>/journal-*.md` |
 
-当前任务是会话级状态。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID` 或 `CODEX_THREAD_ID` 时，不得猜测当前任务。
+当前任务是会话级状态。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID`、`CODEX_THREAD_ID`、`OPENCODE_SESSION_ID` 或 `CLAUDE_SESSION_ID` 时，不得猜测当前任务。
 
 ## 3. 固定代理
 

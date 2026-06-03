@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -46,6 +47,12 @@ class CoworkAgentsTest(unittest.TestCase):
         ):
             self.assertTrue(path.is_file(), str(path))
 
+    def test_codex_agent_definitions_are_valid_toml(self) -> None:
+        for base in (ROOT / ".codex" / "agents", ROOT / "template" / ".codex" / "agents"):
+            for path in base.glob("*.toml"):
+                data = tomllib.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(path.stem, data["name"], str(path))
+
     def test_opencode_agent_definitions_exist_in_root_and_template(self) -> None:
         for base in (ROOT / ".opencode", ROOT / "template" / ".opencode"):
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
@@ -58,8 +65,28 @@ class CoworkAgentsTest(unittest.TestCase):
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 self.assertTrue((base / "agents" / f"{name}.md").is_file())
                 self.assertTrue((base / "commands" / f"{name}.md").is_file())
+            self.assertTrue((base / "settings.json").is_file())
+            self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
+            for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
+                         "entry-boundary", "finish-work", "meta", "python-design", "start",
+                         "update-spec", "writing-plans"):
+                self.assertTrue((base / "skills" / name / "SKILL.md").is_file())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
         self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
+
+    def test_claude_code_skills_mirror_agent_skills(self) -> None:
+        for source_base, claude_base in (
+            (ROOT / ".agent" / "skills", ROOT / ".claude" / "skills"),
+            (ROOT / "template" / ".agent" / "skills", ROOT / "template" / ".claude" / "skills"),
+        ):
+            for source in source_base.glob("*/SKILL.md"):
+                mirror = claude_base / source.parent.name / "SKILL.md"
+                self.assertTrue(mirror.is_file(), str(mirror))
+                self.assertEqual(
+                    source.read_text(encoding="utf-8"),
+                    mirror.read_text(encoding="utf-8"),
+                    str(mirror),
+                )
 
     def test_agents_require_active_task_and_disable_multi_agent(self) -> None:
         for path in (
@@ -132,6 +159,9 @@ class CoworkAgentsTest(unittest.TestCase):
             "cmd_host_adapters",
             ".cowork-flow/adapters/claude-code/adapter.yaml",
             ".claude/agents/cowork-implement.md",
+            ".claude/skills/start/SKILL.md",
+            ".claude/settings.json",
+            ".claude/hooks/inject-workflow-state.py",
         ):
             self.assertIn(marker, text)
 
