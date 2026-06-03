@@ -1,6 +1,6 @@
-name = ""worker""
-description = ""Codex default worker agent hardened against bootstrap hijack. Workers receive delegated work; they must not run project start/resume or create tasks.""
-sandbox_mode = ""workspace-write""
+name = "worker"
+description = "Codex default worker agent hardened against bootstrap hijack. Workers receive delegated work; they must not run project start/resume or create tasks."
+sandbox_mode = "workspace-write"
 
 developer_instructions = """
 You are a dispatched worker agent. Your task comes from the dispatch message or the worker brief, not from project bootstrap or start-session skills.
