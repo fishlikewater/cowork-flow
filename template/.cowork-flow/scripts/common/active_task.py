@@ -43,6 +43,10 @@ def resolve_context_key(values: Mapping[str, object] | None = None) -> str | Non
     if explicit and explicit.strip():
         return _sanitize(explicit)
 
+    opencode_session = os.environ.get("OPENCODE_SESSION_ID")
+    if opencode_session and opencode_session.strip():
+        return f"opencode_{_sanitize(opencode_session)}"
+
     codex_session = os.environ.get("CODEX_SESSION_ID")
     if codex_session and codex_session.strip():
         return f"codex_{_sanitize(codex_session)}"
@@ -61,6 +65,16 @@ def resolve_context_key(values: Mapping[str, object] | None = None) -> str | Non
     )
     if input_explicit:
         return _sanitize(input_explicit)
+
+    input_opencode_session = _first_input_value(
+        values,
+        (
+            "OPENCODE_SESSION_ID",
+            "opencode_session_id",
+        ),
+    )
+    if input_opencode_session:
+        return f"opencode_{_sanitize(input_opencode_session)}"
 
     input_session = _first_input_value(
         values,
@@ -125,7 +139,13 @@ def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
         _session_path(repo_root, context_key),
         {
             FIELD_ACTIVE_TASK_PATH: normalized,
-            "platform": "codex" if context_key.startswith("codex_") else "manual",
+            "platform": (
+                "codex"
+                if context_key.startswith("codex_")
+                else "opencode"
+                if context_key.startswith("opencode_")
+                else "manual"
+            ),
             "last_seen_at": _now(),
         },
     )

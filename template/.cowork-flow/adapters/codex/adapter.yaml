@@ -1,0 +1,29 @@
+schemaVersion: 1
+host: codex
+displayName: Codex
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: native
+  waitChild: native
+  listChildren: native
+  cancelChild: native
+  stateInjection: native
+  backgroundChild: native
+dispatch:
+  primitive: spawn_agent
+  forkTurns: none
+  followupPrimitive: assign_task
+  waitPrimitive: wait_agent
+  listPrimitive: list_agents
+  cancelPrimitive: close_agent
+  agentsPath: .codex/agents
+contracts:
+  entry: COWORK_ENTRY_CONTRACT_V1
+  envelope: COWORK_DISPATCH_V1
+  delegation: COWORK_DELEGATION_V1
+  ackRequired: true
+  executeRequired: true
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual

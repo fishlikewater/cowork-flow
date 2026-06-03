@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import shlex
 import subprocess
@@ -21,10 +22,12 @@ class CodexHooksTest(unittest.TestCase):
         (root / ".cowork-flow").mkdir(parents=True)
         shutil.copytree(TEMPLATE / ".cowork-flow" / "scripts", root / ".cowork-flow" / "scripts")
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "run", root / ".cowork-flow" / "run")
+        shutil.copyfile(TEMPLATE / ".cowork-flow" / "run.cmd", root / ".cowork-flow" / "run.cmd")
         (root / ".cowork-flow" / "run").chmod(0o755)
         shutil.copytree(TEMPLATE / ".codex", root / ".codex")
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "workflow.md", root / ".cowork-flow" / "workflow.md")
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "config.yaml", root / ".cowork-flow" / "config.yaml")
+        shutil.copytree(TEMPLATE / ".cowork-flow" / "spec", root / ".cowork-flow" / "spec")
 
     def _run_hook(self, root: Path, payload: dict[str, object]) -> dict:
         env = os.environ.copy()
@@ -40,6 +43,7 @@ class CodexHooksTest(unittest.TestCase):
             [sys.executable, str(HOOK)],
             input=json.dumps({"cwd": str(root), **payload}),
             text=True,
+            encoding="utf-8",
             capture_output=True,
             cwd=root,
             env=env,
@@ -60,9 +64,14 @@ class CodexHooksTest(unittest.TestCase):
         self.assertEqual("UserPromptSubmit", output["hookEventName"])
         context = output["additionalContext"]
         self.assertIn("<codex-mode>sub-agent</codex-mode>", context)
+        self.assertIn('<cowork-runtime host="codex" adapter="codex.spawn_agent">', context)
+        self.assertIn("<contract-digest fingerprint=", context)
+        self.assertIn("COWORK_ENTRY_CONTRACT_V1", context)
+        self.assertIn(".cowork-flow/spec/entry-contract.md", context)
+        self.assertIn("read_before:", context)
         self.assertIn("<workflow-state>", context)
         self.assertIn("Status: no_task", context)
-        self.assertIn("create or start a task first", context)
+        self.assertIn("必须先创建或启动任务", context)
         self.assertNotIn("<subagent-notice>", context)
 
     def test_hook_emits_delegated_subtask_state_for_bounded_prompt(self) -> None:
@@ -84,9 +93,34 @@ class CodexHooksTest(unittest.TestCase):
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("Follow the delegated prompt first", context)
-        self.assertIn("project rules visible as constraints", context)
-        self.assertNotIn("create or start a task first", context)
+        self.assertIn("再执行委托输入", context)
+        self.assertIn("项目规则只作为约束", context)
+        self.assertNotIn("必须先创建或启动任务", context)
+
+    def test_hook_treats_delegation_envelope_as_delegated_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(
+                root,
+                {
+                    "prompt": (
+                        "COWORK_DELEGATION_V1\n"
+                        "dispatch_id: d1\n"
+                        "host: opencode\n"
+                        "role: cowork-implement\n"
+                        "task_dir: .cowork-flow/tasks/demo\n"
+                        "entry_kind: DELEGATED_HARD\n"
+                        "ack_token: t1\n"
+                        "COWORK_DELEGATION_END"
+                    )
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("COWORK_ENTRY_CONTRACT_V1", context)
 
     def test_hook_config_uses_cowork_flow_python_runner(self) -> None:
         hooks = json.loads((TEMPLATE / ".codex" / "hooks.json").read_text(encoding="utf-8"))
@@ -101,8 +135,11 @@ class CodexHooksTest(unittest.TestCase):
             hooks = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
             command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
 
+            command_parts = shlex.split(command)
+            if os.name == "nt":
+                command_parts[0] = str(root / ".cowork-flow" / "run.cmd")
             result = subprocess.run(
-                shlex.split(command),
+                command_parts,
                 input=json.dumps(
                     {
                         "cwd": str(root),
@@ -114,6 +151,7 @@ class CodexHooksTest(unittest.TestCase):
                     }
                 ),
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 cwd=root,
                 timeout=10,
@@ -143,7 +181,7 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Task: .cowork-flow/tasks/05-29-demo", context)
         self.assertIn("Status: in_progress", context)
-        self.assertIn("dispatches cowork-implement", context)
+        self.assertIn("派发 cowork-implement", context)
 
     def test_hook_reads_codex_dispatch_mode_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -188,12 +226,32 @@ class CodexHooksTest(unittest.TestCase):
                     data = self._run_hook(root, {})
 
                 context = data["hookSpecificOutput"]["additionalContext"]
-                self.assertIn("post_ack_execution_grace_ms: 300000", context)
+        self.assertIn("post_ack_execution_grace_ms: 300000", context)
+
+    def test_hook_contract_digest_fingerprint_tracks_spec_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            before = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
+            spec_file = root / ".cowork-flow" / "spec" / "entry-contract.md"
+            spec_file.write_text(
+                spec_file.read_text(encoding="utf-8") + "\n<!-- fingerprint smoke -->\n",
+                encoding="utf-8",
+            )
+            after = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
+
+        before_match = re.search(r'<contract-digest fingerprint="([^"]+)">', before)
+        after_match = re.search(r'<contract-digest fingerprint="([^"]+)">', after)
+        self.assertIsNotNone(before_match)
+        self.assertIsNotNone(after_match)
+        self.assertNotEqual(before_match.group(1), after_match.group(1))
 
     def test_hook_runtime_files_root_and_template_are_synced(self) -> None:
         for rel in (
             Path(".codex/hooks/inject-workflow-state.py"),
             Path(".cowork-flow/scripts/common/config.py"),
+            Path(".cowork-flow/scripts/common/active_task.py"),
         ):
             root_text = (ROOT / rel).read_text(encoding="utf-8")
             template_text = (TEMPLATE / rel).read_text(encoding="utf-8")

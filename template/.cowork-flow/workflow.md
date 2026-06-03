@@ -5,40 +5,40 @@
 默认执行模型固定为：
 
 ```text
-Plan -> Implement -> Check -> Finish
+计划 -> 实现 -> 检查 -> 完成
 ```
 
 核心路径：
 
-1. Plan: 建立任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
-2. Implement: 主会话用 `spawn_agent` 派发 `cowork-implement`，`fork_turns="none"`，先发 `COWORK_DISPATCH_V1` 信封并等待 `COWORK_ACK`。
-3. Check: 主会话用 `spawn_agent` 派发 `cowork-check`，`fork_turns="none"`，先发 `COWORK_DISPATCH_V1` 信封并等待 `COWORK_ACK`。
-4. Finish: 主会话做最终验证、同步规格、提交、归档、记录 session。
+1. 计划：建立任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
+2. 实现：主会话通过当前宿主适配器派发 `cowork-implement`，先发 `COWORK_DISPATCH_V1` 信封并等待 `COWORK_ACK`。
+3. 检查：主会话通过当前宿主适配器派发 `cowork-check`，先发 `COWORK_DISPATCH_V1` 信封并等待 `COWORK_ACK`。
+4. 完成：主会话做最终验证、同步规格、提交、归档、记录会话。
 
-`cowork-flow` 只保存项目状态、任务上下文和恢复线索；实际执行由主会话和固定 `cowork-*` agent 完成。
+`cowork-flow` 只保存项目状态、任务上下文、宿主适配器契约和恢复线索；实际执行由主会话和固定 `cowork-*` 代理完成。宿主工具名只写在 `.cowork-flow/adapters/<host>/adapter.yaml`，不进入流程分支。
 
-## 1.1 Hook 注入状态
+## 1.1 钩子注入状态
 
-`.codex/hooks/inject-workflow-state.py` 每轮读取当前 session task，并把下面的 `[workflow-state:*]` 片段注入 Codex 上下文。`workflow.md` 是状态提示的唯一来源；修改流程时必须同步这些片段。
+宿主钩子或插件每轮读取当前会话任务，并把下面的 `[workflow-state:*]` 片段注入上下文。`workflow.md` 是状态提示的唯一来源；修改流程时必须同步这些片段。入口分类必须先于任务启动、恢复、归档或子代理派发。
 
 [workflow-state:no_task]
-No active task for this session. For read-only Q&A, answer directly. For implementation, refactor, behavior change, or multi-step work, create or start a task first, then continue through Plan -> Implement -> Check -> Finish.
+当前会话没有活动任务。只读问答可直接回答；实现、重构、行为变更或多步骤工作必须先创建或启动任务，再按计划 -> 实现 -> 检查 -> 完成继续。
 [/workflow-state:no_task]
 
 [workflow-state:delegated_subtask]
-The current prompt looks like a bounded delegated subtask. Follow the delegated prompt first. Do not run start/resume, create or activate a task, or switch into main-session coordination unless the delegated prompt explicitly asks for that. Keep project rules visible as constraints, not as the task.
+当前输入看起来是有边界的委托子任务。先按 COWORK_ENTRY_CONTRACT_V1 做入口分类，再执行委托输入。除非委托信封明确允许，否则不要运行 start/resume，不要创建或激活任务，不要归档、提交或切换到主会话协调。项目规则只作为约束，不是当前任务本身。
 [/workflow-state:delegated_subtask]
 
 [workflow-state:planning]
-The active task is in planning. Finish prd.md, curate implement.jsonl and check.jsonl with spec/research files, then run task start before dispatching cowork-implement.
+活动任务处于计划阶段。先完成 prd.md，整理带有规格/调研文件的 implement.jsonl 和 check.jsonl，再运行 task start，之后才派发 cowork-implement。
 [/workflow-state:planning]
 
 [workflow-state:in_progress]
-The active task is in progress. Main session dispatches cowork-implement work according to the plan, then cowork-check after integration. Every spawn_agent call uses fork_turns="none" and a COWORK_DISPATCH_V1 envelope. Main session waits for COWORK_ACK, sends EXECUTE with followup_task, then uses per-dispatch post-ACK execution grace while each child loads context. Main session verifies child output, lists agents, and closes children only after completion or clear failure evidence.
+活动任务正在执行。主会话按计划通过当前宿主适配器派发 cowork-implement，集成后再派发 cowork-check。每次正式派发都必须使用新鲜子上下文和 COWORK_DISPATCH_V1 信封。主会话等待 COWORK_ACK，发送 EXECUTE <dispatch_id>，并在每个子任务加载上下文期间使用单独的 ACK 后执行宽限期。主会话必须核验子任务输出、列出子任务，并且只在完成、明确错派证据或用户取消后才取消子任务。
 [/workflow-state:in_progress]
 
 [workflow-state:completed]
-The active task is completed. Main session should verify the final diff, commit intended files, archive the task, and record the session. Do not dispatch new implementation work against this completed task.
+活动任务已完成。主会话应核验最终 diff，提交目标文件，归档任务并记录会话。不要针对已完成任务继续派发新的实现工作。
 [/workflow-state:completed]
 
 ## 2. 状态文件
@@ -56,29 +56,23 @@ The active task is completed. Main session should verify the final diff, commit 
 | 项目规格 | `.cowork-flow/spec/` |
 | 会话记录 | `.cowork-flow/workspace/<developer>/journal-*.md` |
 
-当前任务是 session-scoped。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID` 或 `CODEX_THREAD_ID` 时，不得猜测当前任务。
+当前任务是会话级状态。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID` 或 `CODEX_THREAD_ID` 时，不得猜测当前任务。
 
-## 3. Agent
+## 3. 固定代理
 
-### cowork-research
+固定代理只执行主会话派发的叶子任务。子代理是执行者，子任务是工作单元。
 
-- 只做调研。
-- 只写入 `<task>/research/`。
-- 不改代码、不改规格、不改任务状态、不操作 git。
+| 代理 | 读取 | 允许 | 禁止 | 输出 |
+| --- | --- | --- | --- | --- |
+| `cowork-research` | 任务上下文和调研输入 | 只做调研，只写入 `<task>/research/` | 改代码、改规格、改任务状态、操作 Git | 调研结论和证据 |
+| `cowork-implement` | `<task>/prd.md`、`<task>/info.md`、`<task>/implement.jsonl` 和 JSONL 指向的文件 | 按任务范围实现 | 启动其他代理、提交、归档、运行 `task start`、`task finish` 或 `task archive` | 改动文件和验证命令 |
+| `cowork-check` | `<task>/prd.md`、`<task>/check.jsonl` 和 `git diff` | 检查行为、测试、规格同步和遗漏；范围内问题直接修复 | 提交、归档、启动其他代理 | 检查结论、修复内容和验证结果 |
 
-### cowork-implement
+## 3.1 固定代理派发入口
 
-- 读取 `<task>/prd.md`、`<task>/info.md`、`<task>/implement.jsonl` 和 JSONL 指向的文件。
-- 按任务范围实现。
-- 不启动其他 agent，不提交，不归档，不运行 task start/finish/archive。
-- 汇报改动文件和验证命令。
+固定 `cowork-*` 代理使用宿主适配器契约，由主会话负责派发、等待、验收和取消。宿主专属原语只在 `.cowork-flow/adapters/<host>/adapter.yaml` 中声明；工作流只关心能力与固定协议。
 
-### cowork-check
-
-- 读取 `<task>/prd.md`、`<task>/check.jsonl` 和 `git diff`。
-- 检查行为、测试、规格同步和遗漏。
-- 范围内问题直接修复。
-- 不提交、不归档、不启动其他 agent。
+### 3.1.1 兼容入口提示
 
 兼容旧派发时，提示仍可用这一行开头：
 
@@ -86,70 +80,91 @@ The active task is completed. Main session should verify the final diff, commit 
 Active task: .cowork-flow/tasks/<task>
 ```
 
-## 3.1 Agent 派发入口
+### 3.1.2 派发前置条件
 
-固定 `cowork-*` agent 使用 Codex 原生 subagent 工具，由主会话负责派发、等待、验收和关闭。派发必须用 `fork_turns="none"`，避免子线程继承主会话历史。
+正式派发必须满足：
 
-主会话派发约定：
+- `COWORK_ENTRY_CONTRACT_V1` 已完成入口分类。
+- 宿主适配器具备 `dispatchSubagent`、`freshChildContext`、`waitChild`、`listChildren` 和 `cancelChild` 所需能力，或按 `fallback.whenRequiredCapabilityMissing` 进入内联/人工兜底。
+- 子任务第一屏必须包含 `COWORK_DISPATCH_V1` 或 `COWORK_DELEGATION_V1`。
+- 子代理必须是叶子执行者。
 
-```python
-spawn_agent(
-    agent_type="cowork-implement",
-    fork_turns="none",
-    message=(
-        "COWORK_DISPATCH_V1\n"
-        "dispatch_id: <unique-id>\n"
-        "task_dir: .cowork-flow/tasks/<task>\n"
-        "agent_type: cowork-implement\n"
-        "role: implement\n"
-        "context_file: <context-file>\n"
-        "ack_token: <ack-token>\n"
-        "COWORK_DISPATCH_END\n\n"
-        "Return only: COWORK_ACK <dispatch_id> <ack_token>"
-    ),
-)
+### 3.1.3 派发信封
+
+主会话派发信封：
+
+```text
+COWORK_DISPATCH_V1
+dispatch_id: <unique-id>
+task_dir: .cowork-flow/tasks/<task>
+agent_type: cowork-implement
+role: implement
+context_file: <context-file>
+ack_token: <ack-token>
+COWORK_DISPATCH_END
+
+只返回：COWORK_ACK <dispatch_id> <ack_token>
 ```
 
-等待与验收约定：
+### 3.1.4 ACK 与执行闸门
 
-- Use `wait_agent` for `COWORK_ACK <dispatch_id> <ack_token>` before execution.
-- Missing or mismatched `COWORK_ACK` means the task is not dispatched.
-- Only after a matching ACK, send `EXECUTE <dispatch_id>` with `followup_task`.
-- Record `execute_sent_at[dispatch_id]` when `EXECUTE <dispatch_id>` is sent.
-- Compute `deadline[dispatch_id] = execute_sent_at[dispatch_id] + codex.post_ack_execution_grace_ms`; do not use a shared/global deadline across children.
-- After `EXECUTE <dispatch_id>`, no reply or no compass/status file while the child loads context is inconclusive.
-- Use post-ACK execution grace for execution startup before judging execution health. The default is `300000` ms and can be configured with `codex.post_ack_execution_grace_ms` in `.cowork-flow/config.yaml`.
-- Do not call `close_agent` only because the executing child has not produced a compass/status file.
-- If `list_agents` still shows the child running, continue waiting through post-ACK execution grace instead of closing it.
-- Post-ACK execution grace expiration for one `dispatch_id` is a review checkpoint for that child only, not a close trigger and not evidence about other children.
-- If progress, compass, or status files exist, continue waiting and do not close solely because grace expired.
-- If a child reports another `dispatch_id`, close that child and respawn the intended task.
-- An executing child may be closed only after wrong-dispatch evidence, child completion, or user cancellation.
-- 用 `wait_agent` 等待子 agent 返回。
-- 用 `list_agents` 确认没有遗留 running child。
-- 验收子 agent 汇报的文件、命令和结果；不只信“已完成”文本。
-- 完成或失败后用 `close_agent` 关闭子 agent。
-- 子 agent 自身是 leaf executor；不得再调用 `spawn_agent`、`wait_agent`、`list_agents`、`close_agent`。
+- 执行前先用适配器等待原语等待 `COWORK_ACK <dispatch_id> <ack_token>`。
+- 缺失或不匹配的 `COWORK_ACK` 表示任务尚未成功派发。
+- 只有匹配 ACK 后，才通过适配器后续发送原语发送 `EXECUTE <dispatch_id>`；若宿主不支持后续发送，则必须在正式命令或任务提示中包含等价执行闸门。
+- 发送 `EXECUTE <dispatch_id>` 时记录 `execute_sent_at[dispatch_id]`。
 
-Generic worker boundary:
+### 3.1.5 ACK 后宽限期与健康判断
 
-- Formal execution uses `cowork-research`, `cowork-implement`, or `cowork-check`.
-- Generic `worker` dispatch is best-effort only.
-- If a generic worker does not ACK after one retry, close it and do not execute the task.
-- For advisory/default subagents without a hard envelope, the first sentence must explicitly say this is a bounded delegated task, not a main-session start request. This is a natural-language first-screen boundary, not a new runtime state machine.
+- 计算 `deadline[dispatch_id] = execute_sent_at[dispatch_id] + post_ack_execution_grace_ms`；不得在多个子任务之间使用共享/全局截止时间。
+- `EXECUTE <dispatch_id>` 后，子任务加载上下文期间没有回复或没有 `compass` / `status` 文件，不能判定异常。
+- 判断执行健康前必须使用 ACK 后执行宽限期。默认值是 `300000` ms，可由适配器相关运行时配置调整。
+- 不得因为执行中的子任务尚未产出 `compass` / `status` 文件就取消或关闭它。
+- 如果适配器列表原语仍显示子任务运行中，应继续等待 ACK 后执行宽限期，而不是取消它。
+- 某个 `dispatch_id` 的 ACK 后执行宽限期到期，只是该子任务的复核点，不是关闭触发器，也不是其他子任务的证据。
+- 如果存在 `progress`、`compass` 或 `status` 文件，继续等待，不得只因宽限期到期而关闭。
+- 如果子任务报告另一个 `dispatch_id`，关闭该子任务并重新派发目标任务。
+- 执行中的子任务只能在错派证据明确、子任务完成或用户取消后关闭。
 
-## 3.2 parallel sessions
+### 3.1.6 返回验收与收口
 
-并行执行采用 clean-room 的 parallel sessions 模型：
+- 用适配器等待原语等待子代理返回。
+- 用适配器列表原语确认没有遗留运行中的子任务。
+- 验收子代理汇报的文件、命令和结果；不只信“已完成”文本。
+- 完成或失败后用适配器取消/关闭原语收口子代理。
+- 子代理自身是叶子执行者；不得再派发、等待、列出或取消其他代理。
 
-- 用户无需在需求输入时声明是否并行；Plan 阶段由主会话评估并行可行性。
-- 开发计划必须明确执行策略：串行执行，或列出可并行的 low-conflict slices。
-- 多个独立任务优先拆成多个 Codex sessions；只要存在写入冲突风险，就用独立 `git worktree` 隔离。
-- 单个 task 内只允许低冲突的 low-conflict slices 并行；每个 slice 必须写清 file ownership、dependencies、expected outputs 和验证命令。
+### 3.1.7 通用 worker 边界
+
+- 正式执行只使用 `cowork-research`、`cowork-implement` 或 `cowork-check`。
+- 通用 `worker` 派发只视为尽力而为。
+- 如果通用 worker 重试一次后仍未 ACK，关闭它且不要执行该任务。
+- 没有硬信封的建议型/默认子代理一律视为 `DELEGATED_SOFT`。首句仍应说明这是有边界的委托任务，不是主会话启动请求；这只是自然语言首屏边界，不是正式执行证据。建议型输出不能满足正式实现或检查完成条件。
+
+## 3.2 并行会话
+
+并行执行采用干净隔离的并行会话模型。并行只是执行策略，不改变固定代理叶子边界。
+
+### 3.2.1 并行决策
+
+- 用户无需在需求输入时声明是否并行；计划阶段由主会话评估并行可行性。
+- 开发计划必须明确执行策略：串行执行，或列出可并行的低冲突切片。
 - 同一文件、同一行为链、依赖未合并或验收标准不清的工作不得并行，改为串行。
-- 主会话是唯一协调者：派发所有子 agent 后逐个 `wait_agent`，核对子 agent 汇报的文件、命令和产物，再 `list_agents` / `close_agent` 收口。
-- 多个实现 slice 合并后必须再执行 final integrated verification；不能把各子 agent 的局部通过当成整体通过。
-- 固定 `cowork-*` agent 仍是 leaf executor；并行不允许子 agent 再派发 agent，也不引入旧集中式状态机。
+
+### 3.2.2 隔离方式
+
+- 多个独立任务优先拆成多个 cowork-flow 会话。
+- 只要存在写入冲突风险，就用独立 `git worktree` 隔离。
+
+### 3.2.3 单任务内切片
+
+- 单个任务内只允许低冲突切片并行。
+- 每个切片必须写清文件归属、依赖关系、预期产物和验证命令。
+
+### 3.2.4 协调与验收
+
+- 主会话是唯一协调者：派发所有子代理后逐个等待，核对子代理汇报的文件、命令和产物，再用适配器列表/取消原语收口。
+- 多个实现切片合并后必须再执行最终集成验证；不能把各子代理的局部通过当成整体通过。
+- 固定 `cowork-*` 代理仍是叶子执行者；并行不允许子代理再派发代理，也不引入集中式状态机。
 
 ## 4. 任务分级
 
@@ -157,21 +172,21 @@ Generic worker boundary:
 
 适用：文档、格式、小范围重构、注释、脚本整理、测试补充，且不改变用户可观察行为。
 
-流程：读取规则 -> 创建或选择任务 -> 写 PRD -> 初始化上下文 -> 实现 -> 验证 -> 记录 session。
+流程：读取规则 -> 创建或选择任务 -> 写 PRD -> 初始化上下文 -> 实现 -> 验证 -> 记录会话。
 
 ### L1: 局部行为变化
 
 适用：单模块功能、局部接口行为、局部数据处理逻辑，边界清晰。
 
-流程：change -> brainstorming -> spec -> plan -> task context -> Implement -> Check -> Finish。
+流程：`change` -> `brainstorming` -> `spec` -> `plan` -> `task context` -> 实现 -> 检查 -> 完成。
 
 ### L2: 跨层或重要行为变化
 
 适用：API / DB / 消息 / 权限 / 文件格式 / 架构边界 / 发布迁移 / 安全策略等变化。
 
-流程：change -> brainstorming -> design.md -> spec -> plan -> task context -> Implement -> Check -> Finish -> cross-layer review。
+流程：`change` -> `brainstorming` -> `design.md` -> `spec` -> `plan` -> `task context` -> 实现 -> 检查 -> 完成 -> 跨层复核。
 
-## 5. Plan 阶段
+## 5. 计划阶段
 
 1. 读取 `AGENTS.md`、本文件、相关 `.cowork-flow/spec/` 索引。
 2. 创建或确认任务：
@@ -203,9 +218,9 @@ Windows PowerShell 使用：
 .\.cowork-flow\run.cmd task start <task-dir>
 ```
 
-## 6. Implement 阶段
+## 6. 实现阶段
 
-默认派发 `cowork-implement`。派发调用必须设置 `fork_turns="none"`，优先使用 `COWORK_DISPATCH_V1` 信封；兼容旧消息时第一行：
+默认通过宿主适配器派发 `cowork-implement`。派发必须使用新鲜子上下文，优先使用 `COWORK_DISPATCH_V1` 信封；兼容旧消息时第一行：
 
 ```text
 Active task: .cowork-flow/tasks/<task>
@@ -213,13 +228,13 @@ Active task: .cowork-flow/tasks/<task>
 
 派发内容应包含当前计划步骤、范围边界和期望验证命令。
 
-如果用户明确要求主会话 inline 执行，或当前任务正在修改 subagent/runtime 行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
+如果用户明确要求主会话内联执行，或当前任务正在修改子代理/运行时行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
 
 涉及行为变化时，先写失败测试，再实现，再验证变绿。
 
-## 7. Check 阶段
+## 7. 检查阶段
 
-默认派发 `cowork-check`。派发调用必须设置 `fork_turns="none"`，优先使用 `COWORK_DISPATCH_V1` 信封；兼容旧消息时第一行：
+默认通过宿主适配器派发 `cowork-check`。派发必须使用新鲜子上下文，优先使用 `COWORK_DISPATCH_V1` 信封；兼容旧消息时第一行：
 
 ```text
 Active task: .cowork-flow/tasks/<task>
@@ -231,20 +246,20 @@ Active task: .cowork-flow/tasks/<task>
 - `git diff` 是否只包含预期范围。
 - 测试是否覆盖关键行为。
 - `.cowork-flow/spec/` 是否需要更新。
-- plan checkbox 和执行状态是否真实。
+- 计划勾选项和执行状态是否真实。
 
-如果用户明确要求主会话 inline 检查，可以不派发 `cowork-check`，但必须执行等价的 diff、测试、规格同步检查。
+如果用户明确要求主会话内联检查，可以不派发 `cowork-check`，但必须执行等价的 diff、测试、规格同步检查。
 
-## 8. Finish 阶段
+## 8. 完成阶段
 
 完成前必须确认：
 
-- 当前 session 存在任务，或明确说明本次是无任务只读工作。
+- 当前会话存在任务，或明确说明本次是无任务只读工作。
 - `cowork-check` 或等价最终检查已执行。
 - 所有声明通过的验证都有命令输出依据。
 - 规格已更新，或明确判断无需更新。
-- 计划状态、任务状态、change metadata 不冲突。
-- 提交在归档和 session 记录之前完成。
+- 计划状态、任务状态、`change` 元数据不冲突。
+- 提交在归档和会话记录之前完成。
 - 不纳入无关脏改。
 
 推荐顺序：
@@ -265,8 +280,8 @@ git commit -m "<message>"
 
 1. 运行 `./.cowork-flow/run resume`。
 2. 按 `RESUME CHECKLIST` 读取当前任务 PRD、计划状态和 JSONL 指向文件。
-3. 不批量读取所有 spec、所有 plans、所有 tasks 或 workspace journal。
-4. 不存在当前 session task 时，先创建或启动任务。
+3. 不批量读取所有规格、计划、任务或工作区日志。
+4. 不存在当前会话任务时，先创建或启动任务。
 
 ## 10. 禁止事项
 
@@ -275,4 +290,4 @@ git commit -m "<message>"
 - 不维护第二套执行状态。
 - 不把口头状态当成可靠状态。
 - 不把验证未运行说成通过。
-- 不把旧运行模型作为 fallback。
+- 不把旧运行模型作为兜底。

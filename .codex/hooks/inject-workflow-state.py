@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import sys
@@ -18,7 +19,10 @@ TAG_RE = re.compile(
 PROMPT_KEYS = ("prompt", "user_prompt", "userPrompt", "message", "input")
 DELEGATED_MARKERS = (
     "COWORK_DISPATCH_V1",
+    "COWORK_DELEGATION_V1",
     "COWORK_DELEGATED_TASK_V1",
+    "DELEGATED_HARD",
+    "DELEGATED_SOFT",
     "DELEGATED_SUBTASK",
 )
 DELEGATED_TERMS = (
@@ -70,6 +74,28 @@ OUTPUT_TERMS = (
     "输出:",
     "分为",
 )
+DEFAULT_CONTRACT_REGISTRY = {
+    "contracts": [
+        {
+            "id": "COWORK_ENTRY_CONTRACT_V1",
+            "path": ".cowork-flow/spec/entry-contract.md",
+            "digest": [
+                "Classify COWORK_DELEGATION_V1 and COWORK_DISPATCH_V1 before workflow recovery.",
+                "UNKNOWN entries must not start, resume, archive, commit, or dispatch subagents.",
+            ],
+            "readWhen": ["before task start/resume/archive", "before subagent dispatch"],
+        },
+        {
+            "id": "COWORK_DELEGATION_V1",
+            "path": ".cowork-flow/spec/delegation-envelope.md",
+            "digest": [
+                "ACK must match dispatch_id and ack_token before EXECUTE.",
+                "DELEGATED_SOFT entries are advisory and cannot complete Implement or Check.",
+            ],
+            "readWhen": ["before formal subagent dispatch", "when using a generic worker"],
+        },
+    ]
+}
 
 def _find_repo_root(start: Path) -> Path | None:
     current = start.resolve()
@@ -124,6 +150,62 @@ def _load_breadcrumbs(root: Path) -> dict[str, str]:
     except OSError:
         return {}
     return {match.group(1): match.group(2).strip() for match in TAG_RE.finditer(text)}
+
+
+def _as_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item.strip()]
+
+
+def _load_contract_registry(root: Path) -> list[dict[str, Any]]:
+    registry_file = root / ".cowork-flow" / "spec" / "registry.json"
+    try:
+        data = json.loads(registry_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        data = DEFAULT_CONTRACT_REGISTRY
+    contracts = data.get("contracts") if isinstance(data, dict) else None
+    if not isinstance(contracts, list):
+        contracts = DEFAULT_CONTRACT_REGISTRY["contracts"]
+    return [contract for contract in contracts if isinstance(contract, dict)]
+
+
+def _contract_fingerprint(root: Path, contracts: list[dict[str, Any]]) -> str:
+    digest = hashlib.sha256()
+    digest.update(json.dumps(contracts, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+    for contract in contracts:
+        path = contract.get("path")
+        if not isinstance(path, str) or not path.strip():
+            continue
+        try:
+            digest.update((root / path).read_bytes())
+        except OSError:
+            digest.update(f"missing:{path}".encode("utf-8"))
+    return digest.hexdigest()[:16]
+
+
+def _build_contract_digest(root: Path) -> str:
+    contracts = _load_contract_registry(root)
+    fingerprint = _contract_fingerprint(root, contracts)
+    lines = [
+        '<cowork-runtime host="codex" adapter="codex.spawn_agent">',
+        f'<contract-digest fingerprint="{fingerprint}">',
+        "policy: repeat this short digest every hook; read full spec files only before listed actions.",
+    ]
+    for contract in contracts:
+        contract_id = contract.get("id")
+        path = contract.get("path")
+        if not isinstance(contract_id, str) or not contract_id.strip():
+            continue
+        path_text = path if isinstance(path, str) and path.strip() else "<missing-path>"
+        lines.append(f"- {contract_id}: {path_text}")
+        for item in _as_string_list(contract.get("digest"))[:2]:
+            lines.append(f"  digest: {item}")
+        read_when = _as_string_list(contract.get("readWhen"))
+        if read_when:
+            lines.append(f"  read_before: {'; '.join(read_when)}")
+    lines.extend(["</contract-digest>", "</cowork-runtime>"])
+    return "\n".join(lines)
 
 
 def _load_common(root: Path) -> None:
@@ -184,6 +266,7 @@ def _get_active_task(root: Path, hook_input: dict[str, Any]) -> tuple[str | None
 
 
 def _build_context(
+    root: Path,
     task_path: str | None,
     status: str,
     source: str,
@@ -204,6 +287,9 @@ def _build_context(
                 "<codex-runtime>\n"
                 f"post_ack_execution_grace_ms: {post_ack_execution_grace_ms}\n"
                 "</codex-runtime>"
+            ),
+            (
+                _build_contract_digest(root)
             ),
             f"<workflow-state>\n{header}\n{body}\n</workflow-state>",
         ]
@@ -230,6 +316,7 @@ def main() -> int:
         status = "delegated_subtask"
         source = "prompt"
     additional_context = _build_context(
+        root,
         task_path,
         status,
         source,
