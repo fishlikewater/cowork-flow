@@ -1,7 +1,13 @@
 import { resolve } from 'node:path';
 
-import { applyPlan, buildSyncPlan, summarizePlan } from '../lib/copy-template.js';
+import {
+  applyPlan,
+  buildSyncPlan,
+  detectInstalledPlatforms,
+  summarizePlan
+} from '../lib/copy-template.js';
 import { readPackageInfo } from '../lib/package-info.js';
+import { formatPlatformList } from '../lib/platforms.js';
 
 function parseSyncArgs(args) {
   const options = { dryRun: false, force: false, target: process.cwd() };
@@ -22,12 +28,15 @@ function parseSyncArgs(args) {
 export async function runSync(args, { io }) {
   const options = parseSyncArgs(args);
   const packageInfo = await readPackageInfo();
+  const platforms = await detectInstalledPlatforms(options.target);
   const plan = await buildSyncPlan(options.target, {
     force: options.force,
+    platforms,
     version: packageInfo.version
   });
 
   await applyPlan(plan, { dryRun: options.dryRun });
   io.writeOut(summarizePlan(plan, options.dryRun));
+  io.writeOut(`Platforms: ${platforms.length > 0 ? formatPlatformList(platforms) : 'none'}\n`);
   return 0;
 }

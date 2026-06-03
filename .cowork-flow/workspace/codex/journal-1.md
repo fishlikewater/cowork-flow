@@ -872,3 +872,33 @@ Made OpenCode plugin registry-driven for contract digest injection; added plugin
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 28: CLI platform-select init and sync
+
+**Date**: 2026-06-03
+**Task**: CLI platform-select init and sync
+
+### Summary
+
+Added init platform selection for Codex/OpenCode assets and sync host auto-detection; updated CLI tests and README.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
