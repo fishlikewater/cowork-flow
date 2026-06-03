@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 26
-- **Last Active**: 2026-06-01
+- **Total Sessions**: 27
+- **Last Active**: 2026-06-03
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~840 | Current |
+| `journal-1.md` | ~874 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 27 | 2026-06-03 | OpenCode contract digest parity | - |
 | 26 | 2026-06-01 | Make post_ack_execution_grace_ms runtime effective | `fbaedf0` |
 | 25 | 2026-05-30 | Harden delegated bootstrap classification | `057bf63` |
 | 24 | 2026-05-29 | Clarify parallel planning decision | pending |

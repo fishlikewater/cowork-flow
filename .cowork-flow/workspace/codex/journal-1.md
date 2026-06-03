@@ -842,3 +842,33 @@ Added runtime config parsing and hook injection for codex.post_ack_execution_gra
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 27: OpenCode contract digest parity
+
+**Date**: 2026-06-03
+**Task**: OpenCode contract digest parity
+
+### Summary
+
+Made OpenCode plugin registry-driven for contract digest injection; added plugin execution tests and host-adapter doctor checks.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

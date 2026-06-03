@@ -121,4 +121,8 @@ class HostAdaptersTest(unittest.TestCase):
 
             plugin = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
             self.assertIn("experimental.chat.system.transform", plugin)
+            self.assertIn(".cowork-flow\", \"spec\", \"registry.json", plugin)
+            self.assertIn("contract-digest", plugin)
+            self.assertIn("fingerprint", plugin)
+            self.assertIn("read_before", plugin)
             self.assertIn("COWORK_ENTRY_CONTRACT_V1", plugin)
