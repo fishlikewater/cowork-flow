@@ -1,0 +1,21 @@
+{
+  "id": "06-03-add-claude-code-adapter",
+  "name": "06-03-add-claude-code-adapter",
+  "title": "Add Claude Code adapter",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-03",
+  "completedAt": null,
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

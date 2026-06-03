@@ -57,12 +57,12 @@ class HostAdaptersTest(unittest.TestCase):
                 enum,
             )
 
-    def test_codex_and_opencode_adapters_match_contract(self) -> None:
+    def test_host_adapters_match_contract(self) -> None:
         for base in (
             ROOT / ".cowork-flow" / "adapters",
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode"):
+            for host in ("codex", "opencode", "claude-code"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(1, adapter["schemaVersion"])
                 self.assertEqual(host, adapter["host"])
@@ -126,3 +126,29 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn("fingerprint", plugin)
             self.assertIn("read_before", plugin)
             self.assertIn("COWORK_ENTRY_CONTRACT_V1", plugin)
+
+    def test_claude_code_assets_encode_fixed_agent_contract(self) -> None:
+        for base in (ROOT / ".claude", ROOT / "template" / ".claude"):
+            for name in ("cowork-research", "cowork-implement", "cowork-check"):
+                text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
+                self.assertIn(f"name: {name}", text)
+                self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
+                self.assertIn("COWORK_DISPATCH_V1", text)
+                self.assertIn("COWORK_DELEGATION_V1", text)
+                self.assertIn("host: claude-code", text)
+                self.assertIn("COWORK_ACK", text)
+                self.assertIn("EXECUTE <dispatch_id>", text)
+                self.assertIn("leaf", text)
+                self.assertIn("Do not use the Task tool or invoke subagents", text)
+
+            for name in ("cowork-research", "cowork-implement", "cowork-check"):
+                text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")
+                self.assertIn(f"Use the `{name}` agent", text)
+                self.assertIn("COWORK_DELEGATION_V1", text)
+                self.assertIn("host: claude-code", text)
+
+        for path in (ROOT / "CLAUDE.md", ROOT / "template" / "CLAUDE.md"):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("<!-- COWORK-FLOW:START -->", text)
+            self.assertIn("COWORK_DELEGATION_V1", text)
+            self.assertIn(".claude/agents/cowork-implement.md", text)

@@ -1,0 +1,7 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": "src/commands/init.js", "reason": "Platform selector labels"}
+{"file": ".cowork-flow/adapters/", "type": "directory", "reason": "Host adapter declarations"}
+{"file": "template/.cowork-flow/adapters/", "type": "directory", "reason": "Template adapters"}

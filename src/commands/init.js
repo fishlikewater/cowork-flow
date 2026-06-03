@@ -107,6 +107,19 @@ async function resolveDeveloperName(options, prompt) {
   return { existing: false, name: normalizeDeveloperName(name) };
 }
 
+function platformLabel(platform) {
+  if (platform === 'codex') {
+    return 'Codex';
+  }
+  if (platform === 'opencode') {
+    return 'OpenCode';
+  }
+  if (platform === 'claude-code') {
+    return 'Claude Code';
+  }
+  return platform;
+}
+
 async function resolvePlatforms(options, selectPlatforms) {
   if (options.platforms.length > 0) {
     return parsePlatformSelection(options.platforms);
@@ -117,7 +130,7 @@ async function resolvePlatforms(options, selectPlatforms) {
     selected = await selectPlatforms({
       message: 'Select platforms to set up',
       choices: SUPPORTED_PLATFORMS.map((platform) => ({
-        label: platform === 'codex' ? 'Codex' : 'OpenCode',
+        label: platformLabel(platform),
         value: platform
       })),
       defaultSelected: ['codex']

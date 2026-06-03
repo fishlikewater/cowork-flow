@@ -1,0 +1,26 @@
+schemaVersion: 1
+host: claude-code
+displayName: Claude Code
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: native
+  waitChild: native
+  listChildren: native
+  cancelChild: native
+  stateInjection: external
+  backgroundChild: experimental
+dispatch:
+  primitive: subagent
+  agentsPath: .claude/agents
+  commandsPath: .claude/commands
+  memoryPath: CLAUDE.md
+contracts:
+  entry: COWORK_ENTRY_CONTRACT_V1
+  envelope: COWORK_DISPATCH_V1
+  delegation: COWORK_DELEGATION_V1
+  ackRequired: true
+  executeRequired: true
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual
