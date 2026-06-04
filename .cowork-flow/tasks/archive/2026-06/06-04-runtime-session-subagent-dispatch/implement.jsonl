@@ -4,8 +4,8 @@
 {"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
 {"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
 {"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
-{"file": ".cowork-flow/changes/06-04-runtime-session-subagent-dispatch/design.md", "reason": "Runtime-context dispatch design"}
-{"file": ".cowork-flow/changes/06-04-runtime-session-subagent-dispatch/spec.md", "reason": "Runtime-context dispatch requirements"}
+{"file": ".cowork-flow/changes/archive/2026-06/06-04-runtime-session-subagent-dispatch/design.md", "reason": "Runtime-context dispatch design"}
+{"file": ".cowork-flow/changes/archive/2026-06/06-04-runtime-session-subagent-dispatch/spec.md", "reason": "Runtime-context dispatch requirements"}
 {"file": ".cowork-flow/scripts/subagent.py", "reason": "Existing subagent runtime command to migrate"}
 {"file": ".cowork-flow/scripts/common/active_task.py", "reason": "Main/subagent session resolution"}
 {"file": ".codex/hooks/inject-workflow-state.py", "reason": "Codex runtime state injection"}
