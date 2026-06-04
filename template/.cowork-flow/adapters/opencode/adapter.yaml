@@ -10,18 +10,24 @@ capabilities:
   cancelChild: native
   stateInjection: plugin
   backgroundChild: experimental
+  runtimeContextDispatch: native
+  runtimeContextBinding: plugin
+  runtimeContextCleanup: native
 dispatch:
   primitive: task
   agentsPath: .opencode/agents
   commandsPath: .opencode/commands
   pluginsPath: .opencode/plugins
   backgroundRequiresEnv: OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+runtimeContext:
+  transport: prompt
+  promptKey: cowork_runtime_context_id
+  envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
+  metadataKey: cowork_runtime_context_id
 contracts:
   entry: COWORK_ENTRY_CONTRACT_V1
-  envelope: COWORK_DISPATCH_V1
-  delegation: COWORK_DELEGATION_V1
-  ackRequired: true
-  executeRequired: true
+  dispatch: RUNTIME_CONTEXT_DISPATCH_V2
   leafExecutor: true
 fallback:
   whenRequiredCapabilityMissing: inline_or_manual
+  whenRuntimeContextMissing: fail_closed

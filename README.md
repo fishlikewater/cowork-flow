@@ -61,10 +61,10 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`，以及对 Codex 默认 `worker`、`default`、`explorer` 的项目级防漂移约束。主会话负责计划与收口，并用 Codex `spawn_agent` 派发固定 agent；派发必须使用 `fork_turns="none"`，提示词首行使用 `Active task: <task-dir>`。
 
 `template/.codex/config.toml`、`template/.codex/hooks.json`、`template/.codex/hooks/`
-Codex 项目级配置与每轮上下文注入入口。hook 会先用共享 entry classifier 判定当前输入，再读取当前 session task、`.cowork-flow/spec/workflow-state-templates.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。
+Codex 项目级配置与每轮上下文注入入口。hook 会先用共享 entry classifier 判定当前输入，再读取当前 session task、`.cowork-flow/spec/workflow-state-templates.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。注入的 `codex-dispatch-mode` 只是主会话调度提示，不代表当前线程身份。
 
 `template/CLAUDE.md`、`template/.claude/settings.json`、`template/.claude/agents/`、`template/.claude/skills/`、`template/.claude/commands/`、`template/.claude/hooks/`
-Claude Code 项目级记忆、hook、固定 agent、skills 和 slash command。`CLAUDE.md` 显式导入 `AGENTS.md`。`.claude/settings.json` 注册 `UserPromptSubmit` 和 `SessionStart` hook，注入当前 workflow state 与 contract digest。固定 agent 使用 `COWORK_DISPATCH_V1` / `COWORK_DELEGATION_V1` 握手，先 ACK 再等待 `EXECUTE <dispatch_id>`，避免被项目 bootstrap 或无任务首屏上下文拉偏。Claude Code 不自动加载 `.agent/skills/`，所以项目技能要放进 `.claude/skills/`。
+Claude Code 项目级记忆、hook、固定 agent、skills 和 slash command。`CLAUDE.md` 显式导入 `AGENTS.md`。`.claude/settings.json` 注册 `UserPromptSubmit` 和 `SessionStart` hook，注入当前 workflow state 与 contract digest。固定 agent 通过 `.cowork-flow/run subagent init` 生成 runtime context，并在 prompt、env 或 metadata transport 中传递 `cowork_runtime_context_id`；hook 绑定成功后才进入叶子执行，绑定失败则 fail closed，避免被项目 bootstrap 或无任务首屏上下文拉偏。Claude Code 不自动加载 `.agent/skills/`，所以项目技能要放进 `.claude/skills/`。
 
 `template/.opencode/agents/`、`template/.opencode/commands/`、`template/.opencode/plugins/`
 OpenCode 项目级固定 agent、slash command 和系统上下文注入插件。插件会读取 `.cowork-flow/spec/registry.json`，注入短 contract digest。

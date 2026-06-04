@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
 HOOK = TEMPLATE / ".codex" / "hooks" / "inject-workflow-state.py"
+LEGACY_POST_ACK = "post" + "_ack_execution_grace_ms"
 
 
 class CodexHooksTest(unittest.TestCase):
@@ -65,11 +66,56 @@ class CodexHooksTest(unittest.TestCase):
             "COWORK_FLOW_CONTEXT_ID",
             "CODEX_SESSION_ID",
             "CODEX_THREAD_ID",
+            "COWORK_FLOW_RUNTIME_CONTEXT_ID",
             "COWORK_FLOW_DISABLE_HOOKS",
             "COWORK_FLOW_HOOKS",
         ):
             env.pop(name, None)
         return env
+
+    def _write_runtime_context(
+        self,
+        root: Path,
+        runtime_id: str = "rtx_demo",
+        task_dir: str = ".cowork-flow/tasks/05-29-demo",
+        agent_type: str = "cowork-implement",
+    ) -> None:
+        context_dir = root / ".cowork-flow" / ".runtime" / "subagents"
+        context_dir.mkdir(parents=True)
+        task_path = root / task_dir
+        task_path.mkdir(parents=True)
+        (task_path / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+        (context_dir / f"{runtime_id}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "runtime_context_id": runtime_id,
+                    "scope": "subagent",
+                    "host": "codex",
+                    "adapter": "codex.spawn_agent",
+                    "agent_type": agent_type,
+                    "role": "implement",
+                    "task_dir": task_dir,
+                    "status": "pending",
+                    "transport": {"kind": "prompt", "key": "cowork_runtime_context_id"},
+                    "assignment": {
+                        "title": "Runtime child",
+                        "goal": "Apply the assigned slice.",
+                        "allowed_context": [],
+                    },
+                    "authority": {
+                        "may_start_task": False,
+                        "may_resume_main": False,
+                        "may_archive": False,
+                        "may_commit": False,
+                        "may_spawn": False,
+                    },
+                    "bound_context_key": None,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     def test_hook_emits_no_task_workflow_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -81,7 +127,9 @@ class CodexHooksTest(unittest.TestCase):
         output = data["hookSpecificOutput"]
         self.assertEqual("UserPromptSubmit", output["hookEventName"])
         context = output["additionalContext"]
-        self.assertIn("<codex-mode>sub-agent</codex-mode>", context)
+        self.assertIn("<codex-dispatch-mode>sub-agent</codex-dispatch-mode>", context)
+        self.assertIn("dispatch_mode_meaning: workflow dispatch hint, not current thread role", context)
+        self.assertNotIn("<codex-mode>", context)
         self.assertIn('<cowork-runtime host="codex" adapter="codex.spawn_agent">', context)
         self.assertIn("<contract-digest fingerprint=", context)
         self.assertIn("COWORK_ENTRY_CONTRACT_V1", context)
@@ -92,7 +140,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("必须先创建或启动任务", context)
         self.assertNotIn("<subagent-notice>", context)
 
-    def test_hook_emits_delegated_subtask_state_for_bounded_prompt(self) -> None:
+    def test_hook_keeps_bounded_prompt_on_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
@@ -110,12 +158,59 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: no_task", context)
+        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn("必须先创建或启动任务", context)
+
+    def test_hook_binds_runtime_context_from_prompt_before_main_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_runtime_context(root, "rtx_prompt")
+
+            data = self._run_hook(
+                root,
+                {
+                    "session_id": "child-session",
+                    "prompt": "cowork_runtime_context_id: rtx_prompt\nDo the work.",
+                },
+            )
+            session = json.loads(
+                (root / ".cowork-flow" / ".runtime" / "sessions" / "codex_child-session.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("再执行委托输入", context)
-        self.assertIn("项目规则只作为约束", context)
+        self.assertIn("Source: runtime-context:rtx_prompt", context)
+        self.assertIn("Task: .cowork-flow/tasks/05-29-demo", context)
+        self.assertIn("Agent: cowork-implement", context)
+        self.assertIn("Scope: subagent", context)
         self.assertNotIn("必须先创建或启动任务", context)
+        self.assertEqual("subagent", session["scope"])
+        self.assertEqual("rtx_prompt", session["runtime_context_id"])
 
-    def test_hook_treats_delegation_envelope_as_delegated_state(self) -> None:
+    def test_hook_binds_runtime_context_from_structured_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_runtime_context(root, "rtx_structured")
+
+            data = self._run_hook(
+                root,
+                {
+                    "session_id": "structured-child",
+                    "cowork_runtime_context_id": "rtx_structured",
+                    "prompt": "This prompt has no role labels.",
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("Source: runtime-context:rtx_structured", context)
+
+    def test_hook_invalid_runtime_context_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
@@ -124,66 +219,16 @@ class CodexHooksTest(unittest.TestCase):
                 root,
                 {
                     "prompt": (
-                        "COWORK_DELEGATION_V1\n"
-                        "dispatch_id: d1\n"
-                        "host: opencode\n"
-                        "role: cowork-implement\n"
-                        "task_dir: .cowork-flow/tasks/demo\n"
-                        "entry_kind: DELEGATED_HARD\n"
-                        "ack_token: t1\n"
-                        "COWORK_DELEGATION_END"
+                        "cowork_runtime_context_id: missing_runtime\n"
+                        "Task text should not become main no-task bootstrap."
                     )
                 },
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("COWORK_ENTRY_CONTRACT_V1", context)
-
-    def test_hook_treats_generic_worker_dispatch_as_delegated_state(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            self._make_project(root)
-
-            data = self._run_hook(
-                root,
-                {
-                    "prompt": (
-                        "COWORK_DISPATCH_V1\n"
-                        "dispatch_id: d2\n"
-                        "agent_type: worker\n"
-                        "role: generic-worker\n"
-                        "context_file: .cowork-flow/subagents/demo/context.json\n"
-                        "ack_token: t2\n"
-                        "dispatch_reliability: best-effort\n"
-                        "COWORK_DISPATCH_END\n\n"
-                        "Return only: COWORK_ACK d2 t2"
-                    )
-                },
-            )
-
-        context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
-
-    def test_hook_treats_default_agent_brief_as_delegated_state(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            self._make_project(root)
-
-            data = self._run_hook(
-                root,
-                {
-                    "prompt": (
-                        "Task: inspect one file for a bounded delegated task\n"
-                        "Agent type: default\n"
-                        "Constraint: do not run the project start-session workflow; do not run resume.\n"
-                        "Output: return exactly three bullet findings."
-                    )
-                },
-            )
-
-        context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("runtime-context-invalid", context)
+        self.assertNotIn("必须先创建或启动任务", context)
 
     def test_hook_treats_explorer_brief_as_delegated_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -203,9 +248,10 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("Status: no_task", context)
+        self.assertNotIn("Status: delegated_subtask", context)
 
-    def test_hook_treats_unclassified_nonempty_prompt_as_delegated_state(self) -> None:
+    def test_hook_keeps_unclassified_nonempty_prompt_on_no_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
@@ -213,9 +259,21 @@ class CodexHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"prompt": "Inspect routing notes and report concise findings."})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("Source: unclassified", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertIn("Status: no_task", context)
+        self.assertRegex(context, r"Source: (missing-context|empty-session)")
+        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn("必须先创建或启动任务", context)
+
+    def test_hook_keeps_main_agent_question_from_becoming_delegated_subtask(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(root, {"prompt": "为什么会有这种误解，我希望避免这种误解"})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: no_task", context)
+        self.assertNotIn("Status: delegated_subtask", context)
 
     def test_hook_reads_utf8_prompt_bytes_before_classification(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -278,7 +336,7 @@ class CodexHooksTest(unittest.TestCase):
             template_file = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
             template_file.write_text(
                 template_file.read_text(encoding="utf-8").replace(
-                    "当前会话没有活动任务。只读问答可直接回答；如果收到委托子任务，直接执行委托 prompt，不要启动/恢复工作流。实现、重构或多步骤工作必须先创建或启动任务。",
+                    "当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。",
                     "state-template-source-smoke",
                 ),
                 encoding="utf-8",
@@ -300,6 +358,7 @@ class CodexHooksTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
+            self._write_runtime_context(root, "rtx_hook_command")
             hooks = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
             command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
 
@@ -311,11 +370,8 @@ class CodexHooksTest(unittest.TestCase):
                 input=json.dumps(
                     {
                         "cwd": str(root),
-                        "prompt": (
-                            "任务：讨论 hook 如何避免把 subagent 拉回主流程。\n"
-                            "约束：不要编辑文件，不要运行命令。\n"
-                            "输出：中文，最多 200 字。"
-                        ),
+                        "session_id": "child-session",
+                        "prompt": "cowork_runtime_context_id: rtx_hook_command",
                     }
                 ),
                 text=True,
@@ -363,38 +419,39 @@ class CodexHooksTest(unittest.TestCase):
             data = self._run_hook(root, {})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("<codex-mode>inline</codex-mode>", context)
+        self.assertIn("<codex-dispatch-mode>inline</codex-dispatch-mode>", context)
+        self.assertNotIn("<codex-mode>", context)
 
-    def test_hook_reads_post_ack_execution_grace_from_config(self) -> None:
+    def test_hook_emits_runtime_context_identity_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(root, {})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("<codex-runtime>", context)
+        self.assertIn(
+            "runtime_context_identity: formal subagent sessions bind before workflow-state injection",
+            context,
+        )
+        self.assertNotIn(LEGACY_POST_ACK, context)
+
+    def test_hook_ignores_unknown_codex_runtime_config_safely(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
             (root / ".cowork-flow" / "config.yaml").write_text(
-                "codex:\n  post_ack_execution_grace_ms: 12345\n",
+                "codex:\n  dispatch_mode: \"sub-agent\"\n  unknown_runtime_value: 12345\n",
                 encoding="utf-8",
             )
 
             data = self._run_hook(root, {})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("<codex-runtime>", context)
-        self.assertIn("post_ack_execution_grace_ms: 12345", context)
-
-    def test_hook_falls_back_to_default_post_ack_execution_grace(self) -> None:
-        for value in ("nope", "0", "-1"):
-            with self.subTest(value=value):
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    root = Path(temp_dir)
-                    self._make_project(root)
-                    (root / ".cowork-flow" / "config.yaml").write_text(
-                        f"codex:\n  post_ack_execution_grace_ms: {value}\n",
-                        encoding="utf-8",
-                    )
-
-                    data = self._run_hook(root, {})
-
-                context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("post_ack_execution_grace_ms: 300000", context)
+        self.assertIn("<codex-dispatch-mode>sub-agent</codex-dispatch-mode>", context)
+        self.assertIn("Status: no_task", context)
+        self.assertNotIn(LEGACY_POST_ACK, context)
 
     def test_hook_contract_digest_fingerprint_tracks_spec_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

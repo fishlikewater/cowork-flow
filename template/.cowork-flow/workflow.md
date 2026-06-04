@@ -26,8 +26,8 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 ## 1.1 状态注入与入口分类
 
 1. 宿主钩子或插件每轮注入当前会话的入口分类和任务状态。状态提示的文本片段定义在 `.cowork-flow/spec/workflow-state-templates.md`，hook 从该文件读取；不再内联到本文件。
-2. 入口分类必须先于任务启动、恢复、归档或子代理派发。
-3. 当入口类型为 `DELEGATED_HARD`、`DELEGATED_SOFT` 或 `UNKNOWN` 时，hook 必须注入 `delegated_subtask` 状态而非 `no_task`，防止子代理被首屏拉偏。
+2. runtime context 绑定先于入口分类。hook/plugin 先解析 `cowork_runtime_context_id`，绑定成功或 fail-closed 时注入 `delegated_subtask`。
+3. 入口分类只服务主会话导航，不能用 prompt 形状推断正式子代理身份。`UNKNOWN` 不能冒充委托子任务；保持当前任务/no-task 状态可见，并在突变工作流前澄清。
 
 ## 1.2 需求澄清与头脑风暴门禁
 
@@ -85,12 +85,12 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 固定 `cowork-*` 代理使用宿主适配器契约，由主会话负责派发、等待、验收和取消。宿主专属原语只在 `.cowork-flow/adapters/<host>/adapter.yaml` 中声明；工作流只关心阶段职责、协调边界和验收责任。
 
-正式派发协议见 `.cowork-flow/spec/subagent-dispatch.md`。该协议定义前置条件、派发信封、确认闸门、执行宽限期、返回验收和通用 worker 边界。
+正式派发协议见 `.cowork-flow/spec/subagent-dispatch.md`。该协议定义 runtime context 创建、传输、绑定、等待、返回验收、关闭清理和通用 worker 边界。
 
 - 主会话必须使用新鲜子上下文派发固定代理。
 - 主会话通过适配器等待原语、适配器列表原语和适配器取消/关闭原语完成收口。
 - 固定 `cowork-*` 代理是叶子执行者；不得再派发、等待、列出或取消其他代理。
-- 通用 `worker`、`default` 或 `explorer` 只能作为软委托，不能满足正式实现或检查完成条件。
+- 通用 `worker`、`default` 或 `explorer` 只能作为 advisory work，不能满足正式实现或检查完成条件。
 
 ## 3.2 并行会话
 

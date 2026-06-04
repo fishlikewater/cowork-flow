@@ -1,0 +1,17 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".cowork-flow/changes/06-04-runtime-session-subagent-dispatch/design.md", "reason": "Runtime-context dispatch design"}
+{"file": ".cowork-flow/changes/06-04-runtime-session-subagent-dispatch/spec.md", "reason": "Runtime-context dispatch requirements"}
+{"file": ".cowork-flow/scripts/subagent.py", "reason": "Existing subagent runtime command to migrate"}
+{"file": ".cowork-flow/scripts/common/active_task.py", "reason": "Main/subagent session resolution"}
+{"file": ".codex/hooks/inject-workflow-state.py", "reason": "Codex runtime state injection"}
+{"file": ".claude/hooks/inject-workflow-state.py", "reason": "Claude Code runtime state injection"}
+{"file": ".opencode/plugins/cowork-flow.js", "reason": "OpenCode runtime state injection"}
+{"file": ".cowork-flow/spec/adapter.schema.json", "reason": "Host adapter contract schema"}
+{"file": ".cowork-flow/adapters/codex/adapter.yaml", "reason": "Codex adapter runtime transport"}
+{"file": ".cowork-flow/adapters/claude-code/adapter.yaml", "reason": "Claude Code adapter runtime transport"}
+{"file": ".cowork-flow/adapters/opencode/adapter.yaml", "reason": "OpenCode adapter runtime transport"}

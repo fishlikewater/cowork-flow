@@ -5,15 +5,21 @@ description: Use when starting or resuming main-session work in a cowork-flow pr
 
 # Start
 
-This skill is for the main session. A bounded delegated task should use `entry-boundary` and then execute the delegated prompt directly.
+This skill is for the main session only. Formal subagents are identified by
+runtime context binding before workflow state injection and must not load this
+startup flow.
 Main repository changes follow `Plan -> Implement -> Check -> Finish`.
-Before loading state, classify the actual prompt. If it is a bounded delegated task, stop using this skill and execute that delegated prompt. A `任务：` / `约束：` / `输出：` structure is a strong delegated-task signal. Advisory/default subagent prompts should start with a natural-language delegated-task sentence rather than relying on repo bootstrap to infer intent. Keep project rules as constraints only.
+Before loading state, classify only whether the current request is a
+main-session request, read-only question, command-only wrapper, or unclear
+input. Do not infer subagent identity from prompt shape. If a child has
+`cowork_runtime_context_id`, the hook/plugin binds that context before this
+skill is relevant.
 
 ## Load State
 
 1. Read `AGENTS.md`.
 2. Read `.cowork-flow/workflow.md`.
-3. Read `.cowork-flow/config.yaml` for post-ACK execution grace and host adapter hints.
+3. Read `.cowork-flow/config.yaml` for Codex dispatch hints and lifecycle hooks.
 4. Run `.cowork-flow/run resume` or `.\.cowork-flow\run.cmd resume` on Windows.
 5. Read the active task PRD and JSONL indexes only when a task is active.
 6. Read relevant `.cowork-flow/spec/*/index.md` files before code changes.
@@ -22,7 +28,11 @@ Report active task, workflow state, blockers, and the next phase.
 
 ## Route
 
-Route in stages. Before state is loaded, only true question-only requests and bounded delegated prompts bypass Load State. Repository-changing main-session requests load state first. After state is loaded, apply the requirement clarification gate from `.cowork-flow/workflow.md`, then route to the next workflow phase; clear multi-step implementation uses `writing-plans` before fixed-agent dispatch.
+Route in stages. Before state is loaded, true question-only requests may bypass
+Load State. Repository-changing main-session requests load state first. After
+state is loaded, apply the requirement clarification gate from
+`.cowork-flow/workflow.md`, then route to the next workflow phase; clear
+multi-step implementation uses `writing-plans` before fixed-agent dispatch.
 
 New requirements that are unclear, boundary-unclear, multi-approach, behavior-changing, or missing acceptance criteria use `brainstorming` before PRD, planning, or fixed-agent dispatch. Small repository changes proceed directly only when the goal, scope boundary, and acceptance criteria are already clear.
 
@@ -48,14 +58,19 @@ The main session owns coordination:
 - Implementation: dispatch `cowork-implement` through the active Host Adapter.
 - Verification: dispatch `cowork-check` through the active Host Adapter.
 
-Every formal dispatch uses a fresh child context and starts with `COWORK_DISPATCH_V1` or `COWORK_DELEGATION_V1`. Legacy dispatch may still start with:
+Every formal dispatch uses runtime-context dispatch:
 
 ```text
-Active task: <task-dir>
+cowork_runtime_context_id: <runtime_context_id>
 ```
 
-Prefer the `COWORK_DISPATCH_V1` envelope for `cowork-*` subagents, then wait for `COWORK_ACK <dispatch_id> <ack_token>` before sending `EXECUTE <dispatch_id>`.
+Before spawning a formal child, create a runtime context with
+`.cowork-flow/run subagent init` and pass the returned prompt transport through
+the active Host Adapter. The child hook/plugin must bind that runtime context
+before injecting workflow state. If binding is missing, closed, or invalid, the
+child fails closed and must not run start/resume/task activation/archive/commit
+or coordinate other agents.
 
-Use per-dispatch post-ACK execution grace after sending `EXECUTE`. The default duration is `300000` ms and can be configured with adapter-specific config. Record `execute_sent_at[dispatch_id]` and compute `deadline[dispatch_id] = execute_sent_at[dispatch_id] + post_ack_execution_grace_ms`; do not use a shared/global deadline across children. After `EXECUTE`, missing output or missing compass/status file is not proof that the child is stuck. Do not cancel a child only because it is still reading startup rules, AGENTS.md, workflow docs, specs, or task context. If the adapter list primitive still shows it running, continue waiting through grace. Grace expiration for one `dispatch_id` is a review checkpoint for that child only, not a close trigger and not evidence about other children. If progress, compass, or status files exist, keep waiting. Only cancel/close after wrong dispatch evidence, child completion, or user cancellation.
-
-After execution, use adapter wait/list/cancel primitives, review the output, and verify deliverables.
+After dispatch, use adapter wait/list/cancel primitives, review the output,
+verify deliverables, and close the runtime context with
+`.cowork-flow/run subagent close <runtime_context_id>`.

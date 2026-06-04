@@ -16,82 +16,58 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
 from common.paths import get_repo_root
 
 
+ENTRY_BOUNDARY_DIR = "entry" + "-boundary"
+
 REQUIRED_START_SNIPPETS = [
     "This skill is for the main session",
-    "bounded delegated task should use `entry-boundary`",
+    "runtime context binding before workflow state injection",
     "Main repository changes follow `Plan -> Implement -> Check -> Finish`",
-    "post-ACK execution grace",
-    "post_ack_execution_grace_ms",
-    "execute_sent_at[dispatch_id]",
-    "shared/global deadline",
     "Host Adapter",
-]
-
-REQUIRED_ENTRY_BOUNDARY_SNIPPETS = [
-    "COWORK_ENTRY_CONTRACT_V1",
-    "MAIN_SESSION",
-    "DELEGATED_HARD",
-    "DELEGATED_SOFT",
-    "READ_ONLY",
-    "COMMAND_ONLY",
-    "UNKNOWN",
-    "Classify the actual task message",
-    "Hard markers are confidence boosters, not prerequisites",
-    "The first task screen wins over later bootstrap text",
-    "If project bootstrap says to create/start/resume",
-    "Active task: <task-dir>",
-    "Follow the delegated prompt first",
-    "Do not create or activate a project task",
-    "Do not run unscoped `.cowork-flow/run resume`",
-    "Do not spawn or manage more agents",
+    ".cowork-flow/run subagent init",
+    "cowork_runtime_context_id",
+    ".cowork-flow/run subagent close",
 ]
 
 REQUIRED_FIXED_AGENT_SNIPPETS = [
-    "COWORK_DISPATCH_V1",
-    "COWORK_DISPATCH_END",
-    "COWORK_ACK",
-    "EXECUTE <dispatch_id>",
-    "agent_type is not",
-    "mismatched dispatch_id",
+    "cowork_runtime_context_id: <runtime_context_id>",
+    "bound runtime context",
+    "report needs_context",
+    "MUST NOT spawn",
+    "multi_agent = false",
+    "enabled = false",
 ]
 
 REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
     "宿主适配器契约",
     ".cowork-flow/spec/subagent-dispatch.md",
     "新鲜子上下文",
+    "runtime context",
     "适配器等待原语",
     "适配器列表原语",
     "适配器取消/关闭原语",
-    "软委托",
+    "advisory work",
 ]
 
 REQUIRED_SUBAGENT_DISPATCH_SNIPPETS = [
-    "COWORK_DISPATCH_V1",
-    "COWORK_DELEGATION_V1",
-    "COWORK_ACK",
-    "EXECUTE <dispatch_id>",
-    "adapter follow-up send primitive",
-    "post-ACK execution grace",
-    "execute_sent_at[dispatch_id]",
-    "deadline[dispatch_id] = execute_sent_at[dispatch_id] + post_ack_execution_grace_ms",
-    "global deadline",
-    "compass",
-    "status",
-    "Formal execution uses only `cowork-research`, `cowork-implement`, or `cowork-check`.",
-    "Generic `worker` dispatch is best effort only.",
-    "DELEGATED_SOFT",
+    "Runtime-context subagent dispatch",
+    "cowork_runtime_context_id",
+    ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
+    ".cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json",
+    "Binding is the formal dispatch acceptance event",
+    "fail-closed subagent state",
+    "Generic `worker`, `default`, or `explorer` dispatch is advisory only",
 ]
 
 REQUIRED_HOOK_SNIPPETS = [
     ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
 ]
 
-REQUIRED_CODEX_HOOK_SCRIPT_SNIPPETS = [
-    '<cowork-runtime host="codex" adapter="codex.spawn_agent">',
-    "workflow-state-templates.md",
-    "common.entry_classifier",
-    "should_use_delegated_bootstrap",
+REQUIRED_RUNTIME_HOOK_SNIPPETS = [
+    "resolve_runtime_context_id",
+    "bind_runtime_context",
+    "runtime-context-invalid",
     'status = "delegated_subtask"',
+    "workflow-state-templates.md",
 ]
 
 REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
@@ -102,39 +78,34 @@ REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
     "[workflow-state:review]",
     "[workflow-state:checking]",
     "[workflow-state:completed]",
-    "DELEGATED_HARD",
-    "DELEGATED_SOFT",
-    "UNKNOWN",
-    "use delegated_subtask instead",
+    "runtime context",
+    "UNKNOWN is not a delegated",
 ]
 
 REQUIRED_ENTRY_CLASSIFIER_SNIPPETS = [
     "classify_entry",
-    "should_use_delegated_bootstrap",
-    "COWORK_DISPATCH_V1",
-    "COWORK_DELEGATION_V1",
+    "EntryKind.MAIN_SESSION",
+    "EntryKind.READ_ONLY",
+    "EntryKind.COMMAND_ONLY",
     "EntryKind.UNKNOWN",
 ]
 
 REQUIRED_ENTRY_CONTRACT_SNIPPETS = [
     "COWORK_ENTRY_CONTRACT_V1",
-    "DELEGATED_HARD",
-    "DELEGATED_SOFT",
-    "UNKNOWN",
-    "Entry classification happens before task start",
-    "Structured delegation envelopes override project bootstrap text",
+    "main-session prompts",
+    "resolved by runtime context binding",
+    "`UNKNOWN` is not subagent evidence",
+    "Runtime context binding overrides project bootstrap text",
 ]
 
 REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '"schemaVersion": 1',
     '"COWORK_ENTRY_CONTRACT_V1"',
-    '"COWORK_DELEGATION_V1"',
-    '"COWORK_SUBAGENT_DISPATCH_V1"',
+    '"RUNTIME_CONTEXT_DISPATCH_V2"',
     '"HOST_ADAPTER_CAPABILITIES_V1"',
     '"HOST_ADAPTER_SCHEMA_V1"',
     '"readWhen"',
     '".cowork-flow/spec/entry-contract.md"',
-    '".cowork-flow/spec/delegation-envelope.md"',
     '".cowork-flow/spec/subagent-dispatch.md"',
     '".cowork-flow/spec/capabilities.md"',
     '".cowork-flow/spec/adapter.schema.json"',
@@ -145,47 +116,41 @@ REQUIRED_ADAPTER_SNIPPETS = [
     "capabilities:",
     "dispatchSubagent:",
     "freshChildContext:",
-    "sendFollowup:",
     "waitChild:",
     "listChildren:",
     "cancelChild:",
-    "stateInjection:",
-    "backgroundChild:",
-    "contracts:",
-    "entry: COWORK_ENTRY_CONTRACT_V1",
-    "envelope: COWORK_DISPATCH_V1",
-    "ackRequired: true",
-    "executeRequired: true",
+    "runtimeContextDispatch:",
+    "runtimeContextBinding:",
+    "runtimeContextCleanup:",
+    "runtimeContext:",
+    "promptKey: cowork_runtime_context_id",
+    "envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID",
+    "metadataKey: cowork_runtime_context_id",
+    "dispatch: RUNTIME_CONTEXT_DISPATCH_V2",
     "leafExecutor: true",
+    "whenRuntimeContextMissing: fail_closed",
 ]
 
-REQUIRED_OPENCODE_SNIPPETS = [
+REQUIRED_OPENCODE_AGENT_SNIPPETS = [
     "mode: subagent",
     "task: deny",
-    "COWORK_ENTRY_CONTRACT_V1",
-    "COWORK_DISPATCH_V1",
-    "COWORK_DELEGATION_V1",
-    "COWORK_ACK",
-    "EXECUTE <dispatch_id>",
-    "leaf",
+    "cowork_runtime_context_id: <runtime_context_id>",
+    "bound runtime context",
+    "leaf executor",
 ]
 
 REQUIRED_CLAUDE_AGENT_SNIPPETS = [
-    "COWORK_ENTRY_CONTRACT_V1",
-    "COWORK_DISPATCH_V1",
-    "COWORK_DELEGATION_V1",
-    "host: claude-code",
-    "COWORK_ACK",
-    "EXECUTE <dispatch_id>",
-    "leaf",
+    "name:",
+    "cowork_runtime_context_id: <runtime_context_id>",
+    "bound runtime context",
+    "leaf executor",
     "Do not use the Task tool or invoke subagents",
 ]
 
-REQUIRED_CLAUDE_COMMAND_SNIPPETS = [
-    "COWORK_DELEGATION_V1",
-    "host: claude-code",
-    "COWORK_ACK",
-    "EXECUTE <dispatch_id>",
+REQUIRED_RUNTIME_COMMAND_SNIPPETS = [
+    ".cowork-flow/run subagent init",
+    "cowork_runtime_context_id: <runtime_context_id>",
+    "needs_context",
 ]
 
 REQUIRED_CLAUDE_SKILL_SNIPPETS = [
@@ -199,16 +164,6 @@ REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS = [
     "SessionStart",
 ]
 
-REQUIRED_CLAUDE_HOOK_SCRIPT_SNIPPETS = [
-    '<cowork-runtime host="claude-code" adapter="claude-code.hooks">',
-    "workflow-state-templates.md",
-    "common.entry_classifier",
-    "should_use_delegated_bootstrap",
-    'status = "delegated_subtask"',
-    "hookSpecificOutput",
-    "additionalContext",
-]
-
 
 def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> None:
     if not path.is_file():
@@ -218,6 +173,11 @@ def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> 
     for snippet in snippets:
         if snippet not in text:
             errors.append(f"{path} missing snippet: {snippet}")
+
+
+def _check_file_absent(path: Path, errors: list[str]) -> None:
+    if path.exists():
+        errors.append(f"unexpected file: {path}")
 
 
 def _check_toml_parseable(path: Path, errors: list[str]) -> dict | None:
@@ -234,9 +194,7 @@ def _check_toml_parseable(path: Path, errors: list[str]) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def cmd_entry_contract(_: argparse.Namespace) -> int:
-    repo_root = get_repo_root()
-    errors: list[str] = []
+def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
     for rel in (
         ".cowork-flow/spec/entry-contract.md",
         "template/.cowork-flow/spec/entry-contract.md",
@@ -247,15 +205,6 @@ def cmd_entry_contract(_: argparse.Namespace) -> int:
         "template/.cowork-flow/spec/registry.json",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/spec/delegation-envelope.md",
-        "template/.cowork-flow/spec/delegation-envelope.md",
-    ):
-        _check_file_contains(
-            repo_root / rel,
-            ["COWORK_DELEGATION_V1", "COWORK_ACK", "EXECUTE <dispatch_id>", "DELEGATED_SOFT"],
-            errors,
-        )
     for rel in (
         ".cowork-flow/spec/subagent-dispatch.md",
         "template/.cowork-flow/spec/subagent-dispatch.md",
@@ -271,22 +220,9 @@ def cmd_entry_contract(_: argparse.Namespace) -> int:
         "template/.cowork-flow/scripts/common/entry_classifier.py",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CLASSIFIER_SNIPPETS, errors)
-    for rel in (
-        ".agent/skills/entry-boundary/SKILL.md",
-        "template/.agent/skills/entry-boundary/SKILL.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_BOUNDARY_SNIPPETS, errors)
-    if errors:
-        for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
-        return 1
-    print("entry contract checks passed")
-    return 0
 
 
-def cmd_host_adapters(_: argparse.Namespace) -> int:
-    repo_root = get_repo_root()
-    errors: list[str] = []
+def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
     for rel in (
         ".cowork-flow/spec/adapter.schema.json",
         "template/.cowork-flow/spec/adapter.schema.json",
@@ -295,7 +231,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(
             repo_root / rel,
-            ["dispatchSubagent", "freshChildContext", "native", "shim", "plugin", "experimental", "unsupported"],
+            ["dispatchSubagent", "freshChildContext", "runtimeContextDispatch", "unsupported"],
             errors,
         )
     for rel in (
@@ -320,6 +256,29 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
             ],
             errors,
         )
+
+
+def cmd_entry_contract(_: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    errors: list[str] = []
+    _check_common_contracts(repo_root, errors)
+    for rel in (
+        f".agent/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/.agent/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+    ):
+        _check_file_absent(repo_root / rel, errors)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    print("entry contract checks passed")
+    return 0
+
+
+def cmd_host_adapters(_: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    errors: list[str] = []
+    _check_host_adapters(repo_root, errors)
     for rel in (
         ".opencode/agents/cowork-research.md",
         ".opencode/agents/cowork-implement.md",
@@ -328,7 +287,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         "template/.opencode/agents/cowork-implement.md",
         "template/.opencode/agents/cowork-check.md",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_OPENCODE_SNIPPETS, errors)
+        _check_file_contains(repo_root / rel, REQUIRED_OPENCODE_AGENT_SNIPPETS, errors)
     for rel in (
         ".claude/agents/cowork-research.md",
         ".claude/agents/cowork-implement.md",
@@ -342,20 +301,29 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         ".claude/commands/cowork-research.md",
         ".claude/commands/cowork-implement.md",
         ".claude/commands/cowork-check.md",
+        ".opencode/commands/cowork-research.md",
+        ".opencode/commands/cowork-implement.md",
+        ".opencode/commands/cowork-check.md",
         "template/.claude/commands/cowork-research.md",
         "template/.claude/commands/cowork-implement.md",
         "template/.claude/commands/cowork-check.md",
+        "template/.opencode/commands/cowork-research.md",
+        "template/.opencode/commands/cowork-implement.md",
+        "template/.opencode/commands/cowork-check.md",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_COMMAND_SNIPPETS, errors)
+        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
     for rel in (
         ".claude/skills/start/SKILL.md",
-        ".claude/skills/entry-boundary/SKILL.md",
         ".claude/skills/check/SKILL.md",
         "template/.claude/skills/start/SKILL.md",
-        "template/.claude/skills/entry-boundary/SKILL.md",
         "template/.claude/skills/check/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_SKILL_SNIPPETS, errors)
+    for rel in (
+        f".claude/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/.claude/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+    ):
+        _check_file_absent(repo_root / rel, errors)
     for rel in (
         ".claude/settings.json",
         "template/.claude/settings.json",
@@ -364,13 +332,10 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     for rel in (
         ".claude/hooks/inject-workflow-state.py",
         "template/.claude/hooks/inject-workflow-state.py",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SCRIPT_SNIPPETS, errors)
-    for rel in (
         ".codex/hooks/inject-workflow-state.py",
         "template/.codex/hooks/inject-workflow-state.py",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_CODEX_HOOK_SCRIPT_SNIPPETS, errors)
+        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_HOOK_SNIPPETS, errors)
     for rel in (
         "CLAUDE.md",
         "template/CLAUDE.md",
@@ -380,7 +345,8 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
             [
                 "@AGENTS.md",
                 "<!-- COWORK-FLOW:START -->",
-                "COWORK_DELEGATION_V1",
+                ".cowork-flow/run subagent init",
+                "cowork_runtime_context_id: <runtime_context_id>",
                 ".claude/agents/cowork-implement.md",
                 ".claude/skills/",
             ],
@@ -397,7 +363,10 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
                 ".cowork-flow\", \"spec\", \"registry.json",
                 "<contract-digest fingerprint=",
                 "read_before",
-                "COWORK_ENTRY_CONTRACT_V1",
+                "RUNTIME_CONTEXT_DISPATCH_V2",
+                "resolveRuntimeContextId",
+                "bindRuntimeContext",
+                "runtime-context-invalid",
             ],
             errors,
         )
@@ -418,28 +387,31 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_START_SNIPPETS, errors)
     for rel in (
-        ".agent/skills/entry-boundary/SKILL.md",
-        "template/.agent/skills/entry-boundary/SKILL.md",
+        f".agent/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/.agent/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_BOUNDARY_SNIPPETS, errors)
+        _check_file_absent(repo_root / rel, errors)
     for rel in (
         ".codex/agents/cowork-research.toml",
         ".codex/agents/cowork-implement.toml",
         ".codex/agents/cowork-check.toml",
-        ".codex/agents/worker.toml",
-        ".codex/agents/default.toml",
-        ".codex/agents/explorer.toml",
         "template/.codex/agents/cowork-research.toml",
         "template/.codex/agents/cowork-implement.toml",
         "template/.codex/agents/cowork-check.toml",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_FIXED_AGENT_SNIPPETS, errors)
+        data = _check_toml_parseable(repo_root / rel, errors)
+        if data is not None and data.get("name") != Path(rel).stem:
+            errors.append(f"{rel} name must match filename")
+    for rel in (
+        ".codex/agents/worker.toml",
+        ".codex/agents/default.toml",
+        ".codex/agents/explorer.toml",
         "template/.codex/agents/worker.toml",
         "template/.codex/agents/default.toml",
         "template/.codex/agents/explorer.toml",
     ):
-        snippets = REQUIRED_FIXED_AGENT_SNIPPETS
-        if rel.endswith(("worker.toml", "default.toml", "explorer.toml")):
-            snippets = ["COWORK_ACK", "EXECUTE <dispatch_id>", "start", "resume"]
-        _check_file_contains(repo_root / rel, snippets, errors)
+        _check_file_contains(repo_root / rel, ["bootstrap", "start", "resume", "advisory"], errors)
         data = _check_toml_parseable(repo_root / rel, errors)
         if data is not None and data.get("name") != Path(rel).stem:
             errors.append(f"{rel} name must match filename")
@@ -448,11 +420,8 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.cowork-flow/workflow.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_DISPATCH_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/spec/subagent-dispatch.md",
-        "template/.cowork-flow/spec/subagent-dispatch.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_SUBAGENT_DISPATCH_SNIPPETS, errors)
+    _check_common_contracts(repo_root, errors)
+    _check_host_adapters(repo_root, errors)
     for rel in (
         ".codex/hooks.json",
         "template/.codex/hooks.json",
@@ -461,68 +430,20 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     for rel in (
         ".codex/hooks/inject-workflow-state.py",
         "template/.codex/hooks/inject-workflow-state.py",
+        ".claude/hooks/inject-workflow-state.py",
+        "template/.claude/hooks/inject-workflow-state.py",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_CODEX_HOOK_SCRIPT_SNIPPETS, errors)
+        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_HOOK_SNIPPETS, errors)
     for rel in (
         ".cowork-flow/scripts/subagent.py",
         "template/.cowork-flow/scripts/subagent.py",
         ".cowork-flow/scripts/common/execution_context.py",
         "template/.cowork-flow/scripts/common/execution_context.py",
+        ".cowork-flow/scripts/common/active_task.py",
+        "template/.cowork-flow/scripts/common/active_task.py",
     ):
         if not (repo_root / rel).is_file():
             errors.append(f"missing file: {rel}")
-    for rel in (
-        ".cowork-flow/scripts/common/entry_classifier.py",
-        "template/.cowork-flow/scripts/common/entry_classifier.py",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CLASSIFIER_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/spec/entry-contract.md",
-        "template/.cowork-flow/spec/entry-contract.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CONTRACT_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/spec/registry.json",
-        "template/.cowork-flow/spec/registry.json",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/spec/workflow-state-templates.md",
-        "template/.cowork-flow/spec/workflow-state-templates.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/adapters/codex/adapter.yaml",
-        ".cowork-flow/adapters/opencode/adapter.yaml",
-        ".cowork-flow/adapters/claude-code/adapter.yaml",
-        "template/.cowork-flow/adapters/codex/adapter.yaml",
-        "template/.cowork-flow/adapters/opencode/adapter.yaml",
-        "template/.cowork-flow/adapters/claude-code/adapter.yaml",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/adapters/claude-code/adapter.yaml",
-        "template/.cowork-flow/adapters/claude-code/adapter.yaml",
-    ):
-        _check_file_contains(
-            repo_root / rel,
-            [
-                "skillsPath: .claude/skills",
-                "settingsPath: .claude/settings.json",
-                "hooksPath: .claude/hooks",
-            ],
-            errors,
-        )
-    for rel in (
-        ".claude/settings.json",
-        "template/.claude/settings.json",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
-    for rel in (
-        ".claude/hooks/inject-workflow-state.py",
-        "template/.claude/hooks/inject-workflow-state.py",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SCRIPT_SNIPPETS, errors)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

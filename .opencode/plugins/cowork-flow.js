@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -9,19 +9,19 @@ const DEFAULT_CONTRACT_REGISTRY = {
       id: "COWORK_ENTRY_CONTRACT_V1",
       path: ".cowork-flow/spec/entry-contract.md",
       digest: [
-        "Classify COWORK_DELEGATION_V1 and COWORK_DISPATCH_V1 before workflow recovery.",
-        "UNKNOWN entries must not start, resume, archive, commit, or dispatch subagents.",
+        "Classify main-session requests before task start, resume, archive, or commit.",
+        "Runtime context, not prompt labels, identifies formal subagent sessions.",
       ],
-      readWhen: ["before task start/resume/archive", "before subagent dispatch"],
+      readWhen: ["before task start/resume/archive", "when prompt and bootstrap text conflict"],
     },
     {
-      id: "COWORK_DELEGATION_V1",
-      path: ".cowork-flow/spec/delegation-envelope.md",
+      id: "RUNTIME_CONTEXT_DISPATCH_V2",
+      path: ".cowork-flow/spec/subagent-dispatch.md",
       digest: [
-        "ACK must match dispatch_id and ack_token before EXECUTE.",
-        "DELEGATED_SOFT entries are advisory and cannot complete Implement or Check.",
+        "Formal subagent work is keyed by cowork_runtime_context_id.",
+        "Child plugins bind runtime context before workflow-state injection.",
       ],
-      readWhen: ["before formal subagent dispatch", "when using a generic worker"],
+      readWhen: ["before formal subagent dispatch", "when checking subagent health"],
     },
   ],
 }
@@ -147,10 +147,158 @@ function buildContractDigest(input) {
   return lines.join("\n")
 }
 
+function sanitize(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .slice(0, 160)
+}
+
+function firstString(input, keys) {
+  for (const key of keys) {
+    const value = input?.[key]
+    if (typeof value === "string" && value.trim()) {
+      return value.trim()
+    }
+  }
+  return null
+}
+
+function promptText(input) {
+  const direct = firstString(input, ["prompt", "user_prompt", "userPrompt", "message", "input"])
+  if (direct) {
+    return direct
+  }
+  const messages = input?.messages
+  if (Array.isArray(messages)) {
+    return messages
+      .map((item) => item?.content)
+      .filter((item) => typeof item === "string" && item.trim())
+      .join("\n")
+  }
+  return ""
+}
+
+function resolveRuntimeContextId(input) {
+  const envValue =
+    typeof process !== "undefined" && process?.env?.COWORK_FLOW_RUNTIME_CONTEXT_ID
+      ? process.env.COWORK_FLOW_RUNTIME_CONTEXT_ID
+      : null
+  if (envValue && envValue.trim()) {
+    return sanitize(envValue)
+  }
+
+  const direct = firstString(input, [
+    "COWORK_FLOW_RUNTIME_CONTEXT_ID",
+    "cowork_runtime_context_id",
+    "runtime_context_id",
+  ])
+  if (direct) {
+    return sanitize(direct)
+  }
+
+  const match = promptText(input).match(/^\s*cowork_runtime_context_id\s*:\s*([A-Za-z0-9._-]+)\s*$/im)
+  return match ? sanitize(match[1]) : null
+}
+
+function resolveContextKey(input) {
+  const explicit = firstString(input, ["COWORK_FLOW_CONTEXT_ID", "cowork_flow_context_id", "context_id"])
+  if (explicit) {
+    return sanitize(explicit)
+  }
+  const opencodeSession = firstString(input, ["OPENCODE_SESSION_ID", "opencode_session_id", "session_id"])
+  return opencodeSession ? `opencode_${sanitize(opencodeSession)}` : null
+}
+
+function readJson(path) {
+  try {
+    const data = JSON.parse(readFileSync(path, "utf8"))
+    return data && typeof data === "object" && !Array.isArray(data) ? data : null
+  } catch {
+    return null
+  }
+}
+
+function writeJson(path, data) {
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, "utf8")
+}
+
+function nowIso() {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, "Z")
+}
+
+function bindRuntimeContext(root, runtimeContextId, context, input) {
+  const contextKey = resolveContextKey(input)
+  if (!contextKey) {
+    return context
+  }
+  const session = {
+    schema_version: 2,
+    scope: "subagent",
+    runtime_context_id: runtimeContextId,
+    platform: "opencode",
+    status: "bound",
+    last_seen_at: nowIso(),
+  }
+  if (typeof context.task_dir === "string" && context.task_dir.trim()) {
+    session.active_task_path = context.task_dir.trim()
+  }
+  writeJson(resolve(root, ".cowork-flow", ".runtime", "sessions", `${contextKey}.json`), session)
+  const updated = {
+    ...context,
+    status: "bound",
+    bound_context_key: contextKey,
+    bound_at: nowIso(),
+    last_seen_at: nowIso(),
+  }
+  writeJson(resolve(root, ".cowork-flow", ".runtime", "subagents", `${runtimeContextId}.json`), updated)
+  return updated
+}
+
+function buildRuntimeWorkflowState(input) {
+  const root = findRepoRoot(input)
+  const runtimeContextId = resolveRuntimeContextId(input)
+  if (!runtimeContextId) {
+    return null
+  }
+
+  const contextFile = resolve(root, ".cowork-flow", ".runtime", "subagents", `${runtimeContextId}.json`)
+  const context = readJson(contextFile)
+  if (!context || context.scope !== "subagent" || context.status === "closed") {
+    return [
+      "<workflow-state>",
+      "Status: delegated_subtask",
+      `Source: runtime-context-invalid:${runtimeContextId}`,
+      `Runtime context: ${runtimeContextId}`,
+      "Scope: subagent",
+      "Runtime context is missing, closed, or invalid. Do not run start/resume/task start/archive/commit/spawn.",
+      "</workflow-state>",
+    ].join("\n")
+  }
+
+  const bound = bindRuntimeContext(root, runtimeContextId, context, input)
+  const assignment = bound.assignment && typeof bound.assignment === "object" ? bound.assignment : {}
+  const header = [
+    "<workflow-state>",
+    typeof bound.task_dir === "string" && bound.task_dir.trim() ? `Task: ${bound.task_dir.trim()}` : null,
+    "Status: delegated_subtask",
+    `Source: runtime-context:${runtimeContextId}`,
+    `Runtime context: ${runtimeContextId}`,
+    `Agent: ${bound.agent_type || "unknown"}`,
+    "Scope: subagent",
+    "Do not run start/resume/task start/archive/commit/spawn.",
+    typeof assignment.goal === "string" && assignment.goal.trim() ? `Goal: ${assignment.goal.trim()}` : null,
+    "</workflow-state>",
+  ].filter(Boolean)
+  return header.join("\n")
+}
+
 export const CoworkFlowPlugin = async () => {
   return {
     "experimental.chat.system.transform": async (input, output) => {
-      output.system.push(buildContractDigest(input))
+      output.system.push([buildContractDigest(input), buildRuntimeWorkflowState(input)].filter(Boolean).join("\n\n"))
     },
   }
 }

@@ -18,17 +18,15 @@ max_journal_lines: 2000
 # Codex Runtime
 #-------------------------------------------------------------------------------
 
-# This controls only the injected workflow hint (<codex-mode>...).
+# This controls only the injected workflow dispatch hint (<codex-dispatch-mode>...).
 # It does not force dispatch or disable tools at runtime.
 # sub-agent: hint that main session should dispatch cowork-* fixed agents.
 # inline: hint that main session should perform implementation/check directly.
 codex:
   dispatch_mode: "sub-agent"
-  # Grace duration after each subagent ACKs and receives EXECUTE.
-  # This is a per-dispatch duration, not a shared/global deadline.
-  # During this window, missing output or missing compass/status files do not
-  # prove the child is stuck while it loads task context.
-  post_ack_execution_grace_ms: 300000
+  # Formal subagent identity is runtime-context based. The main session creates
+  # .cowork-flow/.runtime/subagents/<id>.json with the subagent helper, then
+  # passes cowork_runtime_context_id through the active host adapter transport.
 
 #-------------------------------------------------------------------------------
 # Task Lifecycle Hooks

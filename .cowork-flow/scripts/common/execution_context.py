@@ -309,17 +309,15 @@ def build_subagent_resume_text(
     forbidden_actions = context_data.get("forbiddenActions")
     status_file = context_data.get("statusFile")
     events_file = context_data.get("eventsFile")
-    dispatch_id = context_data.get("dispatchId")
-    ack_token = context_data.get("ackToken")
-    dispatch_status = context_data.get("dispatchStatus")
+    runtime_context_id = context_data.get("runtimeContextId") or context_data.get("runtime_context_id")
+    runtime_context_status = context_data.get("runtimeContextStatus")
     agent_type = context_data.get("agentType")
     dispatch_reliability = context_data.get("dispatchReliability")
-    expected_ack = context_data.get("expectedAck")
     lines = [
         "========================================",
         "COWORK-FLOW SUBAGENT RESUME",
         "========================================",
-        "Use this only for a delegated subagent's own scoped recovery.",
+        "Use this only for a runtime-context subagent's own scoped recovery.",
         "Do not switch back into the coordinator workflow from this entrypoint.",
         "",
         "## SUBAGENT CONTEXT",
@@ -328,18 +326,14 @@ def build_subagent_resume_text(
         f"Role: {context.role or 'unknown'}",
         f"Goal: {context.goal or 'unknown'}",
     ]
-    if isinstance(dispatch_id, str) and dispatch_id.strip():
-        lines.append(f"Dispatch ID: {dispatch_id}")
-    if isinstance(dispatch_status, str) and dispatch_status.strip():
-        lines.append(f"Dispatch status: {dispatch_status}")
+    if isinstance(runtime_context_id, str) and runtime_context_id.strip():
+        lines.append(f"Runtime context: {runtime_context_id}")
+    if isinstance(runtime_context_status, str) and runtime_context_status.strip():
+        lines.append(f"Runtime context status: {runtime_context_status}")
     if isinstance(agent_type, str) and agent_type.strip():
         lines.append(f"Agent type: {agent_type}")
     if isinstance(dispatch_reliability, str) and dispatch_reliability.strip():
         lines.append(f"Dispatch reliability: {dispatch_reliability}")
-    if isinstance(ack_token, str) and ack_token.strip():
-        lines.append(f"ACK token: {ack_token}")
-    if isinstance(expected_ack, str) and expected_ack.strip():
-        lines.append(f"Expected ACK: {expected_ack}")
     if context.context_file:
         lines.append(f"Context file: {context.context_file}")
     if isinstance(allowed_context, list) and allowed_context:
@@ -379,10 +373,9 @@ def build_subagent_resume_text(
     lines.extend([
         "",
         "## RULES",
-        "- If you have not acknowledged this dispatch, first return only: COWORK_ACK <dispatch_id> <ack_token>.",
-        "- Execute only after the coordinator sends EXECUTE <dispatch_id> for this same dispatch.",
-        "- If a message names a different dispatch_id, report needs_context and do not execute it.",
-        "- Generic worker dispatch is best-effort only; no ACK means the coordinator must close or retry it.",
+        "- Execute only when the bound runtime context exists, is open, and names this agent type.",
+        "- If runtime context is missing, closed, invalid, or mismatched, report needs_context and do not execute it.",
+        "- Generic worker dispatch is advisory only and cannot complete formal Implement or Check.",
         "- Read only prompt-named files and allowed context unless you ask for more context.",
         "- Do not run task start, task finish, task archive, or unscoped resume.",
         "- Stop only with success, needs_context, or blocked status evidence.",

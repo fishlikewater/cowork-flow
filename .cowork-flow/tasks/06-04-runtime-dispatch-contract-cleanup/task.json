@@ -1,0 +1,21 @@
+{
+  "id": "runtime-dispatch-contract-cleanup",
+  "name": "runtime-dispatch-contract-cleanup",
+  "title": "Runtime dispatch contract cleanup",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-04",
+  "completedAt": "2026-06-05",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "06-04-runtime-session-subagent-dispatch",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

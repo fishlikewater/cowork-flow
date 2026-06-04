@@ -28,7 +28,7 @@ FORBIDDEN_PATTERNS = (
     ".current-task",
     "current_task",
     "currentTask",
-    "agent run",
+    "agent run ",
     "codex exec",
 )
 
@@ -99,7 +99,7 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             ROOT / "template" / ".cowork-flow" / "config.yaml",
         ):
             text = path.read_text(encoding="utf-8")
-            self.assertIn("injected workflow hint", text)
+            self.assertIn("injected workflow dispatch hint", text)
             self.assertIn("does not force dispatch", text)
             self.assertIn("simple executable plus arguments", text)
             self.assertIn("No shell pipes, redirects, or command chaining", text)

@@ -590,7 +590,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("Status: in_progress", output)
             self.assertIn("Next action: execute implementation plan", output)
             self.assertIn("cowork-implement", output)
-            self.assertIn("COWORK_DISPATCH_V1", output)
+            self.assertIn("./.cowork-flow/run subagent init", output)
+            self.assertIn("cowork_runtime_context_id", output)
 
     def test_cmd_next_reports_review_check_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

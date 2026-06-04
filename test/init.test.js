@@ -101,9 +101,10 @@ test('init copies only claude-code host assets when platform is claude-code', as
   assert.equal(await exists(join(target, '.claude', 'agents', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.claude', 'commands', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.claude', 'skills', 'start', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.claude', 'skills', 'entry' + '-boundary', 'SKILL.md')), false);
   assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
   assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
-  assert.match(await readText(join(target, 'CLAUDE.md')), /COWORK_DELEGATION_V1/);
+  assert.match(await readText(join(target, 'CLAUDE.md')), /cowork_runtime_context_id/);
   assert.match(await readText(join(target, 'CLAUDE.md')), /@AGENTS\.md/);
   assert.match(io.stdout, /Platforms: claude-code/);
 });

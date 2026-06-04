@@ -1153,8 +1153,13 @@ def cmd_next(args: argparse.Namespace) -> int:
             print(f"Then: ./.cowork-flow/run task start {task_path}")
         elif is_active_task:
             print("Next action: execute implementation plan")
-            print("Command: dispatch cowork-implement with COWORK_DISPATCH_V1, then wait for COWORK_ACK")
-            print(f"Then: send EXECUTE <dispatch_id>, then ./.cowork-flow/run task review {task_path}")
+            print(
+                f"Command: ./.cowork-flow/run subagent init --role implement "
+                f"--agent-type cowork-implement --execution-task-dir {task_path} "
+                f"--title \"Implement {Path(task_path).name}\""
+            )
+            print("Then: pass cowork_runtime_context_id through the active Host Adapter")
+            print(f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}")
         else:
             print("Next action: start task")
             print(f"Command: ./.cowork-flow/run task start {task_path}")
@@ -1163,14 +1168,24 @@ def cmd_next(args: argparse.Namespace) -> int:
 
     if status == "in_progress":
         print("Next action: execute implementation plan")
-        print("Command: dispatch cowork-implement with COWORK_DISPATCH_V1, then wait for COWORK_ACK")
-        print(f"Then: send EXECUTE <dispatch_id>, then ./.cowork-flow/run task review {task_path}")
+        print(
+            f"Command: ./.cowork-flow/run subagent init --role implement "
+            f"--agent-type cowork-implement --execution-task-dir {task_path} "
+            f"--title \"Implement {Path(task_path).name}\""
+        )
+        print("Then: pass cowork_runtime_context_id through the active Host Adapter")
+        print(f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}")
         _print_blockers(blockers)
         return 0
 
     if status in CHECK_STATUSES:
         print("Next action: verify implementation")
-        print("Command: dispatch cowork-check with COWORK_DISPATCH_V1 or run equivalent inline check")
+        print(
+            f"Command: ./.cowork-flow/run subagent init --role check "
+            f"--agent-type cowork-check --execution-task-dir {task_path} "
+            f"--title \"Check {Path(task_path).name}\""
+        )
+        print("Then: pass cowork_runtime_context_id through the active Host Adapter or run equivalent inline check")
         print(f"Then: ./.cowork-flow/run task complete {task_path}")
         _print_blockers(blockers)
         return 0

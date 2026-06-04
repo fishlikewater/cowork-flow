@@ -10,6 +10,9 @@ capabilities:
   cancelChild: native
   stateInjection: native
   backgroundChild: native
+  runtimeContextDispatch: native
+  runtimeContextBinding: native
+  runtimeContextCleanup: native
 dispatch:
   primitive: spawn_agent
   forkTurns: none
@@ -18,12 +21,15 @@ dispatch:
   listPrimitive: list_agents
   cancelPrimitive: close_agent
   agentsPath: .codex/agents
+runtimeContext:
+  transport: prompt
+  promptKey: cowork_runtime_context_id
+  envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
+  metadataKey: cowork_runtime_context_id
 contracts:
   entry: COWORK_ENTRY_CONTRACT_V1
-  envelope: COWORK_DISPATCH_V1
-  delegation: COWORK_DELEGATION_V1
-  ackRequired: true
-  executeRequired: true
+  dispatch: RUNTIME_CONTEXT_DISPATCH_V2
   leafExecutor: true
 fallback:
   whenRequiredCapabilityMissing: inline_or_manual
+  whenRuntimeContextMissing: fail_closed

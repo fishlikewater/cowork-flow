@@ -3,7 +3,7 @@
   "$id": "https://cowork-flow.local/spec/adapter.schema.json",
   "title": "Cowork Flow Host Adapter",
   "type": "object",
-  "required": ["schemaVersion", "host", "displayName", "capabilities", "dispatch", "contracts", "fallback"],
+  "required": ["schemaVersion", "host", "displayName", "capabilities", "dispatch", "runtimeContext", "contracts", "fallback"],
   "additionalProperties": false,
   "properties": {
     "schemaVersion": {
@@ -28,7 +28,10 @@
         "listChildren",
         "cancelChild",
         "stateInjection",
-        "backgroundChild"
+        "backgroundChild",
+        "runtimeContextDispatch",
+        "runtimeContextBinding",
+        "runtimeContextCleanup"
       ],
       "additionalProperties": {
         "$ref": "#/$defs/capability"
@@ -41,7 +44,10 @@
         "listChildren": { "$ref": "#/$defs/capability" },
         "cancelChild": { "$ref": "#/$defs/capability" },
         "stateInjection": { "$ref": "#/$defs/capability" },
-        "backgroundChild": { "$ref": "#/$defs/capability" }
+        "backgroundChild": { "$ref": "#/$defs/capability" },
+        "runtimeContextDispatch": { "$ref": "#/$defs/capability" },
+        "runtimeContextBinding": { "$ref": "#/$defs/capability" },
+        "runtimeContextCleanup": { "$ref": "#/$defs/capability" }
       }
     },
     "dispatch": {
@@ -57,30 +63,43 @@
         }
       }
     },
+    "runtimeContext": {
+      "type": "object",
+      "required": ["transport", "promptKey", "envKey", "metadataKey"],
+      "additionalProperties": {
+        "type": ["string", "boolean", "number"]
+      },
+      "properties": {
+        "transport": {
+          "type": "string",
+          "enum": ["prompt", "env", "metadata", "plugin"]
+        },
+        "promptKey": {
+          "type": "string",
+          "const": "cowork_runtime_context_id"
+        },
+        "envKey": {
+          "type": "string",
+          "const": "COWORK_FLOW_RUNTIME_CONTEXT_ID"
+        },
+        "metadataKey": {
+          "type": "string",
+          "const": "cowork_runtime_context_id"
+        }
+      }
+    },
     "contracts": {
       "type": "object",
-      "required": ["entry", "envelope", "ackRequired", "executeRequired", "leafExecutor"],
+      "required": ["entry", "dispatch", "leafExecutor"],
       "additionalProperties": false,
       "properties": {
         "entry": {
           "type": "string",
           "const": "COWORK_ENTRY_CONTRACT_V1"
         },
-        "envelope": {
+        "dispatch": {
           "type": "string",
-          "const": "COWORK_DISPATCH_V1"
-        },
-        "delegation": {
-          "type": "string",
-          "const": "COWORK_DELEGATION_V1"
-        },
-        "ackRequired": {
-          "type": "boolean",
-          "const": true
-        },
-        "executeRequired": {
-          "type": "boolean",
-          "const": true
+          "const": "RUNTIME_CONTEXT_DISPATCH_V2"
         },
         "leafExecutor": {
           "type": "boolean",
@@ -96,6 +115,10 @@
         "whenRequiredCapabilityMissing": {
           "type": "string",
           "enum": ["inline_or_manual", "fail_closed"]
+        },
+        "whenRuntimeContextMissing": {
+          "type": "string",
+          "enum": ["fail_closed"]
         }
       }
     }

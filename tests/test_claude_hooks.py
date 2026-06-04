@@ -66,11 +66,56 @@ class ClaudeHooksTest(unittest.TestCase):
             "CODEX_SESSION_ID",
             "CODEX_THREAD_ID",
             "OPENCODE_SESSION_ID",
+            "COWORK_FLOW_RUNTIME_CONTEXT_ID",
             "COWORK_FLOW_DISABLE_HOOKS",
             "COWORK_FLOW_HOOKS",
         ):
             env.pop(name, None)
         return env
+
+    def _write_runtime_context(
+        self,
+        root: Path,
+        runtime_id: str = "rtx_demo",
+        task_dir: str = ".cowork-flow/tasks/06-03-demo",
+        agent_type: str = "cowork-implement",
+    ) -> None:
+        context_dir = root / ".cowork-flow" / ".runtime" / "subagents"
+        context_dir.mkdir(parents=True)
+        task_path = root / task_dir
+        task_path.mkdir(parents=True)
+        (task_path / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+        (context_dir / f"{runtime_id}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "runtime_context_id": runtime_id,
+                    "scope": "subagent",
+                    "host": "claude-code",
+                    "adapter": "claude-code.hooks",
+                    "agent_type": agent_type,
+                    "role": "implement",
+                    "task_dir": task_dir,
+                    "status": "pending",
+                    "transport": {"kind": "prompt", "key": "cowork_runtime_context_id"},
+                    "assignment": {
+                        "title": "Runtime child",
+                        "goal": "Apply the assigned slice.",
+                        "allowed_context": [],
+                    },
+                    "authority": {
+                        "may_start_task": False,
+                        "may_resume_main": False,
+                        "may_archive": False,
+                        "may_commit": False,
+                        "may_spawn": False,
+                    },
+                    "bound_context_key": None,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     def test_hook_emits_no_task_workflow_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -88,7 +133,7 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn("Status: no_task", context)
         self.assertIn("必须先创建或启动任务", context)
 
-    def test_hook_emits_delegated_subtask_state_for_bounded_prompt(self) -> None:
+    def test_hook_keeps_bounded_prompt_on_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
@@ -106,11 +151,40 @@ class ClaudeHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("再执行委托输入", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertIn("Status: no_task", context)
+        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn("必须先创建或启动任务", context)
 
-    def test_hook_treats_dispatch_envelope_as_delegated_state(self) -> None:
+    def test_hook_binds_runtime_context_from_prompt_before_main_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_runtime_context(root, "rtx_claude_prompt")
+
+            data = self._run_hook(
+                root,
+                {
+                    "session_id": "child-session",
+                    "prompt": "cowork_runtime_context_id: rtx_claude_prompt",
+                },
+            )
+            session = json.loads(
+                (root / ".cowork-flow" / ".runtime" / "sessions" / "claude_child-session.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("Source: runtime-context:rtx_claude_prompt", context)
+        self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
+        self.assertIn("Agent: cowork-implement", context)
+        self.assertIn("Scope: subagent", context)
+        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertEqual("subagent", session["scope"])
+        self.assertEqual("rtx_claude_prompt", session["runtime_context_id"])
+
+    def test_hook_invalid_runtime_context_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
@@ -118,21 +192,17 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook(
                 root,
                 {
-                    "prompt": (
-                        "COWORK_DISPATCH_V1\n"
-                        "dispatch_id: d1\n"
-                        "host: claude-code\n"
-                        "agent_type: worker\n"
-                        "ack_token: t1\n"
-                        "COWORK_DISPATCH_END"
-                    )
+                    "session_id": "child-session",
+                    "prompt": "cowork_runtime_context_id: missing_runtime",
                 },
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("runtime-context-invalid", context)
+        self.assertNotIn("必须先创建或启动任务", context)
 
-    def test_hook_treats_unclassified_nonempty_prompt_as_delegated_state(self) -> None:
+    def test_hook_keeps_unclassified_nonempty_prompt_on_no_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
@@ -140,9 +210,21 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"prompt": "Inspect routing notes and report concise findings."})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("Source: unclassified", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertIn("Status: no_task", context)
+        self.assertRegex(context, r"Source: (missing-context|empty-session)")
+        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn("必须先创建或启动任务", context)
+
+    def test_hook_keeps_main_agent_question_from_becoming_delegated_subtask(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(root, {"prompt": "为什么会有这种误解，我希望避免这种误解"})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: no_task", context)
+        self.assertNotIn("Status: delegated_subtask", context)
 
     def test_hook_reads_utf8_prompt_bytes_before_classification(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -205,7 +287,7 @@ class ClaudeHooksTest(unittest.TestCase):
             template_file = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
             template_file.write_text(
                 template_file.read_text(encoding="utf-8").replace(
-                    "当前会话没有活动任务。只读问答可直接回答；如果收到委托子任务，直接执行委托 prompt，不要启动/恢复工作流。实现、重构或多步骤工作必须先创建或启动任务。",
+                    "当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。",
                     "state-template-source-smoke",
                 ),
                 encoding="utf-8",
@@ -260,6 +342,7 @@ class ClaudeHooksTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
+            self._write_runtime_context(root, "rtx_claude_command")
             settings = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
             command = settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
 
@@ -271,11 +354,8 @@ class ClaudeHooksTest(unittest.TestCase):
                 input=json.dumps(
                     {
                         "cwd": str(root),
-                        "prompt": (
-                            "任务：讨论 hook 如何避免把 subagent 拉回主流程。\n"
-                            "约束：不要编辑文件，不要运行命令。\n"
-                            "输出：中文，最多 200 字。"
-                        ),
+                        "session_id": "child-session",
+                        "prompt": "cowork_runtime_context_id: rtx_claude_command",
                     }
                 ),
                 text=True,
