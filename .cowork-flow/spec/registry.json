@@ -28,6 +28,19 @@
       ]
     },
     {
+      "id": "COWORK_SUBAGENT_DISPATCH_V1",
+      "path": ".cowork-flow/spec/subagent-dispatch.md",
+      "digest": [
+        "Formal fixed-agent dispatch uses COWORK_DISPATCH_V1, COWORK_ACK, EXECUTE, and per-child post-ACK grace.",
+        "Generic worker/default/explorer dispatch is soft delegation and cannot satisfy formal Implement or Check."
+      ],
+      "readWhen": [
+        "before formal subagent dispatch",
+        "when checking subagent health",
+        "when using a generic worker"
+      ]
+    },
+    {
       "id": "HOST_ADAPTER_CAPABILITIES_V1",
       "path": ".cowork-flow/spec/capabilities.md",
       "digest": [

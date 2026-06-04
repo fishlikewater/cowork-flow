@@ -101,6 +101,9 @@ class HostAdaptersTest(unittest.TestCase):
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("宿主适配器契约", text)
+            self.assertIn("subagent-dispatch.md", text)
+            self.assertNotIn("COWORK_DISPATCH_V1", text)
+            self.assertNotIn("COWORK_ACK", text)
             for marker in banned:
                 self.assertNotIn(marker, text)
 

@@ -1,0 +1,11 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": "template/.cowork-flow/workflow.md", "reason": "Template workflow documentation"}
+{"file": ".cowork-flow/spec/registry.json", "reason": "Spec contract registry"}
+{"file": "template/.cowork-flow/spec/registry.json", "reason": "Template spec contract registry"}
+{"file": "template/.cowork-flow/scripts/doctor.py", "reason": "Template doctor contract checks need new dispatch spec path"}
+{"file": ".cowork-flow/scripts/doctor.py", "reason": "Doctor contract checks need new dispatch spec path"}
+{"file": "template/.cowork-flow/spec/subagent-dispatch.md", "reason": "Template subagent dispatch spec"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Current subagent dispatch spec"}
