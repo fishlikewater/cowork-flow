@@ -45,6 +45,24 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("UNKNOWN", text)
             self.assertIn("use delegated_subtask instead", text)
 
+    def test_workflow_requires_brainstorming_clarification_gate(self) -> None:
+        required_markers = (
+            "需求澄清与头脑风暴门禁",
+            "新需求先判断清晰度",
+            "范围边界",
+            "验收标准",
+            "推荐方向",
+            "开放问题/阻塞",
+            "PRD、计划或固定代理派发",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
     def test_workflow_requires_dispatch_ack_gate(self) -> None:
         required_markers = (
             "COWORK_DISPATCH_V1",
@@ -134,9 +152,35 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("Route in stages", text)
         self.assertIn("Repository-changing main-session requests load state first", text)
         self.assertIn("before fixed-agent dispatch", text)
+        self.assertIn("requirement clarification gate", text)
+        self.assertIn("New requirements", text)
+        self.assertIn("before PRD, planning, or fixed-agent dispatch", text)
+        self.assertIn("scope boundary", text)
+        self.assertIn("acceptance criteria", text)
         self.assertIn("任务：` / `约束：` / `输出：", text)
         self.assertIn("natural-language delegated-task sentence", text)
         self.assertIn("Keep project rules as constraints only", text)
+
+    def test_brainstorming_skill_requires_clarification_output(self) -> None:
+        required_markers = (
+            "active clarification gate",
+            "before PRD, planning, fixed-agent dispatch, or code changes begin",
+            "goal, non-goals, assumptions, scope boundary, success criteria",
+            "recommended direction",
+            "Do not write PRD, planning, or fixed-agent dispatch input",
+            "Key assumptions",
+            "Scope boundary",
+            "Recommended direction and rejected alternatives",
+            "Acceptance criteria",
+            "Open questions, risks, or blockers",
+        )
+        for path in (
+            ROOT / ".agent" / "skills" / "brainstorming" / "SKILL.md",
+            ROOT / "template" / ".agent" / "skills" / "brainstorming" / "SKILL.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
 
     def test_start_skill_mentions_parallel_session_model(self) -> None:
         for path in (
@@ -182,8 +226,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertEqual(root_skill, template_skill)
 
-    def test_start_and_writing_plan_root_and_template_are_synced(self) -> None:
-        for skill_name in ("start", "writing-plans"):
+    def test_start_brainstorming_and_writing_plan_root_and_template_are_synced(self) -> None:
+        for skill_name in ("start", "brainstorming", "writing-plans"):
             root_skill = (ROOT / ".agent" / "skills" / skill_name / "SKILL.md").read_text(
                 encoding="utf-8"
             )

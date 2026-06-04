@@ -30,15 +30,7 @@ class CodexHooksTest(unittest.TestCase):
         shutil.copytree(TEMPLATE / ".cowork-flow" / "spec", root / ".cowork-flow" / "spec")
 
     def _run_hook(self, root: Path, payload: dict[str, object]) -> dict:
-        env = os.environ.copy()
-        for name in (
-            "COWORK_FLOW_CONTEXT_ID",
-            "CODEX_SESSION_ID",
-            "CODEX_THREAD_ID",
-            "COWORK_FLOW_DISABLE_HOOKS",
-            "COWORK_FLOW_HOOKS",
-        ):
-            env.pop(name, None)
+        env = self._hook_env()
         result = subprocess.run(
             [sys.executable, str(HOOK)],
             input=json.dumps({"cwd": str(root), **payload}),
@@ -52,6 +44,32 @@ class CodexHooksTest(unittest.TestCase):
         self.assertEqual("", result.stderr)
         self.assertEqual(0, result.returncode)
         return json.loads(result.stdout)
+
+    def _run_hook_bytes(self, root: Path, payload: dict[str, object]) -> dict:
+        env = self._hook_env()
+        result = subprocess.run(
+            [sys.executable, str(HOOK)],
+            input=json.dumps({"cwd": str(root), **payload}, ensure_ascii=False).encode("utf-8"),
+            capture_output=True,
+            cwd=root,
+            env=env,
+            timeout=10,
+        )
+        self.assertEqual(b"", result.stderr)
+        self.assertEqual(0, result.returncode)
+        return json.loads(result.stdout.decode("utf-8"))
+
+    def _hook_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        for name in (
+            "COWORK_FLOW_CONTEXT_ID",
+            "CODEX_SESSION_ID",
+            "CODEX_THREAD_ID",
+            "COWORK_FLOW_DISABLE_HOOKS",
+            "COWORK_FLOW_HOOKS",
+        ):
+            env.pop(name, None)
+        return env
 
     def test_hook_emits_no_task_workflow_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -198,6 +216,56 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("Status: delegated_subtask", context)
         self.assertIn("Source: unclassified", context)
         self.assertNotIn("必须先创建或启动任务", context)
+
+    def test_hook_reads_utf8_prompt_bytes_before_classification(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "06-04-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "codex_demo-session.json").write_text(
+                '{"active_task_path": ".cowork-flow/tasks/06-04-demo"}\n',
+                encoding="utf-8",
+            )
+
+            data = self._run_hook_bytes(root, {"session_id": "demo-session", "prompt": "先归档提交"})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Task: .cowork-flow/tasks/06-04-demo", context)
+        self.assertIn("Status: in_progress", context)
+        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertNotIn("Source: unclassified", context)
+
+    def test_hook_honors_explicit_main_session_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "06-04-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "codex_demo-session.json").write_text(
+                '{"active_task_path": ".cowork-flow/tasks/06-04-demo"}\n',
+                encoding="utf-8",
+            )
+
+            data = self._run_hook_bytes(
+                root,
+                {
+                    "session_id": "demo-session",
+                    "prompt": "我现在就是主会话，查找一下这个bug怎么产生的",
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Task: .cowork-flow/tasks/06-04-demo", context)
+        self.assertIn("Status: in_progress", context)
+        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertNotIn("Source: unclassified", context)
 
     def test_hook_reads_workflow_state_templates_instead_of_workflow_md(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
