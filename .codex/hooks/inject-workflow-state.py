@@ -16,78 +16,6 @@ TAG_RE = re.compile(
     r"\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n(.*?)\n\s*\[/workflow-state:\1\]",
     re.DOTALL,
 )
-PROMPT_KEYS = ("prompt", "user_prompt", "userPrompt", "message", "input")
-DELEGATED_MARKERS = (
-    "COWORK_DISPATCH_V1",
-    "COWORK_DELEGATION_V1",
-    "COWORK_DELEGATED_TASK_V1",
-    "DELEGATED_HARD",
-    "DELEGATED_SOFT",
-    "DELEGATED_SUBTASK",
-    "agent_type: worker",
-    "agent_type: default",
-    "agent_type: explorer",
-)
-DELEGATED_TERMS = (
-    "delegated task",
-    "delegated subtask",
-    "bounded delegated",
-    "subagent",
-    "sub-agent",
-    "reviewer",
-    "explorer",
-    "worker brief",
-    "leaf executor",
-    "spawn_agent",
-    "agent_type",
-    "best-effort",
-    "委托任务",
-    "委托 prompt",
-    "子任务",
-    "子线程",
-)
-TASK_TERMS = (
-    "task:",
-    "topic:",
-    "focus:",
-    "任务：",
-    "任务:",
-    "主题：",
-    "目标：",
-    "审视",
-    "讨论",
-    "review",
-    "inspect",
-)
-BOUNDARY_TERMS = (
-    "do not edit",
-    "do not run",
-    "do not spawn",
-    "do not run start",
-    "do not run resume",
-    "do not run task-start",
-    "do not run project start",
-    "do not run the project start-session workflow",
-    "return concise analysis only",
-    "不要编辑",
-    "不要运行",
-    "不要派发",
-    "不要只确认",
-    "只输出",
-    "不要改",
-)
-OUTPUT_TERMS = (
-    "output:",
-    "required output",
-    "return in",
-    "return exactly",
-    "return only",
-    "max ",
-    "最多",
-    "输出：",
-    "输出:",
-    "分为",
-)
 DEFAULT_CONTRACT_REGISTRY = {
     "contracts": [
         {
@@ -129,58 +57,8 @@ def _read_hook_input() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _extract_prompt(hook_input: dict[str, Any]) -> str:
-    values: list[str] = []
-    for key in PROMPT_KEYS:
-        value = hook_input.get(key)
-        if isinstance(value, str) and value.strip():
-            values.append(value)
-    return "\n".join(values)
-
-
-def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
-    return any(term in text for term in terms)
-
-
-def _is_delegated_prompt(hook_input: dict[str, Any]) -> bool:
-    prompt = _extract_prompt(hook_input)
-    if not prompt.strip():
-        return False
-    if any(marker in prompt for marker in DELEGATED_MARKERS):
-        return True
-
-    lowered = prompt.lower()
-    has_agent_dispatch_signal = any(
-        term in lowered
-        for term in (
-            "spawn_agent(",
-            "agent_type=\"worker\"",
-            "agent_type='worker'",
-            "agent_type=\"default\"",
-            "agent_type='default'",
-            "agent_type=\"explorer\"",
-            "agent_type='explorer'",
-            "agent type: worker",
-            "agent type: default",
-            "agent type: explorer",
-            "worker brief",
-            "leaf executor",
-            "best-effort",
-        )
-    )
-    has_task = _contains_any(lowered, TASK_TERMS)
-    has_delegated_role = _contains_any(lowered, DELEGATED_TERMS)
-    has_boundary = _contains_any(lowered, BOUNDARY_TERMS)
-    has_output = _contains_any(lowered, OUTPUT_TERMS)
-    return (
-        has_task
-        and (has_delegated_role or has_boundary or has_agent_dispatch_signal)
-        and (has_output or has_boundary or has_agent_dispatch_signal)
-    )
-
-
 def _load_breadcrumbs(root: Path) -> dict[str, str]:
-    workflow = root / ".cowork-flow" / "workflow.md"
+    workflow = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
     try:
         text = workflow.read_text(encoding="utf-8")
     except OSError:
@@ -346,11 +224,27 @@ def main() -> int:
     breadcrumbs = _load_breadcrumbs(root)
     dispatch_mode = _get_dispatch_mode(root)
     post_ack_execution_grace_ms = _get_post_ack_execution_grace_ms(root)
-    task_path, status, source = _get_active_task(root, hook_input)
-    if _is_delegated_prompt(hook_input):
+    _load_common(root)
+    try:
+        from common.entry_classifier import (  # type: ignore[import-not-found]
+            classify_entry,
+            should_use_delegated_bootstrap,
+        )
+
+        classification = classify_entry(hook_input)
+    except Exception:
+        classification = None
+
+    if (
+        classification is not None
+        and should_use_delegated_bootstrap(classification.entry_kind)
+        and classification.source != "empty_prompt"
+    ):
         task_path = None
         status = "delegated_subtask"
-        source = "prompt"
+        source = classification.source
+    else:
+        task_path, status, source = _get_active_task(root, hook_input)
     additional_context = _build_context(
         root,
         task_path,

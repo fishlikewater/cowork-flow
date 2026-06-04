@@ -167,6 +167,9 @@ class HostAdaptersTest(unittest.TestCase):
             )
             hook = (base / "hooks" / "inject-workflow-state.py").read_text(encoding="utf-8")
             self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', hook)
+            self.assertIn("workflow-state-templates.md", hook)
+            self.assertIn("common.entry_classifier", hook)
+            self.assertIn("should_use_delegated_bootstrap", hook)
             self.assertIn("hookSpecificOutput", hook)
             self.assertIn("additionalContext", hook)
 

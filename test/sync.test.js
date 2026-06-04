@@ -43,6 +43,8 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md'), 'old state templates\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'entry-contract.md'), 'custom entry contract\n', 'utf8');
   await mkdir(join(target, '.codex', 'agents'), { recursive: true });
   await writeFile(join(target, '.codex', 'agents', 'cowork-implement.toml'), 'old agent\n', 'utf8');
   await writeFile(join(target, '.codex', 'hooks.json'), 'old hooks\n', 'utf8');
@@ -76,6 +78,11 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'workflow.md')),
     await readText(join(templateRoot, '.cowork-flow', 'workflow.md'))
   );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'workflow-state-templates.md'))
+  );
+  assert.equal(await readText(join(target, '.cowork-flow', 'spec', 'entry-contract.md')), 'custom entry contract\n');
   assert.equal(
     await readText(join(target, '.codex', 'agents', 'cowork-implement.toml')),
     await readText(join(templateRoot, '.codex', 'agents', 'cowork-implement.toml'))
