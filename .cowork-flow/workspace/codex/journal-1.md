@@ -973,3 +973,49 @@ Added an active brainstorming clarification gate, synchronized root/template/Cla
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 31: Extract subagent dispatch spec
+
+**Date**: 2026-06-04
+**Task**: Extract subagent dispatch spec
+
+### Summary
+
+Extracted fixed-agent dispatch protocol into a dedicated English spec and kept workflow.md focused on flow responsibilities.
+
+### Main Changes
+
+## Summary
+
+- Extracted detailed fixed-agent dispatch protocol from workflow docs into `.cowork-flow/spec/subagent-dispatch.md`.
+- Kept `workflow.md` focused on main flow, coordination responsibility, and spec links.
+- Registered `COWORK_SUBAGENT_DISPATCH_V1` in root and template registries.
+- Updated state templates, doctor checks, and focused tests for the new spec boundary.
+- Converted `subagent-dispatch.md` to English-only wording in root and template copies.
+
+## Verification
+
+- `python -m unittest discover -s tests -p test_workflow_parallel_sessions.py`
+- `python -m unittest discover -s tests -p test_host_adapters.py`
+- `./.cowork-flow/run.cmd doctor --subagent-safety`
+- `git diff --check`
+- `npm run test:all`
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `715339e` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
