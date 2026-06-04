@@ -21,6 +21,8 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 `cowork-flow` 只保存项目状态、任务上下文、宿主适配器契约和恢复线索；实际执行由主会话和固定 `cowork-*` 代理完成。宿主工具名只写在 `.cowork-flow/adapters/<host>/adapter.yaml`，不进入流程分支。
 
+`task next` 是主会话的阶段导航器。进入任务阶段、恢复会话、派发实现、进入检查、完成收口前，先运行 `./.cowork-flow/run task next` 或 `.\.cowork-flow\run.cmd task next`，用当前任务和 `task.json.status` 决定下一步。该命令只读，不推进状态。
+
 ## 1.1 状态注入与入口分类
 
 1. 宿主钩子或插件每轮注入当前会话的入口分类和任务状态。状态提示的文本片段定义在 `.cowork-flow/spec/workflow-state-templates.md`，hook 从该文件读取；不再内联到本文件。
@@ -31,11 +33,11 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 1. 新需求先判断清晰度。只读问题、单步且目标/范围/验收标准都清楚的小改可以绕过；否则必须先进入 `brainstorming`，在写 PRD、计划或固定代理派发前收束方向。
 2. 以下情况触发头脑风暴：
-   - 目标、用户价值或期望行为不清楚。
-   - 范围边界、非目标或影响面不清楚。
-   - 存在多种有效方案或关键取舍尚未决定。
-   - 涉及 L1/L2 行为变化，或影响架构、接口、数据、权限、发布迁移。
-   - 验收标准缺失、风险未知，或关键假设需要暴露。
+    - 目标、用户价值或期望行为不清楚。
+    - 范围边界、非目标或影响面不清楚。
+    - 存在多种有效方案或关键取舍尚未决定。
+    - 涉及 L1/L2 行为变化，或影响架构、接口、数据、权限、发布迁移。
+    - 验收标准缺失、风险未知，或关键假设需要暴露。
 
 3. `brainstorming` 输出至少包括：目标、非目标、关键假设、范围边界、推荐方向、被拒方案、验收标准、开放问题/阻塞。只有方向和验收标准清楚后，才进入 PRD、计划或固定代理派发。
 
@@ -52,9 +54,22 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 | 行为变更 | `.cowork-flow/changes/<slug>/` |
 | 实施计划 | `.cowork-flow/plans/*.md` |
 | 项目规格 | `.cowork-flow/spec/` |
+| 项目上下文摘要 | `.cowork-flow/project-context.md` |
 | 会话记录 | `.cowork-flow/workspace/<developer>/journal-*.md` |
 
 > 当前任务是会话级状态。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID`、`CODEX_THREAD_ID`、`OPENCODE_SESSION_ID` 或 `CLAUDE_SESSION_ID` 时，不得猜测当前任务。
+
+任务阶段状态由生命周期命令维护：
+
+| 阶段 | 命令 | `task.json.status` |
+| --- | --- | --- |
+| 计划 | `task create` | `planning` |
+| 执行 | `task start <task-dir>` | `in_progress` |
+| 检查 | `task review [task-dir]` | `review` |
+| 完成 | `task complete [task-dir]` | `completed` |
+| 归档 | `task archive <task-name>` | 归档副本保持 `completed` |
+
+`task finish` 只清理当前会话任务指针，不改变 `task.json.status`。
 
 ## 3. 固定代理
 
@@ -120,6 +135,10 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 适用：API / DB / 消息 / 权限 / 文件格式 / 架构边界 / 发布迁移 / 安全策略等变化。
 流程：`changes` -> `brainstorming` -> `read spec` -> `plan` -> `tasks` -> `implement` -> `cross layer check` -> `complete` -> `archive` -> `add session`。
 
+L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表会在
+`task next` 中展示。缺少 proposal/spec/design、计划、任务链接、关键假设、
+范围边界、验收标准或验证命令时，不得启动实现或正式派发固定代理。
+
 ## 5. 计划阶段
 
 1. 对 L1/L2 创建 changes；L2 必须有 `design.md`。
@@ -130,53 +149,62 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
     ```bash
     ./.cowork-flow/run task create "<title>" --slug <task-name>
     ```
-6. 写 `prd.md`，至少包含目标、范围、验收标准、相关文件、验证方式。
+6. 对创建的每项任务写 `prd.md`，至少包含目标、范围、验收标准、相关文件、验证方式。
 7. 初始化上下文：
     ```bash
     ./.cowork-flow/run task init-context <task-dir> <type>
     ./.cowork-flow/run task add-context <task-dir> implement <path> "<reason>"
     ./.cowork-flow/run task add-context <task-dir> check <path> "<reason>"
     ```
-8. 启动当前会话任务：
+8. 运行导航器确认准备状态：
+    ```bash
+    ./.cowork-flow/run task next <task-dir>
+    ```
+9. 启动当前会话任务；该命令会把 `task.json.status` 推进到 `in_progress`：
     ```bash
     ./.cowork-flow/run task start <task-dir>
     ```
-    Windows PowerShell 使用：
+   Windows PowerShell 使用：
     ```powershell
     .\.cowork-flow\run.cmd task start <task-dir>
     ```
 
 ## 6. 实现阶段
 
-1. 默认通过宿主适配器派发 `cowork-implement`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/subagent-dispatch.md`。
-2. 派发内容应包含当前计划步骤、范围边界和期望验证命令。
-3. 如果用户明确要求主会话内联执行，或当前任务正在修改子代理/运行时行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
-4. 涉及行为变化时，先写失败测试，再实现，再验证变绿。
+1. 先运行 `task next` 确认当前状态和下一步命令。
+2. 默认通过宿主适配器派发 `cowork-implement`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/subagent-dispatch.md`。
+3. 派发内容应包含当前计划步骤、范围边界和期望验证命令。
+4. 如果用户明确要求主会话内联执行，或当前任务正在修改子代理/运行时行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
+5. 涉及行为变化时，先写失败测试，再实现，再验证变绿。
+6. 实现完成并通过本阶段验证后运行 `./.cowork-flow/run task review [task-dir]`，把任务推进到检查阶段。
 
 ## 7. 检查阶段
 
-1. 默认通过宿主适配器派发 `cowork-check`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/subagent-dispatch.md`。
-2. 检查内容：
-   - PRD 验收标准是否满足。
-   - `git diff` 是否只包含预期范围。
-   - 测试是否覆盖关键行为。
-   - `.cowork-flow/spec/` 是否需要更新。
-   - 计划勾选项和执行状态是否真实。
-3. 如果用户明确要求主会话内联检查，可以不派发 `cowork-check`，但必须执行等价的 diff、测试、规格同步检查。
+1. 先运行 `task next` 确认任务处于 `review` / `checking` 检查阶段。
+2. 默认通过宿主适配器派发 `cowork-check`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/subagent-dispatch.md`。
+3. 检查内容：
+    - PRD 验收标准是否满足。
+    - `git diff` 是否只包含预期范围。
+    - 测试是否覆盖关键行为。
+    - `.cowork-flow/spec/` 是否需要更新。
+    - 计划勾选项和执行状态是否真实。
+4. 如果用户明确要求主会话内联检查，可以不派发 `cowork-check`，但必须执行等价的 diff、测试、规格同步检查。
+5. 检查通过后运行 `./.cowork-flow/run task complete [task-dir]`，把任务推进到完成阶段。
 
 ## 8. 完成阶段
 
 1. 完成前必须确认：
-   - 当前会话存在任务，或明确说明本次是无任务只读工作。
-   - `cowork-check` 或等价最终检查已执行。
-   - 所有声明通过的验证都有命令输出依据。
-   - 规格已更新，或明确判断无需更新。
-   - 计划状态、任务状态、`change` 元数据不冲突。
-   - 提交在归档和会话记录之前完成。
-   - 不纳入无关脏改。
+    - 当前会话存在任务，或明确说明本次是无任务只读工作。
+    - `cowork-check` 或等价最终检查已执行。
+    - 所有声明通过的验证都有命令输出依据。
+    - 规格已更新，或明确判断无需更新。
+    - 计划状态、任务状态、`change` 元数据不冲突。
+    - 提交在归档和会话记录之前完成。
+    - 不纳入无关脏改。
 
 2. 顺序：
     ```bash
+    ./.cowork-flow/run task next
     git status --short
     git diff --check
     npm run test:all

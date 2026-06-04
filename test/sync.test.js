@@ -42,6 +42,8 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'scripts', 'project_context.py'), 'old project context script\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'project-context.md'), 'local generated context\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md'), 'old state templates\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'spec', 'entry-contract.md'), 'custom entry contract\n', 'utf8');
@@ -74,6 +76,11 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'scripts', 'task.py')),
     await readText(join(templateRoot, '.cowork-flow', 'scripts', 'task.py'))
   );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'scripts', 'project_context.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'project_context.py'))
+  );
+  assert.equal(await readText(join(target, '.cowork-flow', 'project-context.md')), 'local generated context\n');
   assert.equal(
     await readText(join(target, '.cowork-flow', 'workflow.md')),
     await readText(join(templateRoot, '.cowork-flow', 'workflow.md'))

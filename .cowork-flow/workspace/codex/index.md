@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 31
+- **Total Sessions**: 32
 - **Last Active**: 2026-06-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1021 | Current |
+| `journal-1.md` | ~1064 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 32 | 2026-06-04 | Workflow navigation readiness and project context | - |
 | 31 | 2026-06-04 | Extract subagent dispatch spec | `715339e` |
 | 30 | 2026-06-04 | Strengthen brainstorming clarification and hook input hardening | `42de9c9` |
 | 29 | 2026-06-03 | Fix CLI platform selector and adapter filtering | - |

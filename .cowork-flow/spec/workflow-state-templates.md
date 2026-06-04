@@ -45,6 +45,18 @@ task itself.
 活动任务正在执行。主会话按计划通过当前宿主适配器派发 cowork-implement，集成后再派发 cowork-check。每次正式派发都必须使用新鲜子上下文，并遵守 .cowork-flow/spec/subagent-dispatch.md。主会话必须核验子任务输出、列出子任务，并且只在完成、明确错派证据或用户取消后才取消子任务。
 [/workflow-state:in_progress]
 
+## review
+
+[workflow-state:review]
+活动任务已进入检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 PRD、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
+[/workflow-state:review]
+
+## checking
+
+[workflow-state:checking]
+活动任务正在检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 PRD、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
+[/workflow-state:checking]
+
 ## completed
 
 [workflow-state:completed]

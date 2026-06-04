@@ -1019,3 +1019,46 @@ Extracted fixed-agent dispatch protocol into a dedicated English spec and kept w
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 32: Workflow navigation readiness and project context
+
+**Date**: 2026-06-04
+**Task**: Workflow navigation readiness and project context
+
+### Summary
+
+Added task next navigation, L2 readiness gate, and project-context generation; archived completed workflow tasks and change.
+
+### Main Changes
+
+- Added `task next` navigator for deterministic next workflow action.
+- Added task status lifecycle updates for start, review, and complete.
+- Added L2 readiness gate and shared readiness helper.
+- Added generated `.cowork-flow/project-context.md` refresh command.
+- Synced root/template workflow assets and tests.
+- Archived parent task, four child tasks, and linked L2 change.
+
+Verification already run:
+- `python -m unittest discover -s tests`
+- `npm test`
+- `npm run pack:check`
+- `git diff --check`
+- `change validate 06-04-workflow-navigation-readiness-context` before task archive
+
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

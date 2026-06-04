@@ -107,6 +107,7 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertIn('"task": "task.py"', content)
         self.assertNotIn('"agent' + '-team": "agent' + '_team.py"', content)
         self.assertIn('"get-context": "get_context.py"', content)
+        self.assertIn('"project-context": "project_context.py"', content)
 
     @POSIX_ONLY
     def test_python3_is_preferred_when_available(self) -> None:

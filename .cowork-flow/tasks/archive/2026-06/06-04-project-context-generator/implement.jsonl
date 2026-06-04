@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/scripts/get_context.py", "reason": "Existing context command behavior"}
+{"file": ".cowork-flow/scripts/common/git_context.py", "reason": "Existing local context collection helpers"}
+{"file": ".cowork-flow/scripts/run.py", "reason": "Runner command dispatch for generator"}
+{"file": "template/.cowork-flow/scripts/get_context.py", "reason": "Template context command mirror"}
+{"file": "template/.cowork-flow/scripts/common/git_context.py", "reason": "Template context helper mirror"}
+{"file": "README.md", "reason": "Project-context command documentation"}

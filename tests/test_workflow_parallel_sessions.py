@@ -43,6 +43,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("[workflow-state:delegated_subtask]", text)
             self.assertIn("[workflow-state:planning]", text)
             self.assertIn("[workflow-state:in_progress]", text)
+            self.assertIn("[workflow-state:review]", text)
+            self.assertIn("[workflow-state:checking]", text)
             self.assertIn("[workflow-state:completed]", text)
             self.assertIn("DELEGATED_HARD", text)
             self.assertIn("DELEGATED_SOFT", text)

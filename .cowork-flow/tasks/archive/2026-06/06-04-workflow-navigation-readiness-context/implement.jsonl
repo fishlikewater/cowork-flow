@@ -1,0 +1,11 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/scripts/run.py", "reason": "Workflow runner command dispatch and help surface"}
+{"file": ".cowork-flow/scripts/task.py", "reason": "Task lifecycle, current/next/start behavior"}
+{"file": ".cowork-flow/scripts/change.py", "reason": "L2 change validation and artifact links"}
+{"file": ".cowork-flow/scripts/common/git_context.py", "reason": "Existing context collection patterns"}
+{"file": "template/.cowork-flow/scripts/run.py", "reason": "Template runner mirror"}
+{"file": "template/.cowork-flow/scripts/task.py", "reason": "Template task script mirror"}
+{"file": "README.md", "reason": "Public command and workflow documentation"}
