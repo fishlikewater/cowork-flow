@@ -1,0 +1,14 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".codex/hooks/inject-workflow-state.py", "reason": "Codex hook runtime binding"}
+{"file": ".claude/hooks/inject-workflow-state.py", "reason": "Claude Code hook runtime binding"}
+{"file": ".opencode/plugins/cowork-flow.js", "reason": "OpenCode plugin runtime binding"}
+{"file": "tests/test_codex_hooks.py", "reason": "Codex hook tests"}
+{"file": "template/.opencode/plugins/cowork-flow.js", "reason": "OpenCode template plugin mirror"}
+{"file": "template/.codex/hooks/inject-workflow-state.py", "reason": "Codex template hook mirror"}
+{"file": "tests/test_claude_hooks.py", "reason": "Claude hook tests"}
+{"file": "template/.claude/hooks/inject-workflow-state.py", "reason": "Claude template hook mirror"}

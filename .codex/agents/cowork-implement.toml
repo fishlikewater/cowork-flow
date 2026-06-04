@@ -5,36 +5,22 @@ sandbox_mode = "workspace-write"
 developer_instructions = """
 You are the `cowork-implement` subagent.
 
-The dispatch message SHOULD include this lightweight envelope:
-COWORK_DISPATCH_V1
-dispatch_id: <dispatch-id>
-task_dir: .cowork-flow/tasks/<task>
-agent_type: cowork-implement
-role: implement
-context_file: <context-file>
-ack_token: <ack-token>
-COWORK_DISPATCH_END
+Formal `cowork-implement` work requires runtime-context dispatch. The prompt or
+host metadata must provide:
 
-If the envelope agent_type is not `cowork-implement`, report needs_context and do not execute it. If agent_type is missing, legacy role `cowork-implement` is accepted. If role names another fixed agent, report needs_context and do not execute it.
+cowork_runtime_context_id: <runtime_context_id>
 
-When the envelope is present, it wins over bootstrap, AGENTS.md, and no-task context. First return only:
-COWORK_ACK <dispatch_id> <ack_token>
-
-Do not execute the task until the coordinator sends:
-EXECUTE <dispatch_id>
-
-If a follow-up has a missing or mismatched dispatch_id, report needs_context and do not execute it.
-
-Legacy dispatch without an envelope MUST start with:
-Active task: .cowork-flow/tasks/<task>
-
-If the message contains neither the envelope nor that line, stop and ask for the active task path.
+The hook binds that id to `.cowork-flow/.runtime/subagents/<runtime_context_id>.json`
+before workflow state is injected. If the bound runtime context is missing,
+closed, invalid, or names another agent type, report needs_context and do not
+execute the task.
 
 Load context before editing:
-1. Read `<task>/prd.md`.
-2. Read `<task>/info.md` if present.
-3. Read `<task>/implement.jsonl`.
-4. Read each JSONL `file` entry.
+1. Read the task directory from the bound runtime context.
+2. Read `<task>/prd.md`.
+3. Read `<task>/info.md` if present.
+4. Read `<task>/implement.jsonl`.
+5. Read each JSONL `file` entry.
 
 Rules:
 - MUST NOT spawn, wait for, list, or close other agents.

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -41,10 +41,10 @@ async function createRegistryRepo(t) {
   return root
 }
 
-async function renderPluginContext(cwd) {
+async function renderPluginContext(cwd, input = {}) {
   const plugin = await CoworkFlowPlugin()
   const output = { system: [] }
-  await plugin["experimental.chat.system.transform"]({ cwd }, output)
+  await plugin["experimental.chat.system.transform"]({ cwd, ...input }, output)
   assert.equal(output.system.length, 1)
   return output.system[0]
 }
@@ -81,4 +81,49 @@ test("opencode plugin fingerprint changes when referenced spec changes", async (
 
   assert.notEqual(extractFingerprint(before), extractFingerprint(after))
   assert.doesNotMatch(after, /FULL_SPEC_SENTINEL/)
+})
+
+test("opencode plugin injects and binds runtime subagent state", async (t) => {
+  const root = await createRegistryRepo(t)
+  const runtimeDir = join(root, ".cowork-flow", ".runtime", "subagents")
+  await mkdir(runtimeDir, { recursive: true })
+  await writeFile(
+    join(runtimeDir, "rtx_plugin.json"),
+    JSON.stringify(
+      {
+        schema_version: 2,
+        runtime_context_id: "rtx_plugin",
+        scope: "subagent",
+        host: "opencode",
+        adapter: "opencode.task",
+        agent_type: "cowork-check",
+        role: "check",
+        task_dir: ".cowork-flow/tasks/06-04-demo",
+        status: "pending",
+        assignment: { goal: "Check the runtime binding." },
+        bound_context_key: null,
+      },
+      null,
+      2
+    ),
+    "utf8"
+  )
+
+  const context = await renderPluginContext(root, {
+    opencode_session_id: "child-session",
+    prompt: "cowork_runtime_context_id: rtx_plugin",
+  })
+
+  assert.match(context, /Status: delegated_subtask/)
+  assert.match(context, /Source: runtime-context:rtx_plugin/)
+  assert.match(context, /Agent: cowork-check/)
+  assert.match(context, /Scope: subagent/)
+  const session = JSON.parse(
+    await readFile(
+      join(root, ".cowork-flow", ".runtime", "sessions", "opencode_child-session.json"),
+      "utf8"
+    )
+  )
+  assert.equal(session.scope, "subagent")
+  assert.equal(session.runtime_context_id, "rtx_plugin")
 })

@@ -17,11 +17,17 @@
 
 - `dispatchSubagent`: create a child agent for formal workflow work.
 - `freshChildContext`: start child with bounded context, not inherited full session history.
-- `sendFollowup`: send `EXECUTE <dispatch_id>` or equivalent after ACK.
+- `runtimeContextDispatch`: create a runtime context before child dispatch.
+- `runtimeContextBinding`: bind the host child session to that runtime context.
+- `runtimeContextCleanup`: close and clean child runtime session files.
+- `sendFollowup`: send follow-up instructions when the host supports it.
 - `waitChild`: wait for child result.
 - `listChildren`: inspect active children.
 - `cancelChild`: stop an incorrect or cancelled child.
 - `stateInjection`: inject workflow or runtime state before task recovery.
 - `backgroundChild`: run a child while the main session continues.
 
-Formal `cowork-research`, `cowork-implement`, and `cowork-check` require `dispatchSubagent`, `freshChildContext`, `waitChild`, and the fixed dispatch contract. If a required capability is `unsupported`, the adapter must use `fallback.whenRequiredCapabilityMissing`.
+Formal `cowork-research`, `cowork-implement`, and `cowork-check` require
+`dispatchSubagent`, `freshChildContext`, `waitChild`, `runtimeContextDispatch`,
+`runtimeContextBinding`, and `runtimeContextCleanup`. If a required capability
+is `unsupported`, the adapter must use `fallback.whenRequiredCapabilityMissing`.

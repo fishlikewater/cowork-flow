@@ -48,7 +48,7 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.claude/settings.json'), true);
   assert.equal(files.has('template/.claude/hooks/inject-workflow-state.py'), true);
   assert.equal(files.has('template/.claude/skills/start/SKILL.md'), true);
-  assert.equal(files.has('template/.claude/skills/entry-boundary/SKILL.md'), true);
+  assert.equal(files.has('template/.claude/skills/' + 'entry' + '-boundary/SKILL.md'), false);
   assert.equal(files.has('template/.opencode/agents/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/commands/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/plugins/cowork-flow.js'), true);

@@ -1,11 +1,38 @@
 from __future__ import annotations
 
-import tomllib
+import ast
 import unittest
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.8-3.10
+    tomllib = None
+
 
 ROOT = Path(__file__).resolve().parents[1]
+ENTRY_BOUNDARY = "entry" + "-boundary"
+
+
+def load_agent_toml(path: Path) -> dict[str, str]:
+    text = path.read_text(encoding="utf-8")
+    if tomllib is not None:
+        return tomllib.loads(text)
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("["):
+            break
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "name":
+            parsed = ast.literal_eval(value.strip())
+            if not isinstance(parsed, str):
+                raise ValueError(f"name must be a string in {path}")
+            return {"name": parsed}
+
+    raise ValueError(f"missing top-level name in {path}")
 
 
 class CoworkAgentsTest(unittest.TestCase):
@@ -16,7 +43,6 @@ class CoworkAgentsTest(unittest.TestCase):
             "break-loop",
             "check",
             "continue",
-            "entry-boundary",
             "finish-work",
             "meta",
             "python-design",
@@ -50,7 +76,7 @@ class CoworkAgentsTest(unittest.TestCase):
     def test_codex_agent_definitions_are_valid_toml(self) -> None:
         for base in (ROOT / ".codex" / "agents", ROOT / "template" / ".codex" / "agents"):
             for path in base.glob("*.toml"):
-                data = tomllib.loads(path.read_text(encoding="utf-8"))
+                data = load_agent_toml(path)
                 self.assertEqual(path.stem, data["name"], str(path))
 
     def test_opencode_agent_definitions_exist_in_root_and_template(self) -> None:
@@ -68,9 +94,10 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertTrue((base / "settings.json").is_file())
             self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
             for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
-                         "entry-boundary", "finish-work", "meta", "python-design", "start",
+                         "finish-work", "meta", "python-design", "start",
                          "update-spec", "writing-plans"):
                 self.assertTrue((base / "skills" / name / "SKILL.md").is_file())
+            self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
         self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
 
@@ -88,7 +115,7 @@ class CoworkAgentsTest(unittest.TestCase):
                     str(mirror),
                 )
 
-    def test_agents_require_active_task_and_disable_multi_agent(self) -> None:
+    def test_agents_require_runtime_context_and_disable_multi_agent(self) -> None:
         for path in (
             ROOT / ".codex" / "agents" / "cowork-research.toml",
             ROOT / ".codex" / "agents" / "cowork-implement.toml",
@@ -98,7 +125,9 @@ class CoworkAgentsTest(unittest.TestCase):
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
         ):
             text = path.read_text(encoding="utf-8")
-            self.assertIn("Active task:", text)
+            self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
+            self.assertIn("bound runtime context", text)
+            self.assertIn("report needs_context", text)
             self.assertIn("MUST NOT spawn", text)
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
@@ -119,7 +148,7 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
 
-    def test_agents_require_dispatch_ack_protocol(self) -> None:
+    def test_agents_require_runtime_context_protocol(self) -> None:
         fixed_agents = {
             "cowork-research": "research",
             "cowork-implement": "implement",
@@ -130,35 +159,29 @@ class CoworkAgentsTest(unittest.TestCase):
                 path = base / f"{agent_name}.toml"
                 text = path.read_text(encoding="utf-8")
                 required_markers = (
-                    "COWORK_DISPATCH_V1",
-                    "COWORK_DISPATCH_END",
-                    "COWORK_ACK",
-                    "dispatch_id",
-                    "ack_token",
-                    "EXECUTE <dispatch_id>",
-                    "mismatched dispatch_id",
-                    f"agent_type: {agent_name}",
-                    f"role: {workflow_role}",
-                    f"agent_type is not `{agent_name}`",
-                    f"legacy role `{agent_name}` is accepted",
-                    "role names another fixed agent",
+                    "cowork_runtime_context_id: <runtime_context_id>",
+                    ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
+                    "before workflow state is injected",
+                    "names another agent type",
+                    "report needs_context",
+                    f"`{agent_name}` subagent",
                 )
+                self.assertIn(workflow_role, text)
                 for marker in required_markers:
                     self.assertIn(marker, text, f"{marker} missing from {path}")
 
-    def test_doctor_checks_fixed_agent_protocol(self) -> None:
+    def test_doctor_checks_runtime_context_protocol(self) -> None:
         doctor = ROOT / ".cowork-flow" / "scripts" / "doctor.py"
         text = doctor.read_text(encoding="utf-8")
         for marker in (
-            "COWORK_DISPATCH_V1",
-            "COWORK_DELEGATION_V1",
             "COWORK_ENTRY_CONTRACT_V1",
-            "COWORK_ACK",
-            "EXECUTE <dispatch_id>",
-            "agent_type is not",
+            "RUNTIME_CONTEXT_DISPATCH_V2",
+            "cowork_runtime_context_id",
+            "bind_runtime_context",
+            "runtime-context-invalid",
             "workflow-state-templates.md",
             "entry_classifier.py",
-            "REQUIRED_CODEX_HOOK_SCRIPT_SNIPPETS",
+            "REQUIRED_RUNTIME_HOOK_SNIPPETS",
             "REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS",
             "cmd_host_adapters",
             ".cowork-flow/adapters/claude-code/adapter.yaml",

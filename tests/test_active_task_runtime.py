@@ -148,3 +148,87 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertEqual(1, cleared)
             self.assertFalse((sessions / "main.json").exists())
             self.assertTrue((sessions / "other.json").exists())
+
+    def test_runtime_context_id_can_be_resolved_from_prompt_input(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            runtime_id = self.active_task.resolve_runtime_context_id(
+                {
+                    "prompt": (
+                        "cowork_runtime_context_id: rtx_20260604_demo\n"
+                        "Task: inspect"
+                    )
+                }
+            )
+
+        self.assertEqual("rtx_20260604_demo", runtime_id)
+
+    def test_bind_runtime_context_writes_host_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context_dir = self.active_task.subagent_contexts_dir(root)
+            context_dir.mkdir(parents=True)
+            context_path = context_dir / "rtx_demo.json"
+            context_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "runtime_context_id": "rtx_demo",
+                        "scope": "subagent",
+                        "host": "codex",
+                        "task_dir": ".cowork-flow/tasks/05-28-demo",
+                        "status": "pending",
+                        "bound_context_key": None,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            bound = self.active_task.bind_runtime_context(
+                root,
+                "rtx_demo",
+                "codex_child",
+            )
+
+            self.assertIsNotNone(bound)
+            session_file = self.active_task.sessions_dir(root) / "codex_child.json"
+            session = json.loads(session_file.read_text(encoding="utf-8"))
+            self.assertEqual("subagent", session["scope"])
+            self.assertEqual("rtx_demo", session["runtime_context_id"])
+            self.assertEqual(".cowork-flow/tasks/05-28-demo", session["active_task_path"])
+            context = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("bound", context["status"])
+            self.assertEqual("codex_child", context["bound_context_key"])
+
+    def test_close_runtime_context_removes_bound_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context_dir = self.active_task.subagent_contexts_dir(root)
+            context_dir.mkdir(parents=True)
+            sessions = self.active_task.sessions_dir(root)
+            sessions.mkdir(parents=True)
+            (context_dir / "rtx_demo.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "runtime_context_id": "rtx_demo",
+                        "scope": "subagent",
+                        "host": "codex",
+                        "task_dir": ".cowork-flow/tasks/05-28-demo",
+                        "status": "bound",
+                        "bound_context_key": "codex_child",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (sessions / "codex_child.json").write_text("{}\n", encoding="utf-8")
+            (sessions / "subagent_rtx_demo.json").write_text("{}\n", encoding="utf-8")
+
+            closed = self.active_task.close_runtime_context(root, "rtx_demo")
+
+            self.assertTrue(closed)
+            self.assertFalse((sessions / "codex_child.json").exists())
+            self.assertFalse((sessions / "subagent_rtx_demo.json").exists())
+            context = json.loads((context_dir / "rtx_demo.json").read_text(encoding="utf-8"))
+            self.assertEqual("closed", context["status"])

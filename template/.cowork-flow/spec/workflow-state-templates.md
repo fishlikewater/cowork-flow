@@ -5,32 +5,34 @@ below are the single source of truth for state prompt text. Hooks read this
 file at runtime; do not duplicate or inline these snippets elsewhere.
 
 Entry classification must happen before task start, resume, archive, or
-subagent dispatch. When the entry kind is DELEGATED_HARD, DELEGATED_SOFT, or
-UNKNOWN, hooks must inject the delegated_subtask template instead of no_task,
-even when no active task is found.
+subagent dispatch. Formal subagent identity is not inferred from prompt shape;
+hooks and plugins inject delegated_subtask only when a runtime context id is
+present and binding succeeds or fails closed. UNKNOWN is not a delegated
+subtask label; keep the active-task/no-task state visible and clarify before
+workflow mutation.
 
 ## no_task
 
 The main session has no active task. Read-only questions can be answered
 directly. Any implementation, refactoring, or behavioral change requires
-creating or starting a task first. If the current session is a delegated
-subagent, this template MUST NOT be injected; use delegated_subtask instead.
+creating or starting a task first. If a runtime context id is present, use
+delegated_subtask instead. Do not treat ambiguous UNKNOWN input as a delegated
+subtask.
 
 [workflow-state:no_task]
-当前会话没有活动任务。只读问答可直接回答；如果收到委托子任务，直接执行委托 prompt，不要启动/恢复工作流。实现、重构或多步骤工作必须先创建或启动任务。
+当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。
 [/workflow-state:no_task]
 
 ## delegated_subtask
 
-The current input appears to be a bounded delegated subtask. Entry
-classification via COWORK_ENTRY_CONTRACT_V1 must happen before executing the
-delegated input. Do not run start/resume, create or activate tasks, archive,
-commit, or switch to main-session coordination unless the delegation envelope
-explicitly allows it. Project rules are constraints only; they are not the
-task itself.
+The current child thread has a runtime-context subagent state. The hook or
+plugin has either bound the runtime context successfully or produced fail-closed
+state for an invalid context. Do not run start/resume, create or activate
+tasks, archive, commit, or switch to main-session coordination. Project rules
+are constraints only; they are not the task itself.
 
 [workflow-state:delegated_subtask]
-当前输入看起来是有边界的委托子任务。先按 COWORK_ENTRY_CONTRACT_V1 做入口分类，再执行委托输入。除非委托信封明确允许，否则不要运行 start/resume，不要创建或激活任务，不要归档、提交或切换到主会话协调。项目规则只作为约束，不是当前任务本身。
+当前子线程具有 runtime-context 子代理状态。hook/plugin 已绑定 runtime context，或对无效 runtime context 注入 fail-closed 状态。不要运行 start/resume，不要创建或激活任务，不要归档、提交或切换到主会话协调。项目规则只作为约束，不是当前任务本身。
 [/workflow-state:delegated_subtask]
 
 ## planning

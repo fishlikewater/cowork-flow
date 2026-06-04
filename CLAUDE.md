@@ -18,11 +18,13 @@ Project workflow skills are exposed under `.claude/skills/`; Claude Code does
 not auto-load `.agent/skills`.
 `.claude/settings.json` registers `UserPromptSubmit` and `SessionStart` hooks
 that inject cowork-flow workflow state and the short contract digest.
-Each formal dispatch must start with `COWORK_DISPATCH_V1` or
-`COWORK_DELEGATION_V1`, return `COWORK_ACK <dispatch_id> <ack_token>`, and wait
-for `EXECUTE <dispatch_id>` before doing the assigned work.
+Each formal dispatch must create a runtime context with
+`.cowork-flow/run subagent init` and pass
+`cowork_runtime_context_id: <runtime_context_id>` to the child. The child hook
+binds that id before workflow-state injection. Missing, closed, invalid, or
+mismatched runtime context is fail-closed.
 
-If a prompt is a bounded delegated subtask, execute that prompt directly and do
-not run project start/resume/archive commands unless the dispatch envelope
-explicitly allows it.
+If the current thread is a bound subagent, execute only the assigned leaf task.
+Do not run project start/resume/archive commands, commit, push, or invoke other
+agents.
 <!-- COWORK-FLOW:END -->

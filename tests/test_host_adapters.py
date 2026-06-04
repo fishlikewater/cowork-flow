@@ -6,6 +6,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ENTRY_BOUNDARY = "entry" + "-boundary"
+LEGACY_DISPATCH = "COWORK_" + "DISPATCH_V1"
+LEGACY_ACK = "COWORK_" + "ACK"
 
 
 def parse_simple_yaml(path: Path) -> dict[str, object]:
@@ -78,16 +81,21 @@ class HostAdaptersTest(unittest.TestCase):
                     "cancelChild",
                     "stateInjection",
                     "backgroundChild",
+                    "runtimeContextDispatch",
+                    "runtimeContextBinding",
+                    "runtimeContextCleanup",
                 ):
                     self.assertIn(capabilities[key], {"native", "shim", "plugin", "external", "experimental"})
 
                 contracts = adapter["contracts"]
                 self.assertEqual("COWORK_ENTRY_CONTRACT_V1", contracts["entry"])
-                self.assertEqual("COWORK_DISPATCH_V1", contracts["envelope"])
-                self.assertEqual("COWORK_DELEGATION_V1", contracts["delegation"])
-                self.assertIs(contracts["ackRequired"], True)
-                self.assertIs(contracts["executeRequired"], True)
+                self.assertEqual("RUNTIME_CONTEXT_DISPATCH_V2", contracts["dispatch"])
                 self.assertIs(contracts["leafExecutor"], True)
+                runtime_context = adapter["runtimeContext"]
+                self.assertEqual("cowork_runtime_context_id", runtime_context["promptKey"])
+                self.assertEqual("COWORK_FLOW_RUNTIME_CONTEXT_ID", runtime_context["envKey"])
+                self.assertEqual("cowork_runtime_context_id", runtime_context["metadataKey"])
+                self.assertEqual("fail_closed", adapter["fallback"]["whenRuntimeContextMissing"])
                 if host == "claude-code":
                     self.assertEqual(".claude/skills", adapter["dispatch"]["skillsPath"])
                     self.assertEqual(".claude/settings.json", adapter["dispatch"]["settingsPath"])
@@ -102,8 +110,9 @@ class HostAdaptersTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("宿主适配器契约", text)
             self.assertIn("subagent-dispatch.md", text)
-            self.assertNotIn("COWORK_DISPATCH_V1", text)
-            self.assertNotIn("COWORK_ACK", text)
+            self.assertIn("runtime context", text)
+            self.assertNotIn(LEGACY_DISPATCH, text)
+            self.assertNotIn(LEGACY_ACK, text)
             for marker in banned:
                 self.assertNotIn(marker, text)
 
@@ -114,17 +123,17 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("mode: subagent", text)
                 self.assertIn("task: deny", text)
                 self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
-                self.assertIn("COWORK_DISPATCH_V1", text)
-                self.assertIn("COWORK_DELEGATION_V1", text)
-                self.assertIn("COWORK_ACK", text)
-                self.assertIn("EXECUTE <dispatch_id>", text)
+                self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
+                self.assertIn("bound runtime context", text)
+                self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
 
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn("subtask: true", text)
                 self.assertIn(f"agent: {name}", text)
-                self.assertIn("COWORK_DELEGATION_V1", text)
+                self.assertIn(".cowork-flow/run subagent init", text)
+                self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
 
             plugin = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
             self.assertIn("experimental.chat.system.transform", plugin)
@@ -133,6 +142,10 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn("fingerprint", plugin)
             self.assertIn("read_before", plugin)
             self.assertIn("COWORK_ENTRY_CONTRACT_V1", plugin)
+            self.assertIn("RUNTIME_CONTEXT_DISPATCH_V2", plugin)
+            self.assertIn("resolveRuntimeContextId", plugin)
+            self.assertIn("bindRuntimeContext", plugin)
+            self.assertIn("runtime-context-invalid", plugin)
 
     def test_claude_code_assets_encode_fixed_agent_contract(self) -> None:
         for base in (ROOT / ".claude", ROOT / "template" / ".claude"):
@@ -140,24 +153,23 @@ class HostAdaptersTest(unittest.TestCase):
                 text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn(f"name: {name}", text)
                 self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
-                self.assertIn("COWORK_DISPATCH_V1", text)
-                self.assertIn("COWORK_DELEGATION_V1", text)
-                self.assertIn("host: claude-code", text)
-                self.assertIn("COWORK_ACK", text)
-                self.assertIn("EXECUTE <dispatch_id>", text)
+                self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
+                self.assertIn("bound runtime context", text)
+                self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
                 self.assertIn("Do not use the Task tool or invoke subagents", text)
 
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn(f"Use the `{name}` agent", text)
-                self.assertIn("COWORK_DELEGATION_V1", text)
-                self.assertIn("host: claude-code", text)
+                self.assertIn(".cowork-flow/run subagent init", text)
+                self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
 
-            for name in ("start", "entry-boundary", "check"):
+            for name in ("start", "check"):
                 text = (base / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
                 self.assertIn("name:", text)
                 self.assertIn("description:", text)
+            self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
 
             settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(
@@ -171,8 +183,9 @@ class HostAdaptersTest(unittest.TestCase):
             hook = (base / "hooks" / "inject-workflow-state.py").read_text(encoding="utf-8")
             self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', hook)
             self.assertIn("workflow-state-templates.md", hook)
-            self.assertIn("common.entry_classifier", hook)
-            self.assertIn("should_use_delegated_bootstrap", hook)
+            self.assertIn("resolve_runtime_context_id", hook)
+            self.assertIn("bind_runtime_context", hook)
+            self.assertIn("runtime-context-invalid", hook)
             self.assertIn("hookSpecificOutput", hook)
             self.assertIn("additionalContext", hook)
 
@@ -180,6 +193,7 @@ class HostAdaptersTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("@AGENTS.md", text)
             self.assertIn("<!-- COWORK-FLOW:START -->", text)
-            self.assertIn("COWORK_DELEGATION_V1", text)
+            self.assertIn(".cowork-flow/run subagent init", text)
+            self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
             self.assertIn(".claude/agents/cowork-implement.md", text)
             self.assertIn(".claude/skills/", text)

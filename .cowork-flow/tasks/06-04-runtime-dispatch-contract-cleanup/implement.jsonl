@@ -1,0 +1,11 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/adapter.schema.json", "reason": "Adapter runtime-context schema"}
+{"file": ".cowork-flow/adapters/codex/adapter.yaml", "reason": "Codex adapter"}
+{"file": ".cowork-flow/adapters/claude-code/adapter.yaml", "reason": "Claude Code adapter"}
+{"file": ".cowork-flow/adapters/opencode/adapter.yaml", "reason": "OpenCode adapter"}
+{"file": ".cowork-flow/spec/registry.json", "reason": "Contract registry"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Dispatch spec replacement"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Runtime dispatch spec replaces the legacy delegation spec"}

@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".cowork-flow/scripts/subagent.py", "reason": "Runtime subagent init/status/close commands"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "Subagent runtime tests"}
+{"file": ".cowork-flow/scripts/common/active_task.py", "reason": "Session key and active task runtime helpers"}
+{"file": "tests/test_active_task_runtime.py", "reason": "Session runtime tests"}

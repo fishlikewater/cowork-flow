@@ -27,7 +27,7 @@ Start with:
 ```markdown
 # <Feature> Implementation Plan
 
-> For agentic workers: dispatch `cowork-implement` and `cowork-check` through the active Host Adapter. Every formal dispatch uses `COWORK_DISPATCH_V1` or `COWORK_DELEGATION_V1`; legacy dispatch may start with `Active task: <task-dir>`.
+> For formal fixed-agent work: create a runtime context with `.cowork-flow/run subagent init`, pass `cowork_runtime_context_id: <runtime_context_id>` through the active Host Adapter, then dispatch `cowork-implement` or `cowork-check`. Close the runtime context after verification.
 
 **Goal:** <one sentence>
 **Architecture:** <2-3 sentences>
