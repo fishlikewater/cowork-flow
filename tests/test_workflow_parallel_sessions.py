@@ -18,10 +18,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("宿主适配器", text)
         self.assertIn("新鲜子上下文", text)
         self.assertIn("workflow-state-templates.md", text)
+        self.assertIn("subagent-dispatch.md", text)
         self.assertNotIn("[workflow-state:", text)
         self.assertIn("适配器等待原语", text)
         self.assertIn("适配器列表原语", text)
         self.assertIn("适配器取消/关闭原语", text)
+        self.assertNotIn("COWORK_DISPATCH_V1", text)
+        self.assertNotIn("COWORK_ACK", text)
+        self.assertNotIn("post_ack_execution_grace_ms", text)
         self.assertNotIn("spawn_agent", text)
         self.assertNotIn("fork_turns=\"none\"", text)
         self.assertNotIn("agent run cowork-implement", text)
@@ -69,14 +73,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "COWORK_DISPATCH_END",
             "COWORK_DELEGATION_V1",
             "COWORK_ACK",
-            "适配器后续发送原语",
+            "adapter follow-up send primitive",
             "ack_token",
             "dispatch_id",
-            "缺失或不匹配的 `COWORK_ACK` 表示任务尚未成功派发。",
+            "Missing or mismatched `COWORK_ACK` means the task has not been successfully dispatched.",
         )
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -84,14 +88,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_limits_generic_worker_to_best_effort(self) -> None:
         required_markers = (
-            "正式执行只使用 `cowork-research`、`cowork-implement` 或 `cowork-check`。",
-            "通用 `worker` 派发只视为尽力而为。",
-            "如果通用 worker 重试一次后仍未 ACK，关闭它且不要执行该任务。",
-            "自然语言首屏边界",
+            "Formal execution uses only `cowork-research`, `cowork-implement`, or `cowork-check`.",
+            "Generic `worker` dispatch is best effort only.",
+            "If a generic worker still does not ACK after one retry, close it and do not execute the task.",
+            "natural-language first-screen boundary",
         )
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -99,19 +103,19 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_requires_execution_grace_after_ack_before_closing_subagents(self) -> None:
         required_markers = (
-            "ACK 后执行宽限期",
-            "`EXECUTE <dispatch_id>` 后",
+            "post-ACK execution grace",
+            "After `EXECUTE <dispatch_id>`",
             "execute_sent_at[dispatch_id]",
             "deadline[dispatch_id] = execute_sent_at[dispatch_id] + post_ack_execution_grace_ms",
-            "共享/全局截止时间",
-            "没有回复或没有 `compass` / `status` 文件",
-            "不得因为执行中的子任务尚未产出",
-            "复核点",
-            "`progress`、`compass` 或 `status` 文件",
+            "shared/global deadline",
+            "no reply or no `compass` / `status` file",
+            "has not produced `compass` / `status`",
+            "review checkpoint",
+            "`progress`, `compass`, or `status` exists",
         )
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:

@@ -56,18 +56,30 @@ REQUIRED_FIXED_AGENT_SNIPPETS = [
 ]
 
 REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
+    "宿主适配器契约",
+    ".cowork-flow/spec/subagent-dispatch.md",
+    "新鲜子上下文",
+    "适配器等待原语",
+    "适配器列表原语",
+    "适配器取消/关闭原语",
+    "软委托",
+]
+
+REQUIRED_SUBAGENT_DISPATCH_SNIPPETS = [
     "COWORK_DISPATCH_V1",
     "COWORK_DELEGATION_V1",
     "COWORK_ACK",
-    "适配器后续发送原语",
-    "ACK 后执行宽限期",
+    "EXECUTE <dispatch_id>",
+    "adapter follow-up send primitive",
+    "post-ACK execution grace",
     "execute_sent_at[dispatch_id]",
     "deadline[dispatch_id] = execute_sent_at[dispatch_id] + post_ack_execution_grace_ms",
-    "共享/全局截止时间",
-    "`EXECUTE <dispatch_id>` 后，子任务加载上下文期间没有回复或没有 `compass` / `status` 文件，不能判定异常。",
-    "正式执行只使用 `cowork-research`、`cowork-implement` 或 `cowork-check`。",
-    "通用 `worker` 派发只视为尽力而为。",
-    "宿主适配器契约",
+    "global deadline",
+    "compass",
+    "status",
+    "Formal execution uses only `cowork-research`, `cowork-implement`, or `cowork-check`.",
+    "Generic `worker` dispatch is best effort only.",
+    "DELEGATED_SOFT",
 ]
 
 REQUIRED_HOOK_SNIPPETS = [
@@ -115,11 +127,13 @@ REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '"schemaVersion": 1',
     '"COWORK_ENTRY_CONTRACT_V1"',
     '"COWORK_DELEGATION_V1"',
+    '"COWORK_SUBAGENT_DISPATCH_V1"',
     '"HOST_ADAPTER_CAPABILITIES_V1"',
     '"HOST_ADAPTER_SCHEMA_V1"',
     '"readWhen"',
     '".cowork-flow/spec/entry-contract.md"',
     '".cowork-flow/spec/delegation-envelope.md"',
+    '".cowork-flow/spec/subagent-dispatch.md"',
     '".cowork-flow/spec/capabilities.md"',
     '".cowork-flow/spec/adapter.schema.json"',
 ]
@@ -240,6 +254,11 @@ def cmd_entry_contract(_: argparse.Namespace) -> int:
             ["COWORK_DELEGATION_V1", "COWORK_ACK", "EXECUTE <dispatch_id>", "DELEGATED_SOFT"],
             errors,
         )
+    for rel in (
+        ".cowork-flow/spec/subagent-dispatch.md",
+        "template/.cowork-flow/spec/subagent-dispatch.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_SUBAGENT_DISPATCH_SNIPPETS, errors)
     for rel in (
         ".cowork-flow/spec/workflow-state-templates.md",
         "template/.cowork-flow/spec/workflow-state-templates.md",
@@ -427,6 +446,11 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.cowork-flow/workflow.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_DISPATCH_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/spec/subagent-dispatch.md",
+        "template/.cowork-flow/spec/subagent-dispatch.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_SUBAGENT_DISPATCH_SNIPPETS, errors)
     for rel in (
         ".codex/hooks.json",
         "template/.codex/hooks.json",
