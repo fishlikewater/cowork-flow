@@ -99,6 +99,8 @@ REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
     "[workflow-state:delegated_subtask]",
     "[workflow-state:planning]",
     "[workflow-state:in_progress]",
+    "[workflow-state:review]",
+    "[workflow-state:checking]",
     "[workflow-state:completed]",
     "DELEGATED_HARD",
     "DELEGATED_SOFT",

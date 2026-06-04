@@ -28,6 +28,8 @@ COMMAND_SCRIPTS = {
     "add_session": "add_session.py",
     "subagent": "subagent.py",
     "doctor": "doctor.py",
+    "project-context": "project_context.py",
+    "project_context": "project_context.py",
 }
 
 CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}
@@ -51,6 +53,7 @@ Common commands:
   add-session
   subagent
   doctor
+  project-context
 """.rstrip()
     )
 

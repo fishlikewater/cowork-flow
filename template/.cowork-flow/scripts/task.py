@@ -10,6 +10,8 @@ Usage:
     ./.cowork-flow/run task validate <dir>              # Validate jsonl files
     ./.cowork-flow/run task list-context <dir>          # List jsonl entries
     ./.cowork-flow/run task start <dir>                 # Set active session task
+    ./.cowork-flow/run task review [dir]                # Mark task ready for check
+    ./.cowork-flow/run task complete [dir]              # Mark task completed
     ./.cowork-flow/run task current                     # Show active session task
     ./.cowork-flow/run task finish                      # Clear active session task
     ./.cowork-flow/run task archive <task-name>         # Archive completed task
@@ -67,6 +69,7 @@ from common.execution_context import (
 
 CONTEXT_JSONL_FILES = ["implement.jsonl", "check.jsonl", "debug.jsonl"]
 DONE_STATUSES = ("completed", "done")
+CHECK_STATUSES = ("review", "checking")
 
 
 # =============================================================================
@@ -413,7 +416,11 @@ def _task_start_blockers(task_dir: Path) -> list[str]:
     return blockers
 
 
-def _task_context_validation_issues(task_dir: Path, repo_root: Path) -> list[str]:
+def _task_context_validation_issues(
+    task_dir: Path,
+    repo_root: Path,
+    quiet: bool = False,
+) -> list[str]:
     """返回任务上下文文件的校验问题。"""
     issues: list[str] = []
 
@@ -422,7 +429,7 @@ def _task_context_validation_issues(task_dir: Path, repo_root: Path) -> list[str
         if not _read_text_if_present(jsonl_file):
             continue
 
-        error_count = _validate_jsonl(jsonl_file, repo_root)
+        error_count = _validate_jsonl(jsonl_file, repo_root, quiet=quiet)
         if error_count > 0:
             issues.append(f"{jsonl_name} has {error_count} validation error(s)")
 
@@ -733,13 +740,14 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return 1
 
 
-def _validate_jsonl(jsonl_file: Path, repo_root: Path) -> int:
+def _validate_jsonl(jsonl_file: Path, repo_root: Path, quiet: bool = False) -> int:
     """Validate a single JSONL file."""
     file_name = jsonl_file.name
     errors = 0
 
     if not jsonl_file.is_file():
-        print(f"  {colored(f'{file_name}: not found (skipped)', Colors.YELLOW)}")
+        if not quiet:
+            print(f"  {colored(f'{file_name}: not found (skipped)', Colors.YELLOW)}")
         return 0
 
     line_num = 0
@@ -752,7 +760,8 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path) -> int:
         try:
             data = json.loads(line)
         except json.JSONDecodeError:
-            print(f"  {colored(f'{file_name}:{line_num}: Invalid JSON', Colors.RED)}")
+            if not quiet:
+                print(f"  {colored(f'{file_name}:{line_num}: Invalid JSON', Colors.RED)}")
             errors += 1
             continue
 
@@ -760,24 +769,28 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path) -> int:
         entry_type = data.get("type", "file")
 
         if not file_path:
-            print(f"  {colored(f'{file_name}:{line_num}: Missing file field', Colors.RED)}")
+            if not quiet:
+                print(f"  {colored(f'{file_name}:{line_num}: Missing file field', Colors.RED)}")
             errors += 1
             continue
 
         full_path = repo_root / file_path
         if entry_type == "directory":
             if not full_path.is_dir():
-                print(f"  {colored(f'{file_name}:{line_num}: Directory not found: {file_path}', Colors.RED)}")
+                if not quiet:
+                    print(f"  {colored(f'{file_name}:{line_num}: Directory not found: {file_path}', Colors.RED)}")
                 errors += 1
         else:
             if not full_path.is_file():
-                print(f"  {colored(f'{file_name}:{line_num}: File not found: {file_path}', Colors.RED)}")
+                if not quiet:
+                    print(f"  {colored(f'{file_name}:{line_num}: File not found: {file_path}', Colors.RED)}")
                 errors += 1
 
-    if errors == 0:
-        print(f"  {colored(f'{file_name}: [OK] ({entry_count} entries)', Colors.GREEN)}")
-    else:
-        print(f"  {colored(f'{file_name}: [FAIL] ({errors} errors)', Colors.RED)}")
+    if not quiet:
+        if errors == 0:
+            print(f"  {colored(f'{file_name}: [OK] ({entry_count} entries)', Colors.GREEN)}")
+        else:
+            print(f"  {colored(f'{file_name}: [FAIL] ({errors} errors)', Colors.RED)}")
 
     return errors
 
@@ -874,6 +887,22 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
+    readiness_blockers = _optional_readiness_blockers(repo_root, full_path)
+    if readiness_blockers:
+        print(colored("Error: Task readiness failed", Colors.RED), file=sys.stderr)
+        for blocker in readiness_blockers:
+            print(f"  - {blocker}", file=sys.stderr)
+        print(
+            "Hint: run ./.cowork-flow/run task next <dir> and complete the reported readiness artifacts",
+            file=sys.stderr,
+        )
+        return 1
+
+    task_json_path = full_path / FILE_TASK_JSON
+    task_data = _load_task_data_or_report(full_path)
+    if task_data is None:
+        return 1
+
     # Convert to relative path for storage
     try:
         task_dir = full_path.relative_to(repo_root).as_posix()
@@ -891,12 +920,49 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
+    task_data["status"] = "in_progress"
+    if not _write_json_or_report(task_json_path, task_data, "task metadata"):
+        clear_active_task(repo_root)
+        return 1
+
     print(colored(f"[OK] Active session task set to: {task_dir}", Colors.GREEN))
     print()
     print(colored("Fixed agents will load context from this task's jsonl files.", Colors.BLUE))
 
-    task_json_path = full_path / FILE_TASK_JSON
     _run_hooks("after_start", task_json_path, repo_root)
+    return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    """Mark a task ready for check/review."""
+    repo_root = get_repo_root()
+    task_dir = _resolve_status_task_dir(args, repo_root)
+    if task_dir is None:
+        return 1
+
+    if not _set_task_status(task_dir, "review"):
+        return 1
+
+    task_path = _display_task_path(repo_root, task_dir)
+    print(colored(f"[OK] Task marked for check: {task_path}", Colors.GREEN))
+    print(f"Next: ./.cowork-flow/run task next {task_path}")
+    return 0
+
+
+def cmd_complete(args: argparse.Namespace) -> int:
+    """Mark a task completed after final check."""
+    repo_root = get_repo_root()
+    task_dir = _resolve_status_task_dir(args, repo_root)
+    if task_dir is None:
+        return 1
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    if not _set_task_status(task_dir, "completed", completed_at=today):
+        return 1
+
+    task_path = _display_task_path(repo_root, task_dir)
+    print(colored(f"[OK] Task marked completed: {task_path}", Colors.GREEN))
+    print(f"Next: ./.cowork-flow/run task next {task_path}")
     return 0
 
 
@@ -938,6 +1004,187 @@ def cmd_current(args: argparse.Namespace) -> int:
         return 0
     print(f"Active task: {active.task_path}")
     print(f"Source: {active.source}:{active.context_key}")
+    return 0
+
+
+def _display_task_path(repo_root: Path, task_dir: Path) -> str:
+    try:
+        return task_dir.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return str(task_dir)
+
+
+def _load_task_status(task_dir: Path) -> str:
+    task_json = task_dir / FILE_TASK_JSON
+    try:
+        data = json.loads(task_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "stale"
+    status = data.get("status") if isinstance(data, dict) else None
+    return status.strip() if isinstance(status, str) and status.strip() else "unknown"
+
+
+def _load_task_data_or_report(task_dir: Path) -> dict | None:
+    task_json = task_dir / FILE_TASK_JSON
+    data = _read_json_file(task_json)
+    if data is None:
+        print(colored(f"Error: Failed to read task metadata: {task_json}", Colors.RED), file=sys.stderr)
+        return None
+    return data
+
+
+def _set_task_status(task_dir: Path, status: str, completed_at: str | None = None) -> bool:
+    task_json = task_dir / FILE_TASK_JSON
+    data = _load_task_data_or_report(task_dir)
+    if data is None:
+        return False
+
+    data["status"] = status
+    if status in DONE_STATUSES:
+        data["completedAt"] = completed_at or datetime.now().strftime("%Y-%m-%d")
+
+    return _write_json_or_report(task_json, data, "task metadata")
+
+
+def _resolve_status_task_dir(args: argparse.Namespace, repo_root: Path) -> Path | None:
+    target_input = getattr(args, "dir", None)
+    if target_input:
+        task_dir = _resolve_task_dir(target_input, repo_root)
+    else:
+        active = get_active_task(repo_root)
+        if not active.context_key:
+            print(
+                colored(
+                    "Error: Missing session context. Set COWORK_FLOW_CONTEXT_ID or pass a task dir.",
+                    Colors.RED,
+                ),
+                file=sys.stderr,
+            )
+            return None
+        if not active.task_path:
+            print(colored("Error: No active task set for this session", Colors.RED), file=sys.stderr)
+            return None
+        task_dir = repo_root / active.task_path
+
+    if not task_dir.is_dir():
+        print(colored(f"Error: Task not found: {target_input or task_dir}", Colors.RED), file=sys.stderr)
+        return None
+    if not (task_dir / FILE_TASK_JSON).is_file():
+        print(colored(f"Error: task.json not found: {task_dir}", Colors.RED), file=sys.stderr)
+        return None
+    return task_dir
+
+
+def _optional_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
+    try:
+        from common.readiness import task_readiness_blockers  # type: ignore[import-not-found]
+    except Exception:
+        return []
+    try:
+        blockers = task_readiness_blockers(repo_root, task_dir)
+    except Exception:
+        return ["readiness check failed; run task validate and inspect linked change"]
+    return [str(blocker) for blocker in blockers if str(blocker).strip()]
+
+
+def _task_next_blockers(repo_root: Path, task_dir: Path) -> list[str]:
+    blockers = _task_start_blockers(task_dir)
+    blockers.extend(_task_context_validation_issues(task_dir, repo_root, quiet=True))
+    blockers.extend(_optional_readiness_blockers(repo_root, task_dir))
+    return blockers
+
+
+def _print_blockers(blockers: list[str]) -> None:
+    if not blockers:
+        print("Blockers: none")
+        return
+    print("Blockers:")
+    for blocker in blockers:
+        print(f"  - {blocker}")
+
+
+def cmd_next(args: argparse.Namespace) -> int:
+    """Print the next safe workflow action without mutating state."""
+    repo_root = get_repo_root()
+    target_input = getattr(args, "dir", None)
+    is_active_task = False
+
+    print("Workflow Next")
+    if target_input:
+        task_dir = _resolve_task_dir(target_input, repo_root)
+        task_path = _display_task_path(repo_root, task_dir)
+        source = "argument"
+    else:
+        active = get_active_task(repo_root)
+        source = f"{active.source}:{active.context_key or '-'}"
+        if not active.task_path:
+            print("Status: no_task")
+            print(f"Source: {source}")
+            print("Next action: create or start a task before repository changes")
+            print('Command: ./.cowork-flow/run task create "<title>" --slug <task-name>')
+            print("Then: ./.cowork-flow/run task start <task-dir>")
+            print(
+                "Delegated subtask: execute the delegated prompt directly; do not start or resume workflow."
+            )
+            return 0
+        task_path = active.task_path
+        task_dir = repo_root / task_path
+        is_active_task = True
+
+    print(f"Task: {task_path}")
+    if not task_dir.is_dir():
+        print("Status: stale")
+        print(f"Source: {source}")
+        print("Next action: clear or replace the missing active task")
+        print("Command: ./.cowork-flow/run task list")
+        print("Blockers:")
+        print(f"  - task directory not found: {task_path}")
+        return 0
+
+    status = _load_task_status(task_dir)
+    blockers = _task_next_blockers(repo_root, task_dir)
+    print(f"Status: {status}")
+    print(f"Source: {source}")
+
+    if status == "planning":
+        if blockers:
+            print("Next action: finish planning prerequisites before starting task")
+            print(f"Command: ./.cowork-flow/run task init-context {task_path} <dev_type>")
+            print(f"Then: ./.cowork-flow/run task start {task_path}")
+        elif is_active_task:
+            print("Next action: execute implementation plan")
+            print("Command: dispatch cowork-implement with COWORK_DISPATCH_V1, then wait for COWORK_ACK")
+            print(f"Then: send EXECUTE <dispatch_id>, then ./.cowork-flow/run task review {task_path}")
+        else:
+            print("Next action: start task")
+            print(f"Command: ./.cowork-flow/run task start {task_path}")
+        _print_blockers(blockers)
+        return 0
+
+    if status == "in_progress":
+        print("Next action: execute implementation plan")
+        print("Command: dispatch cowork-implement with COWORK_DISPATCH_V1, then wait for COWORK_ACK")
+        print(f"Then: send EXECUTE <dispatch_id>, then ./.cowork-flow/run task review {task_path}")
+        _print_blockers(blockers)
+        return 0
+
+    if status in CHECK_STATUSES:
+        print("Next action: verify implementation")
+        print("Command: dispatch cowork-check with COWORK_DISPATCH_V1 or run equivalent inline check")
+        print(f"Then: ./.cowork-flow/run task complete {task_path}")
+        _print_blockers(blockers)
+        return 0
+
+    if status in DONE_STATUSES:
+        print("Next action: finalize, commit, archive, and record session")
+        print("Command: git status --short")
+        print(f"Then: ./.cowork-flow/run task archive {Path(task_path).name}")
+        _print_blockers(blockers)
+        return 0
+
+    print("Next action: inspect task status and repair workflow state")
+    print(f"Command: ./.cowork-flow/run task validate {task_path}")
+    _print_blockers(blockers)
     return 0
 
 
@@ -1275,7 +1522,10 @@ Usage:
   ./.cowork-flow/run task validate <dir>                     Validate jsonl files
   ./.cowork-flow/run task list-context <dir>                 List jsonl entries
   ./.cowork-flow/run task start <dir>                        Set active session task
+  ./.cowork-flow/run task review [dir]                       Mark task ready for check
+  ./.cowork-flow/run task complete [dir]                     Mark task completed
   ./.cowork-flow/run task finish                             Clear active session task
+  ./.cowork-flow/run task next [dir]                         Show next safe workflow action
   ./.cowork-flow/run task archive <task-name>                Archive completed task
   ./.cowork-flow/run task add-subtask <parent> <child>       Link child task to parent
   ./.cowork-flow/run task remove-subtask <parent> <child>    Unlink child from parent
@@ -1293,8 +1543,11 @@ Examples:
   ./.cowork-flow/run task create "Add login feature" --slug add-login
   ./.cowork-flow/run task create "Child task" --slug child --parent .cowork-flow/tasks/01-21-parent
   ./.cowork-flow/run task init-context .cowork-flow/tasks/01-21-add-login backend
+  ./.cowork-flow/run task next
   ./.cowork-flow/run task add-context <dir> implement .cowork-flow/spec/backend/auth.md "Auth guidelines"
   ./.cowork-flow/run task start .cowork-flow/tasks/01-21-add-login
+  ./.cowork-flow/run task review
+  ./.cowork-flow/run task complete
   ./.cowork-flow/run task finish
   ./.cowork-flow/run task archive add-login
   ./.cowork-flow/run task add-subtask parent-task child-task  # Link existing tasks
@@ -1354,6 +1607,18 @@ def main() -> int:
     # current
     subparsers.add_parser("current", help="Show active session task")
 
+    # review
+    p_review = subparsers.add_parser("review", help="Mark task ready for check")
+    p_review.add_argument("dir", nargs="?", help="Task directory or name")
+
+    # complete
+    p_complete = subparsers.add_parser("complete", help="Mark task completed")
+    p_complete.add_argument("dir", nargs="?", help="Task directory or name")
+
+    # next
+    p_next = subparsers.add_parser("next", help="Show next safe workflow action")
+    p_next.add_argument("dir", nargs="?", help="Task directory or name")
+
     # finish
     subparsers.add_parser("finish", help="Clear active session task")
 
@@ -1393,6 +1658,8 @@ def main() -> int:
         "init-context",
         "add-context",
         "start",
+        "review",
+        "complete",
         "finish",
         "archive",
         "add-subtask",
@@ -1417,6 +1684,9 @@ def main() -> int:
         "list-context": cmd_list_context,
         "start": cmd_start,
         "current": cmd_current,
+        "review": cmd_review,
+        "complete": cmd_complete,
+        "next": cmd_next,
         "finish": cmd_finish,
         "archive": cmd_archive,
         "add-subtask": cmd_add_subtask,
