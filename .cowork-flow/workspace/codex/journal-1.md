@@ -1062,3 +1062,36 @@ Verification already run:
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 33: Runtime context subagent dispatch
+
+**Date**: 2026-06-05
+**Task**: Runtime context subagent dispatch
+
+### Summary
+
+Replaced prompt/protocol-based subagent dispatch with runtime-context identity across Codex, Claude Code, and OpenCode; archived completed runtime-context tasks and change.
+
+### Main Changes
+
+
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `4c38a15` | See git log |
+| `c31c071` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

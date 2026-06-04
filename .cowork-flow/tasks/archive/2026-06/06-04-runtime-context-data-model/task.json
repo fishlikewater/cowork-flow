@@ -1,7 +1,7 @@
 {
-  "id": "runtime-dispatch-contract-cleanup",
-  "name": "runtime-dispatch-contract-cleanup",
-  "title": "Runtime dispatch contract cleanup",
+  "id": "runtime-context-data-model",
+  "name": "runtime-context-data-model",
+  "title": "Runtime context data model",
   "description": "",
   "status": "completed",
   "dev_type": null,
@@ -14,7 +14,7 @@
   "commit": null,
   "subtasks": [],
   "children": [],
-  "parent": "06-04-runtime-session-subagent-dispatch",
+  "parent": null,
   "relatedFiles": [],
   "notes": "",
   "meta": {}
