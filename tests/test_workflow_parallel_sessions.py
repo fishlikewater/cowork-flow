@@ -17,11 +17,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("cowork-check", text)
         self.assertIn("宿主适配器", text)
         self.assertIn("新鲜子上下文", text)
-        self.assertIn("[workflow-state:no_task]", text)
-        self.assertIn("[workflow-state:delegated_subtask]", text)
-        self.assertIn("[workflow-state:planning]", text)
-        self.assertIn("[workflow-state:in_progress]", text)
-        self.assertIn("[workflow-state:completed]", text)
+        self.assertIn("workflow-state-templates.md", text)
+        self.assertNotIn("[workflow-state:", text)
         self.assertIn("适配器等待原语", text)
         self.assertIn("适配器列表原语", text)
         self.assertIn("适配器取消/关闭原语", text)
@@ -31,6 +28,22 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("codex exec", text)
         self.assertNotIn("agent" + "-team prepare", text)
         self.assertNotIn("agent" + "-team next", text)
+
+    def test_workflow_state_templates_are_externalized(self) -> None:
+        for path in (
+            ROOT / ".cowork-flow" / "spec" / "workflow-state-templates.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "workflow-state-templates.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("[workflow-state:no_task]", text)
+            self.assertIn("[workflow-state:delegated_subtask]", text)
+            self.assertIn("[workflow-state:planning]", text)
+            self.assertIn("[workflow-state:in_progress]", text)
+            self.assertIn("[workflow-state:completed]", text)
+            self.assertIn("DELEGATED_HARD", text)
+            self.assertIn("DELEGATED_SOFT", text)
+            self.assertIn("UNKNOWN", text)
+            self.assertIn("use delegated_subtask instead", text)
 
     def test_workflow_requires_dispatch_ack_gate(self) -> None:
         required_markers = (

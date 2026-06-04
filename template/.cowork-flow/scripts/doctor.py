@@ -74,6 +74,34 @@ REQUIRED_HOOK_SNIPPETS = [
     ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
 ]
 
+REQUIRED_CODEX_HOOK_SCRIPT_SNIPPETS = [
+    '<cowork-runtime host="codex" adapter="codex.spawn_agent">',
+    "workflow-state-templates.md",
+    "common.entry_classifier",
+    "should_use_delegated_bootstrap",
+    'status = "delegated_subtask"',
+]
+
+REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
+    "[workflow-state:no_task]",
+    "[workflow-state:delegated_subtask]",
+    "[workflow-state:planning]",
+    "[workflow-state:in_progress]",
+    "[workflow-state:completed]",
+    "DELEGATED_HARD",
+    "DELEGATED_SOFT",
+    "UNKNOWN",
+    "use delegated_subtask instead",
+]
+
+REQUIRED_ENTRY_CLASSIFIER_SNIPPETS = [
+    "classify_entry",
+    "should_use_delegated_bootstrap",
+    "COWORK_DISPATCH_V1",
+    "COWORK_DELEGATION_V1",
+    "EntryKind.UNKNOWN",
+]
+
 REQUIRED_ENTRY_CONTRACT_SNIPPETS = [
     "COWORK_ENTRY_CONTRACT_V1",
     "DELEGATED_HARD",
@@ -157,6 +185,10 @@ REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS = [
 
 REQUIRED_CLAUDE_HOOK_SCRIPT_SNIPPETS = [
     '<cowork-runtime host="claude-code" adapter="claude-code.hooks">',
+    "workflow-state-templates.md",
+    "common.entry_classifier",
+    "should_use_delegated_bootstrap",
+    'status = "delegated_subtask"',
     "hookSpecificOutput",
     "additionalContext",
 ]
@@ -208,6 +240,16 @@ def cmd_entry_contract(_: argparse.Namespace) -> int:
             ["COWORK_DELEGATION_V1", "COWORK_ACK", "EXECUTE <dispatch_id>", "DELEGATED_SOFT"],
             errors,
         )
+    for rel in (
+        ".cowork-flow/spec/workflow-state-templates.md",
+        "template/.cowork-flow/spec/workflow-state-templates.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/scripts/common/entry_classifier.py",
+        "template/.cowork-flow/scripts/common/entry_classifier.py",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CLASSIFIER_SNIPPETS, errors)
     for rel in (
         ".agent/skills/entry-boundary/SKILL.md",
         "template/.agent/skills/entry-boundary/SKILL.md",
@@ -304,6 +346,11 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SCRIPT_SNIPPETS, errors)
     for rel in (
+        ".codex/hooks/inject-workflow-state.py",
+        "template/.codex/hooks/inject-workflow-state.py",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CODEX_HOOK_SCRIPT_SNIPPETS, errors)
+    for rel in (
         "CLAUDE.md",
         "template/CLAUDE.md",
     ):
@@ -386,6 +433,11 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_HOOK_SNIPPETS, errors)
     for rel in (
+        ".codex/hooks/inject-workflow-state.py",
+        "template/.codex/hooks/inject-workflow-state.py",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CODEX_HOOK_SCRIPT_SNIPPETS, errors)
+    for rel in (
         ".cowork-flow/scripts/subagent.py",
         "template/.cowork-flow/scripts/subagent.py",
         ".cowork-flow/scripts/common/execution_context.py",
@@ -393,6 +445,11 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     ):
         if not (repo_root / rel).is_file():
             errors.append(f"missing file: {rel}")
+    for rel in (
+        ".cowork-flow/scripts/common/entry_classifier.py",
+        "template/.cowork-flow/scripts/common/entry_classifier.py",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CLASSIFIER_SNIPPETS, errors)
     for rel in (
         ".cowork-flow/spec/entry-contract.md",
         "template/.cowork-flow/spec/entry-contract.md",
@@ -403,6 +460,11 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.cowork-flow/spec/registry.json",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/spec/workflow-state-templates.md",
+        "template/.cowork-flow/spec/workflow-state-templates.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
     for rel in (
         ".cowork-flow/adapters/codex/adapter.yaml",
         ".cowork-flow/adapters/opencode/adapter.yaml",

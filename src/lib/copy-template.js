@@ -95,7 +95,8 @@ const SAFE_SYNC_FILES = new Set([
   '.cowork-flow/.gitignore',
   '.cowork-flow/.version',
   '.cowork-flow/run',
-  '.cowork-flow/run.cmd'
+  '.cowork-flow/run.cmd',
+  '.cowork-flow/spec/workflow-state-templates.md'
 ]);
 
 const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';
@@ -103,6 +104,9 @@ const COWORK_FLOW_END = '<!-- COWORK-FLOW:END -->';
 
 function isProtectedSyncFile(relativePath) {
   const templatePath = toTemplatePath(relativePath);
+  if (SAFE_SYNC_FILES.has(templatePath)) {
+    return false;
+  }
   return PROTECTED_SYNC_FILES.has(templatePath)
     || PROTECTED_SYNC_PREFIXES.some((prefix) => templatePath.startsWith(prefix));
 }

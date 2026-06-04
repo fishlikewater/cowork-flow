@@ -114,6 +114,41 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
 
+    def test_hook_treats_unclassified_nonempty_prompt_as_delegated_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_hook(root, {"prompt": "Inspect routing notes and report concise findings."})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("Source: unclassified", context)
+        self.assertNotIn("必须先创建或启动任务", context)
+
+    def test_hook_reads_workflow_state_templates_instead_of_workflow_md(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            (root / ".cowork-flow" / "workflow.md").write_text(
+                "[workflow-state:no_task]\nwrong source\n[/workflow-state:no_task]\n",
+                encoding="utf-8",
+            )
+            template_file = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
+            template_file.write_text(
+                template_file.read_text(encoding="utf-8").replace(
+                    "当前会话没有活动任务。只读问答可直接回答；如果收到委托子任务，直接执行委托 prompt，不要启动/恢复工作流。实现、重构或多步骤工作必须先创建或启动任务。",
+                    "state-template-source-smoke",
+                ),
+                encoding="utf-8",
+            )
+
+            data = self._run_hook(root, {})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("state-template-source-smoke", context)
+        self.assertNotIn("wrong source", context)
+
     def test_session_start_emits_session_start_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -211,6 +246,8 @@ class ClaudeHooksTest(unittest.TestCase):
             Path(".claude/settings.json"),
             Path(".claude/hooks/inject-workflow-state.py"),
             Path(".cowork-flow/scripts/common/active_task.py"),
+            Path(".cowork-flow/scripts/common/entry_classifier.py"),
+            Path(".cowork-flow/spec/workflow-state-templates.md"),
         ):
             root_text = (ROOT / rel).read_text(encoding="utf-8")
             template_text = (TEMPLATE / rel).read_text(encoding="utf-8")

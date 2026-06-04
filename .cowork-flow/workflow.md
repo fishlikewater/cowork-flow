@@ -17,29 +17,11 @@
 
 `cowork-flow` 只保存项目状态、任务上下文、宿主适配器契约和恢复线索；实际执行由主会话和固定 `cowork-*` 代理完成。宿主工具名只写在 `.cowork-flow/adapters/<host>/adapter.yaml`，不进入流程分支。
 
-## 1.1 钩子注入状态
+## 1.1 状态注入与入口分类
 
-宿主钩子或插件每轮读取当前会话任务，并把下面的 `[workflow-state:*]` 片段注入上下文。`workflow.md` 是状态提示的唯一来源；修改流程时必须同步这些片段。入口分类必须先于任务启动、恢复、归档或子代理派发。
+宿主钩子或插件每轮注入当前会话的入口分类和任务状态。状态提示的文本片段定义在 `.cowork-flow/spec/workflow-state-templates.md`，hook 从该文件读取；不再内联到本文件。
 
-[workflow-state:no_task]
-当前会话没有活动任务。只读问答可直接回答；实现、重构、行为变更或多步骤工作必须先创建或启动任务，再按计划 -> 实现 -> 检查 -> 完成继续。
-[/workflow-state:no_task]
-
-[workflow-state:delegated_subtask]
-当前输入看起来是有边界的委托子任务。先按 COWORK_ENTRY_CONTRACT_V1 做入口分类，再执行委托输入。除非委托信封明确允许，否则不要运行 start/resume，不要创建或激活任务，不要归档、提交或切换到主会话协调。项目规则只作为约束，不是当前任务本身。
-[/workflow-state:delegated_subtask]
-
-[workflow-state:planning]
-活动任务处于计划阶段。先完成 prd.md，整理带有规格/调研文件的 implement.jsonl 和 check.jsonl，再运行 task start，之后才派发 cowork-implement。
-[/workflow-state:planning]
-
-[workflow-state:in_progress]
-活动任务正在执行。主会话按计划通过当前宿主适配器派发 cowork-implement，集成后再派发 cowork-check。每次正式派发都必须使用新鲜子上下文和 COWORK_DISPATCH_V1 信封。主会话等待 COWORK_ACK，发送 EXECUTE <dispatch_id>，并在每个子任务加载上下文期间使用单独的 ACK 后执行宽限期。主会话必须核验子任务输出、列出子任务，并且只在完成、明确错派证据或用户取消后才取消子任务。
-[/workflow-state:in_progress]
-
-[workflow-state:completed]
-活动任务已完成。主会话应核验最终 diff，提交目标文件，归档任务并记录会话。不要针对已完成任务继续派发新的实现工作。
-[/workflow-state:completed]
+入口分类必须先于任务启动、恢复、归档或子代理派发。当入口类型为 `DELEGATED_HARD`、`DELEGATED_SOFT` 或 `UNKNOWN` 时，hook 必须注入 `delegated_subtask` 状态而非 `no_task`，防止子代理被首屏拉偏。
 
 ## 2. 状态文件
 
