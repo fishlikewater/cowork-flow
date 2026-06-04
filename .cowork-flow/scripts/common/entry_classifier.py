@@ -138,11 +138,22 @@ COMMAND_ONLY_TERMS = (
 )
 
 MAIN_SESSION_TERMS = (
+    "main session",
+    "main agent",
+    "not a subagent",
+    "not a sub-agent",
+    "run full cowork-flow start",
+    "run full project start",
     "继续",
     "实现",
     "提交",
     "归档",
     "修复",
+    "主会话",
+    "主 agent",
+    "主代理",
+    "不是子代理",
+    "不是子任务",
     "start task",
     "resume",
     "implement",

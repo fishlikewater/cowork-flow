@@ -22,11 +22,13 @@ Report active task, workflow state, blockers, and the next phase.
 
 ## Route
 
-Route in stages. Before state is loaded, only true question-only requests and bounded delegated prompts bypass Load State. Repository-changing main-session requests load state first. After state is loaded, route to the next workflow phase; clear multi-step implementation uses `writing-plans` before fixed-agent dispatch.
+Route in stages. Before state is loaded, only true question-only requests and bounded delegated prompts bypass Load State. Repository-changing main-session requests load state first. After state is loaded, apply the requirement clarification gate from `.cowork-flow/workflow.md`, then route to the next workflow phase; clear multi-step implementation uses `writing-plans` before fixed-agent dispatch.
+
+New requirements that are unclear, boundary-unclear, multi-approach, behavior-changing, or missing acceptance criteria use `brainstorming` before PRD, planning, or fixed-agent dispatch. Small repository changes proceed directly only when the goal, scope boundary, and acceptance criteria are already clear.
 
 - Question-only work: answer directly.
-- Small repository change: classify by `.cowork-flow/workflow.md`, create/start a task if required, then proceed.
-- Unclear or multi-approach work: use `brainstorming`.
+- Small repository change with clear goal/scope/acceptance: classify by `.cowork-flow/workflow.md`, create/start a task if required, then proceed.
+- Unclear, boundary-unclear, behavior-changing, or multi-approach work: use `brainstorming`.
 - Multi-step implementation: use `writing-plans`, then dispatch fixed agents where appropriate.
 - Before coding: use `before-dev`.
 - After implementation: use `check`, then `finish-work`.

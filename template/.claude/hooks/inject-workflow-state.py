@@ -51,7 +51,21 @@ def _find_repo_root(start: Path) -> Path | None:
 
 def _read_hook_input() -> dict[str, Any]:
     try:
-        data = json.load(sys.stdin)
+        raw = sys.stdin.buffer.read()
+    except AttributeError:
+        text = sys.stdin.read()
+    else:
+        if not raw.strip():
+            return {}
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            encoding = getattr(sys.stdin, "encoding", None) or "utf-8"
+            text = raw.decode(encoding, errors="replace")
+    if not text.strip():
+        return {}
+    try:
+        data = json.loads(text)
     except (json.JSONDecodeError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
