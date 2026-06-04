@@ -563,7 +563,11 @@ Added assignment-scoped allowedContext, blocked premature worker-report outbox w
 
 ### Main Changes
 
-(add details)
+- Added the workflow requirement clarification and brainstorming gate in root/template workflow docs.
+- Strengthened `start` and `brainstorming` skills and kept Claude mirrors synchronized.
+- Hardened Codex/Claude hook stdin decoding so UTF-8 Chinese prompts classify before Windows text decoding can corrupt them.
+- Added explicit main-session override terms for prompts such as `主会话` and `not a subagent`.
+- Archived `.cowork-flow/tasks/06-04-strengthen-brainstorming-clarification`.
 
 ### Git Commit
 
@@ -573,7 +577,12 @@ Added assignment-scoped allowedContext, blocked premature worker-report outbox w
 
 ### Verification
 
-- [OK] (add verification results)
+- [OK] `python -m unittest discover -s tests -p "test_codex_hooks.py"`
+- [OK] `python -m unittest discover -s tests -p "test_claude_hooks.py"`
+- [OK] `python -m unittest discover -s tests -p "test_cowork_agents.py"`
+- [OK] `python -m unittest discover -s tests -p "test_workflow_parallel_sessions.py"`
+- [OK] `python -m unittest discover -s tests -p "test_host_adapters.py"`
+- [OK] `git diff --check`
 
 ### Status
 
@@ -920,6 +929,38 @@ Filtered .cowork-flow/adapters by selected host platform and replaced platform t
 ### Git Commit
 
 (no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
+
+
+## Session 30: Strengthen brainstorming clarification and hook input hardening
+
+**Date**: 2026-06-04
+**Task**: Strengthen brainstorming clarification and hook input hardening
+
+### Summary
+
+Added an active brainstorming clarification gate, synchronized root/template/Claude skill docs, hardened Codex/Claude hook stdin decoding for UTF-8 prompts, expanded main-session classifier overrides, archived the completed task, and verified targeted hook/workflow/agent tests.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `42de9c9` | See git log |
 
 ### Verification
 
