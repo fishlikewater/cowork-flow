@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 33
+- **Total Sessions**: 34
 - **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1097 | Current |
+| `journal-1.md` | ~1130 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 34 | 2026-06-05 | Runtime binding shim | `fe1b984`, `d74ad65` |
 | 33 | 2026-06-05 | Runtime context subagent dispatch | `4c38a15`, `c31c071` |
 | 32 | 2026-06-04 | Workflow navigation readiness and project context | - |
 | 31 | 2026-06-04 | Extract subagent dispatch spec | `715339e` |

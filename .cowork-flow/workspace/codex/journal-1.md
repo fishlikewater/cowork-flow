@@ -1095,3 +1095,36 @@ Replaced prompt/protocol-based subagent dispatch with runtime-context identity a
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 34: Runtime binding shim
+
+**Date**: 2026-06-05
+**Task**: Runtime binding shim
+
+### Summary
+
+Added explicit runtime-context binding shim for formal subagents across Codex, Claude Code, and OpenCode; archived task and change; verified with real worker/formal-check probes and full test suite.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `fe1b984` | See git log |
+| `d74ad65` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
