@@ -1,0 +1,23 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/changes/06-05-runtime-binding-shim/proposal.md", "reason": "Change goal and scope"}
+{"file": ".cowork-flow/changes/06-05-runtime-binding-shim/design.md", "reason": "Binding shim design"}
+{"file": ".cowork-flow/changes/06-05-runtime-binding-shim/spec.md", "reason": "Behavior contract"}
+{"file": ".cowork-flow/plans/2026-06-05-runtime-binding-shim.md", "reason": "Implementation plan"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Formal subagent runtime dispatch contract"}
+{"file": ".cowork-flow/spec/capabilities.md", "reason": "Host capability values and required binding capability"}
+{"file": ".cowork-flow/spec/adapter.schema.json", "reason": "Adapter schema for capability and runtime context fields"}
+{"file": ".cowork-flow/scripts/subagent.py", "reason": "Explicit bind command implementation"}
+{"file": ".cowork-flow/scripts/common/active_task.py", "reason": "Runtime context binding and session helpers"}
+{"file": ".cowork-flow/adapters/codex/adapter.yaml", "reason": "Codex adapter capability truth"}
+{"file": ".cowork-flow/adapters/claude-code/adapter.yaml", "reason": "Claude Code adapter binding mode"}
+{"file": ".cowork-flow/adapters/opencode/adapter.yaml", "reason": "OpenCode adapter binding mode"}
+{"file": ".codex/agents/", "type": "directory", "reason": "Codex fixed-agent prompt contract"}
+{"file": ".claude/agents/", "type": "directory", "reason": "Claude Code fixed-agent prompt contract"}
+{"file": ".opencode/agents/", "type": "directory", "reason": "OpenCode fixed-agent prompt contract"}
+{"file": ".codex/hooks/inject-workflow-state.py", "reason": "Codex automatic hook binding path"}
+{"file": ".claude/hooks/inject-workflow-state.py", "reason": "Claude Code automatic hook binding path"}
+{"file": ".opencode/plugins/cowork-flow.js", "reason": "OpenCode plugin binding path"}
+{"file": "template/", "type": "directory", "reason": "Root/template synchronization for changed assets"}
