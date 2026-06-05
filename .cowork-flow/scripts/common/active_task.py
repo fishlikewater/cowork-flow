@@ -22,6 +22,9 @@ SCOPE_SUBAGENT = "subagent"
 RUNTIME_CONTEXT_PROMPT_RE = re.compile(
     r"(?im)^\s*cowork_runtime_context_id\s*:\s*([A-Za-z0-9._-]+)\s*$"
 )
+HOST_CONTEXT_PROMPT_RE = re.compile(
+    r"(?im)^\s*cowork_host_context_key\s*:\s*([A-Za-z0-9._-]+)\s*$"
+)
 
 
 @dataclass(frozen=True)
@@ -199,6 +202,30 @@ def resolve_runtime_context_id(values: Mapping[str, object] | None = None) -> st
 
     return None
 
+def resolve_host_context_key(values: Mapping[str, object] | None = None) -> str | None:
+    explicit = os.environ.get("COWORK_FLOW_HOST_CONTEXT_KEY")
+    if explicit and explicit.strip():
+        return _sanitize(explicit)
+
+    input_explicit = _first_input_value(
+        values,
+        (
+            "cowork_host_context_key",
+            "host_context_key",
+            "COWORK_FLOW_HOST_CONTEXT_KEY",
+        ),
+    )
+    if input_explicit:
+        return _sanitize(input_explicit)
+
+    prompt = _first_prompt_value(values)
+    if prompt:
+        match = HOST_CONTEXT_PROMPT_RE.search(prompt)
+        if match:
+            return _sanitize(match.group(1))
+
+    return None
+
 
 def read_runtime_context(repo_root: Path, runtime_context_id: str) -> dict:
     return _read_json(runtime_context_path(repo_root, runtime_context_id))
@@ -242,8 +269,16 @@ def bind_runtime_context(
     if context.get("status") == "closed":
         return None
 
-    resolved_key = host_context_key or resolve_context_key(values)
+    resolved_key = (
+        _sanitize(host_context_key)
+        if host_context_key
+        else resolve_host_context_key(values) or resolve_context_key(values)
+    )
     if not resolved_key:
+        return None
+
+    existing_key = context.get("bound_context_key")
+    if isinstance(existing_key, str) and existing_key.strip() and existing_key != resolved_key:
         return None
 
     task_path = context.get("task_dir")
@@ -261,7 +296,8 @@ def bind_runtime_context(
 
     context["status"] = "bound"
     context["bound_context_key"] = resolved_key
-    context["bound_at"] = _now()
+    if not context.get("bound_at"):
+        context["bound_at"] = _now()
     context["last_seen_at"] = _now()
     write_runtime_context(repo_root, runtime_context_id, context)
     return context

@@ -12,12 +12,19 @@ metadata, or environment must provide:
 
 ```text
 cowork_runtime_context_id: <runtime_context_id>
+cowork_host_context_key: <host_context_key>
 ```
 
-The hook binds that id to
+The hook may bind that id to
 `.cowork-flow/.runtime/subagents/<runtime_context_id>.json` before workflow
-state is injected. If the bound context is missing, closed, invalid, or names
-another agent type, report `needs_context` and stop. Do not use
+state is injected. The first child step must still run:
+
+```bash
+./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
+```
+
+If the explicit bind fails, or if the bound context is missing, closed, invalid,
+or names another agent type, report `needs_context` and stop. Do not use
 `COWORK_ENTRY_CONTRACT_V1` to infer subagent identity; that contract classifies
 main-session prompts only.
 

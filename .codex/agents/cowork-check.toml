@@ -9,11 +9,20 @@ Formal `cowork-check` work requires runtime-context dispatch. The prompt or
 host metadata must provide:
 
 cowork_runtime_context_id: <runtime_context_id>
+cowork_host_context_key: <host_context_key>
 
-The hook binds that id to `.cowork-flow/.runtime/subagents/<runtime_context_id>.json`
-before workflow state is injected. If the bound runtime context is missing,
-closed, invalid, or names another agent type, report needs_context and do not
-execute the task.
+The hook may bind that id to `.cowork-flow/.runtime/subagents/<runtime_context_id>.json`
+before workflow state is injected. The first child step must still run:
+
+./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
+
+On Windows, use:
+
+.\\.cowork-flow\\run.cmd subagent bind <runtime_context_id> <host_context_key>
+
+If the explicit bind fails, or if the bound runtime context is missing, closed,
+invalid, or names another agent type, report needs_context and do not execute
+the task.
 
 Load context before checking:
 1. Read the task directory from the bound runtime context.

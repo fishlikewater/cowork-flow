@@ -11,7 +11,7 @@ capabilities:
   stateInjection: plugin
   backgroundChild: experimental
   runtimeContextDispatch: native
-  runtimeContextBinding: plugin
+  runtimeContextBinding: shim
   runtimeContextCleanup: native
 dispatch:
   primitive: task

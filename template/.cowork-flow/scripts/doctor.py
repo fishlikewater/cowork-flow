@@ -20,11 +20,13 @@ ENTRY_BOUNDARY_DIR = "entry" + "-boundary"
 
 REQUIRED_START_SNIPPETS = [
     "This skill is for the main session",
-    "runtime context binding before workflow state injection",
+    "accepted only after runtime context binding is recorded",
     "Main repository changes follow `Plan -> Implement -> Check -> Finish`",
     "Host Adapter",
     ".cowork-flow/run subagent init",
     "cowork_runtime_context_id",
+    "cowork_host_context_key",
+    ".cowork-flow/run subagent bind <runtime_context_id> <host_context_key>",
     ".cowork-flow/run subagent close",
 ]
 
@@ -51,9 +53,12 @@ REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
 REQUIRED_SUBAGENT_DISPATCH_SNIPPETS = [
     "Runtime-context subagent dispatch",
     "cowork_runtime_context_id",
+    "cowork_host_context_key",
     ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
     ".cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json",
-    "Binding is the formal dispatch acceptance event",
+    "Verified binding is the formal dispatch acceptance event",
+    "subagent bind <runtime_context_id> <host_context_key>",
+    'bound_context_key: "<host_context_key>"',
     "fail-closed subagent state",
     "Generic `worker`, `default`, or `explorer` dispatch is advisory only",
 ]

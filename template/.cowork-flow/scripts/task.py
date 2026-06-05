@@ -1158,7 +1158,9 @@ def cmd_next(args: argparse.Namespace) -> int:
                 f"--agent-type cowork-implement --execution-task-dir {task_path} "
                 f"--title \"Implement {Path(task_path).name}\""
             )
-            print("Then: pass cowork_runtime_context_id through the active Host Adapter")
+            print("Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter")
+            print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
+            print("Then: verify status=bound and bound_context_key before accepting output")
             print(f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}")
         else:
             print("Next action: start task")
@@ -1173,7 +1175,9 @@ def cmd_next(args: argparse.Namespace) -> int:
             f"--agent-type cowork-implement --execution-task-dir {task_path} "
             f"--title \"Implement {Path(task_path).name}\""
         )
-        print("Then: pass cowork_runtime_context_id through the active Host Adapter")
+        print("Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter")
+        print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
+        print("Then: verify status=bound and bound_context_key before accepting output")
         print(f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}")
         _print_blockers(blockers)
         return 0
@@ -1185,7 +1189,9 @@ def cmd_next(args: argparse.Namespace) -> int:
             f"--agent-type cowork-check --execution-task-dir {task_path} "
             f"--title \"Check {Path(task_path).name}\""
         )
-        print("Then: pass cowork_runtime_context_id through the active Host Adapter or run equivalent inline check")
+        print("Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter or run equivalent inline check")
+        print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
+        print("Then: verify status=bound and bound_context_key before accepting output")
         print(f"Then: ./.cowork-flow/run task complete {task_path}")
         _print_blockers(blockers)
         return 0

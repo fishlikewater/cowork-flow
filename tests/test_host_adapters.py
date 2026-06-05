@@ -72,6 +72,7 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertEqual("inline_or_manual", adapter["fallback"]["whenRequiredCapabilityMissing"])
 
                 capabilities = adapter["capabilities"]
+                self.assertEqual("shim", capabilities["runtimeContextBinding"])
                 for key in (
                     "dispatchSubagent",
                     "freshChildContext",
@@ -124,6 +125,8 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("task: deny", text)
                 self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
+                self.assertIn("cowork_host_context_key: <host_context_key>", text)
+                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
                 self.assertIn("bound runtime context", text)
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
@@ -134,6 +137,8 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn(f"agent: {name}", text)
                 self.assertIn(".cowork-flow/run subagent init", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
+                self.assertIn("cowork_host_context_key: <host_context_key>", text)
+                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
 
             plugin = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
             self.assertIn("experimental.chat.system.transform", plugin)
@@ -154,6 +159,8 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn(f"name: {name}", text)
                 self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
+                self.assertIn("cowork_host_context_key: <host_context_key>", text)
+                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
                 self.assertIn("bound runtime context", text)
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
@@ -164,6 +171,8 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn(f"Use the `{name}` agent", text)
                 self.assertIn(".cowork-flow/run subagent init", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
+                self.assertIn("cowork_host_context_key: <host_context_key>", text)
+                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
 
             for name in ("start", "check"):
                 text = (base / "skills" / name / "SKILL.md").read_text(encoding="utf-8")

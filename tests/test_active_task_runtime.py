@@ -200,6 +200,46 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertEqual("bound", context["status"])
             self.assertEqual("codex_child", context["bound_context_key"])
 
+    def test_bind_runtime_context_prefers_prompt_host_context_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context_dir = self.active_task.subagent_contexts_dir(root)
+            context_dir.mkdir(parents=True)
+            context_path = context_dir / "rtx_demo.json"
+            context_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "runtime_context_id": "rtx_demo",
+                        "scope": "subagent",
+                        "host": "codex",
+                        "task_dir": ".cowork-flow/tasks/05-28-demo",
+                        "status": "pending",
+                        "bound_context_key": None,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            bound = self.active_task.bind_runtime_context(
+                root,
+                "rtx_demo",
+                values={
+                    "session_id": "child-session",
+                    "prompt": (
+                        "cowork_runtime_context_id: rtx_demo\n"
+                        "cowork_host_context_key: codex_prompt_key"
+                    ),
+                },
+            )
+
+            self.assertIsNotNone(bound)
+            self.assertTrue((self.active_task.sessions_dir(root) / "codex_prompt_key.json").is_file())
+            self.assertFalse((self.active_task.sessions_dir(root) / "codex_child-session.json").exists())
+            context = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("codex_prompt_key", context["bound_context_key"])
+
     def test_close_runtime_context_removes_bound_sessions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

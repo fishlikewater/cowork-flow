@@ -11,7 +11,7 @@ capabilities:
   stateInjection: native
   backgroundChild: native
   runtimeContextDispatch: native
-  runtimeContextBinding: native
+  runtimeContextBinding: shim
   runtimeContextCleanup: native
 dispatch:
   primitive: spawn_agent

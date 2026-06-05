@@ -14,7 +14,13 @@ Pass the returned prompt transport to the subagent:
 
 ```text
 cowork_runtime_context_id: <runtime_context_id>
+cowork_host_context_key: <host_context_key>
 ```
 
-The child must execute only after the plugin binds that runtime context.
-Missing, closed, invalid, or mismatched context is `needs_context`.
+The child must first bind the runtime context before role work:
+
+```bash
+./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
+```
+
+Missing, closed, invalid, mismatched, or unbound context is `needs_context`.
