@@ -19,7 +19,7 @@ const DEFAULT_CONTRACT_REGISTRY = {
       path: ".cowork-flow/spec/subagent-dispatch.md",
       digest: [
         "Formal subagent work is keyed by cowork_runtime_context_id.",
-        "Child plugins bind runtime context before workflow-state injection.",
+        "Explicit shim bind records bound_context_key before formal output is accepted.",
       ],
       readWhen: ["before formal subagent dispatch", "when checking subagent health"],
     },
@@ -211,6 +211,16 @@ function resolveContextKey(input) {
   return opencodeSession ? `opencode_${sanitize(opencodeSession)}` : null
 }
 
+function resolveHostContextKey(input) {
+  const direct = firstString(input, ["cowork_host_context_key", "host_context_key", "COWORK_FLOW_HOST_CONTEXT_KEY"])
+  if (direct) {
+    return sanitize(direct)
+  }
+
+  const match = promptText(input).match(/^\s*cowork_host_context_key\s*:\s*([A-Za-z0-9._-]+)\s*$/im)
+  return match ? sanitize(match[1]) : null
+}
+
 function readJson(path) {
   try {
     const data = JSON.parse(readFileSync(path, "utf8"))
@@ -230,8 +240,11 @@ function nowIso() {
 }
 
 function bindRuntimeContext(root, runtimeContextId, context, input) {
-  const contextKey = resolveContextKey(input)
+  const contextKey = resolveHostContextKey(input) || resolveContextKey(input)
   if (!contextKey) {
+    return context
+  }
+  if (typeof context.bound_context_key === "string" && context.bound_context_key.trim() && context.bound_context_key !== contextKey) {
     return context
   }
   const session = {
@@ -250,7 +263,7 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
     ...context,
     status: "bound",
     bound_context_key: contextKey,
-    bound_at: nowIso(),
+    bound_at: context.bound_at || nowIso(),
     last_seen_at: nowIso(),
   }
   writeJson(resolve(root, ".cowork-flow", ".runtime", "subagents", `${runtimeContextId}.json`), updated)

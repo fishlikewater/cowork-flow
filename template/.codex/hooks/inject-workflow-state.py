@@ -32,7 +32,7 @@ DEFAULT_CONTRACT_REGISTRY = {
             "path": ".cowork-flow/spec/subagent-dispatch.md",
             "digest": [
                 "Formal subagent work is keyed by cowork_runtime_context_id.",
-                "Child hooks bind runtime context before workflow-state injection.",
+                "Explicit shim bind records bound_context_key before formal output is accepted.",
             ],
             "readWhen": ["before formal subagent dispatch", "when checking subagent health"],
         },

@@ -11,7 +11,7 @@ capabilities:
   stateInjection: external
   backgroundChild: experimental
   runtimeContextDispatch: native
-  runtimeContextBinding: external
+  runtimeContextBinding: shim
   runtimeContextCleanup: native
 dispatch:
   primitive: subagent

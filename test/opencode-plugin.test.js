@@ -111,7 +111,7 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
 
   const context = await renderPluginContext(root, {
     opencode_session_id: "child-session",
-    prompt: "cowork_runtime_context_id: rtx_plugin",
+    prompt: "cowork_runtime_context_id: rtx_plugin\ncowork_host_context_key: opencode_prompt_key",
   })
 
   assert.match(context, /Status: delegated_subtask/)
@@ -120,10 +120,17 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   assert.match(context, /Scope: subagent/)
   const session = JSON.parse(
     await readFile(
-      join(root, ".cowork-flow", ".runtime", "sessions", "opencode_child-session.json"),
+      join(root, ".cowork-flow", ".runtime", "sessions", "opencode_prompt_key.json"),
       "utf8"
     )
   )
   assert.equal(session.scope, "subagent")
   assert.equal(session.runtime_context_id, "rtx_plugin")
+  await assert.rejects(
+    readFile(join(root, ".cowork-flow", ".runtime", "sessions", "opencode_child-session.json"), "utf8")
+  )
+  const runtimeContext = JSON.parse(
+    await readFile(join(root, ".cowork-flow", ".runtime", "subagents", "rtx_plugin.json"), "utf8")
+  )
+  assert.equal(runtimeContext.bound_context_key, "opencode_prompt_key")
 })

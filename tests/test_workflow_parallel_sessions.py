@@ -82,7 +82,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "cowork_runtime_context_id",
             ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
             ".cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json",
-            "Binding is the formal dispatch acceptance event",
+            "cowork_host_context_key",
+            "subagent bind <runtime_context_id> <host_context_key>",
+            "Verified binding is the formal dispatch acceptance event",
             "fail-closed subagent state",
         )
         for path in (
@@ -153,7 +155,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("Host Adapter", text)
         self.assertNotIn("agent" + "-team-execution", text)
         self.assertNotIn("specific assignment", text)
-        self.assertIn("runtime context binding before workflow state injection", text)
+        self.assertIn("accepted only after runtime context binding is recorded", text)
+        self.assertIn("cowork_host_context_key", text)
+        self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
         self.assertIn("Route in stages", text)
         self.assertIn("Repository-changing main-session requests load state first", text)
         self.assertIn("before fixed-agent dispatch", text)

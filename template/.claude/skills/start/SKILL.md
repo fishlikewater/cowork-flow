@@ -5,15 +5,13 @@ description: Use when starting or resuming main-session work in a cowork-flow pr
 
 # Start
 
-This skill is for the main session only. Formal subagents are identified by
-runtime context binding before workflow state injection and must not load this
-startup flow.
+This skill is for the main session only. Formal subagents are accepted only after runtime context binding is recorded and must not load this startup flow.
 Main repository changes follow `Plan -> Implement -> Check -> Finish`.
 Before loading state, classify only whether the current request is a
 main-session request, read-only question, command-only wrapper, or unclear
 input. Do not infer subagent identity from prompt shape. If a child has
-`cowork_runtime_context_id`, the hook/plugin binds that context before this
-skill is relevant.
+`cowork_runtime_context_id`, hook/plugin binding may run early; otherwise the
+child must run the explicit shim bind before formal work.
 
 ## Load State
 
@@ -62,12 +60,16 @@ Every formal dispatch uses runtime-context dispatch:
 
 ```text
 cowork_runtime_context_id: <runtime_context_id>
+cowork_host_context_key: <host_context_key>
 ```
 
 Before spawning a formal child, create a runtime context with
 `.cowork-flow/run subagent init` and pass the returned prompt transport through
-the active Host Adapter. The child hook/plugin must bind that runtime context
-before injecting workflow state. If binding is missing, closed, or invalid, the
+the active Host Adapter. The child's first step is
+`.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`; if a
+hook/plugin already bound the same key, this command is idempotent. The parent
+must verify `status=bound` and `bound_context_key=<host_context_key>` before
+accepting output. If binding is missing, closed, invalid, or mismatched, the
 child fails closed and must not run start/resume/task activation/archive/commit
 or coordinate other agents.
 

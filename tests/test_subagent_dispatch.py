@@ -49,9 +49,18 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual("formal", payload["dispatchKind"])
             self.assertIn("runtimeContextId", payload)
             self.assertEqual(payload["runtimeContextId"], payload["cowork_runtime_context_id"])
+            self.assertEqual(payload["hostContextKey"], payload["cowork_host_context_key"])
+            self.assertTrue(payload["hostContextKey"].startswith("codex_"))
             self.assertEqual(
-                f"cowork_runtime_context_id: {payload['runtimeContextId']}",
+                (
+                    f"cowork_runtime_context_id: {payload['runtimeContextId']}\n"
+                    f"cowork_host_context_key: {payload['hostContextKey']}"
+                ),
                 payload["promptTransport"],
+            )
+            self.assertEqual(
+                f".cowork-flow/run subagent bind {payload['runtimeContextId']} {payload['hostContextKey']}",
+                payload["bindCommand"],
             )
             self.assertNotIn("dispatchMessage", payload)
             self.assertNotIn("executeMessage", payload)
@@ -263,6 +272,104 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertFalse(host_session.exists())
             self.assertFalse((root / payload["logicalSessionFile"]).exists())
 
+
+    def test_bind_is_idempotent_for_same_context_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "init",
+                    "--title",
+                    "Bind me",
+                    "--role",
+                    "check",
+                    "--agent-type",
+                    "cowork-check",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            runtime_id = json.loads(init_result.stdout)["runtimeContextId"]
+
+            first = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_child"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            second = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_child"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, first.returncode, msg=first.stderr)
+            self.assertEqual(0, second.returncode, msg=second.stderr)
+            context = json.loads(second.stdout)
+            self.assertEqual("bound", context["status"])
+            self.assertEqual("codex_child", context["bound_context_key"])
+
+    def test_bind_rejects_different_context_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "init",
+                    "--title",
+                    "Reject rebind",
+                    "--role",
+                    "check",
+                    "--agent-type",
+                    "cowork-check",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            runtime_id = json.loads(init_result.stdout)["runtimeContextId"]
+
+            first = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_first"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            second = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_second"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, first.returncode, msg=first.stderr)
+            self.assertNotEqual(0, second.returncode)
+            self.assertIn("already bound to codex_first", second.stderr)
+            context = json.loads(
+                (root / ".cowork-flow" / ".runtime" / "subagents" / f"{runtime_id}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("codex_first", context["bound_context_key"])
 
 if __name__ == "__main__":
     unittest.main()

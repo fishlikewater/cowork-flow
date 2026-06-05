@@ -126,6 +126,8 @@ class CoworkAgentsTest(unittest.TestCase):
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
+            self.assertIn("cowork_host_context_key: <host_context_key>", text)
+            self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
             self.assertIn("bound runtime context", text)
             self.assertIn("report needs_context", text)
             self.assertIn("MUST NOT spawn", text)
@@ -160,6 +162,8 @@ class CoworkAgentsTest(unittest.TestCase):
                 text = path.read_text(encoding="utf-8")
                 required_markers = (
                     "cowork_runtime_context_id: <runtime_context_id>",
+                    "cowork_host_context_key: <host_context_key>",
+                    "subagent bind <runtime_context_id> <host_context_key>",
                     ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
                     "before workflow state is injected",
                     "names another agent type",

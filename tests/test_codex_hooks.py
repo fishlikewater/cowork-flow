@@ -64,6 +64,7 @@ class CodexHooksTest(unittest.TestCase):
         env = os.environ.copy()
         for name in (
             "COWORK_FLOW_CONTEXT_ID",
+            "COWORK_FLOW_HOST_CONTEXT_KEY",
             "CODEX_SESSION_ID",
             "CODEX_THREAD_ID",
             "COWORK_FLOW_RUNTIME_CONTEXT_ID",
@@ -209,6 +210,43 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
         self.assertIn("Source: runtime-context:rtx_structured", context)
+
+    def test_hook_prefers_prompt_host_context_key_over_session_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_runtime_context(root, "rtx_prompt_key")
+
+            data = self._run_hook(
+                root,
+                {
+                    "session_id": "child-session",
+                    "prompt": (
+                        "cowork_runtime_context_id: rtx_prompt_key\n"
+                        "cowork_host_context_key: codex_prompt_key\n"
+                        "Do the work."
+                    ),
+                },
+            )
+            session = json.loads(
+                (root / ".cowork-flow" / ".runtime" / "sessions" / "codex_prompt_key.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            runtime_context = json.loads(
+                (root / ".cowork-flow" / ".runtime" / "subagents" / "rtx_prompt_key.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertFalse(
+                (root / ".cowork-flow" / ".runtime" / "sessions" / "codex_child-session.json").exists()
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+        self.assertEqual("subagent", session["scope"])
+        self.assertEqual("rtx_prompt_key", session["runtime_context_id"])
+        self.assertEqual("codex_prompt_key", runtime_context["bound_context_key"])
 
     def test_hook_invalid_runtime_context_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

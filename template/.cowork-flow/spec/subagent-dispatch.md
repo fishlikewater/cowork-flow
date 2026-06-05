@@ -19,26 +19,41 @@ Before spawning a formal child, the main session creates:
 - `.cowork-flow/.runtime/subagents/<runtime_context_id>.json`
 - `.cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json`
 
-The child receives the runtime id through the host adapter transport. The
-baseline prompt transport is:
+The child receives the runtime id and host context key through the host adapter
+transport. The baseline prompt transport is:
 
 ```text
 cowork_runtime_context_id: <runtime_context_id>
+cowork_host_context_key: <host_context_key>
 ```
 
 Hosts may use env or metadata transport only after the adapter declares and
-verifies that support.
+verifies that support. If `subagent init` emits a suggested host context key,
+the parent may use that key unless the host adapter has a stronger stable child
+session key.
 
 ## Binding Gate
 
-The child hook or plugin resolves `cowork_runtime_context_id` before injecting
-workflow state. A valid context is bound to the host child session under
-`.cowork-flow/.runtime/sessions/<host_context_key>.json` with
-`scope: "subagent"`.
+The child hook or plugin may resolve `cowork_runtime_context_id` early and bind
+the runtime context before injecting workflow state. Because not every host can
+prove model-before-execution binding, the child must run this first-step shim
+before formal work:
 
-Binding is the formal dispatch acceptance event. If binding fails, the child
-must receive fail-closed subagent state and must not run main-session
-start/resume, task activation, archive, commit, or agent coordination.
+```text
+./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
+```
+
+A valid context is bound to the host child session under
+`.cowork-flow/.runtime/sessions/<host_context_key>.json` with
+`scope: "subagent"`. Binding the same runtime id to the same key is idempotent;
+binding it to a different key must fail.
+
+Verified binding is the formal dispatch acceptance event. The parent must check
+that `.cowork-flow/.runtime/subagents/<runtime_context_id>.json` has
+`status: "bound"` and `bound_context_key: "<host_context_key>"` before accepting
+child output. If binding fails, the child must receive fail-closed subagent state
+and must not run main-session start/resume, task activation, archive, commit,
+or agent coordination.
 
 ## Return Acceptance And Closeout
 

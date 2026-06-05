@@ -62,6 +62,15 @@ def _next_id(base_dir: Path, title: str) -> str:
     return candidate
 
 
+def _host_context_prefix(host: str) -> str:
+    normalized = host.strip().lower()
+    if normalized == "claude-code":
+        return "claude"
+    return re.sub(r"[^a-z0-9]+", "_", normalized).strip("_") or "host"
+
+def _suggest_host_context_key(host: str, runtime_context_id: str) -> str:
+    return f"{_host_context_prefix(host)}_{runtime_context_id}"
+
 def _resolve_agent_type(role: str, agent_type: str | None) -> tuple[str, str]:
     normalized_role = role.strip()
     requested = agent_type.strip() if isinstance(agent_type, str) else ""
@@ -141,6 +150,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         task_dir,
         args.host,
     )
+    host_context_key = _suggest_host_context_key(args.host, runtime_context_id)
 
     print(
         json.dumps(
@@ -148,13 +158,19 @@ def cmd_init(args: argparse.Namespace) -> int:
                 "id": runtime_context_id,
                 "runtimeContextId": runtime_context_id,
                 "cowork_runtime_context_id": runtime_context_id,
+                "hostContextKey": host_context_key,
+                "cowork_host_context_key": host_context_key,
                 "agentType": agent_type,
                 "role": args.role,
                 "taskDir": task_dir,
                 "dispatchKind": dispatch_kind,
                 "runtimeContextFile": _relative(repo_root, runtime_context_path(repo_root, runtime_context_id)),
                 "logicalSessionFile": _relative(repo_root, sessions_dir(repo_root) / f"{logical_context_key}.json"),
-                "promptTransport": f"cowork_runtime_context_id: {runtime_context_id}",
+                "promptTransport": (
+                    f"cowork_runtime_context_id: {runtime_context_id}\n"
+                    f"cowork_host_context_key: {host_context_key}"
+                ),
+                "bindCommand": f".cowork-flow/run subagent bind {runtime_context_id} {host_context_key}",
             },
             ensure_ascii=False,
         )
@@ -201,6 +217,14 @@ def cmd_update(args: argparse.Namespace) -> int:
 
 def cmd_bind(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
+    existing = read_runtime_context(repo_root, args.subagent_id)
+    existing_key = existing.get("bound_context_key") if existing else None
+    if isinstance(existing_key, str) and existing_key.strip() and existing_key != args.context_key:
+        print(
+            f"Error: runtime context {args.subagent_id} already bound to {existing_key}",
+            file=sys.stderr,
+        )
+        return 1
     context = bind_runtime_context(repo_root, args.subagent_id, args.context_key)
     if context is None:
         print(f"Error: cannot bind runtime context: {args.subagent_id}", file=sys.stderr)
