@@ -1164,3 +1164,33 @@ Make closeout archive/session commands no-commit by default and keep explicit au
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 36: Slim Claude memory and platform-aware skill sync
+
+**Date**: 2026-06-05
+**Task**: Slim Claude memory and platform-aware skill sync
+
+### Summary
+
+Slim Claude Code memory to AGENTS import and make .agent skills unavailable for Claude-only installs while task init-context uses .claude skills in Claude-only projects.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

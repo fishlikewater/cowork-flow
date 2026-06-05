@@ -1,0 +1,21 @@
+{
+  "id": "06-05-claude-platform-aware-skills",
+  "name": "06-05-claude-platform-aware-skills",
+  "title": "Claude-only platform-aware skill context",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-05",
+  "completedAt": "2026-06-05",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
