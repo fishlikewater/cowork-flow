@@ -17,7 +17,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 5. tasks：根据plan拆分具体执行任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
 6. implement：主会话通过当前宿主适配器派发 `cowork-implement`，按 `.cowork-flow/spec/subagent-dispatch.md` 执行固定代理派发协议。
 7. check：主会话通过当前宿主适配器派发 `cowork-check`，按 `.cowork-flow/spec/subagent-dispatch.md` 执行固定代理派发协议。
-8. complete：主会话做最终验证、同步规格、提交、归档、记录会话。
+8. complete：主会话做最终验证、同步规格、归档、记录会话、提交。
 
 `cowork-flow` 只保存项目状态、任务上下文、宿主适配器契约和恢复线索；实际执行由主会话和固定 `cowork-*` 代理完成。宿主工具名只写在 `.cowork-flow/adapters/<host>/adapter.yaml`，不进入流程分支。
 
@@ -199,7 +199,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
     - 所有声明通过的验证都有命令输出依据。
     - 规格已更新，或明确判断无需更新。
     - 计划状态、任务状态、`change` 元数据不冲突。
-    - 提交在归档和会话记录之前完成。
+    - 先归档，再记录会话，然后提交。
     - 不纳入无关脏改。
 
 2. 顺序：
@@ -208,10 +208,11 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
     git status --short
     git diff --check
     npm run test:all
+    ./.cowork-flow/run task archive <task-name>
+    ./.cowork-flow/run add-session --title "<title>" --commit "-" --summary "<summary>"
+    git status --short
     git add <expected files>
     git commit -m "<message>"
-    ./.cowork-flow/run task archive <task-name>
-    ./.cowork-flow/run add-session --title "<title>" --commit "<commit>" --summary "<summary>"
     ```
 
 ## 9. 恢复规则

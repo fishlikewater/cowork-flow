@@ -604,7 +604,10 @@ Added explicit execution authority gates, generic subagent scoped recovery, star
 
 ### Main Changes
 
-(add details)
+- Changed `task archive` to archive without committing by default; explicit `--commit` keeps opt-in auto-commit behavior.
+- Changed `add-session` to record without committing by default; explicit `--auto-commit` keeps opt-in metadata commits.
+- Fixed missing path constant imports in `add-session` auto-commit code.
+- Synced root/template scripts, workflow closeout guidance, finish-work skills, and regression tests.
 
 ### Git Commit
 
@@ -614,7 +617,10 @@ Added explicit execution authority gates, generic subagent scoped recovery, star
 
 ### Verification
 
-- [OK] (add verification results)
+- [OK] `python -m py_compile .cowork-flow\scripts\add_session.py .cowork-flow\scripts\task.py template\.cowork-flow\scripts\add_session.py template\.cowork-flow\scripts\task.py tests\test_flow_script_paths.py`
+- [OK] `python -m unittest discover -s tests -p test_flow_script_paths.py -v`
+- [OK] `git diff --check`
+- [OK] `python -m unittest discover -s tests -v` (160 tests, 6 skipped)
 
 ### Status
 
@@ -1116,6 +1122,36 @@ Added explicit runtime-context binding shim for formal subagents across Codex, C
 |------|------|
 | `fe1b984` | See git log |
 | `d74ad65` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
+
+
+## Session 35: Closeout no auto commit
+
+**Date**: 2026-06-05
+**Task**: Closeout no auto commit
+
+### Summary
+
+Make closeout archive/session commands no-commit by default and keep explicit auto-commit opt-in.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
 
 ### Verification
 

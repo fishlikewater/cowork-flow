@@ -26,6 +26,8 @@ class FlowScriptPathsTest(unittest.TestCase):
         self.addCleanup(self._cleanup_imports)
         self.paths = importlib.import_module("common.paths")
         self.task = importlib.import_module("task")
+        self.add_session = importlib.import_module("add_session")
+        self.developer = importlib.import_module("common.developer")
         self.git_context = importlib.import_module("common.git_context")
 
     def _cleanup_imports(self) -> None:
@@ -33,7 +35,10 @@ class FlowScriptPathsTest(unittest.TestCase):
             sys.path.remove(str(SCRIPTS))
         for module_name in (
             "task",
+            "add_session",
             "common.active_task",
+            "common.config",
+            "common.developer",
             "common.git_context",
             "common.paths",
             "common.readiness",
@@ -54,6 +59,27 @@ class FlowScriptPathsTest(unittest.TestCase):
             f'{{"active_task_path": "{task_path}"}}\n',
             encoding="utf-8",
         )
+
+    def _run_git(self, root: Path, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        return result.stdout.strip()
+
+    def _init_git_repo(self, root: Path) -> None:
+        self._run_git(root, "init")
+        self._run_git(root, "config", "user.name", "Test User")
+        self._run_git(root, "config", "user.email", "test@example.com")
+
+    def _commit_all(self, root: Path, message: str) -> str:
+        self._run_git(root, "add", "-A")
+        self._run_git(root, "commit", "-m", message)
+        return self._run_git(root, "rev-parse", "HEAD")
 
     def test_workflow_and_agent_directory_constants_are_current(self) -> None:
         self.assertEqual(".cowork-flow", self.paths.DIR_WORKFLOW)
@@ -707,6 +733,135 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertFalse(task_dir.exists())
             self.assertTrue((archive_dest / "task.json").is_file())
             self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
+
+    def test_task_archive_does_not_commit_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            workflow_dir = root / ".cowork-flow"
+            tasks_dir = workflow_dir / "tasks"
+            task_dir = tasks_dir / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "completed", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            baseline = self._commit_all(root, "initial")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_archive(
+                        argparse.Namespace(name="05-19-demo", commit=False, no_commit=False)
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            head = self._run_git(root, "rev-parse", "HEAD")
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual(baseline, head)
+            self.assertNotIn("Auto-committed", stderr.getvalue())
+
+    def test_task_archive_commit_flag_auto_commits(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            workflow_dir = root / ".cowork-flow"
+            tasks_dir = workflow_dir / "tasks"
+            task_dir = tasks_dir / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "completed", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            baseline = self._commit_all(root, "initial")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_archive(
+                        argparse.Namespace(name="05-19-demo", commit=True, no_commit=False)
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            head = self._run_git(root, "rev-parse", "HEAD")
+            message = self._run_git(root, "log", "-1", "--pretty=%s")
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertNotEqual(baseline, head)
+            self.assertEqual("chore(task): archive 05-19-demo", message)
+            self.assertIn("Auto-committed", stderr.getvalue())
+
+    def test_add_session_does_not_commit_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            workflow_dir = root / ".cowork-flow"
+            workflow_dir.mkdir()
+            (workflow_dir / "tasks").mkdir()
+            self.developer.init_developer("codex", root)
+            baseline = self._commit_all(root, "initial")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    result = self.add_session.add_session(
+                        "Demo session",
+                        commit="-",
+                        summary="Record closeout.",
+                        extra_content="- Updated metadata.",
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            head = self._run_git(root, "rev-parse", "HEAD")
+            status = self._run_git(root, "status", "--short")
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual(baseline, head)
+            self.assertIn(".cowork-flow/workspace/codex/", status)
+            self.assertNotIn("Metadata auto-committed", stderr.getvalue())
+
+    def test_add_session_auto_commit_flag_commits_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            workflow_dir = root / ".cowork-flow"
+            workflow_dir.mkdir()
+            (workflow_dir / "tasks").mkdir()
+            self.developer.init_developer("codex", root)
+            baseline = self._commit_all(root, "initial")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    result = self.add_session.add_session(
+                        "Demo session",
+                        commit="-",
+                        summary="Record closeout.",
+                        extra_content="- Updated metadata.",
+                        auto_commit=True,
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            head = self._run_git(root, "rev-parse", "HEAD")
+            message = self._run_git(root, "log", "-1", "--pretty=%s")
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertNotEqual(baseline, head)
+            self.assertEqual("chore: record journal", message)
+            self.assertIn("Metadata auto-committed", stderr.getvalue())
 
     def test_context_text_includes_minimal_resume_checklist(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

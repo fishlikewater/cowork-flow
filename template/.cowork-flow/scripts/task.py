@@ -1267,8 +1267,8 @@ def cmd_archive(args: argparse.Namespace) -> int:
     year_month = archive_dest.parent.name
     print(colored(f"Archived: {dir_name} -> archive/{year_month}/", Colors.GREEN), file=sys.stderr)
 
-    # Auto-commit unless --no-commit
-    if not getattr(args, "no_commit", False):
+    # Auto-commit only when explicitly requested.
+    if getattr(args, "commit", False) and not getattr(args, "no_commit", False):
         _auto_commit_archive(dir_name, repo_root)
 
     # Return the archive path
@@ -1646,7 +1646,12 @@ def main() -> int:
     # archive
     p_archive = subparsers.add_parser("archive", help="Archive task")
     p_archive.add_argument("name", help="Task name")
-    p_archive.add_argument("--no-commit", action="store_true", help="Skip auto git commit after archive")
+    p_archive.add_argument("--commit", action="store_true", help="Auto git commit after archive")
+    p_archive.add_argument(
+        "--no-commit",
+        action="store_true",
+        help="Deprecated no-op; archive no longer commits by default",
+    )
 
     # list
     p_list = subparsers.add_parser("list", help="List tasks")
