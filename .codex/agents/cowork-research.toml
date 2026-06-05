@@ -1,5 +1,5 @@
 name = "cowork-research"
-description = "Cowork-flow researcher that records findings under the active task."
+description = "Cowork-flow researcher for runtime-context bound research tasks."
 sandbox_mode = "workspace-write"
 
 developer_instructions = """

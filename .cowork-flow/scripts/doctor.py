@@ -39,6 +39,20 @@ REQUIRED_FIXED_AGENT_SNIPPETS = [
     "enabled = false",
 ]
 
+REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET = "runtime-context"
+
+FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS = [
+    "Active task",
+    "active task",
+    "self-loads task context",
+    "self-loads",
+]
+
+FORBIDDEN_README_DISPATCH_SNIPPETS = [
+    'message="Active task: <task-dir>\\n\\n<assignment>"',
+    "提示词首行使用 `Active task: <task-dir>`",
+]
+
 REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
     "宿主适配器契约",
     ".cowork-flow/spec/subagent-dispatch.md",
@@ -178,6 +192,16 @@ def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> 
     for snippet in snippets:
         if snippet not in text:
             errors.append(f"{path} missing snippet: {snippet}")
+
+
+def _check_file_omits(path: Path, snippets: list[str], errors: list[str]) -> None:
+    if not path.is_file():
+        errors.append(f"missing file: {path}")
+        return
+    text = path.read_text(encoding="utf-8")
+    for snippet in snippets:
+        if snippet in text:
+            errors.append(f"{path} contains forbidden snippet: {snippet}")
 
 
 def _check_file_absent(path: Path, errors: list[str]) -> None:
@@ -408,6 +432,19 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         data = _check_toml_parseable(repo_root / rel, errors)
         if data is not None and data.get("name") != Path(rel).stem:
             errors.append(f"{rel} name must match filename")
+        description = data.get("description") if data is not None else None
+        if isinstance(description, str):
+            if REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET not in description:
+                errors.append(
+                    f"{rel} description must mention {REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET}"
+                )
+            for snippet in FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS:
+                if snippet in description:
+                    errors.append(f"{rel} description contains stale dispatch marker: {snippet}")
+        elif data is not None:
+            errors.append(f"{rel} missing description")
+    if (repo_root / "README.md").is_file():
+        _check_file_omits(repo_root / "README.md", FORBIDDEN_README_DISPATCH_SNIPPETS, errors)
     for rel in (
         ".codex/agents/worker.toml",
         ".codex/agents/default.toml",

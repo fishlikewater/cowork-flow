@@ -92,6 +92,10 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         self.assertNotIn("openspec new", readme)
         self.assertNotIn("agent-team", readme)
         self.assertNotIn("agent_team", readme)
+        self.assertNotIn("Active task: <task-dir>", readme)
+        self.assertNotIn('message="Active task', readme)
+        self.assertIn("cowork_runtime_context_id", readme)
+        self.assertIn("cowork_host_context_key", readme)
 
     def test_config_template_only_documents_effective_settings(self) -> None:
         for path in (
