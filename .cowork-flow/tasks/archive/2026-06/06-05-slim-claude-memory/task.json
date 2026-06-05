@@ -1,0 +1,21 @@
+{
+  "id": "06-05-slim-claude-memory",
+  "name": "06-05-slim-claude-memory",
+  "title": "Slim Claude memory instructions",
+  "description": "Remove redundant Claude Code asset/protocol details from CLAUDE.md and move tests to real source-of-truth files.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P3",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-05",
+  "completedAt": "2026-06-05",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

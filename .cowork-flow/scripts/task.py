@@ -358,7 +358,24 @@ def get_implement_frontend() -> list[dict]:
     ]
 
 
-def _skill_path(name: str) -> str:
+def _detect_installed_platforms(repo_root: Path | None = None) -> list[str]:
+    """Detect installed host platform assets in the current project."""
+    root = repo_root or get_repo_root()
+    platforms: list[str] = []
+    if (root / ".codex").is_dir():
+        platforms.append("codex")
+    if (root / ".opencode").is_dir():
+        platforms.append("opencode")
+    if (root / ".claude").is_dir() or (root / "CLAUDE.md").is_file():
+        platforms.append("claude-code")
+    return platforms
+
+def _use_claude_skill_context(repo_root: Path | None = None) -> bool:
+    return _detect_installed_platforms(repo_root) == ["claude-code"]
+
+def _skill_path(name: str, repo_root: Path | None = None) -> str:
+    if _use_claude_skill_context(repo_root):
+        return f".claude/skills/{name}/SKILL.md"
     return f"{DIR_AGENT}/skills/{name}/SKILL.md"
 
 

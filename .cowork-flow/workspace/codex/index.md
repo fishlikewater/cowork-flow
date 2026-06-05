@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 35
+- **Total Sessions**: 36
 - **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1160 | Current |
+| `journal-1.md` | ~1196 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 36 | 2026-06-05 | Slim Claude memory and platform-aware skill sync | - |
 | 35 | 2026-06-05 | Closeout no auto commit | - |
 | 34 | 2026-06-05 | Runtime binding shim | `fe1b984`, `d74ad65` |
 | 33 | 2026-06-05 | Runtime context subagent dispatch | `4c38a15`, `c31c071` |

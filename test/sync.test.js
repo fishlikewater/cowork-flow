@@ -312,6 +312,7 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
+  assert.equal(await exists(join(target, '.agent', 'skills')), false);
   assert.match(io.stdout, /Platforms: claude-code/);
   assert.match(io.stdout, /updated=/);
 });

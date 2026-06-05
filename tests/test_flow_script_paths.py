@@ -179,6 +179,59 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.task._skill_path("finish-work"),
         )
 
+    def test_skill_path_uses_claude_skills_for_claude_only_project(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            (root / ".claude").mkdir()
+
+            self.assertEqual(
+                ".claude/skills/check/SKILL.md",
+                self.task._skill_path("check", root),
+            )
+
+    def test_skill_path_keeps_agent_skills_when_non_claude_hosts_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            (root / ".codex").mkdir()
+            (root / ".claude").mkdir()
+
+            self.assertEqual(
+                ".agent/skills/check/SKILL.md",
+                self.task._skill_path("check", root),
+            )
+
+    def test_init_context_writes_claude_skill_paths_for_claude_only_project(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "06-05-demo"
+            task_dir.mkdir(parents=True)
+            (root / ".claude").mkdir()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_init_context(
+                        argparse.Namespace(dir=str(task_dir), type="docs")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result)
+            check_entries = [
+                json.loads(line)
+                for line in (task_dir / "check.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(
+                ".claude/skills/check/SKILL.md",
+                check_entries[0]["file"],
+            )
+
     def test_default_implement_context_includes_workflow_gates(self) -> None:
         files = [entry["file"] for entry in self.task.get_implement_base()]
 

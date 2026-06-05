@@ -124,7 +124,7 @@ npx cowork-flow --help
 cowork-flow init ./my-project --platform codex
 ```
 
-`init` 会直接复制模板中的通用 `.agent/skills/` 和 `.cowork-flow/`，并按 `--platform` 只复制对应 host 资产：`codex` 复制 `.codex/` 与 `.cowork-flow/adapters/codex/`，`opencode` 复制 `.opencode/` 与 `.cowork-flow/adapters/opencode/`，`claude-code` 复制 `CLAUDE.md`、`.claude/`（含 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`）与 `.cowork-flow/adapters/claude-code/`，`all` 或 `--platform codex,opencode,claude-code` 同时复制三者。`both` 保持兼容，只复制 Codex 和 OpenCode。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会先显示 checkbox 多选界面选择平台，再提示开发者名称；非交互式环境必须传入 `--platform <codex|opencode|claude-code|all>` 与 `--developer <name>`。`init` 不会复制额外技能包。
+`init` 会直接复制模板中的通用 `.cowork-flow/`，并按 `--platform` 只复制对应 host 资产：`codex` 复制 `.codex/`、`.agent/skills/` 与 `.cowork-flow/adapters/codex/`，`opencode` 复制 `.opencode/`、`.agent/skills/` 与 `.cowork-flow/adapters/opencode/`，`claude-code` 复制 `CLAUDE.md`、`.claude/`（含 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`）与 `.cowork-flow/adapters/claude-code/`，不复制 `.agent/skills/`。`all` 或 `--platform codex,opencode,claude-code` 同时复制三者和 `.agent/skills/`。`both` 保持兼容，只复制 Codex 和 OpenCode。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会先显示 checkbox 多选界面选择平台，再提示开发者名称；非交互式环境必须传入 `--platform <codex|opencode|claude-code|all>` 与 `--developer <name>`。`init` 不会复制额外技能包。
 
 初始化到当前项目：
 
@@ -159,7 +159,7 @@ cowork-flow sync .
 cowork-flow sync . --dry-run
 ```
 
-`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者；对应 `.cowork-flow/adapters/<host>/` 也按识别出的平台同步。通用部分默认刷新 `.agent/skills/`、`.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`、`.cowork-flow/scripts/`、`.cowork-flow/spec/workflow-state-templates.md`，以及 `AGENTS.md` 和 `CLAUDE.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、除 `workflow-state-templates.md` 外的 `.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
+`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者；对应 `.cowork-flow/adapters/<host>/` 也按识别出的平台同步。检测到 Codex 或 OpenCode 时会刷新 `.agent/skills/`；Claude Code-only 项目只刷新 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`，不会创建 `.agent/skills/`。通用部分默认刷新 `.cowork-flow/scripts/`、`.cowork-flow/spec/workflow-state-templates.md`，以及 `AGENTS.md` 和 `CLAUDE.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、除 `workflow-state-templates.md` 外的 `.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
 
 ## 常用入口
 
