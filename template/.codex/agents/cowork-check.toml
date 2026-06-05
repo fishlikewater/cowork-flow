@@ -1,5 +1,5 @@
 name = "cowork-check"
-description = "Cowork-flow checker that reviews active task changes and fixes in-scope issues."
+description = "Cowork-flow checker for runtime-context bound review tasks."
 sandbox_mode = "workspace-write"
 
 developer_instructions = """

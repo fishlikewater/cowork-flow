@@ -58,7 +58,7 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 本地技能入口，覆盖 start、before-dev、brainstorming、writing-plans、check、finish-work、continue、meta、python-design、update-spec 和 break-loop 等协作动作。这里的 skill 应保持通用，不承载某个业务项目的一次性细节。
 
 `template/.codex/agents/`
-固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`，以及对 Codex 默认 `worker`、`default`、`explorer` 的项目级防漂移约束。主会话负责计划与收口，并用 Codex `spawn_agent` 派发固定 agent；派发必须使用 `fork_turns="none"`，提示词首行使用 `Active task: <task-dir>`。
+固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`，以及对 Codex 默认 `worker`、`default`、`explorer` 的项目级防漂移约束。主会话负责计划与收口，并通过 host adapter 派发固定 agent；正式派发必须先创建 runtime context，再把 `cowork_runtime_context_id` 和 `cowork_host_context_key` 传给子代理。
 
 `template/.codex/config.toml`、`template/.codex/hooks.json`、`template/.codex/hooks/`
 Codex 项目级配置与每轮上下文注入入口。hook 会先用共享 entry classifier 判定当前输入，再读取当前 session task、`.cowork-flow/spec/workflow-state-templates.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。注入的 `codex-dispatch-mode` 只是主会话调度提示，不代表当前线程身份。
@@ -232,15 +232,18 @@ L2 任务的 readiness gate 会在 `task start` 前阻塞缺失的 proposal/spec
 
 主会话负责创建/启动任务、维护计划与收口验证；可并行的实现或检查工作通过 Codex subagent 交给固定角色 agent。
 
-```python
-spawn_agent(
-    agent_type="cowork-implement",
-    fork_turns="none",
-    message="Active task: <task-dir>\n\n<assignment>",
-)
+```text
+./.cowork-flow/run subagent init --role implement --agent-type cowork-implement --execution-task-dir <task-dir> --title "<title>"
 ```
 
-默认角色为 `cowork-research`、`cowork-implement`、`cowork-check`，任务上下文由 agent 根据 active task 自行加载。主会话必须用 `wait_agent` 等待结果，验收输出，再用 `list_agents` / `close_agent` 收口。
+将命令返回的 prompt transport 放入子代理 prompt：
+
+```text
+cowork_runtime_context_id: <runtime_context_id>
+cowork_host_context_key: <host_context_key>
+```
+
+子代理首步执行 `./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`；主会话验收前必须确认 runtime context 中 `status=bound` 且 `bound_context_key` 匹配。默认角色为 `cowork-research`、`cowork-implement`、`cowork-check`，任务上下文来自已绑定 runtime context，而不是 prompt 形状。
 
 Codex hook 启用后，每轮会自动注入 `<workflow-state>`，其中包含入口分类、当前任务、状态来源和下一步流程提示。状态文本来自 `.cowork-flow/spec/workflow-state-templates.md`；`workflow.md` 只描述流程，不内联状态片段。hook 不替代主会话验收；它只负责把 task 状态和 workflow gate 放进上下文。
 

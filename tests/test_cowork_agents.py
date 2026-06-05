@@ -19,6 +19,7 @@ def load_agent_toml(path: Path) -> dict[str, str]:
     if tomllib is not None:
         return tomllib.loads(text)
 
+    data: dict[str, str] = {}
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -26,11 +27,15 @@ def load_agent_toml(path: Path) -> dict[str, str]:
         if line.startswith("["):
             break
         key, separator, value = line.partition("=")
-        if separator and key.strip() == "name":
+        key = key.strip()
+        if separator and key in {"name", "description"}:
             parsed = ast.literal_eval(value.strip())
             if not isinstance(parsed, str):
-                raise ValueError(f"name must be a string in {path}")
-            return {"name": parsed}
+                raise ValueError(f"{key} must be a string in {path}")
+            data[key] = parsed
+
+    if "name" in data:
+        return data
 
     raise ValueError(f"missing top-level name in {path}")
 
@@ -124,6 +129,13 @@ class CoworkAgentsTest(unittest.TestCase):
             ROOT / "template" / ".codex" / "agents" / "cowork-implement.toml",
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
         ):
+            data = load_agent_toml(path)
+            description = data.get("description", "")
+            self.assertIn("runtime-context", description, str(path))
+            self.assertNotIn("Active task", description, str(path))
+            self.assertNotIn("active task", description, str(path))
+            self.assertNotIn("self-loads", description, str(path))
+
             text = path.read_text(encoding="utf-8")
             self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
             self.assertIn("cowork_host_context_key: <host_context_key>", text)
@@ -187,6 +199,10 @@ class CoworkAgentsTest(unittest.TestCase):
             "entry_classifier.py",
             "REQUIRED_RUNTIME_HOOK_SNIPPETS",
             "REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS",
+            "REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET",
+            "FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS",
+            "FORBIDDEN_README_DISPATCH_SNIPPETS",
+            "_check_file_omits",
             "cmd_host_adapters",
             ".cowork-flow/adapters/claude-code/adapter.yaml",
             ".claude/agents/cowork-implement.md",

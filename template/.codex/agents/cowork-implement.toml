@@ -1,5 +1,5 @@
 name = "cowork-implement"
-description = "Cowork-flow implementer that self-loads task context from Active task."
+description = "Cowork-flow implementer for runtime-context bound implementation tasks."
 sandbox_mode = "workspace-write"
 
 developer_instructions = """
