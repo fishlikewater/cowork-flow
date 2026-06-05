@@ -25,8 +25,8 @@ Before claiming completion, verify:
 2. Run `git diff --check`.
 3. Run focused tests and then broader project verification when appropriate.
 4. Update the plan/task status.
-5. If commit policy allows, stage only expected files and commit.
-6. Archive completed task/change artifacts when requested or required by workflow.
-7. Record the session with `.cowork-flow/run add-session` after code policy is satisfied.
+5. Archive completed task/change artifacts when requested or required by workflow.
+6. Record the session with `.cowork-flow/run add-session --commit "-"` unless a prior commit hash is intentionally being recorded.
+7. If commit policy allows, stage only expected files and commit once.
 
 If the user asks not to commit, stop before staging and report the verified state.

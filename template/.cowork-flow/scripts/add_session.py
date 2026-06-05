@@ -18,6 +18,9 @@ from datetime import datetime
 from pathlib import Path
 
 from common.paths import (
+    DIR_TASKS,
+    DIR_WORKFLOW,
+    DIR_WORKSPACE,
     FILE_JOURNAL_PREFIX,
     count_lines,
     get_repo_root,
@@ -292,14 +295,16 @@ def update_index(
 def _auto_commit_workspace(repo_root: Path) -> None:
     """Stage .cowork-flow/workspace and .cowork-flow/tasks, then commit with a configured message."""
     commit_msg = get_session_commit_message(repo_root)
+    workspace_rel = f"{DIR_WORKFLOW}/{DIR_WORKSPACE}"
+    tasks_rel = f"{DIR_WORKFLOW}/{DIR_TASKS}"
     subprocess.run(
-        ["git", "add", "-A", f"{DIR_WORKFLOW}/{DIR_WORKSPACE}", f"{DIR_WORKFLOW}/{DIR_TASKS}"],
+        ["git", "add", "-A", workspace_rel, tasks_rel],
         cwd=repo_root,
         capture_output=True,
     )
     # Check if there are staged changes
     result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--", ".cowork-flow/workspace", ".cowork-flow/tasks"],
+        ["git", "diff", "--cached", "--quiet", "--", workspace_rel, tasks_rel],
         cwd=repo_root,
     )
     if result.returncode == 0:
@@ -322,7 +327,7 @@ def add_session(
     commit: str = "-",
     summary: str = "(add summary)",
     extra_content: str = "(add details)",
-    auto_commit: bool = True,
+    auto_commit: bool = False,
 ) -> int:
     """Add a new session."""
     repo_root = get_repo_root()
@@ -397,7 +402,7 @@ def add_session(
     print(f"  - {target_file.name if target_file else 'journal'}", file=sys.stderr)
     print("  - index.md", file=sys.stderr)
 
-    # Auto-commit workspace changes
+    # Auto-commit workspace changes only when explicitly requested.
     if auto_commit:
         print("", file=sys.stderr)
         _auto_commit_workspace(repo_root)
@@ -418,8 +423,16 @@ def main() -> int:
     parser.add_argument("--commit", default="-", help="Comma-separated commit hashes")
     parser.add_argument("--summary", default="(add summary)", help="Brief summary")
     parser.add_argument("--content-file", help="Path to a file containing detailed content")
-    parser.add_argument("--no-commit", action="store_true",
-                        help="Skip automatic .cowork-flow metadata commit")
+    parser.add_argument(
+        "--auto-commit",
+        action="store_true",
+        help="Auto git commit after recording workspace metadata",
+    )
+    parser.add_argument(
+        "--no-commit",
+        action="store_true",
+        help="Deprecated no-op; add-session no longer commits by default",
+    )
 
     args = parser.parse_args()
 
@@ -433,7 +446,7 @@ def main() -> int:
 
     return add_session(
         args.title, args.commit, args.summary, extra_content,
-        auto_commit=not args.no_commit,
+        auto_commit=args.auto_commit and not args.no_commit,
     )
 
 
