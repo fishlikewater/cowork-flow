@@ -1,7 +1,0 @@
-{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
-{"file": ".agent/skills/record-session/SKILL.md", "reason": "Session recording and state sync"}
-{"file": ".agent/skills/check-cross-layer/SKILL.md", "reason": "Cross-layer consistency check"}
-{"file": ".cowork-flow/changes/release-script-readme/spec.md", "reason": "Check implementation against behavior spec"}
-{"file": ".cowork-flow/plans/2026-05-21-release-script-readme.md", "reason": "Check implementation against plan"}
-{"file": ".cowork-flow/spec/backend/quality-guidelines.md", "reason": "Quality gate for scripts and tests"}
-{"file": "test/package.test.js", "reason": "Existing package metadata test pattern"}

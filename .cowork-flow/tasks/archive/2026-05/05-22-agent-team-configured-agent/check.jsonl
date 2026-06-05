@@ -1,5 +1,0 @@
-{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
-{"file": ".agent/skills/record-session/SKILL.md", "reason": "Session recording and state sync"}
-{"file": ".agent/skills/check-cross-layer/SKILL.md", "reason": "Cross-layer consistency check"}
-{"file": ".cowork-flow\\changes\\agent-team-configured-agent\\spec.md", "reason": "Check implementation against behavior spec"}
-{"file": ".cowork-flow\\plans\\2026-05-22-agent-team-configured-agent.md", "reason": "Check implementation against plan"}

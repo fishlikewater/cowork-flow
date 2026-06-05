@@ -1,9 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
-{"file": ".codex/agents/", "type": "directory", "reason": "Root Codex agent definitions"}
-{"file": "template/.codex/agents/", "type": "directory", "reason": "Template Codex agent definitions"}
-{"file": ".cowork-flow/scripts/subagent.py", "reason": "Generic worker dispatch payload"}
-{"file": "template/.codex/hooks/inject-workflow-state.py", "reason": "Template hook mirror"}
-{"file": ".codex/hooks/inject-workflow-state.py", "reason": "Codex hook delegated prompt detection"}

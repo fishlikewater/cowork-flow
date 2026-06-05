@@ -1,9 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
-{"file": ".agent/skills/start/SKILL.md", "reason": "Start skill parallel routing"}
-{"file": ".agent/skills/writing-plans/SKILL.md", "reason": "Plan skill parallel work item fields"}
-{"file": "template/.cowork-flow/workflow.md", "reason": "Template workflow parallel operation model"}
-{"file": "template/.agent/skills/start/SKILL.md", "reason": "Template start skill parallel routing"}
-{"file": "template/.agent/skills/writing-plans/SKILL.md", "reason": "Template plan skill parallel work item fields"}
