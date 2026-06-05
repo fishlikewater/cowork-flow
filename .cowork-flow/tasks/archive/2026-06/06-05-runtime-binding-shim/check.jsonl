@@ -1,0 +1,11 @@
+{"file": ".agent/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "Runtime bind command behavior tests"}
+{"file": "tests/test_active_task_runtime.py", "reason": "Runtime context helper tests"}
+{"file": "tests/test_host_adapters.py", "reason": "Adapter capability contract tests"}
+{"file": "tests/test_cowork_agents.py", "reason": "Fixed-agent asset contract tests"}
+{"file": "tests/test_codex_hooks.py", "reason": "Codex hook binding regression tests"}
+{"file": "tests/test_claude_hooks.py", "reason": "Claude Code hook binding regression tests"}
+{"file": "test/opencode-plugin.test.js", "reason": "OpenCode plugin binding regression tests"}
+{"file": "test/sync.test.js", "reason": "Template sync regression tests"}
+{"file": "test/package.test.js", "reason": "Package asset coverage"}
