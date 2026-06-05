@@ -1,4 +1,0 @@
-{"file": ".agent/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests/test_codex_hooks.py", "reason": "Regression tests for delegated hook behavior"}
-{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Skill and workflow static checks"}

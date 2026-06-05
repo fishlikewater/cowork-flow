@@ -1,7 +1,0 @@
-{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
-{"file": ".agent/skills/record-session/SKILL.md", "reason": "Session recording and state sync"}
-{"file": ".agent/skills/check-cross-layer/SKILL.md", "reason": "Cross-layer consistency check"}
-{"file": ".cowork-flow\\changes\\resumable-archive-operations\\spec.md", "reason": "Check implementation against approved spec"}
-{"file": ".cowork-flow\\plans\\2026-05-22-resumable-archive-operations.md", "reason": "Check implementation against approved plan"}
-{"file": "tests\\test_change_script.py", "reason": "Regression tests for change archive"}
-{"file": "tests\\test_flow_script_paths.py", "reason": "Regression tests for task archive"}

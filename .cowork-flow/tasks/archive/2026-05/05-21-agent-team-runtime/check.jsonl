@@ -1,7 +1,0 @@
-{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
-{"file": ".agent/skills/record-session/SKILL.md", "reason": "Session recording and state sync"}
-{"file": ".agent/skills/check-cross-layer/SKILL.md", "reason": "Cross-layer consistency check"}
-{"file": ".cowork-flow/changes/archive/2026-05/agent-team-runtime/spec.md", "reason": "Check implementation against approved behavior spec"}
-{"file": ".cowork-flow/plans/2026-05-21-agent-team-runtime.md", "reason": "Check implementation against approved plan"}
-{"file": "tests/test_template_convergence.py", "reason": "Template convergence tests"}
-{"file": "test/sync.test.js", "reason": "Sync behavior tests"}

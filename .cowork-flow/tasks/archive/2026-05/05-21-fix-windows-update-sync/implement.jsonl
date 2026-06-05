@@ -1,8 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
-{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
-{"file": ".cowork-flow/changes/archive/2026-05/fix-windows-update-sync/proposal.md", "reason": "Approved change proposal"}
-{"file": ".cowork-flow/changes/archive/2026-05/fix-windows-update-sync/spec.md", "reason": "Approved behavior spec"}
-{"file": ".cowork-flow/plans/2026-05-21-fix-windows-update-sync.md", "reason": "Approved implementation plan"}

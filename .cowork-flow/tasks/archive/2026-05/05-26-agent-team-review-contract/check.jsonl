@@ -1,7 +1,0 @@
-{"file": ".agent/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
-{"file": ".agent/skills/record-session/SKILL.md", "reason": "Session recording and state sync"}
-{"file": ".agent/skills/check-cross-layer/SKILL.md", "reason": "Cross-layer consistency check"}
-{"file": ".cowork-flow/changes/05-26-agent-team-review-contract/spec.md", "reason": "Check implementation against behavior spec"}
-{"file": "tests/test_agent_team_state_machine.py", "reason": "State machine regression tests"}
-{"file": "tests/test_agent_team_plan_parser.py", "reason": "Prompt regression tests"}
-{"file": "tests/test_agent_team_docs.py", "reason": "Skill documentation regression tests"}

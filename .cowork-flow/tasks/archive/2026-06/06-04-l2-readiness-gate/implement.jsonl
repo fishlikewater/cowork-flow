@@ -1,9 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
-{"file": ".cowork-flow/scripts/task.py", "reason": "Task start and next readiness integration"}
-{"file": ".cowork-flow/scripts/change.py", "reason": "Existing L2 change validation behavior"}
-{"file": "template/.cowork-flow/scripts/task.py", "reason": "Template task script mirror"}
-{"file": "template/.cowork-flow/scripts/change.py", "reason": "Template change script mirror"}
-{"file": ".cowork-flow/changes/06-04-workflow-navigation-readiness-context/spec.md", "reason": "Readiness gate behavior contract"}
