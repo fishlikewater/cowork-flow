@@ -87,7 +87,7 @@ const SAFE_SYNC_PREFIXES = [
   '.codex/',
   '.opencode/',
   '.claude/',
-  '.agent/skills/',
+  '.agents/skills/',
   '.cowork-flow/'
 ];
 

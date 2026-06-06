@@ -9,7 +9,8 @@ TEMPLATE = ROOT / "template"
 FORBIDDEN_PATTERNS = (
     "OpenSpec",
     "." + "tre" + "llis",
-    ".agents",
+    "." + "agent/",
+    "." + "agent skills",
     "docs/superpowers",
     "openspec new",
     "openspec validate",
@@ -78,13 +79,14 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("AGENTS.md", readme)
-        self.assertIn(".agent/", readme)
+        self.assertIn(".agents/", readme)
         self.assertIn(".cowork-flow/", readme)
         self.assertIn("./.cowork-flow/run change create <slug>", readme)
 
         self.assertNotIn("python3 ./.cowork-flow/scripts", readme)
         self.assertNotIn("." + "tre" + "llis/", readme)
-        self.assertNotIn(".agents/", readme)
+        self.assertNotIn("." + "agent/", readme)
+        self.assertNotIn("." + "agent skills", readme)
         self.assertNotIn(".superpowers/", readme)
         self.assertNotIn("Superpowers", readme)
         self.assertNotIn("docs/superpowers/", readme)

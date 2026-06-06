@@ -1173,11 +1173,41 @@ Make closeout archive/session commands no-commit by default and keep explicit au
 
 ### Summary
 
-Slim Claude Code memory to AGENTS import and make .agent skills unavailable for Claude-only installs while task init-context uses .claude skills in Claude-only projects.
+Slim Claude Code memory to AGENTS import and make .agents skills unavailable for Claude-only installs while task init-context uses .claude skills in Claude-only projects.
 
 ### Main Changes
 
 (add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
+
+
+## Session 37: 统一 Skill 目录为 .agents
+
+**Date**: 2026-06-06
+**Task**: 统一 Skill 目录为 .agents
+
+### Summary
+
+将 cowork-flow 的 Codex/OpenCode Skill 目录从旧单数路径统一迁移到 .agents，并同步脚本、模板、文档和测试。
+
+### Main Changes
+
+
 
 ### Git Commit
 

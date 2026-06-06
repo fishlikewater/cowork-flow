@@ -81,9 +81,9 @@ class FlowScriptPathsTest(unittest.TestCase):
         self._run_git(root, "commit", "-m", message)
         return self._run_git(root, "rev-parse", "HEAD")
 
-    def test_workflow_and_agent_directory_constants_are_current(self) -> None:
+    def test_workflow_and_agents_directory_constants_are_current(self) -> None:
         self.assertEqual(".cowork-flow", self.paths.DIR_WORKFLOW)
-        self.assertEqual(".agent", self.paths.DIR_AGENT)
+        self.assertEqual(".agents", self.paths.DIR_AGENTS)
         self.assertEqual("changes", self.paths.DIR_CHANGES)
 
     def test_repo_root_detection_uses_cowork_flow_directory(self) -> None:
@@ -175,7 +175,7 @@ class FlowScriptPathsTest(unittest.TestCase):
 
     def test_default_context_references_new_skill_directory(self) -> None:
         self.assertEqual(
-            ".agent/skills/finish-work/SKILL.md",
+            ".agents/skills/finish-work/SKILL.md",
             self.task._skill_path("finish-work"),
         )
 
@@ -198,7 +198,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             (root / ".claude").mkdir()
 
             self.assertEqual(
-                ".agent/skills/check/SKILL.md",
+                ".agents/skills/check/SKILL.md",
                 self.task._skill_path("check", root),
             )
 

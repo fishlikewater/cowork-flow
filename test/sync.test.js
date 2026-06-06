@@ -38,7 +38,7 @@ test('sync updates safe template files and preserves protected files', async (t)
     0
   );
 
-  await writeFile(join(target, '.agent', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
+  await writeFile(join(target, '.agents', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
@@ -61,8 +61,8 @@ test('sync updates safe template files and preserves protected files', async (t)
 
   assert.equal(code, 0);
   assert.equal(
-    await readText(join(target, '.agent', 'skills', 'start', 'SKILL.md')),
-    await readText(join(templateRoot, '.agent', 'skills', 'start', 'SKILL.md'))
+    await readText(join(target, '.agents', 'skills', 'start', 'SKILL.md')),
+    await readText(join(templateRoot, '.agents', 'skills', 'start', 'SKILL.md'))
   );
   assert.equal(
     await readText(join(target, '.cowork-flow', 'run')),
@@ -154,7 +154,7 @@ test('sync preserves direct skill layout without legacy seed material', async (t
 
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.superpowers')), false);
-  assert.equal(await exists(join(target, '.agent', 'skills', 'check', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'check', 'SKILL.md')), true);
 });
 
 test('sync overwrites protected files with --force', async (t) => {
@@ -171,13 +171,13 @@ test('sync overwrites protected files with --force', async (t) => {
 test('sync dry-run does not write safe file updates', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
-  await writeFile(join(target, '.agent', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
+  await writeFile(join(target, '.agents', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
   const io = createIo();
 
   const code = await main(['sync', target, '--dry-run'], { io });
 
   assert.equal(code, 0);
-  assert.equal(await readText(join(target, '.agent', 'skills', 'start', 'SKILL.md')), 'old skill\n');
+  assert.equal(await readText(join(target, '.agents', 'skills', 'start', 'SKILL.md')), 'old skill\n');
   assert.match(io.stdout, /dry-run/);
   assert.match(io.stdout, /would-update=/);
 });
@@ -312,7 +312,7 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
-  assert.equal(await exists(join(target, '.agent', 'skills')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills')), false);
   assert.match(io.stdout, /Platforms: claude-code/);
   assert.match(io.stdout, /updated=/);
 });

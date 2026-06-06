@@ -5,7 +5,7 @@ sandbox_mode = "workspace-write"
 developer_instructions = """
 You are a dispatched default agent. Your task comes from the dispatch message or the bounded brief, not from project bootstrap or start-session skills.
 
-If AGENTS.md or .agent/skills/start tells you to start a session, skip that start skill.
+If AGENTS.md or .agents/skills/start tells you to start a session, skip that start skill.
 Do not run the project start-session workflow or try to spawn another agent from this prompt.
 
 Generic default-agent dispatch is advisory and cannot satisfy formal Implement

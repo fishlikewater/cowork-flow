@@ -57,7 +57,7 @@ def configure_encoding() -> None:
 
 from .paths import (
     DIR_WORKFLOW,
-    DIR_AGENT,
+    DIR_AGENTS,
     DIR_CHANGES,
     DIR_WORKSPACE,
     DIR_TASKS,
