@@ -696,6 +696,33 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("cowork-check", output)
             self.assertIn("./.cowork-flow/run task complete .cowork-flow/tasks/05-19-demo", output)
 
+    def test_cmd_next_completed_mentions_linked_change_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text('{"status": "completed"}\n', encoding="utf-8")
+            self._write_l2_change_fixture(
+                root,
+                level="L1",
+                task_link=".cowork-flow/tasks/05-19-demo",
+            )
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            output = stdout.getvalue()
+            self.assertEqual(0, result)
+            self.assertIn("task archive 05-19-demo", output)
+            self.assertIn("change archive 05-19-demo-change", output)
+
     def test_cmd_next_routes_active_ready_planning_task_to_implementation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -785,6 +812,52 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(0, result, stderr.getvalue())
             self.assertFalse(task_dir.exists())
             self.assertTrue((archive_dest / "task.json").is_file())
+            self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
+
+    def test_task_archive_archives_linked_active_change(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            tasks_dir = workflow_dir / "tasks"
+            task_dir = tasks_dir / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "completed", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            change_dir = self._write_l2_change_fixture(
+                root,
+                level="L1",
+                task_link=".cowork-flow/tasks/05-19-demo",
+            )
+            month = datetime.now().strftime("%Y-%m")
+            task_archive_dest = tasks_dir / "archive" / month / "05-19-demo"
+            change_archive_dest = workflow_dir / "changes" / "archive" / month / change_dir.name
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_archive(
+                        argparse.Namespace(name="05-19-demo", commit=False, no_commit=True)
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertFalse(task_dir.exists())
+            self.assertTrue((task_archive_dest / "task.json").is_file())
+            self.assertFalse(change_dir.exists())
+            self.assertTrue((change_archive_dest / "change.yaml").is_file())
+            metadata = (change_archive_dest / "change.yaml").read_text(encoding="utf-8")
+            self.assertIn("status: archived", metadata)
+            self.assertIn("task: archive/", metadata)
+            self.assertIn("05-19-demo", metadata)
+            self.assertIn("Archived linked change: 05-19-demo-change", stderr.getvalue())
             self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
 
     def test_task_archive_does_not_commit_by_default(self) -> None:

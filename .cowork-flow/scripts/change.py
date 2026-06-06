@@ -9,6 +9,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Iterable
 
 from common.archive_utils import archive_directory_resumable
 from common.paths import (
@@ -161,6 +162,63 @@ def _normalize_archive_metadata(repo_root: Path, change_dir: Path) -> None:
         _write_metadata(change_dir, metadata)
 
 
+def _same_path(left: Path, right: Path) -> bool:
+    try:
+        return left.resolve() == right.resolve()
+    except OSError:
+        return left.absolute() == right.absolute()
+
+
+def _task_link_matches(repo_root: Path, value: object, task_paths: Iterable[Path]) -> bool:
+    resolved = _resolve_link(repo_root, "tasks", value)
+    if resolved is None:
+        return False
+    return any(_same_path(resolved, task_path) for task_path in task_paths)
+
+
+def linked_active_changes_for_task(repo_root: Path, task_paths: Iterable[Path]) -> list[str]:
+    """Return active change slugs whose metadata points at one of the task paths."""
+    changes_dir = _changes_dir(repo_root)
+    if not changes_dir.is_dir():
+        return []
+
+    paths = tuple(task_paths)
+    slugs: list[str] = []
+    for change_dir in sorted(changes_dir.iterdir()):
+        if not change_dir.is_dir() or change_dir.name == DIR_ARCHIVE:
+            continue
+        metadata = _read_metadata(change_dir)
+        if metadata.get("status") == "archived":
+            continue
+        if _task_link_matches(repo_root, metadata.get("task"), paths):
+            slugs.append(change_dir.name)
+    return slugs
+
+
+def archive_change_by_slug(repo_root: Path, slug: str) -> Path | None:
+    source = _change_dir(repo_root, slug)
+    if source.is_dir():
+        _normalize_archive_metadata(repo_root, source)
+
+    if not validate_change(repo_root, slug, quiet=True):
+        return None
+
+    month = datetime.now().astimezone().strftime("%Y-%m")
+    destination = _archive_dir(repo_root) / month / slug
+    result = archive_directory_resumable(source, destination)
+    if not result.ok:
+        level = "Warning" if result.partial else "Error"
+        print(f"{level}: {result.message}", file=sys.stderr)
+        return None
+
+    metadata = _read_metadata(destination)
+    metadata["status"] = "archived"
+    metadata["archived_at"] = _now_iso()
+    metadata["task"] = _normalize_task_link(repo_root, metadata.get("task"))
+    _write_metadata(destination, metadata)
+    return destination
+
+
 
 def _display_path(repo_root: Path, path: Path) -> str:
     try:
@@ -272,26 +330,8 @@ def validate_command(args: argparse.Namespace) -> int:
 def archive_change(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     slug = args.slug
-    source = _change_dir(repo_root, slug)
-    if source.is_dir():
-        _normalize_archive_metadata(repo_root, source)
-
-    if not validate_change(repo_root, slug, quiet=True):
+    if archive_change_by_slug(repo_root, slug) is None:
         return 1
-
-    month = datetime.now().astimezone().strftime("%Y-%m")
-    destination = _archive_dir(repo_root) / month / slug
-    result = archive_directory_resumable(source, destination)
-    if not result.ok:
-        level = "Warning" if result.partial else "Error"
-        print(f"{level}: {result.message}", file=sys.stderr)
-        return 1
-
-    metadata = _read_metadata(destination)
-    metadata["status"] = "archived"
-    metadata["archived_at"] = _now_iso()
-    metadata["task"] = _normalize_task_link(repo_root, metadata.get("task"))
-    _write_metadata(destination, metadata)
 
     print(f"archived {slug}")
     return 0
