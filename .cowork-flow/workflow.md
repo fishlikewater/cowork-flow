@@ -220,6 +220,8 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
     git add <expected files>
     git commit -m "<message>"
     ```
+   `task archive <task-name>` 会归档 task，并自动归档 `change.yaml.task`
+   指向该 task 的 active change；无法通过 `change validate` 的 change 不会被自动归档。
 
 ## 9. 恢复规则
 

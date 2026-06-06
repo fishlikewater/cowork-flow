@@ -1,0 +1,21 @@
+{
+  "id": "06-06-archive-linked-changes",
+  "name": "06-06-archive-linked-changes",
+  "title": "归档任务时联动归档关联 change",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-06",
+  "completedAt": "2026-06-06",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
