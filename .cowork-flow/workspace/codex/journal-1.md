@@ -1224,3 +1224,33 @@ Slim Claude Code memory to AGENTS import and make .agents skills unavailable for
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 38: 归档任务时联动归档关联 change
+
+**Date**: 2026-06-06
+**Task**: 归档任务时联动归档关联 change
+
+### Summary
+
+修复 task archive 只归档任务导致关联 active change 被遗漏的问题；task archive 现在会校验并归档 change.yaml.task 指向该任务的 active change，task next 也会提示关联 change 归档。
+
+### Main Changes
+
+
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

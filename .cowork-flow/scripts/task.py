@@ -14,7 +14,7 @@ Usage:
     ./.cowork-flow/run task complete [dir]              # Mark task completed
     ./.cowork-flow/run task current                     # Show active session task
     ./.cowork-flow/run task finish                      # Clear active session task
-    ./.cowork-flow/run task archive <task-name>         # Archive completed task
+    ./.cowork-flow/run task archive <task-name>         # Archive completed task and linked changes
     ./.cowork-flow/run task list                        # List active tasks
     ./.cowork-flow/run task list-archive [month]        # List archived tasks
     ./.cowork-flow/run task add-subtask <parent-dir> <child-dir>     # Link child to parent
@@ -47,6 +47,7 @@ from common.active_task import (
 from common.paths import (
     DIR_WORKFLOW,
     DIR_AGENTS,
+    DIR_CHANGES,
     DIR_TASKS,
     DIR_SPEC,
     DIR_ARCHIVE,
@@ -1120,6 +1121,40 @@ def _print_blockers(blockers: list[str]) -> None:
         print(f"  - {blocker}")
 
 
+def _linked_active_changes_for_task(repo_root: Path, task_dir: Path) -> list[str]:
+    from change import linked_active_changes_for_task
+
+    return linked_active_changes_for_task(repo_root, (task_dir,))
+
+
+def _linked_changes_ready_for_archive(repo_root: Path, slugs: list[str]) -> bool:
+    from change import validate_change
+
+    ready = True
+    for slug in slugs:
+        if not validate_change(repo_root, slug, quiet=True):
+            print(
+                colored(f"Error: Linked change is not ready to archive: {slug}", Colors.RED),
+                file=sys.stderr,
+            )
+            ready = False
+    return ready
+
+
+def _archive_linked_changes(repo_root: Path, slugs: list[str]) -> bool:
+    from change import archive_change_by_slug
+
+    for slug in slugs:
+        if archive_change_by_slug(repo_root, slug) is None:
+            print(
+                colored(f"Error: Failed to archive linked change: {slug}", Colors.RED),
+                file=sys.stderr,
+            )
+            return False
+        print(colored(f"Archived linked change: {slug}", Colors.GREEN), file=sys.stderr)
+    return True
+
+
 def cmd_next(args: argparse.Namespace) -> int:
     """Print the next safe workflow action without mutating state."""
     repo_root = get_repo_root()
@@ -1216,7 +1251,10 @@ def cmd_next(args: argparse.Namespace) -> int:
     if status in DONE_STATUSES:
         print("Next action: finalize, commit, archive, and record session")
         print("Command: git status --short")
+        linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
         print(f"Then: ./.cowork-flow/run task archive {Path(task_path).name}")
+        for slug in linked_changes:
+            print(f"Then: ./.cowork-flow/run change archive {slug} (handled by task archive)")
         _print_blockers(blockers)
         return 0
 
@@ -1231,7 +1269,7 @@ def cmd_next(args: argparse.Namespace) -> int:
 # =============================================================================
 
 def cmd_archive(args: argparse.Namespace) -> int:
-    """Archive completed task."""
+    """Archive completed task and linked changes."""
     repo_root = get_repo_root()
     task_name = args.name
 
@@ -1257,6 +1295,10 @@ def cmd_archive(args: argparse.Namespace) -> int:
     task_data = None
     if task_json_path.is_file():
         task_data = _read_json_file(task_json_path)
+
+    linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
+    if linked_changes and not _linked_changes_ready_for_archive(repo_root, linked_changes):
+        return 1
 
     # Archive
     result = archive_task_complete(task_dir, repo_root)
@@ -1284,6 +1326,9 @@ def cmd_archive(args: argparse.Namespace) -> int:
     year_month = archive_dest.parent.name
     print(colored(f"Archived: {dir_name} -> archive/{year_month}/", Colors.GREEN), file=sys.stderr)
 
+    if linked_changes and not _archive_linked_changes(repo_root, linked_changes):
+        return 1
+
     # Auto-commit only when explicitly requested.
     if getattr(args, "commit", False) and not getattr(args, "no_commit", False):
         _auto_commit_archive(dir_name, repo_root)
@@ -1297,13 +1342,19 @@ def cmd_archive(args: argparse.Namespace) -> int:
 
 
 def _auto_commit_archive(task_name: str, repo_root: Path) -> None:
-    """Stage .cowork-flow/tasks/ changes and commit after archive."""
+    """Stage task/change archive changes and commit after archive."""
     tasks_rel = f"{DIR_WORKFLOW}/{DIR_TASKS}"
-    _run_git_command(["add", "-A", tasks_rel], cwd=repo_root)
+    changes_rel = f"{DIR_WORKFLOW}/{DIR_CHANGES}"
+    archive_rels = [
+        rel
+        for rel in (tasks_rel, changes_rel)
+        if (repo_root / rel).exists()
+    ]
+    _run_git_command(["add", "-A", *archive_rels], cwd=repo_root)
 
     # Check if there are staged changes
     rc, _, _ = _run_git_command(
-        ["diff", "--cached", "--quiet", "--", tasks_rel], cwd=repo_root
+        ["diff", "--cached", "--quiet", "--", *archive_rels], cwd=repo_root
     )
     if rc == 0:
         print("[OK] No task changes to commit.", file=sys.stderr)
@@ -1564,7 +1615,7 @@ Usage:
   ./.cowork-flow/run task complete [dir]                     Mark task completed
   ./.cowork-flow/run task finish                             Clear active session task
   ./.cowork-flow/run task next [dir]                         Show next safe workflow action
-  ./.cowork-flow/run task archive <task-name>                Archive completed task
+  ./.cowork-flow/run task archive <task-name>                Archive completed task and linked changes
   ./.cowork-flow/run task add-subtask <parent> <child>       Link child task to parent
   ./.cowork-flow/run task remove-subtask <parent> <child>    Unlink child from parent
   ./.cowork-flow/run task list [--mine] [--status <status>]  List tasks
