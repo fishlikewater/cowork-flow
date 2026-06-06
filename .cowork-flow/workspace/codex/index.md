@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 36
-- **Last Active**: 2026-06-05
+- **Total Sessions**: 37
+- **Last Active**: 2026-06-06
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1196 | Current |
+| `journal-1.md` | ~1226 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 37 | 2026-06-06 | 统一 Skill 目录为 .agents | - |
 | 36 | 2026-06-05 | Slim Claude memory and platform-aware skill sync | - |
 | 35 | 2026-06-05 | Closeout no auto commit | - |
 | 34 | 2026-06-05 | Runtime binding shim | `fe1b984`, `d74ad65` |

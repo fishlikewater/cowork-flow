@@ -1,0 +1,21 @@
+{
+  "id": "06-06-unify-agents-skills-path",
+  "name": "06-06-unify-agents-skills-path",
+  "title": "统一 Skill 目录为 .agents",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-06",
+  "completedAt": "2026-06-06",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

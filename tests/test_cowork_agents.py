@@ -55,7 +55,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "update-spec",
             "writing-plans",
         }
-        for base in (ROOT / ".agent" / "skills", ROOT / "template" / ".agent" / "skills"):
+        for base in (ROOT / ".agents" / "skills", ROOT / "template" / ".agents" / "skills"):
             actual = {path.name for path in base.iterdir() if path.is_dir()}
             self.assertEqual(expected, actual)
 
@@ -108,8 +108,8 @@ class CoworkAgentsTest(unittest.TestCase):
 
     def test_claude_code_skills_mirror_agent_skills(self) -> None:
         for source_base, claude_base in (
-            (ROOT / ".agent" / "skills", ROOT / ".claude" / "skills"),
-            (ROOT / "template" / ".agent" / "skills", ROOT / "template" / ".claude" / "skills"),
+            (ROOT / ".agents" / "skills", ROOT / ".claude" / "skills"),
+            (ROOT / "template" / ".agents" / "skills", ROOT / "template" / ".claude" / "skills"),
         ):
             for source in source_base.glob("*/SKILL.md"):
                 mirror = claude_base / source.parent.name / "SKILL.md"
@@ -231,9 +231,9 @@ class CoworkAgentsTest(unittest.TestCase):
             "writing-skills",
         )
         for legacy_skill in legacy_skills:
-            self.assertFalse((ROOT / ".agent" / "skills" / legacy_skill / "SKILL.md").exists())
+            self.assertFalse((ROOT / ".agents" / "skills" / legacy_skill / "SKILL.md").exists())
             self.assertFalse(
-                (ROOT / "template" / ".agent" / "skills" / legacy_skill / "SKILL.md").exists()
+                (ROOT / "template" / ".agents" / "skills" / legacy_skill / "SKILL.md").exists()
             )
 
     def test_external_codex_runner_is_not_part_of_fixed_agent_model(self) -> None:

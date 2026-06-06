@@ -292,8 +292,8 @@ def cmd_entry_contract(_: argparse.Namespace) -> int:
     errors: list[str] = []
     _check_common_contracts(repo_root, errors)
     for rel in (
-        f".agent/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"template/.agent/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f".agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/.agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
     if errors:
@@ -411,13 +411,13 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     errors: list[str] = []
     for rel in (
-        ".agent/skills/start/SKILL.md",
-        "template/.agent/skills/start/SKILL.md",
+        ".agents/skills/start/SKILL.md",
+        "template/.agents/skills/start/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_START_SNIPPETS, errors)
     for rel in (
-        f".agent/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"template/.agent/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f".agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/.agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
     for rel in (

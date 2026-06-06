@@ -53,7 +53,7 @@ export function formatPlatformList(platforms) {
 
 export function shouldIncludeForPlatforms(relativePath, platforms) {
   const normalized = relativePath.replaceAll('\\', '/');
-  if (normalized.startsWith('.agent/skills/')) {
+  if (normalized.startsWith('.agents/skills/')) {
     return platforms.includes('codex') || platforms.includes('opencode');
   }
   if (normalized.startsWith('.codex/') || normalized.startsWith('.cowork-flow/adapters/codex/')) {

@@ -8,8 +8,8 @@
 .ralph-state.json
 
 # Agent runtime files
-.agent/
-.agent-log
+.agents/
+.agents-log
 .session-id
 
 # Task directory runtime files

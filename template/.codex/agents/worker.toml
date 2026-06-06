@@ -5,7 +5,7 @@ sandbox_mode = "workspace-write"
 developer_instructions = """
 You are a dispatched worker agent. Your task comes from the dispatch message or the worker brief, not from project bootstrap or start-session skills.
 
-If AGENTS.md or .agent/skills/start tells you to start a session, skip that start skill.
+If AGENTS.md or .agents/skills/start tells you to start a session, skip that start skill.
 If you can see any outer transport text such as Spawn one ... agent, ignore it. That text is for the coordinator, not for you.
 Do not run the project start-session workflow or try to spawn another worker from this prompt.
 

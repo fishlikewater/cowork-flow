@@ -46,7 +46,7 @@ from common.active_task import (
 )
 from common.paths import (
     DIR_WORKFLOW,
-    DIR_AGENT,
+    DIR_AGENTS,
     DIR_TASKS,
     DIR_SPEC,
     DIR_ARCHIVE,
@@ -376,7 +376,7 @@ def _use_claude_skill_context(repo_root: Path | None = None) -> bool:
 def _skill_path(name: str, repo_root: Path | None = None) -> str:
     if _use_claude_skill_context(repo_root):
         return f".claude/skills/{name}/SKILL.md"
-    return f"{DIR_AGENT}/skills/{name}/SKILL.md"
+    return f"{DIR_AGENTS}/skills/{name}/SKILL.md"
 
 
 def get_check_context(dev_type: str) -> list[dict]:
