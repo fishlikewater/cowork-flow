@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 38
+- **Total Sessions**: 39
 - **Last Active**: 2026-06-07
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1256 | Current |
+| `journal-1.md` | ~1286 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 39 | 2026-06-07 | Clarify Party Mode round intent | - |
 | 38 | 2026-06-07 | Add manual Party Mode | - |
 | 37 | 2026-06-06 | 统一 Skill 目录为 .agents | - |
 | 36 | 2026-06-05 | Slim Claude memory and platform-aware skill sync | - |
