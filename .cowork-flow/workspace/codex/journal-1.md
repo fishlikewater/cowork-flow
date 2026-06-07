@@ -1224,3 +1224,33 @@ Slim Claude Code memory to AGENTS import and make .agents skills unavailable for
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 38: Add manual Party Mode
+
+**Date**: 2026-06-07
+**Task**: Add manual Party Mode
+
+### Summary
+
+Added manual party-mode skill for real advisory subagent roundtables, documented advisory boundaries, updated root/template/Claude parity and tests, validated with full test suite and live smoke.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
