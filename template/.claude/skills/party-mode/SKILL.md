@@ -54,9 +54,17 @@ Safety gates:
 
 Round intent:
 
-- Round 1: independent first judgments.
-- Round 2: rebuttal or risk drilldown on specific disagreements.
-- Round 3: decision check only. Do not open new directions.
+- Opening round: independent first judgments.
+- Challenge rounds: rebuttal, risk drilldown, or evidence repair on specific disagreements.
+- Convergence rounds: decision check only. Verify, narrow, or choose. Do not open new directions.
+
+Default mapping:
+
+- Round 1 = Opening.
+- Round 2 = Challenge.
+- Round 3+ = Convergence.
+
+Only the user can restart exploration after convergence begins.
 
 ## Continue Conditions
 

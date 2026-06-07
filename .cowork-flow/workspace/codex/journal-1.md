@@ -1254,3 +1254,33 @@ Added manual party-mode skill for real advisory subagent roundtables, documented
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 39: Clarify Party Mode round intent
+
+**Date**: 2026-06-07
+**Task**: Clarify Party Mode round intent
+
+### Summary
+
+Clarified Party Mode round intent as opening/challenge/convergence phases so custom max_rounds values stay bounded; updated mirrored skills and tests.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

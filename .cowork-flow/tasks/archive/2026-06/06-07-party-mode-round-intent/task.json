@@ -1,0 +1,21 @@
+{
+  "id": "party-mode-round-intent",
+  "name": "party-mode-round-intent",
+  "title": "Clarify Party Mode round intent",
+  "description": "Clarify Party Mode round intent so custom max_rounds values use opening, challenge, and convergence phases instead of fixed round numbers.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-07",
+  "completedAt": "2026-06-07",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
