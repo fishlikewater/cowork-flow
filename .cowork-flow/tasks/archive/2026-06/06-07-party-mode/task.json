@@ -1,0 +1,21 @@
+{
+  "id": "party-mode",
+  "name": "party-mode",
+  "title": "Add manual Party Mode workflow",
+  "description": "Add a manual skill or command path for real subagent roundtable discussions with bounded rounds, evidence-based outputs, and cowork-flow runtime safeguards.",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "workflow-runtime",
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-07",
+  "completedAt": "2026-06-07",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "Plan-first task for a manual Party Mode skill with bounded true-subagent discussion.",
+  "meta": {}
+}

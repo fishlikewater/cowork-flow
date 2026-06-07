@@ -1,0 +1,8 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/test_cowork_agents.py", "reason": "Verify skill tests cover new entry"}
+{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Verify workflow boundary tests"}
+{"file": ".cowork-flow/adapters/codex/adapter.yaml", "reason": "Verify Party Mode respects adapter boundaries"}
+{"file": "README.md", "reason": "Review user-facing docs for clarity"}
+{"file": ".cowork-flow/plans/2026-06-07-party-mode.md", "reason": "Check plan coverage and elegance constraints"}
+{"file": ".cowork-flow/changes/06-07-party-mode/design.md", "reason": "Check L2 design boundary"}

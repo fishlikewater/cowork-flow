@@ -50,6 +50,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "continue",
             "finish-work",
             "meta",
+            "party-mode",
             "python-design",
             "start",
             "update-spec",
@@ -99,7 +100,7 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertTrue((base / "settings.json").is_file())
             self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
             for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
-                         "finish-work", "meta", "python-design", "start",
+                         "finish-work", "meta", "party-mode", "python-design", "start",
                          "update-spec", "writing-plans"):
                 self.assertTrue((base / "skills" / name / "SKILL.md").is_file())
             self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
@@ -119,6 +120,51 @@ class CoworkAgentsTest(unittest.TestCase):
                     mirror.read_text(encoding="utf-8"),
                     str(mirror),
                 )
+
+    def test_party_mode_skill_defines_bounded_advisory_roundtable(self) -> None:
+        required_markers = (
+            "manual advisory roundtable",
+            "true child agents",
+            "not simulated personas",
+            "Round 1 uses fresh child contexts",
+            "Child agents cannot see each other",
+            "`max_agents=3`",
+            "`max_rounds=3`",
+            "call arguments > task/change config > `.cowork-flow/config.yaml` > skill defaults",
+            "continue conditions can be tightened but not removed",
+            "stop conditions can be tightened but not removed",
+            "core fields can be extended but not removed",
+            "advisory only",
+            "cannot satisfy formal Implement or Check completion",
+        )
+        child_schema = (
+            "position:",
+            "evidence:",
+            "risk:",
+            "tradeoff:",
+            "rejected_option:",
+            "acceptance_signal:",
+            "what_would_change_my_mind:",
+        )
+        coordinator_schema = (
+            "consensus:",
+            "disagreements:",
+            "evidence:",
+            "decision:",
+            "rejected_options:",
+            "acceptance_criteria:",
+            "open_questions:",
+            "stop_reason:",
+        )
+        for path in (
+            ROOT / ".agents" / "skills" / "party-mode" / "SKILL.md",
+            ROOT / "template" / ".agents" / "skills" / "party-mode" / "SKILL.md",
+            ROOT / ".claude" / "skills" / "party-mode" / "SKILL.md",
+            ROOT / "template" / ".claude" / "skills" / "party-mode" / "SKILL.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers + child_schema + coordinator_schema:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
 
     def test_agents_require_runtime_context_and_disable_multi_agent(self) -> None:
         for path in (

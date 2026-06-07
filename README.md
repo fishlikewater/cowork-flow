@@ -55,7 +55,9 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 项目级协作入口，包含编码前思考、简单优先、外科手术式改动、验证优先等基础原则。接入项目后，应把项目名称、技术栈、运行命令、测试命令和提交策略补齐。
 
 `template/.agents/skills/`
-本地技能入口，覆盖 start、before-dev、brainstorming、writing-plans、check、finish-work、continue、meta、python-design、update-spec 和 break-loop 等协作动作。这里的 skill 应保持通用，不承载某个业务项目的一次性细节。
+本地技能入口，覆盖 start、before-dev、brainstorming、party-mode、writing-plans、check、finish-work、continue、meta、python-design、update-spec 和 break-loop 等协作动作。这里的 skill 应保持通用，不承载某个业务项目的一次性细节。
+
+`party-mode` 是用户手动调用的 advisory roundtable。它通过当前 Host Adapter 协调真实子代理讨论，而不是模拟人设；默认 `max_agents=3`、`max_rounds=3`，配置优先级为本次调用、task/change、本地配置、skill 默认值。Party Mode 只产出建议、证据、分歧和验收信号，不能推进任务状态，也不能替代 `cowork-implement` 或 `cowork-check`。
 
 `template/.codex/agents/`
 固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`，以及对 Codex 默认 `worker`、`default`、`explorer` 的项目级防漂移约束。主会话负责计划与收口，并通过 host adapter 派发固定 agent；正式派发必须先创建 runtime context，再把 `cowork_runtime_context_id` 和 `cowork_host_context_key` 传给子代理。

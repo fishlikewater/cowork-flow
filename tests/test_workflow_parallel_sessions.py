@@ -109,6 +109,38 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
+    def test_party_mode_is_bounded_manual_advisory_workflow(self) -> None:
+        workflow_markers = (
+            "手动 Party Mode",
+            "advisory roundtable",
+            "fresh child contexts",
+            "不能推进任务状态",
+            "不能满足正式实现或检查完成条件",
+            "party-mode skill",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in workflow_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
+        spec_markers = (
+            "Party Mode discussion children are advisory leaf executors.",
+            "They use fresh child contexts for evidence gathering",
+            "cannot mutate task status",
+            "cannot satisfy formal Implement or Check completion",
+            "The `party-mode` skill owns round limits, continuation gates, stop gates, and output schemas.",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in spec_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
     def test_workflow_requires_runtime_context_closeout(self) -> None:
         required_markers = (
             "Wait for the child result with the adapter wait primitive.",

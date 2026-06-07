@@ -12,6 +12,12 @@ classification or a prompt handshake.
 - Generic `worker`, `default`, or `explorer` dispatch is advisory only and
   cannot satisfy formal Implement or Check completion.
 
+## Advisory Party Mode
+
+Party Mode discussion children are advisory leaf executors. They use fresh child contexts for evidence gathering, disagreement surfacing, risk review, and acceptance-signal review. They cannot mutate task status, write code, archive, commit, or coordinate other agents. Their output cannot satisfy formal Implement or Check completion.
+
+The `party-mode` skill owns round limits, continuation gates, stop gates, and output schemas. This document remains the formal `cowork-*` dispatch protocol source.
+
 ## Runtime Context
 
 Before spawning a formal child, the main session creates:

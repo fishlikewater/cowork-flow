@@ -1,0 +1,17 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".cowork-flow/scripts/run.py", "reason": "Command dispatcher if party command is added"}
+{"file": "tests/test_cowork_agents.py", "reason": "Skill registry and root/template skill coverage"}
+{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Roundtable subagent boundary and workflow wording coverage"}
+{"file": ".agents/skills/brainstorming/SKILL.md", "reason": "Adjacent clarification gate skill to align Party Mode entry"}
+{"file": ".agents/skills/writing-plans/SKILL.md", "reason": "Plan style and execution strategy contract"}
+{"file": ".cowork-flow/adapters/codex/adapter.yaml", "reason": "Codex host primitives used by true subagent Party Mode"}
+{"file": "README.md", "reason": "User-facing command and skill documentation"}
+{"file": ".cowork-flow/changes/06-07-party-mode/proposal.md", "reason": "Party Mode proposal"}
+{"file": ".cowork-flow/changes/06-07-party-mode/design.md", "reason": "Party Mode L2 design"}
+{"file": ".cowork-flow/changes/06-07-party-mode/spec.md", "reason": "Party Mode behavior spec"}
+{"file": ".cowork-flow/plans/2026-06-07-party-mode.md", "reason": "Executable implementation plan"}
