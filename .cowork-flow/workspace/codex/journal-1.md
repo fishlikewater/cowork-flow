@@ -1314,3 +1314,33 @@ Clarified Party Mode selection, follow-up reuse, evidence-backed cross-examinati
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 41: Clarify Party Mode phase policy
+
+**Date**: 2026-06-08
+**Task**: Clarify Party Mode phase policy
+
+### Summary
+
+Set Party Mode default max_rounds to 5 and clarified status-driven challenge/convergence phase policy so challenge can continue while material disagreement remains.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
