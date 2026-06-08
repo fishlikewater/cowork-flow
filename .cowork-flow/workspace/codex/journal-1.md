@@ -1374,3 +1374,33 @@ Added a compact claim-table, claim-targeted cross-examination, scrutiny default,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 43: Protect Party Mode live child opinions
+
+**Date**: 2026-06-08
+**Task**: Protect Party Mode live child opinions
+
+### Summary
+
+Added a wait-timeout guard so Party Mode keeps live child opinions until they are recorded or the user explicitly closes the child, while preserving a compact claim-table protocol.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
