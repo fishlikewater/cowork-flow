@@ -54,7 +54,7 @@ Safety gates:
 6. Follow-up rounds should prefer the same live child that produced or challenged the relevant position. Send only the target claim, counterclaim, evidence gap, and ask the child to `agree`, `reject`, or `revise`.
 7. For Challenge rounds, the default stance is scrutiny. Test the opposing claim first; choose `agree` only after naming the evidence that compels agreement.
 8. Spawn an extra child only when the effective roster or lens config allows it, a live child failed, or the user approves expansion.
-9. Stop when any stop condition is met. Close all live children through the Host Adapter close primitive.
+9. Stop when any stop condition is met and no dispatched child is still running. Then close live children through the Host Adapter close primitive.
 
 Round intent:
 
@@ -89,6 +89,13 @@ Stop when any condition holds:
 - A full round adds no evidence and does not narrow scope.
 - Effective `max_rounds` is reached.
 - Output fails schema, and one repair prompt does not fix it.
+
+## Waiting Children
+
+- A wait timeout is not a child timeout.
+- If a child remains live after a wait timeout, wait again or report it in `pending_children`.
+- Do not close, cancel, omit, or synthesize around a live child unless the user explicitly asks to close it.
+- When the discussion has converged or the user ends it, close live children after their final output is recorded.
 
 ## Child Output Schema
 
@@ -129,6 +136,7 @@ rounds_used:
 selected_agents:
 claim_table:
 agent_turns:
+pending_children:
 consensus:
 disagreements:
 evidence:
