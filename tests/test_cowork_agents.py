@@ -130,9 +130,13 @@ class CoworkAgentsTest(unittest.TestCase):
             "Record why each selected voice is useful",
             "Round 1 uses fresh child contexts",
             "Child agents cannot see each other",
+            "compact claim table: `claim_id`, owner, claim, evidence, counterclaim, evidence gap, and decision impact",
+            "bind each prompt to one `claim_id`",
             "Follow-up rounds should prefer the same live child",
-            "evidence-backed disagreement summaries",
+            "Send only the target claim, counterclaim, evidence gap",
             "`agree`, `reject`, or `revise`",
+            "For Challenge rounds, the default stance is scrutiny.",
+            "choose `agree` only after naming the evidence that compels agreement",
             "Spawn an extra child only when the effective roster or lens config allows it",
             "Opening round: independent first judgments.",
             "Challenge rounds: rebuttal, risk drilldown, or evidence repair on specific disagreements.",
@@ -160,6 +164,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "what_would_change_my_mind:",
         )
         followup_schema = (
+            "claim_id:",
             "responding_to:",
             "opposing_claim:",
             "position_delta:",
@@ -171,6 +176,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "effective_max_rounds:",
             "rounds_used:",
             "selected_agents:",
+            "claim_table:",
             "agent_turns:",
             "consensus:",
             "disagreements:",
@@ -182,6 +188,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "early_stop_reason:",
             "stop_reason:",
             "selected agent or lens names and selection reasons",
+            "compact transcript with round, agent or lens, `claim_id`, position, and `position_delta`",
         )
         for path in (
             ROOT / ".agents" / "skills" / "party-mode" / "SKILL.md",

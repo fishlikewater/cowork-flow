@@ -49,11 +49,12 @@ Safety gates:
 1. Frame the question, decision needed, scope, and evidence packet.
 2. Select the smallest useful agent roster or review lenses within effective `max_agents`. Record why each selected voice is useful and why omitted voices are not needed.
 3. Round 1 uses fresh child contexts. Send each child the same packet and one lens. Child agents cannot see each other.
-4. Synthesize only evidence-backed positions, disagreements, rejected options, and acceptance signals.
-5. Continue only when a continue condition is met. Send narrow follow-up prompts to the smallest useful set of children.
-6. Follow-up rounds should prefer the same live child that produced or challenged the relevant position. Send only evidence-backed disagreement summaries, and ask the child to `agree`, `reject`, or `revise`.
-7. Spawn an extra child only when the effective roster or lens config allows it, a live child failed, or the user approves expansion.
-8. Stop when any stop condition is met. Close all live children through the Host Adapter close primitive.
+4. Synthesize evidence-backed positions into a compact claim table: `claim_id`, owner, claim, evidence, counterclaim, evidence gap, and decision impact.
+5. Continue only when a continue condition is met. Send narrow follow-up prompts to the smallest useful set of children, and bind each prompt to one `claim_id`.
+6. Follow-up rounds should prefer the same live child that produced or challenged the relevant position. Send only the target claim, counterclaim, evidence gap, and ask the child to `agree`, `reject`, or `revise`.
+7. For Challenge rounds, the default stance is scrutiny. Test the opposing claim first; choose `agree` only after naming the evidence that compels agreement.
+8. Spawn an extra child only when the effective roster or lens config allows it, a live child failed, or the user approves expansion.
+9. Stop when any stop condition is met. Close all live children through the Host Adapter close primitive.
 
 Round intent:
 
@@ -106,6 +107,7 @@ what_would_change_my_mind:
 Follow-up rounds may add these fields after the core fields:
 
 ```text
+claim_id:
 responding_to:
 opposing_claim:
 position_delta:
@@ -125,6 +127,7 @@ effective_max_agents:
 effective_max_rounds:
 rounds_used:
 selected_agents:
+claim_table:
 agent_turns:
 consensus:
 disagreements:
@@ -137,4 +140,4 @@ early_stop_reason:
 stop_reason:
 ```
 
-`selected_agents` must include the selected agent or lens names and selection reasons. `agent_turns` should preserve each child's position and follow-up response in a compact form. Keep the final decision traceable to child evidence. Do not count votes as validation.
+`selected_agents` must include the selected agent or lens names and selection reasons. `agent_turns` should preserve a compact transcript with round, agent or lens, `claim_id`, position, and `position_delta`. Keep the final decision traceable to child evidence. Do not count votes as validation.

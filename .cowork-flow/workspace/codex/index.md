@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 41
+- **Total Sessions**: 42
 - **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1346 | Current |
+| `journal-1.md` | ~1376 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 42 | 2026-06-08 | Clarify Party Mode 1.5 discussion protocol | - |
 | 41 | 2026-06-08 | Clarify Party Mode phase policy | - |
 | 40 | 2026-06-08 | Clarify Party Mode interaction rules | - |
 | 39 | 2026-06-07 | Clarify Party Mode round intent | - |
