@@ -1344,3 +1344,33 @@ Set Party Mode default max_rounds to 5 and clarified status-driven challenge/con
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 42: Clarify Party Mode 1.5 discussion protocol
+
+**Date**: 2026-06-08
+**Task**: Clarify Party Mode 1.5 discussion protocol
+
+### Summary
+
+Added a compact claim-table, claim-targeted cross-examination, scrutiny default, and transcript shape to Party Mode so real child-agent discussion stays traceable without adding runtime complexity.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
