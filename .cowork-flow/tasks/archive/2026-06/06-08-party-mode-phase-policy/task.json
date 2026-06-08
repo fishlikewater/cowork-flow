@@ -1,0 +1,21 @@
+{
+  "id": "06-08-party-mode-phase-policy",
+  "name": "06-08-party-mode-phase-policy",
+  "title": "Clarify Party Mode phase policy",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-08",
+  "completedAt": "2026-06-08",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

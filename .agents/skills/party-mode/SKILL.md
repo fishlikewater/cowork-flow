@@ -20,7 +20,7 @@ Use this skill as a manual advisory roundtable. Coordinate true child agents, no
 Built-in defaults:
 
 - `max_agents=3`
-- `max_rounds=3`
+- `max_rounds=5`
 
 These defaults are configurable values, not hard-coded constants. Effective config order:
 
@@ -35,7 +35,7 @@ Configurable fields:
 - agent roster or review lenses
 - report enabled
 - report path
-- whether round 2 or round 3 is allowed
+- round phase policy, including when challenge may continue and when convergence must begin
 
 Safety gates:
 
@@ -64,10 +64,10 @@ Round intent:
 Default mapping:
 
 - Round 1 = Opening.
-- Round 2 = Challenge.
-- Round 3+ = Convergence.
+- Round 2+ = Challenge while continue conditions still expose material disagreement, material risk, missing evidence, or untestable acceptance criteria.
+- Convergence begins when the coordinator can write one recommended direction and no material challenge condition remains.
 
-Only the user can restart exploration after convergence begins.
+After convergence begins, do not reopen exploration unless the user approves or new concrete evidence appears.
 
 ## Continue Conditions
 
