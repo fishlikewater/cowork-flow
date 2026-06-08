@@ -47,10 +47,13 @@ Safety gates:
 ## Round Model
 
 1. Frame the question, decision needed, scope, and evidence packet.
-2. Round 1 uses fresh child contexts. Send each child the same packet and one lens. Child agents cannot see each other.
-3. Synthesize only evidence-backed positions, disagreements, rejected options, and acceptance signals.
-4. Continue only when a continue condition is met. Send narrow follow-up prompts to the smallest useful set of children.
-5. Stop when any stop condition is met. Close all live children through the Host Adapter close primitive.
+2. Select the smallest useful agent roster or review lenses within effective `max_agents`. Record why each selected voice is useful and why omitted voices are not needed.
+3. Round 1 uses fresh child contexts. Send each child the same packet and one lens. Child agents cannot see each other.
+4. Synthesize only evidence-backed positions, disagreements, rejected options, and acceptance signals.
+5. Continue only when a continue condition is met. Send narrow follow-up prompts to the smallest useful set of children.
+6. Follow-up rounds should prefer the same live child that produced or challenged the relevant position. Send only evidence-backed disagreement summaries, and ask the child to `agree`, `reject`, or `revise`.
+7. Spawn an extra child only when the effective roster or lens config allows it, a live child failed, or the user approves expansion.
+8. Stop when any stop condition is met. Close all live children through the Host Adapter close primitive.
 
 Round intent:
 
@@ -100,6 +103,17 @@ acceptance_signal:
 what_would_change_my_mind:
 ```
 
+Follow-up rounds may add these fields after the core fields:
+
+```text
+responding_to:
+opposing_claim:
+position_delta:
+evidence_delta:
+still_disagree:
+```
+
+Use `position_delta` to say whether the child maintained, narrowed, or changed its position.
 Reject unsupported opinion. Evidence should name files, commands, rules, observed behavior, user scenarios, or concrete assumptions.
 
 ## Coordinator Output Schema
@@ -107,6 +121,11 @@ Reject unsupported opinion. Evidence should name files, commands, rules, observe
 Final synthesis must return these core fields. Extra fields are allowed only after them.
 
 ```text
+effective_max_agents:
+effective_max_rounds:
+rounds_used:
+selected_agents:
+agent_turns:
 consensus:
 disagreements:
 evidence:
@@ -114,7 +133,8 @@ decision:
 rejected_options:
 acceptance_criteria:
 open_questions:
+early_stop_reason:
 stop_reason:
 ```
 
-Keep the final decision traceable to child evidence. Do not count votes as validation.
+`selected_agents` must include the selected agent or lens names and selection reasons. `agent_turns` should preserve each child's position and follow-up response in a compact form. Keep the final decision traceable to child evidence. Do not count votes as validation.

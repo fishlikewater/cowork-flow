@@ -126,8 +126,14 @@ class CoworkAgentsTest(unittest.TestCase):
             "manual advisory roundtable",
             "true child agents",
             "not simulated personas",
+            "Select the smallest useful agent roster or review lenses",
+            "Record why each selected voice is useful",
             "Round 1 uses fresh child contexts",
             "Child agents cannot see each other",
+            "Follow-up rounds should prefer the same live child",
+            "evidence-backed disagreement summaries",
+            "`agree`, `reject`, or `revise`",
+            "Spawn an extra child only when the effective roster or lens config allows it",
             "Opening round: independent first judgments.",
             "Challenge rounds: rebuttal, risk drilldown, or evidence repair on specific disagreements.",
             "Convergence rounds: decision check only. Verify, narrow, or choose.",
@@ -151,7 +157,19 @@ class CoworkAgentsTest(unittest.TestCase):
             "acceptance_signal:",
             "what_would_change_my_mind:",
         )
+        followup_schema = (
+            "responding_to:",
+            "opposing_claim:",
+            "position_delta:",
+            "evidence_delta:",
+            "still_disagree:",
+        )
         coordinator_schema = (
+            "effective_max_agents:",
+            "effective_max_rounds:",
+            "rounds_used:",
+            "selected_agents:",
+            "agent_turns:",
             "consensus:",
             "disagreements:",
             "evidence:",
@@ -159,7 +177,9 @@ class CoworkAgentsTest(unittest.TestCase):
             "rejected_options:",
             "acceptance_criteria:",
             "open_questions:",
+            "early_stop_reason:",
             "stop_reason:",
+            "selected agent or lens names and selection reasons",
         )
         for path in (
             ROOT / ".agents" / "skills" / "party-mode" / "SKILL.md",
@@ -168,7 +188,7 @@ class CoworkAgentsTest(unittest.TestCase):
             ROOT / "template" / ".claude" / "skills" / "party-mode" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
-            for marker in required_markers + child_schema + coordinator_schema:
+            for marker in required_markers + child_schema + followup_schema + coordinator_schema:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
     def test_agents_require_runtime_context_and_disable_multi_agent(self) -> None:
