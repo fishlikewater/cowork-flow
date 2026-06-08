@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 39
-- **Last Active**: 2026-06-07
+- **Total Sessions**: 40
+- **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1286 | Current |
+| `journal-1.md` | ~1316 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 40 | 2026-06-08 | Clarify Party Mode interaction rules | - |
 | 39 | 2026-06-07 | Clarify Party Mode round intent | - |
 | 38 | 2026-06-07 | Add manual Party Mode | - |
 | 37 | 2026-06-06 | 统一 Skill 目录为 .agents | - |

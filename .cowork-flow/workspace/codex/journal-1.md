@@ -1284,3 +1284,33 @@ Clarified Party Mode round intent as opening/challenge/convergence phases so cus
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 40: Clarify Party Mode interaction rules
+
+**Date**: 2026-06-08
+**Task**: Clarify Party Mode interaction rules
+
+### Summary
+
+Clarified Party Mode selection, follow-up reuse, evidence-backed cross-examination, and coordinator config echo so real child-agent discussions are more traceable while staying advisory.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
