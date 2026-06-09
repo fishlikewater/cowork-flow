@@ -86,6 +86,36 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual(".cowork-flow/tasks/05-29-demo", session["active_task_path"])
             self.assertEqual("pending_bind", session["status"])
 
+    def test_init_accepts_execution_task_dir_inside_subcommand(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "init",
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "--title",
+                    "API probe",
+                    "--role",
+                    "research",
+                    "--agent-type",
+                    "cowork-research",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+            payload = json.loads(result.stdout)
+            self.assertEqual(".cowork-flow/tasks/05-29-demo", payload["taskDir"])
+            self.assertEqual("formal", payload["dispatchKind"])
+
     def test_init_rejects_fixed_agent_role_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

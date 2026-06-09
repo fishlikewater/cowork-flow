@@ -1,0 +1,21 @@
+{
+  "id": "subagent-execution-task-dir-parser",
+  "name": "subagent-execution-task-dir-parser",
+  "title": "Fix subagent execution task dir parser",
+  "description": "Allow subagent init to accept --execution-task-dir before or after init without losing parent parser value.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-09",
+  "completedAt": "2026-06-09",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
