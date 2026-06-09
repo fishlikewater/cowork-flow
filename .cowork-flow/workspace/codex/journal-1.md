@@ -1434,3 +1434,33 @@ Preserved --execution-task-dir across parent parser and init subcommand; added r
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 45: 修复 OpenCode 与 Claude Code 会话上下文
+
+**Date**: 2026-06-09
+**Task**: 修复 OpenCode 与 Claude Code 会话上下文
+
+### Summary
+
+修复 OpenCode shell task start 缺失会话上下文；支持 Claude Code shell 的 CLAUDE_CODE_SESSION_ID；同步模板并验证 test:all、diff check、subagent safety。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

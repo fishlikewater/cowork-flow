@@ -66,6 +66,10 @@ def resolve_context_key(values: Mapping[str, object] | None = None) -> str | Non
     if claude_session and claude_session.strip():
         return f"claude_{_sanitize(claude_session)}"
 
+    claude_code_session = os.environ.get("CLAUDE_CODE_SESSION_ID")
+    if claude_code_session and claude_code_session.strip():
+        return f"claude_{_sanitize(claude_code_session)}"
+
     codex_session = os.environ.get("CODEX_SESSION_ID")
     if codex_session and codex_session.strip():
         return f"codex_{_sanitize(codex_session)}"
@@ -90,6 +94,8 @@ def resolve_context_key(values: Mapping[str, object] | None = None) -> str | Non
         (
             "OPENCODE_SESSION_ID",
             "opencode_session_id",
+            "sessionID",
+            "sessionId",
         ),
     )
     if input_opencode_session:
@@ -100,6 +106,8 @@ def resolve_context_key(values: Mapping[str, object] | None = None) -> str | Non
         (
             "CLAUDE_SESSION_ID",
             "claude_session_id",
+            "CLAUDE_CODE_SESSION_ID",
+            "claude_code_session_id",
         ),
     )
     if input_claude_session:

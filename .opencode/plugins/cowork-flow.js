@@ -202,13 +202,45 @@ function resolveRuntimeContextId(input) {
   return match ? sanitize(match[1]) : null
 }
 
+function resolveOpenCodeSessionId(input) {
+  const direct = firstString(input, [
+    "OPENCODE_SESSION_ID",
+    "opencode_session_id",
+    "sessionID",
+    "sessionId",
+    "session_id",
+  ])
+  if (direct) {
+    return sanitize(direct)
+  }
+  const nested = firstString(input?.session, ["id", "sessionID", "sessionId", "session_id"])
+  return nested ? sanitize(nested) : null
+}
+
 function resolveContextKey(input) {
   const explicit = firstString(input, ["COWORK_FLOW_CONTEXT_ID", "cowork_flow_context_id", "context_id"])
   if (explicit) {
     return sanitize(explicit)
   }
-  const opencodeSession = firstString(input, ["OPENCODE_SESSION_ID", "opencode_session_id", "session_id"])
+  const opencodeSession = resolveOpenCodeSessionId(input)
   return opencodeSession ? `opencode_${sanitize(opencodeSession)}` : null
+}
+
+function injectShellEnv(input, output) {
+  const contextKey = resolveContextKey(input)
+  if (!contextKey) {
+    return
+  }
+  if (!output.env || typeof output.env !== "object") {
+    output.env = {}
+  }
+  if (!output.env.COWORK_FLOW_CONTEXT_ID) {
+    output.env.COWORK_FLOW_CONTEXT_ID = contextKey
+  }
+  const opencodeSession = resolveOpenCodeSessionId(input)
+  if (opencodeSession && !output.env.OPENCODE_SESSION_ID) {
+    output.env.OPENCODE_SESSION_ID = opencodeSession
+  }
 }
 
 function resolveHostContextKey(input) {
@@ -310,6 +342,9 @@ function buildRuntimeWorkflowState(input) {
 
 export const CoworkFlowPlugin = async () => {
   return {
+    "shell.env": async (input, output) => {
+      injectShellEnv(input, output)
+    },
     "experimental.chat.system.transform": async (input, output) => {
       output.system.push([buildContractDigest(input), buildRuntimeWorkflowState(input)].filter(Boolean).join("\n\n"))
     },
