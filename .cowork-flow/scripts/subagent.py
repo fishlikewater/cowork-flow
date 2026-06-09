@@ -253,6 +253,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--title", required=True)
     init.add_argument("--role", default="subagent")
     init.add_argument("--agent-type")
+    init.add_argument("--execution-task-dir")
     init.add_argument("--source", default="auto")
     init.add_argument("--goal")
     init.add_argument("--expected-output", default="Files changed, validation commands, and blockers.")
