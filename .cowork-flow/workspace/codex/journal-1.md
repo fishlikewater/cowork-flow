@@ -1404,3 +1404,33 @@ Added a wait-timeout guard so Party Mode keeps live child opinions until they ar
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 44: Fix subagent execution task dir parser
+
+**Date**: 2026-06-09
+**Task**: Fix subagent execution task dir parser
+
+### Summary
+
+Preserved --execution-task-dir across parent parser and init subcommand; added regression coverage; verified focused, full Python, npm test:all, and diff check.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

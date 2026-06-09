@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 43
-- **Last Active**: 2026-06-08
+- **Total Sessions**: 44
+- **Last Active**: 2026-06-09
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1406 | Current |
+| `journal-1.md` | ~1436 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 44 | 2026-06-09 | Fix subagent execution task dir parser | - |
 | 43 | 2026-06-08 | Protect Party Mode live child opinions | - |
 | 42 | 2026-06-08 | Clarify Party Mode 1.5 discussion protocol | - |
 | 41 | 2026-06-08 | Clarify Party Mode phase policy | - |
