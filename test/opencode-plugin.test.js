@@ -49,6 +49,14 @@ async function renderPluginContext(cwd, input = {}) {
   return output.system[0]
 }
 
+async function renderShellEnv(cwd, input = {}) {
+  const plugin = await CoworkFlowPlugin()
+  assert.equal(typeof plugin["shell.env"], "function")
+  const output = { env: {} }
+  await plugin["shell.env"]({ cwd, ...input }, output)
+  return output.env
+}
+
 function extractFingerprint(context) {
   const match = context.match(/<contract-digest fingerprint="([^"]+)">/)
   assert.ok(match, "expected contract digest fingerprint")
@@ -133,4 +141,13 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
     await readFile(join(root, ".cowork-flow", ".runtime", "subagents", "rtx_plugin.json"), "utf8")
   )
   assert.equal(runtimeContext.bound_context_key, "opencode_prompt_key")
+})
+
+test("opencode plugin exposes main session env to shell commands", async (t) => {
+  const root = await createRegistryRepo(t)
+
+  const env = await renderShellEnv(root, { sessionID: "main session" })
+
+  assert.equal(env.COWORK_FLOW_CONTEXT_ID, "opencode_main_session")
+  assert.equal(env.OPENCODE_SESSION_ID, "main_session")
 })

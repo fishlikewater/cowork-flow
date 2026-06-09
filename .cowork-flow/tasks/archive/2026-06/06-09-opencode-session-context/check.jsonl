@@ -1,0 +1,5 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/test_active_task_runtime.py", "reason": "Regression coverage for OpenCode context key"}
+{"file": "test/opencode-plugin.test.js", "reason": "OpenCode plugin shell env regression"}
+{"file": "tests/test_host_adapters.py", "reason": "OpenCode root/template plugin asset assertions"}

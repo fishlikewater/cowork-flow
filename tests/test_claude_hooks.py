@@ -368,6 +368,27 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn("Status: in_progress", context)
         self.assertIn("派发 cowork-implement", context)
 
+    def test_hook_resolves_active_task_from_claude_code_session_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "06-03-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "claude_code-session.json").write_text(
+                '{"active_task_path": ".cowork-flow/tasks/06-03-demo"}\n',
+                encoding="utf-8",
+            )
+
+            data = self._run_hook(root, {"claude_code_session_id": "code-session"})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
+        self.assertIn("Status: in_progress", context)
+        self.assertIn("派发 cowork-implement", context)
+
     def test_settings_config_uses_cowork_flow_python_runner_for_both_events(self) -> None:
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
         for event_name in ("UserPromptSubmit", "SessionStart"):

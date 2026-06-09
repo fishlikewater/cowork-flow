@@ -931,7 +931,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     if active is None:
         print(
             colored(
-                "Error: Missing session context. Set COWORK_FLOW_CONTEXT_ID or run inside Codex session.",
+                "Error: Missing session context. Set COWORK_FLOW_CONTEXT_ID or run inside a supported host session.",
                 Colors.RED,
             ),
             file=sys.stderr,
@@ -1011,7 +1011,7 @@ def cmd_current(args: argparse.Namespace) -> int:
     if not active.context_key:
         print(
             colored(
-                "Error: Missing session context. Set COWORK_FLOW_CONTEXT_ID or run inside Codex session.",
+                "Error: Missing session context. Set COWORK_FLOW_CONTEXT_ID or run inside a supported host session.",
                 Colors.RED,
             ),
             file=sys.stderr,

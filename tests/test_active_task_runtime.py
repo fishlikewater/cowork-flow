@@ -42,6 +42,21 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
         with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-123"}, clear=True):
             self.assertEqual("claude_claude-123", self.active_task.resolve_context_key())
 
+    def test_context_key_uses_claude_code_session_when_claude_missing(self) -> None:
+        with patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ID": "code-123"}, clear=True):
+            self.assertEqual("claude_code-123", self.active_task.resolve_context_key())
+
+    def test_claude_session_env_precedes_claude_code_session_env(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "CLAUDE_SESSION_ID": "claude-123",
+                "CLAUDE_CODE_SESSION_ID": "code-123",
+            },
+            clear=True,
+        ):
+            self.assertEqual("claude_claude-123", self.active_task.resolve_context_key())
+
     def test_context_key_missing_returns_none(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             self.assertIsNone(self.active_task.resolve_context_key())
@@ -60,11 +75,25 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 self.active_task.resolve_context_key({"opencode_session_id": "opc-456"}),
             )
 
+    def test_context_key_can_use_opencode_session_id_input(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                "opencode_opc-789",
+                self.active_task.resolve_context_key({"sessionID": "opc-789"}),
+            )
+
     def test_context_key_can_use_claude_hook_input(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(
                 "claude_claude-456",
                 self.active_task.resolve_context_key({"claude_session_id": "claude-456"}),
+            )
+
+    def test_context_key_can_use_claude_code_hook_input(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                "claude_code-456",
+                self.active_task.resolve_context_key({"claude_code_session_id": "code-456"}),
             )
 
     def test_set_and_get_active_task_require_context_key(self) -> None:

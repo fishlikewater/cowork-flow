@@ -1,0 +1,21 @@
+{
+  "id": "06-09-opencode-session-context",
+  "name": "06-09-opencode-session-context",
+  "title": "修复 OpenCode task start 会话上下文",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-09",
+  "completedAt": "2026-06-09",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
