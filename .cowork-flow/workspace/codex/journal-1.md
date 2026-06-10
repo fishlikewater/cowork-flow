@@ -1494,3 +1494,38 @@ Added Party Mode V2 runtime board controller, host-neutral assets, Claude/OpenCo
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 47: 归档提交核验
+
+**Date**: 2026-06-10
+**Task**: 归档提交核验
+
+### Summary
+
+确认当前无活动任务，changes 已归档，业务工作区无待提交改动；保留本地 .codegraph 索引未跟踪。
+
+### Main Changes
+
+- Recorded closeout verification for a no-active-task workspace.
+- Confirmed `change list` entries are already archived.
+- Kept local `.codegraph/` index files untracked and out of the commit.
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] `task current` reports no active task.
+- [OK] `change list` shows archived changes only.
+- [OK] `git diff --check` passed.
+- [OK] `doctor --subagent-safety` passed.
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
