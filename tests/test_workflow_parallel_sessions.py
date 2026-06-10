@@ -141,6 +141,54 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in spec_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
+    def test_party_mode_v2_is_runtime_board_advisory_workflow(self) -> None:
+        workflow_markers = (
+            "手动 Party Mode V2",
+            "runtime board advisory workflow",
+            "Python runtime 控制看板",
+            "当前轮视图",
+            "子代理通过 board API 交流",
+            "主持人只监控 runtime status",
+            "V2 runtime 只输出 host-neutral next actions",
+            "不能满足正式实现或检查完成条件",
+            "宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in workflow_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+            self.assertNotIn("spawn_agent", text)
+            self.assertNotIn("wait_agent", text)
+            self.assertNotIn("close_agent", text)
+            self.assertNotIn("Claude Task", text)
+            self.assertNotIn("OpenCode task", text)
+
+        spec_markers = (
+            "Party Mode V2 discussion children are also advisory leaf executors.",
+            "`party-mode-v2` entrypoint delegates discussion state",
+            "current-round board visibility",
+            "schema validation",
+            "drift warnings",
+            "round limits",
+            "final reports",
+            "host-neutral next actions",
+            "does not change the formal `cowork-*` dispatch protocol",
+            "does not satisfy Implement or Check completion",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in spec_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+            self.assertNotIn("spawn_agent", text)
+            self.assertNotIn("wait_agent", text)
+            self.assertNotIn("close_agent", text)
+
     def test_workflow_requires_runtime_context_closeout(self) -> None:
         required_markers = (
             "Wait for the child result with the adapter wait primitive.",

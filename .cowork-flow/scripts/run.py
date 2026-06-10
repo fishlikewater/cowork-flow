@@ -30,6 +30,8 @@ COMMAND_SCRIPTS = {
     "doctor": "doctor.py",
     "project-context": "project_context.py",
     "project_context": "project_context.py",
+    "party-v2": "party_mode_v2.py",
+    "party_v2": "party_mode_v2.py",
 }
 
 CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}
@@ -54,6 +56,7 @@ Common commands:
   subagent
   doctor
   project-context
+  party-v2
 """.rstrip()
     )
 

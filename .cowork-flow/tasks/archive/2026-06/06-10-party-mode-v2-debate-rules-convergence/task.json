@@ -1,0 +1,21 @@
+{
+  "id": "party-mode-v2-debate-rules-convergence",
+  "name": "party-mode-v2-debate-rules-convergence",
+  "title": "Party Mode V2 debate rules and convergence",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-10",
+  "completedAt": "2026-06-10",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
