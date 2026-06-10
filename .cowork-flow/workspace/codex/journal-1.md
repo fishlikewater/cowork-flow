@@ -1529,3 +1529,42 @@ Added Party Mode V2 runtime board controller, host-neutral assets, Claude/OpenCo
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 48: 修复脚本 BOM 编码
+
+**Date**: 2026-06-10
+**Task**: 修复脚本 BOM 编码
+
+### Summary
+
+移除 3 个脚本文件的 UTF-8 BOM，保留内容语义；复扫脚本 BOM 为 0，并通过 Node/Python 全量验证。
+
+### Main Changes
+
+- Removed UTF-8 BOM bytes from `.cowork-flow/scripts/common/archive_utils.py`.
+- Removed UTF-8 BOM bytes from `template/.cowork-flow/scripts/common/archive_utils.py`.
+- Removed UTF-8 BOM bytes from `test/sync.test.js`.
+- Archived task `06-10-fix-script-bom`.
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] Script-file BOM scan: 89 scanned, 0 BOM files.
+- [OK] `git diff --check`.
+- [OK] `npm test -- test/sync.test.js`: 11 passed.
+- [OK] `python -m unittest discover -s tests -p test_change_script.py -v`: 16 passed.
+- [OK] `python -m unittest discover -s tests -p test_flow_script_paths.py -v`: 40 passed.
+- [OK] `npm run test:all`: passed, 44 passed and 4 skipped in Node test phase.
+- [OK] `python -m unittest discover -s tests -p "test_*.py"`: 194 passed, 6 skipped.
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

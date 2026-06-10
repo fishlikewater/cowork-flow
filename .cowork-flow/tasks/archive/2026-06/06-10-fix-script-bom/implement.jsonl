@@ -1,0 +1,8 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": "template/.cowork-flow/scripts/common/archive_utils.py", "reason": "Remove BOM from template archive utility"}
+{"file": "test/sync.test.js", "reason": "Remove BOM from sync test script"}
+{"file": ".cowork-flow/scripts/common/archive_utils.py", "reason": "Remove BOM from active archive utility"}
