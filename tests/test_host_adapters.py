@@ -102,6 +102,103 @@ class HostAdaptersTest(unittest.TestCase):
                     self.assertEqual(".claude/settings.json", adapter["dispatch"]["settingsPath"])
                     self.assertEqual(".claude/hooks", adapter["dispatch"]["hooksPath"])
 
+    def test_party_mode_v2_action_schema_is_host_neutral(self) -> None:
+        expected_actions = {
+            "dispatch_child",
+            "send_control_message",
+            "wait_children",
+            "list_children",
+            "close_child",
+            "report_to_user",
+        }
+        banned_primitives = (
+            "spawn_agent",
+            "followup_task",
+            "send_message",
+            "wait_agent",
+            "list_agents",
+            "close_agent",
+            "Claude Task",
+            "OpenCode task primitive",
+            "codex exec",
+        )
+        for path in (
+            ROOT / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+            ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+        ):
+            text = path.read_text(encoding="utf-8")
+            schema = json.loads(text)
+            actions = set(schema["$defs"]["action"]["properties"]["type"]["enum"])
+            self.assertEqual(expected_actions, actions)
+            self.assertFalse(
+                set(schema["$defs"]["action"]["properties"]) - {
+                    "type",
+                    "agent_id",
+                    "agent_ids",
+                    "agent_kind",
+                    "lens",
+                    "message_kind",
+                    "prompt_file",
+                    "reason",
+                }
+            )
+            for marker in banned_primitives:
+                self.assertNotIn(marker, text, f"{marker} leaked into {path}")
+
+    def test_party_mode_v2_uses_existing_adapter_capability_or_fallback(self) -> None:
+        required_capabilities = (
+            "dispatchSubagent",
+            "freshChildContext",
+            "sendFollowup",
+            "waitChild",
+            "listChildren",
+            "cancelChild",
+        )
+        usable_values = {"native", "shim", "plugin", "external", "experimental"}
+        for base in (
+            ROOT / ".cowork-flow" / "adapters",
+            ROOT / "template" / ".cowork-flow" / "adapters",
+        ):
+            for host in ("codex", "opencode", "claude-code"):
+                adapter = parse_simple_yaml(base / host / "adapter.yaml")
+                self.assertEqual(
+                    "inline_or_manual",
+                    adapter["fallback"]["whenRequiredCapabilityMissing"],
+                    host,
+                )
+                for key in required_capabilities:
+                    self.assertIn(adapter["capabilities"][key], usable_values, f"{host}:{key}")
+
+    def test_party_mode_v2_root_and_template_assets_are_synced(self) -> None:
+        pairs = (
+            (
+                ROOT / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+                ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+            ),
+            (
+                ROOT / ".cowork-flow" / "spec" / "party-mode-v2-board.md",
+                ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-board.md",
+            ),
+            (
+                ROOT / ".opencode" / "commands" / "party-mode-v2.md",
+                ROOT / "template" / ".opencode" / "commands" / "party-mode-v2.md",
+            ),
+            (
+                ROOT / ".cowork-flow" / "workflow.md",
+                ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ),
+            (
+                ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+                ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ),
+        )
+        for root_path, template_path in pairs:
+            self.assertEqual(
+                root_path.read_text(encoding="utf-8"),
+                template_path.read_text(encoding="utf-8"),
+                f"{root_path} differs from {template_path}",
+            )
+
     def test_workflow_is_host_neutral(self) -> None:
         banned = ("spawn_agent", "fork_turns", "wait_agent", "list_agents", "close_agent", "codex exec")
         for path in (

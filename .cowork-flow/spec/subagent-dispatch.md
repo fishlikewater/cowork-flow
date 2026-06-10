@@ -18,6 +18,8 @@ Party Mode discussion children are advisory leaf executors. They use fresh child
 
 The `party-mode` skill owns round limits, continuation gates, stop gates, and output schemas. This document remains the formal `cowork-*` dispatch protocol source.
 
+Party Mode V2 discussion children are also advisory leaf executors. The `party-mode-v2` entrypoint delegates discussion state, current-round board visibility, schema validation, drift warnings, round limits, and final reports to the Party Mode V2 runtime board controller. The runtime emits host-neutral next actions; it does not change the formal `cowork-*` dispatch protocol and does not satisfy Implement or Check completion.
+
 ## Runtime Context
 
 Before spawning a formal child, the main session creates:

@@ -51,6 +51,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "finish-work",
             "meta",
             "party-mode",
+            "party-mode-v2",
             "python-design",
             "start",
             "update-spec",
@@ -100,8 +101,8 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertTrue((base / "settings.json").is_file())
             self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
             for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
-                         "finish-work", "meta", "party-mode", "python-design", "start",
-                         "update-spec", "writing-plans"):
+                         "finish-work", "meta", "party-mode", "party-mode-v2",
+                         "python-design", "start", "update-spec", "writing-plans"):
                 self.assertTrue((base / "skills" / name / "SKILL.md").is_file())
             self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
@@ -202,6 +203,59 @@ class CoworkAgentsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers + child_schema + followup_schema + coordinator_schema:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
+
+    def test_party_mode_v2_skill_is_thin_runtime_board_entrypoint(self) -> None:
+        required_markers = (
+            "thin entrypoint",
+            "runtime board",
+            "Python runtime is the source of truth",
+            "The moderator does not forward",
+            "Always use the runtime controller",
+            "party-v2 init",
+            "party-v2 monitor",
+            "party-v2 view",
+            "party-v2 post",
+            "party-v2 respond",
+            "party-v2 advance",
+            "party-v2 finalize",
+            "board API",
+            "current-round only",
+            "host-neutral next actions",
+            "maintain",
+            "revise",
+            "concede",
+            "Unsupported agreement, vague revision, and evidence-free rebuttal are invalid.",
+            "advisory only",
+            "cannot satisfy formal Implement or Check completion",
+        )
+        forbidden_markers = (
+            "Round 1 uses fresh child contexts",
+            "compact claim table",
+            "Coordinator Output Schema",
+            "spawn_agent",
+            "wait_agent",
+            "close_agent",
+        )
+        for path in (
+            ROOT / ".agents" / "skills" / "party-mode-v2" / "SKILL.md",
+            ROOT / "template" / ".agents" / "skills" / "party-mode-v2" / "SKILL.md",
+            ROOT / ".claude" / "skills" / "party-mode-v2" / "SKILL.md",
+            ROOT / "template" / ".claude" / "skills" / "party-mode-v2" / "SKILL.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+            for marker in forbidden_markers:
+                self.assertNotIn(marker, text, f"{marker} should stay out of thin V2 skill {path}")
+
+    def test_readme_distinguishes_party_mode_v1_and_v2(self) -> None:
+        text = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("party-mode、party-mode-v2", text)
+        self.assertIn("默认 `max_agents=3`、`max_rounds=5`", text)
+        self.assertNotIn("默认 `max_agents=3`、`max_rounds=3`", text)
+        self.assertIn("`party-mode-v2` 是 runtime board controlled advisory workflow", text)
+        self.assertIn("子代理通过 board API 交流", text)
+        self.assertIn("主持人只监控和纠偏", text)
 
     def test_agents_require_runtime_context_and_disable_multi_agent(self) -> None:
         for path in (

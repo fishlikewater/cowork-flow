@@ -151,3 +151,23 @@ test("opencode plugin exposes main session env to shell commands", async (t) => 
   assert.equal(env.COWORK_FLOW_CONTEXT_ID, "opencode_main_session")
   assert.equal(env.OPENCODE_SESSION_ID, "main_session")
 })
+
+test("opencode party mode v2 command points to runtime board", async () => {
+  for (const path of [
+    new URL("../.opencode/commands/party-mode-v2.md", import.meta.url),
+    new URL("../template/.opencode/commands/party-mode-v2.md", import.meta.url),
+  ]) {
+    const text = await readFile(path, "utf8")
+    assert.match(text, /Party Mode V2 is advisory only/)
+    assert.match(text, /party-v2 init/)
+    assert.match(text, /party-v2 monitor/)
+    assert.match(text, /party-v2 view/)
+    assert.match(text, /party-v2 post/)
+    assert.match(text, /party-v2 respond/)
+    assert.match(text, /party-v2 advance/)
+    assert.match(text, /party-v2 finalize/)
+    assert.match(text, /current-round board API/)
+    assert.doesNotMatch(text, /forward, summarize, or rewrite child opinions as moderator work/)
+    assert.doesNotMatch(text, /spawn_agent|wait_agent|close_agent|codex exec/)
+  }
+})

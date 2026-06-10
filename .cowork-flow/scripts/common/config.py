@@ -16,6 +16,13 @@ from .paths import DIR_WORKFLOW, get_repo_root
 DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
 DEFAULT_CODEX_DISPATCH_MODE = "sub-agent"
+DEFAULT_PARTY_MODE_V2_MIN_AGENTS = 3
+DEFAULT_PARTY_MODE_V2_MAX_AGENTS = 5
+DEFAULT_PARTY_MODE_V2_MAX_ROUNDS = 5
+DEFAULT_PARTY_MODE_V2_MAX_REBUTTAL_TARGETS_PER_AGENT = 2
+DEFAULT_PARTY_MODE_V2_MAX_DRIFT_WARNINGS = 2
+DEFAULT_PARTY_MODE_V2_FRESH_CONTEXT_PER_ROUND = True
+DEFAULT_PARTY_MODE_V2_REQUIRE_CURRENT_ROUND_ONLY = True
 
 CONFIG_FILE = "config.yaml"
 
@@ -139,3 +146,89 @@ def get_codex_dispatch_mode(repo_root: Path | None = None) -> str:
     if mode in {"sub-agent", "inline"}:
         return str(mode)
     return DEFAULT_CODEX_DISPATCH_MODE
+
+def _get_section(config: dict, section_name: str) -> dict:
+    section = config.get(section_name)
+    if isinstance(section, dict):
+        return section
+    return {}
+
+def _get_int(section: dict, key: str, default: int, *, minimum: int | None = None) -> int:
+    value = section.get(key, default)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    if minimum is not None and parsed < minimum:
+        return default
+    return parsed
+
+def _get_bool(section: dict, key: str, default: bool) -> bool:
+    value = section.get(key, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+def get_party_mode_v2_config(repo_root: Path | None = None) -> dict[str, int | bool]:
+    """Get Party Mode V2 runtime-board defaults."""
+    config = _load_config(repo_root)
+    section = _get_section(config, "party_mode_v2")
+    min_agents = _get_int(
+        section,
+        "min_agents",
+        DEFAULT_PARTY_MODE_V2_MIN_AGENTS,
+        minimum=3,
+    )
+    max_agents = _get_int(
+        section,
+        "max_agents",
+        DEFAULT_PARTY_MODE_V2_MAX_AGENTS,
+        minimum=min_agents,
+    )
+    return {
+        "min_agents": min_agents,
+        "max_agents": max_agents,
+        "max_rounds": _get_int(
+            section,
+            "max_rounds",
+            DEFAULT_PARTY_MODE_V2_MAX_ROUNDS,
+            minimum=1,
+        ),
+        "max_rebuttal_targets_per_agent": _get_int(
+            section,
+            "max_rebuttal_targets_per_agent",
+            DEFAULT_PARTY_MODE_V2_MAX_REBUTTAL_TARGETS_PER_AGENT,
+            minimum=1,
+        ),
+        "max_drift_warnings": _get_int(
+            section,
+            "max_drift_warnings",
+            DEFAULT_PARTY_MODE_V2_MAX_DRIFT_WARNINGS,
+            minimum=0,
+        ),
+        "fresh_context_per_round": _get_bool(
+            section,
+            "fresh_context_per_round",
+            DEFAULT_PARTY_MODE_V2_FRESH_CONTEXT_PER_ROUND,
+        ),
+        "require_current_round_only": _get_bool(
+            section,
+            "require_current_round_only",
+            DEFAULT_PARTY_MODE_V2_REQUIRE_CURRENT_ROUND_ONLY,
+        ),
+    }
+
+def get_party_mode_v2_min_agents(repo_root: Path | None = None) -> int:
+    return int(get_party_mode_v2_config(repo_root)["min_agents"])
+
+def get_party_mode_v2_max_agents(repo_root: Path | None = None) -> int:
+    return int(get_party_mode_v2_config(repo_root)["max_agents"])
+
+def get_party_mode_v2_max_rounds(repo_root: Path | None = None) -> int:
+    return int(get_party_mode_v2_config(repo_root)["max_rounds"])

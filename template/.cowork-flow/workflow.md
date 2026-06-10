@@ -98,6 +98,12 @@ Party Mode 是用户手动触发的 advisory roundtable。主会话可通过当�
 
 Party Mode 不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。轮次上限、继续/停止条件、输出 schema 和可配置默认值由 party-mode skill 定义；正式子代理协议仍以 `.cowork-flow/spec/subagent-dispatch.md` 为准。
 
+## 3.2.1 手动 Party Mode V2
+
+Party Mode V2 是用户手动触发的 runtime board advisory workflow。Python runtime 控制看板、当前轮视图、schema 校验、轮次上限、纠偏事件和最终报告；子代理通过 board API 交流，主持人只监控 runtime status、执行宿主适配器动作和记录偏题纠正。
+
+Party Mode V2 仍不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。V2 runtime 只输出 host-neutral next actions，宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明。
+
 ## 3.3 并行会话
 
 并行执行采用干净隔离的并行会话模型。并行只是执行策略，不改变固定代理叶子边界。
