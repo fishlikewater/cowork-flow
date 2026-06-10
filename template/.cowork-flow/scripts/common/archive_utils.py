@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Small resumable directory archive helpers."""
 
 from __future__ import annotations
