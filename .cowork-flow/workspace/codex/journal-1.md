@@ -1568,3 +1568,33 @@ Added Party Mode V2 runtime board controller, host-neutral assets, Claude/OpenCo
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 49: Party Mode V2 runtime hardening
+
+**Date**: 2026-06-11
+**Task**: Party Mode V2 runtime hardening
+
+### Summary
+
+Completed and archived Party Mode V2 runtime hardening; added process-safe board locking, action lifecycle evidence, stricter schemas/prompts, final report safety, and regression coverage.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

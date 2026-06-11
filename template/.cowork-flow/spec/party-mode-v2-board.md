@@ -25,6 +25,9 @@ child-visible `view` output must include only the current round.
 Child agents must use runtime commands to read and write board state. They
 must not receive moderator-summarized child opinions.
 
+Child-visible views include `empty_state` and `expected_next_action` so an
+empty current panel is distinguishable from a stale or broken view.
+
 ## Position Changes
 
 Children respond to disagreement with one of:
@@ -35,6 +38,28 @@ Children respond to disagreement with one of:
 
 Each response must include evidence or reasoning required by the runtime.
 Evidence-free agreement and unsupported rebuttal are invalid.
+
+When current-round-only mode is enabled, `post` and `respond` payloads must
+include the explicit current round. A child may not respond to its own post,
+repeat a target in the same round, or exceed the configured rebuttal target
+limit. Stored responses preserve the decision-specific evidence that passed
+validation.
+
+## Action And Audit History
+
+`actions.json` contains only current next actions. Issued actions and host
+results are preserved in audit/action history so a completed discussion can
+still prove dispatch, wait, follow-up, and closeout intent.
+
+Host action results are recorded through runtime commands. The runtime records
+host child ids and agent status, but it still does not call host primitives
+directly.
+
+## Final Reports
+
+Final reports distinguish current unresolved disagreements from historical
+disagreements. A report with `stop_reason=converged` must not present prior
+round disagreements as currently unresolved.
 
 ## Moderator Boundary
 

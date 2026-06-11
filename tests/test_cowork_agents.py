@@ -217,6 +217,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "party-v2 post",
             "party-v2 respond",
             "party-v2 advance",
+            "party-v2 record-action-result",
             "party-v2 finalize",
             "board API",
             "current-round only",
