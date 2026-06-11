@@ -26,6 +26,7 @@ Always use the runtime controller:
 .cowork-flow/run party-v2 post
 .cowork-flow/run party-v2 respond
 .cowork-flow/run party-v2 advance
+.cowork-flow/run party-v2 record-action-result
 .cowork-flow/run party-v2 finalize
 ```
 
@@ -38,6 +39,7 @@ Do not bypass a runtime rejection by manually accepting child output. Runtime va
 - Historical board state is runtime-private and may be used only for audit or final reports.
 - Use at least three child agents unless the effective runtime config explicitly allows a different value.
 - The runtime emits host-neutral next actions. The active Host Adapter or moderator executes them for Codex, Claude Code, or OpenCode.
+- Host action results must be recorded back through `record-action-result` so `agents.json`, audit logs, and action history can prove lifecycle state.
 
 ## Child Response Rules
 

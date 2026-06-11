@@ -13,9 +13,14 @@ Use the runtime controller as the source of truth:
 ./.cowork-flow/run party-v2 post
 ./.cowork-flow/run party-v2 respond
 ./.cowork-flow/run party-v2 advance
+./.cowork-flow/run party-v2 record-action-result
 ./.cowork-flow/run party-v2 finalize
 ```
 
 Follow runtime `next_actions` with the active OpenCode host adapter. Do not
 forward, summarize, or rewrite child opinions. Child agents communicate through
 the current-round board API.
+
+After executing a host-neutral action, record the result with
+`party-v2 record-action-result` so lifecycle evidence remains available after
+`actions.json` changes.

@@ -1,0 +1,25 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/scripts/party_mode_v2.py", "reason": "Primary runtime controller to harden"}
+{"file": "template/.cowork-flow/scripts/party_mode_v2.py", "reason": "Template runtime mirror must stay in sync"}
+{"file": ".cowork-flow/scripts/common/config.py", "reason": "Party Mode V2 config getters and limits"}
+{"file": "template/.cowork-flow/scripts/common/config.py", "reason": "Template config getter mirror"}
+{"file": ".cowork-flow/config.yaml", "reason": "Effective Party Mode V2 runtime defaults"}
+{"file": "template/.cowork-flow/config.yaml", "reason": "Template Party Mode V2 defaults"}
+{"file": ".cowork-flow/spec/party-mode-v2-board.md", "reason": "Board contract to update with hardened state semantics"}
+{"file": "template/.cowork-flow/spec/party-mode-v2-board.md", "reason": "Template board contract mirror"}
+{"file": ".cowork-flow/spec/party-mode-v2-actions.schema.json", "reason": "Host-neutral action schema to tighten"}
+{"file": "template/.cowork-flow/spec/party-mode-v2-actions.schema.json", "reason": "Template action schema mirror"}
+{"file": ".agents/skills/party-mode-v2/SKILL.md", "reason": "Codex skill surface for runtime commands"}
+{"file": "template/.agents/skills/party-mode-v2/SKILL.md", "reason": "Template Codex skill mirror"}
+{"file": ".claude/skills/party-mode-v2/SKILL.md", "reason": "Claude skill surface for runtime commands"}
+{"file": "template/.claude/skills/party-mode-v2/SKILL.md", "reason": "Template Claude skill mirror"}
+{"file": ".opencode/commands/party-mode-v2.md", "reason": "OpenCode command surface"}
+{"file": "template/.opencode/commands/party-mode-v2.md", "reason": "Template OpenCode command mirror"}
+{"file": "tests/test_party_mode_v2.py", "reason": "Runtime behavior regression tests"}
+{"file": "tests/test_host_adapters.py", "reason": "Action schema and host-neutral contract tests"}
+{"file": "tests/test_cowork_agents.py", "reason": "Skill/runtime entrypoint tests"}
+{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Workflow text and Party Mode V2 advisory contract tests"}

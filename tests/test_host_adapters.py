@@ -132,6 +132,7 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertEqual(expected_actions, actions)
             self.assertFalse(
                 set(schema["$defs"]["action"]["properties"]) - {
+                    "action_id",
                     "type",
                     "agent_id",
                     "agent_ids",
@@ -142,6 +143,18 @@ class HostAdaptersTest(unittest.TestCase):
                     "reason",
                 }
             )
+            self.assertIn("action_id", schema["$defs"]["action"]["required"])
+            rendered = json.dumps(schema, ensure_ascii=False)
+            for required in (
+                "dispatch_child",
+                "send_control_message",
+                "wait_children",
+                "close_child",
+                "report_to_user",
+                "prompt_file",
+                "agent_ids",
+            ):
+                self.assertIn(required, rendered)
             for marker in banned_primitives:
                 self.assertNotIn(marker, text, f"{marker} leaked into {path}")
 
