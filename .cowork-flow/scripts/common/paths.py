@@ -35,6 +35,7 @@ DIR_SCRIPTS = "scripts"
 FILE_DEVELOPER = ".developer"
 FILE_TASK_JSON = "task.json"
 FILE_JOURNAL_PREFIX = "journal-"
+FILE_FLOW_DB = "cowork-flow.db"
 TASK_DATE_PREFIX_PATTERN = re.compile(r"^\d{2}-\d{2}-")
 
 
@@ -226,6 +227,20 @@ def ensure_task_date_prefix(slug: str) -> str:
     return f"{generate_task_date_prefix()}-{slug}"
 
 
+def get_db_path(repo_root: Path | None = None) -> Path:
+    """Return path to the Flow SQLite database file.
+
+    Args:
+        repo_root: Repository root path. Defaults to auto-detected.
+
+    Returns:
+        Path to cowork-flow.db.
+    """
+    if repo_root is None:
+        repo_root = get_repo_root()
+    return repo_root / DIR_WORKFLOW / FILE_FLOW_DB
+
+
 # =============================================================================
 # Main Entry (for testing)
 # =============================================================================
@@ -237,3 +252,4 @@ if __name__ == "__main__":
     print(f"Tasks dir: {get_tasks_dir(repo)}")
     print(f"Workspace dir: {get_workspace_dir(repo)}")
     print(f"Journal file: {get_active_journal_file(repo)}")
+    print(f"Flow db: {get_db_path(repo)}")
