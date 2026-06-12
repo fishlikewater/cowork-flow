@@ -118,6 +118,34 @@ class ClaudeHooksTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _write_flow_task(
+        self,
+        root: Path,
+        *,
+        task_id: str = "demo",
+        artifact_dir: str = "06-03-demo",
+        status: str = "review",
+    ) -> None:
+        script = (
+            "import sys\n"
+            "from pathlib import Path\n"
+            f"sys.path.insert(0, {str(root / '.cowork-flow' / 'scripts')!r})\n"
+            "from flow.store import FlowStore\n"
+            f"with FlowStore({str(root / '.cowork-flow' / 'cowork-flow.db')!r}) as store:\n"
+            f"    store.create_task(id={task_id!r}, title='Demo', status={status!r}, creator='dev', assignee='dev')\n"
+            f"    store.db.execute('UPDATE task SET artifact_dir = ? WHERE id = ?', ({artifact_dir!r}, {task_id!r}))\n"
+            "    store.db.commit()\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_hook_emits_no_task_workflow_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -389,6 +417,27 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn("Status: in_progress", context)
         self.assertIn("派发 cowork-implement", context)
 
+    def test_hook_reads_flow_only_active_task_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "06-03-demo"
+            task_dir.mkdir(parents=True)
+            self._write_flow_task(root, artifact_dir="06-03-demo", status="review")
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "claude_demo-session.json").write_text(
+                '{"active_task_path": ".cowork-flow/tasks/06-03-demo"}\n',
+                encoding="utf-8",
+            )
+
+            data = self._run_hook(root, {"session_id": "demo-session"})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
+        self.assertIn("Status: review", context)
+        self.assertNotIn("Status: stale", context)
+
     def test_settings_config_uses_cowork_flow_python_runner_for_both_events(self) -> None:
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
         for event_name in ("UserPromptSubmit", "SessionStart"):
@@ -453,6 +502,7 @@ class ClaudeHooksTest(unittest.TestCase):
             Path(".claude/hooks/inject-workflow-state.py"),
             Path(".cowork-flow/scripts/common/active_task.py"),
             Path(".cowork-flow/scripts/common/entry_classifier.py"),
+            Path(".cowork-flow/scripts/common/inject_workflow_state.py"),
             Path(".cowork-flow/spec/workflow-state-templates.md"),
         ):
             root_text = (ROOT / rel).read_text(encoding="utf-8")

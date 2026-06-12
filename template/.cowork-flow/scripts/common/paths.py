@@ -13,7 +13,7 @@ Provides:
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -35,6 +35,7 @@ DIR_SCRIPTS = "scripts"
 FILE_DEVELOPER = ".developer"
 FILE_TASK_JSON = "task.json"
 FILE_JOURNAL_PREFIX = "journal-"
+FILE_FLOW_DB = "cowork-flow.db"
 TASK_DATE_PREFIX_PATTERN = re.compile(r"^\d{2}-\d{2}-")
 
 
@@ -211,12 +212,8 @@ def count_lines(file_path: Path) -> int:
 # =============================================================================
 
 def generate_task_date_prefix() -> str:
-    """Generate task ID based on date (MM-DD format).
-
-    Returns:
-        Date prefix string (e.g., "01-21").
-    """
-    return datetime.now().strftime("%m-%d")
+    """Generate task ID based on date (MM-DD format, UTC)."""
+    return datetime.now(timezone.utc).strftime("%m-%d")
 
 
 def ensure_task_date_prefix(slug: str) -> str:
@@ -224,6 +221,20 @@ def ensure_task_date_prefix(slug: str) -> str:
     if TASK_DATE_PREFIX_PATTERN.match(slug):
         return slug
     return f"{generate_task_date_prefix()}-{slug}"
+
+
+def get_db_path(repo_root: Path | None = None) -> Path:
+    """Return path to the Flow SQLite database file.
+
+    Args:
+        repo_root: Repository root path. Defaults to auto-detected.
+
+    Returns:
+        Path to cowork-flow.db.
+    """
+    if repo_root is None:
+        repo_root = get_repo_root()
+    return repo_root / DIR_WORKFLOW / FILE_FLOW_DB
 
 
 # =============================================================================
@@ -237,3 +248,4 @@ if __name__ == "__main__":
     print(f"Tasks dir: {get_tasks_dir(repo)}")
     print(f"Workspace dir: {get_workspace_dir(repo)}")
     print(f"Journal file: {get_active_journal_file(repo)}")
+    print(f"Flow db: {get_db_path(repo)}")

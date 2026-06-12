@@ -19,6 +19,7 @@ from common.paths import (
     ensure_task_date_prefix,
     get_repo_root,
 )
+from common.yaml_utils import format_scalar, read_flat_metadata, write_flat_metadata
 
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -57,42 +58,12 @@ def _metadata_path(change_dir: Path) -> Path:
     return change_dir / "change.yaml"
 
 
-def _format_scalar(value: object) -> str:
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
-
-
 def _write_metadata(change_dir: Path, metadata: dict[str, object]) -> None:
-    lines = [f"{key}: {_format_scalar(value)}\n" for key, value in metadata.items()]
-    _metadata_path(change_dir).write_text("".join(lines), encoding="utf-8")
-
-
-def _parse_scalar(value: str) -> object:
-    if value == "null":
-        return None
-    if value == "true":
-        return True
-    if value == "false":
-        return False
-    return value
+    write_flat_metadata(_metadata_path(change_dir), metadata)
 
 
 def _read_metadata(change_dir: Path) -> dict[str, object]:
-    path = _metadata_path(change_dir)
-    data: dict[str, object] = {}
-    if not path.is_file():
-        return data
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        data[key.strip()] = _parse_scalar(value.strip())
-    return data
+    return read_flat_metadata(_metadata_path(change_dir))
 
 
 def _has_text(path: Path) -> bool:
@@ -169,14 +140,18 @@ def _same_path(left: Path, right: Path) -> bool:
         return left.absolute() == right.absolute()
 
 
-def _task_link_matches(repo_root: Path, value: object, task_paths: Iterable[Path]) -> bool:
+def _task_link_matches(
+    repo_root: Path, value: object, task_paths: Iterable[Path]
+) -> bool:
     resolved = _resolve_link(repo_root, "tasks", value)
     if resolved is None:
         return False
     return any(_same_path(resolved, task_path) for task_path in task_paths)
 
 
-def linked_active_changes_for_task(repo_root: Path, task_paths: Iterable[Path]) -> list[str]:
+def linked_active_changes_for_task(
+    repo_root: Path, task_paths: Iterable[Path]
+) -> list[str]:
     """Return active change slugs whose metadata points at one of the task paths."""
     changes_dir = _changes_dir(repo_root)
     if not changes_dir.is_dir():
@@ -219,14 +194,16 @@ def archive_change_by_slug(repo_root: Path, slug: str) -> Path | None:
     return destination
 
 
-
 def _display_path(repo_root: Path, path: Path) -> str:
     try:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         return str(path)
 
-def _validate_link(repo_root: Path, metadata: dict[str, object], field: str, base_dir: str) -> str | None:
+
+def _validate_link(
+    repo_root: Path, metadata: dict[str, object], field: str, base_dir: str
+) -> str | None:
     target = _resolve_link(repo_root, base_dir, metadata.get(field))
     if target is not None and not target.exists():
         return f"{field} points to missing path: {_display_path(repo_root, target)}"
@@ -370,7 +347,7 @@ def list_changes(args: argparse.Namespace) -> int:
         task = metadata.get("task")
         print(
             f"{slug}\tstatus={status}\tlevel={level}\t"
-            f"plan={_format_scalar(plan)}\ttask={_format_scalar(task)}"
+            f"plan={format_scalar(plan)}\ttask={format_scalar(task)}"
         )
     return 0
 

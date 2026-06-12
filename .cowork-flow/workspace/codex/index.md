@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 49
-- **Last Active**: 2026-06-11
+- **Total Sessions**: 50
+- **Last Active**: 2026-06-12
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1600 | Current |
+| `journal-1.md` | ~1630 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 50 | 2026-06-12 | Flow Phase 1 closeout | - |
 | 49 | 2026-06-11 | Party Mode V2 runtime hardening | - |
 | 48 | 2026-06-10 | 修复脚本 BOM 编码 | - |
 | 47 | 2026-06-10 | 归档提交核验 | - |

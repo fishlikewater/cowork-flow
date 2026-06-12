@@ -6,8 +6,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .paths import DIR_ARCHIVE, DIR_CHANGES, DIR_TASKS, DIR_WORKFLOW, FILE_TASK_JSON, get_tasks_dir
+from .paths import (
+    DIR_ARCHIVE,
+    DIR_CHANGES,
+    DIR_TASKS,
+    DIR_WORKFLOW,
+    get_tasks_dir,
+)
 from .task_utils import find_task_by_name
+from .yaml_utils import read_flat_metadata
 
 REQUIRED_L2_MARKERS = {
     "goal and user value": (
@@ -17,7 +24,9 @@ REQUIRED_L2_MARKERS = {
     "non-goals": (("## non-goals", "non-goals", "非目标"),),
     "key assumptions": (("assumption", "assumptions", "关键假设"),),
     "scope boundary": (("## scope", "scope boundary", "范围边界", "scope:"),),
-    "acceptance criteria": (("acceptance criteria", "## acceptance", "验收标准", "验收"),),
+    "acceptance criteria": (
+        ("acceptance criteria", "## acceptance", "验收标准", "验收"),
+    ),
 }
 
 VERIFICATION_COMMAND_MARKERS = (
@@ -41,31 +50,6 @@ def _read_json(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
-
-
-def _parse_scalar(value: str) -> object:
-    if value == "null":
-        return None
-    if value == "true":
-        return True
-    if value == "false":
-        return False
-    return value
-
-
-def _read_metadata(path: Path) -> dict[str, object]:
-    data: dict[str, object] = {}
-    text = _read_text(path)
-    if not text:
-        return data
-
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        data[key.strip()] = _parse_scalar(value.strip())
-    return data
 
 
 def _display_path(repo_root: Path, path: Path) -> str:
@@ -104,8 +88,23 @@ def _task_ancestry(repo_root: Path, task_dir: Path) -> list[Path]:
     current = task_dir
 
     while True:
-        data = _read_json(current / FILE_TASK_JSON)
-        parent = data.get("parent")
+        parent = None
+        try:
+            from .paths import get_db_path
+            from flow.store import FlowStore
+
+            db_path = get_db_path(repo_root)
+            if db_path.exists():
+                with FlowStore(str(db_path)) as store:
+                    from .paths import TASK_DATE_PREFIX_PATTERN
+
+                    slug = TASK_DATE_PREFIX_PATTERN.sub("", current.name)
+                    task = store.get_task(slug)
+                    if task:
+                        parent = task.parent_id
+        except Exception:
+            pass
+
         if not isinstance(parent, str) or not parent.strip() or parent in seen:
             break
         parent_dir = find_task_by_name(parent, tasks_dir)
@@ -126,7 +125,9 @@ def _task_tokens(repo_root: Path, ancestry: list[Path]) -> set[str]:
     return {token for token in tokens if token}
 
 
-def _plan_mentions_task(repo_root: Path, plan_path: Path | None, ancestry: list[Path]) -> bool:
+def _plan_mentions_task(
+    repo_root: Path, plan_path: Path | None, ancestry: list[Path]
+) -> bool:
     if plan_path is None or not plan_path.is_file():
         return False
     text = _read_text(plan_path)
@@ -140,7 +141,9 @@ def _change_applies_to_task(
 ) -> tuple[bool, bool]:
     ancestry = _task_ancestry(repo_root, task_dir)
     linked_task = _resolve_link(repo_root, DIR_TASKS, metadata.get("task"))
-    if linked_task is not None and any(_same_path(linked_task, item) for item in ancestry):
+    if linked_task is not None and any(
+        _same_path(linked_task, item) for item in ancestry
+    ):
         return True, False
 
     plan_path = _resolve_link(repo_root, "plans", metadata.get("plan"))
@@ -162,7 +165,9 @@ def _has_verification_command(plan_text: str) -> bool:
     return any(marker in lower for marker in VERIFICATION_COMMAND_MARKERS)
 
 
-def _read_l2_context(repo_root: Path, change_dir: Path, plan_path: Path | None, task_dir: Path) -> str:
+def _read_l2_context(
+    repo_root: Path, change_dir: Path, plan_path: Path | None, task_dir: Path
+) -> str:
     parts = [
         _read_text(change_dir / "proposal.md"),
         _read_text(change_dir / "spec.md"),
@@ -202,11 +207,13 @@ def task_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
     blockers: list[str] = []
 
     for change_dir in _iter_change_dirs(repo_root):
-        metadata = _read_metadata(change_dir / "change.yaml")
+        metadata = read_flat_metadata(change_dir / "change.yaml")
         if metadata.get("level") != "L2" or metadata.get("status") == "archived":
             continue
 
-        applies, missing_task_link = _change_applies_to_task(repo_root, metadata, task_dir)
+        applies, missing_task_link = _change_applies_to_task(
+            repo_root, metadata, task_dir
+        )
         if not applies:
             continue
 
@@ -214,9 +221,13 @@ def task_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
         if missing_task_link:
             blockers.append(f"L2 readiness ({slug}): change.yaml task link is missing")
 
-        _append_missing_file_blocker(blockers, slug, change_dir / "proposal.md", "proposal.md")
+        _append_missing_file_blocker(
+            blockers, slug, change_dir / "proposal.md", "proposal.md"
+        )
         _append_missing_file_blocker(blockers, slug, change_dir / "spec.md", "spec.md")
-        _append_missing_file_blocker(blockers, slug, change_dir / "design.md", "design.md")
+        _append_missing_file_blocker(
+            blockers, slug, change_dir / "design.md", "design.md"
+        )
 
         plan_path = _resolve_link(repo_root, "plans", metadata.get("plan"))
         if plan_path is None:
@@ -244,6 +255,8 @@ def task_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
                 blockers.append(f"L2 readiness ({slug}): missing {label}")
 
         if not _has_verification_command(plan_text):
-            blockers.append(f"L2 readiness ({slug}): linked plan is missing verification commands")
+            blockers.append(
+                f"L2 readiness ({slug}): linked plan is missing verification commands"
+            )
 
     return blockers

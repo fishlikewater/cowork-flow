@@ -1,4 +1,5 @@
 """FlowStore unit tests."""
+import sqlite3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".cowork-flow" / "scripts"))
@@ -112,9 +113,22 @@ def test_audit_trail(store):
 
 def test_create_task_duplicate_id(store):
     store.create_task(id="dup", title="First", creator="d", assignee="d")
-    import sqlite3
     with pytest.raises(sqlite3.IntegrityError):
         store.create_task(id="dup", title="Second", creator="d", assignee="d")
+
+
+def test_integrity_error_rolls_back_transaction(store):
+    store.create_task(id="dup_tx", title="First", creator="d", assignee="d")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.create_task(id="dup_tx", title="Second", creator="d", assignee="d")
+
+    task_id = store.create_task(
+        id="after_integrity_error",
+        title="After rollback",
+        creator="d",
+        assignee="d",
+    )
+    assert store.get_task(task_id) is not None
 
 
 def test_agent_run_crud(store):
@@ -175,3 +189,66 @@ def test_board_view(store):
     assert len(view["columns"]) == 6
     planning_col = [c for c in view["columns"] if c["status"] == "planning"][0]
     assert len(planning_col["tasks"]) == 1
+
+
+def test_board_view_does_not_open_write_transaction(store):
+    statements: list[str] = []
+    store.db.set_trace_callback(statements.append)
+
+    store.board_view()
+
+    assert not any(stmt.upper().startswith("BEGIN IMMEDIATE") for stmt in statements)
+
+
+def test_unblock_without_active_block(store):
+    t = store.create_task(id="ub1", title="UB", creator="d", assignee="d")
+    before = store.get_audit_trail(t)
+    result = store.unblock_task(t, "approved", "human")
+    after = store.get_audit_trail(t)
+    task = store.get_task(t)
+    assert result is False
+    assert task is not None
+    assert task.status == "planning"
+    assert after == before
+
+
+def test_block_missing_task_returns_false(store):
+    assert store.block_task("missing", "need decision") is False
+
+
+def test_list_tasks_empty(store):
+    assert store.list_tasks() == []
+    assert store.list_tasks(status="planning") == []
+
+
+def test_create_task_with_pattern_and_level(store):
+    t = store.create_task(id="p1", title="Patterned", creator="d", assignee="d",
+                           pattern="fan_out", level="L2", priority="P0")
+    task = store.get_task(t)
+    assert task.pattern == "fan_out"
+    assert task.priority == "P0"
+
+
+def test_get_active_block_no_blocks(store):
+    t = store.create_task(id="nb1", title="NB", creator="d", assignee="d")
+    assert store.get_active_block(t) is None
+
+
+def test_cmd_init_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "test-init.db"
+    monkeypatch.setattr("common.paths.get_repo_root", lambda: tmp_path)
+    from flow.store import FlowStore
+    store = FlowStore(str(db_path))
+    assert db_path.exists()
+    store.close()
+
+
+def test_agent_run_with_host_context(store):
+    t = store.create_task(id="ar3", title="AR3", creator="d", assignee="d")
+    rid = store.create_agent_run(
+        id="rtx_ctx", task_id=t, agent_type="cowork-implement",
+        status="pending", host_context_key="key-abc",
+        created_at="2026-06-12T00:00:00Z",
+    )
+    active = store.get_active_agent_run(t)
+    assert active["host_context_key"] == "key-abc"

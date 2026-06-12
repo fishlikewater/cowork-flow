@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .paths import DIR_WORKFLOW, get_repo_root
+from .yaml_utils import parse_quoted_yaml
 
 
 # Defaults
@@ -27,63 +28,6 @@ DEFAULT_PARTY_MODE_V2_REQUIRE_CURRENT_ROUND_ONLY = True
 CONFIG_FILE = "config.yaml"
 
 
-def _unquote(value: str) -> str:
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-        return value[1:-1]
-    return value
-
-
-def _parse_simple_yaml(content: str) -> dict:
-    result: dict = {}
-    current_section: str | None = None
-    current_list_key: str | None = None
-
-    for raw_line in content.splitlines():
-        stripped = raw_line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        indent = len(raw_line) - len(raw_line.lstrip())
-
-        if indent == 0 and ":" in stripped:
-            key, _, value = stripped.partition(":")
-            key = key.strip()
-            value = _unquote(value.strip())
-            current_section = None
-            current_list_key = None
-
-            if value:
-                result[key] = value
-            else:
-                result[key] = {}
-                current_section = key
-            continue
-
-        if current_section and indent >= 2:
-            section = result.setdefault(current_section, {})
-            if not isinstance(section, dict):
-                continue
-
-            if stripped.startswith("- ") and current_list_key:
-                current_list = section.setdefault(current_list_key, [])
-                if isinstance(current_list, list):
-                    current_list.append(_unquote(stripped[2:].strip()))
-                continue
-
-            if ":" in stripped:
-                key, _, value = stripped.partition(":")
-                key = key.strip()
-                value = _unquote(value.strip())
-                if value:
-                    section[key] = value
-                    current_list_key = None
-                else:
-                    section[key] = []
-                    current_list_key = key
-
-    return result
-
-
 def _get_config_path(repo_root: Path | None = None) -> Path:
     """Get path to config.yaml."""
     root = repo_root or get_repo_root()
@@ -95,7 +39,7 @@ def _load_config(repo_root: Path | None = None) -> dict:
     config_file = _get_config_path(repo_root)
     try:
         content = config_file.read_text(encoding="utf-8")
-        return _parse_simple_yaml(content)
+        return parse_quoted_yaml(content)
     except (OSError, IOError):
         return {}
 
@@ -147,13 +91,17 @@ def get_codex_dispatch_mode(repo_root: Path | None = None) -> str:
         return str(mode)
     return DEFAULT_CODEX_DISPATCH_MODE
 
+
 def _get_section(config: dict, section_name: str) -> dict:
     section = config.get(section_name)
     if isinstance(section, dict):
         return section
     return {}
 
-def _get_int(section: dict, key: str, default: int, *, minimum: int | None = None) -> int:
+
+def _get_int(
+    section: dict, key: str, default: int, *, minimum: int | None = None
+) -> int:
     value = section.get(key, default)
     try:
         parsed = int(value)
@@ -162,6 +110,7 @@ def _get_int(section: dict, key: str, default: int, *, minimum: int | None = Non
     if minimum is not None and parsed < minimum:
         return default
     return parsed
+
 
 def _get_bool(section: dict, key: str, default: bool) -> bool:
     value = section.get(key, default)
@@ -174,6 +123,7 @@ def _get_bool(section: dict, key: str, default: bool) -> bool:
         if normalized in {"false", "0", "no", "off"}:
             return False
     return default
+
 
 def get_party_mode_v2_config(repo_root: Path | None = None) -> dict[str, int | bool]:
     """Get Party Mode V2 runtime-board defaults."""
@@ -224,11 +174,14 @@ def get_party_mode_v2_config(repo_root: Path | None = None) -> dict[str, int | b
         ),
     }
 
+
 def get_party_mode_v2_min_agents(repo_root: Path | None = None) -> int:
     return int(get_party_mode_v2_config(repo_root)["min_agents"])
 
+
 def get_party_mode_v2_max_agents(repo_root: Path | None = None) -> int:
     return int(get_party_mode_v2_config(repo_root)["max_agents"])
+
 
 def get_party_mode_v2_max_rounds(repo_root: Path | None = None) -> int:
     return int(get_party_mode_v2_config(repo_root)["max_rounds"])

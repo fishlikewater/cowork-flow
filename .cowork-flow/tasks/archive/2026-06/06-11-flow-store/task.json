@@ -1,0 +1,21 @@
+{
+  "id": "flow-store",
+  "name": "flow-store",
+  "title": "Implement FlowStore CRUD with SQLite",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-11",
+  "completedAt": "2026-06-12",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

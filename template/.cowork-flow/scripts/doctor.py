@@ -82,11 +82,10 @@ REQUIRED_HOOK_SNIPPETS = [
 ]
 
 REQUIRED_RUNTIME_HOOK_SNIPPETS = [
-    "resolve_runtime_context_id",
-    "bind_runtime_context",
+    "resolve_runtime_context",
     "runtime-context-invalid",
     'status = "delegated_subtask"',
-    "workflow-state-templates.md",
+    "from common.inject_workflow_state import",
 ]
 
 REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
@@ -233,22 +232,30 @@ def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
         ".cowork-flow/spec/registry.json",
         "template/.cowork-flow/spec/registry.json",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors)
+        _check_file_contains(
+            repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors
+        )
     for rel in (
         ".cowork-flow/spec/subagent-dispatch.md",
         "template/.cowork-flow/spec/subagent-dispatch.md",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_SUBAGENT_DISPATCH_SNIPPETS, errors)
+        _check_file_contains(
+            repo_root / rel, REQUIRED_SUBAGENT_DISPATCH_SNIPPETS, errors
+        )
     for rel in (
         ".cowork-flow/spec/workflow-state-templates.md",
         "template/.cowork-flow/spec/workflow-state-templates.md",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
+        _check_file_contains(
+            repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors
+        )
     for rel in (
         ".cowork-flow/scripts/common/entry_classifier.py",
         "template/.cowork-flow/scripts/common/entry_classifier.py",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CLASSIFIER_SNIPPETS, errors)
+        _check_file_contains(
+            repo_root / rel, REQUIRED_ENTRY_CLASSIFIER_SNIPPETS, errors
+        )
 
 
 def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
@@ -260,7 +267,12 @@ def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
     ):
         _check_file_contains(
             repo_root / rel,
-            ["dispatchSubagent", "freshChildContext", "runtimeContextDispatch", "unsupported"],
+            [
+                "dispatchSubagent",
+                "freshChildContext",
+                "runtimeContextDispatch",
+                "unsupported",
+            ],
             errors,
         )
     for rel in (
@@ -357,7 +369,9 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         ".claude/settings.json",
         "template/.claude/settings.json",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
+        _check_file_contains(
+            repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors
+        )
     for rel in (
         ".claude/hooks/inject-workflow-state.py",
         "template/.claude/hooks/inject-workflow-state.py",
@@ -365,6 +379,19 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         "template/.codex/hooks/inject-workflow-state.py",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_HOOK_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/scripts/common/inject_workflow_state.py",
+        "template/.cowork-flow/scripts/common/inject_workflow_state.py",
+    ):
+        _check_file_contains(
+            repo_root / rel,
+            [
+                "resolve_runtime_context_id",
+                "bind_runtime_context",
+                "workflow-state-templates.md",
+            ],
+            errors,
+        )
     for rel in (
         "CLAUDE.md",
         "template/CLAUDE.md",
@@ -389,7 +416,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
             repo_root / rel,
             [
                 "experimental.chat.system.transform",
-                ".cowork-flow\", \"spec\", \"registry.json",
+                '.cowork-flow", "spec", "registry.json',
                 "<contract-digest fingerprint=",
                 "read_before",
                 "RUNTIME_CONTEXT_DISPATCH_V2",
@@ -440,11 +467,15 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
                 )
             for snippet in FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS:
                 if snippet in description:
-                    errors.append(f"{rel} description contains stale dispatch marker: {snippet}")
+                    errors.append(
+                        f"{rel} description contains stale dispatch marker: {snippet}"
+                    )
         elif data is not None:
             errors.append(f"{rel} missing description")
     if (repo_root / "README.md").is_file():
-        _check_file_omits(repo_root / "README.md", FORBIDDEN_README_DISPATCH_SNIPPETS, errors)
+        _check_file_omits(
+            repo_root / "README.md", FORBIDDEN_README_DISPATCH_SNIPPETS, errors
+        )
     for rel in (
         ".codex/agents/worker.toml",
         ".codex/agents/default.toml",
@@ -453,7 +484,9 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.codex/agents/default.toml",
         "template/.codex/agents/explorer.toml",
     ):
-        _check_file_contains(repo_root / rel, ["bootstrap", "start", "resume", "advisory"], errors)
+        _check_file_contains(
+            repo_root / rel, ["bootstrap", "start", "resume", "advisory"], errors
+        )
         data = _check_toml_parseable(repo_root / rel, errors)
         if data is not None and data.get("name") != Path(rel).stem:
             errors.append(f"{rel} name must match filename")
@@ -461,7 +494,9 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         ".cowork-flow/workflow.md",
         "template/.cowork-flow/workflow.md",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_DISPATCH_SNIPPETS, errors)
+        _check_file_contains(
+            repo_root / rel, REQUIRED_WORKFLOW_DISPATCH_SNIPPETS, errors
+        )
     _check_common_contracts(repo_root, errors)
     _check_host_adapters(repo_root, errors)
     for rel in (
@@ -496,9 +531,17 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="cowork-flow diagnostics")
-    parser.add_argument("--subagent-safety", action="store_true", help="Check subagent safety wiring")
-    parser.add_argument("--entry-contract", action="store_true", help="Check entry classification contract")
-    parser.add_argument("--host-adapters", action="store_true", help="Check host adapter declarations")
+    parser.add_argument(
+        "--subagent-safety", action="store_true", help="Check subagent safety wiring"
+    )
+    parser.add_argument(
+        "--entry-contract",
+        action="store_true",
+        help="Check entry classification contract",
+    )
+    parser.add_argument(
+        "--host-adapters", action="store_true", help="Check host adapter declarations"
+    )
     return parser
 
 

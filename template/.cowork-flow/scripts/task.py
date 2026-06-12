@@ -52,6 +52,7 @@ from common.paths import (
     DIR_SPEC,
     DIR_ARCHIVE,
     FILE_TASK_JSON,
+    TASK_DATE_PREFIX_PATTERN,
     get_repo_root,
     get_developer,
     get_tasks_dir,
@@ -73,9 +74,19 @@ DONE_STATUSES = ("completed", "done")
 CHECK_STATUSES = ("review", "checking")
 
 
+def _get_flow_store(repo_root: Path | None = None):
+    from common.paths import get_db_path as _get_db_path
+    from flow.store import FlowStore as _FlowStore
+
+    root = repo_root or get_repo_root()
+    db_path = _get_db_path(root)
+    return _FlowStore(str(db_path))
+
+
 # =============================================================================
 # Colors
 # =============================================================================
+
 
 class Colors:
     RED = "\033[0;31m"
@@ -157,7 +168,7 @@ def _build_archived_task_relationship_updates(
 
 
 def _apply_json_updates_with_rollback(
-    updates: list[tuple[Path, dict, dict, str]]
+    updates: list[tuple[Path, dict, dict, str]],
 ) -> bool:
     """Apply a batch of JSON updates and roll back any partial writes on failure."""
     applied: list[tuple[Path, dict, str]] = []
@@ -197,7 +208,10 @@ def _rollback_archived_task_or_report(
 ) -> None:
     """Try to restore the original task location and metadata after archive failure."""
     print(
-        colored("Warning: Archive failed after partial progress; attempting rollback.", Colors.YELLOW),
+        colored(
+            "Warning: Archive failed after partial progress; attempting rollback.",
+            Colors.YELLOW,
+        ),
         file=sys.stderr,
     )
 
@@ -206,7 +220,10 @@ def _rollback_archived_task_or_report(
             shutil.move(str(archive_dest), str(task_dir))
         except (OSError, IOError, shutil.Error) as e:
             print(
-                colored(f"Error: Failed to move archived task back to source: {e}", Colors.RED),
+                colored(
+                    f"Error: Failed to move archived task back to source: {e}",
+                    Colors.RED,
+                ),
                 file=sys.stderr,
             )
     elif archive_dest.exists() and task_dir.exists():
@@ -219,7 +236,10 @@ def _rollback_archived_task_or_report(
         )
 
     if task_data and task_dir.is_dir():
-        _write_json_or_report(task_dir / FILE_TASK_JSON, task_data, "restored task metadata")
+        _write_json_or_report(
+            task_dir / FILE_TASK_JSON, task_data, "restored task metadata"
+        )
+
 
 def _finalize_archived_task_metadata(
     archive_dest: Path,
@@ -250,13 +270,11 @@ def _finalize_archived_task_metadata(
 # Lifecycle Hooks
 # =============================================================================
 
-def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
+
+def _run_hooks(event: str, task_dir: str, task_id: str, repo_root: Path) -> None:
     """Run lifecycle hooks for an event.
 
-    Args:
-        event: Event name (e.g. "after_create").
-        task_json_path: Absolute path to the task's task.json.
-        repo_root: Repository root for cwd and config lookup.
+    Passes COWORK_TASK_ID, COWORK_TASK_DIR, and COWORK_DB_PATH to hook subprocess.
     """
     import os
     import shlex
@@ -266,7 +284,12 @@ def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
     if not commands:
         return
 
-    env = {**os.environ, "TASK_JSON_PATH": str(task_json_path)}
+    env = {
+        **os.environ,
+        "COWORK_TASK_ID": task_id,
+        "COWORK_TASK_DIR": task_dir,
+        "COWORK_DB_PATH": str(repo_root / DIR_WORKFLOW / "cowork-flow.db"),
+    }
 
     for cmd in commands:
         try:
@@ -287,6 +310,8 @@ def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
                 if result.stderr.strip():
                     print(f"  {result.stderr.strip()}", file=sys.stderr)
         except Exception as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
             print(
                 colored(f"[WARN] Hook error ({event}): {cmd} - {e}", Colors.YELLOW),
                 file=sys.stderr,
@@ -331,31 +356,67 @@ def _resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
     return repo_root / target_dir
 
 
+def _resolve_task_id(target: str, repo_root: Path) -> str:
+    """Resolve a task slug from directory path or slug name.
+
+    - "06-11-my-feature" -> "my-feature"
+    - ".cowork-flow/tasks/06-11-my-feature" -> "my-feature"
+    - "my-feature" -> "my-feature"
+    """
+    if not target:
+        return ""
+    task_dir = _resolve_task_dir(target, repo_root)
+    dir_name = task_dir.name
+    # Strip MM-DD- prefix if present
+    if TASK_DATE_PREFIX_PATTERN.match(dir_name):
+        return TASK_DATE_PREFIX_PATTERN.sub("", dir_name)
+    return dir_name
+
+
 # =============================================================================
 # JSONL Default Content Generators
 # =============================================================================
 
+
 def get_implement_base() -> list[dict]:
     """Get base implement context entries."""
     return [
-        {"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"},
-        {"file": f"{DIR_WORKFLOW}/workflow.md", "reason": "Project workflow and conventions"},
-        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/index.md", "reason": "Pre-implementation thinking guides"},
-        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"},
+        {
+            "file": "AGENTS.md",
+            "reason": "Project collaboration rules and workflow gates",
+        },
+        {
+            "file": f"{DIR_WORKFLOW}/workflow.md",
+            "reason": "Project workflow and conventions",
+        },
+        {
+            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/index.md",
+            "reason": "Pre-implementation thinking guides",
+        },
+        {
+            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/pre-implementation-checklist.md",
+            "reason": "Mandatory pre-coding checklist",
+        },
     ]
 
 
 def get_implement_backend() -> list[dict]:
     """Get backend implement context entries."""
     return [
-        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md", "reason": "Backend development guide"},
+        {
+            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md",
+            "reason": "Backend development guide",
+        },
     ]
 
 
 def get_implement_frontend() -> list[dict]:
     """Get frontend implement context entries."""
     return [
-        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md", "reason": "Frontend development guide"},
+        {
+            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md",
+            "reason": "Frontend development guide",
+        },
     ]
 
 
@@ -371,8 +432,10 @@ def _detect_installed_platforms(repo_root: Path | None = None) -> list[str]:
         platforms.append("claude-code")
     return platforms
 
+
 def _use_claude_skill_context(repo_root: Path | None = None) -> bool:
     return _detect_installed_platforms(repo_root) == ["claude-code"]
+
 
 def _skill_path(name: str, repo_root: Path | None = None) -> str:
     if _use_claude_skill_context(repo_root):
@@ -383,8 +446,14 @@ def _skill_path(name: str, repo_root: Path | None = None) -> str:
 def get_check_context(dev_type: str) -> list[dict]:
     """Get check context entries."""
     return [
-        {"file": _skill_path("check"), "reason": "Quality, contract, and template consistency check"},
-        {"file": _skill_path("finish-work"), "reason": "Finish, archive, and session recording gate"},
+        {
+            "file": _skill_path("check"),
+            "reason": "Quality, contract, and template consistency check",
+        },
+        {
+            "file": _skill_path("finish-work"),
+            "reason": "Finish, archive, and session recording gate",
+        },
     ]
 
 
@@ -392,8 +461,14 @@ def get_debug_context(dev_type: str) -> list[dict]:
     """Get debug context entries."""
     return [
         {"file": _skill_path("break-loop"), "reason": "Deep bug analysis workflow"},
-        {"file": _skill_path("update-spec"), "reason": "Capture implementation lessons and contracts"},
-        {"file": _skill_path("check"), "reason": "Verify the fix and related contracts"},
+        {
+            "file": _skill_path("update-spec"),
+            "reason": "Capture implementation lessons and contracts",
+        },
+        {
+            "file": _skill_path("check"),
+            "reason": "Verify the fix and related contracts",
+        },
     ]
 
 
@@ -417,10 +492,6 @@ def _read_text_if_present(path: Path) -> str:
 def _task_start_blockers(task_dir: Path) -> list[str]:
     """返回启动任务前必须处理的准备阻塞项。"""
     blockers: list[str] = []
-
-    task_json = task_dir / FILE_TASK_JSON
-    if not task_json.is_file():
-        blockers.append("task.json is missing")
 
     prd_file = task_dir / "prd.md"
     if not _read_text_if_present(prd_file):
@@ -461,32 +532,10 @@ def _iter_jsonl_lines(path: Path):
             yield line_num, line.rstrip("\n")
 
 
-def _load_task_summary(task_dir: Path) -> dict:
-    """Load task fields needed for tree/list output."""
-    data = _read_json_file(task_dir / FILE_TASK_JSON) or {}
-    return {
-        "status": data.get("status", "unknown"),
-        "assignee": data.get("assignee", "-"),
-        "children": data.get("children", []),
-        "parent": data.get("parent"),
-    }
-
-
-def _load_task_summaries(tasks_dir: Path) -> dict[str, dict]:
-    """Load active task summaries keyed by directory name."""
-    all_tasks: dict[str, dict] = {}
-    if not tasks_dir.is_dir():
-        return all_tasks
-
-    for d in sorted(tasks_dir.iterdir()):
-        if d.is_dir() and d.name != DIR_ARCHIVE:
-            all_tasks[d.name] = _load_task_summary(d)
-    return all_tasks
-
-
 # =============================================================================
 # Task Operations
 # =============================================================================
+
 
 def ensure_tasks_dir(repo_root: Path) -> Path:
     """Ensure tasks directory exists."""
@@ -495,7 +544,10 @@ def ensure_tasks_dir(repo_root: Path) -> Path:
 
     if not tasks_dir.exists():
         tasks_dir.mkdir(parents=True)
-        print(colored(f"Created tasks directory: {tasks_dir}", Colors.GREEN), file=sys.stderr)
+        print(
+            colored(f"Created tasks directory: {tasks_dir}", Colors.GREEN),
+            file=sys.stderr,
+        )
 
     if not archive_dir.exists():
         archive_dir.mkdir(parents=True)
@@ -507,6 +559,7 @@ def ensure_tasks_dir(repo_root: Path) -> Path:
 # Command: create
 # =============================================================================
 
+
 def cmd_create(args: argparse.Namespace) -> int:
     """Create a new task."""
     repo_root = get_repo_root()
@@ -515,102 +568,99 @@ def cmd_create(args: argparse.Namespace) -> int:
         print(colored("Error: title is required", Colors.RED), file=sys.stderr)
         return 1
 
-    # Default assignee to current developer
     assignee = args.assignee
     if not assignee:
         assignee = get_developer(repo_root)
         if not assignee:
-            print(colored("Error: No developer set. Run init_developer.py first or use --assignee", Colors.RED), file=sys.stderr)
+            print(
+                colored(
+                    "Error: No developer set. Run init_developer.py first or use --assignee",
+                    Colors.RED,
+                ),
+                file=sys.stderr,
+            )
             return 1
 
-    ensure_tasks_dir(repo_root)
-
-    # Get current developer as creator
     creator = get_developer(repo_root) or assignee
-
-    # Generate slug if not provided
     slug = args.slug or _slugify(args.title)
     if not slug:
-        print(colored("Error: could not generate slug from title", Colors.RED), file=sys.stderr)
+        print(
+            colored("Error: could not generate slug from title", Colors.RED),
+            file=sys.stderr,
+        )
         return 1
 
-    # Create task directory with MM-DD-slug format
+    # Create artifact directory
     tasks_dir = get_tasks_dir(repo_root)
     dir_name = ensure_task_date_prefix(slug)
     task_dir = tasks_dir / dir_name
-    task_json_path = task_dir / FILE_TASK_JSON
-
-    if task_dir.exists():
-        print(colored(f"Warning: Task directory already exists: {dir_name}", Colors.YELLOW), file=sys.stderr)
-    else:
+    if not task_dir.exists():
         task_dir.mkdir(parents=True)
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Parse --meta
+    meta = {}
+    if hasattr(args, "meta") and args.meta:
+        try:
+            meta = json.loads(args.meta)
+        except json.JSONDecodeError:
+            print(colored("Error: invalid --meta JSON", Colors.RED), file=sys.stderr)
+            return 1
 
-    task_data = {
-        "id": slug,
-        "name": slug,
-        "title": args.title,
-        "description": args.description or "",
-        "status": "planning",
-        "dev_type": None,
-        "scope": None,
-        "priority": args.priority,
-        "creator": creator,
-        "assignee": assignee,
-        "createdAt": today,
-        "completedAt": None,
-        "commit": None,
-        "subtasks": [],
-        "children": [],
-        "parent": None,
-        "relatedFiles": [],
-        "notes": "",
-        "meta": {},
-    }
+    # Write to FlowStore
+    with _get_flow_store(repo_root) as store:
+        pattern = getattr(args, "pattern", "generic") or "generic"
+        parent_slug = None
 
-    _write_json_file(task_json_path, task_data)
+        # Resolve parent slug before create (supports both legacy task.json and Flow)
+        if args.parent:
+            parent_dir = _resolve_task_dir(args.parent, repo_root)
+            if parent_dir.is_dir():
+                parent_json = parent_dir / FILE_TASK_JSON
+                if parent_json.is_file():
+                    parent_data = _read_json_file(parent_json)
+                    parent_slug = parent_data.get("id") if parent_data else None
+            # Fallback: resolve from FlowStore
+            if not parent_slug:
+                try:
+                    flow_task = store.get_task(_resolve_task_id(args.parent, repo_root))
+                    parent_slug = flow_task.id if flow_task else None
+                except Exception:
+                    pass
+            if not parent_slug:
+                parent_slug = _resolve_task_id(args.parent, repo_root)
 
-    # Handle --parent: establish bidirectional link
-    if args.parent:
-        parent_dir = _resolve_task_dir(args.parent, repo_root)
-        parent_json_path = parent_dir / FILE_TASK_JSON
-        if not parent_json_path.is_file():
-            print(colored(f"Warning: Parent task.json not found: {args.parent}", Colors.YELLOW), file=sys.stderr)
-        else:
-            parent_data = _read_json_file(parent_json_path)
-            if parent_data:
-                # Add child to parent's children list
-                parent_children = parent_data.get("children", [])
-                if dir_name not in parent_children:
-                    parent_children.append(dir_name)
-                    parent_data["children"] = parent_children
-                    _write_json_file(parent_json_path, parent_data)
+        store.create_task(
+            id=slug,
+            title=args.title,
+            description=args.description or "",
+            pattern=pattern,
+            priority=args.priority or "P2",
+            creator=creator,
+            assignee=assignee,
+            parent_id=parent_slug,
+            artifact_dir=dir_name,
+            meta=meta,
+        )
 
-                # Set parent in child's task.json
-                task_data["parent"] = parent_dir.name
-                _write_json_file(task_json_path, task_data)
-
-                print(colored(f"Linked as child of: {parent_dir.name}", Colors.GREEN), file=sys.stderr)
+        if parent_slug:
+            print(
+                colored(f"Linked as child of: {parent_slug}", Colors.GREEN),
+                file=sys.stderr,
+            )
 
     print(colored(f"Created task: {dir_name}", Colors.GREEN), file=sys.stderr)
-    print("", file=sys.stderr)
-    print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
-    print("  1. Create prd.md with requirements", file=sys.stderr)
-    print("  2. Run: ./.cowork-flow/run task init-context <dir> <dev_type>", file=sys.stderr)
-    print("  3. Run: ./.cowork-flow/run task start <dir>", file=sys.stderr)
-    print("", file=sys.stderr)
-
-    # Output relative path for script chaining
     print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
 
-    _run_hooks("after_create", task_json_path, repo_root)
+    _run_hooks(
+        "after_create", f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}", slug, repo_root
+    )
     return 0
 
 
 # =============================================================================
 # Command: init-context
 # =============================================================================
+
 
 def cmd_init_context(args: argparse.Namespace) -> int:
     """Initialize JSONL context files for a task."""
@@ -666,7 +716,9 @@ def cmd_init_context(args: argparse.Namespace) -> int:
     print(colored("[OK] All context files created", Colors.GREEN))
     print()
     print(colored("Next steps:", Colors.BLUE))
-    print("  1. Add task-specific specs: ./.cowork-flow/run task add-context <dir> <jsonl> <path>")
+    print(
+        "  1. Add task-specific specs: ./.cowork-flow/run task add-context <dir> <jsonl> <path>"
+    )
     print("  2. Set as current: ./.cowork-flow/run task start <dir>")
 
     return 0
@@ -675,6 +727,7 @@ def cmd_init_context(args: argparse.Namespace) -> int:
 # =============================================================================
 # Command: add-context
 # =============================================================================
+
 
 def cmd_add_context(args: argparse.Namespace) -> int:
     """Add entry to JSONL context file."""
@@ -709,7 +762,9 @@ def cmd_add_context(args: argparse.Namespace) -> int:
     if jsonl_file.is_file():
         for _, line in _iter_jsonl_lines(jsonl_file):
             if f'"{path}"' in line:
-                print(colored(f"Warning: Entry already exists for {path}", Colors.YELLOW))
+                print(
+                    colored(f"Warning: Entry already exists for {path}", Colors.YELLOW)
+                )
                 return 0
 
     # Add entry
@@ -729,6 +784,7 @@ def cmd_add_context(args: argparse.Namespace) -> int:
 # =============================================================================
 # Command: validate
 # =============================================================================
+
 
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate JSONL context files."""
@@ -779,7 +835,9 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path, quiet: bool = False) -> i
             data = json.loads(line)
         except json.JSONDecodeError:
             if not quiet:
-                print(f"  {colored(f'{file_name}:{line_num}: Invalid JSON', Colors.RED)}")
+                print(
+                    f"  {colored(f'{file_name}:{line_num}: Invalid JSON', Colors.RED)}"
+                )
             errors += 1
             continue
 
@@ -788,7 +846,9 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path, quiet: bool = False) -> i
 
         if not file_path:
             if not quiet:
-                print(f"  {colored(f'{file_name}:{line_num}: Missing file field', Colors.RED)}")
+                print(
+                    f"  {colored(f'{file_name}:{line_num}: Missing file field', Colors.RED)}"
+                )
             errors += 1
             continue
 
@@ -796,17 +856,23 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path, quiet: bool = False) -> i
         if entry_type == "directory":
             if not full_path.is_dir():
                 if not quiet:
-                    print(f"  {colored(f'{file_name}:{line_num}: Directory not found: {file_path}', Colors.RED)}")
+                    print(
+                        f"  {colored(f'{file_name}:{line_num}: Directory not found: {file_path}', Colors.RED)}"
+                    )
                 errors += 1
         else:
             if not full_path.is_file():
                 if not quiet:
-                    print(f"  {colored(f'{file_name}:{line_num}: File not found: {file_path}', Colors.RED)}")
+                    print(
+                        f"  {colored(f'{file_name}:{line_num}: File not found: {file_path}', Colors.RED)}"
+                    )
                 errors += 1
 
     if not quiet:
         if errors == 0:
-            print(f"  {colored(f'{file_name}: [OK] ({entry_count} entries)', Colors.GREEN)}")
+            print(
+                f"  {colored(f'{file_name}: [OK] ({entry_count} entries)', Colors.GREEN)}"
+            )
         else:
             print(f"  {colored(f'{file_name}: [FAIL] ({errors} errors)', Colors.RED)}")
 
@@ -816,6 +882,7 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path, quiet: bool = False) -> i
 # =============================================================================
 # Command: list-context
 # =============================================================================
+
 
 def cmd_list_context(args: argparse.Namespace) -> int:
     """List JSONL context entries."""
@@ -866,6 +933,7 @@ def cmd_list_context(args: argparse.Namespace) -> int:
 # Command: start / finish
 # =============================================================================
 
+
 def cmd_start(args: argparse.Namespace) -> int:
     """Set active task for this session."""
     repo_root = get_repo_root()
@@ -880,12 +948,17 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     if not full_path.is_dir():
         print(colored(f"Error: Task not found: {task_input}", Colors.RED))
-        print(f"Hint: Use task name (e.g., 'my-task') or full path (e.g., '{DIR_WORKFLOW}/tasks/01-31-my-task')")
+        print(
+            f"Hint: Use task name (e.g., 'my-task') or full path (e.g., '{DIR_WORKFLOW}/tasks/01-31-my-task')"
+        )
         return 1
 
     blockers = _task_start_blockers(full_path)
     if blockers:
-        print(colored("Error: Task is not ready to start yet", Colors.RED), file=sys.stderr)
+        print(
+            colored("Error: Task is not ready to start yet", Colors.RED),
+            file=sys.stderr,
+        )
         for blocker in blockers:
             print(f"  - {blocker}", file=sys.stderr)
         print(
@@ -896,7 +969,10 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     validation_issues = _task_context_validation_issues(full_path, repo_root)
     if validation_issues:
-        print(colored("Error: Task context validation failed", Colors.RED), file=sys.stderr)
+        print(
+            colored("Error: Task context validation failed", Colors.RED),
+            file=sys.stderr,
+        )
         for issue in validation_issues:
             print(f"  - {issue}", file=sys.stderr)
         print(
@@ -916,11 +992,6 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
-    task_json_path = full_path / FILE_TASK_JSON
-    task_data = _load_task_data_or_report(full_path)
-    if task_data is None:
-        return 1
-
     # Convert to relative path for storage
     try:
         task_dir = full_path.relative_to(repo_root).as_posix()
@@ -938,16 +1009,28 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
-    task_data["status"] = "in_progress"
-    if not _write_json_or_report(task_json_path, task_data, "task metadata"):
-        clear_active_task(repo_root)
-        return 1
+    # Update FlowStore
+    try:
+        with _get_flow_store(repo_root) as store:
+            task_id = _resolve_task_id(task_dir, repo_root)
+            if store.get_task(task_id):
+                store.update_status(task_id, "in_progress", "system", "task start")
+    except Exception as exc:
+        print(
+            colored(f"[WARN] FlowStore update failed: {exc}", Colors.YELLOW),
+            file=sys.stderr,
+        )
 
     print(colored(f"[OK] Active session task set to: {task_dir}", Colors.GREEN))
     print()
-    print(colored("Fixed agents will load context from this task's jsonl files.", Colors.BLUE))
+    print(
+        colored(
+            "Fixed agents will load context from this task's jsonl files.", Colors.BLUE
+        )
+    )
 
-    _run_hooks("after_start", task_json_path, repo_root)
+    task_id_for_hook = _resolve_task_id(task_dir, repo_root)
+    _run_hooks("after_start", task_dir, task_id_for_hook, repo_root)
     return 0
 
 
@@ -958,8 +1041,14 @@ def cmd_review(args: argparse.Namespace) -> int:
     if task_dir is None:
         return 1
 
-    if not _set_task_status(task_dir, "review"):
-        return 1
+    task_id = _resolve_task_id(task_dir.name, repo_root)
+    with _get_flow_store(repo_root) as store:
+        if not store.update_status(task_id, "review", "system", "task review"):
+            print(
+                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
 
     task_path = _display_task_path(repo_root, task_dir)
     print(colored(f"[OK] Task marked for check: {task_path}", Colors.GREEN))
@@ -974,9 +1063,14 @@ def cmd_complete(args: argparse.Namespace) -> int:
     if task_dir is None:
         return 1
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    if not _set_task_status(task_dir, "completed", completed_at=today):
-        return 1
+    task_id = _resolve_task_id(task_dir.name, repo_root)
+    with _get_flow_store(repo_root) as store:
+        if not store.update_status(task_id, "completed", "system", "task complete"):
+            print(
+                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
 
     task_path = _display_task_path(repo_root, task_dir)
     print(colored(f"[OK] Task marked completed: {task_path}", Colors.GREEN))
@@ -993,14 +1087,16 @@ def cmd_finish(args: argparse.Namespace) -> int:
         print(colored("No active task set for this session", Colors.YELLOW))
         return 0
 
-    # Resolve task.json path before clearing
-    task_json_path = repo_root / active.task_path / FILE_TASK_JSON
     clear_active_task(repo_root)
 
-    print(colored(f"[OK] Cleared active session task (was: {active.task_path})", Colors.GREEN))
+    print(
+        colored(
+            f"[OK] Cleared active session task (was: {active.task_path})", Colors.GREEN
+        )
+    )
 
-    if task_json_path.is_file():
-        _run_hooks("after_finish", task_json_path, repo_root)
+    task_id_for_hook = _resolve_task_id(active.task_path, repo_root)
+    _run_hooks("after_finish", str(active.task_path), task_id_for_hook, repo_root)
     return 0
 
 
@@ -1032,36 +1128,43 @@ def _display_task_path(repo_root: Path, task_dir: Path) -> str:
         return str(task_dir)
 
 
-def _load_task_status(task_dir: Path) -> str:
-    task_json = task_dir / FILE_TASK_JSON
+def _load_flow_task_status(task_dir: Path, repo_root: Path) -> str:
+    task_id = _resolve_task_id(str(task_dir), repo_root)
     try:
-        data = json.loads(task_json.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return "stale"
-    status = data.get("status") if isinstance(data, dict) else None
-    return status.strip() if isinstance(status, str) and status.strip() else "unknown"
+        with _get_flow_store(repo_root) as store:
+            task = store.get_task(task_id)
+            if task:
+                return task.status
+    except Exception:
+        pass
+    return "unknown"
 
 
-def _load_task_data_or_report(task_dir: Path) -> dict | None:
-    task_json = task_dir / FILE_TASK_JSON
-    data = _read_json_file(task_json)
-    if data is None:
-        print(colored(f"Error: Failed to read task metadata: {task_json}", Colors.RED), file=sys.stderr)
-        return None
-    return data
-
-
-def _set_task_status(task_dir: Path, status: str, completed_at: str | None = None) -> bool:
-    task_json = task_dir / FILE_TASK_JSON
-    data = _load_task_data_or_report(task_dir)
-    if data is None:
-        return False
-
-    data["status"] = status
-    if status in DONE_STATUSES:
-        data["completedAt"] = completed_at or datetime.now().strftime("%Y-%m-%d")
-
-    return _write_json_or_report(task_json, data, "task metadata")
+def _load_flow_task_summaries(repo_root: Path) -> dict[str, dict]:
+    all_tasks: dict[str, dict] = {}
+    slug_to_dir: dict[str, str] = {}
+    try:
+        with _get_flow_store(repo_root) as store:
+            for task in store.list_tasks():
+                slug_to_dir[task.id] = task.artifact_dir
+                all_tasks[task.artifact_dir] = {
+                    "status": task.status,
+                    "assignee": task.assignee,
+                    "children": [],  # resolved below
+                    "parent": None,  # resolved below
+                }
+            for task in store.list_tasks():
+                entry = all_tasks.get(task.artifact_dir)
+                if not entry:
+                    continue
+                entry["children"] = [
+                    slug_to_dir[c] for c in task.children if c in slug_to_dir
+                ]
+                if task.parent_id and task.parent_id in slug_to_dir:
+                    entry["parent"] = slug_to_dir[task.parent_id]
+    except Exception:
+        pass
+    return all_tasks
 
 
 def _resolve_status_task_dir(args: argparse.Namespace, repo_root: Path) -> Path | None:
@@ -1080,15 +1183,18 @@ def _resolve_status_task_dir(args: argparse.Namespace, repo_root: Path) -> Path 
             )
             return None
         if not active.task_path:
-            print(colored("Error: No active task set for this session", Colors.RED), file=sys.stderr)
+            print(
+                colored("Error: No active task set for this session", Colors.RED),
+                file=sys.stderr,
+            )
             return None
         task_dir = repo_root / active.task_path
 
     if not task_dir.is_dir():
-        print(colored(f"Error: Task not found: {target_input or task_dir}", Colors.RED), file=sys.stderr)
-        return None
-    if not (task_dir / FILE_TASK_JSON).is_file():
-        print(colored(f"Error: task.json not found: {task_dir}", Colors.RED), file=sys.stderr)
+        print(
+            colored(f"Error: Task not found: {target_input or task_dir}", Colors.RED),
+            file=sys.stderr,
+        )
         return None
     return task_dir
 
@@ -1134,7 +1240,9 @@ def _linked_changes_ready_for_archive(repo_root: Path, slugs: list[str]) -> bool
     for slug in slugs:
         if not validate_change(repo_root, slug, quiet=True):
             print(
-                colored(f"Error: Linked change is not ready to archive: {slug}", Colors.RED),
+                colored(
+                    f"Error: Linked change is not ready to archive: {slug}", Colors.RED
+                ),
                 file=sys.stderr,
             )
             ready = False
@@ -1173,7 +1281,9 @@ def cmd_next(args: argparse.Namespace) -> int:
             print("Status: no_task")
             print(f"Source: {source}")
             print("Next action: create or start a task before repository changes")
-            print('Command: ./.cowork-flow/run task create "<title>" --slug <task-name>')
+            print(
+                'Command: ./.cowork-flow/run task create "<title>" --slug <task-name>'
+            )
             print("Then: ./.cowork-flow/run task start <task-dir>")
             print(
                 "Delegated subtask: execute the delegated prompt directly; do not start or resume workflow."
@@ -1193,7 +1303,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(f"  - task directory not found: {task_path}")
         return 0
 
-    status = _load_task_status(task_dir)
+    status = _load_flow_task_status(task_dir, repo_root)
     blockers = _task_next_blockers(repo_root, task_dir)
     print(f"Status: {status}")
     print(f"Source: {source}")
@@ -1201,19 +1311,29 @@ def cmd_next(args: argparse.Namespace) -> int:
     if status == "planning":
         if blockers:
             print("Next action: finish planning prerequisites before starting task")
-            print(f"Command: ./.cowork-flow/run task init-context {task_path} <dev_type>")
+            print(
+                f"Command: ./.cowork-flow/run task init-context {task_path} <dev_type>"
+            )
             print(f"Then: ./.cowork-flow/run task start {task_path}")
         elif is_active_task:
             print("Next action: execute implementation plan")
             print(
                 f"Command: ./.cowork-flow/run subagent init --role implement "
                 f"--agent-type cowork-implement --execution-task-dir {task_path} "
-                f"--title \"Implement {Path(task_path).name}\""
+                f'--title "Implement {Path(task_path).name}"'
             )
-            print("Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter")
-            print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
-            print("Then: verify status=bound and bound_context_key before accepting output")
-            print(f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}")
+            print(
+                "Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter"
+            )
+            print(
+                "Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>"
+            )
+            print(
+                "Then: verify status=bound and bound_context_key before accepting output"
+            )
+            print(
+                f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}"
+            )
         else:
             print("Next action: start task")
             print(f"Command: ./.cowork-flow/run task start {task_path}")
@@ -1225,12 +1345,18 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(
             f"Command: ./.cowork-flow/run subagent init --role implement "
             f"--agent-type cowork-implement --execution-task-dir {task_path} "
-            f"--title \"Implement {Path(task_path).name}\""
+            f'--title "Implement {Path(task_path).name}"'
         )
-        print("Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter")
-        print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
+        print(
+            "Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter"
+        )
+        print(
+            "Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>"
+        )
         print("Then: verify status=bound and bound_context_key before accepting output")
-        print(f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}")
+        print(
+            f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}"
+        )
         _print_blockers(blockers)
         return 0
 
@@ -1239,10 +1365,14 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(
             f"Command: ./.cowork-flow/run subagent init --role check "
             f"--agent-type cowork-check --execution-task-dir {task_path} "
-            f"--title \"Check {Path(task_path).name}\""
+            f'--title "Check {Path(task_path).name}"'
         )
-        print("Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter or run equivalent inline check")
-        print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
+        print(
+            "Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter or run equivalent inline check"
+        )
+        print(
+            "Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>"
+        )
         print("Then: verify status=bound and bound_context_key before accepting output")
         print(f"Then: ./.cowork-flow/run task complete {task_path}")
         _print_blockers(blockers)
@@ -1254,7 +1384,9 @@ def cmd_next(args: argparse.Namespace) -> int:
         linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
         print(f"Then: ./.cowork-flow/run task archive {Path(task_path).name}")
         for slug in linked_changes:
-            print(f"Then: ./.cowork-flow/run change archive {slug} (handled by task archive)")
+            print(
+                f"Then: ./.cowork-flow/run change archive {slug} (handled by task archive)"
+            )
         _print_blockers(blockers)
         return 0
 
@@ -1267,6 +1399,7 @@ def cmd_next(args: argparse.Namespace) -> int:
 # =============================================================================
 # Command: archive
 # =============================================================================
+
 
 def cmd_archive(args: argparse.Namespace) -> int:
     """Archive completed task and linked changes."""
@@ -1283,12 +1416,30 @@ def cmd_archive(args: argparse.Namespace) -> int:
     task_dir = find_task_by_name(task_name, tasks_dir)
 
     if not task_dir or not task_dir.is_dir():
-        print(colored(f"Error: Task not found: {task_name}", Colors.RED), file=sys.stderr)
+        print(
+            colored(f"Error: Task not found: {task_name}", Colors.RED), file=sys.stderr
+        )
         print("Active tasks:", file=sys.stderr)
         cmd_list(argparse.Namespace(mine=False, status=None))
         return 1
 
     dir_name = task_dir.name
+    task_id = _resolve_task_id(dir_name, repo_root)
+    try:
+        with _get_flow_store(repo_root) as store:
+            if store.get_task(task_id) is None:
+                print(
+                    colored(f"Error: Flow task not found: {task_id}", Colors.RED),
+                    file=sys.stderr,
+                )
+                return 1
+    except Exception as exc:
+        print(
+            colored(f"Error: FlowStore preflight failed: {exc}", Colors.RED),
+            file=sys.stderr,
+        )
+        return 1
+
     task_json_path = task_dir / FILE_TASK_JSON
 
     today = datetime.now().strftime("%Y-%m-%d")
@@ -1297,7 +1448,9 @@ def cmd_archive(args: argparse.Namespace) -> int:
         task_data = _read_json_file(task_json_path)
 
     linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
-    if linked_changes and not _linked_changes_ready_for_archive(repo_root, linked_changes):
+    if linked_changes and not _linked_changes_ready_for_archive(
+        repo_root, linked_changes
+    ):
         return 1
 
     # Archive
@@ -1320,11 +1473,31 @@ def cmd_archive(args: argparse.Namespace) -> int:
         )
         return 1
 
+    # Update FlowStore: mark archived + clean up relationships
+    try:
+        with _get_flow_store(repo_root) as store:
+            if not store.archive_task(task_id, "system", "task archive"):
+                raise RuntimeError(f"Flow task not found: {task_id}")
+    except Exception as exc:
+        print(
+            colored(f"Error: FlowStore archive update failed: {exc}", Colors.RED),
+            file=sys.stderr,
+        )
+        _rollback_archived_task_or_report(
+            task_dir,
+            archive_dest,
+            task_data,
+        )
+        return 1
+
     clear_task_from_sessions(repo_root, f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
 
     archived_json = archive_dest / FILE_TASK_JSON
     year_month = archive_dest.parent.name
-    print(colored(f"Archived: {dir_name} -> archive/{year_month}/", Colors.GREEN), file=sys.stderr)
+    print(
+        colored(f"Archived: {dir_name} -> archive/{year_month}/", Colors.GREEN),
+        file=sys.stderr,
+    )
 
     if linked_changes and not _archive_linked_changes(repo_root, linked_changes):
         return 1
@@ -1337,7 +1510,7 @@ def cmd_archive(args: argparse.Namespace) -> int:
     print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{DIR_ARCHIVE}/{year_month}/{dir_name}")
 
     # Run hooks with the archived path
-    _run_hooks("after_archive", archived_json, repo_root)
+    _run_hooks("after_archive", str(archived_json), dir_name, repo_root)
     return 0
 
 
@@ -1346,9 +1519,7 @@ def _auto_commit_archive(task_name: str, repo_root: Path) -> None:
     tasks_rel = f"{DIR_WORKFLOW}/{DIR_TASKS}"
     changes_rel = f"{DIR_WORKFLOW}/{DIR_CHANGES}"
     archive_rels = [
-        rel
-        for rel in (tasks_rel, changes_rel)
-        if (repo_root / rel).exists()
+        rel for rel in (tasks_rel, changes_rel) if (repo_root / rel).exists()
     ]
     _run_git_command(["add", "-A", *archive_rels], cwd=repo_root)
 
@@ -1369,8 +1540,61 @@ def _auto_commit_archive(task_name: str, repo_root: Path) -> None:
 
 
 # =============================================================================
+# Command: block
+# =============================================================================
+
+
+def cmd_block(args: argparse.Namespace) -> int:
+    """Block a task for human decision."""
+    repo_root = get_repo_root()
+    task_id = _resolve_task_id(args.dir, repo_root)
+    with _get_flow_store(repo_root) as store:
+        if store.block_task(task_id, args.reason):
+            print(colored(f"Task blocked: {task_id}", Colors.YELLOW), file=sys.stderr)
+            print(f"  Reason: {args.reason}", file=sys.stderr)
+            return 0
+    print(
+        colored(f"Error: failed to block task: {task_id}", Colors.RED), file=sys.stderr
+    )
+    return 1
+
+
+# =============================================================================
+# Command: unblock
+# =============================================================================
+
+
+def cmd_unblock(args: argparse.Namespace) -> int:
+    """Unblock a task after human decision."""
+    repo_root = get_repo_root()
+    task_id = _resolve_task_id(args.dir, repo_root)
+    with _get_flow_store(repo_root) as store:
+        if args.force:
+            if not store.update_status(task_id, "in_progress", "manual", "force unblock"):
+                print(
+                    colored(f"Error: Flow task not found: {task_id}", Colors.RED),
+                    file=sys.stderr,
+                )
+                return 1
+            print(
+                colored(f"Task force unblocked: {task_id}", Colors.GREEN),
+                file=sys.stderr,
+            )
+            return 0
+        if store.unblock_task(task_id, args.decision or "approved", "human"):
+            print(colored(f"Task unblocked: {task_id}", Colors.GREEN), file=sys.stderr)
+            return 0
+    print(
+        colored(f"Error: failed to unblock task: {task_id}", Colors.RED),
+        file=sys.stderr,
+    )
+    return 1
+
+
+# =============================================================================
 # Command: add-subtask
 # =============================================================================
+
 
 def cmd_add_subtask(args: argparse.Namespace) -> int:
     """Link a child task to a parent task."""
@@ -1379,51 +1603,40 @@ def cmd_add_subtask(args: argparse.Namespace) -> int:
     parent_dir = _resolve_task_dir(args.parent_dir, repo_root)
     child_dir = _resolve_task_dir(args.child_dir, repo_root)
 
-    parent_json_path = parent_dir / FILE_TASK_JSON
-    child_json_path = child_dir / FILE_TASK_JSON
+    parent_id = _resolve_task_id(args.parent_dir, repo_root)
+    child_id = _resolve_task_id(args.child_dir, repo_root)
 
-    if not parent_json_path.is_file():
-        print(colored(f"Error: Parent task.json not found: {args.parent_dir}", Colors.RED), file=sys.stderr)
+    if not parent_dir.is_dir():
+        print(
+            colored(f"Error: Parent task not found: {args.parent_dir}", Colors.RED),
+            file=sys.stderr,
+        )
+        return 1
+    if not child_dir.is_dir():
+        print(
+            colored(f"Error: Child task not found: {args.child_dir}", Colors.RED),
+            file=sys.stderr,
+        )
         return 1
 
-    if not child_json_path.is_file():
-        print(colored(f"Error: Child task.json not found: {args.child_dir}", Colors.RED), file=sys.stderr)
-        return 1
+    with _get_flow_store(repo_root) as store:
+        # Check if child already has a parent
+        child_task = store.get_task(child_id)
+        if child_task and child_task.parent_id:
+            print(
+                colored(
+                    f"Error: Child task already has a parent: {child_task.parent_id}",
+                    Colors.RED,
+                ),
+                file=sys.stderr,
+            )
+            return 1
 
-    parent_data = _read_json_file(parent_json_path)
-    child_data = _read_json_file(child_json_path)
+        store.link_child(parent_id, child_id)
 
-    if not parent_data or not child_data:
-        print(colored("Error: Failed to read task.json", Colors.RED), file=sys.stderr)
-        return 1
-
-    # Check if child already has a parent
-    existing_parent = child_data.get("parent")
-    if existing_parent:
-        print(colored(f"Error: Child task already has a parent: {existing_parent}", Colors.RED), file=sys.stderr)
-        return 1
-
-    # Add child to parent's children list
-    parent_children = parent_data.get("children", [])
-    child_dir_name = child_dir.name
-    if child_dir_name not in parent_children:
-        parent_children.append(child_dir_name)
-        parent_data["children"] = parent_children
-
-    # Set parent in child's task.json
-    child_data["parent"] = parent_dir.name
-
-    # Write both
-    _write_json_file(parent_json_path, parent_data)
-    _write_json_file(child_json_path, child_data)
-
-    print(colored(f"Linked: {child_dir.name} -> {parent_dir.name}", Colors.GREEN), file=sys.stderr)
+    print(colored(f"Linked: {child_id} -> {parent_id}", Colors.GREEN), file=sys.stderr)
     return 0
 
-
-# =============================================================================
-# Command: remove-subtask
-# =============================================================================
 
 def cmd_remove_subtask(args: argparse.Namespace) -> int:
     """Unlink a child task from a parent task."""
@@ -1431,46 +1644,40 @@ def cmd_remove_subtask(args: argparse.Namespace) -> int:
 
     parent_dir = _resolve_task_dir(args.parent_dir, repo_root)
     child_dir = _resolve_task_dir(args.child_dir, repo_root)
+    parent_id = _resolve_task_id(args.parent_dir, repo_root)
+    child_id = _resolve_task_id(args.child_dir, repo_root)
 
-    parent_json_path = parent_dir / FILE_TASK_JSON
-    child_json_path = child_dir / FILE_TASK_JSON
-
-    if not parent_json_path.is_file():
-        print(colored(f"Error: Parent task.json not found: {args.parent_dir}", Colors.RED), file=sys.stderr)
+    if not parent_dir.is_dir():
+        print(
+            colored(f"Error: Parent task not found: {args.parent_dir}", Colors.RED),
+            file=sys.stderr,
+        )
+        return 1
+    if not child_dir.is_dir():
+        print(
+            colored(f"Error: Child task not found: {args.child_dir}", Colors.RED),
+            file=sys.stderr,
+        )
         return 1
 
-    if not child_json_path.is_file():
-        print(colored(f"Error: Child task.json not found: {args.child_dir}", Colors.RED), file=sys.stderr)
-        return 1
+    with _get_flow_store(repo_root) as store:
+        store.unlink_child(parent_id, child_id)
 
-    parent_data = _read_json_file(parent_json_path)
-    child_data = _read_json_file(child_json_path)
-
-    if not parent_data or not child_data:
-        print(colored("Error: Failed to read task.json", Colors.RED), file=sys.stderr)
-        return 1
-
-    # Remove child from parent's children list
-    parent_children = parent_data.get("children", [])
-    child_dir_name = child_dir.name
-    if child_dir_name in parent_children:
-        parent_children.remove(child_dir_name)
-        parent_data["children"] = parent_children
-
-    # Clear parent in child's task.json
-    child_data["parent"] = None
-
-    # Write both
-    _write_json_file(parent_json_path, parent_data)
-    _write_json_file(child_json_path, child_data)
-
-    print(colored(f"Unlinked: {child_dir.name} from {parent_dir.name}", Colors.GREEN), file=sys.stderr)
+    print(
+        colored(f"Unlinked: {child_id} from {parent_id}", Colors.GREEN), file=sys.stderr
+    )
     return 0
+
+
+# =============================================================================
+# Command: remove-subtask
+# =============================================================================
 
 
 # =============================================================================
 # Command: list
 # =============================================================================
+
 
 def _get_children_progress(children: list[str], all_tasks: dict[str, dict]) -> str:
     """Get children progress summary like '[2/3 done]'."""
@@ -1496,14 +1703,19 @@ def cmd_list(args: argparse.Namespace) -> int:
 
     if filter_mine:
         if not developer:
-            print(colored("Error: No developer set. Run init_developer.py first", Colors.RED), file=sys.stderr)
+            print(
+                colored(
+                    "Error: No developer set. Run init_developer.py first", Colors.RED
+                ),
+                file=sys.stderr,
+            )
             return 1
         print(colored(f"My tasks (assignee: {developer}):", Colors.BLUE))
     else:
         print(colored("All active tasks:", Colors.BLUE))
     print()
 
-    all_tasks = _load_task_summaries(tasks_dir)
+    all_tasks = _load_flow_task_summaries(repo_root)
 
     # Second pass: display tasks hierarchically
     count = 0
@@ -1536,7 +1748,9 @@ def cmd_list(args: argparse.Namespace) -> int:
         if filter_mine:
             print(f"{prefix}{dir_name}/ ({status}){progress}{marker}")
         else:
-            print(f"{prefix}{dir_name}/ ({status}){progress} [{colored(assignee, Colors.CYAN)}]{marker}")
+            print(
+                f"{prefix}{dir_name}/ ({status}){progress} [{colored(assignee, Colors.CYAN)}]{marker}"
+            )
         count += 1
 
         # Print children indented
@@ -1564,6 +1778,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 # =============================================================================
 # Command: list-archive
 # =============================================================================
+
 
 def cmd_list_archive(args: argparse.Namespace) -> int:
     """List archived tasks."""
@@ -1598,6 +1813,7 @@ def cmd_list_archive(args: argparse.Namespace) -> int:
 # =============================================================================
 # Help
 # =============================================================================
+
 
 def show_usage() -> None:
     """Show usage help."""
@@ -1651,6 +1867,7 @@ Examples:
 # Main Entry
 # =============================================================================
 
+
 def main() -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -1667,7 +1884,17 @@ def main() -> int:
     p_create.add_argument("--assignee", "-a", help="Assignee developer")
     p_create.add_argument("--priority", "-p", default="P2", help="Priority (P0-P3)")
     p_create.add_argument("--description", "-d", help="Task description")
-    p_create.add_argument("--parent", help="Parent task directory (establishes subtask link)")
+    p_create.add_argument(
+        "--parent", help="Parent task directory (establishes subtask link)"
+    )
+    p_create.add_argument(
+        "--pattern",
+        default="generic",
+        help="Collaboration pattern: generic|fan_out|pipeline|human_loop",
+    )
+    p_create.add_argument(
+        "--meta", default=None, help="JSON metadata for pattern configuration"
+    )
 
     # init-context
     p_init = subparsers.add_parser("init-context", help="Initialize context files")
@@ -1714,11 +1941,27 @@ def main() -> int:
     # archive
     p_archive = subparsers.add_parser("archive", help="Archive task")
     p_archive.add_argument("name", help="Task name")
-    p_archive.add_argument("--commit", action="store_true", help="Auto git commit after archive")
+    p_archive.add_argument(
+        "--commit", action="store_true", help="Auto git commit after archive"
+    )
     p_archive.add_argument(
         "--no-commit",
         action="store_true",
         help="Deprecated no-op; archive no longer commits by default",
+    )
+
+    # block/unblock
+    p_block = subparsers.add_parser(
+        "block", help="Block a task (human decision needed)"
+    )
+    p_block.add_argument("dir", help="Task slug or directory")
+    p_block.add_argument("--reason", required=True, help="Why the task is blocked")
+
+    p_unblock = subparsers.add_parser("unblock", help="Unblock a task after decision")
+    p_unblock.add_argument("dir", help="Task slug or directory")
+    p_unblock.add_argument("--decision", default="", help="Human decision content")
+    p_unblock.add_argument(
+        "--force", action="store_true", help="Force unblock (non-P5 tasks)"
     )
 
     # list
@@ -1732,7 +1975,9 @@ def main() -> int:
     p_addsub.add_argument("child_dir", help="Child task directory")
 
     # remove-subtask
-    p_rmsub = subparsers.add_parser("remove-subtask", help="Unlink child task from parent")
+    p_rmsub = subparsers.add_parser(
+        "remove-subtask", help="Unlink child task from parent"
+    )
     p_rmsub.add_argument("parent_dir", help="Parent task directory")
     p_rmsub.add_argument("child_dir", help="Child task directory")
 
@@ -1783,6 +2028,8 @@ def main() -> int:
         "next": cmd_next,
         "finish": cmd_finish,
         "archive": cmd_archive,
+        "block": cmd_block,
+        "unblock": cmd_unblock,
         "add-subtask": cmd_add_subtask,
         "remove-subtask": cmd_remove_subtask,
         "list": cmd_list,

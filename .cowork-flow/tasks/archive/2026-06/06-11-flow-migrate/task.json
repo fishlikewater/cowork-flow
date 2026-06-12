@@ -1,0 +1,21 @@
+{
+  "id": "flow-migrate",
+  "name": "flow-migrate",
+  "title": "Implement task.json migration script",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-11",
+  "completedAt": "2026-06-12",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "flow-store",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

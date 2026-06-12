@@ -109,14 +109,9 @@ def find_task_by_name(task_name: str, tasks_dir: Path) -> Path | None:
 # =============================================================================
 
 def archive_task_dir(task_dir_abs: Path, repo_root: Path | None = None) -> Path | None:
-    """Archive a task directory to archive/{YYYY-MM}/.
+    """[DEPRECATED] Archive a task directory.
 
-    Args:
-        task_dir_abs: Absolute path to task directory.
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Path to archived directory, or None on error.
+    Superseded by FlowStore-based archive in task.py cmd_archive.
     """
     if not task_dir_abs.is_dir():
         print(f"Error: task directory not found: {task_dir_abs}", file=sys.stderr)

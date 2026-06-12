@@ -1,0 +1,23 @@
+{
+  "id": "flow-skeleton",
+  "name": "flow-skeleton",
+  "title": "Create flow module skeleton (schema.sql, paths, run.py)",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-11",
+  "completedAt": "2026-06-12",
+  "commit": null,
+  "subtasks": [],
+  "children": [
+    "06-11-flow-store"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

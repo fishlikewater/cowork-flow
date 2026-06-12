@@ -32,9 +32,10 @@ COMMAND_SCRIPTS = {
     "project_context": "project_context.py",
     "party-v2": "party_mode_v2.py",
     "party_v2": "party_mode_v2.py",
+    "flow": "flow/store.py",
 }
 
-CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}
+CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent", "flow"}
 
 
 def print_usage() -> None:

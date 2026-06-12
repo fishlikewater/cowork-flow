@@ -29,6 +29,7 @@ class FlowScriptPathsTest(unittest.TestCase):
         self.add_session = importlib.import_module("add_session")
         self.developer = importlib.import_module("common.developer")
         self.git_context = importlib.import_module("common.git_context")
+        self.flow_store = importlib.import_module("flow.store")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
@@ -43,9 +44,23 @@ class FlowScriptPathsTest(unittest.TestCase):
             "common.paths",
             "common.readiness",
             "common.task_utils",
+            "flow.store",
+            "flow",
             "common",
         ):
             sys.modules.pop(module_name, None)
+
+    def _create_flow_task(self, root: Path, slug: str, status: str = "planning") -> str:
+        db_path = self.paths.get_db_path(root)
+        with self.flow_store.FlowStore(str(db_path)) as store:
+            store.create_task(
+                id=slug,
+                title=f"Test {slug}",
+                status=status,
+                creator="test",
+                assignee="test",
+            )
+        return slug
 
     def _write_session_task(
         self,
@@ -136,7 +151,6 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             dir_name = f"{date_prefix}-demo-task"
             self.assertEqual(0, result)
-            self.assertTrue((root / ".cowork-flow" / "tasks" / dir_name / "task.json").is_file())
             self.assertIn(dir_name, stdout.getvalue())
 
     def test_cmd_create_keeps_existing_date_prefix(self) -> None:
@@ -169,9 +183,43 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir = root / ".cowork-flow" / "tasks" / slug
             doubled = root / ".cowork-flow" / "tasks" / f"{date_prefix}-{slug}"
             self.assertEqual(0, result)
-            self.assertTrue((task_dir / "task.json").is_file())
+            self.assertTrue(task_dir.exists())
             self.assertFalse(doubled.exists())
             self.assertIn(slug, stdout.getvalue())
+
+    def test_cmd_create_with_parent_creates_single_link(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            parent_dir = root / ".cowork-flow" / "tasks" / "05-19-parent"
+            parent_dir.mkdir(parents=True)
+            self._create_flow_task(root, "parent", "planning")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_create(
+                        argparse.Namespace(
+                            title="Child task",
+                            slug="child",
+                            assignee="codex",
+                            priority="P2",
+                            description=None,
+                            parent="parent",
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertIn(".cowork-flow/tasks/", stdout.getvalue())
+            db_path = self.paths.get_db_path(root)
+            with self.flow_store.FlowStore(str(db_path)) as store:
+                children = store.list_children("parent")
+            self.assertEqual(["child"], [task.id for task in children])
 
     def test_default_context_references_new_skill_directory(self) -> None:
         self.assertEqual(
@@ -202,7 +250,9 @@ class FlowScriptPathsTest(unittest.TestCase):
                 self.task._skill_path("check", root),
             )
 
-    def test_init_context_writes_claude_skill_paths_for_claude_only_project(self) -> None:
+    def test_init_context_writes_claude_skill_paths_for_claude_only_project(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "06-05-demo"
@@ -225,7 +275,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(0, result)
             check_entries = [
                 json.loads(line)
-                for line in (task_dir / "check.jsonl").read_text(encoding="utf-8").splitlines()
+                for line in (task_dir / "check.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
             ]
             self.assertEqual(
                 ".claude/skills/check/SKILL.md",
@@ -262,11 +314,15 @@ class FlowScriptPathsTest(unittest.TestCase):
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
 
             self.assertEqual([], self.task._task_start_blockers(task_dir))
 
-    def _write_ready_task_files(self, root: Path, task_dir: Path, parent: str | None = None) -> None:
+    def _write_ready_task_files(
+        self, root: Path, task_dir: Path, parent: str | None = None
+    ) -> None:
         task_dir.mkdir(parents=True, exist_ok=True)
         (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
         task_data = {
@@ -344,6 +400,23 @@ class FlowScriptPathsTest(unittest.TestCase):
         parent_data = json.loads((parent_dir / "task.json").read_text(encoding="utf-8"))
         parent_data["children"] = ["05-19-child"]
         (parent_dir / "task.json").write_text(json.dumps(parent_data), encoding="utf-8")
+        db_path = self.paths.get_db_path(root)
+        with self.flow_store.FlowStore(str(db_path)) as store:
+            store.create_task(
+                id="parent",
+                title="Test parent",
+                status="planning",
+                creator="test",
+                assignee="test",
+            )
+            store.create_task(
+                id="child",
+                title="Test child",
+                status="planning",
+                creator="test",
+                assignee="test",
+                parent_id="parent",
+            )
         return child_dir
 
     def test_l2_readiness_passes_for_ready_linked_child_task(self) -> None:
@@ -380,7 +453,9 @@ class FlowScriptPathsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             child_dir = self._write_l2_task_tree(root)
-            self._write_l2_change_fixture(root, plan_link=".cowork-flow/plans/missing.md")
+            self._write_l2_change_fixture(
+                root, plan_link=".cowork-flow/plans/missing.md"
+            )
             (root / ".cowork-flow" / "plans" / "missing.md").unlink()
 
             blockers = self.task._optional_readiness_blockers(root, child_dir)
@@ -427,7 +502,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(1, result)
             self.assertEqual("planning", data["status"])
             self.assertIn("Task readiness failed", stderr.getvalue())
-            self.assertFalse((root / ".cowork-flow" / ".runtime" / "sessions" / "main.json").exists())
+            self.assertFalse(
+                (root / ".cowork-flow" / ".runtime" / "sessions" / "main.json").exists()
+            )
 
     def test_cmd_start_blocks_unprepared_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -462,7 +539,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             (task_dir / "implement.jsonl").write_text("not-json\n", encoding="utf-8")
             for name in ("check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
 
             previous_cwd = Path.cwd()
             try:
@@ -489,14 +568,18 @@ class FlowScriptPathsTest(unittest.TestCase):
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
 
             previous_cwd = Path.cwd()
             try:
                 os.chdir(root)
-                with patch.dict(os.environ, {}, clear=True), contextlib.redirect_stdout(
-                    io.StringIO()
-                ), contextlib.redirect_stderr(io.StringIO()):
+                with (
+                    patch.dict(os.environ, {}, clear=True),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
                     result = self.task.cmd_start(
                         argparse.Namespace(dir=".cowork-flow/tasks/05-19-demo")
                     )
@@ -512,10 +595,19 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
+
+            # Create task in FlowStore
+            from common.paths import get_db_path
+            from flow.store import FlowStore
+
+            db_path = str(root / ".cowork-flow" / "cowork-flow.db")
+            with FlowStore(db_path) as store:
+                store.create_task(id="demo", title="Demo", creator="d", assignee="d")
 
             previous_cwd = Path.cwd()
             try:
@@ -531,19 +623,18 @@ class FlowScriptPathsTest(unittest.TestCase):
             finally:
                 os.chdir(previous_cwd)
 
-            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
             self.assertEqual(0, result)
-            self.assertEqual("in_progress", data["status"])
+            with FlowStore(db_path) as store:
+                task = store.get_task("demo")
+                self.assertIsNotNone(task)
+                self.assertEqual("in_progress", task.status)
 
     def test_cmd_review_and_complete_update_active_task_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
-            (task_dir / "task.json").write_text(
-                '{"status": "in_progress", "completedAt": null}\n',
-                encoding="utf-8",
-            )
+            self._create_flow_task(root, "demo", "in_progress")
             self._write_session_task(root)
 
             previous_cwd = Path.cwd()
@@ -554,16 +645,77 @@ class FlowScriptPathsTest(unittest.TestCase):
                         contextlib.redirect_stdout(io.StringIO()),
                         contextlib.redirect_stderr(io.StringIO()),
                     ):
-                        review_result = self.task.cmd_review(argparse.Namespace(dir=None))
-                        complete_result = self.task.cmd_complete(argparse.Namespace(dir=None))
+                        review_result = self.task.cmd_review(
+                            argparse.Namespace(dir=None)
+                        )
+                        complete_result = self.task.cmd_complete(
+                            argparse.Namespace(dir=None)
+                        )
             finally:
                 os.chdir(previous_cwd)
 
-            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            db_path = self.paths.get_db_path(root)
+            with self.flow_store.FlowStore(str(db_path)) as store:
+                task = store.get_task("demo")
             self.assertEqual(0, review_result)
             self.assertEqual(0, complete_result)
-            self.assertEqual("completed", data["status"])
-            self.assertEqual(datetime.now().strftime("%Y-%m-%d"), data["completedAt"])
+            self.assertIsNotNone(task)
+            self.assertEqual("completed", task.status)
+
+    def test_cmd_review_and_complete_fail_when_flow_task_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-orphan"
+            task_dir.mkdir(parents=True)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    review_result = self.task.cmd_review(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-orphan")
+                    )
+                    complete_result = self.task.cmd_complete(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-orphan")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, review_result)
+            self.assertEqual(1, complete_result)
+            self.assertIn("Flow task not found", stderr.getvalue())
+
+    def test_cmd_block_and_unblock_fail_when_flow_task_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    block_result = self.task.cmd_block(
+                        argparse.Namespace(dir="missing", reason="need decision")
+                    )
+                    unblock_result = self.task.cmd_unblock(
+                        argparse.Namespace(
+                            dir="missing",
+                            decision="approved",
+                            force=True,
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, block_result)
+            self.assertEqual(1, unblock_result)
+            self.assertIn("missing", stderr.getvalue())
 
     def test_cmd_current_prints_session_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -581,7 +733,9 @@ class FlowScriptPathsTest(unittest.TestCase):
                 os.chdir(previous_cwd)
 
             self.assertEqual(0, result)
-            self.assertIn("Active task: .cowork-flow/tasks/05-19-demo", stdout.getvalue())
+            self.assertIn(
+                "Active task: .cowork-flow/tasks/05-19-demo", stdout.getvalue()
+            )
 
     def test_cmd_current_requires_session_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -617,7 +771,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             output = stdout.getvalue()
             self.assertEqual(0, result)
             self.assertIn("Status: no_task", output)
-            self.assertIn("Next action: create or start a task before repository changes", output)
+            self.assertIn(
+                "Next action: create or start a task before repository changes", output
+            )
             self.assertIn("./.cowork-flow/run task create", output)
             self.assertFalse((root / ".cowork-flow" / "tasks").exists())
 
@@ -626,7 +782,10 @@ class FlowScriptPathsTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
+            self._create_flow_task(root, "demo", "planning")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}\n', encoding="utf-8"
+            )
             self._write_session_task(root)
 
             previous_cwd = Path.cwd()
@@ -652,7 +811,10 @@ class FlowScriptPathsTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
-            (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+            self._create_flow_task(root, "demo", "in_progress")
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}\n', encoding="utf-8"
+            )
             self._write_session_task(root)
 
             previous_cwd = Path.cwd()
@@ -677,7 +839,10 @@ class FlowScriptPathsTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
-            (task_dir / "task.json").write_text('{"status": "review"}\n', encoding="utf-8")
+            self._create_flow_task(root, "demo", "review")
+            (task_dir / "task.json").write_text(
+                '{"status": "review"}\n', encoding="utf-8"
+            )
             self._write_session_task(root)
 
             previous_cwd = Path.cwd()
@@ -694,14 +859,19 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("Status: review", output)
             self.assertIn("Next action: verify implementation", output)
             self.assertIn("cowork-check", output)
-            self.assertIn("./.cowork-flow/run task complete .cowork-flow/tasks/05-19-demo", output)
+            self.assertIn(
+                "./.cowork-flow/run task complete .cowork-flow/tasks/05-19-demo", output
+            )
 
     def test_cmd_next_completed_mentions_linked_change_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
-            (task_dir / "task.json").write_text('{"status": "completed"}\n', encoding="utf-8")
+            self._create_flow_task(root, "demo", "completed")
+            (task_dir / "task.json").write_text(
+                '{"status": "completed"}\n', encoding="utf-8"
+            )
             self._write_l2_change_fixture(
                 root,
                 level="L1",
@@ -728,11 +898,16 @@ class FlowScriptPathsTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
+            self._create_flow_task(root, "demo", "planning")
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}\n', encoding="utf-8"
+            )
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
             self._write_session_task(root)
 
             previous_cwd = Path.cwd()
@@ -756,11 +931,16 @@ class FlowScriptPathsTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
+            self._create_flow_task(root, "demo", "planning")
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}\n', encoding="utf-8"
+            )
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
 
             previous_cwd = Path.cwd()
             try:
@@ -777,7 +957,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(0, result)
             self.assertIn("Source: argument", output)
             self.assertIn("Next action: start task", output)
-            self.assertIn("./.cowork-flow/run task start .cowork-flow/tasks/05-19-demo", output)
+            self.assertIn(
+                "./.cowork-flow/run task start .cowork-flow/tasks/05-19-demo", output
+            )
 
     def test_task_archive_resumes_when_source_and_destination_match(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -791,6 +973,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
             )
+            self._create_flow_task(root, "demo", "in_progress")
             month = datetime.now().strftime("%Y-%m")
             archive_dest = tasks_dir / "archive" / month / "05-19-demo"
             archive_dest.parent.mkdir(parents=True, exist_ok=True)
@@ -814,6 +997,41 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertTrue((archive_dest / "task.json").is_file())
             self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
 
+    def test_task_archive_fails_before_move_when_flow_task_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            tasks_dir = workflow_dir / "tasks"
+            task_dir = tasks_dir / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "completed", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            month = datetime.now().strftime("%Y-%m")
+            archive_dest = tasks_dir / "archive" / month / "05-19-demo"
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_archive(
+                        argparse.Namespace(
+                            name="05-19-demo", commit=False, no_commit=True
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertTrue(task_dir.exists())
+            self.assertFalse(archive_dest.exists())
+            self.assertIn("Flow task not found", stderr.getvalue())
+
     def test_task_archive_archives_linked_active_change(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -826,6 +1044,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 '{"name": "demo", "status": "completed", "assignee": "codex"}',
                 encoding="utf-8",
             )
+            self._create_flow_task(root, "demo", "completed")
             change_dir = self._write_l2_change_fixture(
                 root,
                 level="L1",
@@ -833,7 +1052,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             )
             month = datetime.now().strftime("%Y-%m")
             task_archive_dest = tasks_dir / "archive" / month / "05-19-demo"
-            change_archive_dest = workflow_dir / "changes" / "archive" / month / change_dir.name
+            change_archive_dest = (
+                workflow_dir / "changes" / "archive" / month / change_dir.name
+            )
 
             previous_cwd = Path.cwd()
             try:
@@ -843,7 +1064,9 @@ class FlowScriptPathsTest(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
                     result = self.task.cmd_archive(
-                        argparse.Namespace(name="05-19-demo", commit=False, no_commit=True)
+                        argparse.Namespace(
+                            name="05-19-demo", commit=False, no_commit=True
+                        )
                     )
             finally:
                 os.chdir(previous_cwd)
@@ -857,7 +1080,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("status: archived", metadata)
             self.assertIn("task: archive/", metadata)
             self.assertIn("05-19-demo", metadata)
-            self.assertIn("Archived linked change: 05-19-demo-change", stderr.getvalue())
+            self.assertIn(
+                "Archived linked change: 05-19-demo-change", stderr.getvalue()
+            )
             self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
 
     def test_task_archive_does_not_commit_by_default(self) -> None:
@@ -873,6 +1098,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 '{"name": "demo", "status": "completed", "assignee": "codex"}',
                 encoding="utf-8",
             )
+            self._create_flow_task(root, "demo", "completed")
             baseline = self._commit_all(root, "initial")
 
             previous_cwd = Path.cwd()
@@ -883,7 +1109,9 @@ class FlowScriptPathsTest(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
                     result = self.task.cmd_archive(
-                        argparse.Namespace(name="05-19-demo", commit=False, no_commit=False)
+                        argparse.Namespace(
+                            name="05-19-demo", commit=False, no_commit=False
+                        )
                     )
             finally:
                 os.chdir(previous_cwd)
@@ -906,6 +1134,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 '{"name": "demo", "status": "completed", "assignee": "codex"}',
                 encoding="utf-8",
             )
+            self._create_flow_task(root, "demo", "completed")
             baseline = self._commit_all(root, "initial")
 
             previous_cwd = Path.cwd()
@@ -916,7 +1145,9 @@ class FlowScriptPathsTest(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
                     result = self.task.cmd_archive(
-                        argparse.Namespace(name="05-19-demo", commit=True, no_commit=False)
+                        argparse.Namespace(
+                            name="05-19-demo", commit=True, no_commit=False
+                        )
                     )
             finally:
                 os.chdir(previous_cwd)
@@ -1009,7 +1240,9 @@ class FlowScriptPathsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             for name in ("check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
             plan_file.write_text(
                 "## Current Execution Status\nResume from task 2.\n",
                 encoding="utf-8",
@@ -1023,10 +1256,20 @@ class FlowScriptPathsTest(unittest.TestCase):
                 "Recovery entrypoint (rerun only if context is stale): ./.cowork-flow/run resume",
                 output,
             )
-            self.assertIn("Read active task PRD: .cowork-flow/tasks/05-19-demo/prd.md", output)
-            self.assertIn("List task context before reading details: ./.cowork-flow/run task list-context .cowork-flow/tasks/05-19-demo", output)
-            self.assertIn("Read current plan status: .cowork-flow/plans/2026-05-19-demo.md", output)
-            self.assertIn("Do not bulk-read .cowork-flow/spec/ or workspace journals", output)
+            self.assertIn(
+                "Read active task PRD: .cowork-flow/tasks/05-19-demo/prd.md", output
+            )
+            self.assertIn(
+                "List task context before reading details: ./.cowork-flow/run task list-context .cowork-flow/tasks/05-19-demo",
+                output,
+            )
+            self.assertIn(
+                "Read current plan status: .cowork-flow/plans/2026-05-19-demo.md",
+                output,
+            )
+            self.assertIn(
+                "Do not bulk-read .cowork-flow/spec/ or workspace journals", output
+            )
 
     def test_context_json_includes_resume_checklist_without_file_contents(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1036,13 +1279,14 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
             self._write_session_task(root)
-            (task_dir / "task.json").write_text(
-                '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
-                encoding="utf-8",
+            self._create_flow_task(root, "demo", "in_progress")
+            (task_dir / "prd.md").write_text(
+                "# Secret PRD body should not appear\n", encoding="utf-8"
             )
-            (task_dir / "prd.md").write_text("# Secret PRD body should not appear\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
 
             with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
                 context = self.git_context.get_context_json(root)
@@ -1076,9 +1320,13 @@ class FlowScriptPathsTest(unittest.TestCase):
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
             )
-            (task_dir / "prd.md").write_text("# Secret PRD body should not appear\n", encoding="utf-8")
+            (task_dir / "prd.md").write_text(
+                "# Secret PRD body should not appear\n", encoding="utf-8"
+            )
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
 
             env = os.environ.copy()
             env["COWORK_FLOW_CONTEXT_ID"] = "main"

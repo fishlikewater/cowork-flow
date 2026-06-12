@@ -16,14 +16,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .active_task import get_active_task
-from .files import read_json_file as _read_json_file
 from .paths import (
     DIR_SCRIPTS,
     DIR_SPEC,
     DIR_TASKS,
     DIR_WORKFLOW,
     DIR_WORKSPACE,
-    FILE_TASK_JSON,
     count_lines,
     get_active_journal_file,
     get_developer,
@@ -86,50 +84,45 @@ def _iter_task_dirs(tasks_dir: Path, sort: bool = True):
             yield d
 
 
-def _load_task_json_by_dir(tasks_dir: Path, sort: bool = True) -> dict[str, dict]:
-    """Load task data keyed by task directory name.
-
-    Reads from task.json. Falls back to FlowStore for new-style tasks
-    that don't have task.json files.
-    """
+def _load_tasks_from_flow(repo_root: Path | None = None) -> dict[str, dict]:
+    """Load all tasks from FlowStore keyed by artifact directory name."""
     tasks: dict[str, dict] = {}
-    for d in _iter_task_dirs(tasks_dir, sort=sort):
-        task_json = d / FILE_TASK_JSON
-        if task_json.is_file():
-            data = _read_json_file(task_json)
-            if data:
-                tasks[d.name] = data
-        else:
-            # Fallback: try FlowStore
-            try:
-                from common.paths import get_db_path
-                db_path = get_db_path()
-                if db_path.exists():
-                    from flow.store import FlowStore
-                    store = FlowStore(str(db_path))
-                    slug = _slug_from_dirname(d.name)
-                    flow_task = store.get_task(slug)
-                    if flow_task:
-                        tasks[d.name] = {
-                            "id": flow_task.id,
-                            "title": flow_task.title,
-                            "status": flow_task.status,
-                            "assignee": flow_task.assignee,
-                            "children": [],
-                            "parent": flow_task.parent_id,
-                        }
-            except Exception:
-                pass
+    try:
+        from .paths import get_db_path
+        from flow.store import FlowStore
+
+        db_path = get_db_path(repo_root or get_repo_root())
+        if not db_path.exists():
+            return tasks
+        with FlowStore(str(db_path)) as store:
+            for task in store.list_tasks():
+                tasks[task.artifact_dir] = {
+                    "id": task.id,
+                    "title": task.title,
+                    "status": task.status,
+                    "assignee": task.assignee,
+                    "priority": task.priority,
+                    "children": task.children,
+                    "parent": task.parent_id,
+                    "meta": task.meta,
+                }
+    except Exception:
+        pass
     return tasks
 
 
 def _slug_from_dirname(dir_name: str) -> str:
     """Extract slug from MM-DD-slug directory name."""
-    from common.paths import TASK_DATE_PREFIX_PATTERN
+    from .paths import TASK_DATE_PREFIX_PATTERN
+
+    return TASK_DATE_PREFIX_PATTERN.sub("", dir_name)
+
     return TASK_DATE_PREFIX_PATTERN.sub("", dir_name)
 
 
-def _parse_recent_commits(log_out: str, include_empty_message: bool = True) -> list[dict]:
+def _parse_recent_commits(
+    log_out: str, include_empty_message: bool = True
+) -> list[dict]:
     """Parse git log --oneline output into JSON-ready commit summaries."""
     commits = []
     for line in log_out.splitlines():
@@ -176,7 +169,9 @@ def _git_json(git_snapshot: GitSnapshot) -> dict:
     }
 
 
-def _append_git_status(lines: list[str], git_snapshot: GitSnapshot, repo_root: Path) -> None:
+def _append_git_status(
+    lines: list[str], git_snapshot: GitSnapshot, repo_root: Path
+) -> None:
     """Append the GIT STATUS section to text output."""
     lines.append("## GIT STATUS")
     lines.append(f"Branch: {git_snapshot.branch}")
@@ -207,16 +202,26 @@ def _append_recent_commits(lines: list[str], git_snapshot: GitSnapshot) -> None:
 
 
 def _get_active_task_snapshot(repo_root: Path) -> ActiveTaskSnapshot:
-    """Collect active-task metadata once for text and JSON renderers."""
+    """Collect active-task metadata from FlowStore."""
     active_task = get_active_task(repo_root).task_path
     if not active_task:
         return ActiveTaskSnapshot(path=None, data=None, has_prd=False)
 
     active_task_dir = repo_root / active_task
-    task_json_path = active_task_dir / FILE_TASK_JSON
     data = None
-    if task_json_path.is_file():
-        data = _read_json_file(task_json_path)
+    try:
+        dir_name = active_task_dir.name
+        tasks = _load_tasks_from_flow(repo_root)
+        if dir_name in tasks:
+            data = tasks[dir_name]
+        else:
+            slug = _slug_from_dirname(dir_name)
+            for key, task in tasks.items():
+                if key.endswith(f"-{slug}"):
+                    data = task
+                    break
+    except Exception:
+        pass
     return ActiveTaskSnapshot(
         path=active_task,
         data=data,
@@ -263,12 +268,18 @@ def _task_plan_references(repo_root: Path, snapshot: ActiveTaskSnapshot) -> list
     metadata_candidates = [
         data.get("plan"),
         data.get("planFile"),
-        data.get("meta", {}).get("plan") if isinstance(data.get("meta"), dict) else None,
-        data.get("meta", {}).get("planFile") if isinstance(data.get("meta"), dict) else None,
+        data.get("meta", {}).get("plan")
+        if isinstance(data.get("meta"), dict)
+        else None,
+        data.get("meta", {}).get("planFile")
+        if isinstance(data.get("meta"), dict)
+        else None,
     ]
 
     for candidate in metadata_candidates:
-        if isinstance(candidate, str) and candidate.startswith(f"{DIR_WORKFLOW}/plans/"):
+        if isinstance(candidate, str) and candidate.startswith(
+            f"{DIR_WORKFLOW}/plans/"
+        ):
             seen.add(candidate)
             plan_refs.append(candidate)
 
@@ -294,8 +305,12 @@ def _build_resume_checklist(
     notes: list[str] = []
 
     if not snapshot.path:
-        notes.append("No active task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
-        notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; read details only after a task is selected.")
+        notes.append(
+            "No active task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID."
+        )
+        notes.append(
+            "Do not bulk-read `.cowork-flow/spec/` or workspace journals; read details only after a task is selected."
+        )
         return {"commands": commands, "readFiles": read_files, "notes": notes}
 
     active_task = snapshot.path
@@ -306,7 +321,9 @@ def _build_resume_checklist(
 
     read_files.extend(_task_plan_references(repo_root, snapshot))
     notes.append("Read current plan status only when continuing implementation.")
-    notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; follow JSONL references on demand.")
+    notes.append(
+        "Do not bulk-read `.cowork-flow/spec/` or workspace journals; follow JSONL references on demand."
+    )
 
     return {"commands": commands, "readFiles": read_files, "notes": notes}
 
@@ -336,11 +353,17 @@ def _append_resume_checklist(
     commands = checklist["commands"]
     read_files = checklist["readFiles"]
 
-    lines.append(f"- Recovery entrypoint (rerun only if context is stale): {commands[0]}")
+    lines.append(
+        f"- Recovery entrypoint (rerun only if context is stale): {commands[0]}"
+    )
 
     if not snapshot.path:
-        lines.append("- No active task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
-        lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; choose a task first.")
+        lines.append(
+            "- No active task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID."
+        )
+        lines.append(
+            "- Do not bulk-read .cowork-flow/spec/ or workspace journals; choose a task first."
+        )
         lines.append("")
         return
 
@@ -353,14 +376,20 @@ def _append_resume_checklist(
 
     lines.append(f"- List task context before reading details: {commands[1]}")
 
-    plan_files = [path for path in read_files if path.startswith(f"{DIR_WORKFLOW}/plans/")]
+    plan_files = [
+        path for path in read_files if path.startswith(f"{DIR_WORKFLOW}/plans/")
+    ]
     if plan_files:
         for plan_file in plan_files:
             lines.append(f"- Read current plan status: {plan_file}")
     else:
-        lines.append("- No plan reference found in task context; do not search all plans unless needed.")
+        lines.append(
+            "- No plan reference found in task context; do not search all plans unless needed."
+        )
 
-    lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; follow JSONL references on demand.")
+    lines.append(
+        "- Do not bulk-read .cowork-flow/spec/ or workspace journals; follow JSONL references on demand."
+    )
     lines.append("")
 
 
@@ -397,21 +426,29 @@ def _append_active_task(
     lines.append("")
 
 
-def _load_task_context_by_dir(tasks_dir: Path) -> dict[str, dict]:
-    """Load task display data, preserving dirs without task.json as unknown."""
+def _load_task_context_by_dir(repo_root: Path) -> dict[str, dict]:
+    """Load task display data from FlowStore."""
     all_task_data: dict[str, dict] = {}
-    for d in _iter_task_dirs(tasks_dir):
-        data = _read_json_file(d / FILE_TASK_JSON) or {}
-        all_task_data[d.name] = {
-            "status": data.get("status", "unknown"),
-            "my_status": data.get("status", "planning"),
-            "assignee": data.get("assignee", "-"),
-            "my_assignee": data.get("assignee", ""),
-            "title": data.get("title") or data.get("name") or "unknown",
-            "priority": data.get("priority", "P2"),
-            "children": data.get("children", []),
-            "parent": data.get("parent"),
-        }
+    try:
+        from .paths import get_db_path
+        from flow.store import FlowStore
+
+        db_path = get_db_path(repo_root)
+        if db_path.exists():
+            with FlowStore(str(db_path)) as store:
+                for task in store.list_tasks():
+                    all_task_data[task.artifact_dir] = {
+                        "status": task.status,
+                        "my_status": task.status,
+                        "assignee": task.assignee,
+                        "my_assignee": task.assignee,
+                        "title": task.title,
+                        "priority": task.priority,
+                        "children": task.children,
+                        "parent": task.parent_id,
+                    }
+    except Exception:
+        pass
     return all_task_data
 
 
@@ -468,7 +505,7 @@ def get_context_json(repo_root: Path | None = None) -> dict:
 
     # Tasks
     tasks = []
-    for dir_name, data in _load_task_json_by_dir(tasks_dir, sort=False).items():
+    for dir_name, data in _load_tasks_from_flow(repo_root).items():
         tasks.append(
             {
                 "dir": dir_name,
@@ -559,10 +596,9 @@ def get_context_text(repo_root: Path | None = None) -> str:
     tasks_dir = get_tasks_dir(repo_root)
     task_count = 0
 
-    all_task_data = _load_task_context_by_dir(tasks_dir)
+    all_task_data = _load_task_context_by_dir(repo_root)
     all_task_statuses = {
-        dir_name: data["status"]
-        for dir_name, data in all_task_data.items()
+        dir_name: data["status"] for dir_name, data in all_task_data.items()
     }
 
     def _print_task_tree(name: str, indent: int = 0) -> None:
@@ -570,7 +606,9 @@ def get_context_text(repo_root: Path | None = None) -> str:
         info = all_task_data[name]
         progress = _children_progress(info["children"], all_task_statuses)
         prefix = "  " * indent
-        lines.append(f"{prefix}- {name}/ ({info['status']}){progress} @{info['assignee']}")
+        lines.append(
+            f"{prefix}- {name}/ ({info['status']}){progress} @{info['assignee']}"
+        )
         task_count += 1
         for child in info["children"]:
             if child in all_task_data:
@@ -648,23 +686,25 @@ def get_context_record_json(repo_root: Path | None = None) -> dict:
 
     # My tasks
     my_tasks = []
-    task_data_by_dir = _load_task_json_by_dir(tasks_dir)
+    task_data_by_dir = _load_tasks_from_flow(repo_root)
     all_task_statuses = _task_statuses(task_data_by_dir)
 
     for dir_name, data in task_data_by_dir.items():
         if data.get("assignee") == developer:
             children_list = data.get("children", [])
             done = _children_done_count(children_list, all_task_statuses)
-            my_tasks.append({
-                "dir": dir_name,
-                "title": data.get("title") or data.get("name") or "unknown",
-                "status": data.get("status", "unknown"),
-                "priority": data.get("priority", "P2"),
-                "children": children_list,
-                "childrenDone": done,
-                "parent": data.get("parent"),
-                "meta": data.get("meta", {}),
-            })
+            my_tasks.append(
+                {
+                    "dir": dir_name,
+                    "title": data.get("title") or data.get("name") or "unknown",
+                    "status": data.get("status", "unknown"),
+                    "priority": data.get("priority", "P2"),
+                    "children": children_list,
+                    "childrenDone": done,
+                    "parent": data.get("parent"),
+                    "meta": data.get("meta", {}),
+                }
+            )
 
     active_task_snapshot = _get_active_task_snapshot(repo_root)
 
@@ -707,14 +747,16 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
 
     # MY ACTIVE TASKS - first and prominent
     lines.append(f"## [!!!] MY ACTIVE TASKS (Assigned to {developer})")
-    lines.append("[!] Review whether any should be archived before recording this session.")
+    lines.append(
+        "[!] Review whether any should be archived before recording this session."
+    )
     lines.append("")
 
     tasks_dir = get_tasks_dir(repo_root)
     my_task_count = 0
 
     # Collect task data for children progress
-    task_data_by_dir = _load_task_json_by_dir(tasks_dir)
+    task_data_by_dir = _load_tasks_from_flow(repo_root)
     all_task_statuses = _task_statuses(task_data_by_dir)
 
     for dir_name, data in task_data_by_dir.items():

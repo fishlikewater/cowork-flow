@@ -1,11 +1,13 @@
 """Migration script tests."""
 import json
+import sqlite3
 import sys
 import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".cowork-flow" / "scripts"))
 from flow.migrate import run_migration
+from flow.store import FlowStore
 
 
 def _make_fake_tasks(tmpdir: Path):
@@ -66,3 +68,54 @@ def test_migrate_empty_dir(tmp_path):
     success, warnings, detail = run_migration(tasks_dir, db_path)
     assert success
     assert detail["tasks_migrated"] == 0
+
+def test_migrate_child_before_parent_restores_relationship(tmp_path):
+    tasks_dir = tmp_path / ".cowork-flow" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    child = tasks_dir / "01-01-child"
+    parent = tasks_dir / "02-01-parent"
+    child.mkdir()
+    parent.mkdir()
+    (child / "task.json").write_text(json.dumps({
+        "id": "child", "title": "Child", "status": "planning",
+        "creator": "dev1", "assignee": "dev1",
+        "parent": "parent", "children": [],
+    }), encoding="utf-8")
+    (parent / "task.json").write_text(json.dumps({
+        "id": "parent", "title": "Parent", "status": "planning",
+        "creator": "dev1", "assignee": "dev1",
+        "children": ["01-01-child"],
+    }), encoding="utf-8")
+
+    db_path = str(tmp_path / "test.db")
+    success, warnings, detail = run_migration(tasks_dir, db_path)
+
+    assert success
+    assert warnings == []
+    assert detail["tasks_migrated"] == 2
+    with FlowStore(db_path) as store:
+        migrated_child = store.get_task("child")
+        assert migrated_child is not None
+        assert migrated_child.parent_id == "parent"
+        assert [task.id for task in store.list_children("parent")] == ["child"]
+
+def test_migrate_rolls_back_whole_batch_on_hard_failure(tmp_path):
+    tasks_dir = tmp_path / ".cowork-flow" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    first = tasks_dir / "01-01-first"
+    duplicate = tasks_dir / "02-01-duplicate"
+    first.mkdir()
+    duplicate.mkdir()
+    task_json = {
+        "id": "same-id", "title": "Task", "status": "planning",
+        "creator": "dev1", "assignee": "dev1",
+    }
+    (first / "task.json").write_text(json.dumps(task_json), encoding="utf-8")
+    (duplicate / "task.json").write_text(json.dumps(task_json), encoding="utf-8")
+
+    db_path = str(tmp_path / "test.db")
+    with pytest.raises(sqlite3.IntegrityError):
+        run_migration(tasks_dir, db_path)
+
+    with FlowStore(db_path) as store:
+        assert store.list_tasks() == []

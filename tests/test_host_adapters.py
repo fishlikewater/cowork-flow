@@ -1,50 +1,21 @@
 from __future__ import annotations
 
 import json
+import sys
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / ".cowork-flow" / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from common.yaml_utils import read_sectioned_yaml
+
 ENTRY_BOUNDARY = "entry" + "-boundary"
 LEGACY_DISPATCH = "COWORK_" + "DISPATCH_V1"
 LEGACY_ACK = "COWORK_" + "ACK"
-
-
-def parse_simple_yaml(path: Path) -> dict[str, object]:
-    data: dict[str, object] = {}
-    current: dict[str, object] | None = None
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
-            continue
-        indent = len(raw_line) - len(raw_line.lstrip())
-        stripped = raw_line.strip()
-        key, _, value = stripped.partition(":")
-        key = key.strip()
-        value = value.strip()
-        if indent == 0:
-            if value:
-                data[key] = _parse_scalar(value)
-                current = None
-            else:
-                section: dict[str, object] = {}
-                data[key] = section
-                current = section
-        elif indent == 2 and current is not None:
-            current[key] = _parse_scalar(value)
-
-    return data
-
-
-def _parse_scalar(value: str) -> object:
-    if value == "true":
-        return True
-    if value == "false":
-        return False
-    if value.isdecimal():
-        return int(value)
-    return value
 
 
 class HostAdaptersTest(unittest.TestCase):
@@ -66,10 +37,13 @@ class HostAdaptersTest(unittest.TestCase):
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
             for host in ("codex", "opencode", "claude-code"):
-                adapter = parse_simple_yaml(base / host / "adapter.yaml")
+                adapter = read_sectioned_yaml(base / host / "adapter.yaml")
                 self.assertEqual(1, adapter["schemaVersion"])
                 self.assertEqual(host, adapter["host"])
-                self.assertEqual("inline_or_manual", adapter["fallback"]["whenRequiredCapabilityMissing"])
+                self.assertEqual(
+                    "inline_or_manual",
+                    adapter["fallback"]["whenRequiredCapabilityMissing"],
+                )
 
                 capabilities = adapter["capabilities"]
                 self.assertEqual("shim", capabilities["runtimeContextBinding"])
@@ -86,20 +60,35 @@ class HostAdaptersTest(unittest.TestCase):
                     "runtimeContextBinding",
                     "runtimeContextCleanup",
                 ):
-                    self.assertIn(capabilities[key], {"native", "shim", "plugin", "external", "experimental"})
+                    self.assertIn(
+                        capabilities[key],
+                        {"native", "shim", "plugin", "external", "experimental"},
+                    )
 
                 contracts = adapter["contracts"]
                 self.assertEqual("COWORK_ENTRY_CONTRACT_V1", contracts["entry"])
                 self.assertEqual("RUNTIME_CONTEXT_DISPATCH_V2", contracts["dispatch"])
                 self.assertIs(contracts["leafExecutor"], True)
                 runtime_context = adapter["runtimeContext"]
-                self.assertEqual("cowork_runtime_context_id", runtime_context["promptKey"])
-                self.assertEqual("COWORK_FLOW_RUNTIME_CONTEXT_ID", runtime_context["envKey"])
-                self.assertEqual("cowork_runtime_context_id", runtime_context["metadataKey"])
-                self.assertEqual("fail_closed", adapter["fallback"]["whenRuntimeContextMissing"])
+                self.assertEqual(
+                    "cowork_runtime_context_id", runtime_context["promptKey"]
+                )
+                self.assertEqual(
+                    "COWORK_FLOW_RUNTIME_CONTEXT_ID", runtime_context["envKey"]
+                )
+                self.assertEqual(
+                    "cowork_runtime_context_id", runtime_context["metadataKey"]
+                )
+                self.assertEqual(
+                    "fail_closed", adapter["fallback"]["whenRuntimeContextMissing"]
+                )
                 if host == "claude-code":
-                    self.assertEqual(".claude/skills", adapter["dispatch"]["skillsPath"])
-                    self.assertEqual(".claude/settings.json", adapter["dispatch"]["settingsPath"])
+                    self.assertEqual(
+                        ".claude/skills", adapter["dispatch"]["skillsPath"]
+                    )
+                    self.assertEqual(
+                        ".claude/settings.json", adapter["dispatch"]["settingsPath"]
+                    )
                     self.assertEqual(".claude/hooks", adapter["dispatch"]["hooksPath"])
 
     def test_party_mode_v2_action_schema_is_host_neutral(self) -> None:
@@ -124,14 +113,19 @@ class HostAdaptersTest(unittest.TestCase):
         )
         for path in (
             ROOT / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
-            ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "spec"
+            / "party-mode-v2-actions.schema.json",
         ):
             text = path.read_text(encoding="utf-8")
             schema = json.loads(text)
             actions = set(schema["$defs"]["action"]["properties"]["type"]["enum"])
             self.assertEqual(expected_actions, actions)
             self.assertFalse(
-                set(schema["$defs"]["action"]["properties"]) - {
+                set(schema["$defs"]["action"]["properties"])
+                - {
                     "action_id",
                     "type",
                     "agent_id",
@@ -173,20 +167,26 @@ class HostAdaptersTest(unittest.TestCase):
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
             for host in ("codex", "opencode", "claude-code"):
-                adapter = parse_simple_yaml(base / host / "adapter.yaml")
+                adapter = read_sectioned_yaml(base / host / "adapter.yaml")
                 self.assertEqual(
                     "inline_or_manual",
                     adapter["fallback"]["whenRequiredCapabilityMissing"],
                     host,
                 )
                 for key in required_capabilities:
-                    self.assertIn(adapter["capabilities"][key], usable_values, f"{host}:{key}")
+                    self.assertIn(
+                        adapter["capabilities"][key], usable_values, f"{host}:{key}"
+                    )
 
     def test_party_mode_v2_root_and_template_assets_are_synced(self) -> None:
         pairs = (
             (
                 ROOT / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
-                ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+                ROOT
+                / "template"
+                / ".cowork-flow"
+                / "spec"
+                / "party-mode-v2-actions.schema.json",
             ),
             (
                 ROOT / ".cowork-flow" / "spec" / "party-mode-v2-board.md",
@@ -213,7 +213,14 @@ class HostAdaptersTest(unittest.TestCase):
             )
 
     def test_workflow_is_host_neutral(self) -> None:
-        banned = ("spawn_agent", "fork_turns", "wait_agent", "list_agents", "close_agent", "codex exec")
+        banned = (
+            "spawn_agent",
+            "fork_turns",
+            "wait_agent",
+            "list_agents",
+            "close_agent",
+            "codex exec",
+        )
         for path in (
             ROOT / ".cowork-flow" / "workflow.md",
             ROOT / "template" / ".cowork-flow" / "workflow.md",
@@ -236,7 +243,9 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
-                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
+                self.assertIn(
+                    "subagent bind <runtime_context_id> <host_context_key>", text
+                )
                 self.assertIn("bound runtime context", text)
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
@@ -248,7 +257,9 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn(".cowork-flow/run subagent init", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
-                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
+                self.assertIn(
+                    "subagent bind <runtime_context_id> <host_context_key>", text
+                )
 
             plugin = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
             self.assertIn("experimental.chat.system.transform", plugin)
@@ -256,7 +267,7 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn("sessionID", plugin)
             self.assertIn("COWORK_FLOW_CONTEXT_ID", plugin)
             self.assertIn("OPENCODE_SESSION_ID", plugin)
-            self.assertIn(".cowork-flow\", \"spec\", \"registry.json", plugin)
+            self.assertIn('.cowork-flow", "spec", "registry.json', plugin)
             self.assertIn("contract-digest", plugin)
             self.assertIn("fingerprint", plugin)
             self.assertIn("read_before", plugin)
@@ -274,7 +285,9 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
-                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
+                self.assertIn(
+                    "subagent bind <runtime_context_id> <host_context_key>", text
+                )
                 self.assertIn("bound runtime context", text)
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
@@ -286,7 +299,9 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn(".cowork-flow/run subagent init", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
-                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
+                self.assertIn(
+                    "subagent bind <runtime_context_id> <host_context_key>", text
+                )
 
             for name in ("start", "check"):
                 text = (base / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
@@ -303,14 +318,15 @@ class HostAdaptersTest(unittest.TestCase):
                 ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
                 settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
             )
-            hook = (base / "hooks" / "inject-workflow-state.py").read_text(encoding="utf-8")
-            self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', hook)
-            self.assertIn("workflow-state-templates.md", hook)
-            self.assertIn("resolve_runtime_context_id", hook)
-            self.assertIn("bind_runtime_context", hook)
+            hook = (base / "hooks" / "inject-workflow-state.py").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn('HOST = "claude-code"', hook)
+            self.assertIn('ADAPTER = "claude-code.hooks"', hook)
+            self.assertIn("from common.inject_workflow_state import", hook)
+            self.assertIn("resolve_runtime_context", hook)
             self.assertIn("runtime-context-invalid", hook)
-            self.assertIn("hookSpecificOutput", hook)
-            self.assertIn("additionalContext", hook)
+            self.assertIn("emit_hook_output", hook)
 
         for path in (ROOT / "CLAUDE.md", ROOT / "template" / "CLAUDE.md"):
             text = path.read_text(encoding="utf-8")
