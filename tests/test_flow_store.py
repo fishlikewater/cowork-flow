@@ -110,6 +110,13 @@ def test_audit_trail(store):
     assert len(trail) >= 3
 
 
+def test_create_task_duplicate_id(store):
+    store.create_task(id="dup", title="First", creator="d", assignee="d")
+    import sqlite3
+    with pytest.raises(sqlite3.IntegrityError):
+        store.create_task(id="dup", title="Second", creator="d", assignee="d")
+
+
 def test_board_view(store):
     store.create_task(id="b1", title="B1", creator="d", assignee="d")
     store.create_task(id="b2", title="B2", creator="d", assignee="d", status="in_progress")

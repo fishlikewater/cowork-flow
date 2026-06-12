@@ -7,6 +7,7 @@ import json
 import sqlite3
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,9 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-from dataclasses import dataclass
 
 
 @dataclass
@@ -60,6 +58,8 @@ class FlowStore:
         schema_path = Path(__file__).resolve().parent / "schema.sql"
         if schema_path.is_file():
             self.db.executescript(schema_path.read_text(encoding="utf-8"))
+        else:
+            print(f"[WARN] schema.sql not found at {schema_path}, database may be empty", file=sys.stderr)
 
     # --- Task CRUD ---
 
@@ -89,10 +89,13 @@ class FlowStore:
             (id, None, status, creator, "", now),
         )
         if parent_id:
-            self.db.execute(
-                "INSERT OR IGNORE INTO task_child (parent_id, child_id) VALUES (?,?)",
-                (parent_id, id),
-            )
+            try:
+                self.db.execute(
+                    "INSERT INTO task_child (parent_id, child_id) VALUES (?,?)",
+                    (parent_id, id),
+                )
+            except sqlite3.IntegrityError as e:
+                print(f"[WARN] Cannot link child {id} to parent {parent_id}: {e}", file=sys.stderr)
         self.db.commit()
         return id
 
@@ -134,9 +137,9 @@ class FlowStore:
                 )
                 self.db.commit()
                 return True
-            except sqlite3.OperationalError:
+            except sqlite3.OperationalError as e:
                 self.db.rollback()
-                if attempt < 2:
+                if "locked" in str(e) and attempt < 2:
                     time.sleep(0.1)
                 else:
                     raise
@@ -307,8 +310,9 @@ def cmd_init_db(args: argparse.Namespace) -> int:
     if Path(db_path).exists():
         print(f"Database already exists: {db_path}", file=sys.stderr)
         return 1
-    store = FlowStore(str(db_path))
+    FlowStore(str(db_path))  # __init__ triggers _ensure_schema
     print(f"Database created: {db_path}")
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:

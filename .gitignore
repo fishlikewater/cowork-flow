@@ -18,3 +18,5 @@ __pycache__/
 # Package artifacts
 *.tgz
 .bitfun/
+
+.cowork-flow/cowork-flow.db
