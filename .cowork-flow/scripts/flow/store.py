@@ -12,11 +12,28 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-_FLOW_STORE_INSTANCES: dict[str, "FlowStore"] = {}
-
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class TaskView:
+    id: str
+    artifact_dir: str
+    title: str
+    status: str
+    pattern: str
+    priority: str
+    creator: str
+    assignee: str
+    parent_id: str | None
+    children: list[str]
+    meta: dict
+    block_reason: str | None
 
 
 class FlowStore:
@@ -56,7 +73,7 @@ class FlowStore:
         meta: dict | None = None,
     ) -> str:
         now = _now()
-        artifact_dir = f"{datetime.now().strftime('%m-%d')}-{id}"
+        artifact_dir = f"{datetime.now(timezone.utc).strftime('%m-%d')}-{id}"
         meta_json = json.dumps(meta or {}, ensure_ascii=False)
         self.db.execute(
             """INSERT INTO task (id, artifact_dir, title, description, status,
@@ -266,20 +283,20 @@ class FlowStore:
 
 def _row_to_taskview(row):
     meta = json.loads(row["meta"])
-    return type("TaskView", (), {
-        "id": row["id"],
-        "artifact_dir": row["artifact_dir"],
-        "title": row["title"],
-        "status": row["status"],
-        "pattern": row["pattern"],
-        "priority": row["priority"] if "priority" in row.keys() else "P2",
-        "creator": row["creator"] if "creator" in row.keys() else "",
-        "assignee": row["assignee"] if "assignee" in row.keys() else "",
-        "parent_id": row["parent_id"],
-        "children": [],
-        "meta": meta,
-        "block_reason": None,
-    })()
+    return TaskView(
+        id=row["id"],
+        artifact_dir=row["artifact_dir"],
+        title=row["title"],
+        status=row["status"],
+        pattern=row["pattern"],
+        priority=row["priority"] if "priority" in row.keys() else "P2",
+        creator=row["creator"] if "creator" in row.keys() else "",
+        assignee=row["assignee"] if "assignee" in row.keys() else "",
+        parent_id=row["parent_id"],
+        children=[],
+        meta=meta,
+        block_reason=None,
+    )
 
 
 # --- CLI entrypoint ---

@@ -567,6 +567,25 @@ def cmd_create(args: argparse.Namespace) -> int:
     from flow.store import FlowStore
     store = FlowStore(str(get_db_path(repo_root)))
     pattern = getattr(args, 'pattern', 'generic') or 'generic'
+    parent_slug = None
+
+    # Resolve parent slug before create (supports both legacy task.json and Flow)
+    if args.parent:
+        parent_dir = _resolve_task_dir(args.parent, repo_root)
+        if parent_dir.is_dir():
+            parent_json = parent_dir / FILE_TASK_JSON
+            if parent_json.is_file():
+                parent_data = _read_json_file(parent_json)
+                parent_slug = parent_data.get("id") if parent_data else None
+        # Fallback: resolve from FlowStore
+        if not parent_slug:
+            try:
+                flow_task = store.get_task(_resolve_task_id(args.parent, repo_root))
+                parent_slug = flow_task.id if flow_task else None
+            except Exception:
+                pass
+        if not parent_slug:
+            parent_slug = _resolve_task_id(args.parent, repo_root)
 
     store.create_task(
         id=slug,
@@ -576,19 +595,13 @@ def cmd_create(args: argparse.Namespace) -> int:
         priority=args.priority or "P2",
         creator=creator,
         assignee=assignee,
-        parent_id=args.parent,
+        parent_id=parent_slug,
         meta=meta,
     )
 
-    # Parent link (bidirectional, old-style task.json parent resolution)
-    if args.parent:
-        parent_dir = _resolve_task_dir(args.parent, repo_root)
-        if parent_dir.is_dir():
-            parent_json = parent_dir / FILE_TASK_JSON
-            if parent_json.is_file():
-                parent_data = _read_json_file(parent_json)
-                parent_slug = parent_data.get("id", parent_dir.name.split("-", 2)[-1]) if parent_data else args.parent
-                store.link_child(parent_slug, slug)
+    if parent_slug:
+        store.link_child(parent_slug, slug)
+        print(colored(f"Linked as child of: {parent_slug}", Colors.GREEN), file=sys.stderr)
 
     print(colored(f"Created task: {dir_name}", Colors.GREEN), file=sys.stderr)
     print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
