@@ -251,13 +251,11 @@ def _finalize_archived_task_metadata(
 # Lifecycle Hooks
 # =============================================================================
 
-def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
+def _run_hooks(event: str, task_dir: str, task_id: str, repo_root: Path) -> None:
     """Run lifecycle hooks for an event.
 
-    Args:
-        event: Event name (e.g. "after_create").
-        task_json_path: Absolute path to the task's task.json.
-        repo_root: Repository root for cwd and config lookup.
+    Passes COWORK_TASK_ID and COWORK_TASK_DIR to hook subprocess.
+    Legacy TASK_JSON_PATH is also set for backward compatibility (v1 only).
     """
     import os
     import shlex
@@ -267,7 +265,16 @@ def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
     if not commands:
         return
 
-    env = {**os.environ, "TASK_JSON_PATH": str(task_json_path)}
+    env = {
+        **os.environ,
+        "COWORK_TASK_ID": task_id,
+        "COWORK_TASK_DIR": task_dir,
+        "COWORK_DB_PATH": str(repo_root / DIR_WORKFLOW / "cowork-flow.db"),
+    }
+    # Legacy compat (v1)
+    legacy_json = repo_root / task_dir / FILE_TASK_JSON if task_dir else None
+    if legacy_json and legacy_json.exists():
+        env["TASK_JSON_PATH"] = str(legacy_json)
 
     for cmd in commands:
         try:
@@ -288,6 +295,8 @@ def _run_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
                 if result.stderr.strip():
                     print(f"  {result.stderr.strip()}", file=sys.stderr)
         except Exception as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
             print(
                 colored(f"[WARN] Hook error ({event}): {cmd} - {e}", Colors.YELLOW),
                 file=sys.stderr,
@@ -606,7 +615,7 @@ def cmd_create(args: argparse.Namespace) -> int:
     print(colored(f"Created task: {dir_name}", Colors.GREEN), file=sys.stderr)
     print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
 
-    _run_hooks("after_create", repo_root / DIR_WORKFLOW / get_db_path(repo_root).relative_to(repo_root / DIR_WORKFLOW), repo_root)
+    _run_hooks("after_create", f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}", slug, repo_root)
     return 0
 
 

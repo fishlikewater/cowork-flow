@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from common.time_utils import now_utc_iso
 from flow.store import FlowStore
 
 
 def _now():
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return now_utc_iso()
 
 
 def run_migration(tasks_dir: Path, db_path: str):

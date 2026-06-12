@@ -13,9 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-
-def _now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+from common.time_utils import now_utc_iso as _now
 
 
 @dataclass
@@ -35,10 +33,7 @@ class TaskView:
 
 
 class FlowStore:
-    """SQLite persistence layer for the Flow system.
-
-    This is the single write-entry point for cowork-flow.db.
-    """
+    """SQLite persistence layer for the Flow system — single write-entry point."""
 
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
@@ -48,10 +43,17 @@ class FlowStore:
         self.db.execute("PRAGMA foreign_keys=ON")
         self._ensure_schema()
 
-    def __del__(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def close(self) -> None:
         try:
             self.db.close()
-        except Exception:
+        except sqlite3.Error:
             pass
 
     def _ensure_schema(self) -> None:
@@ -59,7 +61,23 @@ class FlowStore:
         if schema_path.is_file():
             self.db.executescript(schema_path.read_text(encoding="utf-8"))
         else:
-            print(f"[WARN] schema.sql not found at {schema_path}, database may be empty", file=sys.stderr)
+            print(f"[WARN] schema.sql not found at {schema_path}", file=sys.stderr)
+
+    def _transaction(self, fn):
+        """Execute fn() inside a BEGIN IMMEDIATE transaction with retry."""
+        for attempt in range(3):
+            try:
+                self.db.execute("BEGIN IMMEDIATE")
+                result = fn()
+                self.db.commit()
+                return result
+            except sqlite3.OperationalError as e:
+                self.db.rollback()
+                if "locked" in str(e) and attempt < 2:
+                    time.sleep(0.1)
+                else:
+                    raise
+        return None
 
     # --- Task CRUD ---
 
@@ -75,31 +93,35 @@ class FlowStore:
         now = _now()
         artifact_dir = f"{datetime.now(timezone.utc).strftime('%m-%d')}-{id}"
         meta_json = json.dumps(meta or {}, ensure_ascii=False)
-        self.db.execute(
-            """INSERT INTO task (id, artifact_dir, title, description, status,
-               pattern, priority, creator, assignee, level, parent_id,
-               commit_sha, created_at, updated_at, meta)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (id, artifact_dir, title, description, status,
-             pattern, priority, creator, assignee, level, parent_id,
-             commit_sha, now, now, meta_json),
-        )
-        self.db.execute(
-            "INSERT INTO audit (task_id, from_status, to_status, operator, reason, created_at) VALUES (?,?,?,?,?,?)",
-            (id, None, status, creator, "", now),
-        )
-        if parent_id:
-            try:
+
+        def _do_insert():
+            self.db.execute(
+                """INSERT INTO task (id, artifact_dir, title, description, status,
+                   pattern, priority, creator, assignee, level, parent_id,
+                   commit_sha, created_at, updated_at, meta)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (id, artifact_dir, title, description, status,
+                 pattern, priority, creator, assignee, level, parent_id,
+                 commit_sha, now, now, meta_json),
+            )
+            self.db.execute(
+                "INSERT INTO audit (task_id, from_status, to_status, operator, reason, created_at) VALUES (?,?,?,?,?,?)",
+                (id, None, status, creator, "", now),
+            )
+            if parent_id:
                 self.db.execute(
                     "INSERT INTO task_child (parent_id, child_id) VALUES (?,?)",
                     (parent_id, id),
                 )
-            except sqlite3.IntegrityError as e:
-                print(f"[WARN] Cannot link child {id} to parent {parent_id}: {e}", file=sys.stderr)
-        self.db.commit()
-        return id
+            return id
 
-    def get_task(self, task_id: str):
+        try:
+            return self._transaction(_do_insert)
+        except sqlite3.IntegrityError as e:
+            print(f"[WARN] Cannot link child {id} to parent {parent_id}: {e}", file=sys.stderr)
+            raise
+
+    def get_task(self, task_id: str) -> TaskView | None:
         row = self.db.execute("SELECT * FROM task WHERE id = ?", (task_id,)).fetchone()
         if row is None:
             return None
@@ -107,44 +129,39 @@ class FlowStore:
 
     def update_status(self, task_id: str, new_status: str,
                       operator: str, reason: str = "") -> bool:
-        now = _now()
-        old = self.db.execute("SELECT status FROM task WHERE id = ?", (task_id,)).fetchone()
-        if old is None:
-            return False
-        old_status = old["status"]
-        self.db.execute(
-            "UPDATE task SET status = ?, updated_at = ? WHERE id = ?",
-            (new_status, now, task_id),
-        )
-        self.db.execute(
-            "INSERT INTO audit (task_id, from_status, to_status, operator, reason, created_at) VALUES (?,?,?,?,?,?)",
-            (task_id, old_status, new_status, operator, reason, now),
-        )
-        if new_status == "completed":
-            self.db.execute("UPDATE task SET completed_at = ? WHERE id = ?", (now, task_id))
-        self.db.commit()
-        return True
+        def _do_update():
+            now = _now()
+            old = self.db.execute("SELECT status FROM task WHERE id = ?", (task_id,)).fetchone()
+            if old is None:
+                return False
+            old_status = old["status"]
+            self.db.execute(
+                "UPDATE task SET status = ?, updated_at = ? WHERE id = ?",
+                (new_status, now, task_id),
+            )
+            self.db.execute(
+                "INSERT INTO audit (task_id, from_status, to_status, operator, reason, created_at) VALUES (?,?,?,?,?,?)",
+                (task_id, old_status, new_status, operator, reason, now),
+            )
+            if new_status == "completed":
+                self.db.execute("UPDATE task SET completed_at = ? WHERE id = ?", (now, task_id))
+            return True
+
+        return self._transaction(_do_update) or False
 
     def update_meta(self, task_id: str, meta: dict) -> bool:
-        meta_json = json.dumps(meta, ensure_ascii=False)
-        now = _now()
-        for attempt in range(3):
-            try:
-                self.db.execute("BEGIN IMMEDIATE")
-                self.db.execute(
-                    "UPDATE task SET meta = ?, updated_at = ? WHERE id = ?",
-                    (meta_json, now, task_id),
-                )
-                self.db.commit()
-                return True
-            except sqlite3.OperationalError as e:
-                self.db.rollback()
-                if "locked" in str(e) and attempt < 2:
-                    time.sleep(0.1)
-                else:
-                    raise
+        def _do_update_meta():
+            meta_json = json.dumps(meta, ensure_ascii=False)
+            now = _now()
+            self.db.execute(
+                "UPDATE task SET meta = ?, updated_at = ? WHERE id = ?",
+                (meta_json, now, task_id),
+            )
+            return True
 
-    def list_tasks(self, status: str | None = None):
+        return self._transaction(_do_update_meta) or False
+
+    def list_tasks(self, status: str | None = None) -> list[TaskView]:
         if status:
             rows = self.db.execute(
                 "SELECT * FROM task WHERE status = ? ORDER BY created_at DESC", (status,)
@@ -153,7 +170,7 @@ class FlowStore:
             rows = self.db.execute("SELECT * FROM task ORDER BY created_at DESC").fetchall()
         return [_row_to_taskview(r) for r in rows]
 
-    def list_children(self, parent_id: str):
+    def list_children(self, parent_id: str) -> list[TaskView]:
         rows = self.db.execute(
             """SELECT t.* FROM task t
                JOIN task_child tc ON t.id = tc.child_id
@@ -163,28 +180,32 @@ class FlowStore:
         return [_row_to_taskview(r) for r in rows]
 
     def link_child(self, parent_id: str, child_id: str, sort_order: int = 0) -> bool:
-        self.db.execute(
-            "INSERT OR IGNORE INTO task_child (parent_id, child_id, sort_order) VALUES (?,?,?)",
-            (parent_id, child_id, sort_order),
-        )
-        self.db.execute(
-            "UPDATE task SET parent_id = ?, updated_at = ? WHERE id = ?",
-            (parent_id, _now(), child_id),
-        )
-        self.db.commit()
-        return True
+        def _do_link():
+            self.db.execute(
+                "INSERT INTO task_child (parent_id, child_id, sort_order) VALUES (?,?,?)",
+                (parent_id, child_id, sort_order),
+            )
+            self.db.execute(
+                "UPDATE task SET parent_id = ?, updated_at = ? WHERE id = ?",
+                (parent_id, _now(), child_id),
+            )
+            return True
+
+        return self._transaction(_do_link) or False
 
     def unlink_child(self, parent_id: str, child_id: str) -> bool:
-        self.db.execute(
-            "DELETE FROM task_child WHERE parent_id = ? AND child_id = ?",
-            (parent_id, child_id),
-        )
-        self.db.execute(
-            "UPDATE task SET parent_id = NULL, updated_at = ? WHERE id = ?",
-            (_now(), child_id),
-        )
-        self.db.commit()
-        return True
+        def _do_unlink():
+            self.db.execute(
+                "DELETE FROM task_child WHERE parent_id = ? AND child_id = ?",
+                (parent_id, child_id),
+            )
+            self.db.execute(
+                "UPDATE task SET parent_id = NULL, updated_at = ? WHERE id = ?",
+                (_now(), child_id),
+            )
+            return True
+
+        return self._transaction(_do_unlink) or False
 
     def all_children_done(self, parent_id: str) -> bool:
         count = self.db.execute(
@@ -198,22 +219,48 @@ class FlowStore:
     # --- Block ---
 
     def block_task(self, task_id: str, reason: str) -> bool:
-        now = _now()
-        self.db.execute(
-            "INSERT INTO block (task_id, reason, blocked_at) VALUES (?,?,?)",
-            (task_id, reason, now),
-        )
-        self.db.commit()
-        return self.update_status(task_id, "blocked", "system", reason)
+        # Guard: check not already blocked
+        existing = self.get_active_block(task_id)
+        if existing:
+            print(f"[WARN] Task {task_id} already has an active block", file=sys.stderr)
+            return False
+
+        def _do_block():
+            now = _now()
+            self.db.execute(
+                "INSERT INTO block (task_id, reason, blocked_at) VALUES (?,?,?)",
+                (task_id, reason, now),
+            )
+            self.db.execute(
+                "UPDATE task SET status = ?, updated_at = ? WHERE id = ?",
+                ("blocked", now, task_id),
+            )
+            self.db.execute(
+                "INSERT INTO audit (task_id, from_status, to_status, operator, reason, created_at) VALUES (?,?,?,?,?,?)",
+                (task_id, "in_progress", "blocked", "system", reason, now),
+            )
+            return True
+
+        return self._transaction(_do_block) or False
 
     def unblock_task(self, task_id: str, decision: str = "", decided_by: str = "") -> bool:
-        now = _now()
-        self.db.execute(
-            "UPDATE block SET decision = ?, decided_by = ?, resolved_at = ? WHERE task_id = ? AND resolved_at IS NULL",
-            (decision, decided_by, now, task_id),
-        )
-        self.db.commit()
-        return self.update_status(task_id, "in_progress", decided_by or "system")
+        def _do_unblock():
+            now = _now()
+            self.db.execute(
+                "UPDATE block SET decision = ?, decided_by = ?, resolved_at = ? WHERE task_id = ? AND resolved_at IS NULL",
+                (decision, decided_by, now, task_id),
+            )
+            self.db.execute(
+                "UPDATE task SET status = ?, updated_at = ? WHERE id = ?",
+                ("in_progress", now, task_id),
+            )
+            self.db.execute(
+                "INSERT INTO audit (task_id, from_status, to_status, operator, reason, created_at) VALUES (?,?,?,?,?,?)",
+                (task_id, "blocked", "in_progress", decided_by or "system", "", now),
+            )
+            return True
+
+        return self._transaction(_do_unblock) or False
 
     def get_active_block(self, task_id: str):
         row = self.db.execute(
@@ -249,7 +296,7 @@ class FlowStore:
         ).fetchone()
         return dict(row) if row else None
 
-    def list_agent_runs_for_parent(self, parent_id: str):
+    def list_agent_runs_for_parent(self, parent_id: str) -> list[dict]:
         rows = self.db.execute(
             """SELECT ar.* FROM agent_run ar
                JOIN task_child tc ON ar.task_id = tc.child_id

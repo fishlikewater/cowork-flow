@@ -107,7 +107,7 @@ def test_audit_trail(store):
     store.update_status(t, "in_progress", "dev1")
     store.update_status(t, "review", "dev1")
     trail = store.get_audit_trail(t)
-    assert len(trail) >= 3
+    assert len(trail) == 3  # create + in_progress + review
 
 
 def test_create_task_duplicate_id(store):
@@ -117,10 +117,61 @@ def test_create_task_duplicate_id(store):
         store.create_task(id="dup", title="Second", creator="d", assignee="d")
 
 
+def test_agent_run_crud(store):
+    t = store.create_task(id="ar1", title="AR", creator="d", assignee="d")
+    run_id = store.create_agent_run(
+        id="rtx_001", task_id=t, agent_type="cowork-implement",
+        created_at="2026-01-01T00:00:00Z",
+    )
+    assert run_id == "rtx_001"
+    active = store.get_active_agent_run(t)
+    assert active["id"] == "rtx_001"
+    assert active["status"] == "pending"
+    store.update_agent_run_status("rtx_001", "success")
+    active = store.get_active_agent_run(t)
+    assert active["status"] == "success"
+
+
+def test_get_active_agent_run_returns_latest(store):
+    t = store.create_task(id="ar2", title="AR2", creator="d", assignee="d")
+    store.create_agent_run(id="r1", task_id=t, agent_type="worker", created_at="2026-01-01T00:00:00Z")
+    store.create_agent_run(id="r2", task_id=t, agent_type="worker", created_at="2026-01-02T00:00:00Z")
+    store.update_agent_run_status("r1", "closed")
+    active = store.get_active_agent_run(t)
+    assert active["id"] == "r2"
+
+
+def test_list_agent_runs_for_parent(store):
+    p = store.create_task(id="parent_ar", title="PAR", creator="d", assignee="d")
+    c = store.create_task(id="child_ar", title="CAR", creator="d", assignee="d", parent_id=p)
+    store.create_agent_run(id="r3", task_id=c, agent_type="cowork-implement", created_at="2026-01-01T00:00:00Z")
+    runs = store.list_agent_runs_for_parent(p)
+    assert len(runs) == 1
+    assert runs[0]["id"] == "r3"
+
+
+def test_double_block_guarded(store):
+    t = store.create_task(id="db1", title="DB", creator="d", assignee="d")
+    store.update_status(t, "in_progress", "dev1")
+    assert store.block_task(t, "first block")
+    assert not store.block_task(t, "second block")
+    assert len(store.get_audit_trail(t)) == 3  # create + start + first block
+
+
+def test_update_meta_retry_exhaustion(store):
+    t = store.create_task(id="meta1", title="Meta", creator="d", assignee="d")
+    # Normal path: succeeds
+    assert store.update_meta(t, {"key": "value"})
+    assert store.get_task(t).meta["key"] == "value"
+    # Meta update with empty dict
+    assert store.update_meta(t, {})
+    assert store.get_task(t).meta == {}
+
+
 def test_board_view(store):
     store.create_task(id="b1", title="B1", creator="d", assignee="d")
     store.create_task(id="b2", title="B2", creator="d", assignee="d", status="in_progress")
     view = store.board_view()
     assert len(view["columns"]) == 6
     planning_col = [c for c in view["columns"] if c["status"] == "planning"][0]
-    assert len(planning_col["tasks"]) >= 1
+    assert len(planning_col["tasks"]) == 1

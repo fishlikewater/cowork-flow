@@ -59,7 +59,7 @@ CREATE INDEX IF NOT EXISTS idx_block_task ON block(task_id);
 
 CREATE TABLE IF NOT EXISTS agent_run (
     id              TEXT PRIMARY KEY,
-    task_id         TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
+    task_id     TEXT REFERENCES task(id) ON DELETE SET NULL,
     agent_type      TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'pending',
     host_context_key TEXT,
