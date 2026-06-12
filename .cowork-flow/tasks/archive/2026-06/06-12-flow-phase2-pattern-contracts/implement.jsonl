@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": "FLOW-UPGRADE-DESIGN.md", "reason": "Pattern contract design section"}
+{"file": ".cowork-flow/scripts/flow/store.py", "reason": "Existing TaskView and FlowStore view contract"}
+{"file": ".cowork-flow/plans/2026-06-12-flow-phase2-pattern-engine.md", "reason": "Task 1 execution plan"}
+{"file": ".cowork-flow/scripts/patterns/", "type": "directory", "reason": "Pattern contract runtime files"}
+{"file": "template/.cowork-flow/scripts/patterns/", "type": "directory", "reason": "Template pattern contract runtime files"}

@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/scripts/flow/store.py", "reason": "FlowStore APIs used to build TaskContext"}
+{"file": "template/.cowork-flow/scripts/task.py", "reason": "Template lifecycle copy must stay synced"}
+{"file": ".cowork-flow/scripts/task.py", "reason": "Lifecycle command integration point"}
+{"file": ".cowork-flow/scripts/patterns/", "type": "directory", "reason": "Pattern registry and action contracts used by task lifecycle"}
+{"file": "template/.cowork-flow/scripts/patterns/", "type": "directory", "reason": "Template pattern runtime used by tests"}

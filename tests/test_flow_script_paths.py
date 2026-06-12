@@ -50,15 +50,27 @@ class FlowScriptPathsTest(unittest.TestCase):
         ):
             sys.modules.pop(module_name, None)
 
-    def _create_flow_task(self, root: Path, slug: str, status: str = "planning") -> str:
+    def _create_flow_task(
+        self,
+        root: Path,
+        slug: str,
+        status: str = "planning",
+        *,
+        pattern: str = "generic",
+        meta: dict | None = None,
+        parent_id: str | None = None,
+    ) -> str:
         db_path = self.paths.get_db_path(root)
         with self.flow_store.FlowStore(str(db_path)) as store:
             store.create_task(
                 id=slug,
                 title=f"Test {slug}",
                 status=status,
+                pattern=pattern,
                 creator="test",
                 assignee="test",
+                parent_id=parent_id,
+                meta=meta,
             )
         return slug
 
@@ -629,6 +641,40 @@ class FlowScriptPathsTest(unittest.TestCase):
                 self.assertIsNotNone(task)
                 self.assertEqual("in_progress", task.status)
 
+    def test_cmd_start_rejects_pattern_invalid_transition(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-done"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (task_dir / "prd.md").write_text("# Done\n", encoding="utf-8")
+            for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n', encoding="utf-8"
+                )
+            self._create_flow_task(root, "done", "completed")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_start(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-done")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            with self.flow_store.FlowStore(str(self.paths.get_db_path(root))) as store:
+                task = store.get_task("done")
+            self.assertEqual(1, result)
+            self.assertIsNotNone(task)
+            self.assertEqual("completed", task.status)
+            self.assertIn("Pattern transition blocked", stderr.getvalue())
+
     def test_cmd_review_and_complete_update_active_task_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -687,6 +733,147 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(1, review_result)
             self.assertEqual(1, complete_result)
             self.assertIn("Flow task not found", stderr.getvalue())
+
+    def test_cmd_review_blocks_fan_out_parent_with_pending_child(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            parent_dir = root / ".cowork-flow" / "tasks" / "05-19-parent"
+            parent_dir.mkdir(parents=True)
+            self._create_flow_task(root, "parent", "in_progress", pattern="fan_out")
+            self._create_flow_task(
+                root,
+                "child",
+                "in_progress",
+                parent_id="parent",
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_review(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-parent")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            with self.flow_store.FlowStore(str(self.paths.get_db_path(root))) as store:
+                task = store.get_task("parent")
+            self.assertEqual(1, result)
+            self.assertIsNotNone(task)
+            self.assertEqual("in_progress", task.status)
+            self.assertIn("Pattern transition blocked", stderr.getvalue())
+
+    def test_cmd_complete_advances_pipeline_stage_without_finishing_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-pipe"
+            task_dir.mkdir(parents=True)
+            self._create_flow_task(
+                root,
+                "pipe",
+                "review",
+                pattern="pipeline",
+                meta={
+                    "stages": [{"name": "implement"}, {"name": "check"}],
+                    "current_stage": 0,
+                },
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_complete(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-pipe")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            with self.flow_store.FlowStore(str(self.paths.get_db_path(root))) as store:
+                task = store.get_task("pipe")
+            self.assertEqual(0, result)
+            self.assertIsNotNone(task)
+            self.assertEqual("in_progress", task.status)
+            self.assertEqual(1, task.meta["current_stage"])
+
+    def test_cmd_unblock_requires_decision_for_human_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-human"
+            task_dir.mkdir(parents=True)
+            self._create_flow_task(
+                root,
+                "human",
+                "in_progress",
+                pattern="human_loop",
+                meta={"decision_points": [{"question": "Choose"}]},
+            )
+            with self.flow_store.FlowStore(str(self.paths.get_db_path(root))) as store:
+                store.block_task("human", "Choose")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_unblock(
+                        argparse.Namespace(
+                            dir=".cowork-flow/tasks/05-19-human",
+                            decision=None,
+                            force=False,
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            with self.flow_store.FlowStore(str(self.paths.get_db_path(root))) as store:
+                task = store.get_task("human")
+            self.assertEqual(1, result)
+            self.assertIsNotNone(task)
+            self.assertEqual("blocked", task.status)
+            self.assertIn("--decision", stderr.getvalue())
+
+    def test_cmd_unblock_requires_force_for_non_human_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            self._create_flow_task(root, "demo", "in_progress")
+            with self.flow_store.FlowStore(str(self.paths.get_db_path(root))) as store:
+                store.block_task("demo", "Need manual unblock")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_unblock(
+                        argparse.Namespace(
+                            dir=".cowork-flow/tasks/05-19-demo",
+                            decision="approved",
+                            force=False,
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            with self.flow_store.FlowStore(str(self.paths.get_db_path(root))) as store:
+                task = store.get_task("demo")
+            self.assertEqual(1, result)
+            self.assertIsNotNone(task)
+            self.assertEqual("blocked", task.status)
+            self.assertIn("--force", stderr.getvalue())
 
     def test_cmd_block_and_unblock_fail_when_flow_task_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -833,6 +1020,39 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("cowork-implement", output)
             self.assertIn("./.cowork-flow/run subagent init", output)
             self.assertIn("cowork_runtime_context_id", output)
+
+    def test_cmd_next_reports_pattern_action_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            parent_dir = root / ".cowork-flow" / "tasks" / "05-19-parent"
+            parent_dir.mkdir(parents=True)
+            self._create_flow_task(root, "parent", "in_progress", pattern="fan_out")
+            self._create_flow_task(
+                root,
+                "child",
+                "in_progress",
+                parent_id="parent",
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(dir=".cowork-flow/tasks/05-19-parent")
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            output = stdout.getvalue()
+            self.assertEqual(0, result)
+            self.assertIn("Pattern action: wait_children", output)
+            self.assertIn("child", output)
+            with self.flow_store.FlowStore(str(self.paths.get_db_path(root))) as store:
+                parent = store.get_task("parent")
+            self.assertIsNotNone(parent)
+            self.assertEqual("in_progress", parent.status)
 
     def test_cmd_next_reports_review_check_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -13,7 +13,7 @@ Provides:
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 
@@ -212,8 +212,8 @@ def count_lines(file_path: Path) -> int:
 # =============================================================================
 
 def generate_task_date_prefix() -> str:
-    """Generate task ID based on date (MM-DD format, UTC)."""
-    return datetime.now(timezone.utc).strftime("%m-%d")
+    """Generate task ID based on local date (MM-DD format)."""
+    return datetime.now().strftime("%m-%d")
 
 
 def ensure_task_date_prefix(slug: str) -> str:

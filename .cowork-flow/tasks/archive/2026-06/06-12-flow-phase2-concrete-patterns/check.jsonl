@@ -1,0 +1,4 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "FLOW-UPGRADE-DESIGN.md", "reason": "Verify concrete patterns against design constraints"}
+{"file": "tests/test_patterns.py", "reason": "Concrete pattern regression tests"}

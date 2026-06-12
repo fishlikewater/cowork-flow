@@ -83,6 +83,100 @@ def _get_flow_store(repo_root: Path | None = None):
     return _FlowStore(str(db_path))
 
 
+def _build_pattern_context(store, task_id: str):
+    from patterns.base import BlockView, TaskContext
+
+    task = store.get_task(task_id)
+    if task is None:
+        return None
+    active_block = store.get_active_block(task_id)
+    block_view = BlockView(**active_block) if active_block else None
+    return TaskContext(
+        task=task,
+        children=store.list_children(task_id),
+        active_block=block_view,
+    )
+
+
+def _resolve_pattern(ctx):
+    from patterns.registry import create_registry
+
+    return create_registry().resolve(ctx.task)
+
+
+def _pattern_transition_issues(pattern, ctx, to_status: str) -> list[str]:
+    issues = pattern.validate(ctx)
+    if not pattern.can_transition(ctx, to_status):
+        issues.append(
+            f"Pattern '{pattern.name}' does not allow {ctx.task.status} -> {to_status}"
+        )
+    return issues
+
+
+def _print_pattern_errors(pattern, ctx, to_status: str, issues: list[str]) -> None:
+    print(colored("Error: Pattern transition blocked", Colors.RED), file=sys.stderr)
+    print(f"  Pattern: {pattern.name}", file=sys.stderr)
+    print(f"  Transition: {ctx.task.status} -> {to_status}", file=sys.stderr)
+    for issue in issues:
+        print(f"  - {issue}", file=sys.stderr)
+
+
+def _pattern_next_action_for_task(repo_root: Path, task_dir: Path):
+    task_id = _resolve_task_id(task_dir.name, repo_root)
+    try:
+        with _get_flow_store(repo_root) as store:
+            ctx = _build_pattern_context(store, task_id)
+            if ctx is None:
+                return None
+            pattern = _resolve_pattern(ctx)
+            return pattern.next_action(ctx)
+    except Exception:
+        return None
+
+
+def _print_pattern_action(action) -> None:
+    print(f"Pattern action: {action.kind.value}")
+    print(f"Pattern detail: {action.description}")
+    if action.children:
+        print(f"Pattern children: {', '.join(action.children)}")
+
+
+def _pipeline_stage_count(ctx) -> int:
+    stages = ctx.task.meta.get("stages")
+    return len(stages) if isinstance(stages, list) else 0
+
+
+def _pipeline_current_stage(ctx) -> int:
+    try:
+        return int(ctx.task.meta.get("current_stage", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _complete_pipeline_stage(store, ctx, task_id: str) -> str | None:
+    if ctx.task.pattern != "pipeline" or ctx.task.status != "review":
+        return None
+    stage_count = _pipeline_stage_count(ctx)
+    current_stage = _pipeline_current_stage(ctx)
+    if stage_count <= 0 or current_stage >= stage_count:
+        return None
+
+    next_stage = current_stage + 1
+    next_meta = dict(ctx.task.meta)
+    next_meta["current_stage"] = next_stage
+    if not store.update_meta(task_id, next_meta):
+        return None
+
+    if next_stage >= stage_count:
+        if store.update_status(task_id, "completed", "system", "pipeline complete"):
+            return "completed"
+        return None
+
+    if store.update_status(task_id, "in_progress", "system", "pipeline stage complete"):
+        return "in_progress"
+    return None
+
+
 # =============================================================================
 # Colors
 # =============================================================================
@@ -998,6 +1092,22 @@ def cmd_start(args: argparse.Namespace) -> int:
     except ValueError:
         task_dir = str(full_path)
 
+    task_id_for_status = _resolve_task_id(task_dir, repo_root)
+    try:
+        with _get_flow_store(repo_root) as store:
+            ctx = _build_pattern_context(store, task_id_for_status)
+            if ctx is not None:
+                pattern = _resolve_pattern(ctx)
+                issues = _pattern_transition_issues(pattern, ctx, "in_progress")
+                if issues:
+                    _print_pattern_errors(pattern, ctx, "in_progress", issues)
+                    return 1
+    except Exception as exc:
+        print(
+            colored(f"[WARN] FlowStore pattern gate failed: {exc}", Colors.YELLOW),
+            file=sys.stderr,
+        )
+
     active = set_active_task(repo_root, task_dir)
     if active is None:
         print(
@@ -1012,9 +1122,10 @@ def cmd_start(args: argparse.Namespace) -> int:
     # Update FlowStore
     try:
         with _get_flow_store(repo_root) as store:
-            task_id = _resolve_task_id(task_dir, repo_root)
-            if store.get_task(task_id):
-                store.update_status(task_id, "in_progress", "system", "task start")
+            if store.get_task(task_id_for_status):
+                store.update_status(
+                    task_id_for_status, "in_progress", "system", "task start"
+                )
     except Exception as exc:
         print(
             colored(f"[WARN] FlowStore update failed: {exc}", Colors.YELLOW),
@@ -1029,8 +1140,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
     )
 
-    task_id_for_hook = _resolve_task_id(task_dir, repo_root)
-    _run_hooks("after_start", task_dir, task_id_for_hook, repo_root)
+    _run_hooks("after_start", task_dir, task_id_for_status, repo_root)
     return 0
 
 
@@ -1043,6 +1153,18 @@ def cmd_review(args: argparse.Namespace) -> int:
 
     task_id = _resolve_task_id(task_dir.name, repo_root)
     with _get_flow_store(repo_root) as store:
+        ctx = _build_pattern_context(store, task_id)
+        if ctx is None:
+            print(
+                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        pattern = _resolve_pattern(ctx)
+        issues = _pattern_transition_issues(pattern, ctx, "review")
+        if issues:
+            _print_pattern_errors(pattern, ctx, "review", issues)
+            return 1
         if not store.update_status(task_id, "review", "system", "task review"):
             print(
                 colored(f"Error: Flow task not found: {task_id}", Colors.RED),
@@ -1065,6 +1187,38 @@ def cmd_complete(args: argparse.Namespace) -> int:
 
     task_id = _resolve_task_id(task_dir.name, repo_root)
     with _get_flow_store(repo_root) as store:
+        ctx = _build_pattern_context(store, task_id)
+        if ctx is None:
+            print(
+                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        pattern = _resolve_pattern(ctx)
+        validation_issues = pattern.validate(ctx)
+        if validation_issues:
+            _print_pattern_errors(pattern, ctx, "completed", validation_issues)
+            return 1
+        pipeline_status = _complete_pipeline_stage(store, ctx, task_id)
+        if pipeline_status:
+            task_path = _display_task_path(repo_root, task_dir)
+            if pipeline_status == "completed":
+                print(
+                    colored(f"[OK] Task marked completed: {task_path}", Colors.GREEN)
+                )
+            else:
+                print(
+                    colored(
+                        f"[OK] Pipeline advanced to next stage: {task_path}",
+                        Colors.GREEN,
+                    )
+                )
+            print(f"Next: ./.cowork-flow/run task next {task_path}")
+            return 0
+        issues = _pattern_transition_issues(pattern, ctx, "completed")
+        if issues:
+            _print_pattern_errors(pattern, ctx, "completed", issues)
+            return 1
         if not store.update_status(task_id, "completed", "system", "task complete"):
             print(
                 colored(f"Error: Flow task not found: {task_id}", Colors.RED),
@@ -1307,6 +1461,9 @@ def cmd_next(args: argparse.Namespace) -> int:
     blockers = _task_next_blockers(repo_root, task_dir)
     print(f"Status: {status}")
     print(f"Source: {source}")
+    pattern_action = _pattern_next_action_for_task(repo_root, task_dir)
+    if pattern_action is not None:
+        _print_pattern_action(pattern_action)
 
     if status == "planning":
         if blockers:
@@ -1549,6 +1706,18 @@ def cmd_block(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     task_id = _resolve_task_id(args.dir, repo_root)
     with _get_flow_store(repo_root) as store:
+        ctx = _build_pattern_context(store, task_id)
+        if ctx is None:
+            print(
+                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        pattern = _resolve_pattern(ctx)
+        issues = _pattern_transition_issues(pattern, ctx, "blocked")
+        if issues:
+            _print_pattern_errors(pattern, ctx, "blocked", issues)
+            return 1
         if store.block_task(task_id, args.reason):
             print(colored(f"Task blocked: {task_id}", Colors.YELLOW), file=sys.stderr)
             print(f"  Reason: {args.reason}", file=sys.stderr)
@@ -1569,6 +1738,14 @@ def cmd_unblock(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     task_id = _resolve_task_id(args.dir, repo_root)
     with _get_flow_store(repo_root) as store:
+        ctx = _build_pattern_context(store, task_id)
+        if ctx is None:
+            print(
+                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        pattern = _resolve_pattern(ctx)
         if args.force:
             if not store.update_status(task_id, "in_progress", "manual", "force unblock"):
                 print(
@@ -1581,6 +1758,25 @@ def cmd_unblock(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 0
+        if pattern.name != "human_loop":
+            print(
+                colored(
+                    f"Error: task pattern '{pattern.name}' requires --force to unblock",
+                    Colors.RED,
+                ),
+                file=sys.stderr,
+            )
+            return 1
+        validation_issues = pattern.validate(ctx)
+        if validation_issues:
+            _print_pattern_errors(pattern, ctx, "in_progress", validation_issues)
+            return 1
+        if not args.decision:
+            print(
+                colored("Error: human_loop unblock requires --decision", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
         if store.unblock_task(task_id, args.decision or "approved", "human"):
             print(colored(f"Task unblocked: {task_id}", Colors.GREEN), file=sys.stderr)
             return 0

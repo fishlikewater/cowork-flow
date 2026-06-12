@@ -7,29 +7,13 @@ import json
 import sqlite3
 import sys
 import time
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from common.time_utils import now_utc_iso as _now
-
-
-@dataclass
-class TaskView:
-    id: str
-    artifact_dir: str
-    title: str
-    status: str
-    pattern: str
-    priority: str
-    creator: str
-    assignee: str
-    parent_id: str | None
-    children: list[str]
-    meta: dict
-    block_reason: str | None
+from patterns.base import TaskView
 
 
 class FlowStore:
