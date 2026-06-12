@@ -87,7 +87,11 @@ def _iter_task_dirs(tasks_dir: Path, sort: bool = True):
 
 
 def _load_task_json_by_dir(tasks_dir: Path, sort: bool = True) -> dict[str, dict]:
-    """Load task.json data keyed by task directory name."""
+    """Load task data keyed by task directory name.
+
+    Reads from task.json. Falls back to FlowStore for new-style tasks
+    that don't have task.json files.
+    """
     tasks: dict[str, dict] = {}
     for d in _iter_task_dirs(tasks_dir, sort=sort):
         task_json = d / FILE_TASK_JSON
@@ -95,7 +99,34 @@ def _load_task_json_by_dir(tasks_dir: Path, sort: bool = True) -> dict[str, dict
             data = _read_json_file(task_json)
             if data:
                 tasks[d.name] = data
+        else:
+            # Fallback: try FlowStore
+            try:
+                from common.paths import get_db_path
+                db_path = get_db_path()
+                if db_path.exists():
+                    from flow.store import FlowStore
+                    store = FlowStore(str(db_path))
+                    slug = _slug_from_dirname(d.name)
+                    flow_task = store.get_task(slug)
+                    if flow_task:
+                        tasks[d.name] = {
+                            "id": flow_task.id,
+                            "title": flow_task.title,
+                            "status": flow_task.status,
+                            "assignee": flow_task.assignee,
+                            "children": [],
+                            "parent": flow_task.parent_id,
+                        }
+            except Exception:
+                pass
     return tasks
+
+
+def _slug_from_dirname(dir_name: str) -> str:
+    """Extract slug from MM-DD-slug directory name."""
+    from common.paths import TASK_DATE_PREFIX_PATTERN
+    return TASK_DATE_PREFIX_PATTERN.sub("", dir_name)
 
 
 def _parse_recent_commits(log_out: str, include_empty_message: bool = True) -> list[dict]:
