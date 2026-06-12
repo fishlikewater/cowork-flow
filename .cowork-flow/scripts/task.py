@@ -52,6 +52,7 @@ from common.paths import (
     DIR_SPEC,
     DIR_ARCHIVE,
     FILE_TASK_JSON,
+    TASK_DATE_PREFIX_PATTERN,
     get_repo_root,
     get_developer,
     get_tasks_dir,
@@ -331,6 +332,23 @@ def _resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
     return repo_root / target_dir
 
 
+def _resolve_task_id(target: str, repo_root: Path) -> str:
+    """Resolve a task slug from directory path or slug name.
+
+    - "06-11-my-feature" -> "my-feature"
+    - ".cowork-flow/tasks/06-11-my-feature" -> "my-feature"
+    - "my-feature" -> "my-feature"
+    """
+    if not target:
+        return ""
+    task_dir = _resolve_task_dir(target, repo_root)
+    dir_name = task_dir.name
+    # Strip MM-DD- prefix if present
+    if TASK_DATE_PREFIX_PATTERN.match(dir_name):
+        return TASK_DATE_PREFIX_PATTERN.sub("", dir_name)
+    return dir_name
+
+
 # =============================================================================
 # JSONL Default Content Generators
 # =============================================================================
@@ -515,7 +533,6 @@ def cmd_create(args: argparse.Namespace) -> int:
         print(colored("Error: title is required", Colors.RED), file=sys.stderr)
         return 1
 
-    # Default assignee to current developer
     assignee = args.assignee
     if not assignee:
         assignee = get_developer(repo_root)
@@ -523,88 +540,60 @@ def cmd_create(args: argparse.Namespace) -> int:
             print(colored("Error: No developer set. Run init_developer.py first or use --assignee", Colors.RED), file=sys.stderr)
             return 1
 
-    ensure_tasks_dir(repo_root)
-
-    # Get current developer as creator
     creator = get_developer(repo_root) or assignee
-
-    # Generate slug if not provided
     slug = args.slug or _slugify(args.title)
     if not slug:
         print(colored("Error: could not generate slug from title", Colors.RED), file=sys.stderr)
         return 1
 
-    # Create task directory with MM-DD-slug format
+    # Create artifact directory
     tasks_dir = get_tasks_dir(repo_root)
     dir_name = ensure_task_date_prefix(slug)
     task_dir = tasks_dir / dir_name
-    task_json_path = task_dir / FILE_TASK_JSON
-
-    if task_dir.exists():
-        print(colored(f"Warning: Task directory already exists: {dir_name}", Colors.YELLOW), file=sys.stderr)
-    else:
+    if not task_dir.exists():
         task_dir.mkdir(parents=True)
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Parse --meta
+    meta = {}
+    if hasattr(args, 'meta') and args.meta:
+        try:
+            meta = json.loads(args.meta)
+        except json.JSONDecodeError:
+            print(colored("Error: invalid --meta JSON", Colors.RED), file=sys.stderr)
+            return 1
 
-    task_data = {
-        "id": slug,
-        "name": slug,
-        "title": args.title,
-        "description": args.description or "",
-        "status": "planning",
-        "dev_type": None,
-        "scope": None,
-        "priority": args.priority,
-        "creator": creator,
-        "assignee": assignee,
-        "createdAt": today,
-        "completedAt": None,
-        "commit": None,
-        "subtasks": [],
-        "children": [],
-        "parent": None,
-        "relatedFiles": [],
-        "notes": "",
-        "meta": {},
-    }
+    # Write to FlowStore
+    from common.paths import get_db_path
+    from flow.store import FlowStore
+    store = FlowStore(str(get_db_path(repo_root)))
+    pattern = getattr(args, 'pattern', 'generic') or 'generic'
 
-    _write_json_file(task_json_path, task_data)
+    store.create_task(
+        id=slug,
+        title=args.title,
+        description=args.description or "",
+        pattern=pattern,
+        priority=args.priority or "P2",
+        creator=creator,
+        assignee=assignee,
+        parent_id=args.parent,
+        meta=meta,
+    )
 
-    # Handle --parent: establish bidirectional link
+    # Parent link (bidirectional, old-style task.json parent resolution)
     if args.parent:
         parent_dir = _resolve_task_dir(args.parent, repo_root)
-        parent_json_path = parent_dir / FILE_TASK_JSON
-        if not parent_json_path.is_file():
-            print(colored(f"Warning: Parent task.json not found: {args.parent}", Colors.YELLOW), file=sys.stderr)
-        else:
-            parent_data = _read_json_file(parent_json_path)
-            if parent_data:
-                # Add child to parent's children list
-                parent_children = parent_data.get("children", [])
-                if dir_name not in parent_children:
-                    parent_children.append(dir_name)
-                    parent_data["children"] = parent_children
-                    _write_json_file(parent_json_path, parent_data)
-
-                # Set parent in child's task.json
-                task_data["parent"] = parent_dir.name
-                _write_json_file(task_json_path, task_data)
-
-                print(colored(f"Linked as child of: {parent_dir.name}", Colors.GREEN), file=sys.stderr)
+        if parent_dir.is_dir():
+            parent_json = parent_dir / FILE_TASK_JSON
+            if parent_json.is_file():
+                parent_data = _read_json_file(parent_json)
+                parent_slug = parent_data.get("id", parent_dir.name.split("-", 2)[-1]) if parent_data else args.parent
+                store.link_child(parent_slug, slug)
 
     print(colored(f"Created task: {dir_name}", Colors.GREEN), file=sys.stderr)
-    print("", file=sys.stderr)
-    print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
-    print("  1. Create prd.md with requirements", file=sys.stderr)
-    print("  2. Run: ./.cowork-flow/run task init-context <dir> <dev_type>", file=sys.stderr)
-    print("  3. Run: ./.cowork-flow/run task start <dir>", file=sys.stderr)
-    print("", file=sys.stderr)
-
-    # Output relative path for script chaining
     print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
 
-    _run_hooks("after_create", task_json_path, repo_root)
+    _run_hooks("after_create", repo_root / DIR_WORKFLOW / get_db_path(repo_root).relative_to(repo_root / DIR_WORKFLOW), repo_root)
     return 0
 
 
@@ -939,9 +928,22 @@ def cmd_start(args: argparse.Namespace) -> int:
         return 1
 
     task_data["status"] = "in_progress"
-    if not _write_json_or_report(task_json_path, task_data, "task metadata"):
-        clear_active_task(repo_root)
-        return 1
+    if task_json_path.exists():
+        if not _write_json_or_report(task_json_path, task_data, "task metadata"):
+            clear_active_task(repo_root)
+            return 1
+    # Also update FlowStore if initialized
+    try:
+        from common.paths import get_db_path
+        db_path = get_db_path(repo_root)
+        if db_path.exists():
+            from flow.store import FlowStore
+            store = FlowStore(str(db_path))
+            task_id = _resolve_task_id(task_dir, repo_root)
+            if store.get_task(task_id):
+                store.update_status(task_id, "in_progress", "main")
+    except Exception:
+        pass
 
     print(colored(f"[OK] Active session task set to: {task_dir}", Colors.GREEN))
     print()
@@ -1369,6 +1371,47 @@ def _auto_commit_archive(task_name: str, repo_root: Path) -> None:
 
 
 # =============================================================================
+# Command: block
+# =============================================================================
+
+def cmd_block(args: argparse.Namespace) -> int:
+    """Block a task for human decision."""
+    repo_root = get_repo_root()
+    task_id = _resolve_task_id(args.dir, repo_root)
+    from common.paths import get_db_path
+    from flow.store import FlowStore
+    store = FlowStore(str(get_db_path(repo_root)))
+    if store.block_task(task_id, args.reason):
+        print(colored(f"Task blocked: {task_id}", Colors.YELLOW), file=sys.stderr)
+        print(f"  Reason: {args.reason}", file=sys.stderr)
+        return 0
+    print(colored(f"Error: failed to block task: {task_id}", Colors.RED), file=sys.stderr)
+    return 1
+
+
+# =============================================================================
+# Command: unblock
+# =============================================================================
+
+def cmd_unblock(args: argparse.Namespace) -> int:
+    """Unblock a task after human decision."""
+    repo_root = get_repo_root()
+    task_id = _resolve_task_id(args.dir, repo_root)
+    from common.paths import get_db_path
+    from flow.store import FlowStore
+    store = FlowStore(str(get_db_path(repo_root)))
+    if args.force:
+        store.update_status(task_id, "in_progress", "manual", "force unblock")
+        print(colored(f"Task force unblocked: {task_id}", Colors.GREEN), file=sys.stderr)
+        return 0
+    if store.unblock_task(task_id, args.decision or "approved", "human"):
+        print(colored(f"Task unblocked: {task_id}", Colors.GREEN), file=sys.stderr)
+        return 0
+    print(colored(f"Error: failed to unblock task: {task_id}", Colors.RED), file=sys.stderr)
+    return 1
+
+
+# =============================================================================
 # Command: add-subtask
 # =============================================================================
 
@@ -1668,6 +1711,8 @@ def main() -> int:
     p_create.add_argument("--priority", "-p", default="P2", help="Priority (P0-P3)")
     p_create.add_argument("--description", "-d", help="Task description")
     p_create.add_argument("--parent", help="Parent task directory (establishes subtask link)")
+    p_create.add_argument("--pattern", default="generic", help="Collaboration pattern: generic|fan_out|pipeline|human_loop")
+    p_create.add_argument("--meta", default=None, help="JSON metadata for pattern configuration")
 
     # init-context
     p_init = subparsers.add_parser("init-context", help="Initialize context files")
@@ -1720,6 +1765,16 @@ def main() -> int:
         action="store_true",
         help="Deprecated no-op; archive no longer commits by default",
     )
+
+    # block/unblock
+    p_block = subparsers.add_parser("block", help="Block a task (human decision needed)")
+    p_block.add_argument("dir", help="Task slug or directory")
+    p_block.add_argument("--reason", required=True, help="Why the task is blocked")
+
+    p_unblock = subparsers.add_parser("unblock", help="Unblock a task after decision")
+    p_unblock.add_argument("dir", help="Task slug or directory")
+    p_unblock.add_argument("--decision", default="", help="Human decision content")
+    p_unblock.add_argument("--force", action="store_true", help="Force unblock (non-P5 tasks)")
 
     # list
     p_list = subparsers.add_parser("list", help="List tasks")
@@ -1783,6 +1838,8 @@ def main() -> int:
         "next": cmd_next,
         "finish": cmd_finish,
         "archive": cmd_archive,
+        "block": cmd_block,
+        "unblock": cmd_unblock,
         "add-subtask": cmd_add_subtask,
         "remove-subtask": cmd_remove_subtask,
         "list": cmd_list,

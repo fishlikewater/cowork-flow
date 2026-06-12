@@ -1,7 +1,7 @@
 PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
 
-CREATE TABLE task (
+CREATE TABLE IF NOT EXISTS task (
     id            TEXT PRIMARY KEY,
     artifact_dir  TEXT NOT NULL UNIQUE,
     title         TEXT NOT NULL,
@@ -20,20 +20,20 @@ CREATE TABLE task (
     meta          TEXT NOT NULL DEFAULT '{}'
 );
 
-CREATE INDEX idx_task_status ON task(status);
-CREATE INDEX idx_task_parent ON task(parent_id);
-CREATE INDEX idx_task_pattern ON task(pattern);
+CREATE INDEX IF NOT EXISTS idx_task_status ON task(status);
+CREATE INDEX IF NOT EXISTS idx_task_parent ON task(parent_id);
+CREATE INDEX IF NOT EXISTS idx_task_pattern ON task(pattern);
 
-CREATE TABLE task_child (
+CREATE TABLE IF NOT EXISTS task_child (
     parent_id   TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
     child_id    TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
     sort_order  INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (parent_id, child_id)
 );
 
-CREATE INDEX idx_task_child_child ON task_child(child_id);
+CREATE INDEX IF NOT EXISTS idx_task_child_child ON task_child(child_id);
 
-CREATE TABLE audit (
+CREATE TABLE IF NOT EXISTS audit (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id     TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
     from_status TEXT,
@@ -43,9 +43,9 @@ CREATE TABLE audit (
     created_at  TEXT NOT NULL
 );
 
-CREATE INDEX idx_audit_task ON audit(task_id);
+CREATE INDEX IF NOT EXISTS idx_audit_task ON audit(task_id);
 
-CREATE TABLE block (
+CREATE TABLE IF NOT EXISTS block (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id     TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
     reason      TEXT NOT NULL,
@@ -55,9 +55,9 @@ CREATE TABLE block (
     resolved_at TEXT
 );
 
-CREATE INDEX idx_block_task ON block(task_id);
+CREATE INDEX IF NOT EXISTS idx_block_task ON block(task_id);
 
-CREATE TABLE agent_run (
+CREATE TABLE IF NOT EXISTS agent_run (
     id              TEXT PRIMARY KEY,
     task_id         TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
     agent_type      TEXT NOT NULL,
@@ -69,4 +69,4 @@ CREATE TABLE agent_run (
     closed_at       TEXT
 );
 
-CREATE INDEX idx_agent_run_task ON agent_run(task_id);
+CREATE INDEX IF NOT EXISTS idx_agent_run_task ON agent_run(task_id);
