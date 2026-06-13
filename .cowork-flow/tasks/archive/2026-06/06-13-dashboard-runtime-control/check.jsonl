@@ -1,0 +1,5 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "runtime recording regression tests"}
+{"file": "tests/test_dashboard.py", "reason": "dashboard CLI and static UI regression tests"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "formal dispatch contract update"}

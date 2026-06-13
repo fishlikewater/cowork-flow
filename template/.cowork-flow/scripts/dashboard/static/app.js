@@ -111,15 +111,25 @@ function matchesSearch(task) {
 }
 
 function matchesStatus(task) {
-  if (state.status !== "all") return task.status === state.status;
-  const archivedTasks = task.status === "archived";
-  if (archivedTasks) return showArchived.checked;
+  if (state.status === "archived") return task.status === "archived";
+  if (state.status !== "all") return task.status === state.status && task.status !== "archived";
+  const taskArchived = task.status === "archived";
+  if (taskArchived) return showArchived.checked;
   return DEFAULT_VISIBLE_STATUSES.includes(task.status);
 }
 
-function visibleStatuses() {
+function activeStatuses() {
+  if (state.status === "archived") return [];
   if (state.status !== "all") return [state.status];
-  return showArchived.checked ? STATUS_ORDER : DEFAULT_VISIBLE_STATUSES;
+  return DEFAULT_VISIBLE_STATUSES;
+}
+
+function showArchiveHistory() {
+  return state.status === "archived" || (state.status === "all" && showArchived.checked);
+}
+
+function archivedTasks(tasks) {
+  return tasks.filter((task) => task.status === "archived" && matchesSearch(task));
 }
 
 function taskCard(task) {
@@ -163,21 +173,55 @@ function renderColumn(status, tasks) {
   return section;
 }
 
+function archiveCard(task) {
+  const card = taskCard(task);
+  card.classList.add("archive-card");
+  return card;
+}
+
+function renderArchiveHistory(tasks) {
+  const section = createElement("section", "archive-history");
+  const heading = createElement("div", "archive-heading");
+  heading.append(
+    createElement("div", "", "历史归档"),
+    createElement("span", "column-count", String(tasks.length)),
+  );
+  section.append(heading, createElement("p", "column-hint", "按最近任务顺序展示，点击可查看详情"));
+
+  if (tasks.length === 0) {
+    section.append(createElement("p", "empty-state", "暂无匹配归档任务"));
+    return section;
+  }
+
+  const list = createElement("div", "archive-grid");
+  for (const task of tasks) list.append(archiveCard(task));
+  section.append(list);
+  return section;
+}
+
 function renderBoard(data) {
   state.boardData = data || { columns: [] };
   const tasks = allTasks(state.boardData);
-  const visible = tasks.filter((task) => matchesStatus(task) && matchesSearch(task));
+  const visibleActive = tasks.filter(
+    (task) => task.status !== "archived" && matchesStatus(task) && matchesSearch(task),
+  );
+  const visibleArchived = showArchiveHistory() ? archivedTasks(tasks) : [];
+  const visibleCount = visibleActive.length + visibleArchived.length;
   const archivedCount = tasks.filter((task) => task.status === "archived").length;
 
   renderStatusFilters(tasks);
+  board.classList.toggle("archive-view", state.status === "archived");
+  board.classList.toggle("with-archive-history", showArchiveHistory() && state.status !== "archived");
   board.replaceChildren();
 
-  for (const status of visibleStatuses()) {
-    const columnTasks = visible.filter((task) => task.status === status);
+  for (const status of activeStatuses()) {
+    const columnTasks = visibleActive.filter((task) => task.status === status);
     board.append(renderColumn(status, columnTasks));
   }
 
-  summary.textContent = `显示 ${visible.length} 个任务 · 归档 ${archivedCount} 个`;
+  if (showArchiveHistory()) board.append(renderArchiveHistory(visibleArchived));
+
+  summary.textContent = `显示 ${visibleCount} 个任务 · 归档 ${archivedCount} 个`;
 }
 
 function detailSection(title, children) {
@@ -342,7 +386,6 @@ statusFilters.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-status]");
   if (!button) return;
   state.status = button.dataset.status;
-  if (state.status === "archived") showArchived.checked = true;
   renderBoard(state.boardData);
 });
 

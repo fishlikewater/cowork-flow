@@ -1778,3 +1778,33 @@ Reworked read-only dashboard into Simplified Chinese workflow view with active-f
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 56: Harden dashboard runtime control
+
+**Date**: 2026-06-14
+**Task**: Harden dashboard runtime control
+
+### Summary
+
+Recorded direct formal agent runs for Dashboard details, redesigned archived Dashboard history view, decoupled archived tab from the checkbox, and added project-local dashboard serve/start/status/stop CLI commands.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

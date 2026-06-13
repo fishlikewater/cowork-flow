@@ -158,6 +158,15 @@ h1 {
   overflow: auto;
 }
 
+.board.archive-view {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+
+.board.with-archive-history {
+  align-content: start;
+}
+
 .column {
   min-width: 180px;
 }
@@ -282,6 +291,38 @@ h1 {
 .status-review .status-badge {
   background: #fff7ed;
   color: #b45309;
+}
+
+.archive-history {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #d5dbe5;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.archive-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #253044;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.archive-card {
+  min-height: 84px;
+  margin-bottom: 0;
+  border-left-color: #667085;
+  opacity: 0.82;
 }
 
 .empty-state {
@@ -422,6 +463,10 @@ h1 {
   .board {
     grid-template-columns: minmax(0, 1fr);
     overflow: visible;
+  }
+
+  .archive-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .detail {

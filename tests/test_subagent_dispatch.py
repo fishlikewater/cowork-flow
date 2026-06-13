@@ -96,6 +96,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -165,6 +166,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -173,6 +175,70 @@ class SubagentDispatchTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(".cowork-flow/tasks/05-29-demo", payload["taskDir"])
             self.assertEqual("formal", payload["dispatchKind"])
+
+    def test_direct_formal_init_creates_and_updates_agent_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            self._create_flow_task(root, "demo", "05-29-demo")
+
+            init_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "init",
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "--title",
+                    "Implement demo",
+                    "--role",
+                    "implement",
+                    "--agent-type",
+                    "cowork-implement",
+                ],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, init_result.returncode, msg=init_result.stderr)
+            payload = json.loads(init_result.stdout)
+            self.assertEqual(
+                [
+                    {
+                        "id": payload["runtimeContextId"],
+                        "task_id": "demo",
+                        "agent_type": "cowork-implement",
+                        "status": "pending",
+                        "host_context_key": payload["hostContextKey"],
+                    }
+                ],
+                self._agent_runs(root),
+            )
+
+            bind_result = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", payload["runtimeContextId"], payload["hostContextKey"]],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, bind_result.returncode, msg=bind_result.stderr)
+            self.assertEqual("bound", self._agent_runs(root)[0]["status"])
+
+            close_result = subprocess.run(
+                [sys.executable, str(SUBAGENT), "close", payload["runtimeContextId"]],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, close_result.returncode, msg=close_result.stderr)
+            self.assertEqual("closed", self._agent_runs(root)[0]["status"])
 
     def test_init_rejects_fixed_agent_role_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -195,6 +261,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -223,6 +290,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -249,6 +317,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -275,6 +344,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -306,6 +376,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -334,6 +405,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=True,
             )
@@ -350,6 +422,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "close", runtime_id],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -382,6 +455,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=True,
             )
@@ -391,6 +465,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_child"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -398,6 +473,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_child"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -429,6 +505,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=True,
             )
@@ -438,6 +515,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_first"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -445,6 +523,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_second"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -489,6 +568,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -503,6 +583,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -541,6 +622,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 ],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -551,6 +633,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "check-family", "parent"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -563,6 +646,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "update", runtime_id, "--status", "success"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -571,6 +655,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "check-family", "parent"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -581,6 +666,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "update", runtime_id, "--status", "failed"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -589,6 +675,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 [sys.executable, str(SUBAGENT), "check-family", "parent"],
                 cwd=root,
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )

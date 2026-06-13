@@ -60,6 +60,23 @@ class DashboardTest(unittest.TestCase):
         finally:
             self._cleanup_template_imports()
 
+    def _create_agent_run(self, root: Path, task_id: str, run_id: str) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        try:
+            paths = importlib.import_module("common.paths")
+            flow_store = importlib.import_module("flow.store")
+            with flow_store.FlowStore(str(paths.get_db_path(root))) as store:
+                store.create_agent_run(
+                    id=run_id,
+                    task_id=task_id,
+                    agent_type="cowork-implement",
+                    status="bound",
+                    host_context_key=f"codex_{run_id}",
+                    created_at="2026-06-13T00:00:00Z",
+                )
+        finally:
+            self._cleanup_template_imports()
+
     def _start_dashboard(self, root: Path) -> tuple[subprocess.Popen, str]:
         process = subprocess.Popen(
             [sys.executable, str(DASHBOARD), "--host", "127.0.0.1", "--port", "0"],
@@ -85,6 +102,10 @@ class DashboardTest(unittest.TestCase):
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=5)
+        if process.stdout:
+            process.stdout.close()
+        if process.stderr:
+            process.stderr.close()
 
     def _get_json(self, base_url: str, path: str) -> dict:
         with urllib.request.urlopen(f"{base_url}{path}", timeout=5) as response:
@@ -114,6 +135,17 @@ class DashboardTest(unittest.TestCase):
         for label in ("规划中", "执行中", "检查中", "已阻塞", "已完成", "已归档"):
             self.assertIn(label, script)
 
+    def test_dashboard_archived_tab_does_not_mutate_archive_checkbox(self) -> None:
+        script = (ROOT_STATIC / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn('showArchived.checked = true', script)
+        self.assertIn('function archivedTasks', script)
+        self.assertIn('function renderArchiveHistory', script)
+        self.assertIn('board.classList.toggle("archive-view"', script)
+
+        css = (ROOT_STATIC / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".archive-history", css)
+        self.assertIn(".board.archive-view", css)
+
     def test_dashboard_uses_readable_pattern_labels(self) -> None:
         script = (ROOT_STATIC / "app.js").read_text(encoding="utf-8")
         for label in ("通用流程", "扇出协作", "流水线", "人工确认"):
@@ -135,12 +167,60 @@ class DashboardTest(unittest.TestCase):
             sys.modules.pop("run", None)
             self._cleanup_template_imports()
 
+    def test_dashboard_cli_start_status_stop_are_project_local(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            state_file = root / ".cowork-flow" / ".runtime" / "dashboard.json"
+
+            start = subprocess.run(
+                [sys.executable, str(DASHBOARD), "start", "--host", "127.0.0.1", "--port", "0"],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, start.returncode, msg=start.stderr)
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+
+            try:
+                self.assertEqual(str(root), state["repo_root"])
+                self.assertTrue(state["pid"] > 0)
+                self.assertTrue(state["url"].startswith("http://127.0.0.1:"))
+
+                status = subprocess.run(
+                    [sys.executable, str(DASHBOARD), "status"],
+                    cwd=root,
+                    text=True,
+                    encoding="utf-8",
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(0, status.returncode, msg=status.stderr)
+                status_payload = json.loads(status.stdout)
+                self.assertTrue(status_payload["running"])
+                self.assertEqual(state["pid"], status_payload["pid"])
+                self._get_json(state["url"], "/api/board")
+            finally:
+                stop = subprocess.run(
+                    [sys.executable, str(DASHBOARD), "stop"],
+                    cwd=root,
+                    text=True,
+                    encoding="utf-8",
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(0, stop.returncode, msg=stop.stderr)
+                self.assertFalse(state_file.exists())
+
     def test_dashboard_serves_read_only_board_and_task_apis(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / ".cowork-flow").mkdir()
             self._create_flow_task(root, "parent", "05-29-parent")
             self._create_flow_task(root, "child-a", "05-29-child-a", parent_id="parent")
+            self._create_agent_run(root, "parent", "rtx_demo")
 
             process, base_url = self._start_dashboard(root)
             try:
@@ -151,6 +231,7 @@ class DashboardTest(unittest.TestCase):
                 detail = self._get_json(base_url, "/api/task/parent")
                 self.assertEqual("parent", detail["task"]["id"])
                 self.assertEqual(["child-a"], [child["id"] for child in detail["children"]])
+                self.assertEqual(["rtx_demo"], [run["id"] for run in detail["agentRuns"]])
                 self.assertGreaterEqual(len(detail["audit"]), 1)
 
                 children = self._get_json(base_url, "/api/task/parent/children")

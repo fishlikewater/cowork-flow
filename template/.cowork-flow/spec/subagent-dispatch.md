@@ -27,6 +27,12 @@ Before spawning a formal child, the main session creates:
 - `.cowork-flow/.runtime/subagents/<runtime_context_id>.json`
 - `.cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json`
 
+For direct formal dispatch with `--execution-task-dir`, `subagent init` also
+records an `agent_run` row keyed by `runtime_context_id`. The row starts as
+`pending`, references the resolved Flow task id, stores the resolved
+`cowork-*` agent type, and records the suggested host context key. Advisory
+dispatch and unresolved task directories do not create `agent_run` rows.
+
 The child receives the runtime id and host context key through the host adapter
 transport. The baseline prompt transport is:
 

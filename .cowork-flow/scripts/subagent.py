@@ -129,6 +129,7 @@ def _create_runtime_context_payload(
     allowed_context: list[str],
     host: str,
     adapter: str,
+    record_agent_run: bool = True,
 ) -> dict:
     base_dir = subagent_contexts_dir(repo_root)
     runtime_context_id = _next_id(base_dir, title)
@@ -180,6 +181,16 @@ def _create_runtime_context_payload(
         host,
     )
     host_context_key = _suggest_host_context_key(host, runtime_context_id)
+    if record_agent_run:
+        _record_agent_run_for_task(
+            repo_root,
+            runtime_context_id=runtime_context_id,
+            task_dir=task_dir,
+            agent_type=resolved_agent_type,
+            dispatch_kind=dispatch_kind,
+            host_context_key=host_context_key,
+            created_at=context["created_at"],
+        )
 
     return {
         "id": runtime_context_id,
@@ -301,6 +312,34 @@ def _update_agent_run_if_present(repo_root: Path, run_id: str, status: str) -> N
     except Exception:
         return
 
+def _record_agent_run_for_task(
+    repo_root: Path,
+    *,
+    runtime_context_id: str,
+    task_dir: str | None,
+    agent_type: str,
+    dispatch_kind: str,
+    host_context_key: str,
+    created_at: str,
+) -> None:
+    if dispatch_kind != "formal" or not task_dir:
+        return
+    db_path = get_db_path(repo_root)
+    if not db_path.exists():
+        return
+    with FlowStore(str(db_path)) as store:
+        task = _resolve_flow_task(store, task_dir)
+        if task is None:
+            return
+        store.create_agent_run(
+            id=runtime_context_id,
+            task_id=task.id,
+            agent_type=agent_type,
+            status="pending",
+            host_context_key=host_context_key,
+            created_at=created_at,
+        )
+
 def _resolve_flow_task(store: FlowStore, target: str):
     candidates: list[str] = []
     raw = target.strip()
@@ -380,6 +419,7 @@ def cmd_spawn_family(args: argparse.Namespace) -> int:
                     allowed_context=[],
                     host=args.host,
                     adapter=args.adapter,
+                    record_agent_run=False,
                 )
             except ValueError as error:
                 print(f"Error: {error}", file=sys.stderr)
