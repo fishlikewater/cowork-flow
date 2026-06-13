@@ -463,11 +463,17 @@ def cmd_init_db(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_migrate(args: argparse.Namespace) -> int:
+    from flow.migrate import main as migrate_main
+    return migrate_main()
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Flow store operations")
     sub = parser.add_subparsers(dest="flow_command")
     init_cmd = sub.add_parser("init-db", help="Initialize SQLite database")
     init_cmd.set_defaults(func=cmd_init_db)
+    migrate_cmd = sub.add_parser("migrate", help="Migrate legacy task.json tasks to SQLite")
+    migrate_cmd.set_defaults(func=cmd_migrate)
     return parser
 
 

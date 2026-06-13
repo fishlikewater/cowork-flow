@@ -30,6 +30,7 @@ test('npm package includes cli source and template assets', async (t) => {
   const files = new Set(pack.files.map((file) => file.path));
 
   assert.equal(files.has('bin/cowork-flow.js'), true);
+  assert.equal(files.has('CHANGELOG.md'), true);
   assert.equal(files.has('src/cli.js'), true);
   assert.equal(files.has('template/AGENTS.md'), true);
   assert.equal(files.has('template/CLAUDE.md'), true);

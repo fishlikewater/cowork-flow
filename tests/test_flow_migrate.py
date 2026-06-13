@@ -1,11 +1,16 @@
 """Migration script tests."""
 import json
+import shutil
 import sqlite3
+import subprocess
 import sys
+import tempfile
+import unittest
 import pytest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".cowork-flow" / "scripts"))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / ".cowork-flow" / "scripts"))
 from flow.migrate import run_migration
 from flow.store import FlowStore
 
@@ -119,3 +124,69 @@ def test_migrate_rolls_back_whole_batch_on_hard_failure(tmp_path):
 
     with FlowStore(db_path) as store:
         assert store.list_tasks() == []
+
+class FlowMigrateCliAcceptanceTest(unittest.TestCase):
+    def _write_old_task(
+        self,
+        task_dir: Path,
+        *,
+        task_id: str,
+        title: str,
+        status: str = "planning",
+        children: list[str] | None = None,
+    ) -> None:
+        task_dir.mkdir(parents=True)
+        (task_dir / "task.json").write_text(
+            json.dumps(
+                {
+                    "id": task_id,
+                    "title": title,
+                    "status": status,
+                    "creator": "legacy",
+                    "assignee": "legacy",
+                    "children": children or [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_flow_migrate_cli_migrates_old_project_and_preserves_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "old-project"
+            workflow = project / ".cowork-flow"
+            shutil.copytree(ROOT / "template" / ".cowork-flow", workflow)
+            shutil.rmtree(workflow / "tasks")
+            tasks_dir = workflow / "tasks"
+            tasks_dir.mkdir(parents=True)
+            self._write_old_task(
+                tasks_dir / "01-01-parent",
+                task_id="parent",
+                title="Legacy parent",
+                children=["01-02-child"],
+            )
+            self._write_old_task(
+                tasks_dir / "01-02-child",
+                task_id="child",
+                title="Legacy child",
+                status="completed",
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(workflow / "scripts" / "run.py"), "flow", "migrate"],
+                cwd=project,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("Migrated 2 tasks", result.stdout)
+            self.assertTrue((workflow / "tasks.backup" / "01-01-parent" / "task.json").is_file())
+            self.assertTrue((workflow / "tasks" / "archive").is_dir())
+            self.assertFalse((workflow / "tasks" / "01-01-parent").exists())
+            gitignore = (project / ".gitignore").read_text(encoding="utf-8")
+            self.assertIn("tasks.backup/", gitignore)
+            self.assertIn(".cowork-flow/cowork-flow.db", gitignore)
+            with FlowStore(str(workflow / "cowork-flow.db")) as store:
+                self.assertEqual(["child", "parent"], sorted(task.id for task in store.list_tasks()))
+                self.assertEqual(["child"], [task.id for task in store.list_children("parent")])

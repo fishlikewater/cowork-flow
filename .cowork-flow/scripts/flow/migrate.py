@@ -150,23 +150,23 @@ def run_migration(tasks_dir: Path, db_path: str):
         return True, warnings, {"tasks_migrated": len(records)}
 
 
-if __name__ == "__main__":
+def main() -> int:
     from common.paths import get_tasks_dir, get_repo_root, get_db_path
     repo_root = get_repo_root()
     tasks_dir = get_tasks_dir(repo_root)
     if not tasks_dir.exists():
         print("Error: tasks/ directory not found", file=sys.stderr)
-        sys.exit(1)
+        return 1
+    backup = tasks_dir.with_name("tasks.backup")
+    if backup.exists():
+        print(f"Error: backup already exists: {backup}", file=sys.stderr)
+        return 1
     db_path = get_db_path()
     success, warnings, detail = run_migration(tasks_dir, str(db_path))
     if success:
         print(f"Migrated {detail['tasks_migrated']} tasks")
         for w in warnings:
             print(f"WARN: {w}")
-        backup = tasks_dir.with_name("tasks.backup")
-        if backup.exists():
-            print(f"Error: backup already exists: {backup}", file=sys.stderr)
-            sys.exit(1)
         tasks_dir.rename(backup)
         print(f"Backup: {backup}")
         # Recreate empty tasks dir for new artifact dirs
@@ -180,7 +180,10 @@ if __name__ == "__main__":
                 content += line + "\n"
         gitignore.write_text(content, encoding="utf-8")
         print("Updated .gitignore")
-        sys.exit(0)
-    else:
-        print("Migration failed", file=sys.stderr)
-        sys.exit(1)
+        return 0
+
+    print("Migration failed", file=sys.stderr)
+    return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

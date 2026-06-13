@@ -292,12 +292,13 @@ npm run release
 默认会升级 patch 版本，执行顺序是：
 
 1. `npm run test:all`
-2. `npm version patch --no-git-tag-version`
-3. 将 `package.json` 中的新版本同步写入 `template/.cowork-flow/.version`
-4. `git add package.json package-lock.json template/.cowork-flow/.version`
-5. `git commit -m "chore(release): <version>"`
-6. `git tag v<version>`
-7. `npm publish`
+2. 确认 `CHANGELOG.md` 已记录本次变更和验证结果
+3. `npm version patch --no-git-tag-version`
+4. 将 `package.json` 中的新版本同步写入 `template/.cowork-flow/.version`
+5. `git add package.json package-lock.json template/.cowork-flow/.version CHANGELOG.md`
+6. `git commit -m "chore(release): <version>"`
+7. `git tag v<version>`
+8. `npm publish`
 
 需要发布其他版本类型时，把 npm 支持的版本类型传给脚本：
 
@@ -308,3 +309,5 @@ npm run release -- prerelease
 ```
 
 脚本会在任一步骤失败时停止后续发布动作。CI 仍会运行 Node CLI 测试、npm pack 内容检查和现有 Python 模板测试；GitHub Actions 的 `Publish npm Package` workflow 仍需要在仓库 secrets 中配置 `NPM_TOKEN`。
+
+本地 Phase 4 验收只执行测试、迁移、安装流和 package dry-run；真实 `npm publish` 需要发布凭据和人工确认后再执行。

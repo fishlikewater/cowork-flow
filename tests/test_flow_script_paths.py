@@ -135,6 +135,16 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertEqual(task_dir, resolved)
 
+    def test_task_id_resolution_accepts_absolute_task_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-18-demo"
+            task_dir.mkdir(parents=True)
+
+            task_id = self.task._resolve_task_id(str(task_dir), root)
+
+            self.assertEqual("demo", task_id)
+
     def test_cmd_create_adds_date_prefix_to_plain_slug(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

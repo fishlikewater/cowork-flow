@@ -905,8 +905,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 |------|------|
 | 4.1 | `npm run test:all` 全量测试 |
 | 4.2 | 从零 install → init → 创建 P1/P2/P5 任务 → 完整流程走通 |
-| 4.3 | 旧项目迁移测试（v0.0.26 → new） |
-| 4.4 | 发布 npm + changelog |
+| 4.3 | 旧项目迁移测试（v0.0.26 → new），通过 `.cowork-flow/run flow migrate` 验证 CLI、DB、backup、`.gitignore` |
+| 4.4 | 发布 npm + changelog；本地阶段只做 package dry-run，真实 `npm publish` 需人工确认 |
 
 ## 9. 测试策略
 

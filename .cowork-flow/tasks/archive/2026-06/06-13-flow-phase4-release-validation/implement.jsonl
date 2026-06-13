@@ -1,0 +1,14 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/plans/2026-06-13-flow-phase4-release-validation.md", "reason": "Phase 4 implementation plan"}
+{"file": ".cowork-flow/scripts/flow/store.py", "reason": "Flow command group"}
+{"file": "FLOW-UPGRADE-DESIGN.md", "reason": "Phase 4 design source"}
+{"file": "template/.cowork-flow/scripts/flow/store.py", "reason": "Template Flow command group"}
+{"file": "tests/test_flow_migrate.py", "reason": "Migration acceptance tests"}
+{"file": "test/package.test.js", "reason": "Package release artifact tests"}
+{"file": "test/init.test.js", "reason": "Fresh init acceptance tests"}
+{"file": "README.md", "reason": "Release instructions"}
+{"file": "tests/test_phase4_acceptance.py", "reason": "Fresh install Phase 4 acceptance"}
+{"file": "CHANGELOG.md", "reason": "Release changelog artifact"}

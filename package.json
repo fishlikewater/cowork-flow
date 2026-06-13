@@ -11,6 +11,7 @@
     "src",
     "template",
     "README.md",
+    "CHANGELOG.md",
     "!template/**/__pycache__/**",
     "!template/**/*.pyc"
   ],
