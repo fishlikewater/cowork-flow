@@ -31,7 +31,9 @@
         "backgroundChild",
         "runtimeContextDispatch",
         "runtimeContextBinding",
-        "runtimeContextCleanup"
+        "runtimeContextCleanup",
+        "spawnMultipleSubagents",
+        "waitMultipleChildren"
       ],
       "additionalProperties": {
         "$ref": "#/$defs/capability"
@@ -47,7 +49,9 @@
         "backgroundChild": { "$ref": "#/$defs/capability" },
         "runtimeContextDispatch": { "$ref": "#/$defs/capability" },
         "runtimeContextBinding": { "$ref": "#/$defs/capability" },
-        "runtimeContextCleanup": { "$ref": "#/$defs/capability" }
+        "runtimeContextCleanup": { "$ref": "#/$defs/capability" },
+        "spawnMultipleSubagents": { "$ref": "#/$defs/capability" },
+        "waitMultipleChildren": { "$ref": "#/$defs/capability" }
       }
     },
     "dispatch": {

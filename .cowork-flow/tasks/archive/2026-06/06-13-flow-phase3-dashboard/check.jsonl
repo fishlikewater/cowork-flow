@@ -1,0 +1,3 @@
+{"file": "tests/test_flow_store.py", "reason": "Board and detail read behavior"}
+{"file": "tests/test_flow_script_paths.py", "reason": "Command/path integration coverage"}
+{"file": "tests/test_no_legacy_template_paths.py", "reason": "Template path verification"}

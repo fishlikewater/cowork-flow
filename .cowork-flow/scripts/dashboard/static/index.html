@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>cowork-flow Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>cowork-flow</h1>
+      <p id="summary">Loading board</p>
+    </div>
+    <button id="refresh" type="button" title="Refresh board">Refresh</button>
+  </header>
+  <main id="board" class="board" aria-live="polite"></main>
+  <aside id="detail" class="detail" aria-live="polite"></aside>
+  <script src="/static/app.js"></script>
+</body>
+</html>

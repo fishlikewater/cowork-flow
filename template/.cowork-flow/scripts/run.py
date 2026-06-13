@@ -33,6 +33,7 @@ COMMAND_SCRIPTS = {
     "party-v2": "party_mode_v2.py",
     "party_v2": "party_mode_v2.py",
     "flow": "flow/store.py",
+    "dashboard": "dashboard/server.py",
 }
 
 CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent", "flow"}
@@ -58,6 +59,7 @@ Common commands:
   doctor
   project-context
   party-v2
+  dashboard
 """.rstrip()
     )
 

@@ -185,10 +185,11 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
 
 1. 先运行 `task next` 确认当前状态和下一步命令。
 2. 默认通过宿主适配器派发 `cowork-implement`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/subagent-dispatch.md`。
-3. 派发内容应包含当前计划步骤、范围边界和期望验证命令。
-4. 如果用户明确要求主会话内联执行，或当前任务正在修改子代理/运行时行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
-5. 涉及行为变化时，先写失败测试，再实现，再验证变绿。
-6. 实现完成并通过本阶段验证后运行 `./.cowork-flow/run task review [task-dir]`，把任务推进到检查阶段。
+3. Fan-out 父任务先运行 `./.cowork-flow/run subagent spawn-family <parent-task> --agent-type cowork-implement` 准备子任务 runtime context；主会话再通过宿主适配器逐条派发返回的上下文，并用 `check-family` 汇总状态。父任务本身不直接替子任务完成生命周期。
+4. 派发内容应包含当前计划步骤、范围边界和期望验证命令。
+5. 如果用户明确要求主会话内联执行，或当前任务正在修改子代理/运行时行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
+6. 涉及行为变化时，先写失败测试，再实现，再验证变绿。
+7. 实现完成并通过本阶段验证后运行 `./.cowork-flow/run task review [task-dir]`，把任务推进到检查阶段。
 
 ## 7. 检查阶段
 

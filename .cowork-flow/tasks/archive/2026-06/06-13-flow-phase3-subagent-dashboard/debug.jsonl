@@ -1,0 +1,3 @@
+{"file": "FLOW-UPGRADE-DESIGN.md", "reason": "Fallback source for Phase 3 debugging"}
+{"file": ".cowork-flow/scripts/subagent.py", "reason": "Runtime context debugging surface"}
+{"file": ".cowork-flow/scripts/flow/store.py", "reason": "agent_run persistence debugging surface"}

@@ -1,0 +1,3 @@
+{"file": "tests/test_subagent_dispatch.py", "reason": "Family command behavior coverage"}
+{"file": "tests/test_flow_store.py", "reason": "FlowStore agent_run helper coverage"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Protocol contract check"}

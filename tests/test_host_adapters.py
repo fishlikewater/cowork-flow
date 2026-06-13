@@ -59,6 +59,8 @@ class HostAdaptersTest(unittest.TestCase):
                     "runtimeContextDispatch",
                     "runtimeContextBinding",
                     "runtimeContextCleanup",
+                    "spawnMultipleSubagents",
+                    "waitMultipleChildren",
                 ):
                     self.assertIn(
                         capabilities[key],
@@ -160,6 +162,8 @@ class HostAdaptersTest(unittest.TestCase):
             "waitChild",
             "listChildren",
             "cancelChild",
+            "spawnMultipleSubagents",
+            "waitMultipleChildren",
         )
         usable_values = {"native", "shim", "plugin", "external", "experimental"}
         for base in (

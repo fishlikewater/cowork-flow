@@ -1,0 +1,5 @@
+{"file": ".cowork-flow/plans/2026-06-13-flow-phase3-subagent-dashboard.md", "reason": "Verification checklist"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "Family command tests"}
+{"file": "tests/test_flow_store.py", "reason": "FlowStore and dashboard read tests"}
+{"file": "tests/test_host_adapters.py", "reason": "Adapter capability tests"}
+{"file": "tests/test_no_legacy_template_paths.py", "reason": "Template path tests"}

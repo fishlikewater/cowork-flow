@@ -320,16 +320,34 @@ class FlowStore:
 
     def update_agent_run_status(self, run_id: str, status: str) -> bool:
         def _do_update_ar():
-            self.db.execute("UPDATE agent_run SET status = ? WHERE id = ?", (status, run_id))
-            return True
+            closed_at = _now() if status == "closed" else None
+            if closed_at:
+                cursor = self.db.execute(
+                    "UPDATE agent_run SET status = ?, closed_at = ? WHERE id = ?",
+                    (status, closed_at, run_id),
+                )
+            else:
+                cursor = self.db.execute(
+                    "UPDATE agent_run SET status = ? WHERE id = ?",
+                    (status, run_id),
+                )
+            return cursor.rowcount > 0
 
         return self._transaction(_do_update_ar) or False
 
-    def get_active_agent_run(self, task_id: str):
-        row = self.db.execute(
-            "SELECT * FROM agent_run WHERE task_id = ? AND status != 'closed' ORDER BY created_at DESC LIMIT 1",
-            (task_id,),
-        ).fetchone()
+    def get_active_agent_run(self, task_id: str, agent_type: str | None = None):
+        if agent_type:
+            row = self.db.execute(
+                """SELECT * FROM agent_run
+                   WHERE task_id = ? AND agent_type = ? AND status != 'closed'
+                   ORDER BY created_at DESC LIMIT 1""",
+                (task_id, agent_type),
+            ).fetchone()
+        else:
+            row = self.db.execute(
+                "SELECT * FROM agent_run WHERE task_id = ? AND status != 'closed' ORDER BY created_at DESC LIMIT 1",
+                (task_id,),
+            ).fetchone()
         return dict(row) if row else None
 
     def list_agent_runs_for_parent(self, parent_id: str) -> list[dict]:
@@ -338,6 +356,13 @@ class FlowStore:
                JOIN task_child tc ON ar.task_id = tc.child_id
                WHERE tc.parent_id = ? ORDER BY ar.created_at""",
             (parent_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_agent_runs_for_task(self, task_id: str) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT * FROM agent_run WHERE task_id = ? ORDER BY created_at",
+            (task_id,),
         ).fetchall()
         return [dict(r) for r in rows]
 

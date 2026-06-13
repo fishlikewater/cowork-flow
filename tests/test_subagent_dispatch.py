@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import importlib
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -9,10 +11,66 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SUBAGENT = ROOT / "template" / ".cowork-flow" / "scripts" / "subagent.py"
+SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
+SUBAGENT = SCRIPTS / "subagent.py"
 
 
 class SubagentDispatchTest(unittest.TestCase):
+    def _cleanup_template_imports(self) -> None:
+        if str(SCRIPTS) in sys.path:
+            sys.path.remove(str(SCRIPTS))
+        for module_name in (
+            "common.active_task",
+            "common.execution_context",
+            "common.paths",
+            "common.time_utils",
+            "flow.store",
+            "flow",
+            "patterns.base",
+            "patterns",
+            "common",
+        ):
+            sys.modules.pop(module_name, None)
+
+    def _create_flow_task(
+        self,
+        root: Path,
+        task_id: str,
+        artifact_dir: str,
+        *,
+        status: str = "planning",
+        parent_id: str | None = None,
+    ) -> None:
+        (root / ".cowork-flow" / "tasks" / artifact_dir).mkdir(parents=True, exist_ok=True)
+        sys.path.insert(0, str(SCRIPTS))
+        try:
+            paths = importlib.import_module("common.paths")
+            flow_store = importlib.import_module("flow.store")
+            with flow_store.FlowStore(str(paths.get_db_path(root))) as store:
+                store.create_task(
+                    id=task_id,
+                    artifact_dir=artifact_dir,
+                    title=f"Task {task_id}",
+                    status=status,
+                    creator="test",
+                    assignee="test",
+                    parent_id=parent_id,
+                )
+        finally:
+            self._cleanup_template_imports()
+
+    def _agent_runs(self, root: Path) -> list[dict]:
+        db_path = root / ".cowork-flow" / "cowork-flow.db"
+        db = sqlite3.connect(db_path)
+        try:
+            db.row_factory = sqlite3.Row
+            rows = db.execute(
+                "SELECT id, task_id, agent_type, status, host_context_key FROM agent_run ORDER BY created_at"
+            ).fetchall()
+        finally:
+            db.close()
+        return [dict(row) for row in rows]
+
     def test_init_writes_runtime_context_and_logical_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -400,6 +458,142 @@ class SubagentDispatchTest(unittest.TestCase):
                 )
             )
             self.assertEqual("codex_first", context["bound_context_key"])
+
+    def test_spawn_family_creates_missing_runs_and_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            self._create_flow_task(root, "parent", "05-29-parent")
+            self._create_flow_task(
+                root,
+                "child-a",
+                "05-29-child-a",
+                parent_id="parent",
+            )
+            self._create_flow_task(
+                root,
+                "child-b",
+                "05-29-child-b",
+                status="completed",
+                parent_id="parent",
+            )
+
+            first = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "spawn-family",
+                    "parent",
+                    "--agent-type",
+                    "cowork-implement",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            second = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "spawn-family",
+                    "parent",
+                    "--agent-type",
+                    "cowork-implement",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, first.returncode, msg=first.stderr)
+            created = {item["task_id"]: item for item in json.loads(first.stdout)}
+            self.assertEqual("pending", created["child-a"]["status"])
+            self.assertEqual("skipped_done", created["child-b"]["status"])
+            runtime_file = root / created["child-a"]["runtimeContextFile"]
+            self.assertTrue(runtime_file.is_file())
+            self.assertEqual(
+                ".cowork-flow/tasks/05-29-child-a",
+                json.loads(runtime_file.read_text(encoding="utf-8"))["task_dir"],
+            )
+
+            self.assertEqual(0, second.returncode, msg=second.stderr)
+            repeated = {item["task_id"]: item for item in json.loads(second.stdout)}
+            self.assertEqual("already_running", repeated["child-a"]["status"])
+            self.assertEqual(1, len(self._agent_runs(root)))
+
+    def test_check_family_tracks_pending_success_and_failed_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            self._create_flow_task(root, "parent", "05-29-parent")
+            self._create_flow_task(root, "child-a", "05-29-child-a", parent_id="parent")
+
+            spawn = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "spawn-family",
+                    "parent",
+                    "--agent-type",
+                    "cowork-implement",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, spawn.returncode, msg=spawn.stderr)
+            runtime_id = json.loads(spawn.stdout)[0]["runtimeContextId"]
+
+            pending = subprocess.run(
+                [sys.executable, str(SUBAGENT), "check-family", "parent"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, pending.returncode)
+            pending_payload = json.loads(pending.stdout)
+            self.assertFalse(pending_payload["all_done"])
+            self.assertEqual(["child-a"], [item["task_id"] for item in pending_payload["pending"]])
+
+            success_update = subprocess.run(
+                [sys.executable, str(SUBAGENT), "update", runtime_id, "--status", "success"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, success_update.returncode, msg=success_update.stderr)
+            success = subprocess.run(
+                [sys.executable, str(SUBAGENT), "check-family", "parent"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, success.returncode, msg=success.stderr)
+            self.assertTrue(json.loads(success.stdout)["all_done"])
+
+            failed_update = subprocess.run(
+                [sys.executable, str(SUBAGENT), "update", runtime_id, "--status", "failed"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, failed_update.returncode, msg=failed_update.stderr)
+            failed = subprocess.run(
+                [sys.executable, str(SUBAGENT), "check-family", "parent"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, failed.returncode)
+            self.assertEqual(["child-a"], [item["task_id"] for item in json.loads(failed.stdout)["failed"]])
 
 if __name__ == "__main__":
     unittest.main()

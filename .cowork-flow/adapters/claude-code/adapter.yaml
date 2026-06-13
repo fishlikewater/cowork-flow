@@ -13,6 +13,8 @@ capabilities:
   runtimeContextDispatch: native
   runtimeContextBinding: shim
   runtimeContextCleanup: native
+  spawnMultipleSubagents: native
+  waitMultipleChildren: native
 dispatch:
   primitive: subagent
   agentsPath: .claude/agents

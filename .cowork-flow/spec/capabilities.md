@@ -21,6 +21,10 @@
 - `runtimeContextBinding`: bind the host child session to that runtime context
   through a proven hook/plugin path or an explicit first-step shim.
 - `runtimeContextCleanup`: close and clean child runtime session files.
+- `spawnMultipleSubagents`: host can dispatch several prepared child contexts
+  for a Fan-out family.
+- `waitMultipleChildren`: host can wait for or inspect several children during
+  Fan-out family closeout.
 - `sendFollowup`: send follow-up instructions when the host supports it.
 - `waitChild`: wait for child result.
 - `listChildren`: inspect active children.

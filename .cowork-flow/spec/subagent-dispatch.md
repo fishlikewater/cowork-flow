@@ -74,6 +74,30 @@ or agent coordination.
 - The child remains a leaf executor and must not dispatch, wait for, list, or
   cancel other agents.
 
+## Fan-out Family Helpers
+
+Fan-out parents may prepare child contexts in one CLI step:
+
+```text
+./.cowork-flow/run subagent spawn-family <parent-task> --agent-type cowork-implement
+```
+
+`spawn-family` creates one runtime context per eligible child task and records an
+`agent_run` row keyed by `runtime_context_id`. It is idempotent for active
+`(task_id, agent_type)` rows and returns JSON for the host adapter to dispatch.
+It does not call host-specific child primitives by itself.
+
+The main session can inspect family progress with:
+
+```text
+./.cowork-flow/run subagent check-family <parent-task>
+```
+
+`check-family` returns JSON buckets for pending, done, and failed children. It
+exits `0` only when all children are done and no failed run remains. Task status
+transitions still go through `task.py`; family helpers do not complete or review
+tasks directly.
+
 ## Cleanup
 
 Closing a child removes:

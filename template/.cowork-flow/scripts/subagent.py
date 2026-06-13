@@ -23,9 +23,26 @@ from common.active_task import (
     write_subagent_logical_session,
 )
 from common.execution_context import build_internal_execution_context_parser
-from common.paths import get_repo_root
+from common.paths import TASK_DATE_PREFIX_PATTERN, get_db_path, get_repo_root
+from flow.store import FlowStore
 
-VALID_STATUSES = {"pending", "bound", "active", "success", "needs_context", "blocked", "closed"}
+VALID_STATUSES = {
+    "pending",
+    "bound",
+    "active",
+    "running",
+    "success",
+    "failed",
+    "cancelled",
+    "error",
+    "needs_context",
+    "blocked",
+    "closed",
+}
+ACTIVE_AGENT_RUN_STATUSES = {"pending", "bound", "active", "running", "needs_context", "blocked", "success", "failed", "cancelled", "error"}
+DONE_AGENT_RUN_STATUSES = {"success", "closed"}
+FAILED_AGENT_RUN_STATUSES = {"failed", "cancelled", "error"}
+DONE_TASK_STATUSES = {"completed", "archived"}
 FIXED_AGENT_TYPES = {"cowork-research", "cowork-implement", "cowork-check"}
 GENERIC_AGENT_TYPE = "worker"
 ROLE_AGENT_TYPE_ALIASES = {
@@ -93,30 +110,42 @@ def _resolve_agent_type(role: str, agent_type: str | None) -> tuple[str, str]:
     return GENERIC_AGENT_TYPE, "advisory"
 
 
-def cmd_init(args: argparse.Namespace) -> int:
-    repo_root = get_repo_root()
-    base_dir = subagent_contexts_dir(repo_root)
-    runtime_context_id = _next_id(base_dir, args.title)
-    task_dir = getattr(args, "execution_task_dir", None)
-    try:
-        agent_type, dispatch_kind = _resolve_agent_type(args.role, getattr(args, "agent_type", None))
-    except ValueError as error:
-        print(f"Error: {error}", file=sys.stderr)
-        return 1
-    if dispatch_kind == "formal" and not task_dir:
-        print("Error: fixed agent dispatch requires --execution-task-dir", file=sys.stderr)
-        return 1
+def _role_for_agent_type(agent_type: str) -> str:
+    for role, mapped_agent_type in ROLE_AGENT_TYPE_ALIASES.items():
+        if mapped_agent_type == agent_type:
+            return role
+    return agent_type
 
-    allowed_context = [{"file": item, "reason": "prompt-named context"} for item in args.allowed_context]
+def _create_runtime_context_payload(
+    repo_root: Path,
+    *,
+    title: str,
+    role: str,
+    agent_type: str | None,
+    task_dir: str | None,
+    source: str,
+    goal: str | None,
+    expected_output: str,
+    allowed_context: list[str],
+    host: str,
+    adapter: str,
+) -> dict:
+    base_dir = subagent_contexts_dir(repo_root)
+    runtime_context_id = _next_id(base_dir, title)
+    resolved_agent_type, dispatch_kind = _resolve_agent_type(role, agent_type)
+    if dispatch_kind == "formal" and not task_dir:
+        raise ValueError("fixed agent dispatch requires --execution-task-dir")
+
+    allowed_context_entries = [{"file": item, "reason": "prompt-named context"} for item in allowed_context]
     parent_context_key = resolve_context_key()
     context = {
         "schema_version": 2,
         "runtime_context_id": runtime_context_id,
         "scope": "subagent",
-        "host": args.host,
-        "adapter": args.adapter,
-        "agent_type": agent_type,
-        "role": args.role,
+        "host": host,
+        "adapter": adapter,
+        "agent_type": resolved_agent_type,
+        "role": role,
         "task_dir": task_dir,
         "parent_context_key": parent_context_key,
         "transport": {
@@ -124,11 +153,11 @@ def cmd_init(args: argparse.Namespace) -> int:
             "key": "cowork_runtime_context_id",
         },
         "assignment": {
-            "title": args.title,
-            "goal": args.goal or args.title,
-            "allowed_context": allowed_context,
-            "expected_output": args.expected_output,
-            "source": args.source,
+            "title": title,
+            "goal": goal or title,
+            "allowed_context": allowed_context_entries,
+            "expected_output": expected_output,
+            "source": source,
         },
         "authority": {
             "may_start_task": False,
@@ -148,33 +177,50 @@ def cmd_init(args: argparse.Namespace) -> int:
         repo_root,
         runtime_context_id,
         task_dir,
-        args.host,
+        host,
     )
-    host_context_key = _suggest_host_context_key(args.host, runtime_context_id)
+    host_context_key = _suggest_host_context_key(host, runtime_context_id)
 
-    print(
-        json.dumps(
-            {
-                "id": runtime_context_id,
-                "runtimeContextId": runtime_context_id,
-                "cowork_runtime_context_id": runtime_context_id,
-                "hostContextKey": host_context_key,
-                "cowork_host_context_key": host_context_key,
-                "agentType": agent_type,
-                "role": args.role,
-                "taskDir": task_dir,
-                "dispatchKind": dispatch_kind,
-                "runtimeContextFile": _relative(repo_root, runtime_context_path(repo_root, runtime_context_id)),
-                "logicalSessionFile": _relative(repo_root, sessions_dir(repo_root) / f"{logical_context_key}.json"),
-                "promptTransport": (
-                    f"cowork_runtime_context_id: {runtime_context_id}\n"
-                    f"cowork_host_context_key: {host_context_key}"
-                ),
-                "bindCommand": f".cowork-flow/run subagent bind {runtime_context_id} {host_context_key}",
-            },
-            ensure_ascii=False,
+    return {
+        "id": runtime_context_id,
+        "runtimeContextId": runtime_context_id,
+        "cowork_runtime_context_id": runtime_context_id,
+        "hostContextKey": host_context_key,
+        "cowork_host_context_key": host_context_key,
+        "agentType": resolved_agent_type,
+        "role": role,
+        "taskDir": task_dir,
+        "dispatchKind": dispatch_kind,
+        "runtimeContextFile": _relative(repo_root, runtime_context_path(repo_root, runtime_context_id)),
+        "logicalSessionFile": _relative(repo_root, sessions_dir(repo_root) / f"{logical_context_key}.json"),
+        "promptTransport": (
+            f"cowork_runtime_context_id: {runtime_context_id}\n"
+            f"cowork_host_context_key: {host_context_key}"
+        ),
+        "bindCommand": f".cowork-flow/run subagent bind {runtime_context_id} {host_context_key}",
+    }
+
+def cmd_init(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    try:
+        payload = _create_runtime_context_payload(
+            repo_root,
+            title=args.title,
+            role=args.role,
+            agent_type=getattr(args, "agent_type", None),
+            task_dir=getattr(args, "execution_task_dir", None),
+            source=args.source,
+            goal=args.goal,
+            expected_output=args.expected_output,
+            allowed_context=args.allowed_context,
+            host=args.host,
+            adapter=args.adapter,
         )
-    )
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    print(json.dumps(payload, ensure_ascii=False))
     return 0
 
 
@@ -211,6 +257,7 @@ def cmd_update(args: argparse.Namespace) -> int:
     if args.note:
         context["note"] = args.note
     write_runtime_context(repo_root, args.subagent_id, context)
+    _update_agent_run_if_present(repo_root, args.subagent_id, args.status)
     print(f"subagent {args.subagent_id} status={args.status}")
     return 0
 
@@ -229,6 +276,7 @@ def cmd_bind(args: argparse.Namespace) -> int:
     if context is None:
         print(f"Error: cannot bind runtime context: {args.subagent_id}", file=sys.stderr)
         return 1
+    _update_agent_run_if_present(repo_root, args.subagent_id, "bound")
     print(json.dumps(context, ensure_ascii=False, indent=2) + "\n", end="")
     return 0
 
@@ -238,9 +286,179 @@ def cmd_close(args: argparse.Namespace) -> int:
     if not close_runtime_context(repo_root, args.subagent_id):
         print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
         return 1
+    _update_agent_run_if_present(repo_root, args.subagent_id, "closed")
     print(f"subagent {args.subagent_id} closed")
     return 0
 
+
+def _update_agent_run_if_present(repo_root: Path, run_id: str, status: str) -> None:
+    db_path = get_db_path(repo_root)
+    if not db_path.exists():
+        return
+    try:
+        with FlowStore(str(db_path)) as store:
+            store.update_agent_run_status(run_id, status)
+    except Exception:
+        return
+
+def _resolve_flow_task(store: FlowStore, target: str):
+    candidates: list[str] = []
+    raw = target.strip()
+    if raw:
+        candidates.append(raw)
+    name = Path(raw).name if raw else ""
+    if name and name not in candidates:
+        candidates.append(name)
+    if name and TASK_DATE_PREFIX_PATTERN.match(name):
+        stripped = TASK_DATE_PREFIX_PATTERN.sub("", name)
+        if stripped not in candidates:
+            candidates.append(stripped)
+
+    for candidate in candidates:
+        task = store.get_task(candidate)
+        if task:
+            return task
+        task = store.get_task_by_artifact_dir(candidate)
+        if task:
+            return task
+    return None
+
+def _child_task_dir(child) -> str:
+    return f".cowork-flow/tasks/{child.artifact_dir}"
+
+def cmd_spawn_family(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    agent_type = args.agent_type
+    role = args.role or _role_for_agent_type(agent_type)
+    results: list[dict] = []
+
+    with FlowStore(str(get_db_path(repo_root))) as store:
+        parent = _resolve_flow_task(store, args.parent_id)
+        if parent is None:
+            print(f"Error: parent task not found: {args.parent_id}", file=sys.stderr)
+            return 1
+        children = store.list_children(parent.id)
+        for child in children:
+            if child.status in DONE_TASK_STATUSES:
+                results.append(
+                    {
+                        "task_id": child.id,
+                        "taskId": child.id,
+                        "taskStatus": child.status,
+                        "status": "skipped_done",
+                    }
+                )
+                continue
+
+            active_run = store.get_active_agent_run(child.id, agent_type)
+            if active_run is not None:
+                results.append(
+                    {
+                        "id": active_run["id"],
+                        "runtimeContextId": active_run["id"],
+                        "task_id": child.id,
+                        "taskId": child.id,
+                        "agentType": active_run["agent_type"],
+                        "runStatus": active_run["status"],
+                        "status": "already_running",
+                        "hostContextKey": active_run.get("host_context_key"),
+                    }
+                )
+                continue
+
+            task_dir = _child_task_dir(child)
+            try:
+                payload = _create_runtime_context_payload(
+                    repo_root,
+                    title=f"{agent_type} {child.id}",
+                    role=role,
+                    agent_type=agent_type,
+                    task_dir=task_dir,
+                    source="spawn-family",
+                    goal=args.goal or f"Execute child task {child.id}",
+                    expected_output=args.expected_output,
+                    allowed_context=[],
+                    host=args.host,
+                    adapter=args.adapter,
+                )
+            except ValueError as error:
+                print(f"Error: {error}", file=sys.stderr)
+                return 1
+
+            store.create_agent_run(
+                id=payload["runtimeContextId"],
+                task_id=child.id,
+                agent_type=agent_type,
+                status="pending",
+                host_context_key=payload["hostContextKey"],
+                created_at=_now(),
+            )
+            payload.update(
+                {
+                    "task_id": child.id,
+                    "taskId": child.id,
+                    "taskStatus": child.status,
+                    "status": "pending",
+                }
+            )
+            results.append(payload)
+
+    print(json.dumps(results, ensure_ascii=False))
+    return 0
+
+def cmd_check_family(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    pending: list[dict] = []
+    done: list[dict] = []
+    failed: list[dict] = []
+
+    with FlowStore(str(get_db_path(repo_root))) as store:
+        parent = _resolve_flow_task(store, args.parent_id)
+        if parent is None:
+            print(f"Error: parent task not found: {args.parent_id}", file=sys.stderr)
+            return 1
+        children = store.list_children(parent.id)
+        runs_by_child: dict[str, dict] = {}
+        for run in store.list_agent_runs_for_parent(parent.id):
+            if args.agent_type and run["agent_type"] != args.agent_type:
+                continue
+            runs_by_child[run["task_id"]] = run
+
+        for child in children:
+            run = runs_by_child.get(child.id)
+            if run is None:
+                entry = {"task_id": child.id, "taskId": child.id, "taskStatus": child.status}
+                if child.status in DONE_TASK_STATUSES:
+                    done.append({**entry, "status": child.status})
+                else:
+                    pending.append({**entry, "status": "missing_run"})
+                continue
+
+            entry = {
+                "id": run["id"],
+                "runtimeContextId": run["id"],
+                "task_id": child.id,
+                "taskId": child.id,
+                "agentType": run["agent_type"],
+                "taskStatus": child.status,
+                "status": run["status"],
+                "hostContextKey": run.get("host_context_key"),
+            }
+            if run["status"] in FAILED_AGENT_RUN_STATUSES:
+                failed.append(entry)
+            elif run["status"] in DONE_AGENT_RUN_STATUSES or child.status in DONE_TASK_STATUSES:
+                done.append(entry)
+            else:
+                pending.append(entry)
+
+    payload = {
+        "all_done": not pending and not failed,
+        "pending": pending,
+        "done": done,
+        "failed": failed,
+    }
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0 if payload["all_done"] else 1
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -280,6 +498,27 @@ def build_parser() -> argparse.ArgumentParser:
     close = subparsers.add_parser("close", help="Close subagent runtime context")
     close.add_argument("subagent_id")
     close.set_defaults(func=cmd_close)
+
+    spawn_family = subparsers.add_parser(
+        "spawn-family",
+        help="Create runtime contexts for child tasks of a parent task",
+    )
+    spawn_family.add_argument("parent_id")
+    spawn_family.add_argument("--agent-type", default="cowork-implement", choices=sorted(FIXED_AGENT_TYPES))
+    spawn_family.add_argument("--role")
+    spawn_family.add_argument("--goal")
+    spawn_family.add_argument("--expected-output", default="Files changed, validation commands, and blockers.")
+    spawn_family.add_argument("--host", default="codex")
+    spawn_family.add_argument("--adapter", default="codex.spawn_agent")
+    spawn_family.set_defaults(func=cmd_spawn_family)
+
+    check_family = subparsers.add_parser(
+        "check-family",
+        help="Check runtime completion for child tasks of a parent task",
+    )
+    check_family.add_argument("parent_id")
+    check_family.add_argument("--agent-type")
+    check_family.set_defaults(func=cmd_check_family)
 
     return parser
 
