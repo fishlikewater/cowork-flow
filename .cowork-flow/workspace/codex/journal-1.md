@@ -1718,3 +1718,33 @@ Closed Phase 4 release validation: added flow migrate CLI, fresh install and mig
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 54: Fix task create canonical id
+
+**Date**: 2026-06-13
+**Task**: Fix task create canonical id
+
+### Summary
+
+Used new workflow to implement and verify canonical Flow task ids for date-prefixed task create slugs; archived task/change after cowork-implement and cowork-check validation.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

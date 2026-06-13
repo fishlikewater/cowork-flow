@@ -1,0 +1,5 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": ".cowork-flow/plans/2026-06-13-task-create-canonical-id.md", "reason": "Check plan acceptance"}
+{"file": "tests/test_flow_script_paths.py", "reason": "Check regression coverage"}
+{"file": ".cowork-flow/scripts/task.py", "reason": "Check root task create behavior"}

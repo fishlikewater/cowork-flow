@@ -683,6 +683,7 @@ def cmd_create(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
+    task_id = TASK_DATE_PREFIX_PATTERN.sub("", slug)
 
     # Create artifact directory
     tasks_dir = get_tasks_dir(repo_root)
@@ -724,7 +725,7 @@ def cmd_create(args: argparse.Namespace) -> int:
                 parent_slug = _resolve_task_id(args.parent, repo_root)
 
         store.create_task(
-            id=slug,
+            id=task_id,
             title=args.title,
             description=args.description or "",
             pattern=pattern,
@@ -746,7 +747,7 @@ def cmd_create(args: argparse.Namespace) -> int:
     print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
 
     _run_hooks(
-        "after_create", f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}", slug, repo_root
+        "after_create", f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}", task_id, repo_root
     )
     return 0
 

@@ -179,8 +179,9 @@ class FlowScriptPathsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / ".cowork-flow").mkdir()
-            date_prefix = datetime.now().strftime("%m-%d")
-            slug = f"{date_prefix}-demo-task"
+            date_prefix = "05-18"
+            slug = f"{date_prefix}-demo"
+            doubled_prefix = datetime.now().strftime("%m-%d")
 
             previous_cwd = Path.cwd()
             try:
@@ -203,11 +204,18 @@ class FlowScriptPathsTest(unittest.TestCase):
                 os.chdir(previous_cwd)
 
             task_dir = root / ".cowork-flow" / "tasks" / slug
-            doubled = root / ".cowork-flow" / "tasks" / f"{date_prefix}-{slug}"
+            doubled = root / ".cowork-flow" / "tasks" / f"{doubled_prefix}-{slug}"
             self.assertEqual(0, result)
             self.assertTrue(task_dir.exists())
             self.assertFalse(doubled.exists())
             self.assertIn(slug, stdout.getvalue())
+            db_path = self.paths.get_db_path(root)
+            with self.flow_store.FlowStore(str(db_path)) as store:
+                canonical_task = store.get_task("demo")
+                prefixed_task = store.get_task(slug)
+            self.assertIsNotNone(canonical_task)
+            self.assertEqual(slug, canonical_task.artifact_dir)
+            self.assertIsNone(prefixed_task)
 
     def test_cmd_create_with_parent_creates_single_link(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
