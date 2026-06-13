@@ -1,21 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>cowork-flow Dashboard</title>
+  <title>cowork-flow 控制台</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <h1>cowork-flow</h1>
-      <p id="summary">Loading board</p>
+    <div class="title-block">
+      <p class="eyebrow">只读工作流控制台</p>
+      <h1>cowork-flow 看板</h1>
+      <p id="summary">正在加载任务</p>
     </div>
-    <button id="refresh" type="button" title="Refresh board">Refresh</button>
+    <div class="toolbar">
+      <label class="search-field" for="search">
+        <span>搜索任务</span>
+        <input id="search" type="search" autocomplete="off" placeholder="标题 / ID / 负责人">
+      </label>
+      <label class="archive-toggle">
+        <input id="showArchived" type="checkbox">
+        <span>显示归档</span>
+      </label>
+      <button id="refresh" type="button" title="刷新任务数据">刷新</button>
+    </div>
   </header>
+  <nav id="statusFilters" class="status-tabs" aria-label="状态筛选">
+    <button type="button" data-status="all" data-label="全部活跃" class="active">全部活跃</button>
+    <button type="button" data-status="planning" data-label="规划中">规划中</button>
+    <button type="button" data-status="in_progress" data-label="执行中">执行中</button>
+    <button type="button" data-status="review" data-label="检查中">检查中</button>
+    <button type="button" data-status="blocked" data-label="已阻塞">已阻塞</button>
+    <button type="button" data-status="completed" data-label="已完成">已完成</button>
+    <button type="button" data-status="archived" data-label="已归档">已归档</button>
+  </nav>
   <main id="board" class="board" aria-live="polite"></main>
-  <aside id="detail" class="detail" aria-live="polite"></aside>
+  <aside id="detail" class="detail" aria-live="polite" aria-label="任务详情">
+    <div class="detail-empty">
+      <h2>选择任务查看详情</h2>
+      <p>任务基础信息、审计记录、子任务、代理运行和阻塞状态会显示在这里。</p>
+    </div>
+  </aside>
   <script src="/static/app.js"></script>
 </body>
 </html>

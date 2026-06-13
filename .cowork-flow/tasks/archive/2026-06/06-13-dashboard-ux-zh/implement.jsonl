@@ -1,0 +1,11 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".cowork-flow/plans/2026-06-13-dashboard-ux-zh.md", "reason": "Implementation plan"}
+{"file": ".cowork-flow/changes/06-13-dashboard-ux-zh/spec.md", "reason": "Dashboard UX contract"}
+{"file": ".cowork-flow/scripts/dashboard/static/app.js", "reason": "Root dashboard JS"}
+{"file": ".cowork-flow/scripts/dashboard/static/style.css", "reason": "Root dashboard CSS"}
+{"file": ".cowork-flow/scripts/dashboard/static/index.html", "reason": "Root dashboard HTML"}
+{"file": "tests/test_dashboard.py", "reason": "Dashboard regression tests"}

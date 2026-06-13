@@ -13,6 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 DASHBOARD = SCRIPTS / "dashboard" / "server.py"
+ROOT_STATIC = ROOT / ".cowork-flow" / "scripts" / "dashboard" / "static"
+TEMPLATE_STATIC = ROOT / "template" / ".cowork-flow" / "scripts" / "dashboard" / "static"
 
 
 class DashboardTest(unittest.TestCase):
@@ -88,6 +90,41 @@ class DashboardTest(unittest.TestCase):
         with urllib.request.urlopen(f"{base_url}{path}", timeout=5) as response:
             self.assertEqual("application/json", response.headers.get_content_type())
             return json.loads(response.read().decode("utf-8"))
+
+    def test_dashboard_static_assets_stay_in_sync(self) -> None:
+        for asset in ("index.html", "app.js", "style.css"):
+            self.assertEqual(
+                (ROOT_STATIC / asset).read_text(encoding="utf-8"),
+                (TEMPLATE_STATIC / asset).read_text(encoding="utf-8"),
+                f"{asset} should match root/template dashboard assets",
+            )
+
+    def test_dashboard_shell_is_simplified_chinese(self) -> None:
+        html = (ROOT_STATIC / "index.html").read_text(encoding="utf-8")
+        self.assertIn('lang="zh-CN"', html)
+        for text in ("cowork-flow 看板", "只读工作流控制台", "搜索任务", "显示归档", "刷新"):
+            self.assertIn(text, html)
+
+    def test_dashboard_filters_emphasize_active_tasks(self) -> None:
+        script = (ROOT_STATIC / "app.js").read_text(encoding="utf-8")
+        self.assertIn('const DEFAULT_VISIBLE_STATUSES = ["planning", "in_progress", "review", "blocked", "completed"];', script)
+        self.assertIn('showArchived.checked', script)
+        self.assertIn('task.status === "archived"', script)
+        self.assertIn("archivedTasks", script)
+        for label in ("规划中", "执行中", "检查中", "已阻塞", "已完成", "已归档"):
+            self.assertIn(label, script)
+
+    def test_dashboard_uses_readable_pattern_labels(self) -> None:
+        script = (ROOT_STATIC / "app.js").read_text(encoding="utf-8")
+        for label in ("通用流程", "扇出协作", "流水线", "人工确认"):
+            self.assertIn(label, script)
+
+    def test_dashboard_detail_renders_inspection_sections(self) -> None:
+        script = (ROOT_STATIC / "app.js").read_text(encoding="utf-8")
+        for name in ("renderBasics", "renderAuditTrail", "renderChildren", "renderAgentRuns", "renderActiveBlock"):
+            self.assertIn(f"function {name}", script)
+        for label in ("基础信息", "审计记录", "子任务", "代理运行", "阻塞状态", "暂无阻塞", "创建"):
+            self.assertIn(label, script)
 
     def test_run_dispatcher_registers_dashboard_command(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
