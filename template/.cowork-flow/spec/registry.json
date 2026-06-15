@@ -60,7 +60,7 @@
       "readWhen": [
         "before editing .cowork-flow/scripts/patterns/",
         "before changing task lifecycle transitions",
-        "when documenting or verifying Phase 2 pattern behavior"
+        "when documenting or verifying pattern behavior"
       ]
     },
     {

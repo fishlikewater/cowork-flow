@@ -1,6 +1,6 @@
 # Fan-out pattern
 
-`fan_out` 用于父任务等待一组子任务完成。父任务本身不派发子任务，Phase 2 只提供校验、状态门禁和只读 next action。
+`fan_out` 用于父任务等待一组子任务完成。父任务本身不派发子任务；pattern 层只提供校验、状态门禁和只读 next action。
 
 ## Required shape
 

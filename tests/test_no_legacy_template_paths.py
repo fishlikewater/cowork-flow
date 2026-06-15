@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -157,6 +158,34 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
         self.assertEqual([], offenders)
 
+
+    def test_pattern_contracts_do_not_expose_historical_phase_labels(self) -> None:
+        phase_label = re.compile(r"\b[Pp]hase\s+[0-9]\b")
+        checked_roots = (
+            ROOT / ".cowork-flow" / "spec" / "patterns",
+            ROOT / "template" / ".cowork-flow" / "spec" / "patterns",
+            ROOT / ".cowork-flow" / "scripts" / "patterns",
+            ROOT / "template" / ".cowork-flow" / "scripts" / "patterns",
+        )
+        checked_files = [
+            ROOT / ".cowork-flow" / "spec" / "registry.json",
+            ROOT / "template" / ".cowork-flow" / "spec" / "registry.json",
+        ]
+        for checked_root in checked_roots:
+            checked_files.extend(
+                path
+                for path in checked_root.rglob("*")
+                if path.is_file() and path.suffix in {".md", ".py", ".json"}
+            )
+
+        offenders: list[str] = []
+        for path in checked_files:
+            text = path.read_text(encoding="utf-8")
+            match = phase_label.search(text)
+            if match:
+                offenders.append(f"{path.relative_to(ROOT)} contains {match.group(0)}")
+
+        self.assertEqual([], offenders)
 
 if __name__ == "__main__":
     unittest.main()

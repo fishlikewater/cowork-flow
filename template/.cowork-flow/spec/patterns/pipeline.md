@@ -55,6 +55,6 @@
 
 `task next` 只展示这些建议，不推进 `current_stage`。
 
-## Phase 2 limits
+## Pattern Boundary
 
 Pipeline 不负责为每个 stage 派发不同 agent，也不维护 stage 独立产物目录。Stage 产物、验证命令和验收结论仍由当前任务 PRD、JSONL 和人工检查承载。

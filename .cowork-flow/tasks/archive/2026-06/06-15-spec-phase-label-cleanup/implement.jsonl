@@ -1,0 +1,9 @@
+{"file": "AGENTS.md", "reason": "Project workflow and UTF-8 rules"}
+{"file": ".cowork-flow/workflow.md", "reason": "Workflow source and phase wording context"}
+{"file": ".cowork-flow/spec/patterns/index.md", "reason": "Root pattern contracts"}
+{"file": ".cowork-flow/spec/patterns/fan-out.md", "reason": "Root fan-out pattern contract"}
+{"file": ".cowork-flow/spec/patterns/pipeline.md", "reason": "Root pipeline pattern contract"}
+{"file": "template/.cowork-flow/spec/patterns/index.md", "reason": "Template pattern contracts"}
+{"file": "template/.cowork-flow/spec/patterns/fan-out.md", "reason": "Template fan-out pattern contract"}
+{"file": "template/.cowork-flow/spec/patterns/pipeline.md", "reason": "Template pipeline pattern contract"}
+{"file": "tests/test_no_legacy_template_paths.py", "reason": "Template wording regression coverage"}

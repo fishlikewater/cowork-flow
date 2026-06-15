@@ -1,6 +1,6 @@
 # Flow pattern contracts
 
-本目录定义 Phase 2 已实现的 task pattern 契约。Pattern 是纯决策层，只接收 `TaskContext`，返回校验结果、状态流转许可和只读 next action。Pattern 不读取文件、不访问 `FlowStore`、不派发 agent、不修改任务状态。
+本目录定义当前 task pattern 契约。Pattern 是纯决策层，只接收 `TaskContext`，返回校验结果、状态流转许可和只读 next action。Pattern 不读取文件、不访问 `FlowStore`、不派发 agent、不修改任务状态。
 
 ## Pattern boundary
 
@@ -36,7 +36,7 @@ TaskContext(
 
 | Pattern | Purpose | Spec |
 | --- | --- | --- |
-| `generic` | 默认生命周期, 等价 Phase 1 行为。 | 本文件 |
+| `generic` | 默认基线生命周期。 | 本文件 |
 | `fan_out` | 父任务等待多个 generic 子任务完成。 | [fan-out.md](./fan-out.md) |
 | `pipeline` | 单任务按阶段 review/redo/complete。 | [pipeline.md](./pipeline.md) |
 | `human_loop` | 阻塞状态必须记录人工决策后恢复。 | [human-loop.md](./human-loop.md) |
@@ -66,9 +66,9 @@ Generic 不要求 metadata，不产生 pattern action。
 - `meta.decision_points` 存在时建议 `human_loop`。
 - 其它情况建议 `generic`。
 
-## Phase 2 limits
+## Pattern Boundary
 
 - Fan-out 不负责创建、派发或检查子任务。
 - Pipeline 不派发 stage worker，只约束当前任务状态和 `current_stage`。
 - Human-loop 不决定业务答案，只要求 unblock 时记录 decision。
-- 跨任务并发、`spawn-family`、`check-family` 属于后续阶段，不在 Phase 2 contract 内。
+- 跨任务并发、`spawn-family`、`check-family` 不属于 pattern 决策层，由 subagent dispatch/runtime 负责。

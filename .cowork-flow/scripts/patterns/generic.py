@@ -1,4 +1,4 @@
-"""Generic pattern: equivalent to the Phase 1 lifecycle."""
+"""Generic pattern: baseline task lifecycle."""
 
 from __future__ import annotations
 

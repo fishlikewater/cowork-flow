@@ -1898,3 +1898,33 @@ Recorded direct formal agent runs for Dashboard details, redesigned archived Das
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 60: 清理 pattern 历史阶段标签
+
+**Date**: 2026-06-15
+**Task**: 清理 pattern 历史阶段标签
+
+### Summary
+
+清理 root/template pattern contracts、registry digest 和 generic docstring 中的 Phase 1/2 历史标签，新增回归测试，并扫描其他 phase 标签归类为历史计划/日志/设计路线图。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
