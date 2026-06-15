@@ -20,7 +20,7 @@
 - `runtimeContextDispatch`: create a runtime context before child dispatch.
 - `runtimeContextBinding`: bind the host child session to that runtime context
   through a proven hook/plugin path or an explicit first-step shim.
-- `runtimeContextCleanup`: close and clean child runtime session files.
+- `runtimeContextCleanup`: close child runtime DB sessions and mark runtime context closed.
 - `spawnMultipleSubagents`: host can dispatch several prepared child contexts
   for a Fan-out family.
 - `waitMultipleChildren`: host can wait for or inspect several children during

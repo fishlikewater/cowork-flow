@@ -1,0 +1,7 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Final verification gate"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Completion and session recording gate"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Binding gate acceptance contract"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "Subagent dispatch behavior tests"}
+{"file": "tests/test_flow_script_paths.py", "reason": "task next guidance tests"}
+{"file": "template/.cowork-flow/scripts/subagent.py", "reason": "Root/template parity"}
+{"file": "template/.cowork-flow/scripts/task.py", "reason": "Root/template parity"}

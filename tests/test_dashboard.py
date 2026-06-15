@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -77,6 +78,24 @@ class DashboardTest(unittest.TestCase):
         finally:
             self._cleanup_template_imports()
 
+    def _dashboard_process(self, root: Path) -> dict | None:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            row = db.execute("SELECT * FROM dashboard_process WHERE id = 'default'").fetchone()
+            return dict(row) if row else None
+        finally:
+            db.close()
+
+    def _maintenance_events(self, root: Path) -> list[dict]:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            rows = db.execute("SELECT kind, dry_run FROM maintenance_event ORDER BY id").fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            db.close()
+
     def _start_dashboard(self, root: Path) -> tuple[subprocess.Popen, str]:
         process = subprocess.Popen(
             [sys.executable, str(DASHBOARD), "--host", "127.0.0.1", "--port", "0"],
@@ -123,8 +142,31 @@ class DashboardTest(unittest.TestCase):
     def test_dashboard_shell_is_simplified_chinese(self) -> None:
         html = (ROOT_STATIC / "index.html").read_text(encoding="utf-8")
         self.assertIn('lang="zh-CN"', html)
-        for text in ("cowork-flow 看板", "只读工作流控制台", "搜索任务", "显示归档", "刷新"):
+        for text in ("cowork-flow 看板", "只读工作流控制台", "任务看板", "数据库维护", "搜索任务", "显示归档", "刷新"):
             self.assertIn(text, html)
+        self.assertIn('id="boardView"', html)
+        self.assertIn('id="maintenanceView"', html)
+        self.assertIn('id="viewSwitch"', html)
+        self.assertNotIn('id="maintenanceToggle"', html)
+        self.assertNotIn('class="maintenance-panel"', html)
+
+    def test_dashboard_maintenance_view_is_separate_from_task_board(self) -> None:
+        html = (ROOT_STATIC / "index.html").read_text(encoding="utf-8")
+        script = (ROOT_STATIC / "app.js").read_text(encoding="utf-8")
+        css = (ROOT_STATIC / "style.css").read_text(encoding="utf-8")
+
+        self.assertIn('<main id="maintenanceView"', html)
+        self.assertIn('id="boardView"', html)
+        self.assertIn('class="maintenance-hero"', html)
+        self.assertIn('class="maintenance-workbench"', html)
+        self.assertIn('function setView(view)', script)
+        self.assertIn('boardView.hidden = maintenanceMode', script)
+        self.assertIn('statusFilters.hidden = maintenanceMode', script)
+        self.assertIn('boardControls.hidden = maintenanceMode', script)
+        self.assertIn('maintenanceView.hidden = !maintenanceMode', script)
+        self.assertIn(".maintenance-view", css)
+        self.assertIn(".board-view", css)
+        self.assertNotIn("maintenancePanel", script)
 
     def test_dashboard_filters_emphasize_active_tasks(self) -> None:
         script = (ROOT_STATIC / "app.js").read_text(encoding="utf-8")
@@ -134,6 +176,8 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("archivedTasks", script)
         for label in ("规划中", "执行中", "检查中", "已阻塞", "已完成", "已归档"):
             self.assertIn(label, script)
+        for name in ("loadMaintenanceStats", "runCleanupDryRun", "runCleanupConfirm"):
+            self.assertIn(f"function {name}", script)
 
     def test_dashboard_archived_tab_does_not_mutate_archive_checkbox(self) -> None:
         script = (ROOT_STATIC / "app.js").read_text(encoding="utf-8")
@@ -182,12 +226,17 @@ class DashboardTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, start.returncode, msg=start.stderr)
-            state = json.loads(state_file.read_text(encoding="utf-8"))
+            state = json.loads(start.stdout)
+            db_state = self._dashboard_process(root)
 
             try:
+                self.assertFalse(state_file.exists())
+                self.assertEqual("db", state["state_source"])
+                self.assertIsNotNone(db_state)
                 self.assertEqual(str(root), state["repo_root"])
                 self.assertTrue(state["pid"] > 0)
                 self.assertTrue(state["url"].startswith("http://127.0.0.1:"))
+                self.assertEqual(state["pid"], db_state["pid"])
 
                 status = subprocess.run(
                     [sys.executable, str(DASHBOARD), "status"],
@@ -200,6 +249,7 @@ class DashboardTest(unittest.TestCase):
                 self.assertEqual(0, status.returncode, msg=status.stderr)
                 status_payload = json.loads(status.stdout)
                 self.assertTrue(status_payload["running"])
+                self.assertEqual("db", status_payload["state_source"])
                 self.assertEqual(state["pid"], status_payload["pid"])
                 self._get_json(state["url"], "/api/board")
             finally:
@@ -213,6 +263,102 @@ class DashboardTest(unittest.TestCase):
                 )
                 self.assertEqual(0, stop.returncode, msg=stop.stderr)
                 self.assertFalse(state_file.exists())
+                self.assertIsNone(self._dashboard_process(root))
+
+    def test_dashboard_db_cleanup_requires_dry_run_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            sys.path.insert(0, str(SCRIPTS))
+            try:
+                paths = importlib.import_module("common.paths")
+                flow_store = importlib.import_module("flow.store")
+                with flow_store.FlowStore(str(paths.get_db_path(root))) as store:
+                    store.upsert_runtime_context(
+                        {
+                            "runtime_context_id": "rtx_closed",
+                            "scope": "subagent",
+                            "host": "codex",
+                            "adapter": "codex.spawn_agent",
+                            "agent_type": "cowork-check",
+                            "role": "check",
+                            "dispatch_kind": "formal",
+                            "status": "closed",
+                            "created_at": "2000-01-01T00:00:00Z",
+                            "closed_at": "2000-01-01T00:00:00Z",
+                            "last_seen_at": "2000-01-01T00:00:00Z",
+                        }
+                    )
+                    store.upsert_runtime_context(
+                        {
+                            "runtime_context_id": "rtx_open",
+                            "scope": "subagent",
+                            "host": "codex",
+                            "adapter": "codex.spawn_agent",
+                            "agent_type": "cowork-check",
+                            "role": "check",
+                            "dispatch_kind": "formal",
+                            "status": "bound",
+                            "created_at": "2000-01-01T00:00:00Z",
+                            "last_seen_at": "2000-01-01T00:00:00Z",
+                        }
+                    )
+            finally:
+                self._cleanup_template_imports()
+
+            dry_run = subprocess.run(
+                [sys.executable, str(DASHBOARD), "db", "cleanup", "--dry-run", "--retention-days", "0"],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, dry_run.returncode, msg=dry_run.stderr)
+            preview = json.loads(dry_run.stdout)
+            self.assertTrue(preview["dry_run"])
+            self.assertEqual(["rtx_closed"], preview["closed_runtime_context_ids"])
+            self.assertIsNotNone(self._maintenance_events(root))
+            self.assertEqual([], self._maintenance_events(root))
+
+            rejected = subprocess.run(
+                [sys.executable, str(DASHBOARD), "db", "cleanup", "--retention-days", "0"],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(0, rejected.returncode)
+
+            applied = subprocess.run(
+                [
+                    sys.executable,
+                    str(DASHBOARD),
+                    "db",
+                    "cleanup",
+                    "--confirm",
+                    preview["confirmation_token"],
+                    "--retention-days",
+                    "0",
+                ],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, applied.returncode, msg=applied.stderr)
+            self.assertEqual({"kind": "cleanup", "dry_run": 0}, self._maintenance_events(root)[0])
+            db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+            try:
+                remaining = [
+                    row[0]
+                    for row in db.execute("SELECT id FROM runtime_context ORDER BY id").fetchall()
+                ]
+            finally:
+                db.close()
+            self.assertEqual(["rtx_open"], remaining)
 
     def test_dashboard_serves_read_only_board_and_task_apis(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -239,6 +385,19 @@ class DashboardTest(unittest.TestCase):
 
                 patterns = self._get_json(base_url, "/api/patterns")
                 self.assertIn("fan_out", [item["name"] for item in patterns["patterns"]])
+
+                stats = self._get_json(base_url, "/api/maintenance/db/stats")
+                self.assertIn("runtime_context", stats["row_counts"])
+                with urllib.request.urlopen(
+                    urllib.request.Request(
+                        f"{base_url}/api/maintenance/db/cleanup?dry_run=true",
+                        method="POST",
+                    ),
+                    timeout=5,
+                ) as response:
+                    preview = json.loads(response.read().decode("utf-8"))
+                self.assertTrue(preview["dry_run"])
+                self.assertIn("confirmation_token", preview)
 
                 with self.assertRaises(urllib.error.HTTPError) as error:
                     urllib.request.urlopen(

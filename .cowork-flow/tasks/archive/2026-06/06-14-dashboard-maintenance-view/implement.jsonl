@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/scripts/dashboard/static/index.html", "reason": "dashboard shell view structure"}
+{"file": ".cowork-flow/scripts/dashboard/static/app.js", "reason": "dashboard view switching and maintenance interactions"}
+{"file": ".cowork-flow/scripts/dashboard/static/style.css", "reason": "dashboard maintenance layout"}
+{"file": "template/.cowork-flow/scripts/dashboard/static/index.html", "reason": "template dashboard shell parity"}
+{"file": "template/.cowork-flow/scripts/dashboard/static/app.js", "reason": "template dashboard JS parity"}
+{"file": "template/.cowork-flow/scripts/dashboard/static/style.css", "reason": "template dashboard CSS parity"}

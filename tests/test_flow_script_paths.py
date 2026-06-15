@@ -1036,7 +1036,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("Status: in_progress", output)
             self.assertIn("Next action: execute implementation plan", output)
             self.assertIn("cowork-implement", output)
-            self.assertIn("./.cowork-flow/run subagent init", output)
+            self.assertIn("./.cowork-flow/run subagent dispatch-codex", output)
+            self.assertIn("Do not use bare spawn_agent for formal cowork-* workflow gates", output)
             self.assertIn("cowork_runtime_context_id", output)
 
     def test_cmd_next_reports_pattern_action_without_mutation(self) -> None:
@@ -1097,6 +1098,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("Status: review", output)
             self.assertIn("Next action: verify implementation", output)
             self.assertIn("cowork-check", output)
+            self.assertIn("./.cowork-flow/run subagent dispatch-codex", output)
+            self.assertIn("Do not use bare spawn_agent for formal cowork-* workflow gates", output)
             self.assertIn(
                 "./.cowork-flow/run task complete .cowork-flow/tasks/05-19-demo", output
             )

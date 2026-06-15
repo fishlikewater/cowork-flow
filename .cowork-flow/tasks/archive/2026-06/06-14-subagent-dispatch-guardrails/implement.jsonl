@@ -1,0 +1,12 @@
+{"file": "AGENTS.md", "reason": "Project workflow and UTF-8 rules"}
+{"file": ".cowork-flow/workflow.md", "reason": "Task lifecycle and formal dispatch guidance"}
+{"file": ".cowork-flow/spec/entry-contract.md", "reason": "Main-session and subagent entry boundary"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Runtime context dispatch and binding gate"}
+{"file": ".cowork-flow/spec/capabilities.md", "reason": "Required host capabilities and fallback"}
+{"file": ".cowork-flow/adapters/codex/adapter.yaml", "reason": "Codex host adapter capabilities and transport"}
+{"file": ".cowork-flow/scripts/subagent.py", "reason": "Subagent runtime context commands"}
+{"file": ".cowork-flow/scripts/task.py", "reason": "task next guidance"}
+{"file": "template/.cowork-flow/scripts/subagent.py", "reason": "Template parity"}
+{"file": "template/.cowork-flow/scripts/task.py", "reason": "Template parity"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "Runtime dispatch regression tests"}
+{"file": "tests/test_flow_script_paths.py", "reason": "task next workflow guidance tests"}

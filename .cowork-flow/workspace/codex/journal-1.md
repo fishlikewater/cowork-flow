@@ -1808,3 +1808,93 @@ Recorded direct formal agent runs for Dashboard details, redesigned archived Das
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 57: 拆分数据库维护页面
+
+**Date**: 2026-06-14
+**Task**: 拆分数据库维护页面
+
+### Summary
+
+数据库维护从任务看板拆为独立中文工具页，补充视图切换与回归测试。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
+
+
+## Session 58: 强化 formal 子代理派发防线
+
+**Date**: 2026-06-15
+**Task**: 强化 formal 子代理派发防线
+
+### Summary
+
+新增 Codex formal 子代理 dispatch-codex payload 生成入口，task next 改为提示封装命令并禁止裸 spawn_agent，补充回归测试并通过 formal cowork-check 验证。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
+
+
+## Session 59: 归档 DB runtime 与子代理派发任务
+
+**Date**: 2026-06-15
+**Task**: 归档 DB runtime 与子代理派发任务
+
+### Summary
+
+归档 06-14-db-runtime-maintenance、06-14-dashboard-maintenance-view、06-14-subagent-dispatch-guardrails，并验证 active task cleared、change archived、diff check clean。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

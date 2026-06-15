@@ -5,6 +5,7 @@ import os
 import re
 import shlex
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -73,6 +74,30 @@ class ClaudeHooksTest(unittest.TestCase):
         ):
             env.pop(name, None)
         return env
+
+    def _runtime_session(self, root: Path, context_key: str) -> dict | None:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            row = db.execute(
+                "SELECT * FROM runtime_session WHERE context_key = ?",
+                (context_key,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            db.close()
+
+    def _runtime_context(self, root: Path, runtime_context_id: str) -> dict | None:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            row = db.execute(
+                "SELECT * FROM runtime_context WHERE id = ?",
+                (runtime_context_id,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            db.close()
 
     def _write_runtime_context(
         self,
@@ -197,11 +222,7 @@ class ClaudeHooksTest(unittest.TestCase):
                     "prompt": "cowork_runtime_context_id: rtx_claude_prompt",
                 },
             )
-            session = json.loads(
-                (root / ".cowork-flow" / ".runtime" / "sessions" / "claude_child-session.json").read_text(
-                    encoding="utf-8"
-                )
-            )
+            session = self._runtime_session(root, "claude_child-session")
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
@@ -210,6 +231,7 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn("Agent: cowork-implement", context)
         self.assertIn("Scope: subagent", context)
         self.assertNotIn("必须先创建或启动任务", context)
+        self.assertIsNotNone(session)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_claude_prompt", session["runtime_context_id"])
 
@@ -229,22 +251,16 @@ class ClaudeHooksTest(unittest.TestCase):
                     ),
                 },
             )
-            session = json.loads(
-                (root / ".cowork-flow" / ".runtime" / "sessions" / "claude_prompt_key.json").read_text(
-                    encoding="utf-8"
-                )
-            )
-            runtime_context = json.loads(
-                (root / ".cowork-flow" / ".runtime" / "subagents" / "rtx_claude_prompt_key.json").read_text(
-                    encoding="utf-8"
-                )
-            )
+            session = self._runtime_session(root, "claude_prompt_key")
+            runtime_context = self._runtime_context(root, "rtx_claude_prompt_key")
             self.assertFalse(
                 (root / ".cowork-flow" / ".runtime" / "sessions" / "claude_child-session.json").exists()
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
+        self.assertIsNotNone(session)
+        self.assertIsNotNone(runtime_context)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_claude_prompt_key", session["runtime_context_id"])
         self.assertEqual("claude_prompt_key", runtime_context["bound_context_key"])

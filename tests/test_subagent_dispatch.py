@@ -71,6 +71,30 @@ class SubagentDispatchTest(unittest.TestCase):
             db.close()
         return [dict(row) for row in rows]
 
+    def _runtime_context(self, root: Path, runtime_context_id: str) -> dict | None:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            row = db.execute(
+                "SELECT * FROM runtime_context WHERE id = ?",
+                (runtime_context_id,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            db.close()
+
+    def _runtime_session(self, root: Path, context_key: str) -> dict | None:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            row = db.execute(
+                "SELECT * FROM runtime_session WHERE context_key = ?",
+                (context_key,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            db.close()
+
     def test_init_writes_runtime_context_and_logical_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -124,22 +148,23 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertNotIn("dispatchMessage", payload)
             self.assertNotIn("executeMessage", payload)
             self.assertNotIn("ackToken", payload)
+            self.assertEqual("db", payload["runtimeContextSource"])
+            self.assertIn("logicalSessionKey", payload)
+            self.assertNotIn("logicalSessionFile", payload)
 
             context_path = root / payload["runtimeContextFile"]
-            context = json.loads(context_path.read_text(encoding="utf-8"))
-            self.assertEqual(2, context["schema_version"])
+            pointer = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("db", pointer["source"])
+            self.assertNotIn("assignment", pointer)
+            context = self._runtime_context(root, payload["runtimeContextId"])
+            self.assertIsNotNone(context)
             self.assertEqual("subagent", context["scope"])
-            self.assertEqual(payload["runtimeContextId"], context["runtime_context_id"])
             self.assertEqual(payload["agentType"], context["agent_type"])
             self.assertEqual(payload["taskDir"], context["task_dir"])
             self.assertEqual("pending", context["status"])
-            self.assertEqual(
-                {"kind": "prompt", "key": "cowork_runtime_context_id"},
-                context["transport"],
-            )
 
-            session_path = root / payload["logicalSessionFile"]
-            session = json.loads(session_path.read_text(encoding="utf-8"))
+            session = self._runtime_session(root, payload["logicalSessionKey"])
+            self.assertIsNotNone(session)
             self.assertEqual("subagent", session["scope"])
             self.assertEqual(payload["runtimeContextId"], session["runtime_context_id"])
             self.assertEqual(".cowork-flow/tasks/05-29-demo", session["active_task_path"])
@@ -175,6 +200,62 @@ class SubagentDispatchTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(".cowork-flow/tasks/05-29-demo", payload["taskDir"])
             self.assertEqual("formal", payload["dispatchKind"])
+
+    def test_dispatch_codex_emits_spawn_payload_with_required_bind_step(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            self._create_flow_task(root, "demo", "05-29-demo")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "dispatch-codex",
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "--title",
+                    "Check demo",
+                    "--role",
+                    "check",
+                    "--agent-type",
+                    "cowork-check",
+                ],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+            payload = json.loads(result.stdout)
+            self.assertEqual("cowork-check", payload["agent_type"])
+            self.assertEqual("none", payload["fork_turns"])
+            self.assertTrue(payload["task_name"].startswith("rtx_"))
+            self.assertNotIn("-", payload["task_name"])
+            self.assertEqual(payload["runtimeContextId"], payload["cowork_runtime_context_id"])
+            self.assertEqual(payload["hostContextKey"], payload["cowork_host_context_key"])
+            self.assertIn(payload["runtimeContextId"], payload["message"])
+            self.assertIn(payload["hostContextKey"], payload["message"])
+            self.assertIn(".\\.cowork-flow\\run.cmd subagent bind", payload["message"])
+            self.assertIn("Do not continue formal work if bind fails.", payload["message"])
+            self.assertEqual(
+                f".cowork-flow/run subagent bind {payload['runtimeContextId']} {payload['hostContextKey']}",
+                payload["bindCommand"],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "id": payload["runtimeContextId"],
+                        "task_id": "demo",
+                        "agent_type": "cowork-check",
+                        "status": "pending",
+                        "host_context_key": payload["hostContextKey"],
+                    }
+                ],
+                self._agent_runs(root),
+            )
 
     def test_direct_formal_init_creates_and_updates_agent_run(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -411,12 +492,17 @@ class SubagentDispatchTest(unittest.TestCase):
             )
             payload = json.loads(init_result.stdout)
             runtime_id = payload["runtimeContextId"]
-            context_path = root / payload["runtimeContextFile"]
-            context = json.loads(context_path.read_text(encoding="utf-8"))
-            context["bound_context_key"] = "codex_child"
-            context_path.write_text(json.dumps(context, indent=2) + "\n", encoding="utf-8")
-            host_session = root / ".cowork-flow" / ".runtime" / "sessions" / "codex_child.json"
-            host_session.write_text("{}", encoding="utf-8")
+            bind_result = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", runtime_id, "codex_child"],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, bind_result.returncode, msg=bind_result.stderr)
+            self.assertIsNotNone(self._runtime_session(root, "codex_child"))
+            self.assertIsNotNone(self._runtime_session(root, payload["logicalSessionKey"]))
 
             close_result = subprocess.run(
                 [sys.executable, str(SUBAGENT), "close", runtime_id],
@@ -428,10 +514,11 @@ class SubagentDispatchTest(unittest.TestCase):
             )
 
             self.assertEqual(0, close_result.returncode, msg=close_result.stderr)
-            closed = json.loads(context_path.read_text(encoding="utf-8"))
+            closed = self._runtime_context(root, runtime_id)
+            self.assertIsNotNone(closed)
             self.assertEqual("closed", closed["status"])
-            self.assertFalse(host_session.exists())
-            self.assertFalse((root / payload["logicalSessionFile"]).exists())
+            self.assertIsNone(self._runtime_session(root, "codex_child"))
+            self.assertIsNone(self._runtime_session(root, payload["logicalSessionKey"]))
 
 
     def test_bind_is_idempotent_for_same_context_key(self) -> None:
@@ -531,11 +618,8 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual(0, first.returncode, msg=first.stderr)
             self.assertNotEqual(0, second.returncode)
             self.assertIn("already bound to codex_first", second.stderr)
-            context = json.loads(
-                (root / ".cowork-flow" / ".runtime" / "subagents" / f"{runtime_id}.json").read_text(
-                    encoding="utf-8"
-                )
-            )
+            context = self._runtime_context(root, runtime_id)
+            self.assertIsNotNone(context)
             self.assertEqual("codex_first", context["bound_context_key"])
 
     def test_spawn_family_creates_missing_runs_and_is_idempotent(self) -> None:
@@ -594,9 +678,12 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual("skipped_done", created["child-b"]["status"])
             runtime_file = root / created["child-a"]["runtimeContextFile"]
             self.assertTrue(runtime_file.is_file())
+            self.assertEqual("db", json.loads(runtime_file.read_text(encoding="utf-8"))["source"])
+            runtime_context = self._runtime_context(root, created["child-a"]["runtimeContextId"])
+            self.assertIsNotNone(runtime_context)
             self.assertEqual(
                 ".cowork-flow/tasks/05-29-child-a",
-                json.loads(runtime_file.read_text(encoding="utf-8"))["task_dir"],
+                runtime_context["task_dir"],
             )
 
             self.assertEqual(0, second.returncode, msg=second.stderr)

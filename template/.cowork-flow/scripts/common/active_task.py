@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from collections.abc import Mapping
 from pathlib import Path
 
-from .paths import DIR_WORKFLOW
+from .paths import DIR_WORKFLOW, get_db_path
 
 
 DIR_RUNTIME = ".runtime"
@@ -176,6 +176,52 @@ def _write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _store(repo_root: Path):
+    from flow.store import FlowStore
+
+    db_path = get_db_path(repo_root)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    return FlowStore(str(db_path))
+
+
+def _write_runtime_pointer(repo_root: Path, runtime_context_id: str) -> None:
+    path = runtime_context_path(repo_root, runtime_context_id)
+    _write_json(
+        path,
+        {
+            "runtime_context_id": runtime_context_id,
+            "source": "db",
+            "db_path": get_db_path(repo_root).as_posix(),
+        },
+    )
+
+
+def _import_legacy_runtime_context(repo_root: Path, runtime_context_id: str) -> dict:
+    data = _read_json(runtime_context_path(repo_root, runtime_context_id))
+    if not data or data.get("source") == "db":
+        return {}
+    if data.get(FIELD_RUNTIME_CONTEXT_ID) is None:
+        data[FIELD_RUNTIME_CONTEXT_ID] = runtime_context_id
+    try:
+        with _store(repo_root) as store:
+            store.upsert_runtime_context(data)
+    except Exception:
+        return data
+    return data
+
+
+def _import_legacy_session(repo_root: Path, context_key: str) -> dict:
+    data = _read_json(_session_path(repo_root, context_key))
+    if not data:
+        return {}
+    try:
+        with _store(repo_root) as store:
+            store.upsert_runtime_session(context_key, data)
+    except Exception:
+        return data
+    return data
+
+
 def _platform_from_context_key(context_key: str) -> str:
     if context_key.startswith("codex_"):
         return "codex"
@@ -236,11 +282,22 @@ def resolve_host_context_key(values: Mapping[str, object] | None = None) -> str 
 
 
 def read_runtime_context(repo_root: Path, runtime_context_id: str) -> dict:
-    return _read_json(runtime_context_path(repo_root, runtime_context_id))
+    try:
+        with _store(repo_root) as store:
+            context = store.get_runtime_context(runtime_context_id)
+            if context:
+                return context
+    except Exception:
+        pass
+    return _import_legacy_runtime_context(repo_root, runtime_context_id)
 
 
 def write_runtime_context(repo_root: Path, runtime_context_id: str, data: dict) -> None:
-    _write_json(runtime_context_path(repo_root, runtime_context_id), data)
+    payload = dict(data)
+    payload[FIELD_RUNTIME_CONTEXT_ID] = runtime_context_id
+    with _store(repo_root) as store:
+        store.upsert_runtime_context(payload)
+    _write_runtime_pointer(repo_root, runtime_context_id)
 
 
 def write_subagent_logical_session(
@@ -261,7 +318,8 @@ def write_subagent_logical_session(
     }
     if task_path:
         data[FIELD_ACTIVE_TASK_PATH] = task_path.replace("\\", "/")
-    _write_json(_session_path(repo_root, context_key), data)
+    with _store(repo_root) as store:
+        store.upsert_runtime_session(context_key, data)
     return context_key
 
 
@@ -300,7 +358,8 @@ def bind_runtime_context(
     }
     if isinstance(task_path, str) and task_path.strip():
         session[FIELD_ACTIVE_TASK_PATH] = task_path.strip()
-    _write_json(_session_path(repo_root, resolved_key), session)
+    with _store(repo_root) as store:
+        store.upsert_runtime_session(resolved_key, session)
 
     context["status"] = "bound"
     context["bound_context_key"] = resolved_key
@@ -317,6 +376,10 @@ def close_runtime_context(repo_root: Path, runtime_context_id: str) -> bool:
         return False
 
     bound_context_key = context.get("bound_context_key")
+    with _store(repo_root) as store:
+        for context_key in (bound_context_key, logical_subagent_context_key(runtime_context_id)):
+            if isinstance(context_key, str) and context_key.strip():
+                store.delete_runtime_session(context_key)
     for context_key in (bound_context_key, logical_subagent_context_key(runtime_context_id)):
         if isinstance(context_key, str) and context_key.strip():
             try:
@@ -339,15 +402,17 @@ def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
     target = repo_root / normalized
     if not target.is_dir():
         return None
-    _write_json(
-        _session_path(repo_root, context_key),
-        {
+    with _store(repo_root) as store:
+        store.upsert_runtime_session(
+            context_key,
+            {
             FIELD_ACTIVE_TASK_PATH: normalized,
             FIELD_SCOPE: SCOPE_MAIN,
             "platform": _platform_from_context_key(context_key),
+            "status": "active",
             "last_seen_at": _now(),
-        },
-    )
+            },
+        )
     return ActiveTask(normalized, context_key, "session")
 
 
@@ -355,7 +420,13 @@ def get_active_task(repo_root: Path, values: Mapping[str, object] | None = None)
     context_key = resolve_context_key(values)
     if not context_key:
         return ActiveTask(None, None, "missing-context")
-    data = _read_json(_session_path(repo_root, context_key))
+    try:
+        with _store(repo_root) as store:
+            data = store.get_runtime_session(context_key) or {}
+    except Exception:
+        data = {}
+    if not data:
+        data = _import_legacy_session(repo_root, context_key)
     task_path = data.get(FIELD_ACTIVE_TASK_PATH)
     if isinstance(task_path, str) and task_path.strip():
         return ActiveTask(task_path.strip(), context_key, "session")
@@ -366,6 +437,11 @@ def clear_active_task(repo_root: Path) -> ActiveTask:
     active = get_active_task(repo_root)
     if active.context_key:
         try:
+            with _store(repo_root) as store:
+                store.delete_runtime_session(active.context_key)
+        except Exception:
+            pass
+        try:
             _session_path(repo_root, active.context_key).unlink()
         except FileNotFoundError:
             pass
@@ -374,9 +450,14 @@ def clear_active_task(repo_root: Path) -> ActiveTask:
 
 def clear_task_from_sessions(repo_root: Path, task_path: str) -> int:
     cleared = 0
+    try:
+        with _store(repo_root) as store:
+            cleared += store.delete_runtime_sessions_for_task(task_path)
+    except Exception:
+        pass
     root = sessions_dir(repo_root)
     if not root.is_dir():
-        return 0
+        return cleared
     normalized = task_path.replace("\\", "/")
     for path in root.glob("*.json"):
         data = _read_json(path)

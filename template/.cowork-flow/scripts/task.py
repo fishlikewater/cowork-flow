@@ -1382,6 +1382,29 @@ def _print_blockers(blockers: list[str]) -> None:
         print(f"  - {blocker}")
 
 
+def _print_formal_subagent_dispatch(
+    *,
+    task_path: str,
+    role: str,
+    agent_type: str,
+    title: str,
+    final_step: str,
+) -> None:
+    print(
+        f"Command: ./.cowork-flow/run subagent dispatch-codex --role {role} "
+        f"--agent-type {agent_type} --execution-task-dir {task_path} "
+        f'--title "{title}"'
+    )
+    print(
+        "Then: call spawn_agent with the returned agent_type, task_name, fork_turns, and message"
+    )
+    print(
+        "Then: child prompt carries cowork_runtime_context_id, cowork_host_context_key, and first-step bind"
+    )
+    print("Then: verify status=bound and bound_context_key before accepting output")
+    print("Do not use bare spawn_agent for formal cowork-* workflow gates")
+    print(final_step)
+
 def _linked_active_changes_for_task(repo_root: Path, task_dir: Path) -> list[str]:
     from change import linked_active_changes_for_task
 
@@ -1475,22 +1498,12 @@ def cmd_next(args: argparse.Namespace) -> int:
             print(f"Then: ./.cowork-flow/run task start {task_path}")
         elif is_active_task:
             print("Next action: execute implementation plan")
-            print(
-                f"Command: ./.cowork-flow/run subagent init --role implement "
-                f"--agent-type cowork-implement --execution-task-dir {task_path} "
-                f'--title "Implement {Path(task_path).name}"'
-            )
-            print(
-                "Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter"
-            )
-            print(
-                "Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>"
-            )
-            print(
-                "Then: verify status=bound and bound_context_key before accepting output"
-            )
-            print(
-                f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}"
+            _print_formal_subagent_dispatch(
+                task_path=task_path,
+                role="implement",
+                agent_type="cowork-implement",
+                title=f"Implement {Path(task_path).name}",
+                final_step=f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}",
             )
         else:
             print("Next action: start task")
@@ -1500,39 +1513,25 @@ def cmd_next(args: argparse.Namespace) -> int:
 
     if status == "in_progress":
         print("Next action: execute implementation plan")
-        print(
-            f"Command: ./.cowork-flow/run subagent init --role implement "
-            f"--agent-type cowork-implement --execution-task-dir {task_path} "
-            f'--title "Implement {Path(task_path).name}"'
-        )
-        print(
-            "Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter"
-        )
-        print(
-            "Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>"
-        )
-        print("Then: verify status=bound and bound_context_key before accepting output")
-        print(
-            f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}"
+        _print_formal_subagent_dispatch(
+            task_path=task_path,
+            role="implement",
+            agent_type="cowork-implement",
+            title=f"Implement {Path(task_path).name}",
+            final_step=f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}",
         )
         _print_blockers(blockers)
         return 0
 
     if status in CHECK_STATUSES:
         print("Next action: verify implementation")
-        print(
-            f"Command: ./.cowork-flow/run subagent init --role check "
-            f"--agent-type cowork-check --execution-task-dir {task_path} "
-            f'--title "Check {Path(task_path).name}"'
+        _print_formal_subagent_dispatch(
+            task_path=task_path,
+            role="check",
+            agent_type="cowork-check",
+            title=f"Check {Path(task_path).name}",
+            final_step=f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task complete {task_path}",
         )
-        print(
-            "Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter or run equivalent inline check"
-        )
-        print(
-            "Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>"
-        )
-        print("Then: verify status=bound and bound_context_key before accepting output")
-        print(f"Then: ./.cowork-flow/run task complete {task_path}")
         _print_blockers(blockers)
         return 0
 

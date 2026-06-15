@@ -80,8 +80,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         required_markers = (
             "Runtime-context subagent dispatch",
             "cowork_runtime_context_id",
-            ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
-            ".cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json",
+            "`runtime_context`: one row keyed by `<runtime_context_id>`",
+            "`runtime_session`: one logical row keyed by `subagent_<runtime_context_id>`",
             "cowork_host_context_key",
             "subagent bind <runtime_context_id> <host_context_key>",
             "Verified binding is the formal dispatch acceptance event",
@@ -195,8 +195,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "Confirm no stray running children with the adapter list primitive.",
             "Verify the child report by checking files, commands, and results",
             "close the child with the adapter cancel/close",
-            ".cowork-flow/.runtime/sessions/<host_context_key>.json",
-            ".cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json",
+            "removes the bound and logical `runtime_session` DB rows",
+            "marked `closed` until DB maintenance removes",
         )
         for path in (
             ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",

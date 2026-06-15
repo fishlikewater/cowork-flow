@@ -5,6 +5,19 @@ const refresh = document.querySelector("#refresh");
 const search = document.querySelector("#search");
 const showArchived = document.querySelector("#showArchived");
 const statusFilters = document.querySelector("#statusFilters");
+const viewSwitch = document.querySelector("#viewSwitch");
+const boardControls = document.querySelector("#boardControls");
+const boardView = document.querySelector("#boardView");
+const maintenanceView = document.querySelector("#maintenanceView");
+const maintenanceRefresh = document.querySelector("#maintenanceRefresh");
+const maintenanceStats = document.querySelector("#maintenanceStats");
+const maintenanceCandidates = document.querySelector("#maintenanceCandidates");
+const maintenancePreview = document.querySelector("#maintenancePreview");
+const retentionDays = document.querySelector("#retentionDays");
+const cleanupDryRun = document.querySelector("#cleanupDryRun");
+const cleanupConfirm = document.querySelector("#cleanupConfirm");
+const checkpointDb = document.querySelector("#checkpointDb");
+const vacuumDb = document.querySelector("#vacuumDb");
 
 const DEFAULT_VISIBLE_STATUSES = ["planning", "in_progress", "review", "blocked", "completed"];
 const STATUS_ORDER = [...DEFAULT_VISIBLE_STATUSES, "archived"];
@@ -39,12 +52,21 @@ const state = {
   selectedTaskId: "",
   searchText: "",
   status: "all",
+  view: "board",
+  cleanupToken: "",
 };
 
 async function getJson(path) {
   const response = await fetch(path, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.json();
+}
+
+async function postJson(path) {
+  const response = await fetch(path, { method: "POST", headers: { Accept: "application/json" } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `${response.status} ${response.statusText}`);
+  return payload;
 }
 
 function text(value, fallback = "-") {
@@ -221,7 +243,9 @@ function renderBoard(data) {
 
   if (showArchiveHistory()) board.append(renderArchiveHistory(visibleArchived));
 
-  summary.textContent = `显示 ${visibleCount} 个任务 · 归档 ${archivedCount} 个`;
+  if (state.view === "board") {
+    summary.textContent = `显示 ${visibleCount} 个任务 · 归档 ${archivedCount} 个`;
+  }
 }
 
 function detailSection(title, children) {
@@ -373,6 +397,111 @@ async function loadBoard() {
   }
 }
 
+function renderMaintenanceStats(payload) {
+  const rows = [
+    ["DB 大小", `${payload.db_bytes || 0} B`],
+    ["WAL 大小", `${payload.wal_bytes || 0} B`],
+    ["runtime_context", payload.row_counts?.runtime_context || 0],
+    ["runtime_session", payload.row_counts?.runtime_session || 0],
+    ["dashboard_process", payload.row_counts?.dashboard_process || 0],
+    ["待清理", Object.values(payload.cleanup_candidates || {}).reduce((sum, value) => sum + Number(value || 0), 0)],
+  ];
+  maintenanceStats.replaceChildren(
+    ...rows.map(([label, value]) => {
+      const item = createElement("div", "maintenance-stat");
+      item.append(createElement("span", "", label), createElement("strong", "", String(value)));
+      return item;
+    }),
+  );
+  const candidates = payload.cleanup_candidates || {};
+  const candidateRows = [
+    ["已关闭 runtime", candidates.closed_runtime_contexts || 0],
+    ["孤立 session", candidates.orphan_runtime_sessions || 0],
+    ["失效看板进程", candidates.stale_dashboard_processes || 0],
+  ];
+  maintenanceCandidates.replaceChildren(
+    createElement("h3", "", "清理候选"),
+    ...candidateRows.map(([label, value]) => {
+      const row = createElement("div", "candidate-row");
+      row.append(createElement("span", "", label), createElement("strong", "", String(value)));
+      return row;
+    }),
+  );
+  summary.textContent = `数据库维护 · 待清理 ${Object.values(candidates).reduce((sum, value) => sum + Number(value || 0), 0)} 项`;
+}
+
+async function loadMaintenanceStats() {
+  try {
+    renderMaintenanceStats(await getJson("/api/maintenance/db/stats"));
+  } catch (error) {
+    maintenancePreview.textContent = `维护概览加载失败：${error.message}`;
+  }
+}
+
+function retentionQuery() {
+  return `retention_days=${encodeURIComponent(retentionDays.value || "30")}`;
+}
+
+function renderMaintenancePreview(payload) {
+  maintenancePreview.textContent = JSON.stringify(payload, null, 2);
+}
+
+async function runCleanupDryRun() {
+  state.cleanupToken = "";
+  cleanupConfirm.disabled = true;
+  try {
+    const payload = await postJson(`/api/maintenance/db/cleanup?dry_run=true&${retentionQuery()}`);
+    state.cleanupToken = payload.confirmation_token || "";
+    cleanupConfirm.disabled = !state.cleanupToken;
+    renderMaintenancePreview(payload);
+    await loadMaintenanceStats();
+  } catch (error) {
+    maintenancePreview.textContent = `扫描失败：${error.message}`;
+  }
+}
+
+async function runCleanupConfirm() {
+  if (!state.cleanupToken) return;
+  try {
+    const payload = await postJson(
+      `/api/maintenance/db/cleanup?confirm=${encodeURIComponent(state.cleanupToken)}&${retentionQuery()}`,
+    );
+    state.cleanupToken = "";
+    cleanupConfirm.disabled = true;
+    renderMaintenancePreview(payload);
+    await loadMaintenanceStats();
+  } catch (error) {
+    maintenancePreview.textContent = `清理失败：${error.message}`;
+  }
+}
+
+async function runMaintenanceAction(path, label) {
+  try {
+    renderMaintenancePreview(await postJson(path));
+    await loadMaintenanceStats();
+  } catch (error) {
+    maintenancePreview.textContent = `${label} 失败：${error.message}`;
+  }
+}
+
+function setView(view) {
+  state.view = view;
+  const maintenanceMode = view === "maintenance";
+  boardView.hidden = maintenanceMode;
+  statusFilters.hidden = maintenanceMode;
+  boardControls.hidden = maintenanceMode;
+  maintenanceView.hidden = !maintenanceMode;
+  document.body.classList.toggle("maintenance-mode", maintenanceMode);
+  viewSwitch.querySelectorAll("button[data-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === view);
+  });
+  if (maintenanceMode) {
+    loadMaintenanceStats();
+  } else {
+    renderBoard(state.boardData);
+  }
+}
+
 search.addEventListener("input", () => {
   state.searchText = search.value;
   renderBoard(state.boardData);
@@ -390,5 +519,15 @@ statusFilters.addEventListener("click", (event) => {
 });
 
 refresh.addEventListener("click", loadBoard);
+viewSwitch.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-view]");
+  if (!button) return;
+  setView(button.dataset.view);
+});
+maintenanceRefresh.addEventListener("click", loadMaintenanceStats);
+cleanupDryRun.addEventListener("click", runCleanupDryRun);
+cleanupConfirm.addEventListener("click", runCleanupConfirm);
+checkpointDb.addEventListener("click", () => runMaintenanceAction("/api/maintenance/db/checkpoint", "Checkpoint"));
+vacuumDb.addEventListener("click", () => runMaintenanceAction("/api/maintenance/db/vacuum", "VACUUM"));
 loadBoard();
 setInterval(loadBoard, 3000);

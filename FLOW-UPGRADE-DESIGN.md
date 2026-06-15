@@ -726,7 +726,7 @@ hooks:
 | `subagent spawn-family` | 为父任务的所有子任务批量创建 runtime context | P1 |
 | `subagent check-family` | 检查父任务下所有子 agent 是否全部 done | P1 |
 
-`agent_run` 表是 SQLite 索引层，用于 dashboard 查询和 `check-family` 批量状态检查。`.runtime/subagents/*.json` 文件仍由 `subagent.py` 维护，用于 host adapter 的 binding 协议。两者通过 `id`（即 `runtime_context_id`）关联。`agent_run` 不替代文件系统 runtime context。
+`runtime_context` / `runtime_session` 是 runtime 真源，用于 dashboard 查询、binding gate 和 `check-family` 批量状态检查。`.runtime/subagents/*.json` 仅允许作为迁移输入或 DB 指针文件，不能再承载完整 runtime 状态。`agent_run` 保留为兼容投影，状态更新必须跟随 `runtime_context`，不能成为第二套真源。
 
 ### 6.2 spawn-family
 

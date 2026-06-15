@@ -13,7 +13,11 @@
       <h1>cowork-flow 看板</h1>
       <p id="summary">正在加载任务</p>
     </div>
-    <div class="toolbar">
+    <nav id="viewSwitch" class="view-switch" aria-label="视图切换">
+      <button type="button" data-view="board" class="active">任务看板</button>
+      <button type="button" data-view="maintenance">数据库维护</button>
+    </nav>
+    <div id="boardControls" class="toolbar">
       <label class="search-field" for="search">
         <span>搜索任务</span>
         <input id="search" type="search" autocomplete="off" placeholder="标题 / ID / 负责人">
@@ -34,13 +38,58 @@
     <button type="button" data-status="completed" data-label="已完成">已完成</button>
     <button type="button" data-status="archived" data-label="已归档">已归档</button>
   </nav>
-  <main id="board" class="board" aria-live="polite"></main>
-  <aside id="detail" class="detail" aria-live="polite" aria-label="任务详情">
-    <div class="detail-empty">
-      <h2>选择任务查看详情</h2>
-      <p>任务基础信息、审计记录、子任务、代理运行和阻塞状态会显示在这里。</p>
-    </div>
-  </aside>
+  <div id="boardView" class="board-view">
+    <main id="board" class="board" aria-live="polite"></main>
+    <aside id="detail" class="detail" aria-live="polite" aria-label="任务详情">
+      <div class="detail-empty">
+        <h2>选择任务查看详情</h2>
+        <p>任务基础信息、审计记录、子任务、代理运行和阻塞状态会显示在这里。</p>
+      </div>
+    </aside>
+  </div>
+  <main id="maintenanceView" class="maintenance-view" hidden aria-live="polite">
+    <section class="maintenance-hero">
+      <div>
+        <p class="eyebrow">数据库维护</p>
+        <h2>本项目运行库</h2>
+        <p class="maintenance-copy">运行态数据、垃圾扫描和压缩操作集中在这里，任务看板保持干净。</p>
+      </div>
+      <button id="maintenanceRefresh" type="button">刷新概览</button>
+    </section>
+    <section class="maintenance-stats">
+      <div id="maintenanceStats" class="maintenance-grid"></div>
+      <div id="maintenanceCandidates" class="maintenance-candidates"></div>
+    </section>
+    <section class="maintenance-workbench">
+      <div class="maintenance-section">
+        <p class="eyebrow">清理预演</p>
+        <h3>先扫描，再确认</h3>
+        <div class="maintenance-actions">
+          <label class="retention-field" for="retentionDays">
+            <span>保留天数</span>
+            <input id="retentionDays" type="number" min="0" value="30">
+          </label>
+          <button id="cleanupDryRun" type="button">扫描垃圾数据</button>
+          <button id="cleanupConfirm" type="button" disabled>确认清理</button>
+        </div>
+      </div>
+      <div class="maintenance-section">
+        <p class="eyebrow">数据库压缩</p>
+        <h3>WAL 与文件整理</h3>
+        <div class="maintenance-actions">
+          <button id="checkpointDb" type="button">Checkpoint</button>
+          <button id="vacuumDb" type="button">VACUUM</button>
+        </div>
+      </div>
+    </section>
+    <section class="maintenance-output">
+      <div>
+        <p class="eyebrow">执行回显</p>
+        <h3>维护预览</h3>
+      </div>
+      <pre id="maintenancePreview" class="maintenance-preview">尚未扫描</pre>
+    </section>
+  </main>
   <script src="/static/app.js"></script>
 </body>
 </html>

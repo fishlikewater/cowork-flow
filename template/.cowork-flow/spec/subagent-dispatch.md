@@ -22,10 +22,15 @@ Party Mode V2 discussion children are also advisory leaf executors. The `party-m
 
 ## Runtime Context
 
-Before spawning a formal child, the main session creates:
+Before spawning a formal child, the main session creates DB runtime rows:
 
-- `.cowork-flow/.runtime/subagents/<runtime_context_id>.json`
-- `.cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json`
+- `runtime_context`: one row keyed by `<runtime_context_id>`
+- `runtime_session`: one logical row keyed by `subagent_<runtime_context_id>`
+
+`.cowork-flow/.runtime/subagents/<runtime_context_id>.json` may exist only as a
+small compatibility pointer to the DB. It is not the runtime source of truth.
+Legacy full JSON runtime files are imported into DB on first access and must not
+be used as the current state authority.
 
 For direct formal dispatch with `--execution-task-dir`, `subagent init` also
 records an `agent_run` row keyed by `runtime_context_id`. The row starts as
@@ -57,17 +62,16 @@ before formal work:
 ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
 ```
 
-A valid context is bound to the host child session under
-`.cowork-flow/.runtime/sessions/<host_context_key>.json` with
-`scope: "subagent"`. Binding the same runtime id to the same key is idempotent;
-binding it to a different key must fail.
+A valid context is bound to the host child session as a `runtime_session` DB row
+keyed by `<host_context_key>` with `scope: "subagent"`. Binding the same runtime
+id to the same key is idempotent; binding it to a different key must fail.
 
 Verified binding is the formal dispatch acceptance event. The parent must check
-that `.cowork-flow/.runtime/subagents/<runtime_context_id>.json` has
-`status: "bound"` and `bound_context_key: "<host_context_key>"` before accepting
-child output. If binding fails, the child must receive fail-closed subagent state
-and must not run main-session start/resume, task activation, archive, commit,
-or agent coordination.
+that the `runtime_context` row has `status: "bound"` and
+`bound_context_key: "<host_context_key>"` before accepting child output. If
+binding fails, the child must receive fail-closed subagent state and must not run
+main-session start/resume, task activation, archive, commit, or agent
+coordination.
 
 ## Return Acceptance And Closeout
 
@@ -106,10 +110,6 @@ tasks directly.
 
 ## Cleanup
 
-Closing a child removes:
-
-- `.cowork-flow/.runtime/sessions/<host_context_key>.json`
-- `.cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json`
-
-The subagent context is deleted or marked `closed` until runtime garbage
-collection removes it.
+Closing a child removes the bound and logical `runtime_session` DB rows. The
+subagent `runtime_context` row is marked `closed` until DB maintenance removes
+it after the configured retention window.

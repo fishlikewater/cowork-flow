@@ -25,8 +25,8 @@ max_journal_lines: 2000
 codex:
   dispatch_mode: "sub-agent"
   # Formal subagent identity is runtime-context based. The main session creates
-  # .cowork-flow/.runtime/subagents/<id>.json with the subagent helper, then
-  # passes cowork_runtime_context_id through the active host adapter transport.
+  # a DB runtime_context row with the subagent helper, then passes
+  # cowork_runtime_context_id through the active host adapter transport.
 
 #-------------------------------------------------------------------------------
 # Party Mode V2 Runtime Board

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -301,6 +302,251 @@ class FlowStore:
         ).fetchone()
         return dict(row) if row else None
 
+    # --- Runtime state ---
+
+    def _resolve_task_id_from_path(self, task_path: str | None) -> str | None:
+        if not task_path:
+            return None
+        artifact_dir = Path(task_path).name
+        task = self.get_task_by_artifact_dir(artifact_dir)
+        if task:
+            return task.id
+        stripped = artifact_dir
+        from common.paths import TASK_DATE_PREFIX_PATTERN
+
+        if TASK_DATE_PREFIX_PATTERN.match(stripped):
+            stripped = TASK_DATE_PREFIX_PATTERN.sub("", stripped)
+        task = self.get_task(stripped)
+        return task.id if task else None
+
+    def upsert_runtime_context(self, payload: dict) -> str:
+        runtime_id = str(payload.get("runtime_context_id") or payload.get("id") or "").strip()
+        if not runtime_id:
+            raise ValueError("runtime_context_id is required")
+        now = _now()
+        stored = dict(payload)
+        stored["runtime_context_id"] = runtime_id
+        task_dir = stored.get("task_dir") if isinstance(stored.get("task_dir"), str) else None
+        task_id = stored.get("task_id") if isinstance(stored.get("task_id"), str) else None
+        if task_id is None:
+            task_id = self._resolve_task_id_from_path(task_dir)
+            if task_id:
+                stored["task_id"] = task_id
+        created_at = str(stored.get("created_at") or now)
+        last_seen_at = str(stored.get("last_seen_at") or stored.get("updated_at") or now)
+        transport = stored.get("transport") if isinstance(stored.get("transport"), dict) else {}
+        assignment = stored.get("assignment") if isinstance(stored.get("assignment"), dict) else {}
+        authority = stored.get("authority") if isinstance(stored.get("authority"), dict) else {}
+
+        values = (
+            runtime_id,
+            str(stored.get("scope") or "subagent"),
+            str(stored.get("host") or "unknown"),
+            str(stored.get("adapter") or "unknown"),
+            str(stored.get("agent_type") or "unknown"),
+            str(stored.get("role") or stored.get("agent_type") or "unknown"),
+            task_id,
+            task_dir,
+            stored.get("parent_context_key") if isinstance(stored.get("parent_context_key"), str) else None,
+            str(stored.get("dispatch_kind") or "advisory"),
+            str(stored.get("status") or "pending"),
+            stored.get("bound_context_key") if isinstance(stored.get("bound_context_key"), str) else None,
+            json.dumps(transport, ensure_ascii=False, sort_keys=True),
+            json.dumps(assignment, ensure_ascii=False, sort_keys=True),
+            json.dumps(authority, ensure_ascii=False, sort_keys=True),
+            json.dumps(stored, ensure_ascii=False, sort_keys=True),
+            created_at,
+            stored.get("bound_at") if isinstance(stored.get("bound_at"), str) else None,
+            stored.get("closed_at") if isinstance(stored.get("closed_at"), str) else None,
+            last_seen_at,
+        )
+
+        def _do_upsert():
+            self.db.execute(
+                """INSERT INTO runtime_context (
+                   id, scope, host, adapter, agent_type, role, task_id, task_dir,
+                   parent_context_key, dispatch_kind, status, bound_context_key,
+                   transport_json, assignment_json, authority_json, payload_json,
+                   created_at, bound_at, closed_at, last_seen_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     scope=excluded.scope,
+                     host=excluded.host,
+                     adapter=excluded.adapter,
+                     agent_type=excluded.agent_type,
+                     role=excluded.role,
+                     task_id=excluded.task_id,
+                     task_dir=excluded.task_dir,
+                     parent_context_key=excluded.parent_context_key,
+                     dispatch_kind=excluded.dispatch_kind,
+                     status=excluded.status,
+                     bound_context_key=excluded.bound_context_key,
+                     transport_json=excluded.transport_json,
+                     assignment_json=excluded.assignment_json,
+                     authority_json=excluded.authority_json,
+                     payload_json=excluded.payload_json,
+                     bound_at=excluded.bound_at,
+                     closed_at=excluded.closed_at,
+                     last_seen_at=excluded.last_seen_at""",
+                values,
+            )
+            return runtime_id
+
+        return self._transaction(_do_upsert) or runtime_id
+
+    def _runtime_context_from_row(self, row) -> dict:
+        try:
+            payload = json.loads(row["payload_json"])
+        except (TypeError, json.JSONDecodeError):
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        for json_field, payload_key in (
+            ("transport_json", "transport"),
+            ("assignment_json", "assignment"),
+            ("authority_json", "authority"),
+        ):
+            if not isinstance(payload.get(payload_key), dict):
+                try:
+                    payload[payload_key] = json.loads(row[json_field])
+                except (TypeError, json.JSONDecodeError):
+                    payload[payload_key] = {}
+        payload.update(
+            {
+                "runtime_context_id": row["id"],
+                "scope": row["scope"],
+                "host": row["host"],
+                "adapter": row["adapter"],
+                "agent_type": row["agent_type"],
+                "role": row["role"],
+                "task_id": row["task_id"],
+                "task_dir": row["task_dir"],
+                "parent_context_key": row["parent_context_key"],
+                "dispatch_kind": row["dispatch_kind"],
+                "status": row["status"],
+                "bound_context_key": row["bound_context_key"],
+                "created_at": row["created_at"],
+                "bound_at": row["bound_at"],
+                "closed_at": row["closed_at"],
+                "last_seen_at": row["last_seen_at"],
+            }
+        )
+        return payload
+
+    def get_runtime_context(self, runtime_context_id: str) -> dict | None:
+        row = self.db.execute(
+            "SELECT * FROM runtime_context WHERE id = ?",
+            (runtime_context_id,),
+        ).fetchone()
+        return self._runtime_context_from_row(row) if row else None
+
+    def list_runtime_contexts_for_task(self, task_id: str) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT * FROM runtime_context WHERE task_id = ? ORDER BY created_at",
+            (task_id,),
+        ).fetchall()
+        return [self._runtime_context_from_row(row) for row in rows]
+
+    def upsert_runtime_session(self, context_key: str, payload: dict) -> str:
+        if not context_key.strip():
+            raise ValueError("context_key is required")
+        now = _now()
+        stored = dict(payload)
+        stored["context_key"] = context_key
+        task_path = stored.get("active_task_path") if isinstance(stored.get("active_task_path"), str) else None
+        task_id = stored.get("active_task_id") if isinstance(stored.get("active_task_id"), str) else None
+        if task_id is None:
+            task_id = self._resolve_task_id_from_path(task_path)
+            if task_id:
+                stored["active_task_id"] = task_id
+        runtime_context_id = stored.get("runtime_context_id") if isinstance(stored.get("runtime_context_id"), str) else None
+        created_at = str(stored.get("created_at") or now)
+        last_seen_at = str(stored.get("last_seen_at") or now)
+        values = (
+            context_key,
+            str(stored.get("scope") or "main"),
+            runtime_context_id,
+            task_id,
+            task_path,
+            str(stored.get("platform") or "manual"),
+            str(stored.get("status") or "active"),
+            json.dumps(stored, ensure_ascii=False, sort_keys=True),
+            created_at,
+            last_seen_at,
+        )
+
+        def _do_upsert():
+            self.db.execute(
+                """INSERT INTO runtime_session (
+                   context_key, scope, runtime_context_id, active_task_id,
+                   active_task_path, platform, status, payload_json, created_at, last_seen_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(context_key) DO UPDATE SET
+                     scope=excluded.scope,
+                     runtime_context_id=excluded.runtime_context_id,
+                     active_task_id=excluded.active_task_id,
+                     active_task_path=excluded.active_task_path,
+                     platform=excluded.platform,
+                     status=excluded.status,
+                     payload_json=excluded.payload_json,
+                     last_seen_at=excluded.last_seen_at""",
+                values,
+            )
+            return context_key
+
+        return self._transaction(_do_upsert) or context_key
+
+    def _runtime_session_from_row(self, row) -> dict:
+        try:
+            payload = json.loads(row["payload_json"])
+        except (TypeError, json.JSONDecodeError):
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        payload.update(
+            {
+                "context_key": row["context_key"],
+                "scope": row["scope"],
+                "runtime_context_id": row["runtime_context_id"],
+                "active_task_id": row["active_task_id"],
+                "active_task_path": row["active_task_path"],
+                "platform": row["platform"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "last_seen_at": row["last_seen_at"],
+            }
+        )
+        return payload
+
+    def get_runtime_session(self, context_key: str) -> dict | None:
+        row = self.db.execute(
+            "SELECT * FROM runtime_session WHERE context_key = ?",
+            (context_key,),
+        ).fetchone()
+        return self._runtime_session_from_row(row) if row else None
+
+    def delete_runtime_session(self, context_key: str) -> bool:
+        def _do_delete():
+            cursor = self.db.execute(
+                "DELETE FROM runtime_session WHERE context_key = ?",
+                (context_key,),
+            )
+            return cursor.rowcount > 0
+
+        return self._transaction(_do_delete) or False
+
+    def delete_runtime_sessions_for_task(self, task_path: str) -> int:
+        normalized = task_path.replace("\\", "/")
+
+        def _do_delete():
+            cursor = self.db.execute(
+                "DELETE FROM runtime_session WHERE active_task_path = ?",
+                (normalized,),
+            )
+            return cursor.rowcount
+
+        return self._transaction(_do_delete) or 0
+
     # --- Agent Run ---
 
     def create_agent_run(self, *,
@@ -351,20 +597,51 @@ class FlowStore:
         return dict(row) if row else None
 
     def list_agent_runs_for_parent(self, parent_id: str) -> list[dict]:
+        runtime_rows = self.db.execute(
+            """SELECT rc.* FROM runtime_context rc
+               JOIN task_child tc ON rc.task_id = tc.child_id
+               WHERE tc.parent_id = ? ORDER BY rc.created_at""",
+            (parent_id,),
+        ).fetchall()
+        runs = [self._runtime_context_to_agent_run(self._runtime_context_from_row(r)) for r in runtime_rows]
+        runtime_ids = {run["id"] for run in runs}
         rows = self.db.execute(
             """SELECT ar.* FROM agent_run ar
                JOIN task_child tc ON ar.task_id = tc.child_id
                WHERE tc.parent_id = ? ORDER BY ar.created_at""",
             (parent_id,),
         ).fetchall()
-        return [dict(r) for r in rows]
+        runs.extend(dict(r) for r in rows if r["id"] not in runtime_ids)
+        return runs
 
     def list_agent_runs_for_task(self, task_id: str) -> list[dict]:
+        runtime_rows = self.db.execute(
+            "SELECT * FROM runtime_context WHERE task_id = ? ORDER BY created_at",
+            (task_id,),
+        ).fetchall()
+        runs = [self._runtime_context_to_agent_run(self._runtime_context_from_row(r)) for r in runtime_rows]
+        runtime_ids = {run["id"] for run in runs}
         rows = self.db.execute(
             "SELECT * FROM agent_run WHERE task_id = ? ORDER BY created_at",
             (task_id,),
         ).fetchall()
-        return [dict(r) for r in rows]
+        runs.extend(dict(r) for r in rows if r["id"] not in runtime_ids)
+        return runs
+
+    def _runtime_context_to_agent_run(self, context: dict) -> dict:
+        return {
+            "id": context.get("runtime_context_id"),
+            "runtime_context_id": context.get("runtime_context_id"),
+            "task_id": context.get("task_id"),
+            "agent_type": context.get("agent_type"),
+            "status": context.get("status"),
+            "host_context_key": context.get("bound_context_key"),
+            "error_message": context.get("error_message"),
+            "retry_count": 0,
+            "created_at": context.get("created_at"),
+            "closed_at": context.get("closed_at"),
+            "dispatch_kind": context.get("dispatch_kind"),
+        }
 
     # --- Audit ---
 
@@ -431,6 +708,267 @@ class FlowStore:
             columns.append({"status": st, "tasks": [dict(r) for r in rows]})
         return {"columns": columns}
 
+
+    def upsert_dashboard_process(self, process_id: str, state: dict) -> str:
+        if not process_id.strip():
+            raise ValueError("dashboard process id is required")
+        now = _now()
+        stored = dict(state)
+        stored["id"] = process_id
+        values = (
+            process_id,
+            int(stored["pid"]) if stored.get("pid") is not None else None,
+            str(stored.get("host") or "127.0.0.1"),
+            int(stored.get("port") or 0),
+            str(stored.get("url") or ""),
+            str(stored.get("status") or "running"),
+            json.dumps(stored, ensure_ascii=False, sort_keys=True),
+            str(stored.get("started_at") or now),
+            str(stored.get("last_seen_at") or now),
+            stored.get("stdout_log") if isinstance(stored.get("stdout_log"), str) else None,
+            stored.get("stderr_log") if isinstance(stored.get("stderr_log"), str) else None,
+        )
+
+        def _do_upsert():
+            self.db.execute(
+                """INSERT INTO dashboard_process (
+                   id, pid, host, port, url, status, payload_json, started_at,
+                   last_seen_at, stdout_log, stderr_log)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     pid=excluded.pid,
+                     host=excluded.host,
+                     port=excluded.port,
+                     url=excluded.url,
+                     status=excluded.status,
+                     payload_json=excluded.payload_json,
+                     last_seen_at=excluded.last_seen_at,
+                     stdout_log=excluded.stdout_log,
+                     stderr_log=excluded.stderr_log""",
+                values,
+            )
+            return process_id
+
+        return self._transaction(_do_upsert) or process_id
+
+    def get_dashboard_process(self, process_id: str) -> dict | None:
+        row = self.db.execute(
+            "SELECT * FROM dashboard_process WHERE id = ?",
+            (process_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            payload = json.loads(row["payload_json"])
+        except (TypeError, json.JSONDecodeError):
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        payload.update(
+            {
+                "id": row["id"],
+                "pid": row["pid"],
+                "host": row["host"],
+                "port": row["port"],
+                "url": row["url"],
+                "status": row["status"],
+                "started_at": row["started_at"],
+                "last_seen_at": row["last_seen_at"],
+                "stdout_log": row["stdout_log"],
+                "stderr_log": row["stderr_log"],
+            }
+        )
+        return payload
+
+    def delete_dashboard_process(self, process_id: str) -> bool:
+        def _do_delete():
+            cursor = self.db.execute(
+                "DELETE FROM dashboard_process WHERE id = ?",
+                (process_id,),
+            )
+            return cursor.rowcount > 0
+
+        return self._transaction(_do_delete) or False
+
+    # --- DB maintenance ---
+
+    def _table_count(self, table: str) -> int:
+        return int(self.db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+
+    def _maintenance_cutoff(self, retention_days: int) -> str:
+        days = max(0, int(retention_days))
+        return (datetime.now(timezone.utc) - timedelta(days=days)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    def maintenance_plan(
+        self,
+        *,
+        retention_days: int = 30,
+        stale_dashboard_ids: list[str] | None = None,
+    ) -> dict:
+        cutoff = self._maintenance_cutoff(retention_days)
+        closed_runtime_rows = self.db.execute(
+            """SELECT id FROM runtime_context
+               WHERE status = 'closed' AND COALESCE(closed_at, last_seen_at, created_at) <= ?
+               ORDER BY id""",
+            (cutoff,),
+        ).fetchall()
+        orphan_session_rows = self.db.execute(
+            """SELECT rs.context_key FROM runtime_session rs
+               LEFT JOIN runtime_context rc ON rs.runtime_context_id = rc.id
+               WHERE rs.scope = 'subagent'
+                 AND rs.runtime_context_id IS NOT NULL
+                 AND rc.id IS NULL
+               ORDER BY rs.context_key"""
+        ).fetchall()
+        stale_dashboard_ids = sorted(set(stale_dashboard_ids or []))
+        return {
+            "retention_days": int(retention_days),
+            "cutoff": cutoff,
+            "closed_runtime_context_ids": [row["id"] for row in closed_runtime_rows],
+            "orphan_runtime_session_keys": [row["context_key"] for row in orphan_session_rows],
+            "stale_dashboard_process_ids": stale_dashboard_ids,
+        }
+
+    def cleanup_token(self, summary: dict) -> str:
+        token_summary = dict(summary)
+        token_summary.pop("cutoff", None)
+        digest = hashlib.sha256(
+            json.dumps(token_summary, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+        return digest[:16]
+
+    def maintenance_stats(
+        self,
+        *,
+        retention_days: int = 30,
+        stale_dashboard_ids: list[str] | None = None,
+    ) -> dict:
+        db_path = Path(self.db_path)
+        wal_path = db_path.with_name(db_path.name + "-wal")
+        plan = self.maintenance_plan(
+            retention_days=retention_days,
+            stale_dashboard_ids=stale_dashboard_ids,
+        )
+        tables = [
+            "task",
+            "audit",
+            "block",
+            "agent_run",
+            "runtime_context",
+            "runtime_session",
+            "dashboard_process",
+            "maintenance_event",
+        ]
+        cleanup_total = (
+            len(plan["closed_runtime_context_ids"])
+            + len(plan["orphan_runtime_session_keys"])
+            + len(plan["stale_dashboard_process_ids"])
+        )
+        wal_bytes = wal_path.stat().st_size if wal_path.exists() else 0
+        return {
+            "db_path": str(db_path),
+            "db_bytes": db_path.stat().st_size if db_path.exists() else 0,
+            "wal_bytes": wal_bytes,
+            "row_counts": {table: self._table_count(table) for table in tables},
+            "cleanup_candidates": {
+                "closed_runtime_contexts": len(plan["closed_runtime_context_ids"]),
+                "orphan_runtime_sessions": len(plan["orphan_runtime_session_keys"]),
+                "stale_dashboard_processes": len(plan["stale_dashboard_process_ids"]),
+            },
+            "retention_days": int(retention_days),
+            "recommended_actions": [
+                action
+                for action, count in (("cleanup", cleanup_total), ("checkpoint", wal_bytes))
+                if count
+            ],
+        }
+
+    def cleanup_database(
+        self,
+        *,
+        retention_days: int = 30,
+        dry_run: bool,
+        confirm: str | None = None,
+        stale_dashboard_ids: list[str] | None = None,
+    ) -> dict:
+        plan = self.maintenance_plan(
+            retention_days=retention_days,
+            stale_dashboard_ids=stale_dashboard_ids,
+        )
+        token = self.cleanup_token(plan)
+        summary = {
+            **plan,
+            "confirmation_token": token,
+            "deleted": {
+                "closed_runtime_contexts": 0,
+                "orphan_runtime_sessions": 0,
+                "stale_dashboard_processes": 0,
+            },
+            "dry_run": bool(dry_run),
+        }
+        if dry_run:
+            return summary
+        if confirm != token:
+            raise ValueError("cleanup confirmation token mismatch")
+
+        def _delete_many(table: str, column: str, values: list[str]) -> int:
+            if not values:
+                return 0
+            placeholders = ",".join("?" for _ in values)
+            cursor = self.db.execute(
+                f"DELETE FROM {table} WHERE {column} IN ({placeholders})",
+                values,
+            )
+            return cursor.rowcount
+
+        def _do_cleanup():
+            summary["deleted"] = {
+                "closed_runtime_contexts": _delete_many(
+                    "runtime_context",
+                    "id",
+                    plan["closed_runtime_context_ids"],
+                ),
+                "orphan_runtime_sessions": _delete_many(
+                    "runtime_session",
+                    "context_key",
+                    plan["orphan_runtime_session_keys"],
+                ),
+                "stale_dashboard_processes": _delete_many(
+                    "dashboard_process",
+                    "id",
+                    plan["stale_dashboard_process_ids"],
+                ),
+            }
+            summary["dry_run"] = False
+            self.db.execute(
+                "INSERT INTO maintenance_event (kind, dry_run, summary_json, created_at) VALUES (?,?,?,?)",
+                ("cleanup", 0, json.dumps(summary, ensure_ascii=False, sort_keys=True), _now()),
+            )
+            return summary
+
+        return self._transaction(_do_cleanup)
+
+    def record_maintenance_event(self, kind: str, summary: dict, *, dry_run: bool = False) -> None:
+        def _do_insert():
+            self.db.execute(
+                "INSERT INTO maintenance_event (kind, dry_run, summary_json, created_at) VALUES (?,?,?,?)",
+                (kind, 1 if dry_run else 0, json.dumps(summary, ensure_ascii=False, sort_keys=True), _now()),
+            )
+            return None
+
+        self._transaction(_do_insert)
+
+    def checkpoint(self) -> dict:
+        rows = self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        summary = {"result": [tuple(row) for row in rows]}
+        self.record_maintenance_event("checkpoint", summary)
+        return summary
+
+    def vacuum(self) -> dict:
+        self.db.execute("VACUUM")
+        summary = {"vacuumed": True}
+        self.record_maintenance_event("vacuum", summary)
+        return summary
 
 def _row_to_taskview(row, children: list[str] | None = None):
     meta = json.loads(row["meta"])

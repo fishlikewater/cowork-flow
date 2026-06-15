@@ -46,7 +46,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 | 状态 | 文件 |
 | --- | --- |
 | 开发者身份 | `.cowork-flow/.developer` |
-| 当前会话任务 | `.cowork-flow/.runtime/sessions/<context-key>.json` |
+| 当前会话任务 | DB `runtime_session` |
 | 任务目标 | `.cowork-flow/tasks/<task>/prd.md` |
 | 实现上下文 | `.cowork-flow/tasks/<task>/implement.jsonl` |
 | 检查上下文 | `.cowork-flow/tasks/<task>/check.jsonl` |
@@ -56,6 +56,8 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 | 项目规格 | `.cowork-flow/spec/` |
 | 项目上下文摘要 | `.cowork-flow/project-context.md` |
 | 会话记录 | `.cowork-flow/workspace/<developer>/journal-*.md` |
+| runtime context | DB `runtime_context` |
+| Dashboard 进程 | DB `dashboard_process` |
 
 > 当前任务是会话级状态。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID`、`CODEX_THREAD_ID`、`OPENCODE_SESSION_ID` 或 `CLAUDE_SESSION_ID` 时，不得猜测当前任务。
 

@@ -17,7 +17,6 @@ from common.active_task import (
     read_runtime_context,
     resolve_context_key,
     runtime_context_path,
-    sessions_dir,
     subagent_contexts_dir,
     write_runtime_context,
     write_subagent_logical_session,
@@ -116,6 +115,10 @@ def _role_for_agent_type(agent_type: str) -> str:
             return role
     return agent_type
 
+def _codex_task_name(runtime_context_id: str) -> str:
+    task_name = re.sub(r"[^a-z0-9_]+", "_", runtime_context_id.lower()).strip("_")
+    return task_name or "subagent"
+
 def _create_runtime_context_payload(
     repo_root: Path,
     *,
@@ -139,6 +142,14 @@ def _create_runtime_context_payload(
 
     allowed_context_entries = [{"file": item, "reason": "prompt-named context"} for item in allowed_context]
     parent_context_key = resolve_context_key()
+    task_id = None
+    if task_dir:
+        try:
+            with FlowStore(str(get_db_path(repo_root))) as store:
+                task = _resolve_flow_task(store, task_dir)
+                task_id = task.id if task else None
+        except Exception:
+            task_id = None
     context = {
         "schema_version": 2,
         "runtime_context_id": runtime_context_id,
@@ -147,6 +158,7 @@ def _create_runtime_context_payload(
         "adapter": adapter,
         "agent_type": resolved_agent_type,
         "role": role,
+        "task_id": task_id,
         "task_dir": task_dir,
         "parent_context_key": parent_context_key,
         "transport": {
@@ -202,8 +214,9 @@ def _create_runtime_context_payload(
         "role": role,
         "taskDir": task_dir,
         "dispatchKind": dispatch_kind,
+        "runtimeContextSource": "db",
         "runtimeContextFile": _relative(repo_root, runtime_context_path(repo_root, runtime_context_id)),
-        "logicalSessionFile": _relative(repo_root, sessions_dir(repo_root) / f"{logical_context_key}.json"),
+        "logicalSessionKey": logical_context_key,
         "promptTransport": (
             f"cowork_runtime_context_id: {runtime_context_id}\n"
             f"cowork_host_context_key: {host_context_key}"
@@ -234,6 +247,60 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(json.dumps(payload, ensure_ascii=False))
     return 0
 
+
+def _codex_dispatch_message(payload: dict, expected_output: str) -> str:
+    runtime_context_id = payload["runtimeContextId"]
+    host_context_key = payload["hostContextKey"]
+    bind_command = f".\\.cowork-flow\\run.cmd subagent bind {runtime_context_id} {host_context_key}"
+    return "\n".join(
+        [
+            f"cowork_runtime_context_id: {runtime_context_id}",
+            f"cowork_host_context_key: {host_context_key}",
+            "",
+            "First step:",
+            bind_command,
+            "",
+            "Do not continue formal work if bind fails.",
+            f"Task: {payload['taskDir']}",
+            f"Role: {payload['role']}",
+            f"Agent type: {payload['agentType']}",
+            f"Expected output: {expected_output}",
+        ]
+    )
+
+def cmd_dispatch_codex(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    try:
+        runtime_payload = _create_runtime_context_payload(
+            repo_root,
+            title=args.title,
+            role=args.role,
+            agent_type=args.agent_type,
+            task_dir=args.execution_task_dir,
+            source=args.source,
+            goal=args.goal,
+            expected_output=args.expected_output,
+            allowed_context=args.allowed_context,
+            host="codex",
+            adapter="codex.spawn_agent",
+        )
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    if runtime_payload["dispatchKind"] != "formal":
+        print("Error: dispatch-codex only supports formal cowork-* agents", file=sys.stderr)
+        return 1
+
+    payload = {
+        **runtime_payload,
+        "agent_type": runtime_payload["agentType"],
+        "task_name": _codex_task_name(runtime_payload["runtimeContextId"]),
+        "fork_turns": args.fork_turns,
+        "message": _codex_dispatch_message(runtime_payload, args.expected_output),
+    }
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
 
 def _find_subagent(repo_root: Path, runtime_context_id: str) -> dict:
     context = read_runtime_context(repo_root, runtime_context_id)
@@ -519,6 +586,21 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--host", default="codex")
     init.add_argument("--adapter", default="codex.spawn_agent")
     init.set_defaults(func=cmd_init)
+
+    dispatch_codex = subparsers.add_parser(
+        "dispatch-codex",
+        help="Prepare a Codex spawn_agent payload with runtime-context binding",
+    )
+    dispatch_codex.add_argument("--title", required=True)
+    dispatch_codex.add_argument("--role", required=True)
+    dispatch_codex.add_argument("--agent-type", required=True, choices=sorted(FIXED_AGENT_TYPES))
+    dispatch_codex.add_argument("--execution-task-dir", required=True)
+    dispatch_codex.add_argument("--source", default="auto")
+    dispatch_codex.add_argument("--goal")
+    dispatch_codex.add_argument("--expected-output", default="Files changed, validation commands, and blockers.")
+    dispatch_codex.add_argument("--allowed-context", action="append", default=[])
+    dispatch_codex.add_argument("--fork-turns", default="none")
+    dispatch_codex.set_defaults(func=cmd_dispatch_codex)
 
     status = subparsers.add_parser("status", help="Print subagent runtime context")
     status.add_argument("subagent_id")

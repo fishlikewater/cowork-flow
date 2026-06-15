@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -23,8 +24,41 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
-        for module_name in ("common.active_task", "common.paths", "common"):
+        for module_name in (
+            "common.active_task",
+            "common.paths",
+            "common.time_utils",
+            "flow.store",
+            "flow",
+            "patterns.base",
+            "patterns",
+            "common",
+        ):
             sys.modules.pop(module_name, None)
+
+    def _runtime_session(self, root: Path, context_key: str) -> dict | None:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            row = db.execute(
+                "SELECT * FROM runtime_session WHERE context_key = ?",
+                (context_key,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            db.close()
+
+    def _runtime_context(self, root: Path, runtime_context_id: str) -> dict | None:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            row = db.execute(
+                "SELECT * FROM runtime_context WHERE id = ?",
+                (runtime_context_id,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            db.close()
 
     def test_context_key_uses_cowork_env_first(self) -> None:
         with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main window"}, clear=True):
@@ -120,11 +154,11 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 active = self.active_task.set_active_task(
                     root, ".cowork-flow/tasks/05-28-demo"
                 )
-                session_file = (
-                    self.active_task.sessions_dir(root) / f"{active.context_key}.json"
-                )
-                session_data = json.loads(session_file.read_text(encoding="utf-8"))
+                session_file = self.active_task.sessions_dir(root) / f"{active.context_key}.json"
+                session_data = self._runtime_session(root, active.context_key)
                 self.assertEqual(".cowork-flow/tasks/05-28-demo", active.task_path)
+                self.assertFalse(session_file.exists())
+                self.assertIsNotNone(session_data)
                 self.assertEqual(
                     ".cowork-flow/tasks/05-28-demo",
                     session_data.get("active_task_path"),
@@ -135,6 +169,7 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                     self.active_task.get_active_task(root).task_path,
                 )
                 self.active_task.clear_active_task(root)
+                self.assertIsNone(self._runtime_session(root, active.context_key))
                 self.assertIsNone(self.active_task.get_active_task(root).task_path)
 
     def test_set_active_task_marks_claude_platform(self) -> None:
@@ -148,17 +183,16 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 active = self.active_task.set_active_task(
                     root, ".cowork-flow/tasks/05-28-demo"
                 )
-                session_file = (
-                    self.active_task.sessions_dir(root) / f"{active.context_key}.json"
-                )
-                session_data = json.loads(session_file.read_text(encoding="utf-8"))
+                session_data = self._runtime_session(root, active.context_key)
 
             self.assertEqual("claude_main", active.context_key)
+            self.assertIsNotNone(session_data)
             self.assertEqual("claude-code", session_data.get("platform"))
 
     def test_clear_task_from_sessions_removes_matching_pointers_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
             sessions = self.active_task.sessions_dir(root)
             sessions.mkdir(parents=True)
             (sessions / "main.json").write_text(
@@ -169,14 +203,35 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 '{"active_task_path": ".cowork-flow/tasks/05-28-other"}\n',
                 encoding="utf-8",
             )
+            with self.active_task._store(root) as store:
+                store.upsert_runtime_session(
+                    "db_main",
+                    {
+                        "scope": "main",
+                        "active_task_path": ".cowork-flow/tasks/05-28-demo",
+                        "platform": "codex",
+                        "status": "active",
+                    },
+                )
+                store.upsert_runtime_session(
+                    "db_other",
+                    {
+                        "scope": "main",
+                        "active_task_path": ".cowork-flow/tasks/05-28-other",
+                        "platform": "codex",
+                        "status": "active",
+                    },
+                )
 
             cleared = self.active_task.clear_task_from_sessions(
                 root, ".cowork-flow/tasks/05-28-demo"
             )
 
-            self.assertEqual(1, cleared)
+            self.assertEqual(2, cleared)
             self.assertFalse((sessions / "main.json").exists())
             self.assertTrue((sessions / "other.json").exists())
+            self.assertIsNone(self._runtime_session(root, "db_main"))
+            self.assertIsNotNone(self._runtime_session(root, "db_other"))
 
     def test_runtime_context_id_can_be_resolved_from_prompt_input(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
@@ -190,6 +245,41 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             )
 
         self.assertEqual("rtx_20260604_demo", runtime_id)
+
+    def test_legacy_runtime_context_import_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context_dir = self.active_task.subagent_contexts_dir(root)
+            context_dir.mkdir(parents=True)
+            (context_dir / "rtx_demo.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "runtime_context_id": "rtx_demo",
+                        "scope": "subagent",
+                        "host": "codex",
+                        "adapter": "codex.spawn_agent",
+                        "agent_type": "cowork-check",
+                        "role": "check",
+                        "dispatch_kind": "formal",
+                        "status": "pending",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            first = self.active_task.read_runtime_context(root, "rtx_demo")
+            second = self.active_task.read_runtime_context(root, "rtx_demo")
+
+            self.assertEqual("pending", first["status"])
+            self.assertEqual(first["runtime_context_id"], second["runtime_context_id"])
+            db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+            try:
+                count = db.execute("SELECT COUNT(*) FROM runtime_context WHERE id = 'rtx_demo'").fetchone()[0]
+            finally:
+                db.close()
+            self.assertEqual(1, count)
 
     def test_bind_runtime_context_writes_host_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -221,13 +311,19 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
 
             self.assertIsNotNone(bound)
             session_file = self.active_task.sessions_dir(root) / "codex_child.json"
-            session = json.loads(session_file.read_text(encoding="utf-8"))
+            session = self._runtime_session(root, "codex_child")
+            self.assertFalse(session_file.exists())
+            self.assertIsNotNone(session)
             self.assertEqual("subagent", session["scope"])
             self.assertEqual("rtx_demo", session["runtime_context_id"])
             self.assertEqual(".cowork-flow/tasks/05-28-demo", session["active_task_path"])
-            context = json.loads(context_path.read_text(encoding="utf-8"))
+            context = self._runtime_context(root, "rtx_demo")
+            self.assertIsNotNone(context)
             self.assertEqual("bound", context["status"])
             self.assertEqual("codex_child", context["bound_context_key"])
+            pointer = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("db", pointer["source"])
+            self.assertNotIn("assignment", pointer)
 
     def test_bind_runtime_context_prefers_prompt_host_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -264,9 +360,10 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             )
 
             self.assertIsNotNone(bound)
-            self.assertTrue((self.active_task.sessions_dir(root) / "codex_prompt_key.json").is_file())
+            self.assertIsNotNone(self._runtime_session(root, "codex_prompt_key"))
             self.assertFalse((self.active_task.sessions_dir(root) / "codex_child-session.json").exists())
-            context = json.loads(context_path.read_text(encoding="utf-8"))
+            context = self._runtime_context(root, "rtx_demo")
+            self.assertIsNotNone(context)
             self.assertEqual("codex_prompt_key", context["bound_context_key"])
 
     def test_close_runtime_context_removes_bound_sessions(self) -> None:
@@ -299,5 +396,6 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertTrue(closed)
             self.assertFalse((sessions / "codex_child.json").exists())
             self.assertFalse((sessions / "subagent_rtx_demo.json").exists())
-            context = json.loads((context_dir / "rtx_demo.json").read_text(encoding="utf-8"))
+            context = self._runtime_context(root, "rtx_demo")
+            self.assertIsNotNone(context)
             self.assertEqual("closed", context["status"])

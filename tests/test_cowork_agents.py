@@ -314,7 +314,7 @@ class CoworkAgentsTest(unittest.TestCase):
                     "cowork_runtime_context_id: <runtime_context_id>",
                     "cowork_host_context_key: <host_context_key>",
                     "subagent bind <runtime_context_id> <host_context_key>",
-                    ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
+                    "DB `runtime_context` row",
                     "before workflow state is injected",
                     "names another agent type",
                     "report needs_context",
