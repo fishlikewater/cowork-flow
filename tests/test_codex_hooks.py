@@ -189,7 +189,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertNotIn("<codex-mode>", context)
         self.assertIn('<cowork-runtime host="codex" adapter="codex.spawn_agent">', context)
         self.assertIn("<contract-digest fingerprint=", context)
-        self.assertIn("COWORK_ENTRY_CONTRACT_V1", context)
+        self.assertIn("COWORK_ENTRY_CONTRACT_V2", context)
         self.assertIn(".cowork-flow/spec/entry-contract.md", context)
         self.assertIn("read_before:", context)
         self.assertIn("<workflow-state>", context)

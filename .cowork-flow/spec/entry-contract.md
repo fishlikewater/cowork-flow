@@ -1,16 +1,39 @@
 # Entry contract
 
-`COWORK_ENTRY_CONTRACT_V1` classifies main-session prompts before workflow
-recovery. It does not identify formal subagents. Formal subagent identity is
+`COWORK_ENTRY_CONTRACT_V2` classifies main-session prompts before workflow
+recovery using dual-channel classification. It does not identify formal subagents. Formal subagent identity is
 resolved by runtime context binding before workflow state is injected.
 
 ## Classification order
 
 1. Runtime context binding, handled by the hook/plugin before this classifier.
-2. Explicit user main-session request.
-3. Read-only question or inspection request.
-4. Command-only wrapper with explicit command semantics.
-5. Unknown or task-shaped input without runtime binding.
+2. **Structured signal** (new in V2): Read `entrySignals` declarations from the
+   active host adapter's `adapter.yaml`. Extract signal values from
+   `hook_input` (or environment variables). Map to `EntryKind`.
+3. **Legacy text fallback** (compat window): Keyword heuristics on prompt text.
+   Controlled by `config.yaml` `entry.legacy_text_fallback.enabled` (default `true`).
+   Disabled once all host adapters declare usable structured signals.
+4. **Fail-closed**: If no structured signal and fallback disabled → `UNKNOWN`.
+
+## Dual-channel classification
+
+| Channel | Source | Priority | Confidence |
+| --- | --- | --- | --- |
+| Structured | `adapter.yaml` entrySignals → hook_input | 1 (always wins) | ≥ 0.85 |
+| Legacy fallback | Prompt text keyword heuristics | 2 (only if structured absent + fallback enabled) | 0.3–0.6 |
+| Fail-closed | Neither channel produces a result | 3 | 0.0 |
+
+### Structured signal mapping
+
+| Signal key | Values | Maps to EntryKind |
+| --- | --- | --- |
+| `sessionRole` | `main` / `main_session` / `coordinator` | `MAIN_SESSION` |
+| `sessionRole` | `command` / `command_wrapper` / `cli` | `COMMAND_ONLY` |
+| `invocationKind` | `read_only` | `READ_ONLY` |
+| `invocationKind` | `hook` / `command_wrapper` / `cli` | `COMMAND_ONLY` |
+| `invocationKind` | `interactive` | `MAIN_SESSION` |
+| `hookEventName` | `SessionStart` | `MAIN_SESSION` (approximation) |
+| `dispatchMode` | `sub-agent` | `COMMAND_ONLY` (approximation) |
 
 ## Entry kinds
 
@@ -32,14 +55,24 @@ resolved by runtime context binding before workflow state is injected.
 - A missing, closed, or invalid runtime context produces fail-closed subagent
   workflow state and must not fall back to main-session start/resume.
 - Runtime context binding overrides project bootstrap text for formal subagents.
+- **Structured signal takes priority over legacy fallback.** If a structured
+  signal is present, it is used regardless of prompt text content.
+- **Legacy fallback is a transition mechanism.** It is enabled by default during
+  the compat window and will be removed in a future major version.
+
+## Config control
+
+The legacy fallback can be toggled via:
+- `config.yaml`: `entry.legacy_text_fallback.enabled: true/false`
+- Environment: `COWORK_FLOW_LEGACY_FALLBACK=1|0` (overrides config.yaml)
 
 ## Normalized object
 
 ```json
 {
   "entryKind": "MAIN_SESSION",
-  "confidence": 0.55,
-  "source": "main_session_heuristic",
+  "confidence": 0.9,
+  "source": "structured_session_role",
   "canMutateWorkflowState": true
 }
 ```

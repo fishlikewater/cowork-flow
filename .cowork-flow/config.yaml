@@ -29,6 +29,18 @@ codex:
   # cowork_runtime_context_id through the active host adapter transport.
 
 #-------------------------------------------------------------------------------
+# Entry Classification
+#-------------------------------------------------------------------------------
+
+# Legacy text-based entry classifier fallback during the structured signal
+# transition window. When true (default), the classifier falls back to keyword
+# heuristics if no structured signal is available. Set to false once all
+# host adapters declare usable entrySignals.
+entry:
+  legacy_text_fallback:
+    enabled: true
+
+#-------------------------------------------------------------------------------
 # Party Mode V2 Runtime Board
 #-------------------------------------------------------------------------------
 

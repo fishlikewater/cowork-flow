@@ -109,16 +109,17 @@ REQUIRED_ENTRY_CLASSIFIER_SNIPPETS = [
 ]
 
 REQUIRED_ENTRY_CONTRACT_SNIPPETS = [
-    "COWORK_ENTRY_CONTRACT_V1",
+    "COWORK_ENTRY_CONTRACT_V2",
     "main-session prompts",
     "resolved by runtime context binding",
     "`UNKNOWN` is not subagent evidence",
     "Runtime context binding overrides project bootstrap text",
+    "dual-channel classification",
 ]
 
 REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '"schemaVersion": 1',
-    '"COWORK_ENTRY_CONTRACT_V1"',
+    '"COWORK_ENTRY_CONTRACT_V2"',
     '"RUNTIME_CONTEXT_DISPATCH_V2"',
     '"HOST_ADAPTER_CAPABILITIES_V1"',
     '"HOST_ADAPTER_SCHEMA_V1"',

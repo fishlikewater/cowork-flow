@@ -25,10 +25,10 @@ TASK_DATE_PREFIX_RE = re.compile(r"^\d{2}-\d{2}-")
 DEFAULT_CONTRACT_REGISTRY: dict[str, Any] = {
     "contracts": [
         {
-            "id": "COWORK_ENTRY_CONTRACT_V1",
+            "id": "COWORK_ENTRY_CONTRACT_V2",
             "path": ".cowork-flow/spec/entry-contract.md",
             "digest": [
-                "Classify main-session requests before task start, resume, archive, or commit.",
+                "Dual-channel classification: structured signals from adapter.yaml entrySignals priority, legacy text fallback during transition, fail-closed when both absent.",
                 "Runtime context, not prompt labels, identifies formal subagent sessions.",
             ],
             "readWhen": [

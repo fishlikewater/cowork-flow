@@ -28,8 +28,11 @@ runtimeContext:
   promptKey: cowork_runtime_context_id
   envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
   metadataKey: cowork_runtime_context_id
+entrySignals:
+  sessionRole: null
+  invocationKind: dispatch_mode
 contracts:
-  entry: COWORK_ENTRY_CONTRACT_V1
+  entry: COWORK_ENTRY_CONTRACT_V2
   dispatch: RUNTIME_CONTEXT_DISPATCH_V2
   leafExecutor: true
 fallback:

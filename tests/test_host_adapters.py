@@ -68,7 +68,7 @@ class HostAdaptersTest(unittest.TestCase):
                     )
 
                 contracts = adapter["contracts"]
-                self.assertEqual("COWORK_ENTRY_CONTRACT_V1", contracts["entry"])
+                self.assertEqual("COWORK_ENTRY_CONTRACT_V2", contracts["entry"])
                 self.assertEqual("RUNTIME_CONTEXT_DISPATCH_V2", contracts["dispatch"])
                 self.assertIs(contracts["leafExecutor"], True)
                 runtime_context = adapter["runtimeContext"]
@@ -244,7 +244,7 @@ class HostAdaptersTest(unittest.TestCase):
                 text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn("mode: subagent", text)
                 self.assertIn("task: deny", text)
-                self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
+                self.assertIn("COWORK_ENTRY_CONTRACT_V2", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
                 self.assertIn(
@@ -275,7 +275,7 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn("contract-digest", plugin)
             self.assertIn("fingerprint", plugin)
             self.assertIn("read_before", plugin)
-            self.assertIn("COWORK_ENTRY_CONTRACT_V1", plugin)
+            self.assertIn("COWORK_ENTRY_CONTRACT_V2", plugin)
             self.assertIn("RUNTIME_CONTEXT_DISPATCH_V2", plugin)
             self.assertIn("resolveRuntimeContextId", plugin)
             self.assertIn("bindRuntimeContext", plugin)
@@ -286,7 +286,7 @@ class HostAdaptersTest(unittest.TestCase):
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn(f"name: {name}", text)
-                self.assertIn("COWORK_ENTRY_CONTRACT_V1", text)
+                self.assertIn("COWORK_ENTRY_CONTRACT_V2", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
                 self.assertIn(
