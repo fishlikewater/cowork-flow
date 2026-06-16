@@ -67,14 +67,29 @@ class DashboardTest(unittest.TestCase):
             paths = importlib.import_module("common.paths")
             flow_store = importlib.import_module("flow.store")
             with flow_store.FlowStore(str(paths.get_db_path(root))) as store:
-                store.create_agent_run(
-                    id=run_id,
-                    task_id=task_id,
-                    agent_type="cowork-implement",
-                    status="bound",
-                    host_context_key=f"codex_{run_id}",
-                    created_at="2026-06-13T00:00:00Z",
+                store.db.execute(
+                    """INSERT INTO runtime_context
+                       (id, scope, host, adapter, agent_type, role, task_id, task_dir,
+                        parent_context_key, dispatch_kind, status, bound_context_key,
+                        created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        run_id,
+                        "subagent",
+                        "codex",
+                        "codex.spawn_agent",
+                        "cowork-implement",
+                        "cowork-implement",
+                        task_id,
+                        "",
+                        None,
+                        "advisory",
+                        "bound",
+                        f"codex_{run_id}",
+                        "2026-06-13T00:00:00Z",
+                    ),
                 )
+                store.db.commit()
         finally:
             self._cleanup_template_imports()
 
@@ -220,13 +235,14 @@ class DashboardTest(unittest.TestCase):
             start = subprocess.run(
                 [sys.executable, str(DASHBOARD), "start", "--host", "127.0.0.1", "--port", "0"],
                 cwd=root,
-                text=True,
-                encoding="utf-8",
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 check=False,
             )
-            self.assertEqual(0, start.returncode, msg=start.stderr)
-            state = json.loads(start.stdout)
+            start_output = start.stdout.decode("gbk", errors="replace") if isinstance(start.stdout, bytes) else start.stdout
+            start_stderr = start.stderr.decode("gbk", errors="replace") if isinstance(start.stderr, bytes) else start.stderr
+            self.assertEqual(0, start.returncode, msg=start_stderr)
+            state = json.loads(start_output)
             db_state = self._dashboard_process(root)
 
             try:
@@ -243,6 +259,7 @@ class DashboardTest(unittest.TestCase):
                     cwd=root,
                     text=True,
                     encoding="utf-8",
+                    errors="replace",
                     capture_output=True,
                     check=False,
                 )
@@ -258,6 +275,7 @@ class DashboardTest(unittest.TestCase):
                     cwd=root,
                     text=True,
                     encoding="utf-8",
+                    errors="replace",
                     capture_output=True,
                     check=False,
                 )

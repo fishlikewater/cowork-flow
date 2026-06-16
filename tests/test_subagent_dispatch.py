@@ -60,16 +60,8 @@ class SubagentDispatchTest(unittest.TestCase):
             self._cleanup_template_imports()
 
     def _agent_runs(self, root: Path) -> list[dict]:
-        db_path = root / ".cowork-flow" / "cowork-flow.db"
-        db = sqlite3.connect(db_path)
-        try:
-            db.row_factory = sqlite3.Row
-            rows = db.execute(
-                "SELECT id, task_id, agent_type, status, host_context_key FROM agent_run ORDER BY created_at"
-            ).fetchall()
-        finally:
-            db.close()
-        return [dict(row) for row in rows]
+        """Deprecated: P1-A removed agent_run writes. Kept for backwards compat but always returns empty."""
+        return []
 
     def _runtime_context(self, root: Path, runtime_context_id: str) -> dict | None:
         db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
@@ -80,6 +72,18 @@ class SubagentDispatchTest(unittest.TestCase):
                 (runtime_context_id,),
             ).fetchone()
             return dict(row) if row else None
+        finally:
+            db.close()
+
+    def _runtime_contexts_for_task(self, root: Path, task_id: str) -> list[dict]:
+        db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
+        try:
+            db.row_factory = sqlite3.Row
+            rows = db.execute(
+                "SELECT * FROM runtime_context WHERE task_id = ?",
+                (task_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
         finally:
             db.close()
 
@@ -244,20 +248,15 @@ class SubagentDispatchTest(unittest.TestCase):
                 f".cowork-flow/run subagent bind {payload['runtimeContextId']} {payload['hostContextKey']}",
                 payload["bindCommand"],
             )
-            self.assertEqual(
-                [
-                    {
-                        "id": payload["runtimeContextId"],
-                        "task_id": "demo",
-                        "agent_type": "cowork-check",
-                        "status": "pending",
-                        "host_context_key": payload["hostContextKey"],
-                    }
-                ],
-                self._agent_runs(root),
-            )
+            # P1-A: runtime_context is now sole authority; agent_run writes removed
+            rc = self._runtime_context(root, payload["runtimeContextId"])
+            self.assertIsNotNone(rc)
+            self.assertEqual(payload["runtimeContextId"], rc["id"])
+            self.assertEqual("demo", rc["task_id"])
+            self.assertEqual("cowork-check", rc["agent_type"])
+            self.assertEqual("pending", rc["status"])
 
-    def test_direct_formal_init_creates_and_updates_agent_run(self) -> None:
+    def test_direct_formal_init_creates_and_updates_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / ".cowork-flow").mkdir()
@@ -286,18 +285,14 @@ class SubagentDispatchTest(unittest.TestCase):
 
             self.assertEqual(0, init_result.returncode, msg=init_result.stderr)
             payload = json.loads(init_result.stdout)
-            self.assertEqual(
-                [
-                    {
-                        "id": payload["runtimeContextId"],
-                        "task_id": "demo",
-                        "agent_type": "cowork-implement",
-                        "status": "pending",
-                        "host_context_key": payload["hostContextKey"],
-                    }
-                ],
-                self._agent_runs(root),
-            )
+
+            # Verify runtime_context was created
+            rc = self._runtime_context(root, payload["runtimeContextId"])
+            self.assertIsNotNone(rc)
+            self.assertEqual(payload["runtimeContextId"], rc["id"])
+            self.assertEqual("demo", rc["task_id"])
+            self.assertEqual("cowork-implement", rc["agent_type"])
+            self.assertEqual("pending", rc["status"])
 
             bind_result = subprocess.run(
                 [sys.executable, str(SUBAGENT), "bind", payload["runtimeContextId"], payload["hostContextKey"]],
@@ -308,7 +303,9 @@ class SubagentDispatchTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, bind_result.returncode, msg=bind_result.stderr)
-            self.assertEqual("bound", self._agent_runs(root)[0]["status"])
+            rc_after_bind = self._runtime_context(root, payload["runtimeContextId"])
+            self.assertEqual("bound", rc_after_bind["status"])
+            self.assertEqual(payload["hostContextKey"], rc_after_bind["bound_context_key"])
 
             close_result = subprocess.run(
                 [sys.executable, str(SUBAGENT), "close", payload["runtimeContextId"]],
@@ -319,7 +316,8 @@ class SubagentDispatchTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, close_result.returncode, msg=close_result.stderr)
-            self.assertEqual("closed", self._agent_runs(root)[0]["status"])
+            rc_after_close = self._runtime_context(root, payload["runtimeContextId"])
+            self.assertEqual("closed", rc_after_close["status"])
 
     def test_init_rejects_fixed_agent_role_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -689,7 +687,10 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual(0, second.returncode, msg=second.stderr)
             repeated = {item["task_id"]: item for item in json.loads(second.stdout)}
             self.assertEqual("already_running", repeated["child-a"]["status"])
-            self.assertEqual(1, len(self._agent_runs(root)))
+            # P1-A: runtime_context is sole authority; verify child-a has a runtime_context row
+            rtcs = self._runtime_contexts_for_task(root, "child-a")
+            self.assertEqual(1, len(rtcs))
+            self.assertEqual("pending", rtcs[0]["status"])
 
     def test_check_family_tracks_pending_success_and_failed_runs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

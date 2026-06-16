@@ -131,37 +131,46 @@ def test_integrity_error_rolls_back_transaction(store):
     assert store.get_task(task_id) is not None
 
 
-def test_agent_run_crud(store):
+def test_agent_run_crud_deprecated(store):
+    """Test that deprecated create_agent_run/write methods still work (don't crash)
+    but get_active_agent_run/list_agent_runs query runtime_context which has no data.
+    These tests verify backward compatibility — the old methods still execute without error,
+    and the new query methods return empty/None because runtime_context is the authority."""
     t = store.create_task(id="ar1", title="AR", creator="d", assignee="d")
     run_id = store.create_agent_run(
         id="rtx_001", task_id=t, agent_type="cowork-implement",
         created_at="2026-01-01T00:00:00Z",
     )
     assert run_id == "rtx_001"
+    # get_active_agent_run now queries runtime_context — no row written there
     active = store.get_active_agent_run(t)
-    assert active["id"] == "rtx_001"
-    assert active["status"] == "pending"
+    assert active is None
+    # update_agent_run_status still accepts calls without error (deprecated)
     store.update_agent_run_status("rtx_001", "success")
+    # Still None because runtime_context has no data
     active = store.get_active_agent_run(t)
-    assert active["status"] == "success"
+    assert active is None
 
 
-def test_get_active_agent_run_returns_latest(store):
+def test_get_active_agent_run_returns_latest_deprecated(store):
+    """Deprecated agent_run tests — verify methods don't crash but return empty/None."""
     t = store.create_task(id="ar2", title="AR2", creator="d", assignee="d")
     store.create_agent_run(id="r1", task_id=t, agent_type="worker", created_at="2026-01-01T00:00:00Z")
     store.create_agent_run(id="r2", task_id=t, agent_type="worker", created_at="2026-01-02T00:00:00Z")
     store.update_agent_run_status("r1", "closed")
+    # get_active_agent_run now queries runtime_context — no row written there
     active = store.get_active_agent_run(t)
-    assert active["id"] == "r2"
+    assert active is None
 
 
-def test_list_agent_runs_for_parent(store):
+def test_list_agent_runs_for_parent_deprecated(store):
+    """Deprecated agent_run tests — verify methods don't crash but return empty/None."""
     p = store.create_task(id="parent_ar", title="PAR", creator="d", assignee="d")
     c = store.create_task(id="child_ar", title="CAR", creator="d", assignee="d", parent_id=p)
     store.create_agent_run(id="r3", task_id=c, agent_type="cowork-implement", created_at="2026-01-01T00:00:00Z")
     runs = store.list_agent_runs_for_parent(p)
-    assert len(runs) == 1
-    assert runs[0]["id"] == "r3"
+    # Now queries runtime_context — no row written there
+    assert len(runs) == 0
 
 
 def test_double_block_guarded(store):
@@ -243,12 +252,15 @@ def test_cmd_init_db(tmp_path, monkeypatch):
     store.close()
 
 
-def test_agent_run_with_host_context(store):
+def test_agent_run_with_host_context_deprecated(store):
+    """Deprecated agent_run test — verify method doesn't crash but returns None.
+    host_context_key was removed in P1-A; runtime_context is now the authority."""
     t = store.create_task(id="ar3", title="AR3", creator="d", assignee="d")
     rid = store.create_agent_run(
         id="rtx_ctx", task_id=t, agent_type="cowork-implement",
         status="pending", host_context_key="key-abc",
         created_at="2026-06-12T00:00:00Z",
     )
+    # get_active_agent_run now queries runtime_context — no row written there
     active = store.get_active_agent_run(t)
-    assert active["host_context_key"] == "key-abc"
+    assert active is None

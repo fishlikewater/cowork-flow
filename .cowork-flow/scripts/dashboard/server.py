@@ -271,10 +271,11 @@ def _pid_alive(pid: int | None) -> bool:
             ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
             text=True,
             encoding="utf-8",
+            errors="replace",
             capture_output=True,
             check=False,
         )
-        return str(pid) in result.stdout
+        return result.stdout and str(pid) in result.stdout
     try:
         os.kill(pid, 0)
         return True

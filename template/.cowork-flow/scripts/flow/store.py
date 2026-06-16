@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import hashlib
 import json
 import sqlite3
@@ -42,11 +43,127 @@ class FlowStore:
             pass
 
     def _ensure_schema(self) -> None:
-        schema_path = Path(__file__).resolve().parent / "schema.sql"
-        if schema_path.is_file():
-            self.db.executescript(schema_path.read_text(encoding="utf-8"))
-        else:
-            print(f"[WARN] schema.sql not found at {schema_path}", file=sys.stderr)
+        """Ensure schema_migrations table exists, validate checksums, then apply pending migrations."""
+        self._ensure_schema_migrations_table()
+        self._validate_applied_checksums()
+        pending = self._discover_pending_migrations()
+        if not pending:
+            return
+        self._backup_before_migration()
+        for version, name, path in pending:
+            self._apply_migration(version, name, path)
+
+    def _validate_applied_checksums(self) -> None:
+        """Verify that all applied migrations' checksums match their current file content."""
+        migration_dir = Path(__file__).resolve().parent / "migrations"
+        if not migration_dir.is_dir():
+            return
+        rows = self.db.execute(
+            "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
+        ).fetchall()
+        for row in rows:
+            expected = row["checksum"]
+            # name is the stem (e.g. "0001_initial"), reconstruct the filename
+            sql_file = migration_dir / f"{row['name']}.sql"
+            if not sql_file.is_file():
+                raise RuntimeError(
+                    f"migration v{row['version']} ({row['name']}): file not found at {sql_file}"
+                )
+            content = sql_file.read_text(encoding="utf-8")
+            actual = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+            if actual != expected:
+                raise RuntimeError(
+                    f"migration v{row['version']} ({row['name']}): "
+                    f"checksum mismatch (expected={expected}, actual={actual})"
+                )
+
+    def _ensure_schema_migrations_table(self) -> None:
+        """Create schema_migrations table if it does not exist."""
+        self.db.execute(
+            """CREATE TABLE IF NOT EXISTS schema_migrations (
+                version     INTEGER PRIMARY KEY,
+                name        TEXT NOT NULL,
+                applied_at  TEXT NOT NULL,
+                checksum    TEXT NOT NULL
+            )"""
+        )
+        self.db.commit()
+
+    def _discover_pending_migrations(self) -> list[tuple[int, str, Path]]:
+        """Return list of (version, name, path) for migrations not yet applied.
+
+        Raises RuntimeError if a version gap is detected (e.g. v1 applied, v3 file
+        present but v2 missing).
+        """
+        applied = {
+            row["version"]
+            for row in self.db.execute(
+                "SELECT version FROM schema_migrations"
+            ).fetchall()
+        }
+        migration_dir = Path(__file__).resolve().parent / "migrations"
+        if not migration_dir.is_dir():
+            return []
+        pattern = re.compile(r"^(\d{4})_.+\.sql$")
+        pending: list[tuple[int, str, Path]] = []
+        for sql_file in sorted(migration_dir.glob("*.sql")):
+            m = pattern.match(sql_file.name)
+            if not m:
+                continue
+            version = int(m.group(1))
+            name = sql_file.stem
+            if version not in applied:
+                pending.append((version, name, sql_file))
+        # Gap detection: if the highest applied version is N and the lowest pending
+        # version is M > N+1, we have a missing migration.
+        if pending and applied:
+            max_applied = max(applied)
+            min_pending = min(p[0] for p in pending)
+            if min_pending > max_applied + 1:
+                raise RuntimeError(
+                    f"version gap detected: max applied v{max_applied}, "
+                    f"but next pending is v{min_pending}; "
+                    f"missing migration(s) between v{max_applied + 1} and v{min_pending - 1}"
+                )
+        return pending
+
+    def _apply_migration(self, version: int, name: str, path: Path) -> None:
+        """Apply a single migration file in its own transaction, record version/checksum."""
+        content = path.read_text(encoding="utf-8")
+        checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+        now = _now()
+
+        # executescript auto-commits, so we run it directly, then record in a new tx.
+        self.db.executescript(content)
+
+        def _do_record():
+            self.db.execute(
+                "INSERT INTO schema_migrations (version, name, applied_at, checksum) VALUES (?,?,?,?)",
+                (version, name, now, checksum),
+            )
+            return None
+
+        self._transaction(_do_record)
+
+    def _backup_before_migration(self) -> None:
+        """Copy the DB file to a backup location before applying migrations."""
+        db_path = Path(self.db_path)
+        if not db_path.exists():
+            return
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup_dir = Path(__file__).resolve().parent.parent.parent / ".runtime"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_dir / f"db-backup-v{timestamp}.sqlite"
+        import shutil
+
+        shutil.copy2(str(db_path), str(backup_path))
+
+    def _get_applied_migrations(self) -> list[dict]:
+        """Return list of applied migration records ordered by version."""
+        rows = self.db.execute(
+            "SELECT version, name, applied_at, checksum FROM schema_migrations ORDER BY version"
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def _transaction(self, fn):
         """Execute fn() inside a BEGIN IMMEDIATE transaction with retry."""
@@ -325,8 +442,27 @@ class FlowStore:
             raise ValueError("runtime_context_id is required")
         now = _now()
         stored = dict(payload)
+        # Normalize camelCase keys from subagent payloads to snake_case
+        for camel, snake in (
+            ("taskDir", "task_dir"),
+            ("runtimeContextId", "runtime_context_id"),
+            ("hostContextKey", "host_context_key"),
+            ("dispatchKind", "dispatch_kind"),
+            ("agentType", "agent_type"),
+            ("parentContextKey", "parent_context_key"),
+            ("boundContextKey", "bound_context_key"),
+            ("boundAt", "bound_at"),
+            ("closedAt", "closed_at"),
+            ("lastSeenAt", "last_seen_at"),
+            ("createdAt", "created_at"),
+            ("updated_at", "updated_at"),
+        ):
+            if camel in stored and snake not in stored:
+                stored[snake] = stored[camel]
         stored["runtime_context_id"] = runtime_id
         task_dir = stored.get("task_dir") if isinstance(stored.get("task_dir"), str) else None
+        if task_dir is None:
+            task_dir = stored.get("taskDir") if isinstance(stored.get("taskDir"), str) else None
         task_id = stored.get("task_id") if isinstance(stored.get("task_id"), str) else None
         if task_id is None:
             task_id = self._resolve_task_id_from_path(task_dir)
@@ -413,6 +549,7 @@ class FlowStore:
                     payload[payload_key] = {}
         payload.update(
             {
+                "id": row["id"],
                 "runtime_context_id": row["id"],
                 "scope": row["scope"],
                 "host": row["host"],
@@ -548,6 +685,9 @@ class FlowStore:
         return self._transaction(_do_delete) or 0
 
     # --- Agent Run ---
+    # Deprecated: runtime_context is now the sole authority for agent run state.
+    # agent_run table kept for backwards compatibility; new writes are no longer
+    # performed. These methods remain so existing callers do not break at runtime.
 
     def create_agent_run(self, *,
         id: str, task_id: str, agent_type: str,
@@ -555,6 +695,7 @@ class FlowStore:
         host_context_key: str | None = None,
         created_at: str,
     ) -> str:
+        """Deprecated: runtime_context is the sole run authority since P1-A."""
         def _do_create_ar():
             self.db.execute(
                 "INSERT INTO agent_run (id, task_id, agent_type, status, host_context_key, created_at) VALUES (?,?,?,?,?,?)",
@@ -565,6 +706,7 @@ class FlowStore:
         return self._transaction(_do_create_ar) or id
 
     def update_agent_run_status(self, run_id: str, status: str) -> bool:
+        """Deprecated: runtime_context is the sole run authority since P1-A."""
         def _do_update_ar():
             closed_at = _now() if status == "closed" else None
             if closed_at:
@@ -582,66 +724,50 @@ class FlowStore:
         return self._transaction(_do_update_ar) or False
 
     def get_active_agent_run(self, task_id: str, agent_type: str | None = None):
+        """Return the active agent run for a task.
+
+        Deprecated: only queries runtime_context. agent_run table kept for
+        backwards compatibility but no longer read.
+        """
         if agent_type:
             row = self.db.execute(
-                """SELECT * FROM agent_run
+                """SELECT * FROM runtime_context
                    WHERE task_id = ? AND agent_type = ? AND status != 'closed'
                    ORDER BY created_at DESC LIMIT 1""",
                 (task_id, agent_type),
             ).fetchone()
         else:
             row = self.db.execute(
-                "SELECT * FROM agent_run WHERE task_id = ? AND status != 'closed' ORDER BY created_at DESC LIMIT 1",
+                "SELECT * FROM runtime_context WHERE task_id = ? AND status != 'closed' ORDER BY created_at DESC LIMIT 1",
                 (task_id,),
             ).fetchone()
         return dict(row) if row else None
 
     def list_agent_runs_for_parent(self, parent_id: str) -> list[dict]:
-        runtime_rows = self.db.execute(
+        """Return agent runs for a parent task's children.
+
+        Deprecated: only queries runtime_context. agent_run table kept for
+        backwards compatibility but no longer read.
+        """
+        rows = self.db.execute(
             """SELECT rc.* FROM runtime_context rc
                JOIN task_child tc ON rc.task_id = tc.child_id
                WHERE tc.parent_id = ? ORDER BY rc.created_at""",
             (parent_id,),
         ).fetchall()
-        runs = [self._runtime_context_to_agent_run(self._runtime_context_from_row(r)) for r in runtime_rows]
-        runtime_ids = {run["id"] for run in runs}
-        rows = self.db.execute(
-            """SELECT ar.* FROM agent_run ar
-               JOIN task_child tc ON ar.task_id = tc.child_id
-               WHERE tc.parent_id = ? ORDER BY ar.created_at""",
-            (parent_id,),
-        ).fetchall()
-        runs.extend(dict(r) for r in rows if r["id"] not in runtime_ids)
-        return runs
+        return [self._runtime_context_from_row(r) for r in rows]
 
     def list_agent_runs_for_task(self, task_id: str) -> list[dict]:
-        runtime_rows = self.db.execute(
+        """Return agent runs for a task.
+
+        Deprecated: only queries runtime_context. agent_run table kept for
+        backwards compatibility but no longer read.
+        """
+        rows = self.db.execute(
             "SELECT * FROM runtime_context WHERE task_id = ? ORDER BY created_at",
             (task_id,),
         ).fetchall()
-        runs = [self._runtime_context_to_agent_run(self._runtime_context_from_row(r)) for r in runtime_rows]
-        runtime_ids = {run["id"] for run in runs}
-        rows = self.db.execute(
-            "SELECT * FROM agent_run WHERE task_id = ? ORDER BY created_at",
-            (task_id,),
-        ).fetchall()
-        runs.extend(dict(r) for r in rows if r["id"] not in runtime_ids)
-        return runs
-
-    def _runtime_context_to_agent_run(self, context: dict) -> dict:
-        return {
-            "id": context.get("runtime_context_id"),
-            "runtime_context_id": context.get("runtime_context_id"),
-            "task_id": context.get("task_id"),
-            "agent_type": context.get("agent_type"),
-            "status": context.get("status"),
-            "host_context_key": context.get("bound_context_key"),
-            "error_message": context.get("error_message"),
-            "retry_count": 0,
-            "created_at": context.get("created_at"),
-            "closed_at": context.get("closed_at"),
-            "dispatch_kind": context.get("dispatch_kind"),
-        }
+        return [self._runtime_context_from_row(r) for r in rows]
 
     # --- Audit ---
 
@@ -1002,15 +1128,50 @@ def cmd_init_db(args: argparse.Namespace) -> int:
 
 
 def cmd_migrate(args: argparse.Namespace) -> int:
-    from flow.migrate import main as migrate_main
-    return migrate_main()
+    from common.paths import get_db_path
+    db_path = get_db_path()
+    store = FlowStore(db_path)
+
+    if getattr(args, "status", False):
+        rows = store._get_applied_migrations()
+        if not rows:
+            print("No migrations applied yet.")
+            return 0
+        print(f"{'Version':<10} {'Name':<30} {'Applied At':<30} {'Checksum'}")
+        print("-" * 80)
+        for r in rows:
+            print(f"{r['version']:<10} {r['name']:<30} {r['applied_at']:<30} {r['checksum']}")
+        return 0
+
+    if getattr(args, "dry_run", False):
+        pending = store._discover_pending_migrations()
+        if not pending:
+            print("No pending migrations.")
+            return 0
+        print("Pending migrations:")
+        for version, name, path in pending:
+            print(f"  v{version}: {name} ({path})")
+        return 0
+
+    # Normal: apply all pending migrations (already done in __init__, but re-apply safe via _discover)
+    pending = store._discover_pending_migrations()
+    if not pending:
+        print("All migrations up to date.")
+        return 0
+    for version, name, path in pending:
+        store._apply_migration(version, name, path)
+        print(f"Applied migration v{version}: {name}")
+    return 0
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Flow store operations")
     sub = parser.add_subparsers(dest="flow_command")
     init_cmd = sub.add_parser("init-db", help="Initialize SQLite database")
     init_cmd.set_defaults(func=cmd_init_db)
-    migrate_cmd = sub.add_parser("migrate", help="Migrate legacy task.json tasks to SQLite")
+    migrate_cmd = sub.add_parser("migrate", help="Apply DB schema migrations (forward-only)")
+    migrate_cmd.add_argument("--dry-run", action="store_true", help="List pending migrations without executing")
+    migrate_cmd.add_argument("--status", action="store_true", help="Show applied migration status")
     migrate_cmd.set_defaults(func=cmd_migrate)
     return parser
 

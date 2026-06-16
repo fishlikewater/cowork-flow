@@ -354,7 +354,6 @@ def cmd_bind(args: argparse.Namespace) -> int:
     if context is None:
         print(f"Error: cannot bind runtime context: {args.subagent_id}", file=sys.stderr)
         return 1
-    _update_agent_run_if_present(repo_root, args.subagent_id, "bound")
     print(json.dumps(context, ensure_ascii=False, indent=2) + "\n", end="")
     return 0
 
@@ -364,20 +363,13 @@ def cmd_close(args: argparse.Namespace) -> int:
     if not close_runtime_context(repo_root, args.subagent_id):
         print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
         return 1
-    _update_agent_run_if_present(repo_root, args.subagent_id, "closed")
     print(f"subagent {args.subagent_id} closed")
     return 0
 
 
 def _update_agent_run_if_present(repo_root: Path, run_id: str, status: str) -> None:
-    db_path = get_db_path(repo_root)
-    if not db_path.exists():
-        return
-    try:
-        with FlowStore(str(db_path)) as store:
-            store.update_agent_run_status(run_id, status)
-    except Exception:
-        return
+    """Deprecated: P1-A removed agent_run writes; runtime_context is the sole authority."""
+    return
 
 def _record_agent_run_for_task(
     repo_root: Path,
@@ -389,23 +381,8 @@ def _record_agent_run_for_task(
     host_context_key: str,
     created_at: str,
 ) -> None:
-    if dispatch_kind != "formal" or not task_dir:
-        return
-    db_path = get_db_path(repo_root)
-    if not db_path.exists():
-        return
-    with FlowStore(str(db_path)) as store:
-        task = _resolve_flow_task(store, task_dir)
-        if task is None:
-            return
-        store.create_agent_run(
-            id=runtime_context_id,
-            task_id=task.id,
-            agent_type=agent_type,
-            status="pending",
-            host_context_key=host_context_key,
-            created_at=created_at,
-        )
+    """Deprecated: P1-A removed agent_run writes; runtime_context is the sole authority."""
+    return
 
 def _resolve_flow_task(store: FlowStore, target: str):
     candidates: list[str] = []
@@ -486,20 +463,11 @@ def cmd_spawn_family(args: argparse.Namespace) -> int:
                     allowed_context=[],
                     host=args.host,
                     adapter=args.adapter,
-                    record_agent_run=False,
                 )
             except ValueError as error:
                 print(f"Error: {error}", file=sys.stderr)
                 return 1
 
-            store.create_agent_run(
-                id=payload["runtimeContextId"],
-                task_id=child.id,
-                agent_type=agent_type,
-                status="pending",
-                host_context_key=payload["hostContextKey"],
-                created_at=_now(),
-            )
             payload.update(
                 {
                     "task_id": child.id,
@@ -508,6 +476,10 @@ def cmd_spawn_family(args: argparse.Namespace) -> int:
                     "status": "pending",
                 }
             )
+
+            # Persist runtime context so check-family can find it
+            store.upsert_runtime_context(payload)
+
             results.append(payload)
 
     print(json.dumps(results, ensure_ascii=False))
