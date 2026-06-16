@@ -1,0 +1,12 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/scripts/common/entry_classifier.py", "reason": "current text-heuristic entry classifier under review"}
+{"file": ".cowork-flow/spec/entry-contract.md", "reason": "COWORK_ENTRY_CONTRACT_V1 source being upgraded to V2"}
+{"file": ".cowork-flow/adapters/claude-code/adapter.yaml", "reason": "claude-code adapter capability declaration"}
+{"file": ".cowork-flow/adapters/codex/adapter.yaml", "reason": "codex adapter capability declaration"}
+{"file": ".cowork-flow/adapters/opencode/adapter.yaml", "reason": "opencode adapter capability declaration"}
+{"file": ".claude/hooks/inject-workflow-state.py", "reason": "claude-code hook that injects workflow state - can it read session role?"}
+{"file": ".codex/hooks/inject-workflow-state.py", "reason": "codex hook that injects workflow state"}
+{"file": ".cowork-flow/scripts/common/inject_workflow_state.py", "reason": "shared injection logic used by all host hooks"}
