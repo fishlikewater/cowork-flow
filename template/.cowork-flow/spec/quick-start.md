@@ -26,7 +26,7 @@ changes → brainstorming → read spec → plan → tasks → implement → che
 | Adding a host adapter | `core/dispatch.md` + `reference/adapters/capabilities.md` + `reference/adapters/adapter.schema.json` |
 | Implementing a new pattern | `core/lifecycle.md` + `reference/patterns/index.md` |
 | Configuring Party Mode | `reference/party-mode-v2-board.md` |
-| Writing code (Python/JS) | `reference/guides/pre-implementation-checklist.md` + language-specific guidelines |
+| Writing code (Python/JS) | `reference/guides/pre-implementation-checklist.md` + language-specific guidelines (`reference/backend/` for Python, `reference/frontend/` for JS) |
 
 ## Core protocol (must obey)
 
@@ -43,6 +43,8 @@ All rules below are mandatory. Violations break the fail-closed safety chain.
 - **`reference/adapters/`** — Host capability declarations and adapter schema.
 - **`reference/party-mode-v2-board.md`** — Party Mode V2 board protocol.
 - **`reference/guides/`** — Thinking guides (code reuse, cross-layer thinking, pre-implementation checklist).
+- **`reference/backend/`** — Backend development guidelines (Python, CLI, runtime scripts).
+- **`reference/frontend/`** — Frontend development guidelines (JS/TS, dashboard, web assets).
 
 ## Quick commands
 
