@@ -3,7 +3,7 @@
   "contracts": [
     {
       "id": "COWORK_ENTRY_CONTRACT_V2",
-      "path": ".cowork-flow/spec/entry-contract.md",
+      "path": ".cowork-flow/spec/core/entry.md",
       "digest": [
         "Dual-channel classification: structured signals from adapter.yaml entrySignals priority, legacy text fallback during transition, fail-closed when both absent.",
         "Runtime context, not prompt labels, identifies formal subagent sessions."
@@ -15,7 +15,7 @@
     },
     {
       "id": "RUNTIME_CONTEXT_DISPATCH_V2",
-      "path": ".cowork-flow/spec/subagent-dispatch.md",
+      "path": ".cowork-flow/spec/core/dispatch.md",
       "digest": [
         "Formal subagent work is keyed by cowork_runtime_context_id.",
         "Explicit shim bind records bound_context_key before formal output is accepted."
@@ -28,7 +28,7 @@
     },
     {
       "id": "HOST_ADAPTER_CAPABILITIES_V1",
-      "path": ".cowork-flow/spec/capabilities.md",
+      "path": ".cowork-flow/spec/reference/adapters/capabilities.md",
       "digest": [
         "Formal subagent work requires runtime context dispatch and binding.",
         "Missing required host capabilities fall back to inline_or_manual."
@@ -40,9 +40,9 @@
     },
     {
       "id": "HOST_ADAPTER_SCHEMA_V1",
-      "path": ".cowork-flow/spec/adapter.schema.json",
+      "path": ".cowork-flow/spec/reference/adapters/adapter.schema.json",
       "digest": [
-        "Adapters must define runtime context transport and cleanup behavior.",
+        "Adapters must define runtime context transport and cleanup behaviour.",
         "Adapters describe host primitives; workflow.md stays host-neutral."
       ],
       "readWhen": [
@@ -52,7 +52,7 @@
     },
     {
       "id": "FLOW_PATTERN_CONTRACTS_V1",
-      "path": ".cowork-flow/spec/patterns/index.md",
+      "path": ".cowork-flow/spec/reference/patterns/index.md",
       "digest": [
         "Patterns are pure decision layers over TaskContext; FlowStore remains the write path.",
         "Generic, fan_out, pipeline, and human_loop gate task lifecycle transitions."
@@ -60,12 +60,12 @@
       "readWhen": [
         "before editing .cowork-flow/scripts/patterns/",
         "before changing task lifecycle transitions",
-        "when documenting or verifying pattern behavior"
+        "when documenting or verifying pattern behaviour"
       ]
     },
     {
       "id": "FLOW_PHASE3_FAMILY_DASHBOARD_V1",
-      "path": ".cowork-flow/spec/subagent-dispatch.md",
+      "path": ".cowork-flow/spec/core/dispatch.md",
       "digest": [
         "Fan-out family helpers create runtime contexts and agent_run rows without dispatching host children directly.",
         "Dashboard is read-only; task lifecycle writes stay in task.py and FlowStore."

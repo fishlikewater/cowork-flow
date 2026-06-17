@@ -1,0 +1,22 @@
+{"file": ".cowork-flow/spec/quick-start.md", "reason": "New: 1-page intro for new readers"}
+{"file": ".cowork-flow/spec/core/", "reason": "New directory: core protocol docs"}
+{"file": ".cowork-flow/spec/core/entry.md", "reason": "Migrated from spec/entry-contract.md"}
+{"file": ".cowork-flow/spec/core/dispatch.md", "reason": "Migrated from spec/subagent-dispatch.md"}
+{"file": ".cowork-flow/spec/core/lifecycle.md", "reason": "Extracted from workflow.md task lifecycle section"}
+{"file": ".cowork-flow/spec/core/state-templates.md", "reason": "Migrated from spec/workflow-state-templates.md"}
+{"file": ".cowork-flow/spec/reference/", "reason": "New directory: reference details"}
+{"file": ".cowork-flow/spec/reference/patterns/", "reason": "Migrated from spec/patterns/"}
+{"file": ".cowork-flow/spec/reference/adapters/", "reason": "Migrated from spec/capabilities.md + adapter.schema.json"}
+{"file": ".cowork-flow/spec/reference/party-mode-v2-board.md", "reason": "Migrated from spec/party-mode-v2-board.md"}
+{"file": ".cowork-flow/spec/reference/guides/", "reason": "Migrated from spec/guides/"}
+{"file": ".cowork-flow/spec/entry-contract.md", "reason": "Replaced by core/entry.md"}
+{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Replaced by core/dispatch.md"}
+{"file": ".cowork-flow/spec/workflow-state-templates.md", "reason": "Replaced by core/state-templates.md"}
+{"file": ".cowork-flow/spec/capabilities.md", "reason": "Moved to reference/adapters/capabilities.md"}
+{"file": ".cowork-flow/spec/adapter.schema.json", "reason": "Moved to reference/adapters/adapter.schema.json"}
+{"file": ".cowork-flow/spec/party-mode-v2-board.md", "reason": "Moved to reference/party-mode-v2-board.md"}
+{"file": ".cowork-flow/spec/patterns/", "reason": "Moved to reference/patterns/"}
+{"file": ".cowork-flow/spec/guides/", "reason": "Moved to reference/guides/"}
+{"file": ".cowork-flow/spec/registry.json", "reason": "Update all contract paths to new locations"}
+{"file": ".cowork-flow/workflow.md", "reason": "Update spec file references to new paths"}
+{"file": "template/.cowork-flow/spec/", "reason": "All template spec files must mirror root"}

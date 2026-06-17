@@ -15,7 +15,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 3. read spec: 读取项目规范
 4. plan：构建开发计划。
 5. tasks：根据plan拆分具体执行任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
-6. implement：主会话通过当前宿主适配器派发 `cowork-implement`，按 `.cowork-flow/spec/subagent-dispatch.md` 执行固定代理派发协议。
+6. implement：主会话通过当前宿主适配器派发 `cowork-implement`，按 `.cowork-flow/spec/core/dispatch.md` 执行固定代理派发协议。
 7. check：主会话通过当前宿主适配器派发 `cowork-check`，按 `.cowork-flow/spec/subagent-dispatch.md` 执行固定代理派发协议。
 8. complete：主会话做最终验证、同步规格、归档、记录会话、提交。
 
@@ -25,7 +25,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 ## 1.1 状态注入与入口分类
 
-1. 宿主钩子或插件每轮注入当前会话的入口分类和任务状态。状态提示的文本片段定义在 `.cowork-flow/spec/workflow-state-templates.md`，hook 从该文件读取；不再内联到本文件。
+1. 宿主钩子或插件每轮注入当前会话的入口分类和任务状态。状态提示的文本片段定义在 `.cowork-flow/spec/core/state-templates.md`，hook 从该文件读取；不再内联到本文件。
 2. runtime context 绑定先于入口分类。hook/plugin 先解析 `cowork_runtime_context_id`，绑定成功或 fail-closed 时注入 `delegated_subtask`。
 3. 入口分类只服务主会话导航，不能用 prompt 形状推断正式子代理身份。`UNKNOWN` 不能冒充委托子任务；保持当前任务/no-task 状态可见，并在突变工作流前澄清。
 
@@ -87,7 +87,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 固定 `cowork-*` 代理使用宿主适配器契约，由主会话负责派发、等待、验收和取消。宿主专属原语只在 `.cowork-flow/adapters/<host>/adapter.yaml` 中声明；工作流只关心阶段职责、协调边界和验收责任。
 
-正式派发协议见 `.cowork-flow/spec/subagent-dispatch.md`。该协议定义 runtime context 创建、传输、绑定、等待、返回验收、关闭清理和通用 worker 边界。
+正式派发协议见 `.cowork-flow/spec/core/dispatch.md`。该协议定义 runtime context 创建、传输、绑定、等待、返回验收、关闭清理和通用 worker 边界。
 
 - 主会话必须使用新鲜子上下文派发固定代理。
 - 主会话通过适配器等待原语、适配器列表原语和适配器取消/关闭原语完成收口。
@@ -98,7 +98,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 Party Mode 是用户手动触发的 advisory roundtable。主会话可通过当前宿主适配器创建 fresh child contexts，收集真实讨论子代理的证据、分歧、风险和可测验收信号，再由主会话综合结论。
 
-Party Mode 不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。轮次上限、继续/停止条件、输出 schema 和可配置默认值由 party-mode skill 定义；正式子代理协议仍以 `.cowork-flow/spec/subagent-dispatch.md` 为准。
+Party Mode 不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。轮次上限、继续/停止条件、输出 schema 和可配置默认值由 party-mode skill 定义；正式子代理协议仍以 `.cowork-flow/spec/core/dispatch.md` 为准。
 
 ## 3.2.1 手动 Party Mode V2
 
@@ -186,7 +186,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
 ## 6. 实现阶段
 
 1. 先运行 `task next` 确认当前状态和下一步命令。
-2. 默认通过宿主适配器派发 `cowork-implement`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/subagent-dispatch.md`。
+2. 默认通过宿主适配器派发 `cowork-implement`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/core/dispatch.md`。
 3. Fan-out 父任务先运行 `./.cowork-flow/run subagent spawn-family <parent-task> --agent-type cowork-implement` 准备子任务 runtime context；主会话再通过宿主适配器逐条派发返回的上下文，并用 `check-family` 汇总状态。父任务本身不直接替子任务完成生命周期。
 4. 派发内容应包含当前计划步骤、范围边界和期望验证命令。
 5. 如果用户明确要求主会话内联执行，或当前任务正在修改子代理/运行时行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
@@ -196,7 +196,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
 ## 7. 检查阶段
 
 1. 先运行 `task next` 确认任务处于 `review` / `checking` 检查阶段。
-2. 默认通过宿主适配器派发 `cowork-check`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/subagent-dispatch.md`。
+2. 默认通过宿主适配器派发 `cowork-check`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/core/dispatch.md`。
 3. 检查内容：
     - PRD 验收标准是否满足。
     - `git diff` 是否只包含预期范围。
