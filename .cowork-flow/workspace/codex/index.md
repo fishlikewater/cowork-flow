@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 65
+- **Total Sessions**: 66
 - **Last Active**: 2026-06-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~99 | Current |
+| `journal-2.md` | ~129 | Current |
 | `journal-1.md` | ~1992 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 66 | 2026-06-18 | Verify cowork-flow end-to-end with a real task | - |
 | 65 | 2026-06-18 | 清理脚本兼容死代码 | - |
 | 64 | 2026-06-18 | Close workflow maturity roadmap | - |
 | 63 | 2026-06-17 | P1-B spec three-layer documentation refactor | `4792399` |

@@ -150,6 +150,11 @@ class FlowMigrateCliAcceptanceTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def test_repo_gitignore_covers_local_generated_artifacts(self) -> None:
+        gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn(".codegraph/", gitignore)
+        self.assertIn("template/.cowork-flow/.runtime/", gitignore)
+
     def test_flow_migrate_cli_migrates_old_project_and_preserves_backup(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir) / "old-project"

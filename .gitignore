@@ -19,4 +19,8 @@ __pycache__/
 *.tgz
 .bitfun/
 
+# Local workflow-generated artifacts
+.codegraph/
+template/.cowork-flow/.runtime/
+
 .cowork-flow/cowork-flow.db
