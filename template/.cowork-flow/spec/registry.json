@@ -107,7 +107,7 @@
       "id": "FLOW_PHASE3_FAMILY_DASHBOARD_V1",
       "path": ".cowork-flow/spec/core/dispatch.md",
       "digest": [
-        "Fan-out family helpers create runtime contexts and agent_run rows without dispatching host children directly.",
+        "Fan-out family helpers create runtime contexts without dispatching host children directly.",
         "Dashboard is read-only; task lifecycle writes stay in task.py and FlowStore."
       ],
       "readWhen": [

@@ -686,42 +686,7 @@ class FlowStore:
 
     # --- Agent Run ---
     # Deprecated: runtime_context is now the sole authority for agent-run state.
-    # agent_run table kept for backwards compatibility; new writes are no longer
-    # performed. These methods remain so existing callers do not break at runtime.
-
-    def create_agent_run(self, *,
-        id: str, task_id: str, agent_type: str,
-        status: str = "pending",
-        host_context_key: str | None = None,
-        created_at: str,
-    ) -> str:
-        """Deprecated: runtime_context is the sole run authority since P1-A."""
-        def _do_create_ar():
-            self.db.execute(
-                "INSERT INTO agent_run (id, task_id, agent_type, status, host_context_key, created_at) VALUES (?,?,?,?,?,?)",
-                (id, task_id, agent_type, status, host_context_key, created_at),
-            )
-            return id
-
-        return self._transaction(_do_create_ar) or id
-
-    def update_agent_run_status(self, run_id: str, status: str) -> bool:
-        """Deprecated: runtime_context is the sole run authority since P1-A."""
-        def _do_update_ar():
-            closed_at = _now() if status == "closed" else None
-            if closed_at:
-                cursor = self.db.execute(
-                    "UPDATE agent_run SET status = ?, closed_at = ? WHERE id = ?",
-                    (status, closed_at, run_id),
-                )
-            else:
-                cursor = self.db.execute(
-                    "UPDATE agent_run SET status = ? WHERE id = ?",
-                    (status, run_id),
-                )
-            return cursor.rowcount > 0
-
-        return self._transaction(_do_update_ar) or False
+    # agent_run table remains compatibility-only for historical rows.
 
     def get_active_agent_run(self, task_id: str, agent_type: str | None = None):
         """Return the active agent execution record for a task.

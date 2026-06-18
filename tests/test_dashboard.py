@@ -61,7 +61,7 @@ class DashboardTest(unittest.TestCase):
         finally:
             self._cleanup_template_imports()
 
-    def _create_agent_run(self, root: Path, task_id: str, run_id: str) -> None:
+    def _create_runtime_context_run(self, root: Path, task_id: str, run_id: str) -> None:
         sys.path.insert(0, str(SCRIPTS))
         try:
             paths = importlib.import_module("common.paths")
@@ -384,7 +384,7 @@ class DashboardTest(unittest.TestCase):
             (root / ".cowork-flow").mkdir()
             self._create_flow_task(root, "parent", "05-29-parent")
             self._create_flow_task(root, "child-a", "05-29-child-a", parent_id="parent")
-            self._create_agent_run(root, "parent", "rtx_demo")
+            self._create_runtime_context_run(root, "parent", "rtx_demo")
 
             process, base_url = self._start_dashboard(root)
             try:

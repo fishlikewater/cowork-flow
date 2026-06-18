@@ -59,10 +59,6 @@ class SubagentDispatchTest(unittest.TestCase):
         finally:
             self._cleanup_template_imports()
 
-    def _agent_runs(self, root: Path) -> list[dict]:
-        """Deprecated: P1-A removed agent_run writes. Kept for backwards compat but always returns empty."""
-        return []
-
     def _runtime_context(self, root: Path, runtime_context_id: str) -> dict | None:
         db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
         try:
@@ -155,11 +151,7 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual("db", payload["runtimeContextSource"])
             self.assertIn("logicalSessionKey", payload)
             self.assertNotIn("logicalSessionFile", payload)
-
-            context_path = root / payload["runtimeContextFile"]
-            pointer = json.loads(context_path.read_text(encoding="utf-8"))
-            self.assertEqual("db", pointer["source"])
-            self.assertNotIn("assignment", pointer)
+            self.assertNotIn("runtimeContextFile", payload)
             context = self._runtime_context(root, payload["runtimeContextId"])
             self.assertIsNotNone(context)
             self.assertEqual("subagent", context["scope"])
@@ -674,9 +666,7 @@ class SubagentDispatchTest(unittest.TestCase):
             created = {item["task_id"]: item for item in json.loads(first.stdout)}
             self.assertEqual("pending", created["child-a"]["status"])
             self.assertEqual("skipped_done", created["child-b"]["status"])
-            runtime_file = root / created["child-a"]["runtimeContextFile"]
-            self.assertTrue(runtime_file.is_file())
-            self.assertEqual("db", json.loads(runtime_file.read_text(encoding="utf-8"))["source"])
+            self.assertNotIn("runtimeContextFile", created["child-a"])
             runtime_context = self._runtime_context(root, created["child-a"]["runtimeContextId"])
             self.assertIsNotNone(runtime_context)
             self.assertEqual(

@@ -16,8 +16,6 @@ from common.active_task import (
     close_runtime_context,
     read_runtime_context,
     resolve_context_key,
-    runtime_context_path,
-    subagent_contexts_dir,
     write_runtime_context,
     write_subagent_logical_session,
 )
@@ -60,21 +58,17 @@ def _slug(value: str) -> str:
     return slug or "subagent"
 
 
-def _relative(repo_root: Path, path: Path) -> str:
-    try:
-        return path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
-        return str(path)
-
-
-def _next_id(base_dir: Path, title: str) -> str:
+def _next_id(repo_root: Path, title: str) -> str:
     prefix = datetime.now().strftime("rtx_%Y%m%d_%H%M%S")
     base = f"{prefix}_{_slug(title)}"
     candidate = base
     counter = 2
-    while (base_dir / f"{candidate}.json").exists():
-        candidate = f"{base}_{counter}"
-        counter += 1
+    db_path = get_db_path(repo_root)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with FlowStore(str(db_path)) as store:
+        while store.get_runtime_context(candidate):
+            candidate = f"{base}_{counter}"
+            counter += 1
     return candidate
 
 
@@ -132,10 +126,8 @@ def _create_runtime_context_payload(
     allowed_context: list[str],
     host: str,
     adapter: str,
-    record_agent_run: bool = True,
 ) -> dict:
-    base_dir = subagent_contexts_dir(repo_root)
-    runtime_context_id = _next_id(base_dir, title)
+    runtime_context_id = _next_id(repo_root, title)
     resolved_agent_type, dispatch_kind = _resolve_agent_type(role, agent_type)
     if dispatch_kind == "formal" and not task_dir:
         raise ValueError("fixed agent dispatch requires --execution-task-dir")
@@ -193,16 +185,6 @@ def _create_runtime_context_payload(
         host,
     )
     host_context_key = _suggest_host_context_key(host, runtime_context_id)
-    if record_agent_run:
-        _record_agent_run_for_task(
-            repo_root,
-            runtime_context_id=runtime_context_id,
-            task_dir=task_dir,
-            agent_type=resolved_agent_type,
-            dispatch_kind=dispatch_kind,
-            host_context_key=host_context_key,
-            created_at=context["created_at"],
-        )
 
     return {
         "id": runtime_context_id,
@@ -215,7 +197,6 @@ def _create_runtime_context_payload(
         "taskDir": task_dir,
         "dispatchKind": dispatch_kind,
         "runtimeContextSource": "db",
-        "runtimeContextFile": _relative(repo_root, runtime_context_path(repo_root, runtime_context_id)),
         "logicalSessionKey": logical_context_key,
         "promptTransport": (
             f"cowork_runtime_context_id: {runtime_context_id}\n"
@@ -387,7 +368,6 @@ def cmd_update(args: argparse.Namespace) -> int:
     if args.note:
         context["note"] = args.note
     write_runtime_context(repo_root, args.subagent_id, context)
-    _update_agent_run_if_present(repo_root, args.subagent_id, args.status)
     print(f"subagent {args.subagent_id} status={args.status}")
     return 0
 
@@ -418,23 +398,6 @@ def cmd_close(args: argparse.Namespace) -> int:
     print(f"subagent {args.subagent_id} closed")
     return 0
 
-
-def _update_agent_run_if_present(repo_root: Path, run_id: str, status: str) -> None:
-    """Deprecated: P1-A removed agent_run writes; runtime_context is the sole authority."""
-    return
-
-def _record_agent_run_for_task(
-    repo_root: Path,
-    *,
-    runtime_context_id: str,
-    task_dir: str | None,
-    agent_type: str,
-    dispatch_kind: str,
-    host_context_key: str,
-    created_at: str,
-) -> None:
-    """Deprecated: P1-A removed agent_run writes; runtime_context is the sole authority."""
-    return
 
 def _resolve_flow_task(store: FlowStore, target: str):
     candidates: list[str] = []

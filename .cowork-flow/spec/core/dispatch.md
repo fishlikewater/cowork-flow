@@ -27,16 +27,15 @@ Before spawning a formal child, the main session creates DB runtime rows:
 - `runtime_context`: one row keyed by `<runtime_context_id>`
 - `runtime_session`: one logical row keyed by `subagent_<runtime_context_id>`
 
-`.cowork-flow/.runtime/subagents/<runtime_context_id>.json` may exist only as a
-small compatibility pointer to the DB. It is not the runtime source of truth.
-Legacy full JSON runtime files are imported into DB on first access and must not
-be used as the current state authority.
+Formal dispatch no longer writes or reads compatibility JSON runtime files.
+`runtime_context` and `runtime_session` in the DB are the only active state
+authority.
 
-For direct formal dispatch with `--execution-task-dir`, `subagent init` also
-records an `agent_run` row keyed by `runtime_context_id`. The row starts as
-`pending`, references the resolved Flow task id, stores the resolved
-`cowork-*` agent type, and records the suggested host context key. Advisory
-dispatch and unresolved task directories do not create `agent_run` rows.
+For direct formal dispatch with `--execution-task-dir`, `subagent init`
+resolves the Flow task id, stores the resolved `cowork-*` agent type in
+`runtime_context`, and suggests a host context key for binding. `agent_run`
+rows are no longer written by the runtime; the table remains compatibility-only
+and must not be treated as the active dispatch authority.
 
 The child receives the runtime id and host context key through the host adapter
 transport. The baseline prompt transport is:
@@ -92,10 +91,10 @@ Fan-out parents may prepare child contexts in one CLI step:
 ./.cowork-flow/run subagent spawn-family <parent-task> --agent-type cowork-implement
 ```
 
-`spawn-family` creates one runtime context per eligible child task and records an
-`agent_run` row keyed by `runtime_context_id`. It is idempotent for active
-`(task_id, agent_type)` rows and returns JSON for the host adapter to dispatch.
-It does not call host-specific child primitives by itself.
+`spawn-family` creates one runtime context per eligible child task. It is
+idempotent for active `(task_id, agent_type)` runtime contexts and returns JSON
+for the host adapter to dispatch. It does not call host-specific child
+primitives by itself.
 
 The main session can inspect family progress with:
 

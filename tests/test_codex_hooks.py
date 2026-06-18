@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import re
@@ -78,6 +79,21 @@ class CodexHooksTest(unittest.TestCase):
             env.pop(name, None)
         return env
 
+    def _cleanup_script_imports(self, script_root: Path) -> None:
+        if str(script_root) in sys.path:
+            sys.path.remove(str(script_root))
+        for module_name in (
+            "common.active_task",
+            "common.paths",
+            "common.time_utils",
+            "flow.store",
+            "flow",
+            "patterns.base",
+            "patterns",
+            "common",
+        ):
+            sys.modules.pop(module_name, None)
+
     def _runtime_session(self, root: Path, context_key: str) -> dict | None:
         db = sqlite3.connect(root / ".cowork-flow" / "cowork-flow.db")
         try:
@@ -109,42 +125,71 @@ class CodexHooksTest(unittest.TestCase):
         task_dir: str = ".cowork-flow/tasks/05-29-demo",
         agent_type: str = "cowork-implement",
     ) -> None:
-        context_dir = root / ".cowork-flow" / ".runtime" / "subagents"
-        context_dir.mkdir(parents=True)
+        script_root = root / ".cowork-flow" / "scripts"
         task_path = root / task_dir
         task_path.mkdir(parents=True)
         (task_path / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
-        (context_dir / f"{runtime_id}.json").write_text(
-            json.dumps(
-                {
-                    "schema_version": 2,
-                    "runtime_context_id": runtime_id,
-                    "scope": "subagent",
-                    "host": "codex",
-                    "adapter": "codex.spawn_agent",
-                    "agent_type": agent_type,
-                    "role": "implement",
-                    "task_dir": task_dir,
-                    "status": "pending",
-                    "transport": {"kind": "prompt", "key": "cowork_runtime_context_id"},
-                    "assignment": {
-                        "title": "Runtime child",
-                        "goal": "Apply the assigned slice.",
-                        "allowed_context": [],
+        sys.path.insert(0, str(script_root))
+        try:
+            paths = importlib.import_module("common.paths")
+            flow_store = importlib.import_module("flow.store")
+            with flow_store.FlowStore(str(paths.get_db_path(root))) as store:
+                store.upsert_runtime_context(
+                    {
+                        "schema_version": 2,
+                        "runtime_context_id": runtime_id,
+                        "scope": "subagent",
+                        "host": "codex",
+                        "adapter": "codex.spawn_agent",
+                        "agent_type": agent_type,
+                        "role": "implement",
+                        "task_dir": task_dir,
+                        "status": "pending",
+                        "transport": {"kind": "prompt", "key": "cowork_runtime_context_id"},
+                        "assignment": {
+                            "title": "Runtime child",
+                            "goal": "Apply the assigned slice.",
+                            "allowed_context": [],
+                        },
+                        "authority": {
+                            "may_start_task": False,
+                            "may_resume_main": False,
+                            "may_archive": False,
+                            "may_commit": False,
+                            "may_spawn": False,
+                        },
+                        "bound_context_key": None,
+                    }
+                )
+        finally:
+            self._cleanup_script_imports(script_root)
+
+    def _write_runtime_session(
+        self,
+        root: Path,
+        context_key: str,
+        task_dir: str,
+        *,
+        platform: str = "codex",
+        status: str = "active",
+    ) -> None:
+        script_root = root / ".cowork-flow" / "scripts"
+        sys.path.insert(0, str(script_root))
+        try:
+            paths = importlib.import_module("common.paths")
+            flow_store = importlib.import_module("flow.store")
+            with flow_store.FlowStore(str(paths.get_db_path(root))) as store:
+                store.upsert_runtime_session(
+                    context_key,
+                    {
+                        "scope": "main",
+                        "active_task_path": task_dir,
+                        "platform": platform,
+                        "status": status,
                     },
-                    "authority": {
-                        "may_start_task": False,
-                        "may_resume_main": False,
-                        "may_archive": False,
-                        "may_commit": False,
-                        "may_spawn": False,
-                    },
-                    "bound_context_key": None,
-                }
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+                )
+        finally:
+            self._cleanup_script_imports(script_root)
 
     def _write_flow_task(
         self,
@@ -367,12 +412,7 @@ class CodexHooksTest(unittest.TestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "06-04-demo"
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
-            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
-            sessions.mkdir(parents=True)
-            (sessions / "codex_demo-session.json").write_text(
-                '{"active_task_path": ".cowork-flow/tasks/06-04-demo"}\n',
-                encoding="utf-8",
-            )
+            self._write_runtime_session(root, "codex_demo-session", ".cowork-flow/tasks/06-04-demo")
 
             data = self._run_hook_bytes(root, {"session_id": "demo-session", "prompt": "先归档提交"})
 
@@ -389,12 +429,7 @@ class CodexHooksTest(unittest.TestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "06-04-demo"
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
-            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
-            sessions.mkdir(parents=True)
-            (sessions / "codex_demo-session.json").write_text(
-                '{"active_task_path": ".cowork-flow/tasks/06-04-demo"}\n',
-                encoding="utf-8",
-            )
+            self._write_runtime_session(root, "codex_demo-session", ".cowork-flow/tasks/06-04-demo")
 
             data = self._run_hook_bytes(
                 root,
@@ -478,12 +513,7 @@ class CodexHooksTest(unittest.TestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-29-demo"
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
-            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
-            sessions.mkdir(parents=True)
-            (sessions / "codex_demo-session.json").write_text(
-                '{"active_task_path": ".cowork-flow/tasks/05-29-demo"}\n',
-                encoding="utf-8",
-            )
+            self._write_runtime_session(root, "codex_demo-session", ".cowork-flow/tasks/05-29-demo")
 
             data = self._run_hook(root, {"session_id": "demo-session"})
 
@@ -499,12 +529,7 @@ class CodexHooksTest(unittest.TestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-29-demo"
             task_dir.mkdir(parents=True)
             self._write_flow_task(root, artifact_dir="05-29-demo", status="review")
-            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
-            sessions.mkdir(parents=True)
-            (sessions / "codex_demo-session.json").write_text(
-                '{"active_task_path": ".cowork-flow/tasks/05-29-demo"}\n',
-                encoding="utf-8",
-            )
+            self._write_runtime_session(root, "codex_demo-session", ".cowork-flow/tasks/05-29-demo")
 
             data = self._run_hook(root, {"session_id": "demo-session"})
 

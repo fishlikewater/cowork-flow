@@ -81,12 +81,17 @@ class FlowScriptPathsTest(unittest.TestCase):
         task_path: str = ".cowork-flow/tasks/05-19-demo",
         context_key: str = "main",
     ) -> None:
-        sessions_dir = root / ".cowork-flow" / ".runtime" / "sessions"
-        sessions_dir.mkdir(parents=True, exist_ok=True)
-        (sessions_dir / f"{context_key}.json").write_text(
-            f'{{"active_task_path": "{task_path}"}}\n',
-            encoding="utf-8",
-        )
+        db_path = self.paths.get_db_path(root)
+        with self.flow_store.FlowStore(str(db_path)) as store:
+            store.upsert_runtime_session(
+                context_key,
+                {
+                    "scope": "main",
+                    "active_task_path": task_path,
+                    "platform": "manual",
+                    "status": "active",
+                },
+            )
 
     def _run_git(self, root: Path, *args: str) -> str:
         result = subprocess.run(

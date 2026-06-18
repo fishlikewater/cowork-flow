@@ -67,3 +67,33 @@ Archived workflow maturity roadmap after fixing spec-path drift, OpenCode struct
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 65: 清理脚本兼容死代码
+
+**Date**: 2026-06-18
+**Task**: 清理脚本兼容死代码
+
+### Summary
+
+删除 script 层仅被测试保活的 agent_run 写接口、legacy runtime/session/dashboard JSON 兼容路径与 runtimeContextFile 输出，改为 DB-only 运行时状态；同步 root/template/spec/tests 并完成回归验证。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

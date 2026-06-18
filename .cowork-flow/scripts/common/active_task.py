@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 from dataclasses import dataclass
@@ -8,12 +7,9 @@ from datetime import datetime, timezone
 from collections.abc import Mapping
 from pathlib import Path
 
-from .paths import DIR_WORKFLOW, get_db_path
+from .paths import get_db_path
 
 
-DIR_RUNTIME = ".runtime"
-DIR_SESSIONS = "sessions"
-DIR_SUBAGENTS = "subagents"
 FIELD_ACTIVE_TASK_PATH = "active_task_path"
 FIELD_RUNTIME_CONTEXT_ID = "runtime_context_id"
 FIELD_SCOPE = "scope"
@@ -139,41 +135,12 @@ def resolve_context_key(values: Mapping[str, object] | None = None) -> str | Non
     return None
 
 
-def sessions_dir(repo_root: Path) -> Path:
-    return repo_root / DIR_WORKFLOW / DIR_RUNTIME / DIR_SESSIONS
-
-
-def subagent_contexts_dir(repo_root: Path) -> Path:
-    return repo_root / DIR_WORKFLOW / DIR_RUNTIME / DIR_SUBAGENTS
-
-
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _session_path(repo_root: Path, context_key: str) -> Path:
-    return sessions_dir(repo_root) / f"{context_key}.json"
-
-
 def logical_subagent_context_key(runtime_context_id: str) -> str:
     return f"subagent_{_sanitize(runtime_context_id)}"
-
-
-def runtime_context_path(repo_root: Path, runtime_context_id: str) -> Path:
-    return subagent_contexts_dir(repo_root) / f"{_sanitize(runtime_context_id)}.json"
-
-
-def _read_json(path: Path) -> dict:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _write_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def _store(repo_root: Path):
@@ -182,44 +149,6 @@ def _store(repo_root: Path):
     db_path = get_db_path(repo_root)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return FlowStore(str(db_path))
-
-
-def _write_runtime_pointer(repo_root: Path, runtime_context_id: str) -> None:
-    path = runtime_context_path(repo_root, runtime_context_id)
-    _write_json(
-        path,
-        {
-            "runtime_context_id": runtime_context_id,
-            "source": "db",
-            "db_path": get_db_path(repo_root).as_posix(),
-        },
-    )
-
-
-def _import_legacy_runtime_context(repo_root: Path, runtime_context_id: str) -> dict:
-    data = _read_json(runtime_context_path(repo_root, runtime_context_id))
-    if not data or data.get("source") == "db":
-        return {}
-    if data.get(FIELD_RUNTIME_CONTEXT_ID) is None:
-        data[FIELD_RUNTIME_CONTEXT_ID] = runtime_context_id
-    try:
-        with _store(repo_root) as store:
-            store.upsert_runtime_context(data)
-    except Exception:
-        return data
-    return data
-
-
-def _import_legacy_session(repo_root: Path, context_key: str) -> dict:
-    data = _read_json(_session_path(repo_root, context_key))
-    if not data:
-        return {}
-    try:
-        with _store(repo_root) as store:
-            store.upsert_runtime_session(context_key, data)
-    except Exception:
-        return data
-    return data
 
 
 def _platform_from_context_key(context_key: str) -> str:
@@ -289,7 +218,7 @@ def read_runtime_context(repo_root: Path, runtime_context_id: str) -> dict:
                 return context
     except Exception:
         pass
-    return _import_legacy_runtime_context(repo_root, runtime_context_id)
+    return {}
 
 
 def write_runtime_context(repo_root: Path, runtime_context_id: str, data: dict) -> None:
@@ -297,7 +226,6 @@ def write_runtime_context(repo_root: Path, runtime_context_id: str, data: dict) 
     payload[FIELD_RUNTIME_CONTEXT_ID] = runtime_context_id
     with _store(repo_root) as store:
         store.upsert_runtime_context(payload)
-    _write_runtime_pointer(repo_root, runtime_context_id)
 
 
 def write_subagent_logical_session(
@@ -380,12 +308,6 @@ def close_runtime_context(repo_root: Path, runtime_context_id: str) -> bool:
         for context_key in (bound_context_key, logical_subagent_context_key(runtime_context_id)):
             if isinstance(context_key, str) and context_key.strip():
                 store.delete_runtime_session(context_key)
-    for context_key in (bound_context_key, logical_subagent_context_key(runtime_context_id)):
-        if isinstance(context_key, str) and context_key.strip():
-            try:
-                _session_path(repo_root, context_key).unlink()
-            except FileNotFoundError:
-                pass
 
     context["status"] = "closed"
     context["closed_at"] = _now()
@@ -425,8 +347,6 @@ def get_active_task(repo_root: Path, values: Mapping[str, object] | None = None)
             data = store.get_runtime_session(context_key) or {}
     except Exception:
         data = {}
-    if not data:
-        data = _import_legacy_session(repo_root, context_key)
     task_path = data.get(FIELD_ACTIVE_TASK_PATH)
     if isinstance(task_path, str) and task_path.strip():
         return ActiveTask(task_path.strip(), context_key, "session")
@@ -441,27 +361,12 @@ def clear_active_task(repo_root: Path) -> ActiveTask:
                 store.delete_runtime_session(active.context_key)
         except Exception:
             pass
-        try:
-            _session_path(repo_root, active.context_key).unlink()
-        except FileNotFoundError:
-            pass
     return active
 
 
 def clear_task_from_sessions(repo_root: Path, task_path: str) -> int:
-    cleared = 0
     try:
         with _store(repo_root) as store:
-            cleared += store.delete_runtime_sessions_for_task(task_path)
+            return store.delete_runtime_sessions_for_task(task_path)
     except Exception:
-        pass
-    root = sessions_dir(repo_root)
-    if not root.is_dir():
-        return cleared
-    normalized = task_path.replace("\\", "/")
-    for path in root.glob("*.json"):
-        data = _read_json(path)
-        if data.get(FIELD_ACTIVE_TASK_PATH) == normalized:
-            path.unlink()
-            cleared += 1
-    return cleared
+        return 0

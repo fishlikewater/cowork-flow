@@ -238,26 +238,9 @@ def _runtime_dir(repo_root: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-def _state_path(repo_root: Path) -> Path:
-    return _runtime_dir(repo_root) / "dashboard.json"
-
 def _read_state(repo_root: Path) -> dict | None:
-    path = _state_path(repo_root)
     with FlowStore(str(get_db_path(repo_root))) as store:
-        state = store.get_dashboard_process(DASHBOARD_PROCESS_ID)
-        if state:
-            return state
-        if not path.is_file():
-            return None
-        try:
-            legacy = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        if isinstance(legacy, dict):
-            legacy["status"] = "running"
-            store.upsert_dashboard_process(DASHBOARD_PROCESS_ID, legacy)
-            return legacy
-    return None
+        return store.get_dashboard_process(DASHBOARD_PROCESS_ID)
 
 def _write_state(repo_root: Path, state: dict) -> None:
     payload = dict(state)
@@ -268,10 +251,6 @@ def _write_state(repo_root: Path, state: dict) -> None:
 def _remove_state(repo_root: Path) -> None:
     with FlowStore(str(get_db_path(repo_root))) as store:
         store.delete_dashboard_process(DASHBOARD_PROCESS_ID)
-    try:
-        _state_path(repo_root).unlink()
-    except FileNotFoundError:
-        return
 
 def _stale_dashboard_ids(store: FlowStore) -> list[str]:
     rows = store.db.execute("SELECT id, pid, status FROM dashboard_process").fetchall()
