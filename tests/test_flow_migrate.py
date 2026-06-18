@@ -172,7 +172,7 @@ class FlowMigrateCliAcceptanceTest(unittest.TestCase):
             )
 
             result = subprocess.run(
-                [sys.executable, str(workflow / "scripts" / "run.py"), "flow", "migrate"],
+                [sys.executable, str(workflow / "scripts" / "run.py"), "flow-migrate"],
                 cwd=project,
                 capture_output=True,
                 text=True,

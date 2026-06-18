@@ -5,7 +5,7 @@ Dual-channel classifier:
     hook_input, then map signal values to EntryKind.
   Channel 2 (legacy fallback): Keyword text heuristics from prompt text.
     Enabled during transition window; controlled by config.yaml
-    ``entry.legacy_text_fallback.enabled`` (default true).
+    ``entry.legacy_text_fallback.enabled`` (default false).
 
 Structured signals take priority. If both channels produce a result, the
 structured signal wins. If structured signal is absent and fallback is
@@ -116,12 +116,27 @@ def _read_config_bool(key: str, default: bool = True) -> bool:
     return env_val.lower() in ("1", "true", "yes")
 
 
-LEGACY_FALLBACK_ENABLED = True  # Mutable for testing; overridden by _read_config_bool
+LEGACY_FALLBACK_ENABLED = False  # Mutable for testing; overridden by config/env
+
+
+def _config_default_fallback_enabled() -> bool:
+    try:
+        from .config import get_entry_legacy_text_fallback_enabled
+    except Exception:
+        return LEGACY_FALLBACK_ENABLED
+
+    try:
+        return get_entry_legacy_text_fallback_enabled()
+    except Exception:
+        return LEGACY_FALLBACK_ENABLED
 
 
 def _is_legacy_fallback_enabled() -> bool:
     """Return whether the legacy text classifier is active."""
-    return _read_config_bool("COWORK_FLOW_LEGACY_FALLBACK", default=LEGACY_FALLBACK_ENABLED)
+    return _read_config_bool(
+        "COWORK_FLOW_LEGACY_FALLBACK",
+        default=_config_default_fallback_enabled(),
+    )
 
 
 def _extract_structured_signal(hook_input: dict, signal_key: str) -> str | None:

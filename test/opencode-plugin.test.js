@@ -70,6 +70,9 @@ test("opencode plugin injects registry-driven contract digest", async (t) => {
 
   assert.match(context, /<cowork-runtime host="opencode" adapter="opencode\.task">/)
   assert.match(context, /<contract-digest fingerprint="[a-f0-9]{16}">/)
+  assert.match(context, /<opencode-entry-signals>/)
+  assert.match(context, /sessionRole: main/)
+  assert.match(context, /invocationKind: interactive/)
   assert.match(context, /- TEST_CONTRACT_V1: \.cowork-flow\/spec\/test-contract\.md/)
   assert.match(context, /digest: Short registry digest\./)
   assert.match(context, /read_before: before test action; when test conflict exists/)
@@ -122,6 +125,7 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
     prompt: "cowork_runtime_context_id: rtx_plugin\ncowork_host_context_key: opencode_prompt_key",
   })
 
+  assert.match(context, /sessionRole: command/)
   assert.match(context, /Status: delegated_subtask/)
   assert.match(context, /Source: runtime-context:rtx_plugin/)
   assert.match(context, /Agent: cowork-check/)
@@ -148,6 +152,8 @@ test("opencode plugin exposes main session env to shell commands", async (t) => 
 
   const env = await renderShellEnv(root, { sessionID: "main session" })
 
+  assert.equal(env.SESSIONROLE, "main")
+  assert.equal(env.INVOCATIONKIND, "interactive")
   assert.equal(env.COWORK_FLOW_CONTEXT_ID, "opencode_main_session")
   assert.equal(env.OPENCODE_SESSION_ID, "main_session")
 })

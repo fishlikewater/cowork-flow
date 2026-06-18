@@ -685,7 +685,7 @@ class FlowStore:
         return self._transaction(_do_delete) or 0
 
     # --- Agent Run ---
-    # Deprecated: runtime_context is now the sole authority for agent run state.
+    # Deprecated: runtime_context is now the sole authority for agent-run state.
     # agent_run table kept for backwards compatibility; new writes are no longer
     # performed. These methods remain so existing callers do not break at runtime.
 
@@ -724,7 +724,7 @@ class FlowStore:
         return self._transaction(_do_update_ar) or False
 
     def get_active_agent_run(self, task_id: str, agent_type: str | None = None):
-        """Return the active agent run for a task.
+        """Return the active agent execution record for a task.
 
         Deprecated: only queries runtime_context. agent_run table kept for
         backwards compatibility but no longer read.
@@ -834,6 +834,44 @@ class FlowStore:
             columns.append({"status": st, "tasks": [dict(r) for r in rows]})
         return {"columns": columns}
 
+    def get_task_timeline(self, task_id: str) -> list[dict]:
+        audit_rows = self.db.execute(
+            "SELECT 'audit' AS event_type, from_status, to_status, operator, reason, created_at "
+            "FROM audit WHERE task_id = ? ORDER BY created_at",
+            (task_id,),
+        ).fetchall()
+        runtime_rows = self.db.execute(
+            "SELECT 'runtime' AS event_type, status, agent_type, created_at, bound_at, closed_at "
+            "FROM runtime_context WHERE task_id = ? ORDER BY created_at",
+            (task_id,),
+        ).fetchall()
+        events = [dict(r) for r in audit_rows] + [dict(r) for r in runtime_rows]
+        events.sort(key=lambda e: e.get("created_at") or "")
+        return events
+
+    def get_failure_clusters(self) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT reason, COUNT(*) AS count FROM block "
+            "WHERE resolved_at IS NULL OR resolved_at != '' "
+            "GROUP BY reason ORDER BY count DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_readiness_stats(self) -> dict:
+        total = self.db.execute("SELECT COUNT(*) AS cnt FROM task").fetchone()["cnt"]
+        started = self.db.execute(
+            "SELECT COUNT(*) AS cnt FROM task WHERE status != 'planning'"
+        ).fetchone()["cnt"]
+        blocked = self.db.execute(
+            "SELECT COUNT(*) AS cnt FROM task WHERE status = 'blocked'"
+        ).fetchone()["cnt"]
+        return {
+            "total_tasks": total,
+            "started_tasks": started,
+            "blocked_tasks": blocked,
+            "start_rate": round(started / total, 3) if total else 0,
+            "block_rate": round(blocked / total, 3) if total else 0,
+        }
 
     def upsert_dashboard_process(self, process_id: str, state: dict) -> str:
         if not process_id.strip():

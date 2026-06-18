@@ -26,9 +26,9 @@ DEFAULT_CONTRACT_REGISTRY: dict[str, Any] = {
     "contracts": [
         {
             "id": "COWORK_ENTRY_CONTRACT_V2",
-            "path": ".cowork-flow/spec/entry-contract.md",
+            "path": ".cowork-flow/spec/core/entry.md",
             "digest": [
-                "Dual-channel classification: structured signals from adapter.yaml entrySignals priority, legacy text fallback during transition, fail-closed when both absent.",
+                "Structured signals from adapter.yaml entrySignals are authoritative; legacy fallback is opt-in and fail-closed remains the default.",
                 "Runtime context, not prompt labels, identifies formal subagent sessions.",
             ],
             "readWhen": [
@@ -38,7 +38,7 @@ DEFAULT_CONTRACT_REGISTRY: dict[str, Any] = {
         },
         {
             "id": "RUNTIME_CONTEXT_DISPATCH_V2",
-            "path": ".cowork-flow/spec/subagent-dispatch.md",
+            "path": ".cowork-flow/spec/core/dispatch.md",
             "digest": [
                 "Formal subagent work is keyed by cowork_runtime_context_id.",
                 "Explicit shim bind records bound_context_key before formal output is accepted.",
@@ -85,7 +85,7 @@ def read_hook_input() -> dict[str, Any]:
 
 
 def load_breadcrumbs(root: Path) -> dict[str, str]:
-    workflow = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
+    workflow = root / ".cowork-flow" / "spec" / "core" / "state-templates.md"
     try:
         text = workflow.read_text(encoding="utf-8")
     except OSError:

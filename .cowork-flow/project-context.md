@@ -40,29 +40,35 @@ Generated deterministically from local project files.
 
 ## Important Specs
 
-- `.cowork-flow/spec/backend/database-guidelines.md`
-- `.cowork-flow/spec/backend/directory-structure.md`
-- `.cowork-flow/spec/backend/encoding-guidelines.md`
-- `.cowork-flow/spec/backend/error-handling.md`
-- `.cowork-flow/spec/backend/index.md`
-- `.cowork-flow/spec/backend/logging-guidelines.md`
-- `.cowork-flow/spec/backend/quality-guidelines.md`
-- `.cowork-flow/spec/capabilities.md`
-- `.cowork-flow/spec/delegation-envelope.md`
-- `.cowork-flow/spec/entry-contract.md`
-- `.cowork-flow/spec/frontend/component-guidelines.md`
-- `.cowork-flow/spec/frontend/directory-structure.md`
-- `.cowork-flow/spec/frontend/hook-guidelines.md`
-- `.cowork-flow/spec/frontend/index.md`
-- `.cowork-flow/spec/frontend/quality-guidelines.md`
-- `.cowork-flow/spec/frontend/state-management.md`
-- `.cowork-flow/spec/frontend/type-safety.md`
-- `.cowork-flow/spec/guides/code-reuse-thinking-guide.md`
-- `.cowork-flow/spec/guides/cross-layer-thinking-guide.md`
-- `.cowork-flow/spec/guides/index.md`
-- `.cowork-flow/spec/guides/pre-implementation-checklist.md`
-- `.cowork-flow/spec/subagent-dispatch.md`
-- `.cowork-flow/spec/workflow-state-templates.md`
+- `.cowork-flow/spec/core/backend/database-guidelines.md`
+- `.cowork-flow/spec/core/backend/directory-structure.md`
+- `.cowork-flow/spec/core/backend/encoding-guidelines.md`
+- `.cowork-flow/spec/core/backend/error-handling.md`
+- `.cowork-flow/spec/core/backend/index.md`
+- `.cowork-flow/spec/core/backend/logging-guidelines.md`
+- `.cowork-flow/spec/core/backend/quality-guidelines.md`
+- `.cowork-flow/spec/core/dispatch.md`
+- `.cowork-flow/spec/core/entry.md`
+- `.cowork-flow/spec/core/frontend/component-guidelines.md`
+- `.cowork-flow/spec/core/frontend/directory-structure.md`
+- `.cowork-flow/spec/core/frontend/hook-guidelines.md`
+- `.cowork-flow/spec/core/frontend/index.md`
+- `.cowork-flow/spec/core/frontend/quality-guidelines.md`
+- `.cowork-flow/spec/core/frontend/state-management.md`
+- `.cowork-flow/spec/core/frontend/type-safety.md`
+- `.cowork-flow/spec/core/lifecycle.md`
+- `.cowork-flow/spec/core/state-templates.md`
+- `.cowork-flow/spec/quick-start.md`
+- `.cowork-flow/spec/reference/adapters/capabilities.md`
+- `.cowork-flow/spec/reference/guides/code-reuse-thinking-guide.md`
+- `.cowork-flow/spec/reference/guides/cross-layer-thinking-guide.md`
+- `.cowork-flow/spec/reference/guides/index.md`
+- `.cowork-flow/spec/reference/guides/pre-implementation-checklist.md`
+- `.cowork-flow/spec/reference/party-mode-v2-board.md`
+- `.cowork-flow/spec/reference/patterns/fan-out.md`
+- `.cowork-flow/spec/reference/patterns/human-loop.md`
+- `.cowork-flow/spec/reference/patterns/index.md`
+- `.cowork-flow/spec/reference/patterns/pipeline.md`
 
 ## Local Constraints
 

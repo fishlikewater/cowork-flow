@@ -22,14 +22,13 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("cowork-implement", text)
         self.assertIn("cowork-check", text)
         self.assertIn("宿主适配器", text)
-        self.assertIn("新鲜子上下文", text)
-        self.assertIn("workflow-state-templates.md", text)
-        self.assertIn("subagent-dispatch.md", text)
+        self.assertIn("state-templates.md", text)
+        self.assertIn("dispatch.md", text)
         self.assertIn("runtime context", text)
         self.assertNotIn("[workflow-state:", text)
-        self.assertIn("适配器等待原语", text)
-        self.assertIn("适配器列表原语", text)
-        self.assertIn("适配器取消/关闭原语", text)
+        self.assertIn("subagent dispatch", text)
+        self.assertIn("subagent check", text)
+        self.assertIn("适配器取消原语", text)
         self.assertNotIn(LEGACY_DISPATCH, text)
         self.assertNotIn(LEGACY_ACK, text)
         self.assertNotIn(LEGACY_POST_ACK, text)
@@ -42,8 +41,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_state_templates_are_externalized(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "workflow-state-templates.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "workflow-state-templates.md",
+            ROOT / ".cowork-flow" / "spec" / "core" / "state-templates.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "core" / "state-templates.md",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("[workflow-state:no_task]", text)
@@ -88,8 +87,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "fail-closed subagent state",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "core" / "dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "core" / "dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -102,48 +101,35 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "cannot satisfy formal Implement or Check completion",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "core" / "dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "core" / "dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
     def test_party_mode_is_bounded_manual_advisory_workflow(self) -> None:
-        workflow_markers = (
-            "手动 Party Mode",
+        party_mode_markers = (
             "advisory roundtable",
             "fresh child contexts",
             "不能推进任务状态",
             "不能满足正式实现或检查完成条件",
             "party-mode skill",
+            "Experimental / Research",
         )
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / ".cowork-flow" / "spec" / "reference" / "party-mode" / "index.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "reference" / "party-mode" / "index.md",
         ):
             text = path.read_text(encoding="utf-8")
-            for marker in workflow_markers:
+            for marker in party_mode_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
-        spec_markers = (
-            "Party Mode discussion children are advisory leaf executors.",
-            "They use fresh child contexts for evidence gathering",
-            "cannot mutate task status",
-            "cannot satisfy formal Implement or Check completion",
-            "The `party-mode` skill owns round limits, continuation gates, stop gates, and output schemas.",
-        )
-        for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in spec_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
+        workflow_text = (ROOT / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
+        self.assertNotIn("Party Mode", workflow_text)
 
     def test_party_mode_v2_is_runtime_board_advisory_workflow(self) -> None:
-        workflow_markers = (
-            "手动 Party Mode V2",
+        party_mode_v2_markers = (
             "runtime board advisory workflow",
             "Python runtime 控制看板",
             "当前轮视图",
@@ -152,42 +138,18 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "V2 runtime 只输出 host-neutral next actions",
             "不能满足正式实现或检查完成条件",
             "宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明",
+            "Experimental / Research",
         )
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / ".cowork-flow" / "spec" / "reference" / "party-mode" / "index.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "reference" / "party-mode" / "index.md",
         ):
             text = path.read_text(encoding="utf-8")
-            for marker in workflow_markers:
+            for marker in party_mode_v2_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
-            self.assertNotIn("spawn_agent", text)
-            self.assertNotIn("wait_agent", text)
-            self.assertNotIn("close_agent", text)
-            self.assertNotIn("Claude Task", text)
-            self.assertNotIn("OpenCode task", text)
 
-        spec_markers = (
-            "Party Mode V2 discussion children are also advisory leaf executors.",
-            "`party-mode-v2` entrypoint delegates discussion state",
-            "current-round board visibility",
-            "schema validation",
-            "drift warnings",
-            "round limits",
-            "final reports",
-            "host-neutral next actions",
-            "does not change the formal `cowork-*` dispatch protocol",
-            "does not satisfy Implement or Check completion",
-        )
-        for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in spec_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
-            self.assertNotIn("spawn_agent", text)
-            self.assertNotIn("wait_agent", text)
-            self.assertNotIn("close_agent", text)
+        workflow_text = (ROOT / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
+        self.assertNotIn("Party Mode", workflow_text)
 
     def test_workflow_requires_runtime_context_closeout(self) -> None:
         required_markers = (
@@ -199,8 +161,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "marked `closed` until DB maintenance removes",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "core" / "dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "core" / "dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:

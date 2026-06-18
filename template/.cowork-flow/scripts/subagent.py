@@ -302,6 +302,58 @@ def cmd_dispatch_codex(args: argparse.Namespace) -> int:
     print(json.dumps(payload, ensure_ascii=False))
     return 0
 
+def cmd_dispatch(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    try:
+        runtime_payload = _create_runtime_context_payload(
+            repo_root,
+            title=args.title,
+            role=args.role,
+            agent_type=args.agent_type,
+            task_dir=args.execution_task_dir,
+            source=args.source,
+            goal=args.goal,
+            expected_output=args.expected_output,
+            allowed_context=args.allowed_context,
+            host=args.host,
+            adapter=args.adapter,
+        )
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    if runtime_payload["dispatchKind"] != "formal":
+        print("Error: dispatch only supports formal cowork-* agents", file=sys.stderr)
+        return 1
+
+    payload = {
+        **runtime_payload,
+        "agent_type": runtime_payload["agentType"],
+    }
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+
+def cmd_check(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    try:
+        context = read_runtime_context(repo_root, args.subagent_id)
+    except Exception as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+    if context is None:
+        print(json.dumps({"error": "not_found", "subagent_id": args.subagent_id}))
+        return 1
+    result = {
+        "runtime_context_id": context.get("runtime_context_id"),
+        "status": context.get("status"),
+        "closed_at": context.get("closed_at"),
+        "bound_context_key": context.get("bound_context_key"),
+        "agent_type": context.get("agent_type"),
+        "task_id": context.get("task_id"),
+    }
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
 def _find_subagent(repo_root: Path, runtime_context_id: str) -> dict:
     context = read_runtime_context(repo_root, runtime_context_id)
     if not context:
@@ -573,6 +625,29 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch_codex.add_argument("--allowed-context", action="append", default=[])
     dispatch_codex.add_argument("--fork-turns", default="none")
     dispatch_codex.set_defaults(func=cmd_dispatch_codex)
+
+    dispatch = subparsers.add_parser(
+        "dispatch",
+        help="Create runtime context and prepare spawn payload (merges init + dispatch-codex)",
+    )
+    dispatch.add_argument("--title", required=True)
+    dispatch.add_argument("--role", default="subagent")
+    dispatch.add_argument("--agent-type", required=True, choices=sorted(FIXED_AGENT_TYPES))
+    dispatch.add_argument("--execution-task-dir", required=True)
+    dispatch.add_argument("--source", default="auto")
+    dispatch.add_argument("--goal")
+    dispatch.add_argument("--expected-output", default="Files changed, validation commands, and blockers.")
+    dispatch.add_argument("--allowed-context", action="append", default=[])
+    dispatch.add_argument("--host", default="codex")
+    dispatch.add_argument("--adapter", default="codex.spawn_agent")
+    dispatch.set_defaults(func=cmd_dispatch)
+
+    check = subparsers.add_parser(
+        "check",
+        help="Check runtime context completion status",
+    )
+    check.add_argument("subagent_id")
+    check.set_defaults(func=cmd_check)
 
     status = subparsers.add_parser("status", help="Print subagent runtime context")
     status.add_argument("subagent_id")

@@ -131,15 +131,10 @@ class TestDualChannelClassification(unittest.TestCase):
         result = classify_entry({})
         self.assertEqual(result.entry_kind, EntryKind.UNKNOWN)
 
-    def test_fallback_default_is_enabled(self):
-        """Default (no env override) should enable fallback."""
+    def test_fallback_default_comes_from_config(self):
+        """Default (no env override) should match config.yaml."""
         os.environ.pop("COWORK_FLOW_LEGACY_FALLBACK", None)
-        self.assertTrue(_is_legacy_fallback_enabled())
-
-    def test_opencode_no_signal_fallback(self):
-        """Opencode-style input with no structured signals uses fallback."""
-        result = classify_entry({"prompt": "继续做下去"})
-        self.assertEqual(result.entry_kind, EntryKind.MAIN_SESSION)
+        self.assertFalse(_is_legacy_fallback_enabled())
 
     def test_command_structured(self):
         """Structured command signal."""

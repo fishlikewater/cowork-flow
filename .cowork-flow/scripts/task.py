@@ -46,10 +46,8 @@ from common.active_task import (
 )
 from common.paths import (
     DIR_WORKFLOW,
-    DIR_AGENTS,
     DIR_CHANGES,
     DIR_TASKS,
-    DIR_SPEC,
     DIR_ARCHIVE,
     FILE_TASK_JSON,
     TASK_DATE_PREFIX_PATTERN,
@@ -63,6 +61,15 @@ from common.task_utils import (
     archive_task_complete,
 )
 from common.config import get_hooks
+from common.task_context_defaults import (
+    _skill_path,
+    get_check_context,
+    get_debug_context,
+    get_implement_backend,
+    get_implement_base,
+    get_implement_frontend,
+    write_context_files,
+)
 from common.execution_context import (
     build_internal_execution_context_parser,
     execution_context_from_namespace,
@@ -139,42 +146,6 @@ def _print_pattern_action(action) -> None:
     print(f"Pattern detail: {action.description}")
     if action.children:
         print(f"Pattern children: {', '.join(action.children)}")
-
-
-def _pipeline_stage_count(ctx) -> int:
-    stages = ctx.task.meta.get("stages")
-    return len(stages) if isinstance(stages, list) else 0
-
-
-def _pipeline_current_stage(ctx) -> int:
-    try:
-        return int(ctx.task.meta.get("current_stage", 0))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _complete_pipeline_stage(store, ctx, task_id: str) -> str | None:
-    if ctx.task.pattern != "pipeline" or ctx.task.status != "review":
-        return None
-    stage_count = _pipeline_stage_count(ctx)
-    current_stage = _pipeline_current_stage(ctx)
-    if stage_count <= 0 or current_stage >= stage_count:
-        return None
-
-    next_stage = current_stage + 1
-    next_meta = dict(ctx.task.meta)
-    next_meta["current_stage"] = next_stage
-    if not store.update_meta(task_id, next_meta):
-        return None
-
-    if next_stage >= stage_count:
-        if store.update_status(task_id, "completed", "system", "pipeline complete"):
-            return "completed"
-        return None
-
-    if store.update_status(task_id, "in_progress", "system", "pipeline stage complete"):
-        return "in_progress"
-    return None
 
 
 # =============================================================================
@@ -467,111 +438,6 @@ def _resolve_task_id(target: str, repo_root: Path) -> str:
     return dir_name
 
 
-# =============================================================================
-# JSONL Default Content Generators
-# =============================================================================
-
-
-def get_implement_base() -> list[dict]:
-    """Get base implement context entries."""
-    return [
-        {
-            "file": "AGENTS.md",
-            "reason": "Project collaboration rules and workflow gates",
-        },
-        {
-            "file": f"{DIR_WORKFLOW}/workflow.md",
-            "reason": "Project workflow and conventions",
-        },
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/index.md",
-            "reason": "Pre-implementation thinking guides",
-        },
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/pre-implementation-checklist.md",
-            "reason": "Mandatory pre-coding checklist",
-        },
-    ]
-
-
-def get_implement_backend() -> list[dict]:
-    """Get backend implement context entries."""
-    return [
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md",
-            "reason": "Backend development guide",
-        },
-    ]
-
-
-def get_implement_frontend() -> list[dict]:
-    """Get frontend implement context entries."""
-    return [
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md",
-            "reason": "Frontend development guide",
-        },
-    ]
-
-
-def _detect_installed_platforms(repo_root: Path | None = None) -> list[str]:
-    """Detect installed host platform assets in the current project."""
-    root = repo_root or get_repo_root()
-    platforms: list[str] = []
-    if (root / ".codex").is_dir():
-        platforms.append("codex")
-    if (root / ".opencode").is_dir():
-        platforms.append("opencode")
-    if (root / ".claude").is_dir() or (root / "CLAUDE.md").is_file():
-        platforms.append("claude-code")
-    return platforms
-
-
-def _use_claude_skill_context(repo_root: Path | None = None) -> bool:
-    return _detect_installed_platforms(repo_root) == ["claude-code"]
-
-
-def _skill_path(name: str, repo_root: Path | None = None) -> str:
-    if _use_claude_skill_context(repo_root):
-        return f".claude/skills/{name}/SKILL.md"
-    return f"{DIR_AGENTS}/skills/{name}/SKILL.md"
-
-
-def get_check_context(dev_type: str) -> list[dict]:
-    """Get check context entries."""
-    return [
-        {
-            "file": _skill_path("check"),
-            "reason": "Quality, contract, and template consistency check",
-        },
-        {
-            "file": _skill_path("finish-work"),
-            "reason": "Finish, archive, and session recording gate",
-        },
-    ]
-
-
-def get_debug_context(dev_type: str) -> list[dict]:
-    """Get debug context entries."""
-    return [
-        {"file": _skill_path("break-loop"), "reason": "Deep bug analysis workflow"},
-        {
-            "file": _skill_path("update-spec"),
-            "reason": "Capture implementation lessons and contracts",
-        },
-        {
-            "file": _skill_path("check"),
-            "reason": "Verify the fix and related contracts",
-        },
-    ]
-
-
-def _write_jsonl(path: Path, entries: list[dict]) -> None:
-    """Write entries to JSONL file."""
-    lines = [json.dumps(entry, ensure_ascii=False) for entry in entries]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
 def _read_text_if_present(path: Path) -> str:
     """读取文本文件并返回去空白后的内容；不存在或读取失败时返回空字符串。"""
     if not path.is_file():
@@ -780,32 +646,16 @@ def cmd_init_context(args: argparse.Namespace) -> int:
 
     # implement.jsonl
     print(colored("Creating implement.jsonl...", Colors.CYAN))
-    implement_entries = get_implement_base()
-    if dev_type in ("backend", "test"):
-        implement_entries.extend(get_implement_backend())
-    elif dev_type == "frontend":
-        implement_entries.extend(get_implement_frontend())
-    elif dev_type == "fullstack":
-        implement_entries.extend(get_implement_backend())
-        implement_entries.extend(get_implement_frontend())
-
-    implement_file = target_dir / "implement.jsonl"
-    _write_jsonl(implement_file, implement_entries)
-    print(f"  {colored('[OK]', Colors.GREEN)} {len(implement_entries)} entries")
+    counts = write_context_files(target_dir, dev_type, repo_root)
+    print(f"  {colored('[OK]', Colors.GREEN)} {counts['implement']} entries")
 
     # check.jsonl
     print(colored("Creating check.jsonl...", Colors.CYAN))
-    check_entries = get_check_context(dev_type)
-    check_file = target_dir / "check.jsonl"
-    _write_jsonl(check_file, check_entries)
-    print(f"  {colored('[OK]', Colors.GREEN)} {len(check_entries)} entries")
+    print(f"  {colored('[OK]', Colors.GREEN)} {counts['check']} entries")
 
     # debug.jsonl
     print(colored("Creating debug.jsonl...", Colors.CYAN))
-    debug_entries = get_debug_context(dev_type)
-    debug_file = target_dir / "debug.jsonl"
-    _write_jsonl(debug_file, debug_entries)
-    print(f"  {colored('[OK]', Colors.GREEN)} {len(debug_entries)} entries")
+    print(f"  {colored('[OK]', Colors.GREEN)} {counts['debug']} entries")
 
     print()
     print(colored("[OK] All context files created", Colors.GREEN))
@@ -1087,6 +937,30 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
+    # readWhen contract enforcement (P1-C)
+    try:
+        from common.contract_check import check_read_when as _check_read_when
+    except ImportError:
+        _check_read_when = None
+    if _check_read_when is not None:
+        try:
+            rh = _check_read_when(repo_root, "task_start", full_path)
+            if rh.get("blockers"):
+                print(colored("Error: readWhen contract check failed", Colors.RED), file=sys.stderr)
+                for b in rh["blockers"]:
+                    print(f"  - {b}", file=sys.stderr)
+                print(
+                    "Hint: reference the missing spec in prd.md, implement.jsonl, or review with `task next`",
+                    file=sys.stderr,
+                )
+                return 1
+            if rh.get("advisories"):
+                print(colored("[readWhen advisory]", Colors.YELLOW), file=sys.stderr)
+                for a in rh["advisories"]:
+                    print(f"  - {a}", file=sys.stderr)
+        except Exception:
+            pass  # contract check failures are non-fatal in the caller
+
     # Convert to relative path for storage
     try:
         task_dir = full_path.relative_to(repo_root).as_posix()
@@ -1200,22 +1074,6 @@ def cmd_complete(args: argparse.Namespace) -> int:
         if validation_issues:
             _print_pattern_errors(pattern, ctx, "completed", validation_issues)
             return 1
-        pipeline_status = _complete_pipeline_stage(store, ctx, task_id)
-        if pipeline_status:
-            task_path = _display_task_path(repo_root, task_dir)
-            if pipeline_status == "completed":
-                print(
-                    colored(f"[OK] Task marked completed: {task_path}", Colors.GREEN)
-                )
-            else:
-                print(
-                    colored(
-                        f"[OK] Pipeline advanced to next stage: {task_path}",
-                        Colors.GREEN,
-                    )
-                )
-            print(f"Next: ./.cowork-flow/run task next {task_path}")
-            return 0
         issues = _pattern_transition_issues(pattern, ctx, "completed")
         if issues:
             _print_pattern_errors(pattern, ctx, "completed", issues)
@@ -1550,7 +1408,23 @@ def cmd_next(args: argparse.Namespace) -> int:
     print("Next action: inspect task status and repair workflow state")
     print(f"Command: ./.cowork-flow/run task validate {task_path}")
     _print_blockers(blockers)
-    return 0
+
+    # readWhen suggestions (P1-C)
+    try:
+        from common.contract_check import check_read_when as _check_read_when
+    except ImportError:
+        _check_read_when = None
+    if _check_read_when is not None:
+        try:
+            rh = _check_read_when(repo_root, "task_start", task_dir)
+            if rh.get("blockers") or rh.get("advisories"):
+                print("readWhen:")
+                for b in rh.get("blockers", []):
+                    print(f"  [BLOCK] - {b}")
+                for a in rh.get("advisories", []):
+                    print(f"  [ADVISORY] - {a}")
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -1734,57 +1608,27 @@ def cmd_block(args: argparse.Namespace) -> int:
 
 
 def cmd_unblock(args: argparse.Namespace) -> int:
-    """Unblock a task after human decision."""
+    """Unblock a blocked task (requires --force)."""
     repo_root = get_repo_root()
     task_id = _resolve_task_id(args.dir, repo_root)
     with _get_flow_store(repo_root) as store:
-        ctx = _build_pattern_context(store, task_id)
-        if ctx is None:
+        if store.get_task(task_id) is None:
             print(
                 colored(f"Error: Flow task not found: {task_id}", Colors.RED),
                 file=sys.stderr,
             )
             return 1
-        pattern = _resolve_pattern(ctx)
-        if args.force:
-            if not store.update_status(task_id, "in_progress", "manual", "force unblock"):
-                print(
-                    colored(f"Error: Flow task not found: {task_id}", Colors.RED),
-                    file=sys.stderr,
-                )
-                return 1
+        if not store.update_status(task_id, "in_progress", "manual", "force unblock"):
             print(
-                colored(f"Task force unblocked: {task_id}", Colors.GREEN),
-                file=sys.stderr,
-            )
-            return 0
-        if pattern.name != "human_loop":
-            print(
-                colored(
-                    f"Error: task pattern '{pattern.name}' requires --force to unblock",
-                    Colors.RED,
-                ),
+                colored(f"Error: failed to unblock task: {task_id}", Colors.RED),
                 file=sys.stderr,
             )
             return 1
-        validation_issues = pattern.validate(ctx)
-        if validation_issues:
-            _print_pattern_errors(pattern, ctx, "in_progress", validation_issues)
-            return 1
-        if not args.decision:
-            print(
-                colored("Error: human_loop unblock requires --decision", Colors.RED),
-                file=sys.stderr,
-            )
-            return 1
-        if store.unblock_task(task_id, args.decision or "approved", "human"):
-            print(colored(f"Task unblocked: {task_id}", Colors.GREEN), file=sys.stderr)
-            return 0
-    print(
-        colored(f"Error: failed to unblock task: {task_id}", Colors.RED),
-        file=sys.stderr,
-    )
-    return 1
+        print(
+            colored(f"Task force unblocked: {task_id}", Colors.GREEN),
+            file=sys.stderr,
+        )
+        return 0
 
 
 # =============================================================================
@@ -2045,7 +1889,7 @@ Examples:
   ./.cowork-flow/run task create "Child task" --slug child --parent .cowork-flow/tasks/01-21-parent
   ./.cowork-flow/run task init-context .cowork-flow/tasks/01-21-add-login backend
   ./.cowork-flow/run task next
-  ./.cowork-flow/run task add-context <dir> implement .cowork-flow/spec/backend/auth.md "Auth guidelines"
+  ./.cowork-flow/run task add-context <dir> implement .cowork-flow/spec/core/backend/index.md "Backend guidelines"
   ./.cowork-flow/run task start .cowork-flow/tasks/01-21-add-login
   ./.cowork-flow/run task review
   ./.cowork-flow/run task complete
@@ -2086,7 +1930,7 @@ def main() -> int:
     p_create.add_argument(
         "--pattern",
         default="generic",
-        help="Collaboration pattern: generic|fan_out|pipeline|human_loop",
+        help="Collaboration pattern: generic",
     )
     p_create.add_argument(
         "--meta", default=None, help="JSON metadata for pattern configuration"
@@ -2153,11 +1997,10 @@ def main() -> int:
     p_block.add_argument("dir", help="Task slug or directory")
     p_block.add_argument("--reason", required=True, help="Why the task is blocked")
 
-    p_unblock = subparsers.add_parser("unblock", help="Unblock a task after decision")
+    p_unblock = subparsers.add_parser("unblock", help="Force-unblock a blocked task")
     p_unblock.add_argument("dir", help="Task slug or directory")
-    p_unblock.add_argument("--decision", default="", help="Human decision content")
     p_unblock.add_argument(
-        "--force", action="store_true", help="Force unblock (non-P5 tasks)"
+        "--force", action="store_true", required=True, help="Required to unblock"
     )
 
     # list

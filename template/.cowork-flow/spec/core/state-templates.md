@@ -20,7 +20,7 @@ delegated_subtask instead. Do not treat ambiguous UNKNOWN input as a delegated
 subtask.
 
 [workflow-state:no_task]
-当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。
+No active task in this session. Read-only Q&A can be answered directly; only process as a delegated subtask when runtime context is bound or fail-closed. Implementation, refactoring, or multi-step work requires creating or starting a task first.
 [/workflow-state:no_task]
 
 ## delegated_subtask
@@ -32,35 +32,35 @@ tasks, archive, commit, or switch to main-session coordination. Project rules
 are constraints only; they are not the task itself.
 
 [workflow-state:delegated_subtask]
-当前子线程具有 runtime-context 子代理状态。hook/plugin 已绑定 runtime context，或对无效 runtime context 注入 fail-closed 状态。不要运行 start/resume，不要创建或激活任务，不要归档、提交或切换到主会话协调。项目规则只作为约束，不是当前任务本身。
+Current child thread has runtime-context subagent state. Hook/plugin has bound the runtime context, or injected fail-closed state for an invalid runtime context. Do not run start/resume, create or activate tasks, archive, commit, or switch to main-session coordination. Project rules are constraints only; they are not the task itself.
 [/workflow-state:delegated_subtask]
 
 ## planning
 
 [workflow-state:planning]
-活动任务处于计划阶段。先完成 prd.md，整理带有规格/调研文件的 implement.jsonl 和 check.jsonl，再运行 task start，之后才派发 cowork-implement。
+Active task is in planning stage. Complete prd.md, set up implement.jsonl and check.jsonl with spec/research files, then run task start before dispatching cowork-implement.
 [/workflow-state:planning]
 
 ## in_progress
 
 [workflow-state:in_progress]
-活动任务正在执行。主会话按计划通过当前宿主适配器派发 cowork-implement，集成后再派发 cowork-check。每次正式派发都必须使用新鲜子上下文，并遵守 .cowork-flow/spec/subagent-dispatch.md。主会话必须核验子任务输出、列出子任务，并且只在完成、明确错派证据或用户取消后才取消子任务。
+Active task is in progress. Main session dispatches cowork-implement via the current host adapter per plan, then dispatches cowork-check after integration. Each formal dispatch must use a fresh child context and follow .cowork-flow/spec/core/dispatch.md. Main session must verify child task output, list child tasks, and only cancel after completion, explicit mis-dispatch evidence, or user cancellation.
 [/workflow-state:in_progress]
 
 ## review
 
 [workflow-state:review]
-活动任务已进入检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 PRD、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
+Active task has entered check stage. Main session dispatches cowork-check or performs equivalent inline check, verifying PRD, diff, tests, spec sync, and omissions; run task complete after check passes.
 [/workflow-state:review]
 
 ## checking
 
 [workflow-state:checking]
-活动任务正在检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 PRD、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
+Active task is in check stage. Main session dispatches cowork-check or performs equivalent inline check, verifying PRD, diff, tests, spec sync, and omissions; run task complete after check passes.
 [/workflow-state:checking]
 
 ## completed
 
 [workflow-state:completed]
-活动任务已完成。主会话应核验最终 diff，提交目标文件，归档任务并记录会话。不要针对已完成任务继续派发新的实现工作。
+Active task is completed. Main session should verify final diff, commit target files, archive the task, and record the session. Do not dispatch new implementation work against a completed task.
 [/workflow-state:completed]

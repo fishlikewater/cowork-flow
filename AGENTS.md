@@ -101,5 +101,25 @@
     - 如果跟丢上下文，先停下来重新整理。
 
 <!-- COWORK-FLOW:START -->
-项目流程以 `.cowork-flow/workflow.md` 为准；项目规范从 `.cowork-flow/spec/` 读取。
+项目流程以 `.cowork-flow/workflow.md` 为准；项目规范从 `.cowork-flow/spec/` 按层读取：
+
+- **core 层** — 每次实现必读：`spec/core/`
+  - `backend/` — 后端开发规范（默认基线、阅读索引、使用原则、完成标准）；含目录结构、数据库、异常处理、日志、质量、字符集编码
+  - `frontend/` — 前端开发规范（默认基线、文档索引、使用原则、完成标准）；含目录结构、组件、Hook、状态管理、类型安全、质量
+  - `entry.md` / `dispatch.md` / `lifecycle.md` / `state-templates.md` — 流程核心契约
+- **reference 层** — 按需参考：`spec/reference/`
+  - `patterns/` — 行为模式（generic）
+  - `adapters/` — 宿主适配器规范
+  - `guides/` — 方法论指南（代码复用、跨层思维、预实现检查清单）
 <!-- COWORK-FLOW:END -->
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tools** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them. `codegraph_node` returns one symbol's source + callers, or reads a whole file with line numbers. If the tools are listed but deferred, load them by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` and `codegraph node <symbol-or-file>` print the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->

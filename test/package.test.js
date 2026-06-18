@@ -39,7 +39,8 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/scripts/run.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/change.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/entry_classifier.py'), true);
-  assert.equal(files.has('template/.cowork-flow/spec/workflow-state-templates.md'), true);
+  assert.equal(files.has('template/.cowork-flow/scripts/common/task_context_defaults.py'), true);
+  assert.equal(files.has('template/.cowork-flow/spec/core/state-templates.md'), true);
   assert.equal(files.has('template/.cowork-flow/adapters/claude-code/adapter.yaml'), true);
   assert.equal(files.has('template/.codex/config.toml'), true);
   assert.equal(files.has('template/.codex/hooks.json'), true);
@@ -62,6 +63,10 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal([...files].some((file) => file.startsWith('template/.superpowers/')), false);
   assert.equal(
     [...files].some((file) => file.includes('__pycache__') || file.endsWith('.pyc')),
+    false
+  );
+  assert.equal(
+    [...files].some((file) => file.startsWith('template/.cowork-flow/.runtime/')),
     false
   );
 });

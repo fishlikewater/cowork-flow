@@ -5,7 +5,7 @@
       "id": "COWORK_ENTRY_CONTRACT_V2",
       "path": ".cowork-flow/spec/core/entry.md",
       "digest": [
-        "Dual-channel classification: structured signals from adapter.yaml entrySignals priority, legacy text fallback during transition, fail-closed when both absent.",
+        "Structured signals from adapter.yaml entrySignals are authoritative; legacy fallback is opt-in and fail-closed remains the default.",
         "Runtime context, not prompt labels, identifies formal subagent sessions."
       ],
       "readWhen": [
@@ -55,12 +55,52 @@
       "path": ".cowork-flow/spec/reference/patterns/index.md",
       "digest": [
         "Patterns are pure decision layers over TaskContext; FlowStore remains the write path.",
-        "Generic, fan_out, pipeline, and human_loop gate task lifecycle transitions."
+        "Generic is the only pattern; other patterns were removed due to zero usage."
       ],
       "readWhen": [
         "before editing .cowork-flow/scripts/patterns/",
         "before changing task lifecycle transitions",
         "when documenting or verifying pattern behaviour"
+      ]
+    },
+    {
+      "id": "COWORK_BACKEND_CONTRACT_V1",
+      "path": ".cowork-flow/spec/core/backend/index.md",
+      "digest": [
+        "Backend norms sourced from existing code/config/tests first, then this spec.",
+        "Controller/API layer stays thin; business rules in service/domain layer.",
+        "Cross-module, async, permission changes must sync callers, tests, and docs."
+      ],
+      "readWhen": [
+        "before implementing backend (Python) changes",
+        "before adding new backend modules or services",
+        "when error handling or database queries are involved"
+      ]
+    },
+    {
+      "id": "COWORK_FRONTEND_CONTRACT_V1",
+      "path": ".cowork-flow/spec/core/frontend/index.md",
+      "digest": [
+        "Frontend norms sourced from backend interfaces, shared types, design system, existing page patterns first.",
+        "Page entries orchestrate flows; business components handle local interactions; shared components stay free of business assumptions.",
+        "All user-visible states must cover loading, empty, error, disabled, and permission-denied."
+      ],
+      "readWhen": [
+        "before implementing frontend (TSX/JS) changes",
+        "before adding new components or hooks",
+        "when adding or modifying state management"
+      ]
+    },
+    {
+      "id": "FLOW_PARTY_MODE_POSITIONING_V1",
+      "path": ".cowork-flow/spec/reference/party-mode/index.md",
+      "digest": [
+        "Party Mode is experimental/research; removed from main workflow.md.",
+        "Advisory only; cannot satisfy formal Implement or Check gates."
+      ],
+      "readWhen": [
+        "when explicitly using Party Mode",
+        "when auditing Party Mode usage or ROI"
       ]
     },
     {

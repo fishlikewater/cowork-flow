@@ -10,9 +10,9 @@ resolved by runtime context binding before workflow state is injected.
 2. **Structured signal** (new in V2): Read `entrySignals` declarations from the
    active host adapter's `adapter.yaml`. Extract signal values from
    `hook_input` (or environment variables). Map to `EntryKind`.
-3. **Legacy text fallback** (compat window): Keyword heuristics on prompt text.
-   Controlled by `config.yaml` `entry.legacy_text_fallback.enabled` (default `true`).
-   Disabled once all host adapters declare usable structured signals.
+3. **Legacy text fallback** (opt-in escape hatch): Keyword heuristics on prompt
+   text. Controlled by `config.yaml`
+   `entry.legacy_text_fallback.enabled` (default `false`).
 4. **Fail-closed**: If no structured signal and fallback disabled → `UNKNOWN`.
 
 ## Dual-channel classification
@@ -57,13 +57,14 @@ resolved by runtime context binding before workflow state is injected.
 - Runtime context binding overrides project bootstrap text for formal subagents.
 - **Structured signal takes priority over legacy fallback.** If a structured
   signal is present, it is used regardless of prompt text content.
-- **Legacy fallback is a transition mechanism.** It is enabled by default during
-  the compat window and will be removed in a future major version.
+- **Legacy fallback is a temporary escape hatch.** It stays disabled by default
+  and should be enabled only when a host-specific structured signal path is
+  unavailable or broken.
 
 ## Config control
 
 The legacy fallback can be toggled via:
-- `config.yaml`: `entry.legacy_text_fallback.enabled: true/false`
+- `config.yaml`: `entry.legacy_text_fallback.enabled: true/false` (default `false`)
 - Environment: `COWORK_FLOW_LEGACY_FALLBACK=1|0` (overrides config.yaml)
 
 ## Normalized object

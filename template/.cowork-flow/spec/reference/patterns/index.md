@@ -37,9 +37,6 @@ TaskContext(
 | Pattern | Purpose | Spec |
 | --- | --- | --- |
 | `generic` | 默认基线生命周期。 | 本文件 |
-| `fan_out` | 父任务等待多个 generic 子任务完成。 | [fan-out.md](./fan-out.md) |
-| `pipeline` | 单任务按阶段 review/redo/complete。 | [pipeline.md](./pipeline.md) |
-| `human_loop` | 阻塞状态必须记录人工决策后恢复。 | [human-loop.md](./human-loop.md) |
 
 ## Generic
 
@@ -59,16 +56,6 @@ Generic 不要求 metadata，不产生 pattern action。
 
 `PatternRegistry.resolve(task)` 以 `task.pattern` 为准，未知 pattern 回退到 `generic`。
 
-`PatternRegistry.select(task)` 是 advisory selection:
-
-- 有 children 时建议 `fan_out`。
-- `meta.stages` 存在时建议 `pipeline`。
-- `meta.decision_points` 存在时建议 `human_loop`。
-- 其它情况建议 `generic`。
-
 ## Pattern Boundary
 
-- Fan-out 不负责创建、派发或检查子任务。
-- Pipeline 不派发 stage worker，只约束当前任务状态和 `current_stage`。
-- Human-loop 不决定业务答案，只要求 unblock 时记录 decision。
 - 跨任务并发、`spawn-family`、`check-family` 不属于 pattern 决策层，由 subagent dispatch/runtime 负责。

@@ -185,7 +185,7 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', context)
         self.assertIn("<contract-digest fingerprint=", context)
         self.assertIn("Status: no_task", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn("requires creating or starting a task first", context)
 
     def test_hook_keeps_bounded_prompt_on_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -207,7 +207,7 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: no_task", context)
         self.assertNotIn("Status: delegated_subtask", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn("requires creating or starting a task first", context)
 
     def test_hook_binds_runtime_context_from_prompt_before_main_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -230,7 +230,7 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
         self.assertIn("Agent: cowork-implement", context)
         self.assertIn("Scope: subagent", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertNotIn("requires creating or starting a task first", context)
         self.assertIsNotNone(session)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_claude_prompt", session["runtime_context_id"])
@@ -281,7 +281,7 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
         self.assertIn("runtime-context-invalid", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertNotIn("requires creating or starting a task first", context)
 
     def test_hook_keeps_unclassified_nonempty_prompt_on_no_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -294,7 +294,7 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn("Status: no_task", context)
         self.assertRegex(context, r"Source: (missing-context|empty-session)")
         self.assertNotIn("Status: delegated_subtask", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn("requires creating or starting a task first", context)
 
     def test_hook_keeps_main_agent_question_from_becoming_delegated_subtask(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -365,10 +365,10 @@ class ClaudeHooksTest(unittest.TestCase):
                 "[workflow-state:no_task]\nwrong source\n[/workflow-state:no_task]\n",
                 encoding="utf-8",
             )
-            template_file = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
+            template_file = root / ".cowork-flow" / "spec" / "core" / "state-templates.md"
             template_file.write_text(
                 template_file.read_text(encoding="utf-8").replace(
-                    "当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。",
+                    "No active task in this session. Read-only Q&A can be answered directly; only process as a delegated subtask when runtime context is bound or fail-closed. Implementation, refactoring, or multi-step work requires creating or starting a task first.",
                     "state-template-source-smoke",
                 ),
                 encoding="utf-8",
@@ -410,7 +410,7 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
         self.assertIn("Status: in_progress", context)
-        self.assertIn("派发 cowork-implement", context)
+        self.assertIn("dispatches cowork-implement", context)
 
     def test_hook_resolves_active_task_from_claude_code_session_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -431,7 +431,7 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
         self.assertIn("Status: in_progress", context)
-        self.assertIn("派发 cowork-implement", context)
+        self.assertIn("dispatches cowork-implement", context)
 
     def test_hook_reads_flow_only_active_task_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -499,7 +499,7 @@ class ClaudeHooksTest(unittest.TestCase):
             self._make_project(root)
 
             before = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
-            spec_file = root / ".cowork-flow" / "spec" / "entry-contract.md"
+            spec_file = root / ".cowork-flow" / "spec" / "core" / "entry.md"
             spec_file.write_text(
                 spec_file.read_text(encoding="utf-8") + "\n<!-- fingerprint smoke -->\n",
                 encoding="utf-8",
@@ -519,7 +519,7 @@ class ClaudeHooksTest(unittest.TestCase):
             Path(".cowork-flow/scripts/common/active_task.py"),
             Path(".cowork-flow/scripts/common/entry_classifier.py"),
             Path(".cowork-flow/scripts/common/inject_workflow_state.py"),
-            Path(".cowork-flow/spec/workflow-state-templates.md"),
+            Path(".cowork-flow/spec/core/state-templates.md"),
         ):
             root_text = (ROOT / rel).read_text(encoding="utf-8")
             template_text = (TEMPLATE / rel).read_text(encoding="utf-8")

@@ -5,7 +5,7 @@
 **Goal:** 在保持 runtime-context binding + fail-closed + 单一写入这套安全内核的前提下，收敛概念密度、消除重叠数据模型、降低安全链脆弱性，对低使用率子系统做去留决策。
 **Architecture:** 按 P0-P4 分期推进；每期一个 task，独立 PRD 与验收。P1 依赖 P0 的 schema 版本化；P2 依赖 P1 的文档分层；P3/P4 相对独立。不在单期内同时改安全模型和数据模型。
 **Verification:** 每期失败回归测试优先（AGENTS.md 第 8 条）；安全链测试必须能 fail-closed；root/template 一致性测试 `npm run test:template` 每期收口必须通过；容器 change 在所有分期验收通过后 archive。
-**Status:** planning。本期仅推进 P0-A 的调研 task。
+**Status:** P4 completed. All phases done. Container change ready for final archive.
 
 Execution strategy: serial across phases（P0 → P1 → P2 → P3 → P4），serial within each phase（每期单 task）。理由：安全链、数据模型、文档结构之间存在状态契约依赖，串行集成比并行更可控。
 
@@ -18,17 +18,39 @@ Execution strategy: serial across phases（P0 → P1 → P2 → P3 → P4），s
 
 | Phase | Task slug | Status | 说明 |
 | --- | --- | --- | --- |
-| P0-A | `entry-structured-signals-research` | planning | 三宿主结构化信号获取调研（本期） |
-| P0-A | `entry-structured-signals` | not started | 调研结论后的实现 task |
-| P0-B | `db-schema-versioning` | not started | schema_migrations + 编号迁移 |
-| P1-A | `runtime-agent-run-convergence` | not started | runtime_context/agent_run 收敛 |
-| P1-B | `spec-three-layer` | not started | spec 三层分层 |
-| P1-C | `registry-readwhen-enforcement` | not started | readWhen 强制化 |
-| P2-A | `pattern-engine-review` | not started | pattern 使用率盘点与去留 |
-| P2-B | `party-mode-positioning` | not started | Party Mode 定位决策 |
-| P3-A | `runtime-coordination-sink` | not started | 机械协调下沉 runtime |
-| P3-B | `doc-language-unification` | not started | spec 语言统一 |
-| P4 | `dashboard-observability` | not started | 时间线/失败归因/readiness 通过率 |
+| P0-A | `entry-structured-signals-research` | done | 三宿主结构化信号获取调研 |
+| P0-A | `entry-structured-signals` | done | 双通道分类器实现 |
+| P0-B | `db-schema-versioning` | done | schema_migrations + 编号迁移 |
+| P1-A | `runtime-agent-run-convergence` | done | runtime_context/agent_run 收敛 |
+| P1-B | `spec-three-layer` | done | spec 三层分层 |
+| P1-C | `registry-readwhen-enforcement` | done | readWhen 强制化 |
+| P2-A | `pattern-engine-review` | done | pattern 使用率盘点与去留 |
+| P2-B | `party-mode-positioning` | done | Party Mode 定位决策 |
+| P3-A | `runtime-coordination-sink` | done | 机械协调下沉 runtime |
+| P3-B | `doc-language-unification` | done | spec 语言统一 |
+| P4 | `dashboard-observability` | done | 时间线/失败归因/readiness 通过率 |
+| P4-B | `workflow-maturity-closeout-hardening` | done | 收口架构审计暴露的入口、发布边界和实现集中度问题 |
+
+## Follow-up Closeout
+
+### Step 1 — 收口架构审计暴露的问题
+
+- [x] Task: `workflow-maturity-closeout-hardening`
+- 目标：修掉路线图重构后的 4 类遗留问题
+  - quick-start 与任务上下文模板仍引用旧 spec 路径。
+  - OpenCode 仍未完成结构化 entry 信号闭环，legacy fallback 仍保持兼容期开启。
+  - npm 包边界未阻止 `template/.cowork-flow/.runtime` 运行时产物泄漏。
+  - 主要协调逻辑仍集中在少数超大脚本中，需要做一次保守拆分。
+- 范围边界：
+  - 不重新设计 runtime-context 安全链。
+  - 不新增新的 workflow/change 容器。
+  - 只做能被现有测试和 pack 验证覆盖的结构收口。
+- Verify:
+  - `python -m unittest discover -s tests -v`
+  - `npm test`
+  - `npm run test:template`
+  - `npm run pack:check`
+  - `git diff --check`
 
 ## P0-A Phase（本期）
 

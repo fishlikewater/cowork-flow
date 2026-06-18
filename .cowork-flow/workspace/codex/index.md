@@ -7,9 +7,9 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Current file**: `journal-1.md`
-- **Total Sessions**: 60
-- **Last Active**: 2026-06-15
+- **Current file**: `journal-2.md`
+- **Total Sessions**: 64
+- **Last Active**: 2026-06-18
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1930 | Current |
+| `journal-2.md` | ~69 | Current |
+| `journal-1.md` | ~1992 | Archived |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +30,10 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 64 | 2026-06-18 | Close workflow maturity roadmap | - |
+| 63 | 2026-06-17 | P1-B spec three-layer documentation refactor | `4792399` |
+| 62 | 2026-06-17 | Verify and archive P0-A dual-channel entry classifier | - |
+| 61 | 2026-06-16 | Implement P0-B schema versioned migration and P1-A agent run convergence | `290e2a8` |
 | 60 | 2026-06-15 | 清理 pattern 历史阶段标签 | - |
 | 59 | 2026-06-15 | 归档 DB runtime 与子代理派发任务 | - |
 | 58 | 2026-06-15 | 强化 formal 子代理派发防线 | - |

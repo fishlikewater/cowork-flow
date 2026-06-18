@@ -11,9 +11,6 @@ class StepKind(str, Enum):
     """Pattern next-action kinds."""
 
     START = "start"
-    DISPATCH = "dispatch"
-    WAIT_CHILDREN = "wait_children"
-    HUMAN_DECISION = "human_decision"
     REVIEW = "review"
     COMPLETE = "complete"
     ARCHIVE = "archive"

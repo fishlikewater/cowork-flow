@@ -26,9 +26,6 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 DASHBOARD_PROCESS_ID = "default"
 PATTERNS = [
     {"name": "generic", "label": "Generic", "description": "Linear task lifecycle"},
-    {"name": "fan_out", "label": "Fan-out", "description": "Parent task with child progress"},
-    {"name": "pipeline", "label": "Pipeline", "description": "Staged task execution"},
-    {"name": "human_loop", "label": "Human-loop", "description": "Human decision pause/resume"},
 ]
 
 def _task_to_dict(task) -> dict:
@@ -158,6 +155,27 @@ def make_handler(repo_root: Path):
                         "agentRuns": store.list_agent_runs_for_task(task.id),
                     }
                 self._send_json(payload)
+                return
+
+            if path == "/api/failures":
+                with FlowStore(str(get_db_path(repo_root))) as store:
+                    self._send_json({"clusters": store.get_failure_clusters()})
+                return
+            if path == "/api/readiness":
+                with FlowStore(str(get_db_path(repo_root))) as store:
+                    self._send_json(store.get_readiness_stats())
+                return
+            if path.startswith("/api/task/") and path.endswith("/timeline"):
+                task_id = path.removeprefix("/api/task/").removesuffix("/timeline").strip("/")
+                with FlowStore(str(get_db_path(repo_root))) as store:
+                    task = _resolve_task(store, task_id)
+                    if task is None:
+                        self._send_error(HTTPStatus.NOT_FOUND, "task not found")
+                        return
+                    self._send_json({
+                        "task_id": task.id,
+                        "timeline": store.get_task_timeline(task.id),
+                    })
                 return
 
             self._send_error(HTTPStatus.NOT_FOUND, "not found")

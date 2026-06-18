@@ -6,17 +6,17 @@ import { fileURLToPath } from "node:url"
 const DEFAULT_CONTRACT_REGISTRY = {
   contracts: [
     {
-      id: "COWORK_ENTRY_CONTRACT_V1",
-      path: ".cowork-flow/spec/entry-contract.md",
+      id: "COWORK_ENTRY_CONTRACT_V2",
+      path: ".cowork-flow/spec/core/entry.md",
       digest: [
-        "Classify main-session requests before task start, resume, archive, or commit.",
+        "Structured signals from adapter.yaml entrySignals are authoritative; legacy fallback is opt-in and fail-closed remains the default.",
         "Runtime context, not prompt labels, identifies formal subagent sessions.",
       ],
       readWhen: ["before task start/resume/archive", "when prompt and bootstrap text conflict"],
     },
     {
       id: "RUNTIME_CONTEXT_DISPATCH_V2",
-      path: ".cowork-flow/spec/subagent-dispatch.md",
+      path: ".cowork-flow/spec/core/dispatch.md",
       digest: [
         "Formal subagent work is keyed by cowork_runtime_context_id.",
         "Explicit shim bind records bound_context_key before formal output is accepted.",
@@ -180,6 +180,23 @@ function promptText(input) {
   return ""
 }
 
+function resolveSessionRole(input) {
+  return resolveRuntimeContextId(input) ? "command" : "main"
+}
+
+function resolveInvocationKind(_input) {
+  return "interactive"
+}
+
+function buildEntrySignalsBlock(input) {
+  return [
+    "<opencode-entry-signals>",
+    `sessionRole: ${resolveSessionRole(input)}`,
+    `invocationKind: ${resolveInvocationKind(input)}`,
+    "</opencode-entry-signals>",
+  ].join("\n")
+}
+
 function resolveRuntimeContextId(input) {
   const envValue =
     typeof process !== "undefined" && process?.env?.COWORK_FLOW_RUNTIME_CONTEXT_ID
@@ -227,12 +244,18 @@ function resolveContextKey(input) {
 }
 
 function injectShellEnv(input, output) {
+  if (!output.env || typeof output.env !== "object") {
+    output.env = {}
+  }
+  if (!output.env.SESSIONROLE) {
+    output.env.SESSIONROLE = resolveSessionRole(input)
+  }
+  if (!output.env.INVOCATIONKIND) {
+    output.env.INVOCATIONKIND = resolveInvocationKind(input)
+  }
   const contextKey = resolveContextKey(input)
   if (!contextKey) {
     return
-  }
-  if (!output.env || typeof output.env !== "object") {
-    output.env = {}
   }
   if (!output.env.COWORK_FLOW_CONTEXT_ID) {
     output.env.COWORK_FLOW_CONTEXT_ID = contextKey
@@ -346,7 +369,15 @@ export const CoworkFlowPlugin = async () => {
       injectShellEnv(input, output)
     },
     "experimental.chat.system.transform": async (input, output) => {
-      output.system.push([buildContractDigest(input), buildRuntimeWorkflowState(input)].filter(Boolean).join("\n\n"))
+      output.system.push(
+        [
+          buildContractDigest(input),
+          buildEntrySignalsBlock(input),
+          buildRuntimeWorkflowState(input),
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      )
     },
   }
 }

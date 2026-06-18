@@ -50,7 +50,7 @@ class Phase4FreshInstallAcceptanceTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def test_fresh_init_supports_phase4_pattern_workflows(self) -> None:
+    def test_fresh_init_supports_generic_pattern_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir) / "demo"
             env = {**os.environ, "COWORK_FLOW_CONTEXT_ID": "phase4-test"}
@@ -69,73 +69,18 @@ class Phase4FreshInstallAcceptanceTest(unittest.TestCase):
                 env=env,
             )
 
-            fanout = self._create_task(
+            task = self._create_task(
                 project,
                 env,
-                "P1 fanout",
+                "P1 implementation task",
                 "--slug",
-                "p1-fanout",
+                "p1-impl",
                 "--priority",
                 "P1",
-                "--pattern",
-                "fan_out",
             )
-            child = self._create_task(
-                project,
-                env,
-                "P1 child",
-                "--slug",
-                "p1-child",
-                "--parent",
-                "p1-fanout",
-            )
-            pipeline = self._create_task(
-                project,
-                env,
-                "P2 pipeline",
-                "--slug",
-                "p2-pipeline",
-                "--priority",
-                "P2",
-                "--pattern",
-                "pipeline",
-                "--meta",
-                json.dumps({"stages": [{"name": "implement"}, {"name": "check"}]}),
-            )
-            human_loop = self._create_task(
-                project,
-                env,
-                "P5 human loop",
-                "--slug",
-                "p5-human-loop",
-                "--priority",
-                "P5",
-                "--pattern",
-                "human_loop",
-                "--meta",
-                json.dumps({"decision_points": [{"question": "Approve release?"}]}),
-            )
+            self._make_ready(project, env, task)
 
-            for task_path in (fanout, child, pipeline, human_loop):
-                self._make_ready(project, env, task_path)
-
-            self._run(self._task_cmd(project, "start", fanout), cwd=project, env=env)
-            fanout_next = self._run(self._task_cmd(project, "next", fanout), cwd=project, env=env)
-            self.assertIn("Status: in_progress", fanout_next.stdout)
-            self.assertIn("Pattern action: wait_children", fanout_next.stdout)
-            self.assertIn("p1-child", fanout_next.stdout)
-
-            self._run(self._task_cmd(project, "start", pipeline), cwd=project, env=env)
-            pipeline_next = self._run(self._task_cmd(project, "next", pipeline), cwd=project, env=env)
-            self.assertIn("Status: in_progress", pipeline_next.stdout)
-            self.assertIn("Pattern action: review", pipeline_next.stdout)
-
-            self._run(self._task_cmd(project, "start", human_loop), cwd=project, env=env)
-            self._run(
-                self._task_cmd(project, "block", human_loop, "--reason", "Need release approval"),
-                cwd=project,
-                env=env,
-            )
-            human_next = self._run(self._task_cmd(project, "next", human_loop), cwd=project, env=env)
-            self.assertIn("Status: blocked", human_next.stdout)
-            self.assertIn("Pattern action: human_decision", human_next.stdout)
+            self._run(self._task_cmd(project, "start", task), cwd=project, env=env)
+            next_result = self._run(self._task_cmd(project, "next", task), cwd=project, env=env)
+            self.assertIn("Status: in_progress", next_result.stdout)
+            self.assertIn("p1-impl", next_result.stdout)

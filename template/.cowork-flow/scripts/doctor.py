@@ -55,12 +55,10 @@ FORBIDDEN_README_DISPATCH_SNIPPETS = [
 
 REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
     "宿主适配器契约",
-    ".cowork-flow/spec/subagent-dispatch.md",
-    "新鲜子上下文",
+    ".cowork-flow/spec/core/dispatch.md",
+    "subagent dispatch",
+    "subagent check",
     "runtime context",
-    "适配器等待原语",
-    "适配器列表原语",
-    "适配器取消/关闭原语",
     "advisory work",
 ]
 
@@ -124,10 +122,10 @@ REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '"HOST_ADAPTER_CAPABILITIES_V1"',
     '"HOST_ADAPTER_SCHEMA_V1"',
     '"readWhen"',
-    '".cowork-flow/spec/entry-contract.md"',
-    '".cowork-flow/spec/subagent-dispatch.md"',
-    '".cowork-flow/spec/capabilities.md"',
-    '".cowork-flow/spec/adapter.schema.json"',
+    '".cowork-flow/spec/core/entry.md"',
+    '".cowork-flow/spec/core/dispatch.md"',
+    '".cowork-flow/spec/reference/adapters/capabilities.md"',
+    '".cowork-flow/spec/reference/adapters/adapter.schema.json"',
 ]
 
 REQUIRED_ADAPTER_SNIPPETS = [
@@ -225,8 +223,8 @@ def _check_toml_parseable(path: Path, errors: list[str]) -> dict | None:
 
 def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
     for rel in (
-        ".cowork-flow/spec/entry-contract.md",
-        "template/.cowork-flow/spec/entry-contract.md",
+        ".cowork-flow/spec/core/entry.md",
+        "template/.cowork-flow/spec/core/entry.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CONTRACT_SNIPPETS, errors)
     for rel in (
@@ -237,15 +235,15 @@ def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
             repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors
         )
     for rel in (
-        ".cowork-flow/spec/subagent-dispatch.md",
-        "template/.cowork-flow/spec/subagent-dispatch.md",
+        ".cowork-flow/spec/core/dispatch.md",
+        "template/.cowork-flow/spec/core/dispatch.md",
     ):
         _check_file_contains(
             repo_root / rel, REQUIRED_SUBAGENT_DISPATCH_SNIPPETS, errors
         )
     for rel in (
-        ".cowork-flow/spec/workflow-state-templates.md",
-        "template/.cowork-flow/spec/workflow-state-templates.md",
+        ".cowork-flow/spec/core/state-templates.md",
+        "template/.cowork-flow/spec/core/state-templates.md",
     ):
         _check_file_contains(
             repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors
@@ -261,10 +259,8 @@ def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
 
 def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
     for rel in (
-        ".cowork-flow/spec/adapter.schema.json",
-        "template/.cowork-flow/spec/adapter.schema.json",
-        ".cowork-flow/spec/capabilities.md",
-        "template/.cowork-flow/spec/capabilities.md",
+        ".cowork-flow/spec/reference/adapters/adapter.schema.json",
+        "template/.cowork-flow/spec/reference/adapters/adapter.schema.json",
     ):
         _check_file_contains(
             repo_root / rel,
@@ -389,7 +385,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
             [
                 "resolve_runtime_context_id",
                 "bind_runtime_context",
-                "workflow-state-templates.md",
+                "state-templates.md",
             ],
             errors,
         )

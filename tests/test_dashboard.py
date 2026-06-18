@@ -402,7 +402,7 @@ class DashboardTest(unittest.TestCase):
                 self.assertEqual(["child-a"], [child["id"] for child in children["children"]])
 
                 patterns = self._get_json(base_url, "/api/patterns")
-                self.assertIn("fan_out", [item["name"] for item in patterns["patterns"]])
+                self.assertIn("generic", [item["name"] for item in patterns["patterns"]])
 
                 stats = self._get_json(base_url, "/api/maintenance/db/stats")
                 self.assertIn("runtime_context", stats["row_counts"])

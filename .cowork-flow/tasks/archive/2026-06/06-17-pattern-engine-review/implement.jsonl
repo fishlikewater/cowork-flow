@@ -1,0 +1,8 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/scripts/task.py", "reason": "unblock human_loop dead code"}
+{"file": ".cowork-flow/scripts/dashboard/server.py", "reason": "PATTERNS list cleanup"}
+{"file": ".cowork-flow/spec/quick-start.md", "reason": "pattern reference update"}
+{"file": "template/.cowork-flow/scripts/task.py", "reason": "template unblock human_loop dead code"}
+{"file": "template/.cowork-flow/scripts/dashboard/server.py", "reason": "template PATTERNS list"}
+{"file": "template/AGENTS.md", "reason": "template COWORK-FLOW section"}

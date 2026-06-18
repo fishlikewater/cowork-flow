@@ -1,4 +1,4 @@
----
+﻿---
 description: Cowork-flow research-only fixed subagent.
 mode: subagent
 permission:
@@ -32,7 +32,7 @@ state is injected. The first child step must still run:
 
 If the explicit bind fails, or if the bound context is missing, closed, invalid,
 or names another agent type, report `needs_context` and stop. Do not use
-`COWORK_ENTRY_CONTRACT_V1` to infer subagent identity; that contract classifies
+`COWORK_ENTRY_CONTRACT_V2` to infer subagent identity; that contract classifies
 main-session prompts only.
 
 Rules:

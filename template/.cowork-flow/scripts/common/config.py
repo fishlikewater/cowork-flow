@@ -17,6 +17,7 @@ from .yaml_utils import parse_quoted_yaml
 DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
 DEFAULT_CODEX_DISPATCH_MODE = "sub-agent"
+DEFAULT_ENTRY_LEGACY_TEXT_FALLBACK = False
 DEFAULT_PARTY_MODE_V2_MIN_AGENTS = 3
 DEFAULT_PARTY_MODE_V2_MAX_AGENTS = 5
 DEFAULT_PARTY_MODE_V2_MAX_ROUNDS = 5
@@ -123,6 +124,20 @@ def _get_bool(section: dict, key: str, default: bool) -> bool:
         if normalized in {"false", "0", "no", "off"}:
             return False
     return default
+
+
+def get_entry_legacy_text_fallback_enabled(repo_root: Path | None = None) -> bool:
+    """Get whether the legacy text entry fallback is enabled."""
+    config = _load_config(repo_root)
+    entry = _get_section(config, "entry")
+    legacy = entry.get("legacy_text_fallback")
+    if not isinstance(legacy, dict):
+        return DEFAULT_ENTRY_LEGACY_TEXT_FALLBACK
+    return _get_bool(
+        legacy,
+        "enabled",
+        DEFAULT_ENTRY_LEGACY_TEXT_FALLBACK,
+    )
 
 
 def get_party_mode_v2_config(repo_root: Path | None = None) -> dict[str, int | bool]:

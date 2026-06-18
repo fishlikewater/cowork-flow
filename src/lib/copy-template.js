@@ -17,24 +17,36 @@ async function pathExists(path) {
   }
 }
 
+function toTemplatePath(relativePath) {
+  return relativePath.replaceAll('\\', '/');
+}
+
+function shouldSkipTemplatePath(relativePath) {
+  const templatePath = toTemplatePath(relativePath);
+  return (
+    templatePath === '.cowork-flow/.runtime'
+    || templatePath.startsWith('.cowork-flow/.runtime/')
+  );
+}
+
 async function listFiles(root, current = root) {
   const entries = await readdir(current, { withFileTypes: true });
   const files = [];
 
   for (const entry of entries) {
     const absolute = join(current, entry.name);
+    const relativePath = relative(root, absolute);
+    if (shouldSkipTemplatePath(relativePath)) {
+      continue;
+    }
     if (entry.isDirectory()) {
       files.push(...await listFiles(root, absolute));
     } else if (entry.isFile()) {
-      files.push(relative(root, absolute));
+      files.push(relativePath);
     }
   }
 
   return files.sort();
-}
-
-function toTemplatePath(relativePath) {
-  return relativePath.replaceAll('\\', '/');
 }
 
 export async function buildInitPlan(targetDir, options = {}) {
@@ -96,7 +108,7 @@ const SAFE_SYNC_FILES = new Set([
   '.cowork-flow/.version',
   '.cowork-flow/run',
   '.cowork-flow/run.cmd',
-  '.cowork-flow/spec/workflow-state-templates.md'
+  '.cowork-flow/spec/core/state-templates.md'
 ]);
 
 const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';

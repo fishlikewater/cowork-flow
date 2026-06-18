@@ -1,6 +1,8 @@
 # Quick Start — Cowork Flow
 
 > 1-page index for new readers. The rules live in `core/`; details in `reference/`.
+>
+> **Language**: English is the authoritative language for all spec documents. `AGENTS.md` and `workflow.md` retain Chinese summaries for Chinese-speaking developers, but English spec text takes precedence in case of conflict.
 
 ## Minimal workflow
 
@@ -26,7 +28,7 @@ changes → brainstorming → read spec → plan → tasks → implement → che
 | Adding a host adapter | `core/dispatch.md` + `reference/adapters/capabilities.md` + `reference/adapters/adapter.schema.json` |
 | Implementing a new pattern | `core/lifecycle.md` + `reference/patterns/index.md` |
 | Configuring Party Mode | `reference/party-mode-v2-board.md` |
-| Writing code (Python/JS) | `reference/guides/pre-implementation-checklist.md` + language-specific guidelines (`reference/backend/` for Python, `reference/frontend/` for JS) |
+| Writing code (Python/JS) | `reference/guides/pre-implementation-checklist.md` + language-specific guidelines (`core/backend/index.md` for Python, `core/frontend/index.md` for JS) |
 
 ## Core protocol (must obey)
 
@@ -39,12 +41,12 @@ All rules below are mandatory. Violations break the fail-closed safety chain.
 
 ## Reference (details, read as needed)
 
-- **`reference/patterns/`** — Pattern contracts (generic, fan-out, pipeline, human-loop).
+- **`reference/patterns/`** — Pattern contracts (generic only).
 - **`reference/adapters/`** — Host capability declarations and adapter schema.
 - **`reference/party-mode-v2-board.md`** — Party Mode V2 board protocol.
 - **`reference/guides/`** — Thinking guides (code reuse, cross-layer thinking, pre-implementation checklist).
-- **`reference/backend/`** — Backend development guidelines (Python, CLI, runtime scripts).
-- **`reference/frontend/`** — Frontend development guidelines (JS/TS, dashboard, web assets).
+- **`core/backend/`** — Backend development guidelines (Python, CLI, runtime scripts).
+- **`core/frontend/`** — Frontend development guidelines (JS/TS, dashboard, web assets).
 
 ## Quick commands
 

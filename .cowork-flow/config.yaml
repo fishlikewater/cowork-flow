@@ -32,13 +32,12 @@ codex:
 # Entry Classification
 #-------------------------------------------------------------------------------
 
-# Legacy text-based entry classifier fallback during the structured signal
-# transition window. When true (default), the classifier falls back to keyword
-# heuristics if no structured signal is available. Set to false once all
-# host adapters declare usable entrySignals.
+# Legacy text-based entry classifier fallback. Keep this off by default so
+# structured signals remain authoritative and missing signals fail closed.
+# Enable it only as a temporary compatibility escape hatch.
 entry:
   legacy_text_fallback:
-    enabled: true
+    enabled: false
 
 #-------------------------------------------------------------------------------
 # Party Mode V2 Runtime Board

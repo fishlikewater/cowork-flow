@@ -45,7 +45,7 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'scripts', 'project_context.py'), 'old project context script\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'project-context.md'), 'local generated context\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
-  await writeFile(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md'), 'old state templates\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'core', 'state-templates.md'), 'old state templates\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'spec', 'entry-contract.md'), 'custom entry contract\n', 'utf8');
   await mkdir(join(target, '.codex', 'agents'), { recursive: true });
   await writeFile(join(target, '.codex', 'agents', 'cowork-implement.toml'), 'old agent\n', 'utf8');
@@ -77,17 +77,22 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(templateRoot, '.cowork-flow', 'scripts', 'task.py'))
   );
   assert.equal(
+    await readText(join(target, '.cowork-flow', 'scripts', 'common', 'task_context_defaults.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'common', 'task_context_defaults.py'))
+  );
+  assert.equal(
     await readText(join(target, '.cowork-flow', 'scripts', 'project_context.py')),
     await readText(join(templateRoot, '.cowork-flow', 'scripts', 'project_context.py'))
   );
   assert.equal(await readText(join(target, '.cowork-flow', 'project-context.md')), 'local generated context\n');
+  assert.equal(await exists(join(target, '.cowork-flow', '.runtime')), false);
   assert.equal(
     await readText(join(target, '.cowork-flow', 'workflow.md')),
     await readText(join(templateRoot, '.cowork-flow', 'workflow.md'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md')),
-    await readText(join(templateRoot, '.cowork-flow', 'spec', 'workflow-state-templates.md'))
+    await readText(join(target, '.cowork-flow', 'spec', 'core', 'state-templates.md')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'core', 'state-templates.md'))
   );
   assert.equal(await readText(join(target, '.cowork-flow', 'spec', 'entry-contract.md')), 'custom entry contract\n');
   assert.equal(

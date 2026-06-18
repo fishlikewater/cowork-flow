@@ -1,6 +1,6 @@
 ---
 name: party-mode
-description: Use when the user manually requests Party Mode or a real multi-agent roundtable for advisory discussion, option review, risk review, or decision convergence.
+description: "[Experimental / Research] Use when the user manually requests Party Mode or a real multi-agent roundtable for advisory discussion, option review, risk review, or decision convergence."
 ---
 
 # Party Mode

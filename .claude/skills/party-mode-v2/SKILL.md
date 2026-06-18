@@ -1,6 +1,6 @@
 ---
 name: party-mode-v2
-description: Use when the user requests a runtime-controlled multi-agent board discussion where children communicate through Party Mode V2 board APIs and the moderator only monitors or corrects drift.
+description: "[Experimental / Research] Use when the user requests a runtime-controlled multi-agent board discussion where children communicate through Party Mode V2 board APIs and the moderator only monitors or corrects drift."
 ---
 
 # Party Mode V2

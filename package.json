@@ -12,6 +12,7 @@
     "template",
     "README.md",
     "CHANGELOG.md",
+    "!template/.cowork-flow/.runtime/**",
     "!template/**/__pycache__/**",
     "!template/**/*.pyc"
   ],

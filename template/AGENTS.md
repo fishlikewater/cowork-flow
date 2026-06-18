@@ -99,5 +99,14 @@
     - 如果跟丢上下文，先停下来重新整理。
 
 <!-- COWORK-FLOW:START -->
-项目流程以 `.cowork-flow/workflow.md` 为准；项目规范从 `.cowork-flow/spec/` 读取。
+项目流程以 `.cowork-flow/workflow.md` 为准；项目规范从 `.cowork-flow/spec/` 按层读取：
+
+- **core 层** — 每次实现必读：`spec/core/`
+  - `backend/` — 服务端架构规范（目录结构、数据库、异常、日志、质量、编码）
+  - `frontend/` — 表现层架构规范（组件、交互逻辑、状态管理、类型安全、质量）
+  - `entry.md` / `dispatch.md` / `lifecycle.md` / `state-templates.md` — 流程核心契约
+- **reference 层** — 按需参考：`spec/reference/`
+  - `patterns/` — 行为模式（generic）
+  - `adapters/` — 宿主适配器规范
+  - `guides/` — 方法论指南（代码复用、跨层思维、预实现检查清单）
 <!-- COWORK-FLOW:END -->

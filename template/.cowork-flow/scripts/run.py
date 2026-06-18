@@ -33,6 +33,7 @@ COMMAND_SCRIPTS = {
     "party-v2": "party_mode_v2.py",
     "party_v2": "party_mode_v2.py",
     "flow": "flow/store.py",
+    "flow-migrate": "flow/migrate.py",
     "dashboard": "dashboard/server.py",
 }
 

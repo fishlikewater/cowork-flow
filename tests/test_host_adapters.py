@@ -21,8 +21,8 @@ LEGACY_ACK = "COWORK_" + "ACK"
 class HostAdaptersTest(unittest.TestCase):
     def test_adapter_schema_declares_capability_enum(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "adapter.schema.json",
-            ROOT / "template" / ".cowork-flow" / "spec" / "adapter.schema.json",
+            ROOT / ".cowork-flow" / "spec" / "reference" / "adapters" / "adapter.schema.json",
+            ROOT / "template" / ".cowork-flow" / "spec" / "reference" / "adapters" / "adapter.schema.json",
         ):
             schema = json.loads(path.read_text(encoding="utf-8"))
             enum = schema["$defs"]["capability"]["enum"]
@@ -84,6 +84,13 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertEqual(
                     "fail_closed", adapter["fallback"]["whenRuntimeContextMissing"]
                 )
+                entry_signals = adapter["entrySignals"]
+                self.assertIsInstance(entry_signals, dict)
+                if host == "opencode":
+                    self.assertEqual("sessionRole", entry_signals["sessionRole"])
+                    self.assertEqual(
+                        "invocationKind", entry_signals["invocationKind"]
+                    )
                 if host == "claude-code":
                     self.assertEqual(
                         ".claude/skills", adapter["dispatch"]["skillsPath"]
@@ -114,11 +121,12 @@ class HostAdaptersTest(unittest.TestCase):
             "codex exec",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+            ROOT / ".cowork-flow" / "spec" / "reference" / "party-mode-v2-actions.schema.json",
             ROOT
             / "template"
             / ".cowork-flow"
             / "spec"
+            / "reference"
             / "party-mode-v2-actions.schema.json",
         ):
             text = path.read_text(encoding="utf-8")
@@ -185,16 +193,17 @@ class HostAdaptersTest(unittest.TestCase):
     def test_party_mode_v2_root_and_template_assets_are_synced(self) -> None:
         pairs = (
             (
-                ROOT / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+                ROOT / ".cowork-flow" / "spec" / "reference" / "party-mode-v2-actions.schema.json",
                 ROOT
                 / "template"
                 / ".cowork-flow"
                 / "spec"
+                / "reference"
                 / "party-mode-v2-actions.schema.json",
             ),
             (
-                ROOT / ".cowork-flow" / "spec" / "party-mode-v2-board.md",
-                ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-board.md",
+                ROOT / ".cowork-flow" / "spec" / "reference" / "party-mode-v2-board.md",
+                ROOT / "template" / ".cowork-flow" / "spec" / "reference" / "party-mode-v2-board.md",
             ),
             (
                 ROOT / ".opencode" / "commands" / "party-mode-v2.md",
@@ -205,8 +214,8 @@ class HostAdaptersTest(unittest.TestCase):
                 ROOT / "template" / ".cowork-flow" / "workflow.md",
             ),
             (
-                ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-                ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+                ROOT / ".cowork-flow" / "spec" / "core" / "dispatch.md",
+                ROOT / "template" / ".cowork-flow" / "spec" / "core" / "dispatch.md",
             ),
         )
         for root_path, template_path in pairs:
@@ -231,7 +240,7 @@ class HostAdaptersTest(unittest.TestCase):
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("宿主适配器契约", text)
-            self.assertIn("subagent-dispatch.md", text)
+            self.assertIn("dispatch.md", text)
             self.assertIn("runtime context", text)
             self.assertNotIn(LEGACY_DISPATCH, text)
             self.assertNotIn(LEGACY_ACK, text)
@@ -271,10 +280,13 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn("sessionID", plugin)
             self.assertIn("COWORK_FLOW_CONTEXT_ID", plugin)
             self.assertIn("OPENCODE_SESSION_ID", plugin)
+            self.assertIn("SESSIONROLE", plugin)
+            self.assertIn("INVOCATIONKIND", plugin)
             self.assertIn('.cowork-flow", "spec", "registry.json', plugin)
             self.assertIn("contract-digest", plugin)
             self.assertIn("fingerprint", plugin)
             self.assertIn("read_before", plugin)
+            self.assertIn("opencode-entry-signals", plugin)
             self.assertIn("COWORK_ENTRY_CONTRACT_V2", plugin)
             self.assertIn("RUNTIME_CONTEXT_DISPATCH_V2", plugin)
             self.assertIn("resolveRuntimeContextId", plugin)

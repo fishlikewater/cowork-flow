@@ -7,6 +7,7 @@ import re
 import sqlite3
 import sys
 import tempfile
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".cowork-flow" / "scripts"))
@@ -282,29 +283,33 @@ def test_no_pending_when_up_to_date():
 
 def test_version_gap_raises_error():
     """If v1 is applied but v3 file exists (v2 missing), FlowStore.__init__ should raise."""
+    import importlib
+    import flow.store as store_mod
+    importlib.reload(store_mod)
+    from flow.store import FlowStore
     tmp = tempfile.mkdtemp()
     try:
-        import flow.store as store_mod
 
         migration_dir = Path(tmp) / "migrations"
         migration_dir.mkdir()
 
         # Write v1 and v3 but NOT v2
-        v1_content = "CREATE TABLE IF NOT EXISTS task (id INTEGER PRIMARY KEY);"
+        # Use real 0001_initial.sql content so checksum validation passes
+        real_initial = (Path(__file__).resolve().parent.parent / ".cowork-flow" / "scripts" / "flow" / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
         v3_content = "CREATE TABLE IF NOT EXISTS later_table (id INTEGER PRIMARY KEY);"
-        _write_migration(migration_dir, 1, "initial", v1_content)
+        _write_migration(migration_dir, 1, "initial", real_initial)
         _write_migration(migration_dir, 3, "later", v3_content)
 
         db_path = str(Path(tmp) / "test.db")
 
-        # First apply v1 only (write checksum that matches isolated dir content)
+        # First apply v1 only (write checksum that matches real migration file)
         with sqlite3.connect(db_path) as conn:
             conn.execute(
                 "CREATE TABLE schema_migrations ("
                 "version INTEGER PRIMARY KEY, name TEXT NOT NULL, "
                 "applied_at TEXT NOT NULL, checksum TEXT NOT NULL)"
             )
-            checksum = _compute_checksum(v1_content)
+            checksum = _compute_checksum(real_initial)
             conn.execute(
                 "INSERT INTO schema_migrations VALUES (1, '0001_initial', '2026-01-01T00:00:00Z', ?)",
                 (checksum,),
@@ -313,7 +318,6 @@ def test_version_gap_raises_error():
 
         # Patch _discover_pending_migrations to use our isolated migration_dir
         orig_discover = store_mod.FlowStore._discover_pending_migrations
-        orig_validate = store_mod.FlowStore._validate_applied_checksums
 
         def patched_discover(self):
             applied = {
@@ -343,21 +347,16 @@ def test_version_gap_raises_error():
                     )
             return pending
 
-        def patched_validate(self):
-            # Skip checksum validation against isolated migration_dir
-            pass
-
         store_mod.FlowStore._discover_pending_migrations = patched_discover
-        store_mod.FlowStore._validate_applied_checksums = patched_validate
         try:
             with FlowStore(db_path):
                 pass
             assert False, "Expected RuntimeError for version gap"
         except RuntimeError as e:
             assert "gap" in str(e).lower() or "version gap" in str(e).lower()
+        finally:
+            store_mod.FlowStore._discover_pending_migrations = orig_discover
     finally:
-        store_mod.FlowStore._discover_pending_migrations = orig_discover
-        store_mod.FlowStore._validate_applied_checksums = orig_validate
         try:
             import shutil
             shutil.rmtree(tmp, ignore_errors=True)

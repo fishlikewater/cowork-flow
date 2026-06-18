@@ -1928,3 +1928,65 @@ Recorded direct formal agent runs for Dashboard details, redesigned archived Das
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 61: Implement P0-B schema versioned migration and P1-A agent run convergence
+
+**Date**: 2026-06-16
+**Task**: Implement P0-B schema versioned migration and P1-A agent run convergence
+
+### Summary
+
+P0-B: schema_migrations table, numbered migration with checksum verification, auto-apply on init, --dry-run/--status CLI, pre-migration backup. P1-A: runtime_context sole authority for agent run, deprecated agent_run writes, query runtime_context instead. 63/63 tests passing. Root/template consistent.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+| Hash | Note |
+|------|------|
+| `290e2a8` | See git log |
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
+
+
+## Session 62: Verify and archive P0-A dual-channel entry classifier
+
+**Date**: 2026-06-17
+**Task**: Verify and archive P0-A dual-channel entry classifier
+
+### Summary
+
+P0-A entry-structured-signals was already implemented in commit d3b8e1e. Verified all 7 acceptance criteria: dual-channel classifier with structured signal priority, legacy text fallback, config toggle, 3 adapter.yaml entrySignals, 4 failure regression scenarios, entry-contract V2 spec, root/template consistency. 21/21 tests passing. Both P0-A task and research task archived. No code changes needed.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

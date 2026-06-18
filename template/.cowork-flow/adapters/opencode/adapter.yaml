@@ -26,7 +26,9 @@ runtimeContext:
   promptKey: cowork_runtime_context_id
   envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
   metadataKey: cowork_runtime_context_id
-entrySignals: {}
+entrySignals:
+  sessionRole: sessionRole
+  invocationKind: invocationKind
 contracts:
   entry: COWORK_ENTRY_CONTRACT_V2
   dispatch: RUNTIME_CONTEXT_DISPATCH_V2

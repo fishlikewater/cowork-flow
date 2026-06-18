@@ -1,0 +1,5 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/scripts/subagent.py", "reason": "add dispatch and check commands"}
+{"file": "template/.cowork-flow/scripts/subagent.py", "reason": "template mirror"}
+{"file": "template/.cowork-flow/workflow.md", "reason": "template mirror"}

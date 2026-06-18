@@ -16,7 +16,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 4. plan：构建开发计划。
 5. tasks：根据plan拆分具体执行任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
 6. implement：主会话通过当前宿主适配器派发 `cowork-implement`，按 `.cowork-flow/spec/core/dispatch.md` 执行固定代理派发协议。
-7. check：主会话通过当前宿主适配器派发 `cowork-check`，按 `.cowork-flow/spec/subagent-dispatch.md` 执行固定代理派发协议。
+7. check：主会话通过当前宿主适配器派发 `cowork-check`，按 `.cowork-flow/spec/core/dispatch.md` 执行固定代理派发协议。
 8. complete：主会话做最终验证、同步规格、归档、记录会话、提交。
 
 `cowork-flow` 只保存项目状态、任务上下文、宿主适配器契约和恢复线索；实际执行由主会话和固定 `cowork-*` 代理完成。宿主工具名只写在 `.cowork-flow/adapters/<host>/adapter.yaml`，不进入流程分支。
@@ -85,26 +85,16 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 ## 3.1 固定代理派发入口
 
-固定 `cowork-*` 代理使用宿主适配器契约，由主会话负责派发、等待、验收和取消。宿主专属原语只在 `.cowork-flow/adapters/<host>/adapter.yaml` 中声明；工作流只关心阶段职责、协调边界和验收责任。
+固定 `cowork-*` 代理使用宿主适配器契约，由主会话负责派发和验收。宿主专属原语只在 `.cowork-flow/adapters/<host>/adapter.yaml` 中声明；工作流只关心阶段职责、协调边界和验收责任。
 
 正式派发协议见 `.cowork-flow/spec/core/dispatch.md`。该协议定义 runtime context 创建、传输、绑定、等待、返回验收、关闭清理和通用 worker 边界。
 
-- 主会话必须使用新鲜子上下文派发固定代理。
-- 主会话通过适配器等待原语、适配器列表原语和适配器取消/关闭原语完成收口。
+- 主会话通过 `subagent dispatch` 一步完成 runtime context 创建和 spawn payload 准备。
+- 主会话通过 `subagent check` 验收子代理完成状态。
+- 子代理自行完成 bind 和 close（在 prompt 中执行），主会话不手动管理这些步骤。
+- 适配器取消原语保留，由 runtime 在收口时调用。
 - 固定 `cowork-*` 代理是叶子执行者；不得再派发、等待、列出或取消其他代理。
 - 通用 `worker`、`default` 或 `explorer` 只能作为 advisory work，不能满足正式实现或检查完成条件。
-
-## 3.2 手动 Party Mode
-
-Party Mode 是用户手动触发的 advisory roundtable。主会话可通过当前宿主适配器创建 fresh child contexts，收集真实讨论子代理的证据、分歧、风险和可测验收信号，再由主会话综合结论。
-
-Party Mode 不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。轮次上限、继续/停止条件、输出 schema 和可配置默认值由 party-mode skill 定义；正式子代理协议仍以 `.cowork-flow/spec/core/dispatch.md` 为准。
-
-## 3.2.1 手动 Party Mode V2
-
-Party Mode V2 是用户手动触发的 runtime board advisory workflow。Python runtime 控制看板、当前轮视图、schema 校验、轮次上限、纠偏事件和最终报告；子代理通过 board API 交流，主持人只监控 runtime status、执行宿主适配器动作和记录偏题纠正。
-
-Party Mode V2 仍不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。V2 runtime 只输出 host-neutral next actions，宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明。
 
 ## 3.3 并行会话
 
@@ -128,7 +118,8 @@ Party Mode V2 仍不能推进任务状态，不能满足正式实现或检查完
 
 ### 3.3.4 协调与验收
 
-- 主会话是唯一协调者：派发所有子代理后逐个等待，核对子代理汇报的文件、命令和产物，再用适配器列表/取消原语收口。
+- 主会话通过 `subagent dispatch` 派发子代理，通过 `subagent check` 验收结果。
+- 子代理自行完成 bind/close 生命周期；主会话不手动管理等待、列表或取消。
 - 多个实现切片合并后必须再执行最终集成验证；不能把各子代理的局部通过当成整体通过。
 - 固定 `cowork-*` 代理仍是叶子执行者；并行不允许子代理再派发代理，也不引入旧集中式状态机。
 
