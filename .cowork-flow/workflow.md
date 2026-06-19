@@ -89,9 +89,9 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 正式派发协议见 `.cowork-flow/spec/core/dispatch.md`。该协议定义 runtime context 创建、传输、绑定、等待、返回验收、关闭清理和通用 worker 边界。
 
-- 主会话通过 `subagent dispatch` 一步完成 runtime context 创建和 spawn payload 准备。
+- 主会话通过 `subagent dispatch` 一步完成 runtime context 创建和宿主派发 payload 准备；该命令本身不证明宿主 child 已创建。
 - 主会话通过 `subagent check` 验收子代理完成状态。
-- 子代理自行完成 bind 和 close（在 prompt 中执行），主会话不手动管理这些步骤。
+- 子代理执行 first-step bind；主会话负责等待、列表确认、验收输出和关闭清理。
 - 适配器取消原语保留，由 runtime 在收口时调用。
 - 固定 `cowork-*` 代理是叶子执行者；不得再派发、等待、列出或取消其他代理。
 - 通用 `worker`、`default` 或 `explorer` 只能作为 advisory work，不能满足正式实现或检查完成条件。
@@ -118,8 +118,9 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 ### 3.3.4 协调与验收
 
-- 主会话通过 `subagent dispatch` 派发子代理，通过 `subagent check` 验收结果。
-- 子代理自行完成 bind/close 生命周期；主会话不手动管理等待、列表或取消。
+- 主会话通过 `subagent dispatch` 准备子代理派发 payload，并通过宿主派发原语创建 fresh child context。
+- 主会话通过 `subagent check` 验收结果，并负责等待、列表确认、关闭清理。
+- 子代理只执行 first-step bind 和分配任务内工作。
 - 多个实现切片合并后必须再执行最终集成验证；不能把各子代理的局部通过当成整体通过。
 - 固定 `cowork-*` 代理仍是叶子执行者；并行不允许子代理再派发代理，也不引入旧集中式状态机。
 

@@ -954,6 +954,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("Next action: execute implementation plan", output)
             self.assertIn("cowork-implement", output)
             self.assertIn("./.cowork-flow/run subagent dispatch-codex", output)
+            self.assertIn("no host child exists yet", output)
+            self.assertIn("confirm the child appears in list_agents or wait_agent", output)
             self.assertIn("Do not use bare spawn_agent for formal cowork-* workflow gates", output)
             self.assertIn("cowork_runtime_context_id", output)
 
@@ -983,6 +985,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("Next action: verify implementation", output)
             self.assertIn("cowork-check", output)
             self.assertIn("./.cowork-flow/run subagent dispatch-codex", output)
+            self.assertIn("no host child exists yet", output)
+            self.assertIn("verify child output by files or commands", output)
             self.assertIn("Do not use bare spawn_agent for formal cowork-* workflow gates", output)
             self.assertIn(
                 "./.cowork-flow/run task complete .cowork-flow/tasks/05-19-demo", output

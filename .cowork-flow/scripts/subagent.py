@@ -113,6 +113,24 @@ def _codex_task_name(runtime_context_id: str) -> str:
     task_name = re.sub(r"[^a-z0-9_]+", "_", runtime_context_id.lower()).strip("_")
     return task_name or "subagent"
 
+def _dispatch_visibility_payload(host_primitive: str) -> dict:
+    return {
+        "runtimeContextStatus": "created_pending_bind",
+        "childCreationStatus": "not_created_by_cowork_flow_cli",
+        "hostDispatchState": "payload_prepared_child_not_created",
+        "hostPrimitive": host_primitive,
+        "parentNextAction": (
+            f"Call host {host_primitive} with agent_type, task_name, fork_turns, "
+            "and message; then wait/list/verify before accepting output."
+        ),
+        "parentVerification": [
+            "confirm the host child appears in the host child list or wait result",
+            "confirm runtime status is bound with the expected bound_context_key",
+            "verify child output through files or commands, not model text alone",
+            "close the runtime context after completion or explicit failure",
+        ],
+    }
+
 def _create_runtime_context_payload(
     repo_root: Path,
     *,
@@ -203,6 +221,8 @@ def _create_runtime_context_payload(
             f"cowork_host_context_key: {host_context_key}"
         ),
         "bindCommand": f".cowork-flow/run subagent bind {runtime_context_id} {host_context_key}",
+        "runtimeContextStatus": "created_pending_bind",
+        "childCreationStatus": "not_created_by_cowork_flow_cli",
     }
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -275,6 +295,7 @@ def cmd_dispatch_codex(args: argparse.Namespace) -> int:
 
     payload = {
         **runtime_payload,
+        **_dispatch_visibility_payload("spawn_agent"),
         "agent_type": runtime_payload["agentType"],
         "task_name": _codex_task_name(runtime_payload["runtimeContextId"]),
         "fork_turns": args.fork_turns,
@@ -309,6 +330,7 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
 
     payload = {
         **runtime_payload,
+        **_dispatch_visibility_payload(args.adapter),
         "agent_type": runtime_payload["agentType"],
     }
     print(json.dumps(payload, ensure_ascii=False))

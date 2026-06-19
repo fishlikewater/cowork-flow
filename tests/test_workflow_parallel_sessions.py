@@ -28,6 +28,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("[workflow-state:", text)
         self.assertIn("subagent dispatch", text)
         self.assertIn("subagent check", text)
+        self.assertIn("该命令本身不证明宿主 child 已创建", text)
+        self.assertIn("主会话负责等待、列表确认、验收输出和关闭清理", text)
         self.assertIn("适配器取消原语", text)
         self.assertNotIn(LEGACY_DISPATCH, text)
         self.assertNotIn(LEGACY_ACK, text)
@@ -83,6 +85,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "`runtime_session`: one logical row keyed by `subagent_<runtime_context_id>`",
             "cowork_host_context_key",
             "subagent bind <runtime_context_id> <host_context_key>",
+            "preparing a host payload is not proof that a host child",
+            "A child is considered created only after the host dispatch primitive",
             "Verified binding is the formal dispatch acceptance event",
             "fail-closed subagent state",
         )

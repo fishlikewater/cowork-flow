@@ -152,6 +152,11 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertIn("logicalSessionKey", payload)
             self.assertNotIn("logicalSessionFile", payload)
             self.assertNotIn("runtimeContextFile", payload)
+            self.assertEqual("created_pending_bind", payload["runtimeContextStatus"])
+            self.assertEqual(
+                "not_created_by_cowork_flow_cli",
+                payload["childCreationStatus"],
+            )
             context = self._runtime_context(root, payload["runtimeContextId"])
             self.assertIsNotNone(context)
             self.assertEqual("subagent", context["scope"])
@@ -232,6 +237,14 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertNotIn("-", payload["task_name"])
             self.assertEqual(payload["runtimeContextId"], payload["cowork_runtime_context_id"])
             self.assertEqual(payload["hostContextKey"], payload["cowork_host_context_key"])
+            self.assertEqual("payload_prepared_child_not_created", payload["hostDispatchState"])
+            self.assertEqual("not_created_by_cowork_flow_cli", payload["childCreationStatus"])
+            self.assertEqual("spawn_agent", payload["hostPrimitive"])
+            self.assertIn("Call host spawn_agent", payload["parentNextAction"])
+            self.assertIn(
+                "confirm the host child appears in the host child list or wait result",
+                payload["parentVerification"],
+            )
             self.assertIn(payload["runtimeContextId"], payload["message"])
             self.assertIn(payload["hostContextKey"], payload["message"])
             self.assertIn(".\\.cowork-flow\\run.cmd subagent bind", payload["message"])

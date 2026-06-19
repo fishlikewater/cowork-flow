@@ -27,6 +27,11 @@ Before spawning a formal child, the main session creates DB runtime rows:
 - `runtime_context`: one row keyed by `<runtime_context_id>`
 - `runtime_session`: one logical row keyed by `subagent_<runtime_context_id>`
 
+Creating these rows or preparing a host payload is not proof that a host child
+exists. A child is considered created only after the host dispatch primitive
+reports or lists the child context, and accepted only after the runtime context
+is bound as described below.
+
 Formal dispatch no longer writes or reads compatibility JSON runtime files.
 `runtime_context` and `runtime_session` in the DB are the only active state
 authority.

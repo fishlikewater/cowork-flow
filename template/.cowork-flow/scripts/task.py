@@ -1229,13 +1229,16 @@ def _print_formal_subagent_dispatch(
         f"--agent-type {agent_type} --execution-task-dir {task_path} "
         f'--title "{title}"'
     )
+    print("State: runtime context and spawn payload prepared; no host child exists yet")
     print(
-        "Then: call spawn_agent with the returned agent_type, task_name, fork_turns, and message"
+        "Then: call the host spawn_agent primitive with the returned agent_type, task_name, fork_turns, and message"
     )
+    print("Then: confirm the child appears in list_agents or wait_agent before treating it as created")
     print(
         "Then: child prompt carries cowork_runtime_context_id, cowork_host_context_key, and first-step bind"
     )
     print("Then: verify status=bound and bound_context_key before accepting output")
+    print("Then: verify child output by files or commands before closing the runtime context")
     print("Do not use bare spawn_agent for formal cowork-* workflow gates")
     print(final_step)
 
