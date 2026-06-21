@@ -49,6 +49,19 @@
         "before editing adapter.yaml",
         "before adding a new host adapter"
       ]
+    },
+    {
+      "id": "WORKFLOW_STATE_TEMPLATES_V1",
+      "path": ".cowork-flow/spec/workflow-state-templates.md",
+      "digest": [
+        "Single source of truth for workflow state prompt text.",
+        "Hooks read this file to inject state into conversations."
+      ],
+      "readWhen": [
+        "when modifying hook behavior",
+        "when updating workflow state prompts",
+        "when adding new workflow states"
+      ]
     }
   ]
 }

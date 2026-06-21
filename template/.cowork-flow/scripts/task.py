@@ -916,6 +916,20 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
+    # Spec enforcement: validate rules at task start
+    try:
+        from common.validate_rules import validate_rules, log_violations
+        violations = validate_rules(repo_root, "task_start", full_path)
+        blockers = [v for v in violations if v["severity"] == "block"]
+        if blockers:
+            print(colored("Error: Spec enforcement blocked task start", Colors.RED), file=sys.stderr)
+            for v in violations:
+                print(json.dumps(v, ensure_ascii=False), file=sys.stderr)
+            log_violations(violations, "task_start", full_path, repo_root)
+            return 1
+    except ImportError:
+        pass  # validate_rules not available, skip enforcement
+
     task_json_path = full_path / FILE_TASK_JSON
     task_data = _load_task_data_or_report(full_path)
     if task_data is None:
@@ -958,6 +972,27 @@ def cmd_review(args: argparse.Namespace) -> int:
     if task_dir is None:
         return 1
 
+    # Validate implementation against forbidden action rules
+    try:
+        from common.validate_implementation import validate_implementation
+        violations = validate_implementation(repo_root, task_dir)
+        if violations:
+            print(colored("Warning: Implementation violations detected", Colors.YELLOW), file=sys.stderr)
+            for v in violations:
+                print(f"  - {v['message']}", file=sys.stderr)
+    except ImportError:
+        pass
+
+    # Get coding standards summary for Agent review
+    try:
+        from common.validate_coding_standards import get_coding_standards_summary
+        summary = get_coding_standards_summary(repo_root, task_dir)
+        if summary:
+            print(colored("Coding Standards to Verify:", Colors.CYAN))
+            print(summary)
+    except ImportError:
+        pass
+
     if not _set_task_status(task_dir, "review"):
         return 1
 
@@ -973,6 +1008,37 @@ def cmd_complete(args: argparse.Namespace) -> int:
     task_dir = _resolve_status_task_dir(args, repo_root)
     if task_dir is None:
         return 1
+
+    # Gate: task must have passed through review/checking before completion
+    current_status = _load_task_status(task_dir)
+    if current_status not in CHECK_STATUSES:
+        print(
+            colored(
+                f"Error: Task cannot be completed from status '{current_status}'. "
+                f"Run `task review` first to enter check phase.",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        print(
+            "Hint: run ./.cowork-flow/run task review <task-dir> to mark the task ready for check",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Spec enforcement: validate rules at task complete
+    try:
+        from common.validate_rules import validate_rules, log_violations
+        violations = validate_rules(repo_root, "task_complete", task_dir)
+        blockers = [v for v in violations if v["severity"] == "block"]
+        if blockers:
+            print(colored("Error: Spec enforcement blocked task completion", Colors.RED), file=sys.stderr)
+            for v in violations:
+                print(json.dumps(v, ensure_ascii=False), file=sys.stderr)
+            log_violations(violations, "task_complete", task_dir, repo_root)
+            return 1
+    except ImportError:
+        pass  # validate_rules not available, skip enforcement
 
     today = datetime.now().strftime("%Y-%m-%d")
     if not _set_task_status(task_dir, "completed", completed_at=today):
