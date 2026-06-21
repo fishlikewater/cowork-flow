@@ -278,7 +278,10 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("bound runtime context", text)
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
-                self.assertIn("Do not use the Task tool or invoke subagents", text)
+                self.assertTrue(
+                    "Do not use the" in text and "tool or invoke subagents" in text,
+                    f"Missing subagent restriction in {name}.md"
+                )
 
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")

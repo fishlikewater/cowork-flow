@@ -58,7 +58,8 @@ class CoworkAgentsTest(unittest.TestCase):
             "writing-plans",
         }
         for base in (ROOT / ".agents" / "skills", ROOT / "template" / ".agents" / "skills"):
-            actual = {path.name for path in base.iterdir() if path.is_dir()}
+            # Exclude bmad-* skills which are installed separately
+            actual = {path.name for path in base.iterdir() if path.is_dir() and not path.name.startswith("bmad-")}
             self.assertEqual(expected, actual)
 
     def test_codex_agent_definitions_exist_in_root_and_template(self) -> None:
@@ -114,6 +115,9 @@ class CoworkAgentsTest(unittest.TestCase):
             (ROOT / "template" / ".agents" / "skills", ROOT / "template" / ".claude" / "skills"),
         ):
             for source in source_base.glob("*/SKILL.md"):
+                # Skip bmad-* skills which are installed separately
+                if source.parent.name.startswith("bmad-"):
+                    continue
                 mirror = claude_base / source.parent.name / "SKILL.md"
                 self.assertTrue(mirror.is_file(), str(mirror))
                 self.assertEqual(
