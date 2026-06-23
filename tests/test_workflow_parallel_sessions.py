@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import subprocess
 import sys
@@ -42,8 +42,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_state_templates_are_externalized(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "workflow-state-templates.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "workflow-state-templates.md",
+            ROOT / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("[workflow-state:no_task]", text)
@@ -88,8 +88,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "fail-closed subagent state",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -102,8 +102,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "cannot satisfy formal Implement or Check completion",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -134,8 +134,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "The `party-mode` skill owns round limits, continuation gates, stop gates, and output schemas.",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in spec_markers:
@@ -179,8 +179,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "does not satisfy Implement or Check completion",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in spec_markers:
@@ -199,8 +199,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             ".cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-            ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -260,6 +260,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "redExitCode",
             "greenExitCode",
             "whyThisTestMatters",
+            "ClassName.test_method",
             "exemption",
         )
         root_text = (ROOT / ".agents" / "skills" / "tdd" / "SKILL.md").read_text(

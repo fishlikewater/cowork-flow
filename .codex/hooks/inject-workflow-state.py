@@ -20,7 +20,7 @@ DEFAULT_CONTRACT_REGISTRY = {
     "contracts": [
         {
             "id": "COWORK_ENTRY_CONTRACT_V1",
-            "path": ".cowork-flow/spec/entry-contract.md",
+            "path": ".cowork-flow/spec/contracts/entry-contract.md",
             "digest": [
                 "Classify main-session requests before task start, resume, archive, or commit.",
                 "Runtime context, not prompt labels, identifies formal subagent sessions.",
@@ -29,7 +29,7 @@ DEFAULT_CONTRACT_REGISTRY = {
         },
         {
             "id": "RUNTIME_CONTEXT_DISPATCH_V2",
-            "path": ".cowork-flow/spec/subagent-dispatch.md",
+            "path": ".cowork-flow/spec/contracts/subagent-dispatch.md",
             "digest": [
                 "Formal subagent work is keyed by cowork_runtime_context_id.",
                 "Explicit shim bind records bound_context_key before formal output is accepted.",
@@ -72,7 +72,7 @@ def _read_hook_input() -> dict[str, Any]:
 
 
 def _load_breadcrumbs(root: Path) -> dict[str, str]:
-    workflow = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
+    workflow = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
     try:
         text = workflow.read_text(encoding="utf-8")
     except OSError:
@@ -86,16 +86,23 @@ def _as_string_list(value: Any) -> list[str]:
     return [item for item in value if isinstance(item, str) and item.strip()]
 
 
-def _load_contract_registry(root: Path) -> list[dict[str, Any]]:
-    registry_file = root / ".cowork-flow" / "spec" / "registry.json"
+def _load_contract_registry(root: Path) -> tuple[list[dict[str, Any]], str | None]:
+    registry_file = root / ".cowork-flow" / "spec" / "runtime" / "contract-registry.json"
     try:
         data = json.loads(registry_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError:
         data = DEFAULT_CONTRACT_REGISTRY
+        warning = f"contract registry unavailable at {registry_file}; using fallback digest"
+    except json.JSONDecodeError:
+        data = DEFAULT_CONTRACT_REGISTRY
+        warning = f"contract registry invalid at {registry_file}; using fallback digest"
+    else:
+        warning = None
     contracts = data.get("contracts") if isinstance(data, dict) else None
     if not isinstance(contracts, list):
         contracts = DEFAULT_CONTRACT_REGISTRY["contracts"]
-    return [contract for contract in contracts if isinstance(contract, dict)]
+        warning = warning or f"contract registry has no contracts array at {registry_file}; using fallback digest"
+    return [contract for contract in contracts if isinstance(contract, dict)], warning
 
 
 def _contract_fingerprint(root: Path, contracts: list[dict[str, Any]]) -> str:
@@ -113,13 +120,15 @@ def _contract_fingerprint(root: Path, contracts: list[dict[str, Any]]) -> str:
 
 
 def _build_contract_digest(root: Path) -> str:
-    contracts = _load_contract_registry(root)
+    contracts, warning = _load_contract_registry(root)
     fingerprint = _contract_fingerprint(root, contracts)
     lines = [
         '<cowork-runtime host="codex" adapter="codex.spawn_agent">',
         f'<contract-digest fingerprint="{fingerprint}">',
         "policy: repeat this short digest every hook; read full spec files only before listed actions.",
     ]
+    if warning:
+        lines.append(f"warning: {warning}")
     for contract in contracts:
         contract_id = contract.get("id")
         path = contract.get("path")

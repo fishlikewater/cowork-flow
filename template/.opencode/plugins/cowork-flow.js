@@ -7,7 +7,7 @@ const DEFAULT_CONTRACT_REGISTRY = {
   contracts: [
     {
       id: "COWORK_ENTRY_CONTRACT_V1",
-      path: ".cowork-flow/spec/entry-contract.md",
+      path: ".cowork-flow/spec/contracts/entry-contract.md",
       digest: [
         "Classify main-session requests before task start, resume, archive, or commit.",
         "Runtime context, not prompt labels, identifies formal subagent sessions.",
@@ -16,7 +16,7 @@ const DEFAULT_CONTRACT_REGISTRY = {
     },
     {
       id: "RUNTIME_CONTEXT_DISPATCH_V2",
-      path: ".cowork-flow/spec/subagent-dispatch.md",
+      path: ".cowork-flow/spec/contracts/subagent-dispatch.md",
       digest: [
         "Formal subagent work is keyed by cowork_runtime_context_id.",
         "Explicit shim bind records bound_context_key before formal output is accepted.",
@@ -86,18 +86,26 @@ function stableStringify(value) {
 }
 
 function loadContractRegistry(root) {
-  const registryFile = resolve(root, ".cowork-flow", "spec", "registry.json")
+  const registryFile = resolve(root, ".cowork-flow", "spec", "runtime", "contract-registry.json")
   let data = DEFAULT_CONTRACT_REGISTRY
+  let warning = null
   try {
     data = JSON.parse(readFileSync(registryFile, "utf8"))
-  } catch {
+  } catch (error) {
     data = DEFAULT_CONTRACT_REGISTRY
+    warning = `contract registry unavailable or invalid at ${registryFile}; using fallback digest`
   }
 
   if (!Array.isArray(data?.contracts)) {
-    return DEFAULT_CONTRACT_REGISTRY.contracts
+    return {
+      contracts: DEFAULT_CONTRACT_REGISTRY.contracts,
+      warning: warning || `contract registry has no contracts array at ${registryFile}; using fallback digest`,
+    }
   }
-  return data.contracts.filter((contract) => contract && typeof contract === "object")
+  return {
+    contracts: data.contracts.filter((contract) => contract && typeof contract === "object"),
+    warning,
+  }
 }
 
 function contractFingerprint(root, contracts) {
@@ -119,13 +127,16 @@ function contractFingerprint(root, contracts) {
 
 function buildContractDigest(input) {
   const root = findRepoRoot(input)
-  const contracts = loadContractRegistry(root)
+  const { contracts, warning } = loadContractRegistry(root)
   const fingerprint = contractFingerprint(root, contracts)
   const lines = [
     '<cowork-runtime host="opencode" adapter="opencode.task">',
     `<contract-digest fingerprint="${fingerprint}">`,
     "policy: repeat this short digest every plugin transform; read full spec files only before listed actions.",
   ]
+  if (warning) {
+    lines.push(`warning: ${warning}`)
+  }
 
   for (const contract of contracts) {
     const contractId = contract.id

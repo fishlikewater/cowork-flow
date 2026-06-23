@@ -47,9 +47,9 @@ Generated deterministically from local project files.
 - `.cowork-flow/spec/backend/index.md`
 - `.cowork-flow/spec/backend/logging-guidelines.md`
 - `.cowork-flow/spec/backend/quality-guidelines.md`
-- `.cowork-flow/spec/capabilities.md`
+- `.cowork-flow/spec/contracts/capabilities.md`
 - `.cowork-flow/spec/delegation-envelope.md`
-- `.cowork-flow/spec/entry-contract.md`
+- `.cowork-flow/spec/contracts/entry-contract.md`
 - `.cowork-flow/spec/frontend/component-guidelines.md`
 - `.cowork-flow/spec/frontend/directory-structure.md`
 - `.cowork-flow/spec/frontend/hook-guidelines.md`
@@ -61,8 +61,8 @@ Generated deterministically from local project files.
 - `.cowork-flow/spec/guides/cross-layer-thinking-guide.md`
 - `.cowork-flow/spec/guides/index.md`
 - `.cowork-flow/spec/guides/pre-implementation-checklist.md`
-- `.cowork-flow/spec/subagent-dispatch.md`
-- `.cowork-flow/spec/workflow-state-templates.md`
+- `.cowork-flow/spec/contracts/subagent-dispatch.md`
+- `.cowork-flow/spec/contracts/workflow-state-templates.md`
 
 ## Local Constraints
 

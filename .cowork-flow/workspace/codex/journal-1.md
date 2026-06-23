@@ -1658,3 +1658,33 @@ Completed and archived Party Mode V2 runtime hardening; added process-safe board
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 52: unify rule spec contracts
+
+**Date**: 2026-06-23
+**Task**: unify rule spec contracts
+
+### Summary
+
+Unified workflow rule metadata under spec/runtime, reorganized spec directories, tightened TDD/test-intent gates, and verified root/template contract consistency.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

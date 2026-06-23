@@ -1,0 +1,7 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": ".cowork-flow/changes/06-23-unify-rule-spec-contracts/spec.md", "reason": "Acceptance contract"}
+{"file": ".cowork-flow/plans/2026-06-23-unify-rule-spec-contracts.md", "reason": "Implementation plan"}
+{"file": "tests/", "type": "directory", "reason": "Python regression suite"}
+{"file": "scripts/run-template-tests.js", "reason": "Template test runner"}
+{"file": "scripts/pack-check.js", "reason": "Package validation"}

@@ -1,4 +1,4 @@
-# cowork-flow
+﻿# cowork-flow
 
 cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它把项目说明、任务流转、规格治理、开发计划和会话记录放在一套可复制的目录结构里，帮助团队在项目早期就建立清晰的工作闭环。
 
@@ -43,6 +43,12 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
         ├── workflow.md
         ├── scripts/
         ├── spec/
+        │   ├── contracts/
+        │   ├── runtime/
+        │   ├── schemas/
+        │   ├── backend/
+        │   ├── frontend/
+        │   └── guides/
         ├── changes/
         ├── plans/
         ├── tasks/
@@ -65,19 +71,19 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`，以及对 Codex 默认 `worker`、`default`、`explorer` 的项目级防漂移约束。主会话负责计划与收口，并通过 host adapter 派发固定 agent；正式派发必须先创建 runtime context，再把 `cowork_runtime_context_id` 和 `cowork_host_context_key` 传给子代理。
 
 `template/.codex/config.toml`、`template/.codex/hooks.json`、`template/.codex/hooks/`
-Codex 项目级配置与每轮上下文注入入口。hook 会先用共享 entry classifier 判定当前输入，再读取当前 session task、`.cowork-flow/spec/workflow-state-templates.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。注入的 `codex-dispatch-mode` 只是主会话调度提示，不代表当前线程身份。
+Codex 项目级配置与每轮上下文注入入口。hook 会先用共享 entry classifier 判定当前输入，再读取当前 session task、`.cowork-flow/spec/contracts/workflow-state-templates.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。注入的 `codex-dispatch-mode` 只是主会话调度提示，不代表当前线程身份。
 
 `template/CLAUDE.md`、`template/.claude/settings.json`、`template/.claude/agents/`、`template/.claude/skills/`、`template/.claude/commands/`、`template/.claude/hooks/`
 Claude Code 项目级记忆、hook、固定 agent、skills 和 slash command。`CLAUDE.md` 显式导入 `AGENTS.md`。`.claude/settings.json` 注册 `UserPromptSubmit` 和 `SessionStart` hook，注入当前 workflow state 与 contract digest。固定 agent 通过 `.cowork-flow/run subagent init` 生成 runtime context，并在 prompt、env 或 metadata transport 中传递 `cowork_runtime_context_id`；hook 绑定成功后才进入叶子执行，绑定失败则 fail closed，避免被项目 bootstrap 或无任务首屏上下文拉偏。Claude Code 不自动加载 `.agents/skills/`，所以项目技能要放进 `.claude/skills/`。
 
 `template/.opencode/agents/`、`template/.opencode/commands/`、`template/.opencode/plugins/`
-OpenCode 项目级固定 agent、slash command 和系统上下文注入插件。插件会读取 `.cowork-flow/spec/registry.json`，注入短 contract digest。
+OpenCode 项目级固定 agent、slash command 和系统上下文注入插件。插件会读取 `.cowork-flow/spec/runtime/contract-registry.json`，注入短 contract digest。
 
 `template/.cowork-flow/`
 工作流目录，包含流程说明、任务状态、开发者工作区、项目规范、行为变更规格、实现计划和辅助脚本。`.cowork-flow/config.yaml` 只承载真实接线的 session/journal, Codex hint, and task lifecycle hook settings。
 
 `template/.cowork-flow/spec/`
-项目规范目录，预置了 backend、frontend 和 guides 三类说明。接入时应按项目事实保留、改写或删除对应规范。
+项目规范目录。`contracts/` 存人读 workflow/host/agent 合同，`runtime/` 存运行时读取的规则和 contract registry，`schemas/` 存 JSON Schema，`backend/`、`frontend/`、`guides/` 存工程规范和思考指引。接入时应按项目事实保留、改写或删除对应规范。
 
 `template/.cowork-flow/changes/`
 由 `change.py` 管理 proposal、design、behavior specs 和归档，不维护实现 checklist。
@@ -163,7 +169,7 @@ cowork-flow sync .
 cowork-flow sync . --dry-run
 ```
 
-`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者；对应 `.cowork-flow/adapters/<host>/` 也按识别出的平台同步。检测到 Codex 或 OpenCode 时会刷新 `.agents/skills/`；Claude Code-only 项目只刷新 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`，不会创建 `.agents/skills/`。通用部分默认刷新 `.cowork-flow/scripts/`、`.cowork-flow/spec/workflow-state-templates.md`，以及 `AGENTS.md` 和 `CLAUDE.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、除 `workflow-state-templates.md` 外的 `.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
+`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者；对应 `.cowork-flow/adapters/<host>/` 也按识别出的平台同步。检测到 Codex 或 OpenCode 时会刷新 `.agents/skills/`；Claude Code-only 项目只刷新 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`，不会创建 `.agents/skills/`。通用部分默认刷新 `.cowork-flow/scripts/`、`.cowork-flow/spec/contracts/workflow-state-templates.md`，以及 `AGENTS.md` 和 `CLAUDE.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、除 `workflow-state-templates.md` 外的 `.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
 
 ## 常用入口
 
@@ -249,7 +255,7 @@ cowork_host_context_key: <host_context_key>
 
 子代理首步执行 `./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`；主会话验收前必须确认 runtime context 中 `status=bound` 且 `bound_context_key` 匹配。默认角色为 `cowork-research`、`cowork-implement`、`cowork-check`，任务上下文来自已绑定 runtime context，而不是 prompt 形状。
 
-Codex hook 启用后，每轮会自动注入 `<workflow-state>`，其中包含入口分类、当前任务、状态来源和下一步流程提示。状态文本来自 `.cowork-flow/spec/workflow-state-templates.md`；`workflow.md` 只描述流程，不内联状态片段。hook 不替代主会话验收；它只负责把 task 状态和 workflow gate 放进上下文。
+Codex hook 启用后，每轮会自动注入 `<workflow-state>`，其中包含入口分类、当前任务、状态来源和下一步流程提示。状态文本来自 `.cowork-flow/spec/contracts/workflow-state-templates.md`；`workflow.md` 只描述流程，不内联状态片段。hook 不替代主会话验收；它只负责把 task 状态和 workflow gate 放进上下文。
 
 记录 session：
 

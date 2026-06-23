@@ -13,6 +13,21 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from .validate_rules import (
+        config_violation,
+        load_rule_index,
+        rule_violation,
+        runtime_rules_path,
+    )
+except ImportError:  # pragma: no cover - direct script execution
+    from validate_rules import (  # type: ignore[no-redef]
+        config_violation,
+        load_rule_index,
+        rule_violation,
+        runtime_rules_path,
+    )
+
 
 def validate_implementation(
     repo_root: Path,
@@ -35,19 +50,34 @@ def validate_implementation(
     if not modified_files:
         return violations
 
+    rule_index, config_violations = load_rule_index(repo_root)
+    if config_violations:
+        return config_violations
+
     diff_output = _get_git_diff(repo_root, modified_files)
 
     # Check forbidden action rules
     violations.extend(
         _check_spec_file_modifications(
+            repo_root,
             modified_files,
+            rule_index,
             allow_spec_file_modifications=allow_spec_file_modifications,
         )
     )
-    violations.extend(_check_premature_abstraction(diff_output))
-    violations.extend(_check_unrequested_features(diff_output, task_dir))
+    violations.extend(_check_premature_abstraction(repo_root, diff_output, rule_index))
+    violations.extend(_check_unrequested_features(repo_root, diff_output, task_dir, rule_index))
 
     return violations
+
+
+def _missing_rule(repo_root: Path, rule_id: str) -> dict:
+    return config_violation(
+        "RULES-CONFIG-004",
+        f"Runtime workflow rule metadata is missing: {rule_id}",
+        runtime_rules_path(repo_root),
+        f"Add {rule_id} to .cowork-flow/spec/runtime/rules.json.",
+    )
 
 
 def _get_modified_files(repo_root: Path) -> list[str]:
@@ -88,7 +118,9 @@ def _get_git_diff(repo_root: Path, files: list[str]) -> str:
 
 
 def _check_spec_file_modifications(
+    repo_root: Path,
     modified_files: list[str],
+    rule_index: dict[str, dict],
     *,
     allow_spec_file_modifications: bool,
 ) -> list[dict]:
@@ -109,22 +141,19 @@ def _check_spec_file_modifications(
     for file_path in modified_files:
         normalized_path = file_path.replace("\\", "/")
         if any(re.search(pattern, normalized_path) for pattern in spec_patterns):
+            rule = rule_index.get("R-AG-002")
             violations.append(
-                {
-                    "rule_id": "R-AG-002",
-                    "type": "forbidden_action",
-                    "severity": "block",
-                    "passed": False,
-                    "message": "Subagent attempted to modify spec files",
-                    "file": file_path,
-                    "fix_hint": "Spec files can only be modified by main session",
-                }
+                rule_violation(rule, file_path) if rule else _missing_rule(repo_root, "R-AG-002")
             )
 
     return violations
 
 
-def _check_premature_abstraction(diff_output: str) -> list[dict]:
+def _check_premature_abstraction(
+    repo_root: Path,
+    diff_output: str,
+    rule_index: dict[str, dict],
+) -> list[dict]:
     """R-AG-006: Check if premature abstraction was used"""
     violations = []
 
@@ -141,22 +170,21 @@ def _check_premature_abstraction(diff_output: str) -> list[dict]:
     for pattern in abstraction_patterns:
         matches = re.findall(pattern, diff_output)
         if matches:
-            violations.append({
-                "rule_id": "R-AG-006",
-                "type": "forbidden_action",
-                "severity": "warn",
-                "passed": False,
-                "message": f"Premature abstraction detected: {pattern}",
-                "file": "",
-                "fix_hint": "Keep code simple and direct, only abstract when reuse is confirmed",
-            })
+            rule = rule_index.get("R-AG-006")
+            violations.append(
+                rule_violation(rule, "", detail=f"detected pattern: {pattern}")
+                if rule
+                else _missing_rule(repo_root, "R-AG-006")
+            )
 
     return violations
 
 
 def _check_unrequested_features(
+    repo_root: Path,
     diff_output: str,
     task_dir: Path,
+    rule_index: dict[str, dict],
 ) -> list[dict]:
     """R-AG-005: Check if unrequested features were introduced"""
     violations = []
@@ -178,15 +206,12 @@ def _check_unrequested_features(
 
     for pattern in feature_indicators:
         if re.search(pattern, diff_output) and not re.search(pattern, prd_content):
-            violations.append({
-                "rule_id": "R-AG-005",
-                "type": "forbidden_action",
-                "severity": "block",
-                "passed": False,
-                "message": "Unrequested feature introduced",
-                "file": "",
-                "fix_hint": "Only implement features explicitly required by the PRD",
-            })
+            rule = rule_index.get("R-AG-005")
+            violations.append(
+                rule_violation(rule, "", detail=f"detected pattern: {pattern}")
+                if rule
+                else _missing_rule(repo_root, "R-AG-005")
+            )
 
     return violations
 

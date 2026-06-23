@@ -1,4 +1,4 @@
-import assert from "node:assert/strict"
+﻿import assert from "node:assert/strict"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -14,27 +14,30 @@ async function createRegistryRepo(t) {
 
   const specDir = join(root, ".cowork-flow", "spec")
   await mkdir(specDir, { recursive: true })
+  await mkdir(join(specDir, "runtime"), { recursive: true })
+  await mkdir(join(specDir, "contracts"), { recursive: true })
+  const registryContent = JSON.stringify(
+    {
+      schemaVersion: 1,
+      contracts: [
+        {
+          id: "TEST_CONTRACT_V1",
+          path: ".cowork-flow/spec/contracts/test-contract.md",
+          digest: ["Short registry digest.", "Second short registry digest."],
+          readWhen: ["before test action", "when test conflict exists"],
+        },
+      ],
+    },
+    null,
+    2
+  )
   await writeFile(
-    join(specDir, "registry.json"),
-    JSON.stringify(
-      {
-        schemaVersion: 1,
-        contracts: [
-          {
-            id: "TEST_CONTRACT_V1",
-            path: ".cowork-flow/spec/test-contract.md",
-            digest: ["Short registry digest.", "Second short registry digest."],
-            readWhen: ["before test action", "when test conflict exists"],
-          },
-        ],
-      },
-      null,
-      2
-    ),
+    join(root, ".cowork-flow", "spec", "runtime", "contract-registry.json"),
+    registryContent,
     "utf8"
   )
   await writeFile(
-    join(specDir, "test-contract.md"),
+    join(root, ".cowork-flow", "spec", "contracts", "test-contract.md"),
     "FULL_SPEC_SENTINEL initial body that must not be injected.\n",
     "utf8"
   )
@@ -70,10 +73,23 @@ test("opencode plugin injects registry-driven contract digest", async (t) => {
 
   assert.match(context, /<cowork-runtime host="opencode" adapter="opencode\.task">/)
   assert.match(context, /<contract-digest fingerprint="[a-f0-9]{16}">/)
-  assert.match(context, /- TEST_CONTRACT_V1: \.cowork-flow\/spec\/test-contract\.md/)
+  assert.match(context, /- TEST_CONTRACT_V1: \.cowork-flow\/spec\/contracts\/test-contract\.md/)
   assert.match(context, /digest: Short registry digest\./)
   assert.match(context, /read_before: before test action; when test conflict exists/)
   assert.doesNotMatch(context, /FULL_SPEC_SENTINEL/)
+})
+
+test("opencode plugin surfaces registry warning when missing", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-plugin-"))
+  t.after(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+  await mkdir(join(root, ".cowork-flow", "spec"), { recursive: true })
+
+  const context = await renderPluginContext(root)
+
+  assert.match(context, /warning: contract registry unavailable or invalid/)
+  assert.match(context, /using fallback digest/)
 })
 
 test("opencode plugin fingerprint changes when referenced spec changes", async (t) => {
@@ -81,7 +97,7 @@ test("opencode plugin fingerprint changes when referenced spec changes", async (
 
   const before = await renderPluginContext(root)
   await writeFile(
-    join(root, ".cowork-flow", "spec", "test-contract.md"),
+    join(root, ".cowork-flow", "spec", "contracts", "test-contract.md"),
     "FULL_SPEC_SENTINEL changed body that still must not be injected.\n",
     "utf8"
   )
@@ -95,27 +111,24 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   const root = await createRegistryRepo(t)
   const runtimeDir = join(root, ".cowork-flow", ".runtime", "subagents")
   await mkdir(runtimeDir, { recursive: true })
-  await writeFile(
-    join(runtimeDir, "rtx_plugin.json"),
-    JSON.stringify(
-      {
-        schema_version: 2,
-        runtime_context_id: "rtx_plugin",
-        scope: "subagent",
-        host: "opencode",
-        adapter: "opencode.task",
-        agent_type: "cowork-check",
-        role: "check",
-        task_dir: ".cowork-flow/tasks/06-04-demo",
-        status: "pending",
-        assignment: { goal: "Check the runtime binding." },
-        bound_context_key: null,
-      },
-      null,
-      2
-    ),
-    "utf8"
+  const runtimeContextContent = JSON.stringify(
+    {
+      schema_version: 2,
+      runtime_context_id: "rtx_plugin",
+      scope: "subagent",
+      host: "opencode",
+      adapter: "opencode.task",
+      agent_type: "cowork-check",
+      role: "check",
+      task_dir: ".cowork-flow/tasks/06-04-demo",
+      status: "pending",
+      assignment: { goal: "Check the runtime binding." },
+      bound_context_key: null,
+    },
+    null,
+    2
   )
+  await writeFile(join(runtimeDir, "rtx_plugin.json"), runtimeContextContent, "utf8")
 
   const context = await renderPluginContext(root, {
     opencode_session_id: "child-session",

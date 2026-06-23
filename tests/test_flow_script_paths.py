@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import contextlib
@@ -68,6 +68,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             f'{{"active_task_path": "{task_path}"}}\n',
             encoding="utf-8",
         )
+        rules_path = root / ".cowork-flow" / "spec" / "runtime" / "rules.json"
+        if not rules_path.exists():
+            self._write_rules_file(root, [])
 
     def _run_git(self, root: Path, *args: str) -> str:
         result = subprocess.run(
@@ -346,7 +349,7 @@ class FlowScriptPathsTest(unittest.TestCase):
         return change_dir
 
     def _write_rules_file(self, root: Path, rules: list[dict]) -> None:
-        rules_path = root / ".cowork-flow" / "spec" / "rules.json"
+        rules_path = root / ".cowork-flow" / "spec" / "runtime" / "rules.json"
         rules_path.parent.mkdir(parents=True, exist_ok=True)
         rules_path.write_text(
             json.dumps({"schemaVersion": 1, "rules": rules}, ensure_ascii=False),
@@ -362,6 +365,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             "condition": f"{rule_id} condition",
             "message": f"{rule_id} blocked",
             "fix_hint": f"Fix {rule_id}",
+            "source_file": ".cowork-flow/workflow.md",
+            "source_anchor": f"{rule_id}-anchor",
+            "enforcement": "validate_rules",
         }
 
     def _write_behavior_prd(self, task_dir: Path) -> None:
@@ -526,19 +532,58 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertEqual(["R-WF-007"], [v["rule_id"] for v in violations])
 
+    def test_validate_rules_blocks_missing_runtime_rules_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ready_task_files(root, task_dir)
+            validator = importlib.import_module("common.validate_rules")
+
+            violations = validator.validate_rules(root, "task_review", task_dir)
+
+            self.assertEqual(["RULES-CONFIG-001"], [v["rule_id"] for v in violations])
+            self.assertEqual("block", violations[0]["severity"])
+            self.assertIn(
+                ".cowork-flow/spec/runtime/rules.json",
+                violations[0]["file"].replace("\\", "/"),
+            )
+
+    def test_validate_rules_blocks_incomplete_runtime_rule_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ready_task_files(root, task_dir)
+            incomplete_rule = self._workflow_rule("R-WF-007", "task_complete")
+            incomplete_rule.pop("message")
+            self._write_rules_file(root, [incomplete_rule])
+            validator = importlib.import_module("common.validate_rules")
+
+            violations = validator.validate_rules(root, "task_complete", task_dir)
+
+            self.assertEqual(["RULES-CONFIG-004"], [v["rule_id"] for v in violations])
+            self.assertEqual("block", violations[0]["severity"])
+            self.assertIn("message", violations[0]["message"])
+
     def test_rule_scope_contract_includes_task_review(self) -> None:
         for schema_path in (
-            ROOT / ".cowork-flow" / "spec" / "rules.schema.json",
-            ROOT / "template" / ".cowork-flow" / "spec" / "rules.schema.json",
+            ROOT / ".cowork-flow" / "spec" / "schemas" / "rules.schema.json",
+            ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "rules.schema.json",
         ):
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
-            scope_enum = schema["properties"]["rules"]["items"]["properties"]["scope"]["enum"]
+            rule_item = schema["properties"]["rules"]["items"]
+            required = rule_item["required"]
+            scope_enum = rule_item["properties"]["scope"]["enum"]
+            source_requirements = rule_item["anyOf"]
+            self.assertIn({"required": ["source_anchor"]}, source_requirements)
+            self.assertIn({"required": ["source_excerpt"]}, source_requirements)
+            self.assertIn("enforcement", required)
             self.assertIn("task_review", scope_enum)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             self._write_ready_task_files(root, task_dir)
+            self._write_rules_file(root, [])
             result = subprocess.run(
                 [
                     sys.executable,
@@ -720,6 +765,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            self._write_rules_file(root, [])
 
             previous_cwd = Path.cwd()
             try:
@@ -746,6 +792,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            self._write_rules_file(root, [])
 
             previous_cwd = Path.cwd()
             try:
@@ -809,6 +856,18 @@ class FlowScriptPathsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             self._write_session_task(root)
+            self._write_rules_file(
+                root,
+                [
+                    {
+                        **self._workflow_rule("R-AG-002", "all"),
+                        "type": "forbidden_action",
+                        "enforcement": "validate_implementation",
+                        "message": "Subagent attempted to modify spec files",
+                        "fix_hint": "Spec files can only be modified by main session",
+                    }
+                ],
+            )
             self._commit_all(root, "baseline")
             (root / "AGENTS.md").write_text("# Rules changed by implementation\n", encoding="utf-8")
 
@@ -828,6 +887,36 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(1, result)
             self.assertEqual("in_progress", data["status"])
             self.assertIn("Subagent attempted to modify spec files", stderr.getvalue())
+
+    def test_implementation_gate_uses_runtime_rule_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            self._write_rules_file(
+                root,
+                [
+                    {
+                        **self._workflow_rule("R-AG-002", "all"),
+                        "type": "forbidden_action",
+                        "enforcement": "validate_implementation",
+                        "message": "custom spec mutation block",
+                        "fix_hint": "custom fix from runtime rules",
+                    }
+                ],
+            )
+            self._commit_all(root, "baseline")
+            (root / "AGENTS.md").write_text("# Changed rules\n", encoding="utf-8")
+            implementation = importlib.import_module("common.validate_implementation")
+
+            violations = implementation.validate_implementation(root, task_dir)
+
+            self.assertEqual(["R-AG-002"], [v["rule_id"] for v in violations])
+            self.assertEqual("custom spec mutation block", violations[0]["message"])
+            self.assertEqual("custom fix from runtime rules", violations[0]["fix_hint"])
 
     def test_cmd_review_allows_spec_changes_for_coordinator_execution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -875,7 +964,7 @@ class FlowScriptPathsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             outer = Path(temp_dir)
             self._init_git_repo(outer)
-            outer_spec = outer / ".cowork-flow" / "spec" / "rules.schema.json"
+            outer_spec = outer / ".cowork-flow" / "spec" / "schemas" / "rules.schema.json"
             outer_src = outer / "src"
             outer_spec.parent.mkdir(parents=True)
             outer_src.mkdir()
@@ -1233,6 +1322,118 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
 
+    def test_test_intent_handles_utf8_bom_when_targeting_test_function(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            tests_dir = root / "tests"
+            tests_dir.mkdir()
+            (tests_dir / "test_behavior.py").write_text(
+                "\ufeffimport unittest\n\n"
+                "SHALLOW_FIXTURE = 'self.assertTrue(True)'\n\n"
+                "class BehaviorTest(unittest.TestCase):\n"
+                "    def test_real_behavior(self):\n"
+                "        result = {'status': 'blocked'}\n"
+                "        self.assertEqual('blocked', result['status'])\n",
+                encoding="utf-8",
+            )
+            evidence = {
+                "acceptanceId": "AC-001",
+                "testFile": "tests/test_behavior.py",
+                "testName": "BehaviorTest.test_real_behavior",
+                "redCommand": "python -m unittest tests.test_behavior.BehaviorTest.test_real_behavior -v",
+                "redExitCode": 1,
+                "redOutputExcerpt": "target behavior missing",
+                "failureReason": "target behavior was not implemented",
+                "whyThisTestMatters": "It proves UTF-8 BOM does not make test intent scan the whole file.",
+                "greenCommand": "python -m unittest tests.test_behavior.BehaviorTest.test_real_behavior -v",
+                "greenExitCode": 0,
+                "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
+            }
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            test_intent = importlib.import_module("common.test_intent")
+
+            self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
+
+    def test_test_intent_ignores_shallow_marker_inside_fixture_string(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            tests_dir = root / "tests"
+            tests_dir.mkdir()
+            (tests_dir / "test_behavior.py").write_text(
+                "import unittest\n\n"
+                "class BehaviorTest(unittest.TestCase):\n"
+                "    def test_real_behavior(self):\n"
+                "        fixture = 'self.assertTrue(True)'\n"
+                "        result = {'status': 'blocked'}\n"
+                "        self.assertEqual('blocked', result['status'])\n",
+                encoding="utf-8",
+            )
+            evidence = {
+                "acceptanceId": "AC-001",
+                "testFile": "tests/test_behavior.py",
+                "testName": "BehaviorTest.test_real_behavior",
+                "redCommand": "python -m unittest tests.test_behavior.BehaviorTest.test_real_behavior -v",
+                "redExitCode": 1,
+                "redOutputExcerpt": "target behavior missing",
+                "failureReason": "target behavior was not implemented",
+                "whyThisTestMatters": "It proves fixture strings do not masquerade as shallow test assertions.",
+                "greenCommand": "python -m unittest tests.test_behavior.BehaviorTest.test_real_behavior -v",
+                "greenExitCode": 0,
+                "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
+            }
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            test_intent = importlib.import_module("common.test_intent")
+
+            self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
+
+    def test_test_intent_blocks_unresolved_test_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            test_file = root / "tests" / "test_real.py"
+            test_file.parent.mkdir(parents=True)
+            test_file.write_text(
+                "import unittest\n\n"
+                "class RealTest(unittest.TestCase):\n"
+                "    def test_real_behavior(self):\n"
+                "        result = {'status': 'blocked'}\n"
+                "        self.assertEqual('blocked', result['status'])\n",
+                encoding="utf-8",
+            )
+            evidence = {
+                "acceptanceId": "AC-001",
+                "testFile": "tests/test_real.py",
+                "testName": "MissingTest.test_real_behavior",
+                "redCommand": "python -m unittest tests.test_real.MissingTest.test_real_behavior -v",
+                "redExitCode": 1,
+                "redOutputExcerpt": "missing target behavior",
+                "failureReason": "target behavior was not implemented",
+                "whyThisTestMatters": "It proves evidence points at the exact behavior test.",
+                "greenCommand": "python -m unittest tests.test_real.RealTest.test_real_behavior -v",
+                "greenExitCode": 0,
+                "broaderVerification": "python -m unittest tests.test_real -v",
+            }
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            test_intent = importlib.import_module("common.test_intent")
+
+            violations = test_intent.validate_test_intent(root, task_dir)
+
+            self.assertEqual(["TEST-INTENT-005"], [v["rule_id"] for v in violations])
+
     def test_tdd_evidence_accepts_documentation_exemption(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1485,6 +1686,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            self._write_rules_file(root, [])
 
             previous_cwd = Path.cwd()
             try:

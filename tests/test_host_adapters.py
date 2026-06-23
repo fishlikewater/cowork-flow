@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import unittest
@@ -50,8 +50,8 @@ def _parse_scalar(value: str) -> object:
 class HostAdaptersTest(unittest.TestCase):
     def test_adapter_schema_declares_capability_enum(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "adapter.schema.json",
-            ROOT / "template" / ".cowork-flow" / "spec" / "adapter.schema.json",
+            ROOT / ".cowork-flow" / "spec" / "schemas" / "adapter.schema.json",
+            ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "adapter.schema.json",
         ):
             schema = json.loads(path.read_text(encoding="utf-8"))
             enum = schema["$defs"]["capability"]["enum"]
@@ -123,8 +123,8 @@ class HostAdaptersTest(unittest.TestCase):
             "codex exec",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
-            ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+            ROOT / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
+            ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
         ):
             text = path.read_text(encoding="utf-8")
             schema = json.loads(text)
@@ -185,12 +185,12 @@ class HostAdaptersTest(unittest.TestCase):
     def test_party_mode_v2_root_and_template_assets_are_synced(self) -> None:
         pairs = (
             (
-                ROOT / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
-                ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-actions.schema.json",
+                ROOT / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
+                ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
             ),
             (
-                ROOT / ".cowork-flow" / "spec" / "party-mode-v2-board.md",
-                ROOT / "template" / ".cowork-flow" / "spec" / "party-mode-v2-board.md",
+                ROOT / ".cowork-flow" / "spec" / "contracts" / "party-mode-v2-board.md",
+                ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "party-mode-v2-board.md",
             ),
             (
                 ROOT / ".opencode" / "commands" / "party-mode-v2.md",
@@ -201,8 +201,8 @@ class HostAdaptersTest(unittest.TestCase):
                 ROOT / "template" / ".cowork-flow" / "workflow.md",
             ),
             (
-                ROOT / ".cowork-flow" / "spec" / "subagent-dispatch.md",
-                ROOT / "template" / ".cowork-flow" / "spec" / "subagent-dispatch.md",
+                ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
+                ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
             ),
         )
         for root_path, template_path in pairs:
@@ -256,7 +256,7 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn("sessionID", plugin)
             self.assertIn("COWORK_FLOW_CONTEXT_ID", plugin)
             self.assertIn("OPENCODE_SESSION_ID", plugin)
-            self.assertIn(".cowork-flow\", \"spec\", \"registry.json", plugin)
+            self.assertIn(".cowork-flow\", \"spec\", \"runtime\", \"contract-registry.json", plugin)
             self.assertIn("contract-digest", plugin)
             self.assertIn("fingerprint", plugin)
             self.assertIn("read_before", plugin)

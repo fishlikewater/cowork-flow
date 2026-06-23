@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -133,6 +133,18 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn("<contract-digest fingerprint=", context)
         self.assertIn("Status: no_task", context)
         self.assertIn("必须先创建或启动任务", context)
+
+    def test_hook_surfaces_contract_registry_warning_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            (root / ".cowork-flow" / "spec" / "runtime" / "contract-registry.json").unlink()
+
+            data = self._run_hook(root, {})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("warning:", context)
+        self.assertIn("contract registry unavailable", context)
 
     def test_hook_keeps_bounded_prompt_on_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -321,7 +333,7 @@ class ClaudeHooksTest(unittest.TestCase):
                 "[workflow-state:no_task]\nwrong source\n[/workflow-state:no_task]\n",
                 encoding="utf-8",
             )
-            template_file = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
+            template_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
             template_file.write_text(
                 template_file.read_text(encoding="utf-8").replace(
                     "当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。",
@@ -434,7 +446,7 @@ class ClaudeHooksTest(unittest.TestCase):
             self._make_project(root)
 
             before = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
-            spec_file = root / ".cowork-flow" / "spec" / "entry-contract.md"
+            spec_file = root / ".cowork-flow" / "spec" / "contracts" / "entry-contract.md"
             spec_file.write_text(
                 spec_file.read_text(encoding="utf-8") + "\n<!-- fingerprint smoke -->\n",
                 encoding="utf-8",
@@ -453,7 +465,7 @@ class ClaudeHooksTest(unittest.TestCase):
             Path(".claude/hooks/inject-workflow-state.py"),
             Path(".cowork-flow/scripts/common/active_task.py"),
             Path(".cowork-flow/scripts/common/entry_classifier.py"),
-            Path(".cowork-flow/spec/workflow-state-templates.md"),
+            Path(".cowork-flow/spec/contracts/workflow-state-templates.md"),
         ):
             root_text = (ROOT / rel).read_text(encoding="utf-8")
             template_text = (TEMPLATE / rel).read_text(encoding="utf-8")

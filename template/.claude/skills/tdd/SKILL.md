@@ -40,6 +40,10 @@ Record TDD proof in `<task>/tdd.jsonl`. Each evidence line is one JSON object:
 
 Every evidence record must map to a PRD `acceptanceId`. The red failure must be about the target behavior, not syntax, import, environment, fixture, or setup failure.
 
+`testName` must resolve to the exact behavior test in `testFile`. Use one of:
+`test_method`, `ClassName.test_method`, or `module.ClassName.test_method`.
+Do not point evidence at a class, module, or a name that only exists in a command string.
+
 ## Exemption
 
 Pure documentation, comment-only, or formatting-only tasks may use an exemption record instead of red/green evidence:
