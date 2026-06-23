@@ -54,6 +54,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "party-mode-v2",
             "python-design",
             "start",
+            "tdd",
             "update-spec",
             "writing-plans",
         }
@@ -103,7 +104,7 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
             for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
                          "finish-work", "meta", "party-mode", "party-mode-v2",
-                         "python-design", "start", "update-spec", "writing-plans"):
+                         "python-design", "start", "tdd", "update-spec", "writing-plans"):
                 self.assertTrue((base / "skills" / name / "SKILL.md").is_file())
             self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
@@ -287,6 +288,39 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("MUST NOT spawn", text)
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
+
+    def test_cowork_implement_requires_tdd_evidence(self) -> None:
+        required_markers = (
+            "red-green-refactor",
+            "tdd.jsonl",
+            "redCommand",
+            "redExitCode",
+            "greenCommand",
+            "greenExitCode",
+            "exemption",
+        )
+        for path in (
+            ROOT / ".codex" / "agents" / "cowork-implement.toml",
+            ROOT / "template" / ".codex" / "agents" / "cowork-implement.toml",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
+    def test_cowork_check_requires_test_intent_review(self) -> None:
+        required_markers = (
+            "test_intent_review",
+            "shallow tests",
+            "meaningful behavior breaks",
+            "PRD acceptance",
+        )
+        for path in (
+            ROOT / ".codex" / "agents" / "cowork-check.toml",
+            ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
+        ):
+            text = path.read_text(encoding="utf-8")
+            missing = [marker for marker in required_markers if marker not in text]
+            self.assertEqual([], missing, f"missing markers from {path}: {missing}")
 
     def test_default_agent_overrides_block_start_resume_drift(self) -> None:
         for path in (

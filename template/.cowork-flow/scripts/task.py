@@ -37,6 +37,7 @@ from common.files import (
     read_json_file as _read_json_file,
     write_json_file as _write_json_file,
 )
+from common.gates import GateResult, GateRunner
 from common.git_context import _run_git_command
 from common.active_task import (
     clear_active_task,
@@ -67,6 +68,7 @@ from common.execution_context import (
     execution_context_from_namespace,
     worker_command_block_message,
 )
+from common.state_machine import transition_blockers
 
 CONTEXT_JSONL_FILES = ["implement.jsonl", "check.jsonl", "debug.jsonl"]
 DONE_STATUSES = ("completed", "done")
@@ -101,6 +103,43 @@ def _write_json_or_report(path: Path, data: dict, label: str) -> bool:
         file=sys.stderr,
     )
     return False
+
+
+def _gate_blocker_messages(result: GateResult) -> list[str]:
+    messages: list[str] = []
+    for violation in result.blockers:
+        rule_id = violation.get("rule_id") or violation.get("id") or "unknown-rule"
+        message = violation.get("message") or "Gate blocked"
+        messages.append(f"{rule_id}: {message}")
+    return messages
+
+
+def _report_gate_block(
+    title: str,
+    result: GateResult,
+    runner: GateRunner | None = None,
+) -> int:
+    print(colored(f"Error: {title}", Colors.RED), file=sys.stderr)
+    for violation in result.violations:
+        print(json.dumps(violation, ensure_ascii=False), file=sys.stderr)
+    if runner is not None:
+        runner.log(result)
+    return result.exit_code
+
+
+def _report_gate_warnings(title: str, result: GateResult) -> None:
+    if not result.violations:
+        return
+
+    print(colored(f"Warning: {title}", Colors.YELLOW), file=sys.stderr)
+    for violation in result.violations:
+        print(json.dumps(violation, ensure_ascii=False), file=sys.stderr)
+
+
+def _print_transition_blockers(blockers: list[str]) -> None:
+    print(colored("Error: Task state transition blocked", Colors.RED), file=sys.stderr)
+    for blocker in blockers:
+        print(f"  - {blocker}", file=sys.stderr)
 
 
 def _build_archived_task_relationship_updates(
@@ -916,19 +955,19 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
-    # Spec enforcement: validate rules at task start
-    try:
-        from common.validate_rules import validate_rules, log_violations
-        violations = validate_rules(repo_root, "task_start", full_path)
-        blockers = [v for v in violations if v["severity"] == "block"]
-        if blockers:
-            print(colored("Error: Spec enforcement blocked task start", Colors.RED), file=sys.stderr)
-            for v in violations:
-                print(json.dumps(v, ensure_ascii=False), file=sys.stderr)
-            log_violations(violations, "task_start", full_path, repo_root)
-            return 1
-    except ImportError:
-        pass  # validate_rules not available, skip enforcement
+    state_blockers = transition_blockers(_load_task_status(full_path), "in_progress")
+    if state_blockers:
+        _print_transition_blockers(state_blockers)
+        return 1
+
+    gate_runner = GateRunner(repo_root)
+    gate_result = gate_runner.run("task_start", full_path)
+    if gate_result.blocked:
+        return _report_gate_block(
+            "Spec enforcement blocked task start",
+            gate_result,
+            gate_runner,
+        )
 
     task_json_path = full_path / FILE_TASK_JSON
     task_data = _load_task_data_or_report(full_path)
@@ -972,16 +1011,69 @@ def cmd_review(args: argparse.Namespace) -> int:
     if task_dir is None:
         return 1
 
+    state_blockers = transition_blockers(_load_task_status(task_dir), "review")
+    if state_blockers:
+        _print_transition_blockers(state_blockers)
+        return 1
+
     # Validate implementation against forbidden action rules
     try:
         from common.validate_implementation import validate_implementation
         violations = validate_implementation(repo_root, task_dir)
-        if violations:
+        gate_result = GateResult.from_violations("task_review", violations, task_dir)
+        if gate_result.blocked:
+            return _report_gate_block(
+                "Implementation gate blocked task review",
+                gate_result,
+            )
+        if gate_result.violations:
             print(colored("Warning: Implementation violations detected", Colors.YELLOW), file=sys.stderr)
-            for v in violations:
+            for v in gate_result.violations:
                 print(f"  - {v['message']}", file=sys.stderr)
     except ImportError:
         pass
+
+    try:
+        from common.tdd_evidence import validate_tdd_evidence
+
+        tdd_result = GateResult.from_violations(
+            "task_review_tdd",
+            validate_tdd_evidence(task_dir),
+            task_dir,
+        )
+        if tdd_result.blocked:
+            return _report_gate_block(
+                "TDD evidence gate blocked task review",
+                tdd_result,
+            )
+    except ImportError:
+        pass
+
+    try:
+        from common.test_intent import validate_test_intent
+
+        intent_result = GateResult.from_violations(
+            "task_review_test_intent",
+            validate_test_intent(repo_root, task_dir),
+            task_dir,
+        )
+        if intent_result.blocked:
+            return _report_gate_block(
+                "Test intent gate blocked task review",
+                intent_result,
+            )
+        _report_gate_warnings("Test intent review warnings", intent_result)
+    except ImportError:
+        pass
+
+    gate_runner = GateRunner(repo_root)
+    gate_result = gate_runner.run("task_review", task_dir)
+    if gate_result.blocked:
+        return _report_gate_block(
+            "Coding standards gate blocked task review",
+            gate_result,
+            gate_runner,
+        )
 
     # Get coding standards summary for Agent review
     try:
@@ -1009,36 +1101,57 @@ def cmd_complete(args: argparse.Namespace) -> int:
     if task_dir is None:
         return 1
 
-    # Gate: task must have passed through review/checking before completion
     current_status = _load_task_status(task_dir)
-    if current_status not in CHECK_STATUSES:
-        print(
-            colored(
-                f"Error: Task cannot be completed from status '{current_status}'. "
-                f"Run `task review` first to enter check phase.",
-                Colors.RED,
-            ),
-            file=sys.stderr,
-        )
+    state_blockers = transition_blockers(current_status, "completed")
+    if state_blockers:
+        _print_transition_blockers(state_blockers)
         print(
             "Hint: run ./.cowork-flow/run task review <task-dir> to mark the task ready for check",
             file=sys.stderr,
         )
         return 1
 
-    # Spec enforcement: validate rules at task complete
     try:
-        from common.validate_rules import validate_rules, log_violations
-        violations = validate_rules(repo_root, "task_complete", task_dir)
-        blockers = [v for v in violations if v["severity"] == "block"]
-        if blockers:
-            print(colored("Error: Spec enforcement blocked task completion", Colors.RED), file=sys.stderr)
-            for v in violations:
-                print(json.dumps(v, ensure_ascii=False), file=sys.stderr)
-            log_violations(violations, "task_complete", task_dir, repo_root)
-            return 1
+        from common.tdd_evidence import validate_tdd_evidence
+
+        tdd_result = GateResult.from_violations(
+            "task_complete_tdd",
+            validate_tdd_evidence(task_dir),
+            task_dir,
+        )
+        if tdd_result.blocked:
+            return _report_gate_block(
+                "TDD evidence gate blocked task completion",
+                tdd_result,
+            )
     except ImportError:
-        pass  # validate_rules not available, skip enforcement
+        pass
+
+    try:
+        from common.test_intent import validate_test_intent
+
+        intent_result = GateResult.from_violations(
+            "task_complete_test_intent",
+            validate_test_intent(repo_root, task_dir),
+            task_dir,
+        )
+        if intent_result.blocked:
+            return _report_gate_block(
+                "Test intent gate blocked task completion",
+                intent_result,
+            )
+        _report_gate_warnings("Test intent completion warnings", intent_result)
+    except ImportError:
+        pass
+
+    gate_runner = GateRunner(repo_root)
+    gate_result = gate_runner.run("task_complete", task_dir)
+    if gate_result.blocked:
+        return _report_gate_block(
+            "Spec enforcement blocked task completion",
+            gate_result,
+            gate_runner,
+        )
 
     today = datetime.now().strftime("%Y-%m-%d")
     if not _set_task_status(task_dir, "completed", completed_at=today):
@@ -1175,6 +1288,12 @@ def _task_next_blockers(repo_root: Path, task_dir: Path) -> list[str]:
     blockers = _task_start_blockers(task_dir)
     blockers.extend(_task_context_validation_issues(task_dir, repo_root, quiet=True))
     blockers.extend(_optional_readiness_blockers(repo_root, task_dir))
+    status = _load_task_status(task_dir)
+    gate_runner = GateRunner(repo_root)
+    if status == "planning":
+        blockers.extend(_gate_blocker_messages(gate_runner.run("task_start", task_dir)))
+    elif status in CHECK_STATUSES:
+        blockers.extend(_gate_blocker_messages(gate_runner.run("task_complete", task_dir)))
     return blockers
 
 

@@ -1,0 +1,21 @@
+{
+  "id": "product-validation-suite",
+  "name": "product-validation-suite",
+  "title": "产品级验收套件与模板同步",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-23",
+  "completedAt": "2026-06-23",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "06-23-tdd-productization",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

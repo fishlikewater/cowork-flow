@@ -36,7 +36,7 @@ def validate_rules(
     if not rules_path.exists():
         return violations
 
-    with open(rules_path) as f:
+    with open(rules_path, encoding="utf-8") as f:
         rules_data = json.load(f)
 
     rules = rules_data.get("rules", [])
@@ -49,7 +49,7 @@ def validate_rules(
 
     # Validate each rule
     for rule in applicable_rules:
-        violation = _validate_rule(rule, repo_root, task_dir)
+        violation = _validate_rule(rule, repo_root, task_dir, scope)
         if violation:
             violations.append(violation)
 
@@ -60,12 +60,13 @@ def _validate_rule(
     rule: dict,
     repo_root: Path,
     task_dir: Path | None,
+    scope: str,
 ) -> dict | None:
     """Validate a single rule. Returns violation dict if rule fails."""
     rule_type = rule["type"]
 
     if rule_type == "phase_gate":
-        return _validate_phase_gate(rule, repo_root, task_dir)
+        return _validate_phase_gate(rule, repo_root, task_dir, scope)
     elif rule_type == "forbidden_action":
         # Forbidden actions are validated at runtime, not at checkpoints
         return None
@@ -77,6 +78,7 @@ def _validate_phase_gate(
     rule: dict,
     repo_root: Path,
     task_dir: Path | None,
+    scope: str,
 ) -> dict | None:
     """Validate a phase_gate rule."""
     rule_id = rule["id"]
@@ -113,9 +115,9 @@ def _validate_phase_gate(
         if scope == "task_complete" and task_dir:
             task_json = task_dir / "task.json"
             if task_json.exists():
-                with open(task_json) as f:
+                with open(task_json, encoding="utf-8") as f:
                     task_data = json.load(f)
-                if task_data.get("status") != "review":
+                if task_data.get("status") not in ("review", "checking"):
                     return {
                         "rule_id": rule_id,
                         "type": rule["type"],
@@ -140,12 +142,26 @@ def _find_linked_change(repo_root: Path, task_dir: Path) -> Path | None:
         if change_dir.is_dir() and change_dir.name != "archive":
             change_yaml = change_dir / "change.yaml"
             if change_yaml.exists():
-                with open(change_yaml) as f:
+                with open(change_yaml, encoding="utf-8") as f:
                     content = f.read()
                 if task_name in content:
                     return change_dir
 
     return None
+
+
+def _metadata_has_link(content: str, keys: tuple[str, ...]) -> bool:
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        if key.strip() not in keys:
+            continue
+        normalized_value = value.strip()
+        if normalized_value and normalized_value != "null":
+            return True
+    return False
 
 
 def _check_file_exists(
@@ -197,10 +213,10 @@ def _check_plan_link(
             "fix_hint": rule["fix_hint"],
         }
 
-    with open(change_yaml) as f:
+    with open(change_yaml, encoding="utf-8") as f:
         content = f.read()
 
-    if "plan:" not in content or "plan: null" in content:
+    if not _metadata_has_link(content, ("plan",)):
         return {
             "rule_id": rule["id"],
             "type": rule["type"],
@@ -231,10 +247,10 @@ def _check_task_link(
             "fix_hint": rule["fix_hint"],
         }
 
-    with open(change_yaml) as f:
+    with open(change_yaml, encoding="utf-8") as f:
         content = f.read()
 
-    if "tasks:" not in content:
+    if not _metadata_has_link(content, ("task", "tasks")):
         return {
             "rule_id": rule["id"],
             "type": rule["type"],
@@ -269,7 +285,7 @@ def log_violations(
         "violations": violations,
     }
 
-    with open(log_path, "a") as f:
+    with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 

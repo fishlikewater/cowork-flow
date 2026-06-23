@@ -1,0 +1,13 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".cowork-flow/plans/2026-06-23-tdd-productization.md", "reason": "Implementation plan"}
+{"file": ".cowork-flow/changes/06-23-tdd-productization/spec.md", "reason": "TDD behavior spec"}
+{"file": ".agents/skills/before-dev/SKILL.md", "reason": "Pre-dev skill integration"}
+{"file": ".agents/skills/writing-plans/SKILL.md", "reason": "Planning skill integration"}
+{"file": ".cowork-flow/tasks/06-23-tdd-skill-evidence/prd.md", "reason": "Task PRD"}
+{"file": ".codex/agents/cowork-implement.toml", "reason": "Implement agent must produce TDD evidence"}
+{"file": "template/.codex/agents/cowork-implement.toml", "reason": "Template implement agent mirror"}

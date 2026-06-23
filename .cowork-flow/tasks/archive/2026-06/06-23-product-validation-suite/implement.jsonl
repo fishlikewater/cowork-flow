@@ -1,0 +1,21 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/plans/2026-06-23-tdd-productization.md", "reason": "Implementation plan"}
+{"file": ".cowork-flow/changes/06-23-tdd-productization/spec.md", "reason": "Product validation behavior spec"}
+{"file": ".cowork-flow/tasks/06-23-product-validation-suite/prd.md", "reason": "Task PRD"}
+{"file": "scripts/run-template-tests.js", "reason": "Template test runner"}
+{"file": "scripts/pack-check.js", "reason": "Package validation"}
+{"file": "template/.cowork-flow/workflow.md", "reason": "Template workflow asset"}
+{"file": ".agents/skills/before-dev/SKILL.md", "reason": "Root pre-dev skill"}
+{"file": "template/.agents/skills/before-dev/SKILL.md", "reason": "Template pre-dev skill"}
+{"file": ".agents/skills/writing-plans/SKILL.md", "reason": "Root planning skill"}
+{"file": "template/.agents/skills/writing-plans/SKILL.md", "reason": "Template planning skill"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Root check skill"}
+{"file": "template/.agents/skills/check/SKILL.md", "reason": "Template check skill"}
+{"file": ".codex/agents/cowork-implement.toml", "reason": "Root implement agent"}
+{"file": "template/.codex/agents/cowork-implement.toml", "reason": "Template implement agent"}
+{"file": ".codex/agents/cowork-check.toml", "reason": "Root check agent"}
+{"file": "template/.codex/agents/cowork-check.toml", "reason": "Template check agent"}

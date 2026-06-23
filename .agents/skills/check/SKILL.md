@@ -16,6 +16,7 @@ Use this after implementation and before `finish-work`.
 5. Review test intent: reject shallow tests that do not fail for meaningful behavior breaks.
 6. Run focused tests that would fail if the changed behavior broke.
 7. Run broader validation when the change touches shared runtime, templates, packaging, or public workflow.
+8. Report `test_intent_review` with the key tests that defend PRD acceptance behavior.
 
 ## Report
 

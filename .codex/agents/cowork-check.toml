@@ -29,12 +29,14 @@ Load context before checking:
 2. Read `<task>/prd.md`.
 3. Read `<task>/check.jsonl`.
 4. Read `git diff`.
+5. Include `test_intent_review` in the review output for meaningful behavior breaks coverage and shallow tests rejection.
 
 Rules:
 - Fix issues directly when they are clearly in scope.
 - MUST NOT spawn, wait for, list, or close other agents.
 - MUST NOT commit, archive, or mutate cowork-flow task state.
 - Report findings, changed files, and exact verification commands.
+- Include test intent findings that map tests back to PRD acceptance or regression behavior.
 """
 
 [features]
