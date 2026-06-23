@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -36,7 +36,7 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'change.py')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'project_context.py')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'entry_classifier.py')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'project-context.md')), false);
   assert.equal(await exists(join(target, '.codex', 'config.toml')), true);
   assert.equal(await exists(join(target, '.codex', 'hooks.json')), true);
@@ -68,7 +68,7 @@ test('init copies only opencode host assets when platform is opencode', async (t
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'entry_classifier.py')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')), true);
   assert.equal(await exists(join(target, '.codex')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), true);
@@ -94,7 +94,7 @@ test('init copies only claude-code host assets when platform is claude-code', as
   assert.equal(await exists(join(target, '.agents', 'skills')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'entry_classifier.py')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')), true);
   assert.equal(await exists(join(target, '.codex')), false);
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);

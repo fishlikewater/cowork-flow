@@ -10,7 +10,8 @@
       "message": "L2 readiness: proposal.md is missing or empty",
       "fix_hint": "创建 .cowork-flow/changes/<slug>/proposal.md 并填写目标、用户价值、范围边界",
       "source_file": ".cowork-flow/workflow.md",
-      "source_line": "150-152"
+      "source_anchor": "workflow#l2-readiness-gate",
+      "enforcement": "validate_rules"
     },
     {
       "id": "R-WF-002",
@@ -21,7 +22,8 @@
       "message": "L2 readiness: spec.md is missing or empty",
       "fix_hint": "创建 .cowork-flow/changes/<slug>/spec.md 并填写功能规格",
       "source_file": ".cowork-flow/workflow.md",
-      "source_line": "150-152"
+      "source_anchor": "workflow#l2-readiness-gate",
+      "enforcement": "validate_rules"
     },
     {
       "id": "R-WF-003",
@@ -32,7 +34,8 @@
       "message": "L2 readiness: design.md is missing or empty",
       "fix_hint": "创建 .cowork-flow/changes/<slug>/design.md 并填写技术设计",
       "source_file": ".cowork-flow/workflow.md",
-      "source_line": "150-152"
+      "source_anchor": "workflow#l2-readiness-gate",
+      "enforcement": "validate_rules"
     },
     {
       "id": "R-WF-004",
@@ -43,7 +46,8 @@
       "message": "L2 readiness: plan link is missing",
       "fix_hint": "在 change.yaml 中添加 plan 字段指向 .cowork-flow/plans/ 下的计划文件",
       "source_file": ".cowork-flow/workflow.md",
-      "source_line": "150-152"
+      "source_anchor": "workflow#l2-readiness-gate",
+      "enforcement": "validate_rules"
     },
     {
       "id": "R-WF-005",
@@ -54,7 +58,8 @@
       "message": "L2 readiness: task link is missing",
       "fix_hint": "在 change.yaml 中添加 tasks 字段指向相关任务目录",
       "source_file": ".cowork-flow/workflow.md",
-      "source_line": "150-152"
+      "source_anchor": "workflow#l2-readiness-gate",
+      "enforcement": "validate_rules"
     },
     {
       "id": "R-WF-006",
@@ -65,7 +70,8 @@
       "message": "Implementation without failing test for behavior change",
       "fix_hint": "先编写失败测试，再实现功能，确保测试在实现后通过",
       "source_file": ".cowork-flow/workflow.md",
-      "source_line": "190"
+      "source_anchor": "workflow#implement-red-first",
+      "enforcement": "tdd_evidence"
     },
     {
       "id": "R-WF-007",
@@ -76,7 +82,8 @@
       "message": "Task completion without running check verification",
       "fix_hint": "运行 ./.cowork-flow/run task review [task-dir] 进入检查阶段，然后运行验证命令",
       "source_file": ".cowork-flow/workflow.md",
-      "source_line": "196-203"
+      "source_anchor": "workflow#review-before-complete",
+      "enforcement": "validate_rules"
     },
     {
       "id": "R-AG-001",
@@ -87,7 +94,8 @@
       "message": "Subagent attempted to dispatch another agent",
       "fix_hint": "子代理是叶子执行者，不能派发、等待、列出或取消其他代理",
       "source_file": "AGENTS.md",
-      "source_line": "15-16"
+      "source_anchor": "agents#subagent-leaf-boundary",
+      "enforcement": "host_contract"
     },
     {
       "id": "R-AG-002",
@@ -98,7 +106,8 @@
       "message": "Subagent attempted to modify spec files",
       "fix_hint": "规格文件只能由主会话修改，子代理应专注于实现任务",
       "source_file": "AGENTS.md",
-      "source_line": "15-16"
+      "source_anchor": "agents#spec-change-boundary",
+      "enforcement": "validate_implementation"
     },
     {
       "id": "R-AG-003",
@@ -109,7 +118,8 @@
       "message": "Subagent attempted to operate Git",
       "fix_hint": "Git 操作只能由主会话执行，子代理应专注于代码实现",
       "source_file": "AGENTS.md",
-      "source_line": "15-16"
+      "source_anchor": "agents#git-boundary",
+      "enforcement": "host_contract"
     },
     {
       "id": "R-AG-004",
@@ -120,7 +130,8 @@
       "message": "Subagent attempted to commit or archive",
       "fix_hint": "提交和归档只能由主会话执行，子代理应专注于代码实现",
       "source_file": "AGENTS.md",
-      "source_line": "15-16"
+      "source_anchor": "agents#finish-boundary",
+      "enforcement": "host_contract"
     },
     {
       "id": "R-AG-005",
@@ -131,7 +142,8 @@
       "message": "Unrequested feature introduced",
       "fix_hint": "只实现 PRD 中明确要求的功能，不添加额外功能",
       "source_file": "AGENTS.md",
-      "source_line": "32"
+      "source_anchor": "agents#requested-scope-only",
+      "enforcement": "validate_implementation"
     },
     {
       "id": "R-AG-006",
@@ -142,7 +154,8 @@
       "message": "Premature abstraction for one-time code",
       "fix_hint": "保持代码简单直接，只有在确认需要复用时才进行抽象",
       "source_file": "AGENTS.md",
-      "source_line": "33"
+      "source_anchor": "agents#simple-first",
+      "enforcement": "validate_implementation"
     },
     {
       "id": "R-AG-007",
@@ -153,7 +166,8 @@
       "message": "Unrelated module refactored during implementation",
       "fix_hint": "只修改与当前任务直接相关的代码，不扩大改动范围",
       "source_file": "AGENTS.md",
-      "source_line": "42"
+      "source_anchor": "agents#surgical-change",
+      "enforcement": "metadata_only"
     }
   ]
 }

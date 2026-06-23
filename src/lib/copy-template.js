@@ -1,4 +1,4 @@
-import { constants } from 'node:fs';
+﻿import { constants } from 'node:fs';
 import { access, chmod, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
@@ -96,7 +96,7 @@ const SAFE_SYNC_FILES = new Set([
   '.cowork-flow/.version',
   '.cowork-flow/run',
   '.cowork-flow/run.cmd',
-  '.cowork-flow/spec/workflow-state-templates.md'
+  '.cowork-flow/spec/contracts/workflow-state-templates.md'
 ]);
 
 const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';

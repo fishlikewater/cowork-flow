@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -45,8 +45,8 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'scripts', 'project_context.py'), 'old project context script\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'project-context.md'), 'local generated context\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
-  await writeFile(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md'), 'old state templates\n', 'utf8');
-  await writeFile(join(target, '.cowork-flow', 'spec', 'entry-contract.md'), 'custom entry contract\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md'), 'old state templates\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md'), 'custom entry contract\n', 'utf8');
   await mkdir(join(target, '.codex', 'agents'), { recursive: true });
   await writeFile(join(target, '.codex', 'agents', 'cowork-implement.toml'), 'old agent\n', 'utf8');
   await writeFile(join(target, '.codex', 'hooks.json'), 'old hooks\n', 'utf8');
@@ -86,10 +86,10 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(templateRoot, '.cowork-flow', 'workflow.md'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md')),
-    await readText(join(templateRoot, '.cowork-flow', 'spec', 'workflow-state-templates.md'))
+    await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md'))
   );
-  assert.equal(await readText(join(target, '.cowork-flow', 'spec', 'entry-contract.md')), 'custom entry contract\n');
+  assert.equal(await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md')), 'custom entry contract\n');
   assert.equal(
     await readText(join(target, '.codex', 'agents', 'cowork-implement.toml')),
     await readText(join(templateRoot, '.codex', 'agents', 'cowork-implement.toml'))
@@ -259,7 +259,7 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
   await writeFile(join(target, '.claude', 'settings.json'), '{"hooks": {}}\n', 'utf8');
   await writeFile(join(target, '.claude', 'hooks', 'inject-workflow-state.py'), 'old claude hook\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml'), 'old claude adapter\n', 'utf8');
-  await writeFile(join(target, 'CLAUDE.md'), [
+  const customClaude = [
     '# Custom Claude Rules',
     '',
     'Keep this project-specific introduction.',
@@ -270,7 +270,8 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
     '',
     'Keep this project-specific footer.',
     ''
-  ].join('\n'), 'utf8');
+  ].join('\n');
+  await writeFile(join(target, 'CLAUDE.md'), customClaude, 'utf8');
   const templateClaude = await readText(join(templateRoot, 'CLAUDE.md'));
   const templateBlock = templateClaude.match(
     /<!-- COWORK-FLOW:START -->[\s\S]*<!-- COWORK-FLOW:END -->/

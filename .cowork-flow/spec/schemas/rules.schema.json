@@ -15,7 +15,11 @@
       "description": "Array of rules",
       "items": {
         "type": "object",
-        "required": ["id", "type", "severity", "scope", "condition", "message", "fix_hint", "source_file", "source_line"],
+        "required": ["id", "type", "severity", "scope", "condition", "message", "fix_hint", "source_file", "enforcement"],
+        "anyOf": [
+          {"required": ["source_anchor"]},
+          {"required": ["source_excerpt"]}
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -53,9 +57,18 @@
             "type": "string",
             "description": "Original markdown file path"
           },
-          "source_line": {
+          "source_anchor": {
             "type": "string",
-            "description": "Original line reference in source file"
+            "description": "Stable source section or anchor in the source file"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "description": "Optional short excerpt from the source contract"
+          },
+          "enforcement": {
+            "type": "string",
+            "enum": ["validate_rules", "validate_implementation", "tdd_evidence", "host_contract", "metadata_only"],
+            "description": "Runtime or contract surface responsible for enforcing or carrying this rule"
           }
         },
         "additionalProperties": false

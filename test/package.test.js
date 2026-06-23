@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -45,7 +45,7 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/scripts/common/tdd_evidence.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/test_intent.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/validate_coding_standards.py'), true);
-  assert.equal(files.has('template/.cowork-flow/spec/workflow-state-templates.md'), true);
+  assert.equal(files.has('template/.cowork-flow/spec/contracts/workflow-state-templates.md'), true);
   assert.equal(files.has('template/.cowork-flow/adapters/claude-code/adapter.yaml'), true);
   assert.equal(files.has('template/.codex/config.toml'), true);
   assert.equal(files.has('template/.codex/hooks.json'), true);

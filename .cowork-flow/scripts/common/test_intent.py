@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import ast
+import io
 import json
+import tokenize
 from pathlib import Path
 
 from .tdd_evidence import EVIDENCE_FILE
@@ -85,7 +87,17 @@ def validate_test_intent(repo_root: Path, task_dir: Path) -> list[dict]:
             continue
 
         classification = _classify_test_content(content, test_name)
-        if classification == "block":
+        if classification == "missing":
+            violations.append(
+                _violation(
+                    "TEST-INTENT-005",
+                    f"TDD evidence record {index} testName does not resolve to a test function: {test_name}",
+                    test_path,
+                    "Use test_method, ClassName.test_method, or module.ClassName.test_method for the behavior test.",
+                    severity="block",
+                )
+            )
+        elif classification == "block":
             violations.append(
                 _violation(
                     "TEST-INTENT-003",
@@ -139,11 +151,11 @@ def _read_text(path: Path) -> str:
 
 
 def _classify_test_content(content: str, test_name: str) -> str:
-    if not _appears_to_test_behavior(content, test_name):
-        return "block"
-
     target_content = _target_test_content(content, test_name)
-    lower = target_content.lower()
+    if target_content is None:
+        return "missing"
+    scan_content = _strip_string_and_comment_literals(target_content)
+    lower = scan_content.lower()
 
     if any(marker.lower() in lower for marker in BLOCK_MARKERS):
         return "block"
@@ -160,28 +172,51 @@ def _classify_test_content(content: str, test_name: str) -> str:
     return "pass"
 
 
-def _target_test_content(content: str, test_name: str) -> str:
+def _strip_string_and_comment_literals(content: str) -> str:
     try:
-        tree = ast.parse(content)
-    except SyntaxError:
+        tokens = []
+        for token in tokenize.generate_tokens(io.StringIO(content).readline):
+            if token.type in (tokenize.STRING, tokenize.COMMENT):
+                tokens.append(token._replace(string='""'))
+            else:
+                tokens.append(token)
+        return tokenize.untokenize(tokens)
+    except (IndentationError, tokenize.TokenError):
         return content
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == test_name:
-            return ast.get_source_segment(content, node) or content
-    return content
 
-
-def _appears_to_test_behavior(content: str, test_name: str) -> bool:
+def _target_test_content(content: str, test_name: str) -> str | None:
+    parse_content = content.lstrip("\ufeff")
     try:
-        tree = ast.parse(content)
+        tree = ast.parse(parse_content)
     except SyntaxError:
-        return bool(test_name and test_name in content)
+        return parse_content if test_name and test_name in parse_content else None
+
+    target_class, target_function = _parse_test_name(test_name)
+    if not target_function:
+        return None
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == test_name:
-            return True
-    return bool(test_name)
+        if target_class and isinstance(node, ast.ClassDef) and node.name == target_class:
+            for child in node.body:
+                if isinstance(child, ast.FunctionDef) and child.name == target_function:
+                    return ast.get_source_segment(parse_content, child) or parse_content
+            return None
+        if not target_class and isinstance(node, ast.FunctionDef) and node.name == target_function:
+            return ast.get_source_segment(parse_content, node) or parse_content
+    return None
+
+
+def _parse_test_name(test_name: str) -> tuple[str | None, str | None]:
+    normalized = test_name.strip()
+    if not normalized:
+        return None, None
+    parts = [part for part in normalized.split(".") if part]
+    if not parts:
+        return None, None
+    target_function = parts[-1]
+    target_class = parts[-2] if len(parts) >= 2 and parts[-2][:1].isupper() else None
+    return target_class, target_function
 
 
 def _looks_import_only(content: str, lower: str) -> bool:
