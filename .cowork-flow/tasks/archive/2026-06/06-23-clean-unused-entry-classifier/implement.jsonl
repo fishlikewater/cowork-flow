@@ -1,0 +1,12 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": "template/.cowork-flow/scripts/doctor.py", "reason": "移除 doctor 对入口分类器的强制存在性检查"}
+{"file": ".cowork-flow/scripts/doctor.py", "reason": "同步移除 root doctor 检查"}
+{"file": "test/init.test.js", "reason": "更新模板初始化存在性断言"}
+{"file": "test/package.test.js", "reason": "更新打包文件断言"}
+{"file": "tests/test_codex_hooks.py", "reason": "更新 Codex hook 同步断言"}
+{"file": "tests/test_claude_hooks.py", "reason": "更新 Claude hook 同步断言"}
+{"file": "tests/test_cowork_agents.py", "reason": "更新 doctor 标记测试"}
+{"file": "README.md", "reason": "修正入口分类器过期说明"}

@@ -372,7 +372,6 @@ class CoworkAgentsTest(unittest.TestCase):
             "bind_runtime_context",
             "runtime-context-invalid",
             "workflow-state-templates.md",
-            "entry_classifier.py",
             "REQUIRED_RUNTIME_HOOK_SNIPPETS",
             "REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS",
             "REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET",
