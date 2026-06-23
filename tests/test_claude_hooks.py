@@ -464,7 +464,6 @@ class ClaudeHooksTest(unittest.TestCase):
             Path(".claude/settings.json"),
             Path(".claude/hooks/inject-workflow-state.py"),
             Path(".cowork-flow/scripts/common/active_task.py"),
-            Path(".cowork-flow/scripts/common/entry_classifier.py"),
             Path(".cowork-flow/spec/contracts/workflow-state-templates.md"),
         ):
             root_text = (ROOT / rel).read_text(encoding="utf-8")

@@ -101,14 +101,6 @@ REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
     "UNKNOWN is not a delegated",
 ]
 
-REQUIRED_ENTRY_CLASSIFIER_SNIPPETS = [
-    "classify_entry",
-    "EntryKind.MAIN_SESSION",
-    "EntryKind.READ_ONLY",
-    "EntryKind.COMMAND_ONLY",
-    "EntryKind.UNKNOWN",
-]
-
 REQUIRED_ENTRY_CONTRACT_SNIPPETS = [
     "COWORK_ENTRY_CONTRACT_V1",
     "main-session prompts",
@@ -244,12 +236,6 @@ def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
         "template/.cowork-flow/spec/contracts/workflow-state-templates.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/scripts/common/entry_classifier.py",
-        "template/.cowork-flow/scripts/common/entry_classifier.py",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CLASSIFIER_SNIPPETS, errors)
-
 
 def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
     for rel in (

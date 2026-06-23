@@ -1688,3 +1688,33 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 53: 清理未接线入口分类器
+
+**Date**: 2026-06-23
+**Task**: 清理未接线入口分类器
+
+### Summary
+
+删除未接线的 entry_classifier.py root/template 副本，移除 doctor/测试/README 的存在性约束，并验证模板安装、打包、hook、doctor 与全量测试。
+
+### Main Changes
+
+
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
