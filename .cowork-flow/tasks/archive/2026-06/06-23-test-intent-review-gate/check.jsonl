@@ -1,0 +1,5 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/test_cowork_agents.py", "reason": "Agent prompt regression tests"}
+{"file": "tests/test_flow_script_paths.py", "reason": "Gate regression tests"}
+{"file": ".cowork-flow/tasks/06-23-test-intent-review-gate/prd.md", "reason": "Task PRD"}

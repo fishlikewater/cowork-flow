@@ -1,0 +1,11 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".cowork-flow/changes/06-23-tdd-productization/spec.md", "reason": "Behavior spec for gates and TDD"}
+{"file": ".cowork-flow/changes/06-23-tdd-productization/design.md", "reason": "Architecture design"}
+{"file": ".cowork-flow/changes/06-23-tdd-productization/proposal.md", "reason": "Change proposal and goal"}
+{"file": ".cowork-flow/plans/2026-06-23-tdd-productization.md", "reason": "Implementation plan"}
+{"file": ".cowork-flow/tasks/06-23-tdd-productization/prd.md", "reason": "Parent task PRD"}

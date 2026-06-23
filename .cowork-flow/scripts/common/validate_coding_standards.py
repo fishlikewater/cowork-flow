@@ -8,9 +8,13 @@ Does NOT perform validation - only provides guidance for Agent review.
 
 from __future__ import annotations
 
+import json
 import re
-import subprocess
+import sys
 from pathlib import Path
+
+from .coding_standards import validate_changed_files
+from .git_snapshot import collect_changed_files, collect_changed_paths
 
 
 def get_coding_standards_summary(
@@ -27,7 +31,6 @@ def get_coding_standards_summary(
     Returns:
         Summary string of relevant coding standards
     """
-    # Get modified files
     modified_files = _get_modified_files(repo_root)
     if not modified_files:
         return ""
@@ -53,20 +56,17 @@ def get_coding_standards_summary(
     return "\n\n".join(summaries)
 
 
+def validate_coding_standards(
+    repo_root: Path,
+    task_dir: Path | None = None,
+) -> list[dict]:
+    """Validate coding standards for changed files."""
+    return validate_changed_files(repo_root, collect_changed_files(repo_root))
+
+
 def _get_modified_files(repo_root: Path) -> list[str]:
-    """Get list of modified files"""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            return [f for f in result.stdout.strip().split("\n") if f]
-        return []
-    except Exception:
-        return []
+    """Get list of changed files across staged, modified, and untracked states."""
+    return collect_changed_paths(repo_root)
 
 
 def _is_backend_file(file_path: str) -> bool:
@@ -161,14 +161,22 @@ def main():
     parser = argparse.ArgumentParser(description="Get coding standards summary")
     parser.add_argument("--task-dir", required=True, help="Task directory path")
     parser.add_argument("--repo-root", default=".", help="Repository root path")
+    parser.add_argument("--validate", action="store_true", help="Fail on coding standards violations")
 
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
     task_dir = Path(args.task_dir).resolve()
 
-    summary = get_coding_standards_summary(repo_root, task_dir)
+    if args.validate:
+        violations = validate_coding_standards(repo_root, task_dir)
+        if violations:
+            for violation in violations:
+                print(json.dumps(violation, ensure_ascii=False))
+            sys.exit(1)
+        sys.exit(0)
 
+    summary = get_coding_standards_summary(repo_root, task_dir)
     if summary:
         print(summary)
     else:

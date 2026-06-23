@@ -1,0 +1,7 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/test_flow_script_paths.py", "reason": "Workflow lifecycle tests"}
+{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Workflow/template tests"}
+{"file": "tests/test_cowork_agents.py", "reason": "Agent prompt tests"}
+{"file": "tests/test_host_adapters.py", "reason": "Host adapter tests"}
+{"file": "test/", "type": "directory", "reason": "Node CLI tests"}

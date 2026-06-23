@@ -38,11 +38,20 @@ class FlowScriptPathsTest(unittest.TestCase):
             "add_session",
             "common.active_task",
             "common.config",
+            "common.coding_standards",
             "common.developer",
+            "common.gates",
             "common.git_context",
+            "common.git_snapshot",
             "common.paths",
             "common.readiness",
+            "common.state_machine",
             "common.task_utils",
+            "common.tdd_evidence",
+            "common.test_intent",
+            "common.validate_coding_standards",
+            "common.validate_implementation",
+            "common.validate_rules",
             "common",
         ):
             sys.modules.pop(module_name, None)
@@ -336,6 +345,115 @@ class FlowScriptPathsTest(unittest.TestCase):
             )
         return change_dir
 
+    def _write_rules_file(self, root: Path, rules: list[dict]) -> None:
+        rules_path = root / ".cowork-flow" / "spec" / "rules.json"
+        rules_path.parent.mkdir(parents=True, exist_ok=True)
+        rules_path.write_text(
+            json.dumps({"schemaVersion": 1, "rules": rules}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    def _workflow_rule(self, rule_id: str, scope: str) -> dict:
+        return {
+            "id": rule_id,
+            "type": "phase_gate",
+            "severity": "block",
+            "scope": scope,
+            "condition": f"{rule_id} condition",
+            "message": f"{rule_id} blocked",
+            "fix_hint": f"Fix {rule_id}",
+        }
+
+    def _write_behavior_prd(self, task_dir: Path) -> None:
+        (task_dir / "prd.md").write_text(
+            "# Behavior task\n\n"
+            "## 目标\n\n"
+            "实现会改变 CLI/runtime 可观察行为。\n\n"
+            "## 验收标准\n\n"
+            "- AC-001: 缺少 red-green TDD evidence 时 review 失败。\n",
+            encoding="utf-8",
+        )
+
+    def _write_valid_tdd_evidence(self, task_dir: Path) -> None:
+        root = task_dir.parents[2]
+        test_file = root / "tests" / "test_flow_script_paths.py"
+        test_file.parent.mkdir(parents=True, exist_ok=True)
+        test_file.write_text(
+            "import unittest\n\n"
+            "class FlowScriptPathsTest(unittest.TestCase):\n"
+            "    def test_cmd_review_blocks_behavior_change_without_tdd_evidence(self):\n"
+            "        result = {'status': 'blocked', 'rule_id': 'TDD-RED-001'}\n"
+            "        self.assertEqual('blocked', result['status'])\n"
+            "        self.assertEqual('TDD-RED-001', result['rule_id'])\n",
+            encoding="utf-8",
+        )
+        evidence = {
+            "acceptanceId": "AC-001",
+            "testFile": "tests/test_flow_script_paths.py",
+            "testName": "test_cmd_review_blocks_behavior_change_without_tdd_evidence",
+            "redCommand": "python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_cmd_review_blocks_behavior_change_without_tdd_evidence -v",
+            "redExitCode": 1,
+            "redOutputExcerpt": "TDD evidence file is missing",
+            "failureReason": "review gate did not enforce missing TDD evidence",
+            "whyThisTestMatters": "It proves behavior-change work cannot enter review without red-green evidence.",
+            "greenCommand": "python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_cmd_review_blocks_behavior_change_without_tdd_evidence -v",
+            "greenExitCode": 0,
+            "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
+        }
+        (task_dir / "tdd.jsonl").write_text(
+            json.dumps(evidence, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+
+    def _write_non_behavior_review_task(
+        self,
+        root: Path,
+        task_dir: Path,
+        *,
+        status: str = "in_progress",
+    ) -> None:
+        (root / ".cowork-flow" / ".developer").parent.mkdir(parents=True, exist_ok=True)
+        (root / ".cowork-flow" / ".developer").write_text("name=codex\n", encoding="utf-8")
+        (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+        task_dir.mkdir(parents=True, exist_ok=True)
+        (task_dir / "task.json").write_text(
+            json.dumps({"status": status, "completedAt": None}),
+            encoding="utf-8",
+        )
+        (task_dir / "prd.md").write_text(
+            "# Docs task\n\n"
+            "## 验收标准\n\n"
+            "- AC-001: 文档措辞更新。\n",
+            encoding="utf-8",
+        )
+        for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+            (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+        self._write_session_task(root)
+
+    def _write_encoding_violation_changes(self, root: Path) -> None:
+        src_dir = root / "src"
+        scripts_dir = root / "scripts"
+        src_dir.mkdir()
+        scripts_dir.mkdir()
+
+        modified_py = src_dir / "modified.py"
+        staged_js = src_dir / "staged.js"
+        modified_py.write_text("VALUE = 'safe'\n", encoding="utf-8")
+        staged_js.write_text("export const value = 'safe';\n", encoding="utf-8")
+        self._commit_all(root, "baseline")
+
+        modified_py.write_text("DATA = open('data.txt').read()\n", encoding="utf-8")
+        staged_js.write_text(
+            "import { readFile } from 'node:fs/promises';\n"
+            "await readFile('data.txt');\n",
+            encoding="utf-8",
+        )
+        self._run_git(root, "add", "src/staged.js")
+        (scripts_dir / "untracked.ps1").write_text(
+            "$value = Get-Content .\\data.txt\n",
+            encoding="utf-8",
+        )
+
     def _write_l2_task_tree(self, root: Path) -> Path:
         parent_dir = root / ".cowork-flow" / "tasks" / "05-19-parent"
         child_dir = root / ".cowork-flow" / "tasks" / "05-19-child"
@@ -355,6 +473,88 @@ class FlowScriptPathsTest(unittest.TestCase):
             blockers = self.task._optional_readiness_blockers(root, child_dir)
 
             self.assertEqual([], blockers)
+
+    def test_validate_rules_accepts_current_task_link_field(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            child_dir = self._write_l2_task_tree(root)
+            self._write_l2_change_fixture(
+                root,
+                task_link=".cowork-flow/tasks/05-19-child",
+            )
+            self._write_rules_file(
+                root,
+                [
+                    self._workflow_rule("R-WF-001", "task_start"),
+                    self._workflow_rule("R-WF-002", "task_start"),
+                    self._workflow_rule("R-WF-003", "task_start"),
+                    self._workflow_rule("R-WF-004", "task_start"),
+                    self._workflow_rule("R-WF-005", "task_start"),
+                ],
+            )
+            validator = importlib.import_module("common.validate_rules")
+
+            violations = validator.validate_rules(root, "task_start", child_dir)
+
+            self.assertEqual([], violations)
+
+    def test_validate_rules_uses_explicit_utf8_for_rule_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ready_task_files(root, task_dir)
+            task_data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            task_data["status"] = "in_progress"
+            (task_dir / "task.json").write_text(
+                json.dumps(task_data, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            rule = self._workflow_rule("R-WF-007", "task_complete")
+            rule["message"] = "🚦 check gate blocked"
+            self._write_rules_file(root, [rule])
+            validator = importlib.import_module("common.validate_rules")
+            real_open = open
+
+            def strict_text_open(file, mode="r", *args, **kwargs):
+                if "b" not in mode and "encoding" not in kwargs:
+                    raise AssertionError(f"missing explicit encoding for {file}")
+                return real_open(file, mode, *args, **kwargs)
+
+            with patch("builtins.open", side_effect=strict_text_open):
+                violations = validator.validate_rules(root, "task_complete", task_dir)
+                validator.log_violations(violations, "task_complete", task_dir, root)
+
+            self.assertEqual(["R-WF-007"], [v["rule_id"] for v in violations])
+
+    def test_gate_runner_wraps_legacy_validator_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ready_task_files(root, task_dir)
+            task_data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            task_data["status"] = "in_progress"
+            (task_dir / "task.json").write_text(
+                json.dumps(task_data, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            self._write_rules_file(root, [self._workflow_rule("R-WF-007", "task_complete")])
+            gates = importlib.import_module("common.gates")
+
+            result = gates.GateRunner(root).run("task_complete", task_dir)
+
+            self.assertTrue(result.blocked)
+            self.assertEqual(1, result.exit_code)
+            self.assertEqual(["R-WF-007"], [v["rule_id"] for v in result.violations])
+
+    def test_task_state_machine_requires_review_before_complete(self) -> None:
+        state_machine = importlib.import_module("common.state_machine")
+
+        self.assertEqual([], state_machine.transition_blockers("review", "completed"))
+        self.assertEqual([], state_machine.transition_blockers("checking", "completed"))
+        self.assertIn(
+            "task review",
+            "\n".join(state_machine.transition_blockers("in_progress", "completed")),
+        )
 
     def test_l2_readiness_reports_missing_design_spec_plan_and_task_link(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -564,6 +764,429 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(0, complete_result)
             self.assertEqual("completed", data["status"])
             self.assertEqual(datetime.now().strftime("%Y-%m-%d"), data["completedAt"])
+
+    def test_cmd_review_blocks_implementation_violations_without_status_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            workflow_dir = root / ".cowork-flow"
+            task_dir = workflow_dir / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+            self._commit_all(root, "baseline")
+            (root / "AGENTS.md").write_text("# Rules changed by implementation\n", encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result)
+            self.assertEqual("in_progress", data["status"])
+            self.assertIn("Subagent attempted to modify spec files", stderr.getvalue())
+
+    def test_cmd_review_allows_regular_diff_that_mentions_spec_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            workflow_dir = root / ".cowork-flow"
+            task_dir = workflow_dir / "tasks" / "05-19-demo"
+            app_dir = root / "src"
+            task_dir.mkdir(parents=True)
+            app_dir.mkdir()
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            (app_dir / "check.py").write_text("MARKER = 'baseline'\n", encoding="utf-8")
+            self._write_session_task(root)
+            self._commit_all(root, "baseline")
+            (app_dir / "check.py").write_text(
+                "MARKER = 'AGENTS.md is context, not a changed file'\n",
+                encoding="utf-8",
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual("review", data["status"])
+
+    def test_cmd_review_blocks_behavior_change_without_tdd_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_behavior_prd(task_dir)
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result)
+            self.assertEqual("in_progress", data["status"])
+            self.assertIn("TDD evidence", stderr.getvalue())
+
+    def test_cmd_review_accepts_valid_tdd_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_behavior_prd(task_dir)
+            self._write_valid_tdd_evidence(task_dir)
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual("review", data["status"])
+
+    def test_cmd_review_blocks_coding_standards_violations_across_git_statuses(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_non_behavior_review_task(root, task_dir)
+            self._write_encoding_violation_changes(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            stderr_text = stderr.getvalue()
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result, stderr_text)
+            self.assertEqual("in_progress", data["status"])
+            self.assertIn("Coding standards", stderr_text)
+            for path in ("src/modified.py", "src/staged.js", "scripts/untracked.ps1"):
+                self.assertIn(path, stderr_text)
+
+    def test_cmd_complete_blocks_coding_standards_violations_without_status_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_non_behavior_review_task(root, task_dir, status="review")
+            self._write_encoding_violation_changes(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_complete(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            stderr_text = stderr.getvalue()
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result, stderr_text)
+            self.assertEqual("review", data["status"])
+            self.assertIsNone(data["completedAt"])
+            self.assertIn("Coding standards", stderr_text)
+
+    def test_coding_standards_summary_uses_explicit_utf8_for_git_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            spec_dir = root / ".cowork-flow" / "spec" / "backend"
+            spec_dir.mkdir(parents=True)
+            (spec_dir / "encoding-guidelines.md").write_text(
+                "# Encoding\n\n- 禁止 依赖系统默认编码。\n",
+                encoding="utf-8",
+            )
+            validator = importlib.import_module("common.validate_coding_standards")
+            calls: list[dict] = []
+
+            def fake_run(args, **kwargs):
+                calls.append(kwargs)
+                return subprocess.CompletedProcess(
+                    args,
+                    0,
+                    stdout=" M src/example.py\n",
+                    stderr="",
+                )
+
+            with patch("subprocess.run", side_effect=fake_run):
+                summary = validator.get_coding_standards_summary(root, task_dir)
+
+            self.assertIn("Backend Coding Standards", summary)
+            self.assertTrue(calls)
+            self.assertEqual("utf-8", calls[0].get("encoding"))
+            self.assertEqual("replace", calls[0].get("errors"))
+
+    def test_cmd_review_blocks_shallow_tdd_test_intent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            tests_dir = root / "tests"
+            tests_dir.mkdir()
+            shallow_assert = "self.assert" + "True(True)"
+            (tests_dir / "test_noise.py").write_text(
+                "import unittest\n\n"
+                "class NoiseTest(unittest.TestCase):\n"
+                "    def test_noise(self):\n"
+                f"        {shallow_assert}\n",
+                encoding="utf-8",
+            )
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_behavior_prd(task_dir)
+            evidence = {
+                "acceptanceId": "AC-001",
+                "testFile": "tests/test_noise.py",
+                "testName": "test_noise",
+                "redCommand": "python -m unittest tests.test_noise.NoiseTest.test_noise -v",
+                "redExitCode": 1,
+                "redOutputExcerpt": "review gate did not block shallow test",
+                "failureReason": "test intent gate did not reject a trivial truth assertion",
+                "whyThisTestMatters": "It proves shallow tests cannot satisfy TDD review.",
+                "greenCommand": "python -m unittest tests.test_noise.NoiseTest.test_noise -v",
+                "greenExitCode": 0,
+                "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
+            }
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result)
+            self.assertEqual("in_progress", data["status"])
+            self.assertIn("assert " + "True", stderr.getvalue())
+
+    def test_test_intent_warns_without_blocking_ambiguous_assertions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            tests_dir = root / "tests"
+            tests_dir.mkdir()
+            (tests_dir / "test_ambiguous.py").write_text(
+                "import unittest\n\n"
+                "class AmbiguousTest(unittest.TestCase):\n"
+                "    def test_result_exists(self):\n"
+                "        result = {'status': 'blocked'}\n"
+                "        self.assertIsNotNone(result)\n",
+                encoding="utf-8",
+            )
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_behavior_prd(task_dir)
+            evidence = {
+                "acceptanceId": "AC-001",
+                "testFile": "tests/test_ambiguous.py",
+                "testName": "test_result_exists",
+                "redCommand": "python -m unittest tests.test_ambiguous.AmbiguousTest.test_result_exists -v",
+                "redExitCode": 1,
+                "redOutputExcerpt": "test intent did not warn on weak assertion",
+                "failureReason": "test intent gate did not flag ambiguous assertion depth",
+                "whyThisTestMatters": "It proves suspicious-but-not-obviously-empty tests are reviewed without being blocked.",
+                "greenCommand": "python -m unittest tests.test_ambiguous.AmbiguousTest.test_result_exists -v",
+                "greenExitCode": 0,
+                "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
+            }
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual("review", data["status"])
+            self.assertIn("Warning: Test intent review warnings", stderr.getvalue())
+            self.assertIn("assertIsNotNone", stderr.getvalue())
+
+    def test_test_intent_ignores_shallow_fixture_outside_target_test(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            tests_dir = root / "tests"
+            tests_dir.mkdir()
+            (tests_dir / "test_behavior.py").write_text(
+                "import unittest\n\n"
+                "SHALLOW_FIXTURE = 'self.assertTrue(True)'\n\n"
+                "class BehaviorTest(unittest.TestCase):\n"
+                "    def test_real_behavior(self):\n"
+                "        result = {'status': 'blocked'}\n"
+                "        self.assertEqual('blocked', result['status'])\n",
+                encoding="utf-8",
+            )
+            self._write_behavior_prd(task_dir)
+            evidence = {
+                "acceptanceId": "AC-001",
+                "testFile": "tests/test_behavior.py",
+                "testName": "test_real_behavior",
+                "redCommand": "python -m unittest tests.test_behavior.BehaviorTest.test_real_behavior -v",
+                "redExitCode": 1,
+                "redOutputExcerpt": "target behavior missing",
+                "failureReason": "target behavior was not implemented",
+                "whyThisTestMatters": "It proves fixture text outside the target test does not cause false positives.",
+                "greenCommand": "python -m unittest tests.test_behavior.BehaviorTest.test_real_behavior -v",
+                "greenExitCode": 0,
+                "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
+            }
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            test_intent = importlib.import_module("common.test_intent")
+
+            self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
+
+    def test_tdd_evidence_accepts_documentation_exemption(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-docs"
+            task_dir.mkdir(parents=True)
+            (task_dir / "prd.md").write_text(
+                "# Docs task\n\n## 验收标准\n\n- AC-001: 文档措辞更新。\n",
+                encoding="utf-8",
+            )
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(
+                    {
+                        "type": "exemption",
+                        "acceptanceId": "AC-001",
+                        "exemptionType": "docs-only",
+                        "reason": "Only documentation wording changes; no runtime behavior changes.",
+                        "verificationCommand": "git diff --check",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            tdd_evidence = importlib.import_module("common.tdd_evidence")
+
+            self.assertEqual([], tdd_evidence.validate_tdd_evidence(task_dir))
+
+    def test_cmd_complete_blocks_without_review_without_status_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_complete(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result)
+            self.assertEqual("in_progress", data["status"])
+            self.assertIsNone(data["completedAt"])
+            self.assertIn("task review", stderr.getvalue())
 
     def test_cmd_current_prints_session_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

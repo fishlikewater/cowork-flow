@@ -30,73 +30,83 @@ def validate_implementation(
     """
     violations = []
 
-    # Get git diff
-    diff_output = _get_git_diff(repo_root)
-    if not diff_output:
+    modified_files = _get_modified_files(repo_root)
+    if not modified_files:
         return violations
 
+    diff_output = _get_git_diff(repo_root, modified_files)
+
     # Check forbidden action rules
-    violations.extend(_check_spec_file_modifications(diff_output, repo_root))
+    violations.extend(_check_spec_file_modifications(modified_files))
     violations.extend(_check_premature_abstraction(diff_output))
     violations.extend(_check_unrequested_features(diff_output, task_dir))
 
     return violations
 
 
-def _get_git_diff(repo_root: Path) -> str:
-    """Get git diff output"""
+def _get_modified_files(repo_root: Path) -> list[str]:
+    """Get git-tracked modified files."""
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only"],
             cwd=repo_root,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
-        if result.returncode != 0:
-            return ""
+        if result.returncode == 0:
+            return [file_path for file_path in result.stdout.strip().split("\n") if file_path]
+        return []
+    except Exception:
+        return []
 
-        # Get actual diff content
-        files = result.stdout.strip().split("\n")
-        if not files or files == [""]:
-            return ""
 
+def _get_git_diff(repo_root: Path, files: list[str]) -> str:
+    """Get git diff output"""
+    if not files:
+        return ""
+
+    try:
         diff_result = subprocess.run(
-            ["git", "diff"] + files,
+            ["git", "diff", "--", *files],
             cwd=repo_root,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         return diff_result.stdout
     except Exception:
         return ""
 
 
-def _check_spec_file_modifications(
-    diff_output: str,
-    repo_root: Path,
-) -> list[dict]:
+def _check_spec_file_modifications(modified_files: list[str]) -> list[dict]:
     """R-AG-002: Check if spec files were modified"""
     violations = []
 
     # Spec file path patterns
     spec_patterns = [
-        r"\.cowork-flow/spec/",
-        r"\.cowork-flow/workflow\.md",
-        r"AGENTS\.md",
-        r"CLAUDE\.md",
+        r"(^|/)\.cowork-flow/spec/",
+        r"(^|/)\.cowork-flow/workflow\.md$",
+        r"(^|/)AGENTS\.md$",
+        r"(^|/)CLAUDE\.md$",
     ]
 
-    for pattern in spec_patterns:
-        if re.search(pattern, diff_output):
-            violations.append({
-                "rule_id": "R-AG-002",
-                "type": "forbidden_action",
-                "severity": "block",
-                "passed": False,
-                "message": "Subagent attempted to modify spec files",
-                "file": pattern,
-                "fix_hint": "Spec files can only be modified by main session",
-            })
+    for file_path in modified_files:
+        normalized_path = file_path.replace("\\", "/")
+        if any(re.search(pattern, normalized_path) for pattern in spec_patterns):
+            violations.append(
+                {
+                    "rule_id": "R-AG-002",
+                    "type": "forbidden_action",
+                    "severity": "block",
+                    "passed": False,
+                    "message": "Subagent attempted to modify spec files",
+                    "file": file_path,
+                    "fix_hint": "Spec files can only be modified by main session",
+                }
+            )
 
     return violations
 

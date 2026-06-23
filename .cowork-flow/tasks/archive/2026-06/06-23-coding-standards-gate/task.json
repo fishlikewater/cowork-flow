@@ -1,0 +1,21 @@
+{
+  "id": "coding-standards-gate",
+  "name": "coding-standards-gate",
+  "title": "编码规范强约束与 UTF-8 校验",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-23",
+  "completedAt": "2026-06-23",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "06-23-tdd-productization",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/plans/2026-06-23-tdd-productization.md", "reason": "Implementation plan"}
+{"file": ".cowork-flow/changes/06-23-tdd-productization/spec.md", "reason": "Test intent behavior spec"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Check skill integration"}
+{"file": ".codex/agents/cowork-check.toml", "reason": "Codex check agent prompt"}
+{"file": ".cowork-flow/tasks/06-23-test-intent-review-gate/prd.md", "reason": "Task PRD"}

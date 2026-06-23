@@ -15,6 +15,7 @@ Use this immediately before code edits.
 4. Active task `implement.jsonl`
 5. Relevant `.cowork-flow/spec/*/index.md`
 6. Any exact files named by the task, plan, or user
+7. If the task changes behavior, locate or create `tdd.jsonl` evidence before implementation.
 
 Do not bulk-load unrelated tasks, archived sessions, or every spec file.
 

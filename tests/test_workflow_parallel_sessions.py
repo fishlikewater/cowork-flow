@@ -229,6 +229,69 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("Formal subagent identity is runtime-context based", text)
             self.assertNotIn(LEGACY_POST_ACK, text)
 
+    def test_gate_runtime_common_modules_are_synced_between_root_and_template(self) -> None:
+        required_markers = {
+            "coding_standards.py": ("validate_changed_files", "encoding=\"utf-8\"", "CS-UTF8"),
+            "gates.py": ("GateResult", "GateRunner", "exit_code"),
+            "git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
+            "state_machine.py": ("transition_blockers", "task review", "completed"),
+            "tdd_evidence.py": ("validate_tdd_evidence", "tdd.jsonl", "redExitCode"),
+            "test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
+            "validate_coding_standards.py": ("validate_coding_standards", "collect_changed_files", "--validate"),
+        }
+
+        for file_name, markers in required_markers.items():
+            root_text = (
+                ROOT / ".cowork-flow" / "scripts" / "common" / file_name
+            ).read_text(encoding="utf-8")
+            template_text = (
+                ROOT / "template" / ".cowork-flow" / "scripts" / "common" / file_name
+            ).read_text(encoding="utf-8")
+
+            self.assertEqual(root_text, template_text)
+            for marker in markers:
+                self.assertIn(marker, root_text)
+
+    def test_tdd_skill_is_synced_between_root_template_and_claude_mirrors(self) -> None:
+        required_markers = (
+            "red-green-refactor",
+            "tdd.jsonl",
+            "acceptanceId",
+            "redExitCode",
+            "greenExitCode",
+            "whyThisTestMatters",
+            "exemption",
+        )
+        root_text = (ROOT / ".agents" / "skills" / "tdd" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        for path in (
+            ROOT / "template" / ".agents" / "skills" / "tdd" / "SKILL.md",
+            ROOT / ".claude" / "skills" / "tdd" / "SKILL.md",
+            ROOT / "template" / ".claude" / "skills" / "tdd" / "SKILL.md",
+        ):
+            self.assertEqual(root_text, path.read_text(encoding="utf-8"), str(path))
+        for marker in required_markers:
+            self.assertIn(marker, root_text)
+
+    def test_check_skill_and_agent_require_test_intent_review(self) -> None:
+        required_markers = (
+            "test intent",
+            "shallow tests",
+            "test_intent_review",
+        )
+        for path in (
+            ROOT / ".agents" / "skills" / "check" / "SKILL.md",
+            ROOT / "template" / ".agents" / "skills" / "check" / "SKILL.md",
+            ROOT / ".claude" / "skills" / "check" / "SKILL.md",
+            ROOT / "template" / ".claude" / "skills" / "check" / "SKILL.md",
+            ROOT / ".codex" / "agents" / "cowork-check.toml",
+            ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
+        ):
+            text = path.read_text(encoding="utf-8")
+            for marker in required_markers:
+                self.assertIn(marker, text, f"{marker} missing from {path}")
+
     def test_start_skill_routes_to_fixed_agents(self) -> None:
         text = (ROOT / ".agents" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Plan -> Implement -> Check -> Finish", text)
