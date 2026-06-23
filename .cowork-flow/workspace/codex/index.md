@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 53
+- **Total Sessions**: 54
 - **Last Active**: 2026-06-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1720 | Current |
+| `journal-1.md` | ~1750 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 54 | 2026-06-23 | 修复测试 Python runner | - |
 | 53 | 2026-06-23 | 清理未接线入口分类器 | - |
 | 52 | 2026-06-23 | unify rule spec contracts | - |
 | 51 | 2026-06-23 | 清理冗余死代码和文档 | - |
