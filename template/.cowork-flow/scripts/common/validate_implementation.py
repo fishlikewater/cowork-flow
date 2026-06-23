@@ -17,6 +17,7 @@ from pathlib import Path
 def validate_implementation(
     repo_root: Path,
     task_dir: Path,
+    allow_spec_file_modifications: bool = False,
 ) -> list[dict]:
     """
     Validate code changes against implementation rules.
@@ -37,7 +38,12 @@ def validate_implementation(
     diff_output = _get_git_diff(repo_root, modified_files)
 
     # Check forbidden action rules
-    violations.extend(_check_spec_file_modifications(modified_files))
+    violations.extend(
+        _check_spec_file_modifications(
+            modified_files,
+            allow_spec_file_modifications=allow_spec_file_modifications,
+        )
+    )
     violations.extend(_check_premature_abstraction(diff_output))
     violations.extend(_check_unrequested_features(diff_output, task_dir))
 
@@ -45,10 +51,10 @@ def validate_implementation(
 
 
 def _get_modified_files(repo_root: Path) -> list[str]:
-    """Get git-tracked modified files."""
+    """Get git-tracked modified files under repo_root."""
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only"],
+            ["git", "diff", "--name-only", "--", "."],
             cwd=repo_root,
             capture_output=True,
             text=True,
@@ -81,9 +87,16 @@ def _get_git_diff(repo_root: Path, files: list[str]) -> str:
         return ""
 
 
-def _check_spec_file_modifications(modified_files: list[str]) -> list[dict]:
+def _check_spec_file_modifications(
+    modified_files: list[str],
+    *,
+    allow_spec_file_modifications: bool,
+) -> list[dict]:
     """R-AG-002: Check if spec files were modified"""
     violations = []
+
+    if allow_spec_file_modifications:
+        return violations
 
     # Spec file path patterns
     spec_patterns = [

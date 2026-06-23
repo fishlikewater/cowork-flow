@@ -526,6 +526,36 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertEqual(["R-WF-007"], [v["rule_id"] for v in violations])
 
+    def test_rule_scope_contract_includes_task_review(self) -> None:
+        for schema_path in (
+            ROOT / ".cowork-flow" / "spec" / "rules.schema.json",
+            ROOT / "template" / ".cowork-flow" / "spec" / "rules.schema.json",
+        ):
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            scope_enum = schema["properties"]["rules"]["items"]["properties"]["scope"]["enum"]
+            self.assertIn("task_review", scope_enum)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ready_task_files(root, task_dir)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "common" / "validate_rules.py"),
+                    "task_review",
+                    "--repo-root",
+                    str(root),
+                    "--task-dir",
+                    str(task_dir),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+
     def test_gate_runner_wraps_legacy_validator_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -798,6 +828,77 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(1, result)
             self.assertEqual("in_progress", data["status"])
             self.assertIn("Subagent attempted to modify spec files", stderr.getvalue())
+
+    def test_cmd_review_allows_spec_changes_for_coordinator_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            workflow_dir = root / ".cowork-flow"
+            task_dir = workflow_dir / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+            self._commit_all(root, "baseline")
+            (root / "AGENTS.md").write_text("# Rules changed by coordinator\n", encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(
+                            argparse.Namespace(
+                                dir=None,
+                                execution_mode="coordinator",
+                                execution_assignment=None,
+                                execution_task_dir=None,
+                                execution_prompt_file=None,
+                                execution_context_file=None,
+                            )
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual("review", data["status"])
+
+    def test_validators_scope_git_changes_to_project_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outer = Path(temp_dir)
+            self._init_git_repo(outer)
+            outer_spec = outer / ".cowork-flow" / "spec" / "rules.schema.json"
+            outer_src = outer / "src"
+            outer_spec.parent.mkdir(parents=True)
+            outer_src.mkdir()
+            outer_spec.write_text('{"schemaVersion": 1}\n', encoding="utf-8")
+            (outer_src / "outer.py").write_text("VALUE = 'safe'\n", encoding="utf-8")
+            self._commit_all(outer, "baseline")
+
+            outer_spec.write_text('{"schemaVersion": 2}\n', encoding="utf-8")
+            (outer_src / "outer.py").write_text(
+                "VALUE = open('data.txt').read()\n",
+                encoding="utf-8",
+            )
+
+            nested = outer / "nested-project"
+            task_dir = nested / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "prd.md").write_text("# Nested task\n", encoding="utf-8")
+
+            implementation = importlib.import_module("common.validate_implementation")
+            coding = importlib.import_module("common.validate_coding_standards")
+
+            self.assertEqual([], implementation.validate_implementation(nested, task_dir))
+            self.assertEqual([], coding.validate_coding_standards(nested, task_dir))
 
     def test_cmd_review_allows_regular_diff_that_mentions_spec_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

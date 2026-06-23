@@ -1628,3 +1628,33 @@ Completed and archived Party Mode V2 runtime hardening; added process-safe board
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 51: 清理冗余死代码和文档
+
+**Date**: 2026-06-23
+**Task**: 清理冗余死代码和文档
+
+### Summary
+
+清理测试残留目录；删除过期 gate helper 包装和说明；修复 task_review scope、嵌套 Git 变更作用域和 coordinator meta/spec review gate；补充 TDD 与回归测试，并完成 Python、Node、模板、打包和 diff 检查。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

@@ -1,0 +1,6 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/", "type": "directory", "reason": "Python validation suite"}
+{"file": "test/", "type": "directory", "reason": "Node validation suite"}
+{"file": "scripts/run-template-tests.js", "reason": "Template test runner"}
+{"file": "scripts/pack-check.js", "reason": "Package validation script"}

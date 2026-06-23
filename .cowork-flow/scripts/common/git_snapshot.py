@@ -20,7 +20,7 @@ class ChangedFile:
 def collect_changed_files(repo_root: Path) -> list[ChangedFile]:
     """Return modified, staged, and untracked files from git status."""
     rc, stdout, _ = _run_git_command(
-        ["status", "--porcelain=v1", "-uall"],
+        ["status", "--porcelain=v1", "-uall", "--", "."],
         cwd=repo_root,
     )
     if rc != 0:

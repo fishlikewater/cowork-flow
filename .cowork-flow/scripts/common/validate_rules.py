@@ -2,7 +2,7 @@
 """
 Rule validation script for cowork-flow workflow.
 
-Validates rules at task start/complete checkpoints.
+Validates rules at task lifecycle checkpoints.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def validate_rules(
 
     Args:
         repo_root: Repository root path
-        scope: Validation scope (task_start, task_complete, check, implement)
+        scope: Validation scope such as task_start, task_review, or task_complete
         task_dir: Optional task directory path
 
     Returns:
@@ -294,7 +294,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Validate workflow rules")
-    parser.add_argument("scope", choices=["task_start", "task_complete", "check", "implement"])
+    parser.add_argument("scope", choices=["task_start", "task_review", "task_complete", "check", "implement"])
     parser.add_argument("--task-dir", help="Task directory path")
     parser.add_argument("--repo-root", default=".", help="Repository root path")
 
