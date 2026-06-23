@@ -1007,6 +1007,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 def cmd_review(args: argparse.Namespace) -> int:
     """Mark a task ready for check/review."""
     repo_root = get_repo_root()
+    execution_context = execution_context_from_namespace(args)
     task_dir = _resolve_status_task_dir(args, repo_root)
     if task_dir is None:
         return 1
@@ -1019,7 +1020,11 @@ def cmd_review(args: argparse.Namespace) -> int:
     # Validate implementation against forbidden action rules
     try:
         from common.validate_implementation import validate_implementation
-        violations = validate_implementation(repo_root, task_dir)
+        violations = validate_implementation(
+            repo_root,
+            task_dir,
+            allow_spec_file_modifications=execution_context.is_coordinator,
+        )
         gate_result = GateResult.from_violations("task_review", violations, task_dir)
         if gate_result.blocked:
             return _report_gate_block(

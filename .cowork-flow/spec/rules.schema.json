@@ -34,7 +34,7 @@
           },
           "scope": {
             "type": "string",
-            "enum": ["task_start", "task_complete", "check", "implement", "all"],
+            "enum": ["task_start", "task_review", "task_complete", "check", "implement", "all"],
             "description": "Scope where rule applies"
           },
           "condition": {

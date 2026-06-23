@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 50
+- **Total Sessions**: 51
 - **Last Active**: 2026-06-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1630 | Current |
+| `journal-1.md` | ~1660 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 51 | 2026-06-23 | 清理冗余死代码和文档 | - |
 | 50 | 2026-06-23 | TDD 产品化与门禁改造收尾 | - |
 | 49 | 2026-06-11 | Party Mode V2 runtime hardening | - |
 | 48 | 2026-06-10 | 修复脚本 BOM 编码 | - |

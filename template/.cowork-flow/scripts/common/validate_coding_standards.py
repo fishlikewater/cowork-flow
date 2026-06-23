@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Coding standards reminder script.
+Coding standards helper.
 
-Reads coding standards from markdown files and outputs a summary.
-Does NOT perform validation - only provides guidance for Agent review.
+Summarizes relevant standards and validates changed files for lifecycle gates.
 """
 
 from __future__ import annotations
@@ -31,7 +30,7 @@ def get_coding_standards_summary(
     Returns:
         Summary string of relevant coding standards
     """
-    modified_files = _get_modified_files(repo_root)
+    modified_files = collect_changed_paths(repo_root)
     if not modified_files:
         return ""
 
@@ -62,11 +61,6 @@ def validate_coding_standards(
 ) -> list[dict]:
     """Validate coding standards for changed files."""
     return validate_changed_files(repo_root, collect_changed_files(repo_root))
-
-
-def _get_modified_files(repo_root: Path) -> list[str]:
-    """Get list of changed files across staged, modified, and untracked states."""
-    return collect_changed_paths(repo_root)
 
 
 def _is_backend_file(file_path: str) -> bool:
