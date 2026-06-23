@@ -1718,3 +1718,33 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 54: 修复测试 Python runner
+
+**Date**: 2026-06-23
+**Task**: 修复测试 Python runner
+
+### Summary
+
+修复 coding standards Node 测试绕过 cowork-flow runner 的裸 python 调用，让普通 npm run test:all 在只有 python3 的环境中直接通过。
+
+### Main Changes
+
+
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

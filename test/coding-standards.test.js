@@ -43,12 +43,19 @@ test('template coding standards validator reports implicit Python encoding', asy
 
   await execFileAsync('git', ['init'], { cwd: repo, encoding: 'utf8' });
   const scriptsDir = join(packageRoot, 'template', '.cowork-flow', 'scripts');
+  const runner = join(
+    packageRoot,
+    'template',
+    '.cowork-flow',
+    process.platform === 'win32' ? 'run.cmd' : 'run'
+  );
 
   let failure = null;
   try {
     await execFileAsync(
-      'python',
+      runner,
       [
+        'python',
         '-m',
         'common.validate_coding_standards',
         '--validate',
@@ -60,6 +67,7 @@ test('template coding standards validator reports implicit Python encoding', asy
       {
         cwd: scriptsDir,
         encoding: 'utf8',
+        shell: process.platform === 'win32',
         env: {
           ...process.env,
           PYTHONPATH: scriptsDir
