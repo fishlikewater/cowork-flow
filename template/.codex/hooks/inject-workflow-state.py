@@ -19,15 +19,6 @@ TAG_RE = re.compile(
 DEFAULT_CONTRACT_REGISTRY = {
     "contracts": [
         {
-            "id": "COWORK_ENTRY_CONTRACT_V1",
-            "path": ".cowork-flow/spec/contracts/entry-contract.md",
-            "digest": [
-                "Classify main-session requests before task start, resume, archive, or commit.",
-                "Runtime context, not prompt labels, identifies formal subagent sessions.",
-            ],
-            "readWhen": ["before task start/resume/archive", "when prompt and bootstrap text conflict"],
-        },
-        {
             "id": "RUNTIME_CONTEXT_DISPATCH_V2",
             "path": ".cowork-flow/spec/contracts/subagent-dispatch.md",
             "digest": [

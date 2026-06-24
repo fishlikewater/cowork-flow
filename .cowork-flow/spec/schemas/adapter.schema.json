@@ -90,13 +90,9 @@
     },
     "contracts": {
       "type": "object",
-      "required": ["entry", "dispatch", "leafExecutor"],
+      "required": ["dispatch", "leafExecutor"],
       "additionalProperties": false,
       "properties": {
-        "entry": {
-          "type": "string",
-          "const": "COWORK_ENTRY_CONTRACT_V1"
-        },
         "dispatch": {
           "type": "string",
           "const": "RUNTIME_CONTEXT_DISPATCH_V2"

@@ -25,7 +25,6 @@ runtimeContext:
   envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
   metadataKey: cowork_runtime_context_id
 contracts:
-  entry: COWORK_ENTRY_CONTRACT_V1
   dispatch: RUNTIME_CONTEXT_DISPATCH_V2
   leafExecutor: true
 fallback:

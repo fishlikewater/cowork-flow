@@ -1778,3 +1778,33 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 56: 清理 entry contract 残留
+
+**Date**: 2026-06-24
+**Task**: 清理 entry contract 残留
+
+### Summary
+
+删除不再有运行时消费的 entry-contract/COWORK_ENTRY_CONTRACT_V1，移除 hook/plugin/adapter/doctor/agent 文案引用；sync 会删除下游旧 entry-contract.md；额外清掉 project-context 中不存在的 delegation-envelope spec 链接。验证：focused tests、doctor checks、活跃残留扫描、git diff --check、npm run test:all 通过。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

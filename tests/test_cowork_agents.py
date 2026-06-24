@@ -366,7 +366,6 @@ class CoworkAgentsTest(unittest.TestCase):
         doctor = ROOT / ".cowork-flow" / "scripts" / "doctor.py"
         text = doctor.read_text(encoding="utf-8")
         for marker in (
-            "COWORK_ENTRY_CONTRACT_V1",
             "RUNTIME_CONTEXT_DISPATCH_V2",
             "cowork_runtime_context_id",
             "bind_runtime_context",

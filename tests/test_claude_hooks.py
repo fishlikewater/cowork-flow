@@ -446,7 +446,7 @@ class ClaudeHooksTest(unittest.TestCase):
             self._make_project(root)
 
             before = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
-            spec_file = root / ".cowork-flow" / "spec" / "contracts" / "entry-contract.md"
+            spec_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
             spec_file.write_text(
                 spec_file.read_text(encoding="utf-8") + "\n<!-- fingerprint smoke -->\n",
                 encoding="utf-8",

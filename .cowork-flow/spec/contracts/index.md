@@ -5,7 +5,6 @@
 
 当前合同：
 
-- `entry-contract.md`: 主会话入口分类与 runtime context 边界。
 - `subagent-dispatch.md`: 固定子代理派发、绑定、等待和收口协议。
 - `workflow-state-templates.md`: hook/plugin 注入的 workflow state 文案。
 - `capabilities.md`: 宿主适配器能力模型。

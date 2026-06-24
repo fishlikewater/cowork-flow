@@ -1,0 +1,10 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow\\spec\\runtime\\contract-registry.json", "reason": "contract registry remove entry contract"}
+{"file": ".codex\\hooks\\inject-workflow-state.py", "reason": "codex hook fallback digest"}
+{"file": ".cowork-flow\\spec\\schemas\\adapter.schema.json", "reason": "adapter contract schema"}
+{"file": ".claude\\hooks\\inject-workflow-state.py", "reason": "claude hook fallback digest"}
+{"file": ".opencode\\plugins\\cowork-flow.js", "reason": "opencode plugin digest"}
+{"file": ".cowork-flow\\scripts\\doctor.py", "reason": "doctor entry checks"}
