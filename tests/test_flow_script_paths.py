@@ -1396,6 +1396,80 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
 
+    def test_test_intent_accepts_mock_plus_java_assert_equals(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            test_file = root / "tests" / "BehaviorTest.java"
+            test_file.parent.mkdir(parents=True)
+            test_file.write_text(
+                "class BehaviorTest {\n"
+                "  void testBlocksInvalidState() {\n"
+                "    Service service = mock(Service.class);\n"
+                "    assertEquals(\"blocked\", result.status());\n"
+                "  }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            evidence = {
+                "acceptanceId": "AC-001",
+                "testFile": "tests/BehaviorTest.java",
+                "testName": "testBlocksInvalidState",
+                "redCommand": "mvn test -Dtest=BehaviorTest#testBlocksInvalidState",
+                "redExitCode": 1,
+                "redOutputExcerpt": "target behavior missing",
+                "failureReason": "target behavior was not implemented",
+                "whyThisTestMatters": "It proves Java assertEquals is treated as behavior assertion, not mock-only noise.",
+                "greenCommand": "mvn test -Dtest=BehaviorTest#testBlocksInvalidState",
+                "greenExitCode": 0,
+                "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
+            }
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            test_intent = importlib.import_module("common.gates.test_intent")
+
+            self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
+
+    def test_test_intent_accepts_mock_plus_assert_false(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            test_file = root / "tests" / "BehaviorTest.java"
+            test_file.parent.mkdir(parents=True)
+            test_file.write_text(
+                "class BehaviorTest {\n"
+                "  void testRejectsInvalidState() {\n"
+                "    Service service = mock(Service.class);\n"
+                "    assertFalse(result.allowed());\n"
+                "  }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            evidence = {
+                "acceptanceId": "AC-002",
+                "testFile": "tests/BehaviorTest.java",
+                "testName": "testRejectsInvalidState",
+                "redCommand": "mvn test -Dtest=BehaviorTest#testRejectsInvalidState",
+                "redExitCode": 1,
+                "redOutputExcerpt": "target behavior missing",
+                "failureReason": "target behavior was not implemented",
+                "whyThisTestMatters": "It proves assertFalse is treated as behavior assertion, not mock-only noise.",
+                "greenCommand": "mvn test -Dtest=BehaviorTest#testRejectsInvalidState",
+                "greenExitCode": 0,
+                "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
+            }
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            test_intent = importlib.import_module("common.gates.test_intent")
+
+            self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
+
     def test_test_intent_blocks_unresolved_test_name(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

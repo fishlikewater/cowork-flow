@@ -908,15 +908,22 @@ Added init platform selection for Codex/OpenCode assets and sync host auto-detec
 
 ### Main Changes
 
-(add details)
+- Added mock-only intent coverage for Java `assertEquals(...)` plus mock usage.
+- Added mock-only intent coverage for `assertFalse(...)` plus mock usage.
+- Updated root/template `test_intent.py` assertion markers.
 
 ### Git Commit
 
-(no code commit; planning or sync session)
+Recorded before the final commit for this session.
 
 ### Verification
 
-- [OK] (add verification results)
+- [OK] `python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_test_intent_accepts_mock_plus_java_assert_equals -v`
+- [OK] `python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_test_intent_accepts_mock_plus_assert_false -v`
+- [OK] `python -m unittest tests.test_flow_script_paths -v`
+- [OK] `git diff --check`
+- [OK] root/template content comparison for `test_intent.py`
+- [OK] `npm run test:all`
 
 ### Status
 
@@ -1946,6 +1953,36 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Summary
 
 将 task next 的实现阶段 TDD 硬门禁收回为非阻断提醒，保留 review 对 tdd.jsonl 的验收。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
+
+
+## Session 62: 修复 mock-only 断言识别
+
+**Date**: 2026-06-24
+**Task**: 修复 mock-only 断言识别
+
+### Summary
+
+补全 test intent mock-only 检测中的 assertEquals/assertFalse 行为断言识别，避免有效测试被误判为 mock-only。
 
 ### Main Changes
 
