@@ -230,7 +230,8 @@ def _looks_import_only(content: str, lower: str) -> bool:
 def _looks_mock_only(lower: str) -> bool:
     mock_markers = ("assert_called", "call_count", "assert_not_called", "mock(", "Mock(")
     return any(marker in lower for marker in mock_markers) and not any(
-        marker in lower for marker in ("assertequal(", "assertraises(", "assertin(", "asserttrue(")
+        marker in lower
+        for marker in ("assertequal(", "assertequals(", "assertraises(", "assertin(", "asserttrue(", "assertfalse(")
     )
 
 
