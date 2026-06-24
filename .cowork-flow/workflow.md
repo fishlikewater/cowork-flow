@@ -21,7 +21,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 `cowork-flow` 只保存项目状态、任务上下文、宿主适配器契约和恢复线索；实际执行由主会话和固定 `cowork-*` 代理完成。宿主工具名只写在 `.cowork-flow/adapters/<host>/adapter.yaml`，不进入流程分支。
 
-`task next` 是主会话的阶段导航器。进入任务阶段、恢复会话、派发实现、进入检查、完成收口前，先运行 `./.cowork-flow/run task next` 或 `.\.cowork-flow\run.cmd task next`，用当前任务和 `task.json.status` 决定下一步。该命令只读，不推进状态；行为变更任务缺少 TDD red evidence 时，它必须阻断主会话内联实现和 `cowork-implement` 派发。
+`task next` 是主会话的阶段导航器。进入任务阶段、恢复会话、派发实现、进入检查、完成收口前，先运行 `./.cowork-flow/run task next` 或 `.\.cowork-flow\run.cmd task next`，用当前任务和 `task.json.status` 决定下一步。该命令只读，不推进状态，也不阻断固定代理派发；实现阶段会提示行为变更先补 TDD red evidence。
 
 ## 1.1 状态注入与入口分类
 
@@ -183,12 +183,12 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
 ## 6. 实现阶段
 
 1. 先运行 `task next` 确认当前状态和下一步命令。
-2. 如果 `task next` 提示先记录 TDD red evidence，先写失败测试并记录 `<task>/tdd.jsonl`；在此之前不得主会话内联实现，也不得派发 `cowork-implement`。
+2. 行为变更任务先写失败测试并记录 `<task>/tdd.jsonl` 的 red evidence；`task next` 会在实现步骤给出非阻断提醒。
 3. 默认通过宿主适配器派发 `cowork-implement`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/contracts/subagent-dispatch.md`。
 4. 派发内容应包含当前计划步骤、范围边界和期望验证命令。
 5. 如果用户明确要求主会话内联执行，或当前任务正在修改子代理/运行时行为，可以不派发 `cowork-implement`，但必须说明原因，并仍按计划与测试循环推进。
 6. 涉及行为变化时，先写失败测试，再实现，再验证变绿。
-7. 实现完成并通过本阶段验证后运行 `./.cowork-flow/run task review [task-dir]`，把任务推进到检查阶段。
+7. 实现完成并通过本阶段验证后运行 `./.cowork-flow/run task review [task-dir]`，由 review 门禁验收完整 `tdd.jsonl`，再把任务推进到检查阶段。
 
 ## 7. 检查阶段
 

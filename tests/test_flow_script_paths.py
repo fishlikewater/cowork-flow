@@ -1599,7 +1599,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("./.cowork-flow/run subagent init", output)
             self.assertIn("cowork_runtime_context_id", output)
 
-    def test_cmd_next_blocks_main_session_implementation_without_tdd_red_evidence(self) -> None:
+    def test_cmd_next_prints_tdd_reminder_without_blocking_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
@@ -1626,10 +1626,12 @@ class FlowScriptPathsTest(unittest.TestCase):
             output = stdout.getvalue()
             self.assertEqual(0, result)
             self.assertIn("Status: in_progress", output)
-            self.assertIn("Next action: record TDD red evidence before implementation", output)
-            self.assertIn("TDD red evidence is missing", output)
-            self.assertNotIn("cowork-implement", output)
-            self.assertNotIn("./.cowork-flow/run subagent init", output)
+            self.assertIn("Next action: execute implementation plan", output)
+            self.assertIn("TDD reminder:", output)
+            self.assertIn("/tdd.jsonl before modifying code", output)
+            self.assertIn("cowork-implement", output)
+            self.assertIn("./.cowork-flow/run subagent init", output)
+            self.assertNotIn("TDD red evidence is missing", output)
 
     def test_cmd_next_allows_implementation_after_tdd_red_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1649,12 +1651,12 @@ class FlowScriptPathsTest(unittest.TestCase):
                     {
                         "acceptanceId": "AC-001",
                         "testFile": "tests/test_flow_script_paths.py",
-                        "testName": "FlowScriptPathsTest.test_cmd_next_blocks_main_session_implementation_without_tdd_red_evidence",
-                        "redCommand": "python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_cmd_next_blocks_main_session_implementation_without_tdd_red_evidence -v",
+                        "testName": "FlowScriptPathsTest.test_cmd_next_prints_tdd_reminder_without_blocking_dispatch",
+                        "redCommand": "python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_cmd_next_prints_tdd_reminder_without_blocking_dispatch -v",
                         "redExitCode": 1,
-                        "redOutputExcerpt": "TDD red evidence is missing",
+                        "redOutputExcerpt": "TDD reminder",
                         "failureReason": "target behavior was not implemented",
-                        "whyThisTestMatters": "It keeps main-session implementation from bypassing red-first TDD.",
+                        "whyThisTestMatters": "It keeps implementation guidance visible without blocking fixed-agent dispatch.",
                     },
                     ensure_ascii=False,
                 )
@@ -1675,6 +1677,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             output = stdout.getvalue()
             self.assertEqual(0, result)
             self.assertIn("Next action: execute implementation plan", output)
+            self.assertIn("TDD reminder:", output)
             self.assertIn("cowork-implement", output)
             self.assertNotIn("TDD red evidence is missing", output)
 

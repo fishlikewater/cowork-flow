@@ -1,0 +1,9 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/scripts/commands/task.py", "reason": "task next TDD reminder"}
+{"file": "tests/test_flow_script_paths.py", "reason": "regression tests for non-blocking TDD reminder"}
+{"file": "template/.cowork-flow/scripts/commands/task.py", "reason": "template mirror"}
+{"file": "template/.cowork-flow/workflow.md", "reason": "template workflow mirror"}
