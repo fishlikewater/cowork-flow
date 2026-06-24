@@ -145,7 +145,7 @@ def _load_common(root: Path) -> None:
 def _get_dispatch_mode(root: Path) -> str:
     _load_common(root)
     try:
-        from common.config import get_codex_dispatch_mode  # type: ignore[import-not-found]
+        from common.core.config import get_codex_dispatch_mode  # type: ignore[import-not-found]
     except Exception:
         return "sub-agent"
     try:
@@ -157,7 +157,7 @@ def _get_dispatch_mode(root: Path) -> str:
 def _get_active_task(root: Path, hook_input: dict[str, Any]) -> tuple[str | None, str, str]:
     _load_common(root)
     try:
-        from common.active_task import get_active_task  # type: ignore[import-not-found]
+        from common.task.active_task import get_active_task  # type: ignore[import-not-found]
     except Exception:
         return None, "no_task", "unavailable"
 
@@ -181,7 +181,7 @@ def _get_active_task(root: Path, hook_input: dict[str, Any]) -> tuple[str | None
 def _resolve_runtime_context(root: Path, hook_input: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     _load_common(root)
     try:
-        from common.active_task import (  # type: ignore[import-not-found]
+        from common.task.active_task import (  # type: ignore[import-not-found]
             bind_runtime_context,
             read_runtime_context,
             resolve_runtime_context_id,

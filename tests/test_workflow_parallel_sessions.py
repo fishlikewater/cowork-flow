@@ -231,21 +231,21 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_gate_runtime_common_modules_are_synced_between_root_and_template(self) -> None:
         required_markers = {
-            "coding_standards.py": ("validate_changed_files", "encoding=\"utf-8\"", "CS-UTF8"),
-            "gates.py": ("GateResult", "GateRunner", "exit_code"),
-            "git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
-            "state_machine.py": ("transition_blockers", "task review", "completed"),
-            "tdd_evidence.py": ("validate_tdd_evidence", "tdd.jsonl", "redExitCode"),
-            "test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
-            "validate_coding_standards.py": ("validate_coding_standards", "collect_changed_files", "--validate"),
+            "gates/coding_standards.py": ("validate_changed_files", "encoding=\"utf-8\"", "CS-UTF8"),
+            "gates/gates.py": ("GateResult", "GateRunner", "exit_code"),
+            "git/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
+            "task/state_machine.py": ("transition_blockers", "task review", "completed"),
+            "gates/tdd_evidence.py": ("validate_tdd_evidence", "tdd.jsonl", "redExitCode"),
+            "gates/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
+            "gates/validate_coding_standards.py": ("validate_coding_standards", "collect_changed_files", "--validate"),
         }
 
         for file_name, markers in required_markers.items():
             root_text = (
-                ROOT / ".cowork-flow" / "scripts" / "common" / file_name
+                ROOT / ".cowork-flow" / "scripts" / "common" / Path(file_name)
             ).read_text(encoding="utf-8")
             template_text = (
-                ROOT / "template" / ".cowork-flow" / "scripts" / "common" / file_name
+                ROOT / "template" / ".cowork-flow" / "scripts" / "common" / Path(file_name)
             ).read_text(encoding="utf-8")
 
             self.assertEqual(root_text, template_text)
@@ -368,7 +368,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         result = subprocess.run(
             [
                 sys.executable,
-                str(ROOT / ".cowork-flow" / "scripts" / "doctor.py"),
+                str(ROOT / ".cowork-flow" / "scripts" / "commands" / "doctor.py"),
                 "--subagent-safety",
             ],
             cwd=ROOT,

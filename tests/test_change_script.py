@@ -18,7 +18,7 @@ class ChangeScriptTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.repo = Path(self.temp.name) / "repo"
         shutil.copytree(TEMPLATE, self.repo)
-        self.script = self.repo / ".cowork-flow" / "scripts" / "change.py"
+        self.script = self.repo / ".cowork-flow" / "scripts" / "commands" / "change.py"
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -129,7 +129,7 @@ class ChangeScriptTest(unittest.TestCase):
         self.assertIn("status", failed.stderr)
         self.assertIn("level", failed.stderr)
         self.assertIn("plan", failed.stderr)
-        self.assertIn("task", failed.stderr)
+        self.assertIn(".cowork-flow/tasks/missing-task", failed.stderr)
 
     def test_validate_accepts_existing_unprefixed_change_directory(self) -> None:
         change_dir = self.repo / ".cowork-flow" / "changes" / "legacy-change"

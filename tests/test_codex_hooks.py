@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -526,8 +526,8 @@ class CodexHooksTest(unittest.TestCase):
     def test_hook_runtime_files_root_and_template_are_synced(self) -> None:
         for rel in (
             Path(".codex/hooks/inject-workflow-state.py"),
-            Path(".cowork-flow/scripts/common/config.py"),
-            Path(".cowork-flow/scripts/common/active_task.py"),
+            Path(".cowork-flow/scripts/common/core/config.py"),
+            Path(".cowork-flow/scripts/common/task/active_task.py"),
             Path(".cowork-flow/spec/contracts/workflow-state-templates.md"),
         ):
             root_text = (ROOT / rel).read_text(encoding="utf-8")

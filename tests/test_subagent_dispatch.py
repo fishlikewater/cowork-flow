@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SUBAGENT = ROOT / "template" / ".cowork-flow" / "scripts" / "subagent.py"
+SUBAGENT = ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "subagent.py"
 
 
 class SubagentDispatchTest(unittest.TestCase):

@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -33,7 +33,10 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.cowork-flow', 'run')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'run.py')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'change.py')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'task.py')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'commands', 'change.py')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'core', 'paths.py')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'gates.py')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'project_context.py')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'entry_classifier.py')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')), true);

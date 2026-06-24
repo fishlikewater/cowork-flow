@@ -105,9 +105,9 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertTrue(PYTHON_RUNNER.is_file())
         content = PYTHON_RUNNER.read_text(encoding="utf-8")
 
-        self.assertIn('"task": "task.py"', content)
+        self.assertIn('"task": "commands/task.py"', content)
         self.assertNotIn('"agent' + '-team": "agent' + '_team.py"', content)
-        self.assertIn('"get-context": "get_context.py"', content)
+        self.assertIn('"get-context": "commands/get_context.py"', content)
         self.assertNotIn("project-context", content)
         self.assertNotIn("project_context.py", content)
 

@@ -1838,3 +1838,33 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 58: 重组 scripts 包结构
+
+**Date**: 2026-06-24
+**Task**: 重组 scripts 包结构
+
+### Summary
+
+将 scripts 命令迁入 commands，common 拆为 core/task/git/gates，更新 runner、hooks、sync obsolete 清单和测试；验证 npm run test:all。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
