@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -107,7 +108,22 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertIn('"task": "task.py"', content)
         self.assertNotIn('"agent' + '-team": "agent' + '_team.py"', content)
         self.assertIn('"get-context": "get_context.py"', content)
-        self.assertIn('"project-context": "project_context.py"', content)
+        self.assertNotIn("project-context", content)
+        self.assertNotIn("project_context.py", content)
+
+    def test_removed_project_context_command_is_rejected(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(PYTHON_RUNNER), "project-context"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("unknown cowork-flow command: project-context", result.stderr)
 
     @POSIX_ONLY
     def test_python3_is_preferred_when_available(self) -> None:

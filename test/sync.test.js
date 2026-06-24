@@ -76,11 +76,8 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'scripts', 'task.py')),
     await readText(join(templateRoot, '.cowork-flow', 'scripts', 'task.py'))
   );
-  assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'project_context.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'project_context.py'))
-  );
-  assert.equal(await readText(join(target, '.cowork-flow', 'project-context.md')), 'local generated context\n');
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'project_context.py')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'project-context.md')), false);
   assert.equal(
     await readText(join(target, '.cowork-flow', 'workflow.md')),
     await readText(join(templateRoot, '.cowork-flow', 'workflow.md'))
