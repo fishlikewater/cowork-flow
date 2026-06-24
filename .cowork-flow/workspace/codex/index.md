@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 60
+- **Total Sessions**: 61
 - **Last Active**: 2026-06-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1930 | Current |
+| `journal-1.md` | ~1960 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 61 | 2026-06-24 | TDD 提示回归 | - |
 | 60 | 2026-06-24 | 主会话 TDD 前置门禁 | - |
 | 59 | 2026-06-24 | 更新 README 当前流程说明 | - |
 | 58 | 2026-06-24 | 重组 scripts 包结构 | - |

@@ -870,15 +870,23 @@ Made OpenCode plugin registry-driven for contract digest injection; added plugin
 
 ### Main Changes
 
-(add details)
+- Removed the `task next` TDD red-evidence blocker so formal implementation dispatch is not blocked.
+- Added a non-blocking TDD reminder to `task next` implementation output.
+- Kept `task review` as the full `tdd.jsonl` evidence gate and updated root/template workflow docs.
+- Updated regression coverage for reminder-plus-dispatch behavior.
 
 ### Git Commit
 
-(no code commit; planning or sync session)
+Recorded before the final commit for this session.
 
 ### Verification
 
-- [OK] (add verification results)
+- [OK] `python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_cmd_next_prints_tdd_reminder_without_blocking_dispatch -v`
+- [OK] `python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_cmd_next_allows_implementation_after_tdd_red_evidence -v`
+- [OK] `python -m unittest tests.test_flow_script_paths -v`
+- [OK] `git diff --check`
+- [OK] root/template hash check for changed runtime/docs files
+- [OK] `npm run test:all`
 
 ### Status
 
@@ -1908,6 +1916,36 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Summary
 
 为行为变更任务增加 task next 前置 TDD red evidence 门禁，阻断主会话内联实现和 cowork-implement 派发旁路，并同步 root/template workflow 与测试。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
+
+
+## Session 61: TDD 提示回归
+
+**Date**: 2026-06-24
+**Task**: TDD 提示回归
+
+### Summary
+
+将 task next 的实现阶段 TDD 硬门禁收回为非阻断提醒，保留 review 对 tdd.jsonl 的验收。
 
 ### Main Changes
 
