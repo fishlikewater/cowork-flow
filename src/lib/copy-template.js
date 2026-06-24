@@ -100,6 +100,8 @@ const SAFE_SYNC_FILES = new Set([
 ]);
 
 const OBSOLETE_SYNC_FILES = new Set([
+  '.cowork-flow/project-context.md',
+  '.cowork-flow/scripts/project_context.py',
   '.cowork-flow/spec/contracts/entry-contract.md'
 ]);
 

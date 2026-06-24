@@ -1808,3 +1808,33 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 57: 清理 project-context 残留
+
+**Date**: 2026-06-24
+**Task**: 清理 project-context 残留
+
+### Summary
+
+确认 project-context 当前流程无使用后，删除生成摘要文件、刷新脚本和 runner 命令；sync 会清理下游旧文件；更新 README/workflow 与 init/sync/runner 测试。验证：CodeGraph/rg 使用扫描、node --test test/init.test.js test/sync.test.js、python -m unittest tests.test_python_runner -v、git diff --check、npm run test:all。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

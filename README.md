@@ -196,7 +196,6 @@ cowork-flow sync . --dry-run
 
 ```bash
 ./.cowork-flow/run get-context
-./.cowork-flow/run project-context refresh
 ./.cowork-flow/run task list
 ./.cowork-flow/run task next
 ```
@@ -219,10 +218,6 @@ cowork-flow sync . --dry-run
 `task next` is read-only. It reports the active task, status, blockers, and the
 next safe command before the main session starts work, dispatches fixed agents,
 checks, archives, or records the session.
-
-`project-context refresh` 会创建或刷新 `.cowork-flow/project-context.md`。生成块由
-本地项目文件确定，`Manual Notes` 区保留人工补充；该文件是项目索引，不替代
-`AGENTS.md`、`.cowork-flow/workflow.md` 或 `.cowork-flow/spec/`。
 
 L2 任务的 readiness gate 会在 `task start` 前阻塞缺失的 proposal/spec/design、
 计划、任务链接、边界、假设、验收标准或 verification commands；同一 blocker

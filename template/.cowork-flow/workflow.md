@@ -54,7 +54,6 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 | 行为变更 | `.cowork-flow/changes/<slug>/` |
 | 实施计划 | `.cowork-flow/plans/*.md` |
 | 项目规格 | `.cowork-flow/spec/` |
-| 项目上下文摘要 | `.cowork-flow/project-context.md` |
 | 会话记录 | `.cowork-flow/workspace/<developer>/journal-*.md` |
 
 > 当前任务是会话级状态。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID`、`CODEX_THREAD_ID`、`OPENCODE_SESSION_ID` 或 `CLAUDE_SESSION_ID` 时，不得猜测当前任务。

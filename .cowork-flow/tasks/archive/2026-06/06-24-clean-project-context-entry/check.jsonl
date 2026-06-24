@@ -1,0 +1,11 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": ".cowork-flow/scripts/run.py", "reason": "verify project-context cleanup"}
+{"file": "template/.cowork-flow/scripts/run.py", "reason": "verify project-context cleanup"}
+{"file": "README.md", "reason": "verify project-context cleanup"}
+{"file": "test/init.test.js", "reason": "verify project-context cleanup"}
+{"file": "test/sync.test.js", "reason": "verify project-context cleanup"}
+{"file": "tests/test_python_runner.py", "reason": "verify project-context cleanup"}
+{"file": "src/lib/copy-template.js", "reason": "verify project-context cleanup"}
+{"file": ".cowork-flow/tasks/06-24-clean-project-context-entry/usage-proof.md", "reason": "verify project-context deletion proof"}
+{"file": ".cowork-flow/tasks/06-24-clean-project-context-entry/tdd.jsonl", "reason": "verify project-context TDD evidence"}

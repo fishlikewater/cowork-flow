@@ -28,8 +28,6 @@ COMMAND_SCRIPTS = {
     "add_session": "add_session.py",
     "subagent": "subagent.py",
     "doctor": "doctor.py",
-    "project-context": "project_context.py",
-    "project_context": "project_context.py",
     "party-v2": "party_mode_v2.py",
     "party_v2": "party_mode_v2.py",
 }
@@ -55,7 +53,6 @@ Common commands:
   add-session
   subagent
   doctor
-  project-context
   party-v2
 """.rstrip()
     )
