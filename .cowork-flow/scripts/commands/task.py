@@ -1293,6 +1293,19 @@ def _optional_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
     return [str(blocker) for blocker in blockers if str(blocker).strip()]
 
 
+def _tdd_red_blockers(task_dir: Path) -> list[str]:
+    try:
+        from common.gates.tdd_evidence import validate_tdd_red_evidence
+    except ImportError:
+        return []
+    result = GateResult.from_violations(
+        "task_next_tdd_red",
+        validate_tdd_red_evidence(task_dir),
+        task_dir,
+    )
+    return _gate_blocker_messages(result)
+
+
 def _task_next_blockers(repo_root: Path, task_dir: Path) -> list[str]:
     blockers = _task_start_blockers(task_dir)
     blockers.extend(_task_context_validation_issues(task_dir, repo_root, quiet=True))
@@ -1396,6 +1409,12 @@ def cmd_next(args: argparse.Namespace) -> int:
             print(f"Command: ./.cowork-flow/run task init-context {task_path} <dev_type>")
             print(f"Then: ./.cowork-flow/run task start {task_path}")
         elif is_active_task:
+            tdd_blockers = _tdd_red_blockers(task_dir)
+            if tdd_blockers:
+                print("Next action: record TDD red evidence before implementation")
+                print(f"Command: create a failing behavior test and update {task_path}/tdd.jsonl")
+                _print_blockers(tdd_blockers)
+                return 0
             print("Next action: execute implementation plan")
             print(
                 f"Command: ./.cowork-flow/run subagent init --role implement "
@@ -1413,6 +1432,12 @@ def cmd_next(args: argparse.Namespace) -> int:
         return 0
 
     if status == "in_progress":
+        tdd_blockers = _tdd_red_blockers(task_dir)
+        if tdd_blockers:
+            print("Next action: record TDD red evidence before implementation")
+            print(f"Command: create a failing behavior test and update {task_path}/tdd.jsonl")
+            _print_blockers(tdd_blockers)
+            return 0
         print("Next action: execute implementation plan")
         print(
             f"Command: ./.cowork-flow/run subagent init --role implement "

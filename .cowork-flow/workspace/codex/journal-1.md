@@ -1898,3 +1898,33 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 60: 主会话 TDD 前置门禁
+
+**Date**: 2026-06-24
+**Task**: 主会话 TDD 前置门禁
+
+### Summary
+
+为行为变更任务增加 task next 前置 TDD red evidence 门禁，阻断主会话内联实现和 cowork-implement 派发旁路，并同步 root/template workflow 与测试。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

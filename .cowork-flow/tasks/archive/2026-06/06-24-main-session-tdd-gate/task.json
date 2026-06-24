@@ -1,0 +1,21 @@
+{
+  "id": "main-session-tdd-gate",
+  "name": "main-session-tdd-gate",
+  "title": "主会话 TDD 前置门禁",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-24",
+  "completedAt": "2026-06-24",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
