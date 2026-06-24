@@ -137,19 +137,15 @@ test('init copies all selected host platforms', async (t) => {
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
 });
 
-test('init keeps legacy both alias scoped to codex and opencode', async (t) => {
+test('init rejects removed both platform alias', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();
 
-  const code = await main(['init', target, '--developer', 'legacy-user', '--platform', 'both'], { io });
+  const code = await main(['init', target, '--developer', 'removed-user', '--platform', 'both'], { io });
 
-  assert.equal(code, 0);
-  assert.equal(await exists(join(target, '.codex', 'hooks.json')), true);
-  assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')), false);
-  assert.equal(await exists(join(target, '.claude')), false);
-  assert.equal(await exists(join(target, 'CLAUDE.md')), false);
-  assert.match(io.stdout, /Platforms: codex, opencode/);
+  assert.equal(code, 1);
+  assert.equal(await exists(target), false);
+  assert.match(io.stderr, /Unsupported platform: both/);
 });
 
 test('init installs clean-room cowork-flow skills directly', async (t) => {

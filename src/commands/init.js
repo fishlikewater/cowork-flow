@@ -195,7 +195,7 @@ function initialIndexContent(name) {
 - Sessions are appended to the journal file
 - A new journal file is created automatically after the current file exceeds 2000 lines
 - Use \`add_session.py\` to record sessions
-- New records use English text; legacy records can remain as they are
+- New records use English text; existing records can remain as they are
 `;
 }
 

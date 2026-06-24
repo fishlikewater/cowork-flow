@@ -280,7 +280,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("runtime-context-invalid", context)
         self.assertNotIn("必须先创建或启动任务", context)
 
-    def test_hook_treats_explorer_brief_as_delegated_state(self) -> None:
+    def test_hook_keeps_explorer_brief_as_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)

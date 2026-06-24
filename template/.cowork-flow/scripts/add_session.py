@@ -428,12 +428,6 @@ def main() -> int:
         action="store_true",
         help="Auto git commit after recording workspace metadata",
     )
-    parser.add_argument(
-        "--no-commit",
-        action="store_true",
-        help="Deprecated no-op; add-session no longer commits by default",
-    )
-
     args = parser.parse_args()
 
     extra_content = "(add details)"
@@ -446,7 +440,7 @@ def main() -> int:
 
     return add_session(
         args.title, args.commit, args.summary, extra_content,
-        auto_commit=args.auto_commit and not args.no_commit,
+        auto_commit=args.auto_commit,
     )
 
 

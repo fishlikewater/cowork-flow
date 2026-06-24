@@ -102,21 +102,13 @@ test('update degrades to manual command when latest query fails', async () => {
   assert.match(io.stderr, /registry offline/);
 });
 
-test('update accepts legacy --global --yes flags', async () => {
+test('update rejects removed flags', async () => {
   const io = createIo();
-  const installs = [];
 
-  const code = await runUpdate(['--global', '--yes'], {
+  await assert.rejects(() => runUpdate(['--global', '--yes'], {
     io,
     readPackageInfo: async () => ({ version: '0.3.10' }),
     fetchLatestVersion: async () => '0.3.11',
-    runGlobalInstall: async (spec) => {
-      installs.push(spec);
-      return 0;
-    }
-  });
-
-  assert.equal(code, 0);
-  assert.deepEqual(installs, ['cowork-flow@latest']);
-  assert.match(io.stdout, /installed cowork-flow@latest/);
+    runGlobalInstall: async () => 0
+  }), /Unknown update option: --global/);
 });
