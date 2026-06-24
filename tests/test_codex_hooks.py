@@ -133,8 +133,9 @@ class CodexHooksTest(unittest.TestCase):
         self.assertNotIn("<codex-mode>", context)
         self.assertIn('<cowork-runtime host="codex" adapter="codex.spawn_agent">', context)
         self.assertIn("<contract-digest fingerprint=", context)
-        self.assertIn("COWORK_ENTRY_CONTRACT_V1", context)
-        self.assertIn(".cowork-flow/spec/contracts/entry-contract.md", context)
+        self.assertNotIn("COWORK_ENTRY_CONTRACT_V1", context)
+        self.assertNotIn(".cowork-flow/spec/contracts/entry-contract.md", context)
+        self.assertIn("RUNTIME_CONTEXT_DISPATCH_V2", context)
         self.assertIn("read_before:", context)
         self.assertIn("<workflow-state>", context)
         self.assertIn("Status: no_task", context)
@@ -509,7 +510,7 @@ class CodexHooksTest(unittest.TestCase):
             self._make_project(root)
 
             before = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
-            spec_file = root / ".cowork-flow" / "spec" / "contracts" / "entry-contract.md"
+            spec_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
             spec_file.write_text(
                 spec_file.read_text(encoding="utf-8") + "\n<!-- fingerprint smoke -->\n",
                 encoding="utf-8",

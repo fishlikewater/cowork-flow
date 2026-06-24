@@ -29,9 +29,9 @@ state is injected. The first child step must still run:
 ```
 
 If the explicit bind fails, or if the bound context is missing, closed, invalid,
-or names another agent type, report `needs_context` and stop. Do not use
-`COWORK_ENTRY_CONTRACT_V1` to infer subagent identity; that contract classifies
-main-session prompts only.
+or names another agent type, report `needs_context` and stop. Do not infer
+subagent identity from prompt shape; runtime context binding is the only formal
+signal.
 
 Rules:
 

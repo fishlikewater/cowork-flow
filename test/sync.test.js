@@ -89,7 +89,7 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')),
     await readText(join(templateRoot, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md'))
   );
-  assert.equal(await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md')), 'custom entry contract\n');
+  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md')), false);
   assert.equal(
     await readText(join(target, '.codex', 'agents', 'cowork-implement.toml')),
     await readText(join(templateRoot, '.codex', 'agents', 'cowork-implement.toml'))

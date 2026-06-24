@@ -1,5 +1,5 @@
 ﻿import { constants } from 'node:fs';
-import { access, chmod, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
 import { templateRoot } from './paths.js';
@@ -97,6 +97,10 @@ const SAFE_SYNC_FILES = new Set([
   '.cowork-flow/run',
   '.cowork-flow/run.cmd',
   '.cowork-flow/spec/contracts/workflow-state-templates.md'
+]);
+
+const OBSOLETE_SYNC_FILES = new Set([
+  '.cowork-flow/spec/contracts/entry-contract.md'
 ]);
 
 const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';
@@ -200,6 +204,13 @@ export async function buildSyncPlan(targetDir, options = {}) {
     }
   }
 
+  for (const file of OBSOLETE_SYNC_FILES) {
+    const destination = join(targetDir, file);
+    if (await pathExists(destination)) {
+      actions.push({ action: 'delete', source: null, destination, relativePath: file });
+    }
+  }
+
   actions.push({
     action: 'update',
     source: null,
@@ -226,7 +237,7 @@ export async function detectInstalledPlatforms(targetDir) {
 }
 
 export function summarizePlan(actions, dryRun = false) {
-  const counts = { create: 0, update: 0, skip: 0, protected: 0 };
+  const counts = { create: 0, update: 0, skip: 0, protected: 0, delete: 0 };
   for (const action of actions) {
     counts[action.action] += 1;
   }
@@ -234,7 +245,8 @@ export function summarizePlan(actions, dryRun = false) {
   const prefix = dryRun ? 'dry-run ' : '';
   const createLabel = dryRun ? 'would-create' : 'created';
   const updateLabel = dryRun ? 'would-update' : 'updated';
-  return `${prefix}${createLabel}=${counts.create} ${updateLabel}=${counts.update} skipped=${counts.skip} protected=${counts.protected}\n`;
+  const deleteLabel = dryRun ? 'would-delete' : 'deleted';
+  return `${prefix}${createLabel}=${counts.create} ${updateLabel}=${counts.update} ${deleteLabel}=${counts.delete} skipped=${counts.skip} protected=${counts.protected}\n`;
 }
 
 export async function applyPlan(actions, options = {}) {
@@ -244,6 +256,10 @@ export async function applyPlan(actions, options = {}) {
 
   for (const item of actions) {
     if (item.action === 'skip' || item.action === 'protected') {
+      continue;
+    }
+    if (item.action === 'delete') {
+      await rm(item.destination, { force: true });
       continue;
     }
 

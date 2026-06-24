@@ -101,22 +101,12 @@ REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
     "UNKNOWN is not a delegated",
 ]
 
-REQUIRED_ENTRY_CONTRACT_SNIPPETS = [
-    "COWORK_ENTRY_CONTRACT_V1",
-    "main-session prompts",
-    "resolved by runtime context binding",
-    "`UNKNOWN` is not subagent evidence",
-    "Runtime context binding overrides project bootstrap text",
-]
-
 REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '"schemaVersion": 1',
-    '"COWORK_ENTRY_CONTRACT_V1"',
     '"RUNTIME_CONTEXT_DISPATCH_V2"',
     '"HOST_ADAPTER_CAPABILITIES_V1"',
     '"HOST_ADAPTER_SCHEMA_V1"',
     '"readWhen"',
-    '".cowork-flow/spec/contracts/entry-contract.md"',
     '".cowork-flow/spec/contracts/subagent-dispatch.md"',
     '".cowork-flow/spec/contracts/capabilities.md"',
     '".cowork-flow/spec/schemas/adapter.schema.json"',
@@ -217,11 +207,6 @@ def _check_toml_parseable(path: Path, errors: list[str]) -> dict | None:
 
 def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
     for rel in (
-        ".cowork-flow/spec/contracts/entry-contract.md",
-        "template/.cowork-flow/spec/contracts/entry-contract.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_ENTRY_CONTRACT_SNIPPETS, errors)
-    for rel in (
         ".cowork-flow/spec/runtime/contract-registry.json",
         "template/.cowork-flow/spec/runtime/contract-registry.json",
     ):
@@ -271,23 +256,6 @@ def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
             ],
             errors,
         )
-
-
-def cmd_entry_contract(_: argparse.Namespace) -> int:
-    repo_root = get_repo_root()
-    errors: list[str] = []
-    _check_common_contracts(repo_root, errors)
-    for rel in (
-        f".agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"template/.agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-    ):
-        _check_file_absent(repo_root / rel, errors)
-    if errors:
-        for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
-        return 1
-    print("entry contract checks passed")
-    return 0
 
 
 def cmd_host_adapters(_: argparse.Namespace) -> int:
@@ -479,7 +447,6 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="cowork-flow diagnostics")
     parser.add_argument("--subagent-safety", action="store_true", help="Check subagent safety wiring")
-    parser.add_argument("--entry-contract", action="store_true", help="Check entry classification contract")
     parser.add_argument("--host-adapters", action="store_true", help="Check host adapter declarations")
     return parser
 
@@ -489,8 +456,6 @@ def main() -> int:
     args = parser.parse_args()
     if args.subagent_safety:
         return cmd_subagent_safety(args)
-    if args.entry_contract:
-        return cmd_entry_contract(args)
     if args.host_adapters:
         return cmd_host_adapters(args)
     parser.print_help()
