@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-1.md`
-- **Total Sessions**: 58
+- **Total Sessions**: 59
 - **Last Active**: 2026-06-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1870 | Current |
+| `journal-1.md` | ~1900 | Current |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 59 | 2026-06-24 | 更新 README 当前流程说明 | - |
 | 58 | 2026-06-24 | 重组 scripts 包结构 | - |
 | 57 | 2026-06-24 | 清理 project-context 残留 | - |
 | 56 | 2026-06-24 | 清理 entry contract 残留 | - |

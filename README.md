@@ -185,6 +185,16 @@ cowork-flow sync . --dry-run
 下面示例使用 macOS / Linux 写法；Windows 原生命令行中把
 `./.cowork-flow/run` 替换为 `.\.cowork-flow\run.cmd`。
 
+当前主流程以 `.cowork-flow/workflow.md` 为准。默认路径是：
+
+```text
+changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> complete
+```
+
+L0 文档、格式、小范围重构或测试补充可简化为
+`brainstorming -> read spec -> implement -> check -> complete`；L1/L2 在完成后继续
+`archive -> add session`。
+
 初始化或查看开发者身份：
 
 ```bash
@@ -215,13 +225,34 @@ cowork-flow sync . --dry-run
 ./.cowork-flow/run task start <task-dir>
 ```
 
-`task next` is read-only. It reports the active task, status, blockers, and the
-next safe command before the main session starts work, dispatches fixed agents,
-checks, archives, or records the session.
+`task next` 只读，不推进状态。它根据当前会话任务和 `task.json.status`
+报告当前任务、阻塞项和下一条安全命令；主会话在启动工作、派发固定代理、
+进入检查、归档或记录 session 前都应先看它。
 
 L2 任务的 readiness gate 会在 `task start` 前阻塞缺失的 proposal/spec/design、
 计划、任务链接、边界、假设、验收标准或 verification commands；同一 blocker
 会出现在 `task next` 输出中。
+
+任务状态流转：
+
+```mermaid
+stateDiagram-v2
+    [*] --> NoTask
+    state "无当前任务" as NoTask
+    state "planning" as Planning
+    state "in_progress" as InProgress
+    state "review" as Review
+    state "completed" as Completed
+    state "已归档" as Archived
+
+    NoTask --> Planning: task create
+    Planning --> InProgress: task start
+    InProgress --> Review: task review
+    Review --> Completed: task complete
+    Completed --> Archived: task archive
+    Completed --> NoTask: task finish
+    Archived --> [*]
+```
 
 任务状态由阶段命令推进，`task next` 只读取状态：
 
@@ -231,11 +262,13 @@ L2 任务的 readiness gate 会在 `task start` 前阻塞缺失的 proposal/spec
 | 开始执行 | `task start <task-dir>` | `in_progress` |
 | 进入检查 | `task review [task-dir]` | `review` |
 | 检查完成 | `task complete [task-dir]` | `completed` |
+| 归档任务 | `task archive <task-name>` | 归档副本保持 `completed` |
 | 清会话指针 | `task finish` | 不改变状态 |
 
 执行 plan 时使用固定 cowork agents：
 
-主会话负责创建/启动任务、维护计划与收口验证；可并行的实现或检查工作通过 Codex subagent 交给固定角色 agent。
+主会话负责创建/启动任务、维护计划与收口验证；实现和检查默认通过当前 Host Adapter
+派发给固定角色 agent。固定 agent 是叶子执行者，不能再派发其他 agent，也不能替代主会话完成归档、记录 session 或提交。
 
 ```text
 ./.cowork-flow/run subagent init --role implement --agent-type cowork-implement --execution-task-dir <task-dir> --title "<title>"
@@ -250,7 +283,7 @@ cowork_host_context_key: <host_context_key>
 
 子代理首步执行 `./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`；主会话验收前必须确认 runtime context 中 `status=bound` 且 `bound_context_key` 匹配。默认角色为 `cowork-research`、`cowork-implement`、`cowork-check`，任务上下文来自已绑定 runtime context，而不是 prompt 形状。
 
-Codex hook 启用后，每轮会自动注入 `<workflow-state>`，其中包含入口分类、当前任务、状态来源和下一步流程提示。状态文本来自 `.cowork-flow/spec/contracts/workflow-state-templates.md`；`workflow.md` 只描述流程，不内联状态片段。hook 不替代主会话验收；它只负责把 task 状态和 workflow gate 放进上下文。
+Host hook/plugin 启用后，每轮会自动注入 workflow state，其中包含入口分类、当前任务、状态来源和下一步流程提示。状态文本来自 `.cowork-flow/spec/contracts/workflow-state-templates.md`；`workflow.md` 只描述流程，不内联状态片段。hook 不替代主会话验收；它只负责把 task 状态和 workflow gate 放进上下文。
 
 记录 session：
 
