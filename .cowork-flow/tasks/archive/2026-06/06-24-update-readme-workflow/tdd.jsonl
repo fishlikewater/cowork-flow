@@ -1,0 +1,1 @@
+{"type":"exemption","acceptanceId":"README-DOCS","exemptionType":"documentation_only","reason":"This task only updates README workflow documentation and does not change runtime behavior.","verificationCommand":"git diff --check; README workflow assertions; npm run test:all"}

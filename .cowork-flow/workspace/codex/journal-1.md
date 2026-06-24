@@ -1868,3 +1868,33 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 59: 更新 README 当前流程说明
+
+**Date**: 2026-06-24
+**Task**: 更新 README 当前流程说明
+
+### Summary
+
+对 README 的常用入口、task 状态流转、固定代理边界和 hook 说明做了当前流程对齐，并补充 Mermaid 状态图。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
