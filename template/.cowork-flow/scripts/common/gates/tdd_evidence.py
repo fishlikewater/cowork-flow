@@ -23,6 +23,8 @@ REQUIRED_EVIDENCE_FIELDS = (
     "broaderVerification",
 )
 
+REQUIRED_RED_EVIDENCE_FIELDS = REQUIRED_EVIDENCE_FIELDS[:8]
+
 REQUIRED_EXEMPTION_FIELDS = (
     "acceptanceId",
     "exemptionType",
@@ -120,6 +122,34 @@ def validate_tdd_evidence(task_dir: Path) -> list[dict]:
     return violations
 
 
+def validate_tdd_red_evidence(task_dir: Path) -> list[dict]:
+    """Return violations when implementation would start without red evidence."""
+    task_dir = Path(task_dir)
+    prd_text = _read_text(task_dir / "prd.md")
+    if not _task_requires_tdd(prd_text):
+        return []
+
+    evidence_path = task_dir / EVIDENCE_FILE
+    if not evidence_path.is_file():
+        return [_missing_red_evidence_violation(evidence_path)]
+
+    entries, parse_violations = _read_jsonl(evidence_path)
+    if parse_violations:
+        return parse_violations
+
+    red_entries = [entry for entry in entries if entry.get("type") != "exemption"]
+    if not red_entries:
+        return [_missing_red_evidence_violation(evidence_path)]
+
+    acceptance_ids = _acceptance_ids(prd_text)
+    violations: list[dict] = []
+    for index, entry in enumerate(entries, start=1):
+        if entry.get("type") == "exemption":
+            continue
+        violations.extend(_validate_red_evidence(entry, evidence_path, index, acceptance_ids))
+    return violations
+
+
 def _task_requires_tdd(prd_text: str) -> bool:
     lower = prd_text.lower()
     if not lower:
@@ -191,8 +221,43 @@ def _validate_evidence(
     index: int,
     acceptance_ids: set[str],
 ) -> list[dict]:
+    violations = _validate_red_evidence(entry, evidence_path, index, acceptance_ids)
+    missing = [
+        field
+        for field in REQUIRED_EVIDENCE_FIELDS
+        if field not in REQUIRED_RED_EVIDENCE_FIELDS and not _has_value(entry, field)
+    ]
+    if missing:
+        violations.append(
+            _violation(
+                "TDD-FIELD-001",
+                f"TDD evidence record {index} is missing required fields: {', '.join(missing)}",
+                evidence_path,
+                "Fill all red/green evidence fields before review.",
+            )
+        )
+
+    if entry.get("greenExitCode") != 0:
+        violations.append(
+            _violation(
+                "TDD-GREEN-001",
+                f"TDD evidence record {index} greenExitCode must be 0",
+                evidence_path,
+                "Run the same behavior test after implementation and record success.",
+            )
+        )
+
+    return violations
+
+
+def _validate_red_evidence(
+    entry: dict,
+    evidence_path: Path,
+    index: int,
+    acceptance_ids: set[str],
+) -> list[dict]:
     violations: list[dict] = []
-    missing = [field for field in REQUIRED_EVIDENCE_FIELDS if not _has_value(entry, field)]
+    missing = [field for field in REQUIRED_RED_EVIDENCE_FIELDS if not _has_value(entry, field)]
     if missing:
         violations.append(
             _violation(
@@ -224,16 +289,6 @@ def _validate_evidence(
             )
         )
 
-    if entry.get("greenExitCode") != 0:
-        violations.append(
-            _violation(
-                "TDD-GREEN-001",
-                f"TDD evidence record {index} greenExitCode must be 0",
-                evidence_path,
-                "Run the same behavior test after implementation and record success.",
-            )
-        )
-
     failure_reason = str(entry.get("failureReason", "")).lower()
     if any(marker in failure_reason for marker in SETUP_FAILURE_MARKERS):
         violations.append(
@@ -246,6 +301,15 @@ def _validate_evidence(
         )
 
     return violations
+
+
+def _missing_red_evidence_violation(evidence_path: Path) -> dict:
+    return _violation(
+        "TDD-RED-001",
+        "TDD red evidence is missing for a behavior-change task",
+        evidence_path,
+        "Write a failing behavior test and record its red command before implementation.",
+    )
 
 
 def _validate_exemption(

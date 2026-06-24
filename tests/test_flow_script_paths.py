@@ -1460,6 +1460,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             tdd_evidence = importlib.import_module("common.gates.tdd_evidence")
 
             self.assertEqual([], tdd_evidence.validate_tdd_evidence(task_dir))
+            self.assertEqual([], tdd_evidence.validate_tdd_red_evidence(task_dir))
 
     def test_cmd_complete_blocks_without_review_without_status_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1597,6 +1598,85 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("cowork-implement", output)
             self.assertIn("./.cowork-flow/run subagent init", output)
             self.assertIn("cowork_runtime_context_id", output)
+
+    def test_cmd_next_blocks_main_session_implementation_without_tdd_red_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+            (task_dir / "prd.md").write_text(
+                "# Demo\n\n## 验收标准\n\n- AC-001: workflow behavior changes require TDD first.\n",
+                encoding="utf-8",
+            )
+            for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            output = stdout.getvalue()
+            self.assertEqual(0, result)
+            self.assertIn("Status: in_progress", output)
+            self.assertIn("Next action: record TDD red evidence before implementation", output)
+            self.assertIn("TDD red evidence is missing", output)
+            self.assertNotIn("cowork-implement", output)
+            self.assertNotIn("./.cowork-flow/run subagent init", output)
+
+    def test_cmd_next_allows_implementation_after_tdd_red_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+            (task_dir / "prd.md").write_text(
+                "# Demo\n\n## 验收标准\n\n- AC-001: workflow behavior changes require TDD first.\n",
+                encoding="utf-8",
+            )
+            for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            (task_dir / "tdd.jsonl").write_text(
+                json.dumps(
+                    {
+                        "acceptanceId": "AC-001",
+                        "testFile": "tests/test_flow_script_paths.py",
+                        "testName": "FlowScriptPathsTest.test_cmd_next_blocks_main_session_implementation_without_tdd_red_evidence",
+                        "redCommand": "python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_cmd_next_blocks_main_session_implementation_without_tdd_red_evidence -v",
+                        "redExitCode": 1,
+                        "redOutputExcerpt": "TDD red evidence is missing",
+                        "failureReason": "target behavior was not implemented",
+                        "whyThisTestMatters": "It keeps main-session implementation from bypassing red-first TDD.",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            output = stdout.getvalue()
+            self.assertEqual(0, result)
+            self.assertIn("Next action: execute implementation plan", output)
+            self.assertIn("cowork-implement", output)
+            self.assertNotIn("TDD red evidence is missing", output)
 
     def test_cmd_next_reports_review_check_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
