@@ -601,7 +601,7 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertEqual(0, result.returncode, result.stderr)
 
-    def test_gate_runner_wraps_legacy_validator_blocks(self) -> None:
+    def test_gate_runner_wraps_existing_validator_blocks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
@@ -1544,6 +1544,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("Status: no_task", output)
             self.assertIn("Next action: create or start a task before repository changes", output)
             self.assertIn("./.cowork-flow/run task create", output)
+            self.assertNotIn("delegated prompt", output)
             self.assertFalse((root / ".cowork-flow" / "tasks").exists())
 
     def test_cmd_next_reports_planning_blockers_without_mutation(self) -> None:
@@ -1729,9 +1730,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                     contextlib.redirect_stdout(io.StringIO()) as stdout,
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
-                    result = self.task.cmd_archive(
-                        argparse.Namespace(name="05-19-demo", no_commit=True)
-                    )
+                    result = self.task.cmd_archive(argparse.Namespace(name="05-19-demo"))
             finally:
                 os.chdir(previous_cwd)
 
@@ -1769,7 +1768,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
                     result = self.task.cmd_archive(
-                        argparse.Namespace(name="05-19-demo", commit=False, no_commit=True)
+                        argparse.Namespace(name="05-19-demo", commit=False)
                     )
             finally:
                 os.chdir(previous_cwd)
@@ -1809,7 +1808,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
                     result = self.task.cmd_archive(
-                        argparse.Namespace(name="05-19-demo", commit=False, no_commit=False)
+                        argparse.Namespace(name="05-19-demo", commit=False)
                     )
             finally:
                 os.chdir(previous_cwd)
@@ -1818,6 +1817,28 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(0, result, stderr.getvalue())
             self.assertEqual(baseline, head)
             self.assertNotIn("Auto-committed", stderr.getvalue())
+
+    def test_task_archive_rejects_removed_no_commit_flag(self) -> None:
+        with patch.object(sys, "argv", ["task.py", "archive", "05-19-demo", "--no-commit"]):
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                with self.assertRaises(SystemExit) as raised:
+                    self.task.main()
+
+        self.assertEqual(2, raised.exception.code)
+        self.assertIn("unrecognized arguments: --no-commit", stderr.getvalue())
+
+    def test_add_session_rejects_removed_no_commit_flag(self) -> None:
+        with patch.object(
+            sys,
+            "argv",
+            ["add_session.py", "--title", "Demo", "--no-commit"],
+        ):
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                with self.assertRaises(SystemExit) as raised:
+                    self.add_session.main()
+
+        self.assertEqual(2, raised.exception.code)
+        self.assertIn("unrecognized arguments: --no-commit", stderr.getvalue())
 
     def test_task_archive_commit_flag_auto_commits(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1842,7 +1863,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
                     result = self.task.cmd_archive(
-                        argparse.Namespace(name="05-19-demo", commit=True, no_commit=False)
+                        argparse.Namespace(name="05-19-demo", commit=True)
                     )
             finally:
                 os.chdir(previous_cwd)

@@ -99,7 +99,7 @@ OpenCode 项目级固定 agent、slash command 和系统上下文注入插件。
 npx cowork-flow init ./my-project --platform codex
 ```
 
-`init` 会显式要求平台和开发者身份。平台可选 `codex`、`opencode`、`claude-code`、`all`，其中 `both` 仍作为兼容别名表示 `codex,opencode`。交互式终端会提示输入；脚本或 CI 请传入：
+`init` 会显式要求平台和开发者身份。平台可选 `codex`、`opencode`、`claude-code`、`all`。交互式终端会提示输入；脚本或 CI 请传入：
 
 ```bash
 npx cowork-flow init ./my-project --platform codex --developer <your-name>
@@ -134,7 +134,7 @@ npx cowork-flow --help
 cowork-flow init ./my-project --platform codex
 ```
 
-`init` 会直接复制模板中的通用 `.cowork-flow/`，并按 `--platform` 只复制对应 host 资产：`codex` 复制 `.codex/`、`.agents/skills/` 与 `.cowork-flow/adapters/codex/`，`opencode` 复制 `.opencode/`、`.agents/skills/` 与 `.cowork-flow/adapters/opencode/`，`claude-code` 复制 `CLAUDE.md`、`.claude/`（含 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`）与 `.cowork-flow/adapters/claude-code/`，不复制 `.agents/skills/`。`all` 或 `--platform codex,opencode,claude-code` 同时复制三者和 `.agents/skills/`。`both` 保持兼容，只复制 Codex 和 OpenCode。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会先显示 checkbox 多选界面选择平台，再提示开发者名称；非交互式环境必须传入 `--platform <codex|opencode|claude-code|all>` 与 `--developer <name>`。`init` 不会复制额外技能包。
+`init` 会直接复制模板中的通用 `.cowork-flow/`，并按 `--platform` 只复制对应 host 资产：`codex` 复制 `.codex/`、`.agents/skills/` 与 `.cowork-flow/adapters/codex/`，`opencode` 复制 `.opencode/`、`.agents/skills/` 与 `.cowork-flow/adapters/opencode/`，`claude-code` 复制 `CLAUDE.md`、`.claude/`（含 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`）与 `.cowork-flow/adapters/claude-code/`，不复制 `.agents/skills/`。`all` 或 `--platform codex,opencode,claude-code` 同时复制三者和 `.agents/skills/`。它还会初始化 `.cowork-flow/.developer` 与 `.cowork-flow/workspace/<developer>/`。交互式终端会先显示 checkbox 多选界面选择平台，再提示开发者名称；非交互式环境必须传入 `--platform <codex|opencode|claude-code|all>` 与 `--developer <name>`。`init` 不会复制额外技能包。
 
 初始化到当前项目：
 

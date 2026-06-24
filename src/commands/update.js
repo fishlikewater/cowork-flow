@@ -6,10 +6,8 @@ import {
 } from '../lib/package-info.js';
 
 function validateUpdateArgs(args) {
-  for (const arg of args) {
-    if (arg !== '--global' && arg !== '--yes') {
-      throw new Error(`Unknown update option: ${arg}`);
-    }
+  if (args.length > 0) {
+    throw new Error(`Unknown update option: ${args[0]}`);
   }
 }
 

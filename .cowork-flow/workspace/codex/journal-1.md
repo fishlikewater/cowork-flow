@@ -1748,3 +1748,33 @@ Unified workflow rule metadata under spec/runtime, reorganized spec directories,
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 55: 清理旧兼容入口和文案
+
+**Date**: 2026-06-24
+**Task**: 清理旧兼容入口和文案
+
+### Summary
+
+删除可移除的旧兼容入口，收紧 runtime-context 入口文案，并同步 root/template 与相关测试。验证：focused tests、git diff --check、npm run test:all 通过。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

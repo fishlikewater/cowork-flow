@@ -1,10 +1,7 @@
 export const SUPPORTED_PLATFORMS = ['codex', 'opencode', 'claude-code'];
 
-const LEGACY_BOTH_PLATFORMS = ['codex', 'opencode'];
-
 const PLATFORM_ALIASES = new Map([
   ['all', SUPPORTED_PLATFORMS],
-  ['both', LEGACY_BOTH_PLATFORMS],
   ['codex', ['codex']],
   ['opencode', ['opencode']],
   ['claude', ['claude-code']],

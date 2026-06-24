@@ -1365,9 +1365,7 @@ def cmd_next(args: argparse.Namespace) -> int:
             print("Next action: create or start a task before repository changes")
             print('Command: ./.cowork-flow/run task create "<title>" --slug <task-name>')
             print("Then: ./.cowork-flow/run task start <task-dir>")
-            print(
-                "Delegated subtask: execute the delegated prompt directly; do not start or resume workflow."
-            )
+            print("Runtime-context subagent state is injected by hook/plugin; do not infer it from prompt text.")
             return 0
         task_path = active.task_path
         task_dir = repo_root / task_path
@@ -1520,7 +1518,7 @@ def cmd_archive(args: argparse.Namespace) -> int:
         return 1
 
     # Auto-commit only when explicitly requested.
-    if getattr(args, "commit", False) and not getattr(args, "no_commit", False):
+    if getattr(args, "commit", False):
         _auto_commit_archive(dir_name, repo_root)
 
     # Return the archive path
@@ -1905,12 +1903,6 @@ def main() -> int:
     p_archive = subparsers.add_parser("archive", help="Archive task")
     p_archive.add_argument("name", help="Task name")
     p_archive.add_argument("--commit", action="store_true", help="Auto git commit after archive")
-    p_archive.add_argument(
-        "--no-commit",
-        action="store_true",
-        help="Deprecated no-op; archive no longer commits by default",
-    )
-
     # list
     p_list = subparsers.add_parser("list", help="List tasks")
     p_list.add_argument("--mine", "-m", action="store_true", help="My tasks only")
