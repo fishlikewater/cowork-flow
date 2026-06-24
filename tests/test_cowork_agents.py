@@ -363,7 +363,7 @@ class CoworkAgentsTest(unittest.TestCase):
                     self.assertIn(marker, text, f"{marker} missing from {path}")
 
     def test_doctor_checks_runtime_context_protocol(self) -> None:
-        doctor = ROOT / ".cowork-flow" / "scripts" / "doctor.py"
+        doctor = ROOT / ".cowork-flow" / "scripts" / "commands" / "doctor.py"
         text = doctor.read_text(encoding="utf-8")
         for marker in (
             "RUNTIME_CONTEXT_DISPATCH_V2",

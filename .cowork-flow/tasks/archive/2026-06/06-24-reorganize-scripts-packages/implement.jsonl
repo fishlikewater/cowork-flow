@@ -1,0 +1,12 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
+{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
+{"file": ".cowork-flow/scripts/run.py", "reason": "scripts package reorg"}
+{"file": "template/.cowork-flow/scripts/run.py", "reason": "scripts package reorg"}
+{"file": "test/init.test.js", "reason": "scripts package reorg"}
+{"file": "test/sync.test.js", "reason": "scripts package reorg"}
+{"file": "tests/test_python_runner.py", "reason": "scripts package reorg"}
+{"file": "tests/test_flow_script_paths.py", "reason": "scripts package reorg"}
+{"file": "tests/test_party_mode_v2.py", "reason": "scripts package reorg"}
+{"file": "src/lib/copy-template.js", "reason": "scripts package reorg"}

@@ -55,7 +55,7 @@ def configure_encoding() -> None:
         sys.stdin = _configure_stream(sys.stdin)  # type: ignore[assignment]
 
 
-from .paths import (
+from .core.paths import (
     DIR_WORKFLOW,
     DIR_AGENTS,
     DIR_CHANGES,

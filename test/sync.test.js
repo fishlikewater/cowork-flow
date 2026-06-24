@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -42,6 +42,7 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'scripts', 'common', 'gates.py'), 'old gates script\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'project_context.py'), 'old project context script\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'project-context.md'), 'local generated context\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
@@ -72,9 +73,15 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'run.cmd')),
     await readText(join(templateRoot, '.cowork-flow', 'run.cmd'))
   );
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'task.py')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'gates.py')), false);
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'task.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'task.py'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'commands', 'task.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'commands', 'task.py'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'gates.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'common', 'gates', 'gates.py'))
   );
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'project_context.py')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'project-context.md')), false);

@@ -57,7 +57,7 @@ test('template coding standards validator reports implicit Python encoding', asy
       [
         'python',
         '-m',
-        'common.validate_coding_standards',
+        'common.gates.validate_coding_standards',
         '--validate',
         '--repo-root',
         repo,
@@ -81,4 +81,54 @@ test('template coding standards validator reports implicit Python encoding', asy
   assert.ok(failure, 'validator should fail on implicit Python encoding');
   assert.match(failure.stdout, /CS-UTF8-PY-001/);
   assert.match(failure.stdout, /src\/bad\.py/);
+});
+
+test('template coding standards validator allows binary Python open modes', async (t) => {
+  const repo = await mkdtemp(join(tmpdir(), 'cowork-flow-coding-'));
+  t.after(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  const taskDir = join(repo, '.cowork-flow', 'tasks', 'demo');
+  await mkdir(taskDir, { recursive: true });
+  await mkdir(join(repo, 'src'), { recursive: true });
+  await writeFile(
+    join(repo, 'src', 'binary.py'),
+    'from pathlib import Path\n\nhandle = Path("lock").open("a+b")\nhandle.write(b"0")\n',
+    'utf8'
+  );
+
+  await execFileAsync('git', ['init'], { cwd: repo, encoding: 'utf8' });
+  const scriptsDir = join(packageRoot, 'template', '.cowork-flow', 'scripts');
+  const runner = join(
+    packageRoot,
+    'template',
+    '.cowork-flow',
+    process.platform === 'win32' ? 'run.cmd' : 'run'
+  );
+
+  const result = await execFileAsync(
+    runner,
+    [
+      'python',
+      '-m',
+      'common.gates.validate_coding_standards',
+      '--validate',
+      '--repo-root',
+      repo,
+      '--task-dir',
+      taskDir
+    ],
+    {
+      cwd: scriptsDir,
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+      env: {
+        ...process.env,
+        PYTHONPATH: scriptsDir
+      }
+    }
+  );
+
+  assert.equal(result.stderr, '');
 });

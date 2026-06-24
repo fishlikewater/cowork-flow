@@ -18,12 +18,12 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.active_task = importlib.import_module("common.active_task")
+        self.active_task = importlib.import_module("common.task.active_task")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
-        for module_name in ("common.active_task", "common.paths", "common"):
+        for module_name in ("common.task.active_task", "common.core.paths", "common"):
             sys.modules.pop(module_name, None)
 
     def test_context_key_uses_cowork_env_first(self) -> None:

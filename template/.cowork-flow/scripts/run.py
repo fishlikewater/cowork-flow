@@ -4,32 +4,33 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-from common.execution_context import (
+from common.core.execution_context import (
     ExecutionContextError,
     context_to_internal_cli_args,
     parse_public_execution_context_args,
 )
 
 COMMAND_SCRIPTS = {
-    "resume": "resume.py",
-    "task": "task.py",
-    "change": "change.py",
-    "get-context": "get_context.py",
-    "get_context": "get_context.py",
-    "get-developer": "get_developer.py",
-    "get_developer": "get_developer.py",
-    "init-developer": "init_developer.py",
-    "init_developer": "init_developer.py",
-    "add-session": "add_session.py",
-    "add_session": "add_session.py",
-    "subagent": "subagent.py",
-    "doctor": "doctor.py",
-    "party-v2": "party_mode_v2.py",
-    "party_v2": "party_mode_v2.py",
+    "resume": "commands/resume.py",
+    "task": "commands/task.py",
+    "change": "commands/change.py",
+    "get-context": "commands/get_context.py",
+    "get_context": "commands/get_context.py",
+    "get-developer": "commands/get_developer.py",
+    "get_developer": "commands/get_developer.py",
+    "init-developer": "commands/init_developer.py",
+    "init_developer": "commands/init_developer.py",
+    "add-session": "commands/add_session.py",
+    "add_session": "commands/add_session.py",
+    "subagent": "commands/subagent.py",
+    "doctor": "commands/doctor.py",
+    "party-v2": "commands/party_mode_v2.py",
+    "party_v2": "commands/party_mode_v2.py",
 }
 
 CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}
@@ -62,8 +63,17 @@ def scripts_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
-def run_python(args: list[str]) -> int:
-    completed = subprocess.run([sys.executable, *args], check=False)
+def run_python(args: list[str], *, pythonpath: Path | None = None) -> int:
+    env = None
+    if pythonpath is not None:
+        env = os.environ.copy()
+        existing = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = (
+            str(pythonpath)
+            if not existing
+            else f"{pythonpath}{os.pathsep}{existing}"
+        )
+    completed = subprocess.run([sys.executable, *args], check=False, env=env)
     return int(completed.returncode)
 
 
@@ -72,7 +82,7 @@ def run_script(script_name: str, args: list[str]) -> int:
     if not script_path.is_file():
         print(f"Error: script not found: {script_path}", file=sys.stderr)
         return 2
-    return run_python([str(script_path), *args])
+    return run_python([str(script_path), *args], pythonpath=scripts_dir())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -102,13 +112,13 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        return run_python(rest)
+        return run_python(rest, pythonpath=scripts_dir())
 
     script_name = COMMAND_SCRIPTS.get(command)
     if script_name is None:
-        candidate = scripts_dir() / f"{command}.py"
+        candidate = scripts_dir() / "commands" / f"{command}.py"
         if candidate.is_file():
-            script_name = candidate.name
+            script_name = f"commands/{candidate.name}"
         else:
             print(f"Error: unknown cowork-flow command: {command}", file=sys.stderr)
             print_usage()

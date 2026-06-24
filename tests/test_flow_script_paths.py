@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import contextlib
@@ -24,34 +24,34 @@ class FlowScriptPathsTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.paths = importlib.import_module("common.paths")
-        self.task = importlib.import_module("task")
-        self.add_session = importlib.import_module("add_session")
-        self.developer = importlib.import_module("common.developer")
-        self.git_context = importlib.import_module("common.git_context")
+        self.paths = importlib.import_module("common.core.paths")
+        self.task = importlib.import_module("commands.task")
+        self.add_session = importlib.import_module("commands.add_session")
+        self.developer = importlib.import_module("common.core.developer")
+        self.git_context = importlib.import_module("common.git.git_context")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "task",
-            "add_session",
-            "common.active_task",
-            "common.config",
-            "common.coding_standards",
-            "common.developer",
-            "common.gates",
-            "common.git_context",
-            "common.git_snapshot",
-            "common.paths",
-            "common.readiness",
-            "common.state_machine",
-            "common.task_utils",
-            "common.tdd_evidence",
-            "common.test_intent",
-            "common.validate_coding_standards",
-            "common.validate_implementation",
-            "common.validate_rules",
+            "commands.task",
+            "commands.add_session",
+            "common.task.active_task",
+            "common.core.config",
+            "common.gates.coding_standards",
+            "common.core.developer",
+            "common.gates.gates",
+            "common.git.git_context",
+            "common.git.git_snapshot",
+            "common.core.paths",
+            "common.task.readiness",
+            "common.task.state_machine",
+            "common.task.task_utils",
+            "common.gates.tdd_evidence",
+            "common.gates.test_intent",
+            "common.gates.validate_coding_standards",
+            "common.gates.validate_implementation",
+            "common.gates.validate_rules",
             "common",
         ):
             sys.modules.pop(module_name, None)
@@ -498,7 +498,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                     self._workflow_rule("R-WF-005", "task_start"),
                 ],
             )
-            validator = importlib.import_module("common.validate_rules")
+            validator = importlib.import_module("common.gates.validate_rules")
 
             violations = validator.validate_rules(root, "task_start", child_dir)
 
@@ -518,7 +518,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             rule = self._workflow_rule("R-WF-007", "task_complete")
             rule["message"] = "🚦 check gate blocked"
             self._write_rules_file(root, [rule])
-            validator = importlib.import_module("common.validate_rules")
+            validator = importlib.import_module("common.gates.validate_rules")
             real_open = open
 
             def strict_text_open(file, mode="r", *args, **kwargs):
@@ -537,7 +537,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             self._write_ready_task_files(root, task_dir)
-            validator = importlib.import_module("common.validate_rules")
+            validator = importlib.import_module("common.gates.validate_rules")
 
             violations = validator.validate_rules(root, "task_review", task_dir)
 
@@ -556,7 +556,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             incomplete_rule = self._workflow_rule("R-WF-007", "task_complete")
             incomplete_rule.pop("message")
             self._write_rules_file(root, [incomplete_rule])
-            validator = importlib.import_module("common.validate_rules")
+            validator = importlib.import_module("common.gates.validate_rules")
 
             violations = validator.validate_rules(root, "task_complete", task_dir)
 
@@ -587,7 +587,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SCRIPTS / "common" / "validate_rules.py"),
+                    str(SCRIPTS / "common" / "gates" / "validate_rules.py"),
                     "task_review",
                     "--repo-root",
                     str(root),
@@ -613,7 +613,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             self._write_rules_file(root, [self._workflow_rule("R-WF-007", "task_complete")])
-            gates = importlib.import_module("common.gates")
+            gates = importlib.import_module("common.gates.gates")
 
             result = gates.GateRunner(root).run("task_complete", task_dir)
 
@@ -622,7 +622,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual(["R-WF-007"], [v["rule_id"] for v in result.violations])
 
     def test_task_state_machine_requires_review_before_complete(self) -> None:
-        state_machine = importlib.import_module("common.state_machine")
+        state_machine = importlib.import_module("common.task.state_machine")
 
         self.assertEqual([], state_machine.transition_blockers("review", "completed"))
         self.assertEqual([], state_machine.transition_blockers("checking", "completed"))
@@ -910,7 +910,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             )
             self._commit_all(root, "baseline")
             (root / "AGENTS.md").write_text("# Changed rules\n", encoding="utf-8")
-            implementation = importlib.import_module("common.validate_implementation")
+            implementation = importlib.import_module("common.gates.validate_implementation")
 
             violations = implementation.validate_implementation(root, task_dir)
 
@@ -983,8 +983,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (task_dir / "prd.md").write_text("# Nested task\n", encoding="utf-8")
 
-            implementation = importlib.import_module("common.validate_implementation")
-            coding = importlib.import_module("common.validate_coding_standards")
+            implementation = importlib.import_module("common.gates.validate_implementation")
+            coding = importlib.import_module("common.gates.validate_coding_standards")
 
             self.assertEqual([], implementation.validate_implementation(nested, task_dir))
             self.assertEqual([], coding.validate_coding_standards(nested, task_dir))
@@ -1152,7 +1152,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 "# Encoding\n\n- 禁止 依赖系统默认编码。\n",
                 encoding="utf-8",
             )
-            validator = importlib.import_module("common.validate_coding_standards")
+            validator = importlib.import_module("common.gates.validate_coding_standards")
             calls: list[dict] = []
 
             def fake_run(args, **kwargs):
@@ -1318,7 +1318,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
-            test_intent = importlib.import_module("common.test_intent")
+            test_intent = importlib.import_module("common.gates.test_intent")
 
             self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
 
@@ -1355,7 +1355,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
-            test_intent = importlib.import_module("common.test_intent")
+            test_intent = importlib.import_module("common.gates.test_intent")
 
             self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
 
@@ -1392,7 +1392,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
-            test_intent = importlib.import_module("common.test_intent")
+            test_intent = importlib.import_module("common.gates.test_intent")
 
             self.assertEqual([], test_intent.validate_test_intent(root, task_dir))
 
@@ -1428,7 +1428,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
-            test_intent = importlib.import_module("common.test_intent")
+            test_intent = importlib.import_module("common.gates.test_intent")
 
             violations = test_intent.validate_test_intent(root, task_dir)
 
@@ -1457,7 +1457,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            tdd_evidence = importlib.import_module("common.tdd_evidence")
+            tdd_evidence = importlib.import_module("common.gates.tdd_evidence")
 
             self.assertEqual([], tdd_evidence.validate_tdd_evidence(task_dir))
 
@@ -2030,7 +2030,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             env = os.environ.copy()
             env["COWORK_FLOW_CONTEXT_ID"] = "main"
             result = subprocess.run(
-                [sys.executable, str(SCRIPTS / "resume.py")],
+                [sys.executable, str(SCRIPTS / "commands" / "resume.py")],
                 cwd=root,
                 capture_output=True,
                 text=True,

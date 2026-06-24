@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -463,7 +463,7 @@ class ClaudeHooksTest(unittest.TestCase):
         for rel in (
             Path(".claude/settings.json"),
             Path(".claude/hooks/inject-workflow-state.py"),
-            Path(".cowork-flow/scripts/common/active_task.py"),
+            Path(".cowork-flow/scripts/common/task/active_task.py"),
             Path(".cowork-flow/spec/contracts/workflow-state-templates.md"),
         ):
             root_text = (ROOT / rel).read_text(encoding="utf-8")
