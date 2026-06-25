@@ -14,6 +14,24 @@
 
 正式子代理只由 runtime context 绑定识别，不能靠 prompt 形状判断。未绑定时，不要 start/resume/archive/commit，也不要派发 agent。
 
+## 0.1 编码前强制门禁
+
+**在任何文件编辑、代码变更、子代理派发之前，MUST 调用 `before-dev` skill。**
+该 skill 校验当前 workflow 状态并决定放行或阻断：
+
+- `no_task` → **阻断**。拒绝写代码，引导用户走 brainstorming → plan → task create → task start
+- `delegated_subtask` → 按子代理规则执行，不加载主会话流程
+- `planning` → **阻断**。PRD 和 implement.jsonl 就绪前不允许实现
+- `in_progress` / `review` / `checking` → 放行，加载任务上下文后继续
+
+只有以下情况可以豁免：
+- 只读问答（"这是什么"、"解释一下"）
+- 纯查询命令（`git status`、`task next`、`task current`）
+- 用户明确说"直接改，跳过流程"
+- `before-dev` 本身被调用时（避免递归）
+
+如果模型不确定是否需要写代码，先调用 `before-dev` 再决定。
+
 ## 1. 编码前先思考
 
 **不要想当然，不要掩饰困惑，要把假设和取舍摆到台面上。**
