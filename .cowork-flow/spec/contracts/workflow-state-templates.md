@@ -20,7 +20,19 @@ delegated_subtask instead. Do not treat ambiguous UNKNOWN input as a delegated
 subtask.
 
 [workflow-state:no_task]
-当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。
+⛔ STOP — 当前会话没有活动任务。
+
+- 只读问答（解释代码、查找文件、回答问题）可以直接回复。
+- MUST NOT 编辑文件、实现代码、重构代码、派发子代理。
+- MUST NOT 隐式创建任务——必须用 task create/task start 显式建立上下文。
+
+需要写代码时，路由用户到正确路径：
+1. 需求不明确 → brainstorming → writing-plans → task create → task start → 实现
+2. 需求明确 → writing-plans → task create → task start → 实现
+3. 恢复已有任务 → continue
+
+如果被要求写代码，回复:
+"当前没有活动任务。需要先 brainstorming 明确方向，还是直接走 writing-plans → task start？"
 [/workflow-state:no_task]
 
 ## delegated_subtask
