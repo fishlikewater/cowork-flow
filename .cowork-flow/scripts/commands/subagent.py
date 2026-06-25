@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -66,6 +67,26 @@ def _next_id(base_dir: Path, title: str) -> str:
     return candidate
 
 
+def _detect_host() -> str:
+    env = os.environ
+    if env.get("CLAUDE_CODE_SESSION_ID") or env.get("CLAUDE_SESSION_ID"):
+        return "claude-code"
+    if env.get("CODEX_SESSION_ID") or env.get("CODEX_THREAD_ID"):
+        return "codex"
+    if env.get("OPENCODE_SESSION_ID"):
+        return "opencode"
+    return "codex"
+
+
+def _detect_adapter(host: str) -> str:
+    adapters = {
+        "claude-code": "claude-code.hooks",
+        "codex": "codex.spawn_agent",
+        "opencode": "opencode.task",
+    }
+    return adapters.get(host, "codex.spawn_agent")
+
+
 def _host_context_prefix(host: str) -> str:
     normalized = host.strip().lower()
     if normalized == "claude-code":
@@ -102,6 +123,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     base_dir = subagent_contexts_dir(repo_root)
     runtime_context_id = _next_id(base_dir, args.title)
     task_dir = getattr(args, "execution_task_dir", None)
+    host = args.host or _detect_host()
+    adapter = args.adapter or _detect_adapter(host)
     try:
         agent_type, dispatch_kind = _resolve_agent_type(args.role, getattr(args, "agent_type", None))
     except ValueError as error:
@@ -117,8 +140,8 @@ def cmd_init(args: argparse.Namespace) -> int:
         "schema_version": 2,
         "runtime_context_id": runtime_context_id,
         "scope": "subagent",
-        "host": args.host,
-        "adapter": args.adapter,
+        "host": host,
+        "adapter": adapter,
         "agent_type": agent_type,
         "role": args.role,
         "task_dir": task_dir,
@@ -152,9 +175,9 @@ def cmd_init(args: argparse.Namespace) -> int:
         repo_root,
         runtime_context_id,
         task_dir,
-        args.host,
+        host,
     )
-    host_context_key = _suggest_host_context_key(args.host, runtime_context_id)
+    host_context_key = _suggest_host_context_key(host, runtime_context_id)
 
     print(
         json.dumps(
@@ -262,8 +285,8 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--goal")
     init.add_argument("--expected-output", default="Files changed, validation commands, and blockers.")
     init.add_argument("--allowed-context", action="append", default=[])
-    init.add_argument("--host", default="codex")
-    init.add_argument("--adapter", default="codex.spawn_agent")
+    init.add_argument("--host", default=None)
+    init.add_argument("--adapter", default=None)
     init.set_defaults(func=cmd_init)
 
     status = subparsers.add_parser("status", help="Print subagent runtime context")

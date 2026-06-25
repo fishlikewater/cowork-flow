@@ -21,6 +21,20 @@ code changes without passing through this gate.
 
 从上下文中读取 `<workflow-state>` 块。关注 `Status` 和 `Source` 字段。
 
+如果上下文中**没有** `<workflow-state>` 块，说明当前平台的 hook/plugin 未向此上下文注入状态。
+此时检查用户 prompt 中是否包含 `cowork_runtime_context_id`：
+
+- **有 `cowork_runtime_context_id`** → 你是通过 prompt transport 接收 runtime context 的子代理，但平台 hook 未注入 workflow-state。直接进入下方的 `delegated_subtask` 分支，执行 bind、加载任务、完成叶子工作。
+- **无 `cowork_runtime_context_id`** → 无法判断当前上下文身份。
+
+回复：
+```
+无法从上下文中确定 workflow 状态（无 <workflow-state> 块，无 runtime context ID）。
+请运行 resume 恢复任务状态，或运行 task start 创建新任务。
+```
+
+这是 fail-closed 回退——只在 Codex/OpenCode hook 正常工作时永不触发。
+
 ## Step 2: 按状态执行
 
 ### Status = `no_task`
