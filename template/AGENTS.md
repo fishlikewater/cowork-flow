@@ -4,6 +4,8 @@
 
 ## 项目定制位
 
+- 项目名称：`cowork-flow`
+- 技术栈：`Python、Node.js`
 - 提交策略：`允许 AI 提交`
 - 文档语言：`中文`
 
@@ -23,7 +25,7 @@
 - `no_task` → **阻断**。拒绝写代码；引导 brainstorming → plan → task create → task start
 - `delegated_subtask` → 按子代理规则执行
 - `planning` → **阻断**。PRD 和 implement.jsonl 就绪前不允许实现
-- `in_progress` / `review` / `checking` → 放行
+- `in_progress` / `review` → 放行
 - `completed` → **阻断**。创建新任务
 
 豁免：

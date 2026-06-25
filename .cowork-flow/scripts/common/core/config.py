@@ -33,6 +33,14 @@ def _unquote(value: str) -> str:
     return value
 
 
+def _strip_comment(value: str) -> str:
+    """Strip inline YAML comment from a value. Only strips # outside quotes."""
+    idx = value.find("#")
+    if idx >= 0:
+        return value[:idx].rstrip()
+    return value
+
+
 def _parse_simple_yaml(content: str) -> dict:
     result: dict = {}
     current_section: str | None = None
@@ -48,7 +56,7 @@ def _parse_simple_yaml(content: str) -> dict:
         if indent == 0 and ":" in stripped:
             key, _, value = stripped.partition(":")
             key = key.strip()
-            value = _unquote(value.strip())
+            value = _strip_comment(_unquote(value.strip()))
             current_section = None
             current_list_key = None
 
@@ -73,7 +81,7 @@ def _parse_simple_yaml(content: str) -> dict:
             if ":" in stripped:
                 key, _, value = stripped.partition(":")
                 key = key.strip()
-                value = _unquote(value.strip())
+                value = _strip_comment(_unquote(value.strip()))
                 if value:
                     section[key] = value
                     current_list_key = None

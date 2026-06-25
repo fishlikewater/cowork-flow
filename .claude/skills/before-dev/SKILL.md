@@ -99,7 +99,7 @@ code changes without passing through this gate.
 
 主会话派发固定代理时，必须使用 runtime context dispatch 协议。
 
-### Status = `review` 或 `checking`
+### Status = `review`
 
 **⚠️ 任务在检查阶段。** 实现应已完成。
 
