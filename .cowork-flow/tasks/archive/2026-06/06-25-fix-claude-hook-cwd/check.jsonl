@@ -1,0 +1,5 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": ".claude/settings.json", "reason": "Verify root hook command"}
+{"file": "template/.claude/settings.json", "reason": "Verify template hook command"}
+{"file": "tests/test_claude_hooks.py", "reason": "Review regression test intent"}

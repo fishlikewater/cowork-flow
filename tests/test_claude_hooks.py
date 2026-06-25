@@ -17,6 +17,11 @@ HOOK = TEMPLATE / ".claude" / "hooks" / "inject-workflow-state.py"
 
 
 class ClaudeHooksTest(unittest.TestCase):
+    CLAUDE_HOOK_COMMAND = (
+        '"${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run" python '
+        '"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py"'
+    )
+
     def _make_project(self, root: Path) -> None:
         (root / ".cowork-flow").mkdir(parents=True)
         shutil.copytree(TEMPLATE / ".cowork-flow" / "scripts", root / ".cowork-flow" / "scripts")
@@ -73,6 +78,15 @@ class ClaudeHooksTest(unittest.TestCase):
         ):
             env.pop(name, None)
         return env
+
+    def _settings_command_parts(self, command: str, root: Path) -> list[str]:
+        project_dir = root.as_posix()
+        expanded = command.replace("${CLAUDE_PROJECT_DIR:-.}", project_dir)
+        command_parts = shlex.split(expanded)
+        expected_runner = f"{project_dir}/.cowork-flow/run"
+        if os.name == "nt" and command_parts and command_parts[0] == expected_runner:
+            command_parts[0] = str(root / ".cowork-flow" / "run.cmd")
+        return command_parts
 
     def _write_runtime_context(
         self,
@@ -405,35 +419,39 @@ class ClaudeHooksTest(unittest.TestCase):
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
         for event_name in ("UserPromptSubmit", "SessionStart"):
             command = settings["hooks"][event_name][0]["hooks"][0]["command"]
-            self.assertEqual(".cowork-flow/run python .claude/hooks/inject-workflow-state.py", command)
+            self.assertEqual(self.CLAUDE_HOOK_COMMAND, command)
+            self.assertIn("${CLAUDE_PROJECT_DIR:-.}", command)
+            self.assertFalse(command.startswith(".cowork-flow/run"))
             self.assertFalse(command.startswith("python "))
 
-    def test_settings_command_executes_without_bare_python(self) -> None:
+    def test_settings_command_executes_from_nested_cwd_without_bare_python(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
             self._write_runtime_context(root, "rtx_claude_command")
+            nested = root / "nested" / "work"
+            nested.mkdir(parents=True)
             settings = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
             command = settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
 
-            command_parts = shlex.split(command)
-            if os.name == "nt":
-                command_parts[0] = str(root / ".cowork-flow" / "run.cmd")
-            result = subprocess.run(
-                command_parts,
-                input=json.dumps(
-                    {
-                        "cwd": str(root),
-                        "session_id": "child-session",
-                        "prompt": "cowork_runtime_context_id: rtx_claude_command",
-                    }
-                ),
-                text=True,
-                encoding="utf-8",
-                capture_output=True,
-                cwd=root,
-                timeout=10,
-            )
+            try:
+                result = subprocess.run(
+                    self._settings_command_parts(command, root),
+                    input=json.dumps(
+                        {
+                            "cwd": str(root),
+                            "session_id": "child-session",
+                            "prompt": "cowork_runtime_context_id: rtx_claude_command",
+                        }
+                    ),
+                    text=True,
+                    encoding="utf-8",
+                    capture_output=True,
+                    cwd=nested,
+                    timeout=10,
+                )
+            except FileNotFoundError as exc:
+                self.fail(f"hook command could not locate runner from nested cwd: {exc}")
 
         self.assertEqual("", result.stderr)
         self.assertEqual(0, result.returncode)
