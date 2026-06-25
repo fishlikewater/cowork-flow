@@ -320,7 +320,7 @@ def _validate_phase_gate(
             if task_json.exists():
                 with open(task_json, encoding="utf-8") as f:
                     task_data = json.load(f)
-                if task_data.get("status") not in ("review", "checking"):
+                if task_data.get("status") not in ("review",):
                     return rule_violation(rule, task_json)
 
     return None

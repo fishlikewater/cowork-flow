@@ -170,6 +170,8 @@ def _read_json(path: Path) -> dict:
         return {}
     except (json.JSONDecodeError, OSError):
         # Corrupt file — remove to avoid orphan state
+        import sys
+        print(f"Warning: Corrupt JSON cleaned up: {path}", file=sys.stderr)
         try:
             path.unlink(missing_ok=True)
         except OSError:

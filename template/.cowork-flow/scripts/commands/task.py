@@ -76,7 +76,7 @@ from common.task.state_machine import transition_blockers
 
 CONTEXT_JSONL_FILES = ["implement.jsonl", "check.jsonl", "debug.jsonl"]
 DONE_STATUSES = ("completed", "done")
-CHECK_STATUSES = ("review", "checking")
+CHECK_STATUSES = ("review",)
 
 
 # =============================================================================
