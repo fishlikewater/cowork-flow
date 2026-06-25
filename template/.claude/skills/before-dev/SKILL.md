@@ -1,32 +1,130 @@
 ---
 name: before-dev
-description: Use before writing code in a cowork-flow project to load project-specific guidelines, active task context, and verification expectations.
+description: MANDATORY GATE — call before ANY code change, file edit, or subagent dispatch. Checks workflow state and either allows or blocks the action.
 ---
 
-# Before Dev
+# Before Dev — 编码前工作流门禁
 
-Use this immediately before code edits.
+This skill is the enforcement point for the cowork-flow workflow. You MUST invoke it
+before any file edit, code change, or subagent dispatch. It reads the current
+`<workflow-state>` block and decides whether to allow or block.
 
-## Read
+This skill is NOT a checklist or context loader — it is a gate. Do not proceed to
+code changes without passing through this gate.
 
-1. `AGENTS.md`
-2. `.cowork-flow/workflow.md`
-3. Active task `prd.md`
-4. Active task `implement.jsonl`
-5. Relevant `.cowork-flow/spec/*/index.md`
-6. Any exact files named by the task, plan, or user
-7. If the task changes behavior, locate or create `tdd.jsonl` evidence before implementation.
+**豁免**: 只读问答、纯查询命令（`git status`、`task next`、`task current`）、
+用户明确说"直接改，跳过流程"。
 
-Do not bulk-load unrelated tasks, archived sessions, or every spec file.
+---
 
-## Confirm
+## Step 1: 读取当前 workflow 状态
 
-State briefly:
+从上下文中读取 `<workflow-state>` 块。关注 `Status` 和 `Source` 字段。
 
-- Assumptions.
-- Success criteria.
-- Files or modules likely to change.
-- Verification command you expect to run.
-- Whether fixed agents or inline work are appropriate.
+## Step 2: 按状态执行
 
-If the task is a bounded subagent prompt, do not convert it into main-session planning.
+### Status = `no_task`
+
+**⛔ 阻断。** 当前没有活动任务。
+
+你必须**拒绝**执行任何代码变更、文件编辑、子代理派发。回复用户：
+
+```
+当前没有活动任务。实现、重构或行为变更必须先创建任务。
+
+建议:
+1. 新需求方向不明确 → 先 brainstorming 明确方向
+2. 需求已明确 → writing-plans → task create → task start
+3. 恢复已有任务 → continue
+
+要走哪个方向？
+```
+
+只读问答可以直接回答，但不要修改任何文件。
+
+### Status = `delegated_subtask`
+
+你是子代理。按 bound runtime context 执行：
+- 运行 `./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>` 绑定
+- 加载任务目录和分配内容
+- 不要执行 start/resume/task start/task archive/commit/spawn
+- 完成分配的叶子工作
+
+### Status = `planning`
+
+**⛔ 阻断实现。** 任务在计划阶段，尚未就绪。
+
+回复用户：
+
+```
+任务仍在计划阶段，尚未就绪进入实现。
+
+需要先:
+1. 完善 prd.md（目标、范围、验收标准）
+2. 整理 implement.jsonl 和 check.jsonl
+3. 运行 task next 确认准备状态
+4. 运行 task start 进入实现阶段
+
+现在继续计划工作？
+```
+
+**例外**: 如果用户明确要求做的是"计划工作"（写 prd.md、整理 jsonl），可以继续，
+但只能编辑任务计划文件，不能开始实现代码。
+
+### Status = `in_progress`
+
+**✅ 放行。** 任务正在执行中。
+
+加载任务上下文后继续：
+1. 读取 `<task>/prd.md`
+2. 读取 `<task>/implement.jsonl`
+3. 读取相关 spec 文件
+4. 行为变更任务：确认 `<task>/tdd.jsonl` red evidence 存在
+5. 声明确认的假设、成功标准、涉及文件、验证命令
+6. 继续实现
+
+主会话派发固定代理时，必须使用 runtime context dispatch 协议。
+
+### Status = `review` 或 `checking`
+
+**⚠️ 任务在检查阶段。** 实现应已完成。
+
+回复用户：
+
+```
+任务在检查阶段，实现应已完成。
+
+建议:
+1. 运行 cowork-check 验证
+2. 检查通过后 task complete
+3. 如果需要小修复，在 check 范围内直接修
+
+当前需要执行检查还是修复？
+```
+
+不要开始新的实现工作，除非是小修复。
+
+### Status = `completed`
+
+**⛔ 阻断。** 任务已完成。
+
+回复用户：
+
+```
+任务已完成。不要针对已完成任务派发新的实现工作。
+
+如果发现遗漏:
+1. task archive 归档旧任务
+2. 创建新任务
+3. 走完整流程
+
+需要创建新任务吗？
+```
+
+### Status = `stale` 或 `unknown`
+
+任务状态异常。回复用户：
+
+```
+任务状态异常 (<status>)。请运行 task next 和 resume 确认当前状态后再继续。
+```
