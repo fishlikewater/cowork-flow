@@ -12,11 +12,16 @@ Use this after implementation and before `finish-work`.
 1. Read active task PRD, plan, and `check.jsonl`.
 2. Review `git diff --name-only` and `git diff`.
 3. Check contracts across caller/callee, command output, persisted state, templates, and docs.
-4. Confirm `.cowork-flow/spec/` is updated or explicitly unchanged.
-5. Review test intent: reject shallow tests that do not fail for meaningful behavior breaks.
-6. Run focused tests that would fail if the changed behavior broke.
-7. Run broader validation when the change touches shared runtime, templates, packaging, or public workflow.
-8. Report `test_intent_review` with the key tests that defend PRD acceptance behavior.
+4. Verify spec compliance:
+   - Read each spec file listed in `check.jsonl`.
+   - For each guideline in the spec, check the diff for violations (naming, structure, encoding, error handling, quality gates).
+   - Spec files not listed in `check.jsonl` do not apply to this check.
+5. Confirm `.cowork-flow/spec/` is updated or explicitly unchanged.
+6. Review test intent: reject shallow tests that do not fail for meaningful behavior breaks.
+7. Run focused tests that would fail if the changed behavior broke.
+8. Run broader validation when the change touches shared runtime, templates, packaging, or public workflow.
+9. Report `test_intent_review` with the key tests that defend PRD acceptance behavior.
+10. Report spec compliance: for each spec/ file checked, state pass/fail with evidence from the diff.
 
 ## Report
 

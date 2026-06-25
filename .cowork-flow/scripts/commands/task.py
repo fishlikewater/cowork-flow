@@ -433,11 +433,22 @@ def _skill_path(name: str, repo_root: Path | None = None) -> str:
 
 
 def get_check_context(dev_type: str) -> list[dict]:
-    """Get check context entries."""
-    return [
+    """Get check context entries. Injects spec guides per dev_type so the check agent
+    can verify compliance against project conventions."""
+    base = [
         {"file": _skill_path("check"), "reason": "Quality, contract, and template consistency check"},
         {"file": _skill_path("finish-work"), "reason": "Finish, archive, and session recording gate"},
     ]
+    if dev_type in ("backend", "test"):
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md", "reason": "Verify backend spec compliance"})
+    elif dev_type == "frontend":
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md", "reason": "Verify frontend spec compliance"})
+    elif dev_type == "fullstack":
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md", "reason": "Verify backend spec compliance"})
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md", "reason": "Verify frontend spec compliance"})
+    elif dev_type == "spec":
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/index.md", "reason": "Verify spec compliance"})
+    return base
 
 
 def get_debug_context(dev_type: str) -> list[dict]:
