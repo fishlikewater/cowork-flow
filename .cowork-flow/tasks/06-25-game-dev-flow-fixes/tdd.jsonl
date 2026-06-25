@@ -1,0 +1,4 @@
+{"acceptanceId": "AC-01", "type": "exemption", "exemptionType": "doc_only", "reason": "Template sync is pure doc copy", "verificationCommand": "diff .claude/skills/game-design/SKILL.md template/.agents/skills/game-design/SKILL.md && diff .claude/skills/game-design/SKILL.md template/.claude/skills/game-design/SKILL.md"}
+{"acceptanceId": "AC-02", "type": "exemption", "exemptionType": "doc_only", "reason": "Template sync is pure doc copy", "verificationCommand": "test -f template/.agents/skills/game-design/SKILL.md && test -f template/.claude/skills/game-design/SKILL.md"}
+{"acceptanceId": "AC-04", "type": "exemption", "exemptionType": "doc_only", "reason": "Template sync is pure doc copy", "verificationCommand": "test -f template/.agents/skills/game-design/SKILL.md"}
+{"acceptanceId": "AC-05", "type": "exemption", "exemptionType": "doc_only", "reason": "Template sync is pure doc copy", "verificationCommand": "test -f template/.claude/skills/game-design/SKILL.md"}
