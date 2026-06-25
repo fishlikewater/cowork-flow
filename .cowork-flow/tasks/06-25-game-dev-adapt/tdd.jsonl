@@ -1,0 +1,4 @@
+{"acceptanceId": "AC-001", "type": "exemption", "exemptionType": "doc_only", "reason": "Pure doc creation task: skill + spec files, no behavior change", "verificationCommand": "ls .claude/skills/game-design/SKILL.md .cowork-flow/spec/game/"}
+{"acceptanceId": "AC-02", "type": "exemption", "exemptionType": "doc_only", "reason": "Pure doc creation task", "verificationCommand": "ls .cowork-flow/spec/game/"}
+{"acceptanceId": "AC-03", "type": "exemption", "exemptionType": "doc_only", "reason": "Pure doc creation task", "verificationCommand": "git diff --name-only"}
+{"acceptanceId": "AC-04", "type": "exemption", "exemptionType": "doc_only", "reason": "Pure doc creation task", "verificationCommand": "ls .claude/skills/game-design/SKILL.md"}

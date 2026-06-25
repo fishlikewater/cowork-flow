@@ -1,0 +1,21 @@
+{
+  "id": "game-dev-adapt",
+  "name": "game-dev-adapt",
+  "title": "游戏开发流程适配（game-design skill + spec/game/ 规范）",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-25",
+  "completedAt": "2026-06-25",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
