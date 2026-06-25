@@ -10,7 +10,7 @@
       "message": "L2 readiness: proposal.md is missing or empty",
       "fix_hint": "创建 .cowork-flow/changes/<slug>/proposal.md 并填写目标、用户价值、范围边界",
       "source_file": ".cowork-flow/workflow.md",
-      "source_anchor": "workflow#l2-readiness-gate",
+      "source_excerpt": "定义 L1（增量）、L2（结构性）和 L3（重大）三级工作",
       "enforcement": "validate_rules"
     },
     {
@@ -22,7 +22,7 @@
       "message": "L2 readiness: spec.md is missing or empty",
       "fix_hint": "创建 .cowork-flow/changes/<slug>/spec.md 并填写功能规格",
       "source_file": ".cowork-flow/workflow.md",
-      "source_anchor": "workflow#l2-readiness-gate",
+      "source_excerpt": "L2（结构性）",
       "enforcement": "validate_rules"
     },
     {
@@ -34,7 +34,7 @@
       "message": "L2 readiness: design.md is missing or empty",
       "fix_hint": "创建 .cowork-flow/changes/<slug>/design.md 并填写技术设计",
       "source_file": ".cowork-flow/workflow.md",
-      "source_anchor": "workflow#l2-readiness-gate",
+      "source_excerpt": "L2（结构性）",
       "enforcement": "validate_rules"
     },
     {
@@ -46,7 +46,7 @@
       "message": "L2 readiness: plan link is missing",
       "fix_hint": "在 change.yaml 中添加 plan 字段指向 .cowork-flow/plans/ 下的计划文件",
       "source_file": ".cowork-flow/workflow.md",
-      "source_anchor": "workflow#l2-readiness-gate",
+      "source_excerpt": "L2（结构性）",
       "enforcement": "validate_rules"
     },
     {
@@ -58,7 +58,7 @@
       "message": "L2 readiness: task link is missing",
       "fix_hint": "在 change.yaml 中添加 tasks 字段指向相关任务目录",
       "source_file": ".cowork-flow/workflow.md",
-      "source_anchor": "workflow#l2-readiness-gate",
+      "source_excerpt": "L2（结构性）",
       "enforcement": "validate_rules"
     },
     {
@@ -70,7 +70,7 @@
       "message": "Implementation without failing test for behavior change",
       "fix_hint": "先编写失败测试，再实现功能，确保测试在实现后通过",
       "source_file": ".cowork-flow/workflow.md",
-      "source_anchor": "workflow#implement-red-first",
+      "source_excerpt": "先写能失败的测试",
       "enforcement": "tdd_evidence"
     },
     {
@@ -82,7 +82,7 @@
       "message": "Task completion without running check verification",
       "fix_hint": "运行 ./.cowork-flow/run task review [task-dir] 进入检查阶段，然后运行验证命令",
       "source_file": ".cowork-flow/workflow.md",
-      "source_anchor": "workflow#review-before-complete",
+      "source_excerpt": "先验证再完成",
       "enforcement": "validate_rules"
     },
     {
@@ -94,7 +94,7 @@
       "message": "Subagent attempted to dispatch another agent",
       "fix_hint": "子代理是叶子执行者，不能派发、等待、列出或取消其他代理",
       "source_file": "AGENTS.md",
-      "source_anchor": "agents#subagent-leaf-boundary",
+      "source_excerpt": "cowork-* 固定代理是叶子执行者",
       "enforcement": "host_contract"
     },
     {
@@ -106,7 +106,7 @@
       "message": "Subagent attempted to modify spec files",
       "fix_hint": "规格文件只能由主会话修改，子代理应专注于实现任务",
       "source_file": "AGENTS.md",
-      "source_anchor": "agents#spec-change-boundary",
+      "source_excerpt": "cowork-* 固定代理是叶子执行者",
       "enforcement": "validate_implementation"
     },
     {
@@ -118,7 +118,7 @@
       "message": "Subagent attempted to operate Git",
       "fix_hint": "Git 操作只能由主会话执行，子代理应专注于代码实现",
       "source_file": "AGENTS.md",
-      "source_anchor": "agents#git-boundary",
+      "source_excerpt": "cowork-* 固定代理是叶子执行者",
       "enforcement": "host_contract"
     },
     {
@@ -130,7 +130,7 @@
       "message": "Subagent attempted to commit or archive",
       "fix_hint": "提交和归档只能由主会话执行，子代理应专注于代码实现",
       "source_file": "AGENTS.md",
-      "source_anchor": "agents#finish-boundary",
+      "source_excerpt": "cowork-* 固定代理是叶子执行者",
       "enforcement": "host_contract"
     },
     {
@@ -138,11 +138,11 @@
       "type": "forbidden_action",
       "severity": "block",
       "scope": "implement",
-      "condition": "不引入未要求的功能",
+      "condition": "不添加未要求的功能",
       "message": "Unrequested feature introduced",
       "fix_hint": "只实现 PRD 中明确要求的功能，不添加额外功能",
       "source_file": "AGENTS.md",
-      "source_anchor": "agents#requested-scope-only",
+      "source_excerpt": "不添加未要求的功能",
       "enforcement": "validate_implementation"
     },
     {
@@ -150,11 +150,11 @@
       "type": "forbidden_action",
       "severity": "warn",
       "scope": "implement",
-      "condition": "不为一次性代码提前做抽象",
+      "condition": "不为一次性代码做抽象",
       "message": "Premature abstraction for one-time code",
       "fix_hint": "保持代码简单直接，只有在确认需要复用时才进行抽象",
       "source_file": "AGENTS.md",
-      "source_anchor": "agents#simple-first",
+      "source_excerpt": "不为一次性代码做抽象",
       "enforcement": "validate_implementation"
     },
     {
@@ -166,8 +166,8 @@
       "message": "Unrelated module refactored during implementation",
       "fix_hint": "只修改与当前任务直接相关的代码，不扩大改动范围",
       "source_file": "AGENTS.md",
-      "source_anchor": "agents#surgical-change",
-      "enforcement": "metadata_only"
+      "source_excerpt": "不顺手重构无关模块",
+      "enforcement": "host_contract"
     }
   ]
 }

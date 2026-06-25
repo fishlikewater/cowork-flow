@@ -65,12 +65,6 @@ are constraints only; they are not the task itself.
 活动任务已进入检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 PRD、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
 [/workflow-state:review]
 
-## checking
-
-[workflow-state:checking]
-活动任务正在检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 PRD、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
-[/workflow-state:checking]
-
 ## completed
 
 [workflow-state:completed]
