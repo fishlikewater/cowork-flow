@@ -1,0 +1,21 @@
+{
+  "id": "game-dev-flow-fixes",
+  "name": "game-dev-flow-fixes",
+  "title": "流程验证问题根因修复 + game-design skill 模板同步",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-25",
+  "completedAt": "2026-06-25",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -1,0 +1,3 @@
+{"file": ".claude/skills/break-loop/SKILL.md", "reason": "Deep bug analysis workflow"}
+{"file": ".claude/skills/update-spec/SKILL.md", "reason": "Capture implementation lessons and contracts"}
+{"file": ".claude/skills/check/SKILL.md", "reason": "Verify the fix and related contracts"}

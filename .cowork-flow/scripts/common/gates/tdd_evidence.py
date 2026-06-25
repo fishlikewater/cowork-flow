@@ -92,7 +92,9 @@ def validate_tdd_evidence(task_dir: Path) -> list[dict]:
                     "TDD-RED-001",
                     "TDD evidence file is missing for a behavior-change task",
                     evidence_path,
-                    "Create tdd.jsonl with red/green evidence or a documented exemption.",
+                    "Create tdd.jsonl with red/green evidence. For doc-only tasks, add an exemption: "
+                    '{"acceptanceId":"AC-001","type":"exemption","exemptionType":"doc_only",'
+                    '"reason":"why no behavior test","verificationCommand":"ls <expected files>"}',
                 )
             ]
         return []
