@@ -257,9 +257,7 @@ def main() -> int:
 
     event_name = _hook_event_name(hook_input)
     breadcrumbs = _load_breadcrumbs(root)
-    runtime_context, runtime_context_id = (
-        _resolve_runtime_context(root, hook_input) if event_name == "UserPromptSubmit" else (None, None)
-    )
+    runtime_context, runtime_context_id = _resolve_runtime_context(root, hook_input)
     extra_lines: list[str] | None = None
     if runtime_context is not None:
         task_dir = runtime_context.get("task_dir")
