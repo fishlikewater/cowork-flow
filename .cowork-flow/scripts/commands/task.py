@@ -356,8 +356,8 @@ def _resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
     if not target_dir:
         return Path()
 
-    # Absolute path
-    if target_dir.startswith("/"):
+    # Absolute path (Unix "/path" or Windows "C:\path")
+    if target_dir.startswith("/") or Path(target_dir).is_absolute():
         return Path(target_dir)
 
     # Relative path (contains path separator or starts with workflow directory)

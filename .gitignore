@@ -18,3 +18,11 @@ __pycache__/
 # Package artifacts
 *.tgz
 .bitfun/
+
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+secrets*
+*.log
+Thumbs.db
