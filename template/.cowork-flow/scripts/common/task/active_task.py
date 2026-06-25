@@ -166,14 +166,27 @@ def runtime_context_path(repo_root: Path, runtime_context_id: str) -> Path:
 def _read_json(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except FileNotFoundError:
+        return {}
+    except (json.JSONDecodeError, OSError):
+        # Corrupt file — remove to avoid orphan state
+        import sys
+        print(f"Warning: Corrupt JSON cleaned up: {path}", file=sys.stderr)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
         return {}
     return data if isinstance(data, dict) else {}
 
 
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # Atomic: write to temp then os.replace
+    json_text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    tmp_path.write_text(json_text, encoding="utf-8")
+    os.replace(tmp_path, path)
 
 
 def _platform_from_context_key(context_key: str) -> str:
@@ -321,7 +334,7 @@ def close_runtime_context(repo_root: Path, runtime_context_id: str) -> bool:
         if isinstance(context_key, str) and context_key.strip():
             try:
                 _session_path(repo_root, context_key).unlink()
-            except FileNotFoundError:
+            except OSError:
                 pass
 
     context["status"] = "closed"
@@ -367,7 +380,7 @@ def clear_active_task(repo_root: Path) -> ActiveTask:
     if active.context_key:
         try:
             _session_path(repo_root, active.context_key).unlink()
-        except FileNotFoundError:
+        except OSError:
             pass
     return active
 
@@ -381,6 +394,10 @@ def clear_task_from_sessions(repo_root: Path, task_path: str) -> int:
     for path in root.glob("*.json"):
         data = _read_json(path)
         if data.get(FIELD_ACTIVE_TASK_PATH) == normalized:
-            path.unlink()
-            cleared += 1
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            else:
+                cleared += 1
     return cleared

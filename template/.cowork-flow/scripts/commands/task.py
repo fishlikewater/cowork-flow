@@ -356,8 +356,8 @@ def _resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
     if not target_dir:
         return Path()
 
-    # Absolute path
-    if target_dir.startswith("/"):
+    # Absolute path (Unix "/path" or Windows "C:\path")
+    if target_dir.startswith("/") or Path(target_dir).is_absolute():
         return Path(target_dir)
 
     # Relative path (contains path separator or starts with workflow directory)
@@ -402,6 +402,15 @@ def get_implement_frontend() -> list[dict]:
     ]
 
 
+def get_implement_spec() -> list[dict]:
+    """Get spec implement context entries."""
+    return [
+        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/index.md", "reason": "Spec index — read before modifying spec/"},
+        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/contracts/index.md", "reason": "Contract definitions"},
+        {"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/schemas/index.md", "reason": "Schema definitions"},
+    ]
+
+
 def _detect_installed_platforms(repo_root: Path | None = None) -> list[str]:
     """Detect installed host platform assets in the current project."""
     root = repo_root or get_repo_root()
@@ -424,11 +433,22 @@ def _skill_path(name: str, repo_root: Path | None = None) -> str:
 
 
 def get_check_context(dev_type: str) -> list[dict]:
-    """Get check context entries."""
-    return [
+    """Get check context entries. Injects spec guides per dev_type so the check agent
+    can verify compliance against project conventions."""
+    base = [
         {"file": _skill_path("check"), "reason": "Quality, contract, and template consistency check"},
         {"file": _skill_path("finish-work"), "reason": "Finish, archive, and session recording gate"},
     ]
+    if dev_type in ("backend", "test"):
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md", "reason": "Verify backend spec compliance"})
+    elif dev_type == "frontend":
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md", "reason": "Verify frontend spec compliance"})
+    elif dev_type == "fullstack":
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md", "reason": "Verify backend spec compliance"})
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md", "reason": "Verify frontend spec compliance"})
+    elif dev_type == "spec":
+        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/index.md", "reason": "Verify spec compliance"})
+    return base
 
 
 def get_debug_context(dev_type: str) -> list[dict]:
@@ -475,6 +495,11 @@ def _task_start_blockers(task_dir: Path) -> list[str]:
             blockers.append(f"{jsonl_name} is missing or empty")
 
     return blockers
+
+
+def _report_jsonl_skip(path: Path, reason: str) -> None:
+    """Report that a JSONL file was skipped (not overwritten)."""
+    print(f"  {colored('[SKIP]', Colors.YELLOW)} {path.name}: {reason}")
 
 
 def _task_context_validation_issues(
@@ -664,7 +689,7 @@ def cmd_init_context(args: argparse.Namespace) -> int:
     if not dev_type:
         print(colored("Error: Missing arguments", Colors.RED))
         print("Usage: ./.cowork-flow/run task init-context <task-dir> <dev_type>")
-        print("  dev_type: backend | frontend | fullstack | test | docs")
+        print("  dev_type: backend | frontend | fullstack | test | docs | spec")
         return 1
 
     if not target_dir.is_dir():
@@ -677,40 +702,44 @@ def cmd_init_context(args: argparse.Namespace) -> int:
     print()
 
     # implement.jsonl
-    print(colored("Creating implement.jsonl...", Colors.CYAN))
-    implement_entries = get_implement_base()
-    if dev_type in ("backend", "test"):
-        implement_entries.extend(get_implement_backend())
-    elif dev_type == "frontend":
-        implement_entries.extend(get_implement_frontend())
-    elif dev_type == "fullstack":
-        implement_entries.extend(get_implement_backend())
-        implement_entries.extend(get_implement_frontend())
-
     implement_file = target_dir / "implement.jsonl"
-    _write_jsonl(implement_file, implement_entries)
-    print(f"  {colored('[OK]', Colors.GREEN)} {len(implement_entries)} entries")
+    if implement_file.is_file():
+        # 已有内容时不覆盖 — 用户可能已自定义
+        _report_jsonl_skip(implement_file, "already exists, skipping")
+    else:
+        print(colored("Creating implement.jsonl...", Colors.CYAN))
+        implement_entries = get_implement_base()
+        if dev_type in ("backend", "test"):
+            implement_entries.extend(get_implement_backend())
+        elif dev_type == "frontend":
+            implement_entries.extend(get_implement_frontend())
+        elif dev_type == "fullstack":
+            implement_entries.extend(get_implement_backend())
+            implement_entries.extend(get_implement_frontend())
+        elif dev_type == "spec":
+            implement_entries.extend(get_implement_spec())
+        _write_jsonl(implement_file, implement_entries)
+        print(f"  {colored('[OK]', Colors.GREEN)} {len(implement_entries)} entries")
 
     # check.jsonl
-    print(colored("Creating check.jsonl...", Colors.CYAN))
-    check_entries = get_check_context(dev_type)
     check_file = target_dir / "check.jsonl"
-    _write_jsonl(check_file, check_entries)
-    print(f"  {colored('[OK]', Colors.GREEN)} {len(check_entries)} entries")
+    if check_file.is_file():
+        _report_jsonl_skip(check_file, "already exists, skipping")
+    else:
+        print(colored("Creating check.jsonl...", Colors.CYAN))
+        check_entries = get_check_context(dev_type)
+        _write_jsonl(check_file, check_entries)
+        print(f"  {colored('[OK]', Colors.GREEN)} {len(check_entries)} entries")
 
     # debug.jsonl
-    print(colored("Creating debug.jsonl...", Colors.CYAN))
-    debug_entries = get_debug_context(dev_type)
     debug_file = target_dir / "debug.jsonl"
-    _write_jsonl(debug_file, debug_entries)
-    print(f"  {colored('[OK]', Colors.GREEN)} {len(debug_entries)} entries")
-
-    print()
-    print(colored("[OK] All context files created", Colors.GREEN))
-    print()
-    print(colored("Next steps:", Colors.BLUE))
-    print("  1. Add task-specific specs: ./.cowork-flow/run task add-context <dir> <jsonl> <path>")
-    print("  2. Set as current: ./.cowork-flow/run task start <dir>")
+    if debug_file.is_file():
+        _report_jsonl_skip(debug_file, "already exists, skipping")
+    else:
+        print(colored("Creating debug.jsonl...", Colors.CYAN))
+        debug_entries = get_debug_context(dev_type)
+        _write_jsonl(debug_file, debug_entries)
+        print(f"  {colored('[OK]', Colors.GREEN)} {len(debug_entries)} entries")
 
     return 0
 
@@ -1496,6 +1525,22 @@ def cmd_archive(args: argparse.Namespace) -> int:
     task_data = None
     if task_json_path.is_file():
         task_data = _read_json_file(task_json_path)
+
+    # Guard: only completed tasks can be archived
+    if task_data is None:
+        print(colored(
+            f"Error: Task '{task_name}' task.json is unreadable — refusing archive.",
+            Colors.RED,
+        ), file=sys.stderr)
+        return 1
+    current_status = task_data.get("status", "unknown")
+    if current_status not in DONE_STATUSES:
+        print(colored(
+            f"Error: Task '{task_name}' is in status '{current_status}', not in {DONE_STATUSES}. "
+            "Run `task complete` first, then retry archive.",
+            Colors.RED,
+        ), file=sys.stderr)
+        return 1
 
     linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
     if linked_changes and not _linked_changes_ready_for_archive(repo_root, linked_changes):

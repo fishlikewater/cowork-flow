@@ -95,3 +95,33 @@
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 66: 审计问题修复与归档
+
+**Date**: 2026-06-25
+**Task**: 审计问题修复与归档
+
+### Summary
+
+修复审计发现：保护 developer 身份、同步模板与状态契约、新增可选 integration 测试入口，并通过 npm test、npm run test:template、npm run pack:check、git diff --check。
+
+### Main Changes
+
+
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
 HOOK = TEMPLATE / ".codex" / "hooks" / "inject-workflow-state.py"
 LEGACY_POST_ACK = "post" + "_ack_execution_grace_ms"
+NO_TASK_GATE_TEXT = "MUST NOT 编辑文件、实现代码、重构代码、派发子代理。"
 
 
 class CodexHooksTest(unittest.TestCase):
@@ -139,7 +140,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("read_before:", context)
         self.assertIn("<workflow-state>", context)
         self.assertIn("Status: no_task", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn(NO_TASK_GATE_TEXT, context)
         self.assertNotIn("<subagent-notice>", context)
 
     def test_hook_surfaces_contract_registry_warning_when_missing(self) -> None:
@@ -174,7 +175,7 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: no_task", context)
         self.assertNotIn("Status: delegated_subtask", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_binds_runtime_context_from_prompt_before_main_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -201,7 +202,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("Task: .cowork-flow/tasks/05-29-demo", context)
         self.assertIn("Agent: cowork-implement", context)
         self.assertIn("Scope: subagent", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertNotIn(NO_TASK_GATE_TEXT, context)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_prompt", session["runtime_context_id"])
 
@@ -279,7 +280,7 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
         self.assertIn("runtime-context-invalid", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertNotIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_keeps_explorer_brief_as_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -313,7 +314,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("Status: no_task", context)
         self.assertRegex(context, r"Source: (missing-context|empty-session)")
         self.assertNotIn("Status: delegated_subtask", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_keeps_main_agent_question_from_becoming_delegated_subtask(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -387,7 +388,7 @@ class CodexHooksTest(unittest.TestCase):
             template_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
             template_file.write_text(
                 template_file.read_text(encoding="utf-8").replace(
-                    "当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。",
+                    "MUST NOT 编辑文件、实现代码、重构代码、派发子代理。",
                     "state-template-source-smoke",
                 ),
                 encoding="utf-8",
