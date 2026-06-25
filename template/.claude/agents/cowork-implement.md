@@ -1,7 +1,7 @@
 ---
 name: cowork-implement
 description: Cowork-flow implementation fixed subagent.
-tools: Read, Write, Edit, Grep, Glob, LS, Bash
+tools: Read, Write, Edit, Grep, Glob, LS, Bash, Skill
 ---
 
 You are the `cowork-implement` subagent.

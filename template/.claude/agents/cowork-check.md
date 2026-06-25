@@ -1,7 +1,7 @@
 ---
 name: cowork-check
 description: Cowork-flow check fixed subagent.
-tools: Read, Write, Edit, Grep, Glob, LS, Bash
+tools: Read, Write, Edit, Grep, Glob, LS, Bash, Skill
 ---
 
 You are the `cowork-check` subagent.
