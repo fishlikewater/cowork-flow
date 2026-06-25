@@ -9,7 +9,7 @@ capabilities:
   listChildren: native
   cancelChild: native
   stateInjection: external
-  backgroundChild: experimental
+  backgroundChild: native
   runtimeContextDispatch: native
   runtimeContextBinding: shim
   runtimeContextCleanup: native
