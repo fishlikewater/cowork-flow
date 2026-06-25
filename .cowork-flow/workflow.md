@@ -192,7 +192,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
 
 ## 7. 检查阶段
 
-1. 先运行 `task next` 确认任务处于 `review` / `checking` 检查阶段。
+1. 先运行 `task next` 确认任务处于 `review` 检查阶段。
 2. 默认通过宿主适配器派发 `cowork-check`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/contracts/subagent-dispatch.md`。
 3. 检查内容：
     - PRD 验收标准是否满足。

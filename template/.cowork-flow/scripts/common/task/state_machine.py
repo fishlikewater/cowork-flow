@@ -3,14 +3,13 @@
 
 from __future__ import annotations
 
-CHECK_STATUSES = ("review", "checking")
+CHECK_STATUSES = ("review",)
 DONE_STATUSES = ("completed", "done")
 
 ALLOWED_TRANSITIONS = {
     ("planning", "in_progress"),
     ("in_progress", "review"),
     ("review", "completed"),
-    ("checking", "completed"),
 }
 
 
