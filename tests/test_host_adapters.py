@@ -9,6 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 ENTRY_BOUNDARY = "entry" + "-boundary"
 LEGACY_DISPATCH = "COWORK_" + "DISPATCH_V1"
 LEGACY_ACK = "COWORK_" + "ACK"
+CLAUDE_HOOK_COMMAND = (
+    '"${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run" python '
+    '"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py"'
+)
 
 
 def parse_simple_yaml(path: Path) -> dict[str, object]:
@@ -299,11 +303,11 @@ class HostAdaptersTest(unittest.TestCase):
 
             settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(
-                ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+                CLAUDE_HOOK_COMMAND,
                 settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"],
             )
             self.assertEqual(
-                ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+                CLAUDE_HOOK_COMMAND,
                 settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
             )
             hook = (base / "hooks" / "inject-workflow-state.py").read_text(encoding="utf-8")

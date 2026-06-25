@@ -7,9 +7,9 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Current file**: `journal-1.md`
-- **Total Sessions**: 62
-- **Last Active**: 2026-06-24
+- **Current file**: `journal-2.md`
+- **Total Sessions**: 63
+- **Last Active**: 2026-06-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-1.md` | ~1998 | Current |
+| `journal-2.md` | ~37 | Current |
+| `journal-1.md` | ~2005 | Archived |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 63 | 2026-06-25 | 修复 Claude hook 非根目录入口 | - |
 | 62 | 2026-06-24 | 修复 mock-only 断言识别 | - |
 | 61 | 2026-06-24 | TDD 提示回归 | - |
 | 60 | 2026-06-24 | 主会话 TDD 前置门禁 | - |

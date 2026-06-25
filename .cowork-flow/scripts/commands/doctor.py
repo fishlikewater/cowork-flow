@@ -164,7 +164,8 @@ REQUIRED_CLAUDE_SKILL_SNIPPETS = [
 ]
 
 REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS = [
-    ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+    '${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run',
+    '${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py',
     "UserPromptSubmit",
     "SessionStart",
 ]
