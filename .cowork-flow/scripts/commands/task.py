@@ -1526,6 +1526,17 @@ def cmd_archive(args: argparse.Namespace) -> int:
     if task_json_path.is_file():
         task_data = _read_json_file(task_json_path)
 
+    # Guard: only completed tasks can be archived
+    if task_data:
+        current_status = task_data.get("status", "unknown")
+        if current_status != "completed":
+            print(colored(
+                f"Error: Task '{task_name}' is in status '{current_status}', not 'completed'. "
+                "Run `task complete` first, then retry archive.",
+                Colors.RED,
+            ), file=sys.stderr)
+            return 1
+
     linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
     if linked_changes and not _linked_changes_ready_for_archive(repo_root, linked_changes):
         return 1
