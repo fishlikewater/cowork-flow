@@ -1,7 +1,7 @@
 ---
 name: cowork-research
 description: Cowork-flow research fixed subagent.
-tools: Read, Grep, Glob, LS, Bash
+tools: Read, Grep, Glob, LS, Bash, Skill
 ---
 
 You are the `cowork-research` subagent.
