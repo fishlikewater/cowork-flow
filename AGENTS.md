@@ -25,7 +25,7 @@
 - `no_task` → **阻断**。拒绝写代码；引导 brainstorming → plan → task create → task start
 - `delegated_subtask` → 按子代理规则执行
 - `planning` → **阻断**。PRD 和 implement.jsonl 就绪前不允许实现
-- `in_progress` / `review` / `checking` → 放行
+- `in_progress` / `review` → 放行
 - `completed` → **阻断**。创建新任务
 
 豁免：
