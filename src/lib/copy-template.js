@@ -47,14 +47,17 @@ export async function buildInitPlan(targetDir, options = {}) {
       continue;
     }
 
-    if (toTemplatePath(file) === '.cowork-flow/.version') {
+    const templatePath = toTemplatePath(file);
+    if (templatePath === '.cowork-flow/.version') {
       continue;
     }
 
     const source = join(templateRoot, file);
     const destination = join(targetDir, file);
     const exists = await pathExists(destination);
-    const action = exists ? (options.force ? 'update' : 'skip') : 'create';
+    const action = exists
+      ? (options.force && templatePath !== '.cowork-flow/.developer' ? 'update' : 'skip')
+      : 'create';
     actions.push({ action, source, destination, relativePath: file });
   }
 

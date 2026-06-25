@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 65
+- **Total Sessions**: 66
 - **Last Active**: 2026-06-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~97 | Current |
+| `journal-2.md` | ~127 | Current |
 | `journal-1.md` | ~2005 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 66 | 2026-06-25 | 审计问题修复与归档 | - |
 | 65 | 2026-06-25 | 06-25-game-dev-flow-fixes | - |
 | 64 | 2026-06-25 | 06-25-game-dev-adapt | - |
 | 63 | 2026-06-25 | 修复 Claude hook 非根目录入口 | - |

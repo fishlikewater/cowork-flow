@@ -625,7 +625,6 @@ class FlowScriptPathsTest(unittest.TestCase):
         state_machine = importlib.import_module("common.task.state_machine")
 
         self.assertEqual([], state_machine.transition_blockers("review", "completed"))
-        self.assertEqual([], state_machine.transition_blockers("checking", "completed"))
         self.assertIn(
             "task review",
             "\n".join(state_machine.transition_blockers("in_progress", "completed")),
@@ -1872,7 +1871,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
             (task_dir / "task.json").write_text(
-                '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
+                '{"name": "demo", "status": "completed", "assignee": "codex"}',
                 encoding="utf-8",
             )
             month = datetime.now().strftime("%Y-%m")

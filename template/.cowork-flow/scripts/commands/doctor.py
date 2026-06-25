@@ -99,7 +99,6 @@ REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
     "[workflow-state:planning]",
     "[workflow-state:in_progress]",
     "[workflow-state:review]",
-    
     "[workflow-state:completed]",
     "runtime context",
     "UNKNOWN is not a delegated",
@@ -110,6 +109,7 @@ REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '"RUNTIME_CONTEXT_DISPATCH_V2"',
     '"HOST_ADAPTER_CAPABILITIES_V1"',
     '"HOST_ADAPTER_SCHEMA_V1"',
+    '"PARTY_MODE_V2_BOARD_V1"',
     '"readWhen"',
     '".cowork-flow/spec/contracts/subagent-dispatch.md"',
     '".cowork-flow/spec/contracts/capabilities.md"',

@@ -342,3 +342,9 @@ npm run release -- prerelease
 ```
 
 脚本会在任一步骤失败时停止后续发布动作。CI 仍会运行 Node CLI 测试、npm pack 内容检查和现有 Python 模板测试；GitHub Actions 的 `Publish npm Package` workflow 仍需要在仓库 secrets 中配置 `NPM_TOKEN`。
+
+可选集成测试位于 `tests/integration/`，依赖 Python 环境中的 `pytest`。它不属于默认发布链；需要验证时运行：
+
+```bash
+npm run test:integration
+```

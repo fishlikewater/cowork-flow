@@ -18,6 +18,7 @@
 | [异常处理](./error-handling.md) | 错误码、异常边界、统一返回 |
 | [日志规范](./logging-guidelines.md) | 结构化日志、敏感信息、链路标识 |
 | [质量规范](./quality-guidelines.md) | 测试、lint、门禁、禁止模式 |
+| [字符集编码规范](./encoding-guidelines.md) | 编码、换行、BOM 和跨平台读写约定 |
 
 ---
 

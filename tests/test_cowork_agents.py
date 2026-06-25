@@ -49,6 +49,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "check",
             "continue",
             "finish-work",
+            "game-design",
             "meta",
             "party-mode",
             "party-mode-v2",
