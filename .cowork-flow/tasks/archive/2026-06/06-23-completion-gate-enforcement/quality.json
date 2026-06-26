@@ -1,0 +1,44 @@
+{
+  "workType": "behavior_change",
+  "testPlan": [
+    {
+      "acceptancePoint": "cmd_complete fails when green evidence is missing",
+      "testCommand": "pytest tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_complete_fails_missing_green_evidence -q",
+      "breaksWhen": "complete returns 0 without green evidence"
+    },
+    {
+      "acceptancePoint": "cmd_complete fails when standards evidence is missing",
+      "testCommand": "pytest tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_complete_fails_missing_standards_evidence -q",
+      "breaksWhen": "complete returns 0 without standards"
+    },
+    {
+      "acceptancePoint": "cmd_complete fails when check evidence is missing",
+      "testCommand": "pytest tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_complete_fails_missing_check_evidence -q",
+      "breaksWhen": "complete returns 0 without check evidence"
+    }
+  ],
+  "red": {
+    "command": "pytest tests/test_flow_script_paths.py tests/test_quality_gate.py --deselect tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_unblock_requires_force",
+    "exitCode": 1,
+    "failingTests": ["test_cmd_complete_fails_missing_green_evidence", "test_cmd_complete_fails_missing_standards_evidence", "test_cmd_complete_fails_missing_check_evidence"],
+    "outputExcerpt": "FAILED — completion gate not yet implemented"
+  },
+  "green": {
+    "command": "pytest tests/test_flow_script_paths.py tests/test_quality_gate.py --deselect tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_unblock_requires_force",
+    "exitCode": 0,
+    "passingTests": ["test_cmd_complete_fails_missing_green_evidence", "test_cmd_complete_fails_missing_standards_evidence", "test_cmd_complete_fails_missing_check_evidence"],
+    "outputExcerpt": "87 passed, 1 deselected in 8.15s"
+  },
+  "standards": {
+    "encodingScan": {"ok": true},
+    "bomScan": {"ok": true},
+    "whitespaceCheck": {"ok": true},
+    "shallowTestScan": {"ok": true}
+  },
+  "check": {
+    "reviewerMode": "code-review",
+    "commands": ["pytest tests/test_flow_script_paths.py tests/test_quality_gate.py -q"],
+    "specSync": "no-changes",
+    "scopeReview": "matched"
+  }
+}

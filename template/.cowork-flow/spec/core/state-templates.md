@@ -50,14 +50,9 @@ Active task is in progress. Main session dispatches cowork-implement via the cur
 ## review
 
 [workflow-state:review]
-Active task has entered check stage. Main session dispatches cowork-check or performs equivalent inline check, verifying PRD, diff, tests, spec sync, and omissions; run task complete after check passes.
+Active task has entered check stage. task review enforced TDD evidence gate before this transition — quality.json must contain valid testPlan and red evidence for behavior-changing tasks. Main session dispatches cowork-check or performs equivalent inline check, verifying PRD, diff, tests, quality.json evidence, spec sync, and omissions. L2 tasks additionally verify cross-layer diff for API/DB/message/permission/format/architecture boundaries. Run task complete after check passes.
 [/workflow-state:review]
 
-## checking
-
-[workflow-state:checking]
-Active task is in check stage. Main session dispatches cowork-check or performs equivalent inline check, verifying PRD, diff, tests, spec sync, and omissions; run task complete after check passes.
-[/workflow-state:checking]
 
 ## completed
 

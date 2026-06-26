@@ -1,0 +1,19 @@
+{
+  "workType": "docs_chore",
+  "standards": {
+    "encodingScan": {"ok": true},
+    "bomScan": {"ok": true},
+    "whitespaceCheck": {"ok": true},
+    "shallowTestScan": {"ok": true}
+  },
+  "check": {
+    "reviewerMode": "code-review",
+    "commands": [
+      "pytest tests/test_quality_gate.py tests/test_test_quality.py tests/test_coding_standards.py tests/test_flow_script_paths.py tests/test_cowork_agents.py tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py -q",
+      "doctor --subagent-safety",
+      "git diff --check"
+    ],
+    "specSync": "no-changes",
+    "scopeReview": "matched"
+  }
+}

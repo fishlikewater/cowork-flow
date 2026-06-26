@@ -54,6 +54,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "party-mode-v2",
             "python-design",
             "start",
+            "tdd",
             "update-spec",
             "writing-plans",
         }
@@ -102,7 +103,7 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
             for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
                          "finish-work", "meta", "party-mode", "party-mode-v2",
-                         "python-design", "start", "update-spec", "writing-plans"):
+                         "python-design", "start", "tdd", "update-spec", "writing-plans"):
                 self.assertTrue((base / "skills" / name / "SKILL.md").is_file())
             self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())

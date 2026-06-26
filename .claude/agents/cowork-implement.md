@@ -1,4 +1,4 @@
-﻿---
+---
 name: cowork-implement
 description: Cowork-flow implementation fixed subagent.
 tools: Read, Write, Edit, MultiEdit, Grep, Glob, LS, Bash

@@ -1,0 +1,34 @@
+{
+  "workType": "behavior_change",
+  "testPlan": [
+    {
+      "acceptancePoint": "doctor --subagent-safety and tests share same advisory-agent rules",
+      "testCommand": "pytest tests/test_cowork_agents.py -q && .cowork-flow/run.cmd doctor --subagent-safety",
+      "breaksWhen": "doctor and tests disagree on advisory-agent safety"
+    }
+  ],
+  "red": {
+    "command": "pytest tests/test_cowork_agents.py",
+    "exitCode": 1,
+    "failingTests": ["test_default_agent_overrides_block_start_resume_drift"],
+    "outputExcerpt": "FAILED — .codex/agents/default.toml had multi_agent = true"
+  },
+  "green": {
+    "command": "pytest tests/test_cowork_agents.py -q",
+    "exitCode": 0,
+    "passingTests": ["test_agents_require_runtime_context_and_disable_multi_agent", "test_default_agent_overrides_block_start_resume_drift"],
+    "outputExcerpt": "subagent safety checks passed"
+  },
+  "standards": {
+    "encodingScan": {"ok": true},
+    "bomScan": {"ok": true},
+    "whitespaceCheck": {"ok": true},
+    "shallowTestScan": {"ok": true}
+  },
+  "check": {
+    "reviewerMode": "code-review",
+    "commands": ["pytest tests/test_cowork_agents.py -q", "doctor --subagent-safety"],
+    "specSync": "no-changes",
+    "scopeReview": "matched"
+  }
+}

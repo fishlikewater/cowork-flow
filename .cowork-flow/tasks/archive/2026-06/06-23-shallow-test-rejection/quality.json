@@ -1,0 +1,39 @@
+{
+  "workType": "behavior_change",
+  "testPlan": [
+    {
+      "acceptancePoint": "shallow assert True is rejected",
+      "testCommand": "pytest tests/test_test_quality.py::TestQualityTest::test_rejects_assert_true -q",
+      "breaksWhen": "assert True passes scanner undetected"
+    },
+    {
+      "acceptancePoint": "meaningful assertions are accepted",
+      "testCommand": "pytest tests/test_test_quality.py::TestQualityTest::test_accepts_meaningful_assertion -q",
+      "breaksWhen": "meaningful test is falsely rejected"
+    }
+  ],
+  "red": {
+    "command": "pytest tests/test_test_quality.py",
+    "exitCode": 1,
+    "failingTests": ["test_rejects_assert_true", "test_rejects_existence_only_test"],
+    "outputExcerpt": "FAILED — scanner not yet implemented"
+  },
+  "green": {
+    "command": "pytest tests/test_test_quality.py -q",
+    "exitCode": 0,
+    "passingTests": ["test_rejects_assert_true", "test_accepts_meaningful_assertion"],
+    "outputExcerpt": "14 passed in 0.11s"
+  },
+  "standards": {
+    "encodingScan": {"ok": true},
+    "bomScan": {"ok": true},
+    "whitespaceCheck": {"ok": true},
+    "shallowTestScan": {"ok": true}
+  },
+  "check": {
+    "reviewerMode": "code-review",
+    "commands": ["pytest tests/test_test_quality.py tests/test_quality_gate.py -q"],
+    "specSync": "no-changes",
+    "scopeReview": "matched"
+  }
+}

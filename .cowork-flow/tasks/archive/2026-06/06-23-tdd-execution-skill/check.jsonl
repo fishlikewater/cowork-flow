@@ -1,0 +1,5 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": ".cowork-flow/plans/2026-06-23-lifecycle-tdd-quality-gates.md", "reason": "Acceptance plan for lifecycle TDD quality gates"}
+{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Skill and workflow contract tests"}
+{"file": "tests/test_host_adapters.py", "reason": "Host adapter skill mirror tests"}

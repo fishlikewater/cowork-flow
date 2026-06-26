@@ -1,4 +1,4 @@
-﻿---
+---
 name: cowork-check
 description: Cowork-flow check fixed subagent.
 tools: Read, Write, Edit, MultiEdit, Grep, Glob, LS, Bash

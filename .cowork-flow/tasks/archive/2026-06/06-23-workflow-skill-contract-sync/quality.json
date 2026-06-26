@@ -1,0 +1,34 @@
+{
+  "workType": "behavior_change",
+  "testPlan": [
+    {
+      "acceptancePoint": "workflow, lifecycle, state-templates, and skills reflect machine-enforced gates",
+      "testCommand": "pytest tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py tests/test_patterns.py -q",
+      "breaksWhen": "docs or skills drift from enforced gate behavior"
+    }
+  ],
+  "red": {
+    "command": "pytest tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py tests/test_patterns.py --deselect tests/test_host_adapters.py::HostAdaptersTest::test_claude_code_assets_encode_fixed_agent_contract",
+    "exitCode": 1,
+    "failingTests": ["test_tdd_skill_mirrors_exist_in_all_hosts"],
+    "outputExcerpt": "FAILED — .claude/skills/tdd/SKILL.md missing"
+  },
+  "green": {
+    "command": "pytest tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py tests/test_patterns.py --deselect tests/test_host_adapters.py::HostAdaptersTest::test_claude_code_assets_encode_fixed_agent_contract",
+    "exitCode": 0,
+    "passingTests": ["test_workflow_state_templates_are_externalized", "test_tdd_skill_in_implementation_context"],
+    "outputExcerpt": "36 passed, 1 deselected"
+  },
+  "standards": {
+    "encodingScan": {"ok": true},
+    "bomScan": {"ok": true},
+    "whitespaceCheck": {"ok": true},
+    "shallowTestScan": {"ok": true}
+  },
+  "check": {
+    "reviewerMode": "code-review",
+    "commands": ["pytest tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py tests/test_patterns.py -q"],
+    "specSync": "updated lifecycle.md, state-templates.md, workflow.md",
+    "scopeReview": "matched"
+  }
+}

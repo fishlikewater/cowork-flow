@@ -52,10 +52,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("[workflow-state:planning]", text)
             self.assertIn("[workflow-state:in_progress]", text)
             self.assertIn("[workflow-state:review]", text)
-            self.assertIn("[workflow-state:checking]", text)
             self.assertIn("[workflow-state:completed]", text)
             self.assertIn("runtime context", text)
+            self.assertIn("quality.json evidence", text)
             self.assertIn("UNKNOWN is not a delegated", text)
+            self.assertNotIn("[workflow-state:checking]", text)
             self.assertNotIn(LEGACY_HARD, text)
             self.assertNotIn(LEGACY_SOFT, text)
 

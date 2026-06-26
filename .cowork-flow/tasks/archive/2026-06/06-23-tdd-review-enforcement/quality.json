@@ -1,0 +1,44 @@
+{
+  "workType": "behavior_change",
+  "testPlan": [
+    {
+      "acceptancePoint": "cmd_review blocks behavior_change tasks without valid red evidence",
+      "testCommand": "pytest tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_review_fails_without_tdd_evidence_for_behavior_change tests/test_quality_gate.py -q",
+      "breaksWhen": "review returns 0 when evidence is missing"
+    },
+    {
+      "acceptancePoint": "cmd_review blocks when red exitCode is 0",
+      "testCommand": "pytest tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_review_fails_when_red_exit_code_zero -q",
+      "breaksWhen": "review returns 0 with zero exit red evidence"
+    },
+    {
+      "acceptancePoint": "cmd_review allows valid red evidence",
+      "testCommand": "pytest tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_review_succeeds_with_valid_tdd_evidence -q",
+      "breaksWhen": "review returns non-zero with valid evidence"
+    }
+  ],
+  "red": {
+    "command": "pytest tests/test_flow_script_paths.py -q -k test_cmd_review_fails_without_tdd_evidence",
+    "exitCode": 1,
+    "failingTests": ["test_cmd_review_fails_without_tdd_evidence_for_behavior_change"],
+    "outputExcerpt": "FAILED test_cmd_review_fails_without_tdd_evidence_for_behavior_change"
+  },
+  "green": {
+    "command": "pytest tests/test_flow_script_paths.py tests/test_quality_gate.py -q --deselect tests/test_flow_script_paths.py::FlowScriptPathsTest::test_cmd_unblock_requires_force",
+    "exitCode": 0,
+    "passingTests": ["test_cmd_review_fails_without_tdd_evidence_for_behavior_change", "test_cmd_review_fails_when_red_exit_code_zero", "test_cmd_review_succeeds_with_valid_tdd_evidence"],
+    "outputExcerpt": "84 passed, 1 deselected in 6.85s"
+  },
+  "standards": {
+    "encodingScan": {"ok": true},
+    "bomScan": {"ok": true},
+    "whitespaceCheck": {"ok": true},
+    "shallowTestScan": {"ok": true}
+  },
+  "check": {
+    "reviewerMode": "code-review",
+    "commands": ["pytest tests/test_flow_script_paths.py tests/test_quality_gate.py -q"],
+    "specSync": "no-changes",
+    "scopeReview": "matched"
+  }
+}

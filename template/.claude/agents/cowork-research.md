@@ -1,4 +1,4 @@
-﻿---
+---
 name: cowork-research
 description: Cowork-flow research fixed subagent.
 tools: Read, Grep, Glob, LS
