@@ -139,7 +139,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 ### L2: 跨层或重要行为变化
 
 适用：API / DB / 消息 / 权限 / 文件格式 / 架构边界 / 发布迁移 / 安全策略等变化。
-流程：`changes` -> `brainstorming` -> `read spec` -> `plan` -> `tasks` -> `implement` -> `cross layer check` -> `complete` -> `archive` -> `add session`。
+流程：`changes` -> `brainstorming` -> `read spec` -> `plan` -> `tasks` -> `implement` -> `review` -> `complete` -> `archive` -> `add session`。L2 任务在 `review` 阶段额外执行跨层 diff 验证。
 
 L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表会在
 `task next` 中展示。缺少 proposal/spec/design、计划、任务链接、关键假设、
@@ -187,7 +187,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
 
 ## 7. 检查阶段
 
-1. 先运行 `task next` 确认任务处于 `review` / `checking` 检查阶段。
+1. 先运行 `task next` 确认任务处于 `review` 检查阶段。
 2. 默认通过宿主适配器派发 `cowork-check`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/core/dispatch.md`。
 3. 检查内容：
     - PRD 验收标准是否满足。

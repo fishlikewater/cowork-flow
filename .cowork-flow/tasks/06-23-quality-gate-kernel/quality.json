@@ -1,0 +1,37 @@
+{
+  "workType": "behavior_change",
+  "testPlan": [
+    {
+      "acceptancePoint": "GateResult records ok/errors/warnings and quality gate validation works end-to-end",
+      "testCommand": "pytest tests/test_quality_gate.py -q",
+      "breaksWhen": "quality gate validation returns wrong result or fails to load evidence"
+    }
+  ],
+  "red": {
+    "command": "pytest tests/test_quality_gate.py -q",
+    "exitCode": 1,
+    "failingTests": ["test_validate_behavior_change_missing_red_fails", "test_validate_red_exit_zero_fails"],
+    "outputExcerpt": "FAILED — missing red evidence must block review gate"
+  },
+  "green": {
+    "command": "pytest tests/test_quality_gate.py -q",
+    "exitCode": 0,
+    "passingTests": ["test_gate_result_basic", "test_load_quality_evidence_utf8", "test_validate_tdd_evidence", "test_validate_completion_evidence"],
+    "outputExcerpt": "40 passed in"
+  },
+  "standards": {
+    "encodingScan": {"ok": true},
+    "bomScan": {"ok": true},
+    "whitespaceCheck": {"ok": true},
+    "shallowTestScan": {"ok": true}
+  },
+  "check": {
+    "reviewerMode": "integrated",
+    "commands": [
+      "pytest tests/test_quality_gate.py -q: 40 passed",
+      "git diff --check: passed"
+    ],
+    "specSync": "no-changes",
+    "scopeReview": "matched — quality_gate.py, test_quality_gate.py, plan created per acceptance"
+  }
+}

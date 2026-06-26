@@ -1,0 +1,37 @@
+{
+  "workType": "behavior_change",
+  "testPlan": [
+    {
+      "acceptancePoint": "TDD skill exists in all four mirror paths and tests verify contract",
+      "testCommand": "pytest tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py -q",
+      "breaksWhen": "skill mirrors missing or test assertions on skill content fail"
+    }
+  ],
+  "red": {
+    "command": "pytest tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py -q",
+    "exitCode": 1,
+    "failingTests": ["test_workflow_skills_tdd_mirror_consistency"],
+    "outputExcerpt": "FAILED — skill mirrors not yet created"
+  },
+  "green": {
+    "command": "pytest tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py -q",
+    "exitCode": 0,
+    "passingTests": ["test_workflow_skills_tdd_mirror_consistency", "test_host_adapter_skills_present"],
+    "outputExcerpt": "28 passed in"
+  },
+  "standards": {
+    "encodingScan": {"ok": true},
+    "bomScan": {"ok": true},
+    "whitespaceCheck": {"ok": true},
+    "shallowTestScan": {"ok": true}
+  },
+  "check": {
+    "reviewerMode": "integrated",
+    "commands": [
+      "pytest tests/test_workflow_parallel_sessions.py tests/test_host_adapters.py -q: 28 passed",
+      "git diff --check: passed"
+    ],
+    "specSync": "no-changes",
+    "scopeReview": "matched — TDD skill SKILL.md x4, task_context_defaults.py x2, tests x2 per acceptance"
+  }
+}
