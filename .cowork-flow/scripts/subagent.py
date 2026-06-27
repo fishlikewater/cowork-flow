@@ -81,6 +81,14 @@ def _host_context_prefix(host: str) -> str:
 def _suggest_host_context_key(host: str, runtime_context_id: str) -> str:
     return f"{_host_context_prefix(host)}_{runtime_context_id}"
 
+def _bind_command(host: str, runtime_context_id: str, host_context_key: str) -> str:
+    if host.strip().lower() == "claude-code":
+        return (
+            f"${{CLAUDE_PROJECT_DIR:-.}}/.cowork-flow/run subagent bind "
+            f"{runtime_context_id} {host_context_key}"
+        )
+    return f".cowork-flow/run subagent bind {runtime_context_id} {host_context_key}"
+
 def _resolve_agent_type(role: str, agent_type: str | None) -> tuple[str, str]:
     normalized_role = role.strip()
     requested = agent_type.strip() if isinstance(agent_type, str) else ""
@@ -220,7 +228,7 @@ def _create_runtime_context_payload(
             f"cowork_runtime_context_id: {runtime_context_id}\n"
             f"cowork_host_context_key: {host_context_key}"
         ),
-        "bindCommand": f".cowork-flow/run subagent bind {runtime_context_id} {host_context_key}",
+        "bindCommand": _bind_command(host, runtime_context_id, host_context_key),
         "runtimeContextStatus": "created_pending_bind",
         "childCreationStatus": "not_created_by_cowork_flow_cli",
     }

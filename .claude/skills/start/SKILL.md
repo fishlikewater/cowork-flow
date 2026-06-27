@@ -18,7 +18,7 @@ child must run the explicit shim bind before formal work.
 1. Read `AGENTS.md`.
 2. Read `.cowork-flow/workflow.md`.
 3. Read `.cowork-flow/config.yaml` for Codex dispatch hints and lifecycle hooks.
-4. Run `.cowork-flow/run resume` or `.\.cowork-flow\run.cmd resume` on Windows.
+4. Run `${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run resume` or `.\.cowork-flow\run.cmd resume` on Windows.
 5. Read the active task PRD and JSONL indexes only when a task is active.
 6. Read relevant `.cowork-flow/spec/*/index.md` files before code changes.
 
@@ -64,9 +64,9 @@ cowork_host_context_key: <host_context_key>
 ```
 
 Before spawning a formal child, create a runtime context with
-`.cowork-flow/run subagent init` and pass the returned prompt transport through
+`${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run subagent init` and pass the returned prompt transport through
 the active Host Adapter. The child's first step is
-`.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`; if a
+`${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`; if a
 hook/plugin already bound the same key, this command is idempotent. The parent
 must verify `status=bound` and `bound_context_key=<host_context_key>` before
 accepting output. If binding is missing, closed, invalid, or mismatched, the
@@ -75,4 +75,4 @@ or coordinate other agents.
 
 After dispatch, use adapter wait/list/cancel primitives, review the output,
 verify deliverables, and close the runtime context with
-`.cowork-flow/run subagent close <runtime_context_id>`.
+`${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run subagent close <runtime_context_id>`.

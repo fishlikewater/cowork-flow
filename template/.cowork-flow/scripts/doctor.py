@@ -151,6 +151,7 @@ REQUIRED_OPENCODE_AGENT_SNIPPETS = [
     "mode: subagent",
     "task: deny",
     "cowork_runtime_context_id: <runtime_context_id>",
+    "DB `runtime_context` row",
     "bound runtime context",
     "leaf executor",
 ]
@@ -158,9 +159,14 @@ REQUIRED_OPENCODE_AGENT_SNIPPETS = [
 REQUIRED_CLAUDE_AGENT_SNIPPETS = [
     "name:",
     "cowork_runtime_context_id: <runtime_context_id>",
+    "DB `runtime_context` row",
     "bound runtime context",
     "leaf executor",
     "Do not use the Task tool or invoke subagents",
+]
+
+FORBIDDEN_RUNTIME_FILE_SNIPPETS = [
+    ".runtime/subagents",
 ]
 
 REQUIRED_RUNTIME_COMMAND_SNIPPETS = [
@@ -175,10 +181,25 @@ REQUIRED_CLAUDE_SKILL_SNIPPETS = [
 ]
 
 REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS = [
-    ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+    "${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run python",
+    "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py",
     "UserPromptSubmit",
     "SessionStart",
 ]
+
+
+def _check_claude_skill_commands_anchored(path: Path, errors: list[str]) -> None:
+    if not path.is_file():
+        errors.append(f"missing file: {path}")
+        return
+    text = path.read_text(encoding="utf-8")
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if ".cowork-flow/run" not in line:
+            continue
+        if ".\\.cowork-flow\\run.cmd" in line:
+            continue
+        if "${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run" not in line:
+            errors.append(f"{path}:{line_number} has unanchored Claude Code command")
 
 
 def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> None:
@@ -325,6 +346,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         "template/.opencode/agents/cowork-check.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_OPENCODE_AGENT_SNIPPETS, errors)
+        _check_file_omits(repo_root / rel, FORBIDDEN_RUNTIME_FILE_SNIPPETS, errors)
     for rel in (
         ".claude/agents/cowork-research.md",
         ".claude/agents/cowork-implement.md",
@@ -334,6 +356,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         "template/.claude/agents/cowork-check.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_AGENT_SNIPPETS, errors)
+        _check_file_omits(repo_root / rel, FORBIDDEN_RUNTIME_FILE_SNIPPETS, errors)
     for rel in (
         ".claude/commands/cowork-research.md",
         ".claude/commands/cowork-implement.md",
@@ -361,6 +384,12 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         f"template/.claude/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
+    for skill_root in (
+        repo_root / ".claude" / "skills",
+        repo_root / "template" / ".claude" / "skills",
+    ):
+        for skill in skill_root.glob("*/SKILL.md"):
+            _check_claude_skill_commands_anchored(skill, errors)
     for rel in (
         ".claude/settings.json",
         "template/.claude/settings.json",
@@ -397,6 +426,12 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
             [
                 "@AGENTS.md",
                 "<!-- COWORK-FLOW:START -->",
+            ],
+            errors,
+        )
+        _check_file_omits(
+            repo_root / rel,
+            [
                 ".cowork-flow/run subagent init",
                 "cowork_runtime_context_id: <runtime_context_id>",
                 ".claude/agents/cowork-implement.md",

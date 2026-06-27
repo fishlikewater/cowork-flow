@@ -1,0 +1,41 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": "tests/test_claude_hooks.py", "reason": "Regression coverage for Claude settings command"}
+{"file": ".claude/settings.json", "reason": "Claude Code hook command root anchoring"}
+{"file": "template/.claude/settings.json", "reason": "Template Claude Code hook command root anchoring"}
+{"file": ".cowork-flow/scripts/subagent.py", "reason": "Host-specific bindCommand generation"}
+{"file": "template/.cowork-flow/scripts/subagent.py", "reason": "Template host-specific bindCommand generation"}
+{"file": ".cowork-flow/scripts/doctor.py", "reason": "Subagent safety doctor contract"}
+{"file": "template/.cowork-flow/scripts/doctor.py", "reason": "Template subagent safety doctor contract"}
+{"file": ".cowork-flow/spec/reference/adapters/capabilities.md", "reason": "Adapter command root anchoring contract"}
+{"file": "template/.cowork-flow/spec/reference/adapters/capabilities.md", "reason": "Template adapter command root anchoring contract"}
+{"file": ".cowork-flow/spec/registry.json", "reason": "Spec registry digest"}
+{"file": "template/.cowork-flow/spec/registry.json", "reason": "Template spec registry digest"}
+{"file": ".claude/commands/cowork-implement.md", "reason": "Claude implement command root anchoring"}
+{"file": ".claude/commands/cowork-check.md", "reason": "Claude check command root anchoring"}
+{"file": ".claude/commands/cowork-research.md", "reason": "Claude research command root anchoring"}
+{"file": "template/.claude/commands/cowork-implement.md", "reason": "Template Claude implement command root anchoring"}
+{"file": "template/.claude/commands/cowork-check.md", "reason": "Template Claude check command root anchoring"}
+{"file": "template/.claude/commands/cowork-research.md", "reason": "Template Claude research command root anchoring"}
+{"file": ".claude/agents/cowork-implement.md", "reason": "Claude implement agent bind/root and DB authority"}
+{"file": ".claude/agents/cowork-check.md", "reason": "Claude check agent bind/root and DB authority"}
+{"file": ".claude/agents/cowork-research.md", "reason": "Claude research agent bind/root and DB authority"}
+{"file": "template/.claude/agents/cowork-implement.md", "reason": "Template Claude implement agent bind/root and DB authority"}
+{"file": "template/.claude/agents/cowork-check.md", "reason": "Template Claude check agent bind/root and DB authority"}
+{"file": "template/.claude/agents/cowork-research.md", "reason": "Template Claude research agent bind/root and DB authority"}
+{"file": ".opencode/agents/cowork-implement.md", "reason": "OpenCode implement DB authority wording"}
+{"file": ".opencode/agents/cowork-check.md", "reason": "OpenCode check DB authority wording"}
+{"file": ".opencode/agents/cowork-research.md", "reason": "OpenCode research DB authority wording"}
+{"file": "template/.opencode/agents/cowork-implement.md", "reason": "Template OpenCode implement DB authority wording"}
+{"file": "template/.opencode/agents/cowork-check.md", "reason": "Template OpenCode check DB authority wording"}
+{"file": "template/.opencode/agents/cowork-research.md", "reason": "Template OpenCode research DB authority wording"}
+{"file": ".claude/skills/continue/SKILL.md", "reason": "Claude continue skill command root anchoring"}
+{"file": ".claude/skills/finish-work/SKILL.md", "reason": "Claude finish-work skill command root anchoring"}
+{"file": ".claude/skills/party-mode-v2/SKILL.md", "reason": "Claude Party Mode skill command root anchoring"}
+{"file": ".claude/skills/start/SKILL.md", "reason": "Claude start skill command root anchoring"}
+{"file": ".claude/skills/writing-plans/SKILL.md", "reason": "Claude writing-plans skill command root anchoring"}
+{"file": "template/.claude/skills/continue/SKILL.md", "reason": "Template Claude continue skill command root anchoring"}
+{"file": "template/.claude/skills/finish-work/SKILL.md", "reason": "Template Claude finish-work skill command root anchoring"}
+{"file": "template/.claude/skills/party-mode-v2/SKILL.md", "reason": "Template Claude Party Mode skill command root anchoring"}
+{"file": "template/.claude/skills/start/SKILL.md", "reason": "Template Claude start skill command root anchoring"}
+{"file": "template/.claude/skills/writing-plans/SKILL.md", "reason": "Template Claude writing-plans skill command root anchoring"}

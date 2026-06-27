@@ -202,6 +202,47 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual(".cowork-flow/tasks/05-29-demo", payload["taskDir"])
             self.assertEqual("formal", payload["dispatchKind"])
 
+    def test_init_emits_project_anchored_bind_command_for_claude_code(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "init",
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "--title",
+                    "Claude probe",
+                    "--role",
+                    "implement",
+                    "--agent-type",
+                    "cowork-implement",
+                    "--host",
+                    "claude-code",
+                    "--adapter",
+                    "claude-code.subagent",
+                ],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["hostContextKey"].startswith("claude_"))
+            self.assertEqual(
+                (
+                    f"${{CLAUDE_PROJECT_DIR:-.}}/.cowork-flow/run subagent bind "
+                    f"{payload['runtimeContextId']} {payload['hostContextKey']}"
+                ),
+                payload["bindCommand"],
+            )
+
     def test_dispatch_codex_emits_spawn_payload_with_required_bind_step(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

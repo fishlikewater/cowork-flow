@@ -483,7 +483,11 @@ class ClaudeHooksTest(unittest.TestCase):
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
         for event_name in ("UserPromptSubmit", "SessionStart"):
             command = settings["hooks"][event_name][0]["hooks"][0]["command"]
-            self.assertEqual(".cowork-flow/run python .claude/hooks/inject-workflow-state.py", command)
+            self.assertEqual(
+                "${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run python "
+                "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py",
+                command,
+            )
             self.assertFalse(command.startswith("python "))
 
     def test_settings_command_executes_without_bare_python(self) -> None:
@@ -494,7 +498,8 @@ class ClaudeHooksTest(unittest.TestCase):
             settings = json.loads((root / ".claude" / "settings.json").read_text(encoding="utf-8"))
             command = settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
 
-            command_parts = shlex.split(command)
+            resolved_command = command.replace("${CLAUDE_PROJECT_DIR:-.}", root.as_posix())
+            command_parts = shlex.split(resolved_command)
             if os.name == "nt":
                 command_parts[0] = str(root / ".cowork-flow" / "run.cmd")
             result = subprocess.run(

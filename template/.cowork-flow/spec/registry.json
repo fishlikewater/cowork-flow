@@ -31,6 +31,7 @@
       "path": ".cowork-flow/spec/reference/adapters/capabilities.md",
       "digest": [
         "Formal subagent work requires runtime context dispatch and binding.",
+        "Host-executed commands, including Claude Code skill examples, must be anchored to the project root when the host cwd is not guaranteed.",
         "Missing required host capabilities fall back to inline_or_manual."
       ],
       "readWhen": [

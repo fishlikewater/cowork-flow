@@ -20,14 +20,14 @@ Use this skill as a thin entrypoint for the Party Mode V2 runtime board. The Pyt
 Always use the runtime controller:
 
 ```text
-.cowork-flow/run party-v2 init
-.cowork-flow/run party-v2 monitor
-.cowork-flow/run party-v2 view
-.cowork-flow/run party-v2 post
-.cowork-flow/run party-v2 respond
-.cowork-flow/run party-v2 advance
-.cowork-flow/run party-v2 record-action-result
-.cowork-flow/run party-v2 finalize
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run party-v2 init
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run party-v2 monitor
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run party-v2 view
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run party-v2 post
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run party-v2 respond
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run party-v2 advance
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run party-v2 record-action-result
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run party-v2 finalize
 ```
 
 Do not bypass a runtime rejection by manually accepting child output. Runtime validation failures must be fixed by a corrected child submission or by ending the discussion.

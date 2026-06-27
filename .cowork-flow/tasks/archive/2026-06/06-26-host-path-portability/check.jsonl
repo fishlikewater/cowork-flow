@@ -1,0 +1,10 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/test_cowork_agents.py", "reason": "Agent inventory and settings coverage"}
+{"file": "tests/test_host_adapters.py", "reason": "Host adapter settings path coverage"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "Runtime bindCommand regression"}
+{"file": "tests/test_no_legacy_template_paths.py", "reason": "Template legacy path guard"}
+{"file": ".claude/skills/start/SKILL.md", "reason": "Claude skill command root anchoring guard"}
+{"file": "template/.claude/skills/start/SKILL.md", "reason": "Template Claude skill command root anchoring guard"}
+{"file": ".cowork-flow/scripts/doctor.py", "reason": "Host adapter doctor root anchoring guard"}
+{"file": "template/.cowork-flow/scripts/doctor.py", "reason": "Template host adapter doctor root anchoring guard"}

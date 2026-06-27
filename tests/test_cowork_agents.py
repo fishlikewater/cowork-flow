@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import unittest
 from pathlib import Path
 
@@ -12,6 +13,11 @@ except ModuleNotFoundError:  # Python 3.8-3.10
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY_BOUNDARY = "entry" + "-boundary"
+CLAUDE_RUN = "${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run"
+
+
+def render_claude_skill_mirror(text: str) -> str:
+    return text.replace(".cowork-flow/run", CLAUDE_RUN)
 
 
 def load_agent_toml(path: Path) -> dict[str, str]:
@@ -101,6 +107,19 @@ class CoworkAgentsTest(unittest.TestCase):
                 self.assertTrue((base / "commands" / f"{name}.md").is_file())
             self.assertTrue((base / "settings.json").is_file())
             self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
+            settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))
+            expected_hook_command = (
+                "${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run python "
+                "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py"
+            )
+            self.assertEqual(
+                expected_hook_command,
+                settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"],
+            )
+            self.assertEqual(
+                expected_hook_command,
+                settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+            )
             for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
                          "finish-work", "meta", "party-mode", "party-mode-v2",
                          "python-design", "start", "tdd", "update-spec", "writing-plans"):
@@ -109,7 +128,7 @@ class CoworkAgentsTest(unittest.TestCase):
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
         self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
 
-    def test_claude_code_skills_mirror_agent_skills(self) -> None:
+    def test_claude_code_skills_mirror_agent_skills_with_project_anchored_commands(self) -> None:
         for source_base, claude_base in (
             (ROOT / ".agents" / "skills", ROOT / ".claude" / "skills"),
             (ROOT / "template" / ".agents" / "skills", ROOT / "template" / ".claude" / "skills"),
@@ -118,10 +137,14 @@ class CoworkAgentsTest(unittest.TestCase):
                 mirror = claude_base / source.parent.name / "SKILL.md"
                 self.assertTrue(mirror.is_file(), str(mirror))
                 self.assertEqual(
-                    source.read_text(encoding="utf-8"),
+                    render_claude_skill_mirror(source.read_text(encoding="utf-8")),
                     mirror.read_text(encoding="utf-8"),
                     str(mirror),
                 )
+
+                mirror_text = mirror.read_text(encoding="utf-8")
+                if ".cowork-flow/run" in source.read_text(encoding="utf-8"):
+                    self.assertIn(CLAUDE_RUN, mirror_text, str(mirror))
 
     def test_party_mode_skill_defines_bounded_advisory_roundtable(self) -> None:
         required_markers = (
@@ -279,6 +302,8 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
             self.assertIn("cowork_host_context_key: <host_context_key>", text)
             self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
+            self.assertIn("DB `runtime_context` row", text)
+            self.assertNotIn(".runtime/subagents", text)
             self.assertIn("bound runtime context", text)
             self.assertIn("report needs_context", text)
             self.assertIn("MUST NOT spawn", text)
@@ -342,6 +367,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS",
             "FORBIDDEN_README_DISPATCH_SNIPPETS",
             "_check_file_omits",
+            "_check_claude_skill_commands_anchored",
             "cmd_host_adapters",
             ".cowork-flow/adapters/claude-code/adapter.yaml",
             ".claude/agents/cowork-implement.md",

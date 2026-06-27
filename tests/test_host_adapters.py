@@ -259,6 +259,8 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn(
                     "subagent bind <runtime_context_id> <host_context_key>", text
                 )
+                self.assertIn("DB `runtime_context` row", text)
+                self.assertNotIn(".runtime/subagents", text)
                 self.assertIn("bound runtime context", text)
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
@@ -304,6 +306,8 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn(
                     "subagent bind <runtime_context_id> <host_context_key>", text
                 )
+                self.assertIn("DB `runtime_context` row", text)
+                self.assertNotIn(".runtime/subagents", text)
                 self.assertIn("bound runtime context", text)
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
@@ -312,26 +316,34 @@ class HostAdaptersTest(unittest.TestCase):
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn(f"Use the `{name}` agent", text)
-                self.assertIn(".cowork-flow/run subagent init", text)
+                self.assertIn("${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run subagent init", text)
                 self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
                 self.assertIn(
-                    "subagent bind <runtime_context_id> <host_context_key>", text
+                    "${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>", text
                 )
 
             for name in ("start", "check"):
                 text = (base / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
                 self.assertIn("name:", text)
                 self.assertIn("description:", text)
+            for skill in base.glob("skills/*/SKILL.md"):
+                for line in skill.read_text(encoding="utf-8").splitlines():
+                    if ".cowork-flow/run" in line and ".\\.cowork-flow\\run.cmd" not in line:
+                        self.assertIn("${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run", line, str(skill))
             self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
 
             settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))
+            expected_hook_command = (
+                "${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run python "
+                "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py"
+            )
             self.assertEqual(
-                ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+                expected_hook_command,
                 settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"],
             )
             self.assertEqual(
-                ".cowork-flow/run python .claude/hooks/inject-workflow-state.py",
+                expected_hook_command,
                 settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
             )
             hook = (base / "hooks" / "inject-workflow-state.py").read_text(

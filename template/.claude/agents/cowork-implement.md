@@ -16,11 +16,11 @@ cowork_host_context_key: <host_context_key>
 ```
 
 The hook may bind that id to
-`.cowork-flow/.runtime/subagents/<runtime_context_id>.json` before workflow
+the DB `runtime_context` row before workflow
 state is injected. The first child step must still run:
 
 ```bash
-./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
+${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
 ```
 
 If the explicit bind fails, or if the bound context is missing, closed, invalid,

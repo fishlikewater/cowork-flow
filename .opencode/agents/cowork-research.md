@@ -1,4 +1,4 @@
-﻿---
+---
 description: Cowork-flow research-only fixed subagent.
 mode: subagent
 permission:
@@ -23,7 +23,7 @@ cowork_host_context_key: <host_context_key>
 ```
 
 The plugin may bind that id to
-`.cowork-flow/.runtime/subagents/<runtime_context_id>.json` before workflow
+the DB `runtime_context` row before workflow
 state is injected. The first child step must still run:
 
 ```bash

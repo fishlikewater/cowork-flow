@@ -187,3 +187,33 @@ Scanned and fixed delivery blockers for lifecycle TDD quality gates: aligned rev
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 69: Fix Claude Code host path portability
+
+**Date**: 2026-06-27
+**Task**: Fix Claude Code host path portability
+
+### Summary
+
+Anchored Claude Code hook, command, agent, skill, and runtime bind commands through CLAUDE_PROJECT_DIR; updated root/template assets, host adapter spec, doctor guards, and regression tests; verified focused Python suite, doctor checks, diff/BOM/root-template scans, and npm run test:all.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

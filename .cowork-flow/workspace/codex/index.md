@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 68
-- **Last Active**: 2026-06-26
+- **Total Sessions**: 69
+- **Last Active**: 2026-06-27
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~189 | Current |
+| `journal-2.md` | ~219 | Current |
 | `journal-1.md` | ~1992 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 69 | 2026-06-27 | Fix Claude Code host path portability | - |
 | 68 | 2026-06-26 | Deliver lifecycle TDD quality gates | - |
 | 67 | 2026-06-19 | Clarify formal subagent dispatch visibility | - |
 | 66 | 2026-06-18 | Verify cowork-flow end-to-end with a real task | - |
