@@ -1,0 +1,1 @@
+{"acceptanceId":"AC-001","type":"exemption","exemptionType":"doc_only","reason":"Dry-run verification — all changes were restored. No code was committed.","verificationCommand":"git status --short -- .cowork-flow/scripts/commands/task.py"}

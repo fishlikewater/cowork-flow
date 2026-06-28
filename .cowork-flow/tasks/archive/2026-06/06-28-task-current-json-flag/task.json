@@ -1,0 +1,21 @@
+{
+  "id": "task-current-json-flag",
+  "name": "task-current-json-flag",
+  "title": "为 task current 命令增加 --json 输出格式",
+  "description": "验证新 plan 格式：task current 增加 --json 参数，输出当前任务信息的 JSON 格式",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-28",
+  "completedAt": "2026-06-28",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

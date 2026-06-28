@@ -1,0 +1,4 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Verify backend spec compliance"}
+{"file": ".cowork-flow/spec/frontend/index.md", "reason": "Verify frontend spec compliance"}
