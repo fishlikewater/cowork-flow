@@ -91,11 +91,12 @@ code changes without passing through this gate.
 
 加载任务上下文后继续：
 1. 读取 `<task>/prd.md`
-2. 读取 `<task>/implement.jsonl`
-3. 读取相关 spec 文件
-4. 行为变更任务：确认 `<task>/tdd.jsonl` red evidence 存在
-5. 声明确认的假设、成功标准、涉及文件、验证命令
-6. 继续实现
+2. 读取任务关联的 plan 文件（通过 `<task>/task.json` 的 relatedFiles 查找，或搜索 `.cowork-flow/plans/` 中引用此任务的文件），按 plan 步骤执行
+3. 读取 `<task>/implement.jsonl`
+4. 读取相关 spec 文件
+5. 行为变更任务：确认 `<task>/tdd.jsonl` red evidence 存在
+6. 声明确认的假设、成功标准、涉及文件、验证命令
+7. 继续实现
 
 主会话派发固定代理时，必须使用 runtime context dispatch 协议。
 
