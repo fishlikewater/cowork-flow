@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 66
-- **Last Active**: 2026-06-25
+- **Total Sessions**: 69
+- **Last Active**: 2026-06-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~127 | Current |
+| `journal-2.md` | ~223 | Current |
 | `journal-1.md` | ~2005 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,9 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 69 | 2026-06-28 | 测试验证 plan 可执行性改进效果 | `4c18d4a` |
+| 68 | 2026-06-28 | 补全主会话内联执行 plan 读取路径 | `4c18d4a` |
+| 67 | 2026-06-28 | 增强 plan 可执行性 — writing-plans skill 步骤格式 + 子代理 plan 读取 | `074555b` |
 | 66 | 2026-06-25 | 审计问题修复与归档 | - |
 | 65 | 2026-06-25 | 06-25-game-dev-flow-fixes | - |
 | 64 | 2026-06-25 | 06-25-game-dev-adapt | - |
