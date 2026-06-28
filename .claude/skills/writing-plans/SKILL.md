@@ -38,7 +38,29 @@ Start with:
 
 - Each task names exact files to create, modify, or test.
 - Each step is small enough to execute and verify independently.
-- Include commands and expected results.
+- **Every step MUST follow the executable format below** so subagents never guess:
+
+  ```markdown
+  ### Step N.M: <short description>
+
+  - **Files**: <exact file paths, one per line or comma-separated>
+  - **Action**: <one sentence describing the concrete change>
+  - **Verify**: `<command>` → `<expected output or exit code>`
+  - **Expected**: <what the file/state/system looks like after the step succeeds>
+  ```
+
+  For behavior-change steps, add TDD evidence:
+
+  ```markdown
+  - **TDD**: RED → GREEN
+    - redCommand: `<command>`
+    - redExitCode: 1
+    - greenCommand: `<command>`
+    - greenExitCode: 0
+    - acceptanceId: AC-001
+  ```
+
+- Include commands and expected results in every step.
 - Include a failing test before implementation when behavior can be tested.
 - Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mocks without behavior, or snapshot empty structure.
 - For complex problems, test depth first: cover invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.

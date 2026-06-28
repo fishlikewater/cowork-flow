@@ -1,0 +1,14 @@
+{"file": ".claude/skills/writing-plans/SKILL.md", "reason": "Verify step format requirements are included"}
+{"file": ".claude/agents/cowork-implement.md", "reason": "Verify plan reading step exists"}
+{"file": ".claude/agents/cowork-check.md", "reason": "Verify plan reading step exists"}
+{"file": "template/.claude/skills/writing-plans/SKILL.md", "reason": "Verify mirror consistency"}
+{"file": "template/.claude/agents/cowork-implement.md", "reason": "Verify mirror consistency"}
+{"file": "template/.claude/agents/cowork-check.md", "reason": "Verify mirror consistency"}
+{"file": ".codex/agents/cowork-implement.toml", "reason": "Verify plan reading in Codex implement"}
+{"file": ".codex/agents/cowork-check.toml", "reason": "Verify plan reading in Codex check"}
+{"file": ".opencode/agents/cowork-implement.md", "reason": "Verify plan reading in OpenCode implement"}
+{"file": ".opencode/agents/cowork-check.md", "reason": "Verify plan reading in OpenCode check"}
+{"file": "template/.codex/agents/cowork-implement.toml", "reason": "Verify template Codex mirror"}
+{"file": "template/.codex/agents/cowork-check.toml", "reason": "Verify template Codex mirror"}
+{"file": "template/.opencode/agents/cowork-implement.md", "reason": "Verify template OpenCode mirror"}
+{"file": "template/.opencode/agents/cowork-check.md", "reason": "Verify template OpenCode mirror"}

@@ -1,0 +1,1 @@
+{"acceptanceId":"AC-001","type":"exemption","exemptionType":"doc_only","reason":"Pure document/agent prompt update — no code behavior change. writing-plans skill format, agent prompt context loading steps.","verificationCommand":"grep -rl \"plan\" .claude/agents/ .codex/agents/ .opencode/agents/ template/"}

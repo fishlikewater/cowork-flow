@@ -1,0 +1,26 @@
+{
+  "id": "improve-plan-executability",
+  "name": "improve-plan-executability",
+  "title": "提升开发计划可执行性",
+  "description": "增强 plan 步骤粒度 + 子代理读取 plan 文件，减少执行偏差",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-28",
+  "completedAt": "2026-06-28",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".claude/skills/writing-plans/SKILL.md",
+    ".claude/agents/cowork-implement.md",
+    ".claude/agents/cowork-check.md",
+    ".cowork-flow/plans/2026-06-28-improve-plan-executability.md"
+  ],
+  "notes": "",
+  "meta": {}
+}

@@ -1,0 +1,15 @@
+{"file": ".claude/skills/writing-plans/SKILL.md", "reason": "Enhance step format requirements — add Files/Action/Verify/Expected per step"}
+{"file": ".claude/agents/cowork-implement.md", "reason": "Add plan file reading in context loading step"}
+{"file": ".claude/agents/cowork-check.md", "reason": "Add plan file reading in context loading step"}
+{"file": "template/.claude/skills/writing-plans/SKILL.md", "reason": "Mirror root writing-plans skill"}
+{"file": "template/.claude/agents/cowork-implement.md", "reason": "Mirror root cowork-implement agent"}
+{"file": "template/.claude/agents/cowork-check.md", "reason": "Mirror root cowork-check agent"}
+{"file": ".codex/agents/cowork-implement.toml", "reason": "Codex mirror — add plan reading"}
+{"file": ".codex/agents/cowork-check.toml", "reason": "Codex mirror — add plan reading"}
+{"file": ".opencode/agents/cowork-implement.md", "reason": "OpenCode mirror — add plan reading"}
+{"file": ".opencode/agents/cowork-check.md", "reason": "OpenCode mirror — add plan reading"}
+{"file": "template/.codex/agents/cowork-implement.toml", "reason": "Template Codex implement mirror"}
+{"file": "template/.codex/agents/cowork-check.toml", "reason": "Template Codex check mirror"}
+{"file": "template/.opencode/agents/cowork-implement.md", "reason": "Template OpenCode implement mirror"}
+{"file": "template/.opencode/agents/cowork-check.md", "reason": "Template OpenCode check mirror"}
+{"file": ".cowork-flow/changes/06-28-improve-plan-executability/change.yaml", "reason": "Update task link in change.yaml"}

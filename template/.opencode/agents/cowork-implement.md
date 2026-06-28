@@ -176,13 +176,14 @@ You MUST NOT do any of the following:
 1. Bind runtime context: `./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`
 2. Read task directory from bound runtime context
 3. Read `<task>/prd.md`, `<task>/info.md`, `<task>/implement.jsonl`, and each JSONL `file` entry
-4. Read pre-implementation checklist: `.cowork-flow/spec/guides/pre-implementation-checklist.md`
-5. Read relevant spec directory (backend or frontend) and ALL linked documents
-6. Apply coding gates — verify each gate before proceeding
-7. Implement changes within assigned scope
-8. Run verification commands (compile, lint, test, build, type-check)
-9. Report changed files and exact verification commands
-10. Do NOT run task start, task finish, task archive, unscoped resume, commit, or push
+4. Read the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/` for a plan file referencing this task directory). Follow the plan steps in order — each step has Files, Action, Verify, and Expected fields.
+5. Read pre-implementation checklist: `.cowork-flow/spec/guides/pre-implementation-checklist.md`
+6. Read relevant spec directory (backend or frontend) and ALL linked documents
+7. Apply coding gates — verify each gate before proceeding
+8. Implement changes within assigned scope
+9. Run verification commands (compile, lint, test, build, type-check)
+10. Report changed files and exact verification commands
+11. Do NOT run task start, task finish, task archive, unscoped resume, commit, or push
 
 ---
 
@@ -191,6 +192,7 @@ Rules:
 - Read the task directory from the bound runtime context.
 - Read `<task>/prd.md`, `<task>/info.md` if present, `<task>/implement.jsonl`,
   and each JSONL `file` entry.
+- Read the plan file linked from this task. Follow the plan steps in order.
 - Keep edits inside the assigned scope.
 - Report changed files and exact verification commands.
 - Do not use the `task` tool or invoke subagents.
