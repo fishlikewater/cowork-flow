@@ -12,20 +12,19 @@ from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-ROOT_SCRIPTS = ROOT / ".cowork-flow" / "scripts"
 TEMPLATE_SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 
 
 class TestPartyModeV2Runtime(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(ROOT_SCRIPTS))
+        sys.path.insert(0, str(TEMPLATE_SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.config = importlib.import_module("common.core.config")
         self.party_mode_v2 = importlib.import_module("commands.party_mode_v2")
 
     def _cleanup_imports(self) -> None:
-        if str(ROOT_SCRIPTS) in sys.path:
-            sys.path.remove(str(ROOT_SCRIPTS))
+        if str(TEMPLATE_SCRIPTS) in sys.path:
+            sys.path.remove(str(TEMPLATE_SCRIPTS))
         for module_name in (
             "commands.party_mode_v2",
             "common.core.config",
@@ -345,7 +344,7 @@ party_mode_v2:
             process = subprocess.Popen(
                 [
                     sys.executable,
-                    str(ROOT_SCRIPTS / "commands" / "party_mode_v2.py"),
+                    str(TEMPLATE_SCRIPTS / "commands" / "party_mode_v2.py"),
                     "--repo-root",
                     str(root),
                     "post",
@@ -1024,36 +1023,16 @@ party_mode_v2:
             )
             self.assertTrue(final_report.is_file())
 
-    def test_root_and_template_runtime_assets_stay_in_sync(self) -> None:
-        pairs = (
-            (
-                ROOT / ".cowork-flow" / "scripts" / "commands" / "party_mode_v2.py",
-                TEMPLATE_SCRIPTS / "commands" / "party_mode_v2.py",
-            ),
-            (
-                ROOT / ".cowork-flow" / "scripts" / "run.py",
-                TEMPLATE_SCRIPTS / "run.py",
-            ),
-            (
-                ROOT / ".cowork-flow" / "scripts" / "common" / "core" / "config.py",
-                TEMPLATE_SCRIPTS / "common" / "core" / "config.py",
-            ),
-        )
-        for root_path, template_path in pairs:
-            self.assertEqual(
-                root_path.read_text(encoding="utf-8"),
-                template_path.read_text(encoding="utf-8"),
-                f"{root_path} differs from {template_path}",
-            )
+    def test_template_runtime_assets_are_valid(self) -> None:
+        # Verify template scripts exist and are valid
+        self.assertTrue((TEMPLATE_SCRIPTS / "commands" / "party_mode_v2.py").is_file())
+        self.assertTrue((TEMPLATE_SCRIPTS / "run.py").is_file())
+        self.assertTrue((TEMPLATE_SCRIPTS / "common" / "core" / "config.py").is_file())
 
     def test_party_v2_command_is_registered(self) -> None:
-        for path in (
-            ROOT / ".cowork-flow" / "scripts" / "run.py",
-            TEMPLATE_SCRIPTS / "run.py",
-        ):
-            text = path.read_text(encoding="utf-8")
-            self.assertIn('"party-v2": "commands/party_mode_v2.py"', text)
-            self.assertIn('"party_v2": "commands/party_mode_v2.py"', text)
+        text = (TEMPLATE_SCRIPTS / "run.py").read_text(encoding="utf-8")
+        self.assertIn('"party-v2": "commands/party_mode_v2.py"', text)
+        self.assertIn('"party_v2": "commands/party_mode_v2.py"', text)
 
     def test_runner_dispatches_party_v2_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -1061,7 +1040,7 @@ party_mode_v2:
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / ".cowork-flow" / "scripts" / "run.py"),
+                    str(TEMPLATE_SCRIPTS / "run.py"),
                     "party-v2",
                     "--repo-root",
                     str(root),

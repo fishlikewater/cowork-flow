@@ -240,16 +240,12 @@ def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
             errors,
         )
     for rel in (
-        ".cowork-flow/adapters/codex/adapter.yaml",
-        ".cowork-flow/adapters/opencode/adapter.yaml",
-        ".cowork-flow/adapters/claude-code/adapter.yaml",
         "template/.cowork-flow/adapters/codex/adapter.yaml",
         "template/.cowork-flow/adapters/opencode/adapter.yaml",
         "template/.cowork-flow/adapters/claude-code/adapter.yaml",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
     for rel in (
-        ".cowork-flow/adapters/claude-code/adapter.yaml",
         "template/.cowork-flow/adapters/claude-code/adapter.yaml",
     ):
         _check_file_contains(
@@ -268,30 +264,18 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     errors: list[str] = []
     _check_host_adapters(repo_root, errors)
     for rel in (
-        ".opencode/agents/cowork-research.md",
-        ".opencode/agents/cowork-implement.md",
-        ".opencode/agents/cowork-check.md",
         "template/.opencode/agents/cowork-research.md",
         "template/.opencode/agents/cowork-implement.md",
         "template/.opencode/agents/cowork-check.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_OPENCODE_AGENT_SNIPPETS, errors)
     for rel in (
-        ".claude/agents/cowork-research.md",
-        ".claude/agents/cowork-implement.md",
-        ".claude/agents/cowork-check.md",
         "template/.claude/agents/cowork-research.md",
         "template/.claude/agents/cowork-implement.md",
         "template/.claude/agents/cowork-check.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_AGENT_SNIPPETS, errors)
     for rel in (
-        ".claude/commands/cowork-research.md",
-        ".claude/commands/cowork-implement.md",
-        ".claude/commands/cowork-check.md",
-        ".opencode/commands/cowork-research.md",
-        ".opencode/commands/cowork-implement.md",
-        ".opencode/commands/cowork-check.md",
         "template/.claude/commands/cowork-research.md",
         "template/.claude/commands/cowork-implement.md",
         "template/.claude/commands/cowork-check.md",
@@ -301,26 +285,20 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
     for rel in (
-        ".claude/skills/start/SKILL.md",
-        ".claude/skills/check/SKILL.md",
-        "template/.claude/skills/start/SKILL.md",
-        "template/.claude/skills/check/SKILL.md",
+        "template/skills/start/SKILL.md",
+        "template/skills/check/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_SKILL_SNIPPETS, errors)
     for rel in (
-        f".claude/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"template/.claude/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
     for rel in (
-        ".claude/settings.json",
         "template/.claude/settings.json",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
     for rel in (
-        ".claude/hooks/inject-workflow-state.py",
         "template/.claude/hooks/inject-workflow-state.py",
-        ".codex/hooks/inject-workflow-state.py",
         "template/.codex/hooks/inject-workflow-state.py",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_HOOK_SNIPPETS, errors)
@@ -337,7 +315,6 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
             errors,
         )
     for rel in (
-        ".opencode/plugins/cowork-flow.js",
         "template/.opencode/plugins/cowork-flow.js",
     ):
         _check_file_contains(
@@ -366,19 +343,14 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     errors: list[str] = []
     for rel in (
-        ".agents/skills/start/SKILL.md",
-        "template/.agents/skills/start/SKILL.md",
+        "template/skills/start/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_START_SNIPPETS, errors)
     for rel in (
-        f".agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"template/.agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
     for rel in (
-        ".codex/agents/cowork-research.toml",
-        ".codex/agents/cowork-implement.toml",
-        ".codex/agents/cowork-check.toml",
         "template/.codex/agents/cowork-research.toml",
         "template/.codex/agents/cowork-implement.toml",
         "template/.codex/agents/cowork-check.toml",
@@ -401,9 +373,6 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     if (repo_root / "README.md").is_file():
         _check_file_omits(repo_root / "README.md", FORBIDDEN_README_DISPATCH_SNIPPETS, errors)
     for rel in (
-        ".codex/agents/worker.toml",
-        ".codex/agents/default.toml",
-        ".codex/agents/explorer.toml",
         "template/.codex/agents/worker.toml",
         "template/.codex/agents/default.toml",
         "template/.codex/agents/explorer.toml",
@@ -420,23 +389,17 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     _check_common_contracts(repo_root, errors)
     _check_host_adapters(repo_root, errors)
     for rel in (
-        ".codex/hooks.json",
         "template/.codex/hooks.json",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_HOOK_SNIPPETS, errors)
     for rel in (
-        ".codex/hooks/inject-workflow-state.py",
         "template/.codex/hooks/inject-workflow-state.py",
-        ".claude/hooks/inject-workflow-state.py",
         "template/.claude/hooks/inject-workflow-state.py",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_HOOK_SNIPPETS, errors)
     for rel in (
-        ".cowork-flow/scripts/commands/subagent.py",
         "template/.cowork-flow/scripts/commands/subagent.py",
-        ".cowork-flow/scripts/common/core/execution_context.py",
         "template/.cowork-flow/scripts/common/core/execution_context.py",
-        ".cowork-flow/scripts/common/task/active_task.py",
         "template/.cowork-flow/scripts/common/task/active_task.py",
     ):
         if not (repo_root / rel).is_file():

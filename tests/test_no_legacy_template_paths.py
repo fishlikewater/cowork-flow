@@ -122,7 +122,6 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
     def test_workspace_index_does_not_claim_live_developer_state(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "workspace" / "index.md",
             ROOT / "template" / ".cowork-flow" / "workspace" / "index.md",
         ):
             text = path.read_text(encoding="utf-8")

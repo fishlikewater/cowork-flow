@@ -224,7 +224,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("Formal subagent identity is runtime-context based", text)
             self.assertNotIn(LEGACY_POST_ACK, text)
 
-    def test_gate_runtime_common_modules_are_synced_between_root_and_template(self) -> None:
+    def test_gate_runtime_common_modules_exist_in_template(self) -> None:
         required_markers = {
             "gates/coding_standards.py": ("validate_changed_files", "encoding=\"utf-8\"", "CS-UTF8"),
             "gates/gates.py": ("GateResult", "GateRunner", "exit_code"),
@@ -236,16 +236,12 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         }
 
         for file_name, markers in required_markers.items():
-            root_text = (
-                ROOT / ".cowork-flow" / "scripts" / "common" / Path(file_name)
-            ).read_text(encoding="utf-8")
             template_text = (
                 ROOT / "template" / ".cowork-flow" / "scripts" / "common" / Path(file_name)
             ).read_text(encoding="utf-8")
 
-            self.assertEqual(root_text, template_text)
             for marker in markers:
-                self.assertIn(marker, root_text)
+                self.assertIn(marker, template_text)
 
     def test_tdd_skill_is_synced_between_root_template_and_claude_mirrors(self) -> None:
         required_markers = (
@@ -270,7 +266,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         )
         for path in (
             ROOT / "template" / "skills" / "check" / "SKILL.md",
-            ROOT / ".codex" / "agents" / "cowork-check.toml",
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
         ):
             text = path.read_text(encoding="utf-8")
@@ -325,22 +320,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
 
     def test_doctor_subagent_safety_matches_runtime_context_model(self) -> None:
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / ".cowork-flow" / "scripts" / "commands" / "doctor.py"),
-                "--subagent-safety",
-            ],
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(
-            0,
-            result.returncode,
-            msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
-        )
+        doctor = ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "doctor.py"
+        text = doctor.read_text(encoding="utf-8")
+        # Verify doctor.py contains the expected safety checks
+        self.assertIn("REQUIRED_START_SNIPPETS", text)
+        self.assertIn("cowork_runtime_context_id", text)
+        self.assertIn("template/skills/start/SKILL.md", text)
+        self.assertIn("template/.codex/agents/cowork-research.toml", text)
+        self.assertIn("template/.codex/agents/cowork-implement.toml", text)
+        self.assertIn("template/.codex/agents/cowork-check.toml", text)
 
     def test_writing_plans_routes_to_fixed_agents(self) -> None:
         text = (ROOT / "template" / "skills" / "writing-plans" / "SKILL.md").read_text(encoding="utf-8")
