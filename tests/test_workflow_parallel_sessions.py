@@ -212,13 +212,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "adapter wait/list/cancel primitives",
             ".cowork-flow/run subagent close",
         )
-        for path in (
-            ROOT / "skills" / "start" / "SKILL.md",
-            ROOT / "template" / "skills" / "start" / "SKILL.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in skill_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
+        text = (ROOT / "template" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
+        for marker in skill_markers:
+            self.assertIn(marker, text, f"{marker} missing from template/skills/start/SKILL.md")
 
         for path in (
             ROOT / ".cowork-flow" / "config.yaml",
@@ -262,15 +258,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "ClassName.test_method",
             "exemption",
         )
-        root_text = (ROOT / "skills" / "tdd" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
-        for path in (
-            ROOT / "template" / "skills" / "tdd" / "SKILL.md",
-        ):
-            self.assertEqual(root_text, path.read_text(encoding="utf-8"), str(path))
+        tdd_text = (ROOT / "template" / "skills" / "tdd" / "SKILL.md").read_text(encoding="utf-8")
         for marker in required_markers:
-            self.assertIn(marker, root_text)
+            self.assertIn(marker, tdd_text)
 
     def test_check_skill_and_agent_require_test_intent_review(self) -> None:
         required_markers = (
@@ -279,7 +269,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "test_intent_review",
         )
         for path in (
-            ROOT / "skills" / "check" / "SKILL.md",
             ROOT / "template" / "skills" / "check" / "SKILL.md",
             ROOT / ".codex" / "agents" / "cowork-check.toml",
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
@@ -289,7 +278,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
     def test_start_skill_routes_to_fixed_agents(self) -> None:
-        text = (ROOT / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / "template" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Plan -> Implement -> Check -> Finish", text)
         self.assertIn("Host Adapter", text)
         self.assertNotIn("agent" + "-team-execution", text)
@@ -321,41 +310,19 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "Acceptance criteria",
             "Open questions, risks, or blockers",
         )
-        for path in (
-            ROOT / "skills" / "brainstorming" / "SKILL.md",
-            ROOT / "template" / "skills" / "brainstorming" / "SKILL.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in required_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
+        text = (ROOT / "template" / "skills" / "brainstorming" / "SKILL.md").read_text(encoding="utf-8")
+        for marker in required_markers:
+            self.assertIn(marker, text, f"{marker} missing from template/skills/brainstorming/SKILL.md")
 
     def test_start_skill_mentions_parallel_session_model(self) -> None:
-        for path in (
-            ROOT / "skills" / "start" / "SKILL.md",
-            ROOT / "template" / "skills" / "start" / "SKILL.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            self.assertIn("parallel sessions", text)
-            self.assertIn("separate `git worktree`", text)
-            self.assertIn("low-conflict slices", text)
-            self.assertIn("final integrated verification", text)
+        text = (ROOT / "template" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("parallel sessions", text)
+        self.assertIn("separate `git worktree`", text)
+        self.assertIn("low-conflict slices", text)
+        self.assertIn("final integrated verification", text)
 
     def test_entry_boundary_skill_is_removed(self) -> None:
-        for path in (
-            ROOT / "skills" / ENTRY_BOUNDARY / "SKILL.md",
-            ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
-        ):
-            self.assertFalse(path.exists(), str(path))
-
-    def test_start_brainstorming_and_writing_plan_root_and_template_are_synced(self) -> None:
-        for skill_name in ("start", "brainstorming", "writing-plans"):
-            root_skill = (ROOT / "skills" / skill_name / "SKILL.md").read_text(
-                encoding="utf-8"
-            )
-            template_skill = (
-                ROOT / "template" / "skills" / skill_name / "SKILL.md"
-            ).read_text(encoding="utf-8")
-            self.assertEqual(root_skill, template_skill)
+        self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
 
     def test_doctor_subagent_safety_matches_runtime_context_model(self) -> None:
         result = subprocess.run(
@@ -376,19 +343,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         )
 
     def test_writing_plans_routes_to_fixed_agents(self) -> None:
-        for path in (
-            ROOT / "skills" / "writing-plans" / "SKILL.md",
-            ROOT / "template" / "skills" / "writing-plans" / "SKILL.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            self.assertIn("cowork-implement", text)
-            self.assertIn("cowork-check", text)
-            self.assertIn("Host Adapter", text)
-            self.assertIn(".cowork-flow/run subagent init", text)
-            self.assertIn("cowork_runtime_context_id", text)
-            self.assertNotIn("spawn_agent", text)
-            self.assertNotIn("fork_turns=\"none\"", text)
-            self.assertNotIn("subagent-driven-development", text)
+        text = (ROOT / "template" / "skills" / "writing-plans" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("cowork-implement", text)
+        self.assertIn("cowork-check", text)
+        self.assertIn("Host Adapter", text)
+        self.assertIn(".cowork-flow/run subagent init", text)
+        self.assertIn("cowork_runtime_context_id", text)
+        self.assertNotIn("spawn_agent", text)
+        self.assertNotIn("fork_turns=\"none\"", text)
+        self.assertNotIn("subagent-driven-development", text)
 
     def test_template_workflow_matches_new_terms(self) -> None:
         text = (ROOT / "template" / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
@@ -414,21 +377,17 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("最终集成验证", text)
 
     def test_writing_plan_skills_require_parallel_scope_fields(self) -> None:
-        for path in (
-            ROOT / "skills" / "writing-plans" / "SKILL.md",
-            ROOT / "template" / "skills" / "writing-plans" / "SKILL.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            self.assertIn("executable scope", text)
-            self.assertIn("acceptance criteria", text)
-            self.assertIn("Execution strategy guide", text)
-            self.assertIn("Use serial work when slices share files", text)
-            self.assertIn("Use parallel low-conflict slices only when file ownership is clean", text)
-            self.assertIn("Use worktree parallel when independent tasks may touch", text)
-            self.assertIn("Parallel work items", text)
-            self.assertIn("Do not require the user to predeclare parallel execution", text)
-            self.assertIn("Every plan must state the execution strategy", text)
-            self.assertIn("file ownership", text)
-            self.assertIn("dependencies", text)
-            self.assertIn("expected outputs", text)
-            self.assertIn("verification commands", text)
+        text = (ROOT / "template" / "skills" / "writing-plans" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("executable scope", text)
+        self.assertIn("acceptance criteria", text)
+        self.assertIn("Execution strategy guide", text)
+        self.assertIn("Use serial work when slices share files", text)
+        self.assertIn("Use parallel low-conflict slices only when file ownership is clean", text)
+        self.assertIn("Use worktree parallel when independent tasks may touch", text)
+        self.assertIn("Parallel work items", text)
+        self.assertIn("Do not require the user to predeclare parallel execution", text)
+        self.assertIn("Every plan must state the execution strategy", text)
+        self.assertIn("file ownership", text)
+        self.assertIn("dependencies", text)
+        self.assertIn("expected outputs", text)
+        self.assertIn("verification commands", text)

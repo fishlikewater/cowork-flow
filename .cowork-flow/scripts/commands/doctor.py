@@ -378,17 +378,11 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
     for rel in (
-        ".agents/skills/before-dev/SKILL.md",
-        ".agents/skills/check/SKILL.md",
-        "skills/before-dev/SKILL.md",
-        "skills/check/SKILL.md",
         "template/skills/before-dev/SKILL.md",
         "template/skills/check/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_START_SNIPPETS, errors)
     for rel in (
-        f".agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
         f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
@@ -441,14 +435,10 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     errors: list[str] = []
     for rel in (
-        ".agents/skills/start/SKILL.md",
-        "skills/start/SKILL.md",
         "template/skills/start/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_START_SNIPPETS, errors)
     for rel in (
-        f".agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
         f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
