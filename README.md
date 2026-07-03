@@ -154,6 +154,8 @@ changes → brainstorming → read spec → plan → tasks → implement → che
 | 交互 | Host Adapter 协调 | Board API |
 | 产出 | 建议、证据、分歧、验收信号 | 同上 |
 
+party-mode、party-mode-v2 是两种 advisory roundtable 模式。默认 `max_agents=3`、`max_rounds=5`（v1）。`party-mode-v2` 是 runtime board controlled advisory workflow，子代理通过 board API 交流，主持人只监控和纠偏。
+
 > Party Mode 只产出建议，不能推进任务状态，也不能替代 `cowork-implement` / `cowork-check`。
 
 ## 发布

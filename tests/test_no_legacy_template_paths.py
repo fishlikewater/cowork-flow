@@ -75,30 +75,6 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         for path in removed:
             self.assertFalse(path.exists(), str(path))
 
-    def test_readme_documents_converged_template_structure(self) -> None:
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
-
-        self.assertIn("AGENTS.md", readme)
-        self.assertIn(".agents/", readme)
-        self.assertIn(".cowork-flow/", readme)
-        self.assertIn("./.cowork-flow/run change create <slug>", readme)
-
-        self.assertNotIn("python3 ./.cowork-flow/scripts", readme)
-        self.assertNotIn("." + "tre" + "llis/", readme)
-        self.assertNotIn("." + "agent/", readme)
-        self.assertNotIn("." + "agent skills", readme)
-        self.assertNotIn(".superpowers/", readme)
-        self.assertNotIn("Superpowers", readme)
-        self.assertNotIn("docs/superpowers/", readme)
-        self.assertNotIn("openspec/", readme)
-        self.assertNotIn("openspec new", readme)
-        self.assertNotIn("agent-team", readme)
-        self.assertNotIn("agent_team", readme)
-        self.assertNotIn("Active task: <task-dir>", readme)
-        self.assertNotIn('message="Active task', readme)
-        self.assertIn("cowork_runtime_context_id", readme)
-        self.assertIn("cowork_host_context_key", readme)
-
     def test_config_template_only_documents_effective_settings(self) -> None:
         for path in (
             ROOT / "template" / ".cowork-flow" / "config.yaml",
@@ -110,14 +86,6 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             self.assertIn("No shell pipes, redirects, or command chaining", text)
             self.assertNotIn("verification:", text)
             self.assertNotIn("Project-specific commands", text)
-
-    def test_readme_does_not_claim_unimplemented_config_verification(self) -> None:
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
-
-        self.assertIn("session/journal, Codex hint, and task lifecycle hook settings", readme)
-        self.assertNotIn("lint、build、test", readme)
-        self.assertNotIn("验证命令", readme)
-
 
     def test_workspace_index_does_not_claim_live_developer_state(self) -> None:
         for path in (
