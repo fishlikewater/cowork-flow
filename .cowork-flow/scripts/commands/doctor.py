@@ -303,13 +303,16 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     for rel in (
         ".claude/skills/start/SKILL.md",
         ".claude/skills/check/SKILL.md",
-        "template/.claude/skills/start/SKILL.md",
-        "template/.claude/skills/check/SKILL.md",
+        "skills/start/SKILL.md",
+        "skills/check/SKILL.md",
+        "template/skills/start/SKILL.md",
+        "template/skills/check/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_SKILL_SNIPPETS, errors)
     for rel in (
         f".claude/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"template/.claude/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
     for rel in (
@@ -317,6 +320,78 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         "template/.claude/settings.json",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
+    for rel in (
+        ".codex/hooks.json",
+        "template/.codex/hooks.json",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_HOOK_SNIPPETS, errors)
+    for rel in (
+        ".codex/hooks/inject-workflow-state.py",
+        "template/.codex/hooks/inject-workflow-state.py",
+        ".claude/hooks/inject-workflow-state.py",
+        "template/.claude/hooks/inject-workflow-state.py",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_HOOK_SNIPPETS, errors)
+    for rel in (
+        ".codex/hooks.json",
+        "template/.codex/hooks.json",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_HOOK_SNIPPETS, errors)
+    _check_common_contracts(repo_root, errors)
+    _check_host_adapters(repo_root, errors)
+    for rel in (
+        ".opencode/agents/cowork-research.md",
+        ".opencode/agents/cowork-implement.md",
+        ".opencode/agents/cowork-check.md",
+        "template/.opencode/agents/cowork-research.md",
+        "template/.opencode/agents/cowork-implement.md",
+        "template/.opencode/agents/cowork-check.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_OPENCODE_AGENT_SNIPPETS, errors)
+    for rel in (
+        ".opencode/commands/cowork-research.md",
+        ".opencode/commands/cowork-implement.md",
+        ".opencode/commands/cowork-check.md",
+        "template/.opencode/commands/cowork-research.md",
+        "template/.opencode/commands/cowork-implement.md",
+        "template/.opencode/commands/cowork-check.md",
+        ".opencode/commands/party-mode-v2.md",
+        "template/.opencode/commands/party-mode-v2.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
+    for rel in (
+        ".claude/agents/cowork-research.md",
+        ".claude/agents/cowork-implement.md",
+        ".claude/agents/cowork-check.md",
+        "template/.claude/agents/cowork-research.md",
+        "template/.claude/agents/cowork-implement.md",
+        "template/.claude/agents/cowork-check.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_AGENT_SNIPPETS, errors)
+    for rel in (
+        ".claude/commands/cowork-research.md",
+        ".claude/commands/cowork-implement.md",
+        ".claude/commands/cowork-check.md",
+        "template/.claude/commands/cowork-research.md",
+        "template/.claude/commands/cowork-implement.md",
+        "template/.claude/commands/cowork-check.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
+    for rel in (
+        ".agents/skills/before-dev/SKILL.md",
+        ".agents/skills/check/SKILL.md",
+        "skills/before-dev/SKILL.md",
+        "skills/check/SKILL.md",
+        "template/skills/before-dev/SKILL.md",
+        "template/skills/check/SKILL.md",
+    ):
+        _check_file_contains(repo_root / rel, REQUIRED_START_SNIPPETS, errors)
+    for rel in (
+        f".agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+    ):
+        _check_file_absent(repo_root / rel, errors)
     for rel in (
         ".claude/hooks/inject-workflow-state.py",
         "template/.claude/hooks/inject-workflow-state.py",
@@ -367,12 +442,14 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     errors: list[str] = []
     for rel in (
         ".agents/skills/start/SKILL.md",
-        "template/.agents/skills/start/SKILL.md",
+        "skills/start/SKILL.md",
+        "template/skills/start/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_START_SNIPPETS, errors)
     for rel in (
         f".agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-        f"template/.agents/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
+        f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
         _check_file_absent(repo_root / rel, errors)
     for rel in (

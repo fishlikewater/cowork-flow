@@ -10,6 +10,7 @@
     "bin",
     "src",
     "template",
+    "template/.zcode",
     "README.md",
     "!template/**/__pycache__/**",
     "!template/**/*.pyc"

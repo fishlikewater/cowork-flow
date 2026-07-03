@@ -95,6 +95,7 @@ test('init copies only claude-code host assets when platform is claude-code', as
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, 'CLAUDE.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills')), false);
+  assert.equal(await exists(join(target, '.claude', 'skills', 'start', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'entry_classifier.py')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')), true);
@@ -106,6 +107,7 @@ test('init copies only claude-code host assets when platform is claude-code', as
   assert.equal(await exists(join(target, '.claude', 'agents', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.claude', 'commands', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.claude', 'skills', 'start', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills')), false);
   assert.equal(await exists(join(target, '.claude', 'skills', 'entry' + '-boundary', 'SKILL.md')), false);
   assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
   assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
@@ -134,7 +136,7 @@ test('init copies all selected host platforms', async (t) => {
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
   assert.equal(await exists(join(target, '.claude', 'agents', 'cowork-check.md')), true);
-  assert.equal(await exists(join(target, '.claude', 'skills', 'check', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'check', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
   assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);

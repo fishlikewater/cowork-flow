@@ -3,7 +3,7 @@ import { access, chmod, copyFile, mkdir, readFile, readdir, rm, stat, writeFile 
 import { dirname, join, relative } from 'node:path';
 
 import { templateRoot } from './paths.js';
-import { shouldIncludeForPlatforms } from './platforms.js';
+import { shouldIncludeForPlatforms, skillDestinationForPlatform } from './platforms.js';
 
 async function pathExists(path) {
   try {
@@ -41,6 +41,7 @@ export async function buildInitPlan(targetDir, options = {}) {
   const files = await listFiles(templateRoot);
   const actions = [];
   const platforms = options.platforms ?? [];
+  const seen = new Set();
 
   for (const file of files) {
     if (!shouldIncludeForPlatforms(file, platforms)) {
@@ -54,11 +55,35 @@ export async function buildInitPlan(targetDir, options = {}) {
 
     const source = join(templateRoot, file);
     const destination = join(targetDir, file);
+    seen.add(destination);
     const exists = await pathExists(destination);
     const action = exists
       ? (options.force && templatePath !== '.cowork-flow/.developer' ? 'update' : 'skip')
       : 'create';
     actions.push({ action, source, destination, relativePath: file });
+  }
+
+  // Inject per-platform skills directories from the canonical template/skills/.
+  const skillsSrc = join(templateRoot, 'skills');
+  if (await pathExists(skillsSrc)) {
+    const skillEntries = await readdir(skillsSrc, { withFileTypes: true });
+    for (const entry of skillEntries) {
+      if (!entry.isDirectory()) continue;
+      const skillName = entry.name;
+      for (const platform of platforms) {
+        const destBase = skillDestinationForPlatform(platform);
+        if (!destBase) continue;
+        const dest = join(targetDir, destBase, skillName, 'SKILL.md');
+        if (seen.has(dest)) continue;
+        seen.add(dest);
+        actions.push({
+          action: (await pathExists(dest)) ? 'skip' : 'create',
+          source: join(skillsSrc, skillName, 'SKILL.md'),
+          destination: dest,
+          relativePath: join(destBase, skillName, 'SKILL.md')
+        });
+      }
+    }
   }
 
   const versionDestination = join(targetDir, '.cowork-flow', '.version');
@@ -206,18 +231,21 @@ export async function buildSyncPlan(targetDir, options = {}) {
   const files = await listFiles(templateRoot);
   const actions = [];
   const platforms = options.platforms ?? await detectInstalledPlatforms(targetDir);
+  const seen = new Set();
 
   for (const file of files) {
     if (!shouldIncludeForPlatforms(file, platforms)) {
       continue;
     }
 
+    const destination = join(targetDir, file);
+    seen.add(destination);
+
     if (toTemplatePath(file) === '.cowork-flow/.version') {
       continue;
     }
 
     const source = join(templateRoot, file);
-    const destination = join(targetDir, file);
     const exists = await pathExists(destination);
     if (file === 'AGENTS.md' || file === 'CLAUDE.md') {
       actions.push(await buildManagedBlockSyncAction({ source, destination, exists, options, relativePath: file }));
@@ -235,6 +263,30 @@ export async function buildSyncPlan(targetDir, options = {}) {
       actions.push({ action: 'create', source, destination, relativePath: file });
     } else {
       actions.push({ action: 'protected', source, destination, relativePath: file });
+    }
+  }
+
+  // Inject per-platform skills directories from the canonical template/skills/.
+  const skillsSrc = join(templateRoot, 'skills');
+  if (await pathExists(skillsSrc)) {
+    const skillEntries = await readdir(skillsSrc, { withFileTypes: true });
+    for (const entry of skillEntries) {
+      if (!entry.isDirectory()) continue;
+      const skillName = entry.name;
+      for (const platform of platforms) {
+        const destBase = skillDestinationForPlatform(platform);
+        if (!destBase) continue;
+        const dest = join(targetDir, destBase, skillName, 'SKILL.md');
+        if (seen.has(dest)) continue;
+        seen.add(dest);
+        const destExists = await pathExists(dest);
+        const safe = ['.agents/skills', '.claude/skills'].some((p) => dest.startsWith(join(targetDir, p)));
+        if (destExists && (safe || options.force)) {
+          actions.push({ action: 'update', source: join(skillsSrc, skillName, 'SKILL.md'), destination: dest, relativePath: join(destBase, skillName, 'SKILL.md') });
+        } else if (!destExists) {
+          actions.push({ action: 'create', source: join(skillsSrc, skillName, 'SKILL.md'), destination: dest, relativePath: join(destBase, skillName, 'SKILL.md') });
+        }
+      }
     }
   }
 

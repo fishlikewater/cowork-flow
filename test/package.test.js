@@ -54,17 +54,17 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.claude/commands/cowork-implement.md'), true);
   assert.equal(files.has('template/.claude/settings.json'), true);
   assert.equal(files.has('template/.claude/hooks/inject-workflow-state.py'), true);
-  assert.equal(files.has('template/.claude/skills/start/SKILL.md'), true);
+  assert.equal(files.has('template/.claude/skills/start/SKILL.md'), false);
   assert.equal(files.has('template/.claude/skills/' + 'entry' + '-boundary/SKILL.md'), false);
   assert.equal(files.has('template/.opencode/agents/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/commands/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/plugins/cowork-flow.js'), true);
-  assert.equal(files.has('template/.agents/skills/start/SKILL.md'), true);
-  assert.equal(files.has('template/.agents/skills/before-dev/SKILL.md'), true);
-  assert.equal(files.has('template/.agents/skills/check/SKILL.md'), true);
-  assert.equal(files.has('template/.agents/skills/continue/SKILL.md'), true);
-  assert.equal(files.has('template/.agents/skills/meta/SKILL.md'), true);
-  assert.equal(files.has('template/.agents/skills/python-design/SKILL.md'), true);
+  assert.equal(files.has('template/skills/start/SKILL.md'), true);
+  assert.equal(files.has('template/skills/before-dev/SKILL.md'), true);
+  assert.equal(files.has('template/skills/check/SKILL.md'), true);
+  assert.equal(files.has('template/skills/continue/SKILL.md'), true);
+  assert.equal(files.has('template/skills/meta/SKILL.md'), true);
+  assert.equal(files.has('template/skills/python-design/SKILL.md'), true);
   assert.equal([...files].some((file) => file.startsWith('template/.superpowers/')), false);
   assert.equal(
     [...files].some((file) => file.includes('__pycache__') || file.endsWith('.pyc')),

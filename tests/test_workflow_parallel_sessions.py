@@ -213,8 +213,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             ".cowork-flow/run subagent close",
         )
         for path in (
-            ROOT / ".agents" / "skills" / "start" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "start" / "SKILL.md",
+            ROOT / "skills" / "start" / "SKILL.md",
+            ROOT / "template" / "skills" / "start" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in skill_markers:
@@ -262,13 +262,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "ClassName.test_method",
             "exemption",
         )
-        root_text = (ROOT / ".agents" / "skills" / "tdd" / "SKILL.md").read_text(
+        root_text = (ROOT / "skills" / "tdd" / "SKILL.md").read_text(
             encoding="utf-8"
         )
         for path in (
-            ROOT / "template" / ".agents" / "skills" / "tdd" / "SKILL.md",
-            ROOT / ".claude" / "skills" / "tdd" / "SKILL.md",
-            ROOT / "template" / ".claude" / "skills" / "tdd" / "SKILL.md",
+            ROOT / "template" / "skills" / "tdd" / "SKILL.md",
         ):
             self.assertEqual(root_text, path.read_text(encoding="utf-8"), str(path))
         for marker in required_markers:
@@ -281,10 +279,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "test_intent_review",
         )
         for path in (
-            ROOT / ".agents" / "skills" / "check" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "check" / "SKILL.md",
-            ROOT / ".claude" / "skills" / "check" / "SKILL.md",
-            ROOT / "template" / ".claude" / "skills" / "check" / "SKILL.md",
+            ROOT / "skills" / "check" / "SKILL.md",
+            ROOT / "template" / "skills" / "check" / "SKILL.md",
             ROOT / ".codex" / "agents" / "cowork-check.toml",
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
         ):
@@ -293,7 +289,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
     def test_start_skill_routes_to_fixed_agents(self) -> None:
-        text = (ROOT / ".agents" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Plan -> Implement -> Check -> Finish", text)
         self.assertIn("Host Adapter", text)
         self.assertNotIn("agent" + "-team-execution", text)
@@ -326,8 +322,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "Open questions, risks, or blockers",
         )
         for path in (
-            ROOT / ".agents" / "skills" / "brainstorming" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "brainstorming" / "SKILL.md",
+            ROOT / "skills" / "brainstorming" / "SKILL.md",
+            ROOT / "template" / "skills" / "brainstorming" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -335,8 +331,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_start_skill_mentions_parallel_session_model(self) -> None:
         for path in (
-            ROOT / ".agents" / "skills" / "start" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "start" / "SKILL.md",
+            ROOT / "skills" / "start" / "SKILL.md",
+            ROOT / "template" / "skills" / "start" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("parallel sessions", text)
@@ -346,20 +342,18 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_entry_boundary_skill_is_removed(self) -> None:
         for path in (
-            ROOT / ".agents" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
-            ROOT / ".claude" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
-            ROOT / "template" / ".claude" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
+            ROOT / "skills" / ENTRY_BOUNDARY / "SKILL.md",
+            ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
         ):
             self.assertFalse(path.exists(), str(path))
 
     def test_start_brainstorming_and_writing_plan_root_and_template_are_synced(self) -> None:
         for skill_name in ("start", "brainstorming", "writing-plans"):
-            root_skill = (ROOT / ".agents" / "skills" / skill_name / "SKILL.md").read_text(
+            root_skill = (ROOT / "skills" / skill_name / "SKILL.md").read_text(
                 encoding="utf-8"
             )
             template_skill = (
-                ROOT / "template" / ".agents" / "skills" / skill_name / "SKILL.md"
+                ROOT / "template" / "skills" / skill_name / "SKILL.md"
             ).read_text(encoding="utf-8")
             self.assertEqual(root_skill, template_skill)
 
@@ -383,8 +377,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_writing_plans_routes_to_fixed_agents(self) -> None:
         for path in (
-            ROOT / ".agents" / "skills" / "writing-plans" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "writing-plans" / "SKILL.md",
+            ROOT / "skills" / "writing-plans" / "SKILL.md",
+            ROOT / "template" / "skills" / "writing-plans" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("cowork-implement", text)
@@ -421,8 +415,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_writing_plan_skills_require_parallel_scope_fields(self) -> None:
         for path in (
-            ROOT / ".agents" / "skills" / "writing-plans" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "writing-plans" / "SKILL.md",
+            ROOT / "skills" / "writing-plans" / "SKILL.md",
+            ROOT / "template" / "skills" / "writing-plans" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("executable scope", text)
