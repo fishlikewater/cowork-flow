@@ -1,6 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/scripts/commands/task.py", "reason": "init-context logic, will be modified"}
-{"file": ".cowork-flow/scripts/common/gates/tdd_evidence.py", "reason": "TDD gate, error message will be improved"}
-{"file": ".cowork-flow/changes/game-dev-flow-fixes/brainstorming.md", "reason": "Root cause analysis"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}

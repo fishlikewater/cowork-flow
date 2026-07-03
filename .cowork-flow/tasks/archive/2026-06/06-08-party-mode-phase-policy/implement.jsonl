@@ -1,8 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
-{"file": ".claude/skills/party-mode/SKILL.md", "reason": "Claude Party Mode mirror"}
-{"file": "template/.claude/skills/party-mode/SKILL.md", "reason": "template Claude Party Mode mirror"}
-{"file": "template/.agents/skills/party-mode/SKILL.md", "reason": "template agent Party Mode mirror"}
-{"file": ".agents/skills/party-mode/SKILL.md", "reason": "root Party Mode skill"}

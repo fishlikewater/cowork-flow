@@ -1,6 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests/test_flow_script_paths.py", "reason": "Lifecycle regression tests"}
-{"file": ".cowork-flow/changes/06-23-tdd-productization/spec.md", "reason": "Acceptance spec"}
-{"file": ".cowork-flow/tasks/06-23-gate-engine-state-machine/prd.md", "reason": "Task PRD"}
-{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Template/common module parity regression tests"}

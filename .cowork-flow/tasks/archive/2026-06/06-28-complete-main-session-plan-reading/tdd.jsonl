@@ -1,1 +1,0 @@
-{"acceptanceId":"AC-001","type":"exemption","exemptionType":"doc_only","reason":"Pure document/state-template update — no code behavior change. workflow-state-templates.md and before-dev skill context loading steps.","verificationCommand":"grep 'plan' .cowork-flow/spec/contracts/workflow-state-templates.md .claude/skills/before-dev/SKILL.md"}
