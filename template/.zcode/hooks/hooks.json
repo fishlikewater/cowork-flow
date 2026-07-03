@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js",
+            "async": false
+          }
+        ]
+      }
+    ]
+  }
+}

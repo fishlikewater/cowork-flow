@@ -296,10 +296,12 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
 
             for name in ("start", "check"):
-                text = (base / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
-                self.assertIn("name:", text)
-                self.assertIn("description:", text)
-            self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
+                for skills_base in (ROOT / "skills", ROOT / "template" / "skills"):
+                    text = (skills_base / name / "SKILL.md").read_text(encoding="utf-8")
+                    self.assertIn("name:", text)
+                    self.assertIn("description:", text)
+                self.assertFalse((ROOT / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
+                self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
 
             settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(
@@ -326,4 +328,4 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertNotIn(".cowork-flow/run subagent init", text)
             self.assertNotIn("cowork_runtime_context_id: <runtime_context_id>", text)
             self.assertNotIn(".claude/agents/cowork-implement.md", text)
-            self.assertNotIn(".claude/skills/", text)
+            self.assertNotIn("skills/", text)

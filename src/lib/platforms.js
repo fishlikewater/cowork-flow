@@ -50,9 +50,19 @@ export function formatPlatformList(platforms) {
 
 export function shouldIncludeForPlatforms(relativePath, platforms) {
   const normalized = relativePath.replaceAll('\\', '/');
-  if (normalized.startsWith('.agents/skills/')) {
-    return platforms.includes('codex') || platforms.includes('opencode');
+
+  // Canonical skills directory at template root — never copied directly;
+  // init logic injects per-platform copies separately.
+  if (normalized.startsWith('skills/')) {
+    return false;
   }
+
+  // ZCode plugin bundle (.zcode/) is installed via a dedicated
+  // command, not by init/sync; keep it out of project directories.
+  if (normalized.startsWith(".zcode")) {
+    return false;
+  }
+
   if (normalized.startsWith('.codex/') || normalized.startsWith('.cowork-flow/adapters/codex/')) {
     return platforms.includes('codex');
   }
@@ -67,4 +77,19 @@ export function shouldIncludeForPlatforms(relativePath, platforms) {
     return platforms.includes('claude-code');
   }
   return true;
+}
+
+// Destination directory for copied skills, per host platform.
+// ZCode is absent because it ships the plugin bundle via install-zcode-plugin,
+// not by stashing files next to the project.
+export function skillDestinationForPlatform(platform) {
+  switch (platform) {
+    case 'codex':
+    case 'opencode':
+      return '.agents/skills';
+    case 'claude-code':
+      return '.claude/skills';
+    default:
+      return null;
+  }
 }

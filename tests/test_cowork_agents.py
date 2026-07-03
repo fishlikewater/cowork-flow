@@ -59,7 +59,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "update-spec",
             "writing-plans",
         }
-        for base in (ROOT / ".agents" / "skills", ROOT / "template" / ".agents" / "skills"):
+        for base in (ROOT / "skills", ROOT / "template" / "skills"):
             # Exclude bmad-* skills which are installed separately
             actual = {path.name for path in base.iterdir() if path.is_dir() and not path.name.startswith("bmad-")}
             self.assertEqual(expected, actual)
@@ -103,6 +103,8 @@ class CoworkAgentsTest(unittest.TestCase):
                 self.assertTrue((base / "commands" / f"{name}.md").is_file())
             self.assertTrue((base / "settings.json").is_file())
             self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
+        # Skills are shared via skills/ (single source of truth)
+        for base in (ROOT, ROOT / "template"):
             for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
                          "finish-work", "meta", "party-mode", "party-mode-v2",
                          "python-design", "start", "tdd", "update-spec", "writing-plans"):
@@ -110,23 +112,6 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
         self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
-
-    def test_claude_code_skills_mirror_agent_skills(self) -> None:
-        for source_base, claude_base in (
-            (ROOT / ".agents" / "skills", ROOT / ".claude" / "skills"),
-            (ROOT / "template" / ".agents" / "skills", ROOT / "template" / ".claude" / "skills"),
-        ):
-            for source in source_base.glob("*/SKILL.md"):
-                # Skip bmad-* skills which are installed separately
-                if source.parent.name.startswith("bmad-"):
-                    continue
-                mirror = claude_base / source.parent.name / "SKILL.md"
-                self.assertTrue(mirror.is_file(), str(mirror))
-                self.assertEqual(
-                    source.read_text(encoding="utf-8"),
-                    mirror.read_text(encoding="utf-8"),
-                    str(mirror),
-                )
 
     def test_party_mode_skill_defines_bounded_advisory_roundtable(self) -> None:
         required_markers = (
@@ -201,10 +186,8 @@ class CoworkAgentsTest(unittest.TestCase):
             "compact transcript with round, agent or lens, `claim_id`, position, and `position_delta`",
         )
         for path in (
-            ROOT / ".agents" / "skills" / "party-mode" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "party-mode" / "SKILL.md",
-            ROOT / ".claude" / "skills" / "party-mode" / "SKILL.md",
-            ROOT / "template" / ".claude" / "skills" / "party-mode" / "SKILL.md",
+            ROOT / "skills" / "party-mode" / "SKILL.md",
+            ROOT / "template" / "skills" / "party-mode" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers + child_schema + followup_schema + coordinator_schema:
@@ -244,10 +227,8 @@ class CoworkAgentsTest(unittest.TestCase):
             "close_agent",
         )
         for path in (
-            ROOT / ".agents" / "skills" / "party-mode-v2" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "party-mode-v2" / "SKILL.md",
-            ROOT / ".claude" / "skills" / "party-mode-v2" / "SKILL.md",
-            ROOT / "template" / ".claude" / "skills" / "party-mode-v2" / "SKILL.md",
+            ROOT / "skills" / "party-mode-v2" / "SKILL.md",
+            ROOT / "template" / "skills" / "party-mode-v2" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -381,7 +362,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "cmd_host_adapters",
             ".cowork-flow/adapters/claude-code/adapter.yaml",
             ".claude/agents/cowork-implement.md",
-            ".claude/skills/start/SKILL.md",
+            "skills/start/SKILL.md",
             ".claude/settings.json",
             ".claude/hooks/inject-workflow-state.py",
         ):
@@ -406,9 +387,9 @@ class CoworkAgentsTest(unittest.TestCase):
             "writing-skills",
         )
         for legacy_skill in legacy_skills:
-            self.assertFalse((ROOT / ".agents" / "skills" / legacy_skill / "SKILL.md").exists())
+            self.assertFalse((ROOT / "skills" / legacy_skill / "SKILL.md").exists())
             self.assertFalse(
-                (ROOT / "template" / ".agents" / "skills" / legacy_skill / "SKILL.md").exists()
+                (ROOT / "template" / "skills" / legacy_skill / "SKILL.md").exists()
             )
 
     def test_external_codex_runner_is_not_part_of_fixed_agent_model(self) -> None:
