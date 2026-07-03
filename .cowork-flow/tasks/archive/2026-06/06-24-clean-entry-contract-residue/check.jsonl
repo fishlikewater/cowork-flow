@@ -1,4 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests\\test_codex_hooks.py", "reason": "hook digest coverage"}
-{"file": "tests\\test_host_adapters.py", "reason": "adapter contract tests"}

@@ -1,1 +1,0 @@
-"""Git context helpers."""

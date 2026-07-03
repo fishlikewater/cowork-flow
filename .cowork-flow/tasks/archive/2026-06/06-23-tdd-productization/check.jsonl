@@ -1,7 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": ".cowork-flow/changes/06-23-tdd-productization/proposal.md", "reason": "Check original goal and scope"}
-{"file": ".cowork-flow/changes/06-23-tdd-productization/spec.md", "reason": "Check behavior spec"}
-{"file": ".cowork-flow/changes/06-23-tdd-productization/design.md", "reason": "Check architecture design"}
-{"file": ".cowork-flow/plans/2026-06-23-tdd-productization.md", "reason": "Check plan coverage"}
-{"file": ".cowork-flow/tasks/06-23-tdd-productization/prd.md", "reason": "Parent task PRD"}

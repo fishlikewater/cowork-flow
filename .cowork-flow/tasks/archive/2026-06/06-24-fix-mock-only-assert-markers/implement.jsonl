@@ -1,8 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
-{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
-{"file": "template/.cowork-flow/scripts/common/gates/test_intent.py", "reason": "template mirror"}
-{"file": ".cowork-flow/scripts/common/gates/test_intent.py", "reason": "test intent mock-only classifier"}
-{"file": "tests/test_flow_script_paths.py", "reason": "regression coverage"}

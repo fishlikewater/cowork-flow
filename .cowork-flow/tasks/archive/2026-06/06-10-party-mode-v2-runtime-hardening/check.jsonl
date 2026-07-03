@@ -1,6 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": ".tmp/douyin-service-provider-20260610/", "type": "directory", "reason": "Real Party Mode V2 run artifact used as regression evidence"}
-{"file": ".cowork-flow/plans/2026-06-10-party-mode-v2-runtime-hardening.md", "reason": "Implementation plan acceptance mapping"}
-{"file": ".cowork-flow/tasks/06-10-party-mode-v2-runtime-hardening/prd.md", "reason": "Task PRD acceptance criteria"}
-{"file": ".cowork-flow/changes/06-10-party-mode-v2-runtime-hardening/", "type": "directory", "reason": "L2 change proposal, design, and spec"}
