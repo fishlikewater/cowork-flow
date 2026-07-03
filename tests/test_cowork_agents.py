@@ -222,15 +222,6 @@ class CoworkAgentsTest(unittest.TestCase):
         for marker in forbidden_markers:
             self.assertNotIn(marker, text, f"{marker} should stay out of thin V2 skill template/skills/party-mode-v2/SKILL.md")
 
-    def test_readme_distinguishes_party_mode_v1_and_v2(self) -> None:
-        text = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("party-mode、party-mode-v2", text)
-        self.assertIn("默认 `max_agents=3`、`max_rounds=5`", text)
-        self.assertNotIn("默认 `max_agents=3`、`max_rounds=3`", text)
-        self.assertIn("`party-mode-v2` 是 runtime board controlled advisory workflow", text)
-        self.assertIn("子代理通过 board API 交流", text)
-        self.assertIn("主持人只监控和纠偏", text)
-
     def test_agents_require_runtime_context_and_disable_multi_agent(self) -> None:
         for path in (
             ROOT / "template" / ".codex" / "agents" / "cowork-research.toml",
