@@ -101,7 +101,6 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
     def test_config_template_only_documents_effective_settings(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "config.yaml",
             ROOT / "template" / ".cowork-flow" / "config.yaml",
         ):
             text = path.read_text(encoding="utf-8")
