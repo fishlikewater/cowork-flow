@@ -27,3 +27,4 @@ secrets*
 *.log
 Thumbs.db
 /.codegraph/
+/.cowork-flow/

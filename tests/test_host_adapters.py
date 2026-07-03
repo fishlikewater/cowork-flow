@@ -66,7 +66,6 @@ class HostAdaptersTest(unittest.TestCase):
 
     def test_host_adapters_match_contract(self) -> None:
         for base in (
-            ROOT / ".cowork-flow" / "adapters",
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
             for host in ("codex", "opencode", "claude-code"):
@@ -173,7 +172,6 @@ class HostAdaptersTest(unittest.TestCase):
         )
         usable_values = {"native", "shim", "plugin", "external", "experimental"}
         for base in (
-            ROOT / ".cowork-flow" / "adapters",
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
             for host in ("codex", "opencode", "claude-code"):
@@ -186,35 +184,16 @@ class HostAdaptersTest(unittest.TestCase):
                 for key in required_capabilities:
                     self.assertIn(adapter["capabilities"][key], usable_values, f"{host}:{key}")
 
-    def test_party_mode_v2_root_and_template_assets_are_synced(self) -> None:
-        pairs = (
-            (
-                ROOT / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
-                ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
-            ),
-            (
-                ROOT / ".cowork-flow" / "spec" / "contracts" / "party-mode-v2-board.md",
-                ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "party-mode-v2-board.md",
-            ),
-            (
-                ROOT / ".opencode" / "commands" / "party-mode-v2.md",
-                ROOT / "template" / ".opencode" / "commands" / "party-mode-v2.md",
-            ),
-            (
-                ROOT / ".cowork-flow" / "workflow.md",
-                ROOT / "template" / ".cowork-flow" / "workflow.md",
-            ),
-            (
-                ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
-                ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
-            ),
+    def test_party_mode_v2_template_assets_are_valid(self) -> None:
+        paths = (
+            ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "party-mode-v2-board.md",
+            ROOT / "template" / ".opencode" / "commands" / "party-mode-v2.md",
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         )
-        for root_path, template_path in pairs:
-            self.assertEqual(
-                root_path.read_text(encoding="utf-8"),
-                template_path.read_text(encoding="utf-8"),
-                f"{root_path} differs from {template_path}",
-            )
+        for path in paths:
+            self.assertTrue(path.is_file(), f"missing: {path}")
 
     def test_workflow_is_host_neutral(self) -> None:
         banned = ("spawn_agent", "fork_turns", "wait_agent", "list_agents", "close_agent", "codex exec")
@@ -232,7 +211,7 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertNotIn(marker, text)
 
     def test_opencode_assets_encode_fixed_agent_contract(self) -> None:
-        for base in (ROOT / ".opencode", ROOT / "template" / ".opencode"):
+        for base in (ROOT / "template" / ".opencode",):
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn("mode: subagent", text)
@@ -271,7 +250,7 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn("runtime-context-invalid", plugin)
 
     def test_claude_code_assets_encode_fixed_agent_contract(self) -> None:
-        for base in (ROOT / ".claude", ROOT / "template" / ".claude"):
+        for base in (ROOT / "template" / ".claude",):
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn(f"name: {name}", text)

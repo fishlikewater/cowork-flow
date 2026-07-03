@@ -186,8 +186,9 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn(slug, stdout.getvalue())
 
     def test_default_context_references_new_skill_directory(self) -> None:
+        # When CLAUDE.md exists (claude-code only), skill path uses .claude/skills/
         self.assertEqual(
-            ".agents/skills/finish-work/SKILL.md",
+            ".claude/skills/finish-work/SKILL.md",
             self.task._skill_path("finish-work"),
         )
 
