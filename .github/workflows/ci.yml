@@ -27,5 +27,10 @@ jobs:
       - name: Check npm package contents
         run: npm run pack:check
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
       - name: Run template tests
         run: npm run test:template
