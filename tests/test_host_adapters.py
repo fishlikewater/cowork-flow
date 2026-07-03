@@ -296,11 +296,9 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
 
             for name in ("start", "check"):
-                for skills_base in (ROOT / "skills", ROOT / "template" / "skills"):
-                    text = (skills_base / name / "SKILL.md").read_text(encoding="utf-8")
-                    self.assertIn("name:", text)
-                    self.assertIn("description:", text)
-                self.assertFalse((ROOT / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
+                text = (ROOT / "template" / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn("name:", text)
+                self.assertIn("description:", text)
                 self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
 
             settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))

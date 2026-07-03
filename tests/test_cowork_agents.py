@@ -59,10 +59,9 @@ class CoworkAgentsTest(unittest.TestCase):
             "update-spec",
             "writing-plans",
         }
-        for base in (ROOT / "skills", ROOT / "template" / "skills"):
-            # Exclude bmad-* skills which are installed separately
-            actual = {path.name for path in base.iterdir() if path.is_dir() and not path.name.startswith("bmad-")}
-            self.assertEqual(expected, actual)
+        # Skills single source of truth: template/skills/
+        actual = {path.name for path in (ROOT / "template" / "skills").iterdir() if path.is_dir() and not path.name.startswith("bmad-")}
+        self.assertEqual(expected, actual)
 
     def test_codex_agent_definitions_exist_in_root_and_template(self) -> None:
         for base in (ROOT / ".codex" / "agents", ROOT / "template" / ".codex" / "agents"):
@@ -103,13 +102,12 @@ class CoworkAgentsTest(unittest.TestCase):
                 self.assertTrue((base / "commands" / f"{name}.md").is_file())
             self.assertTrue((base / "settings.json").is_file())
             self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
-        # Skills are shared via skills/ (single source of truth)
-        for base in (ROOT, ROOT / "template"):
-            for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
-                         "finish-work", "meta", "party-mode", "party-mode-v2",
-                         "python-design", "start", "tdd", "update-spec", "writing-plans"):
-                self.assertTrue((base / "skills" / name / "SKILL.md").is_file())
-            self.assertFalse((base / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
+        # Skills single source of truth: template/skills/
+        for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
+                     "finish-work", "meta", "party-mode", "party-mode-v2",
+                     "python-design", "start", "tdd", "update-spec", "writing-plans"):
+            self.assertTrue((ROOT / "template" / "skills" / name / "SKILL.md").is_file())
+        self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
         self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
 
@@ -185,13 +183,9 @@ class CoworkAgentsTest(unittest.TestCase):
             "selected agent or lens names and selection reasons",
             "compact transcript with round, agent or lens, `claim_id`, position, and `position_delta`",
         )
-        for path in (
-            ROOT / "skills" / "party-mode" / "SKILL.md",
-            ROOT / "template" / "skills" / "party-mode" / "SKILL.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in required_markers + child_schema + followup_schema + coordinator_schema:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
+        text = (ROOT / "template" / "skills" / "party-mode" / "SKILL.md").read_text(encoding="utf-8")
+        for marker in required_markers + child_schema + followup_schema + coordinator_schema:
+            self.assertIn(marker, text, f"{marker} missing from template/skills/party-mode/SKILL.md")
 
     def test_party_mode_v2_skill_is_thin_runtime_board_entrypoint(self) -> None:
         required_markers = (
@@ -226,15 +220,11 @@ class CoworkAgentsTest(unittest.TestCase):
             "wait_agent",
             "close_agent",
         )
-        for path in (
-            ROOT / "skills" / "party-mode-v2" / "SKILL.md",
-            ROOT / "template" / "skills" / "party-mode-v2" / "SKILL.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in required_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
-            for marker in forbidden_markers:
-                self.assertNotIn(marker, text, f"{marker} should stay out of thin V2 skill {path}")
+        text = (ROOT / "template" / "skills" / "party-mode-v2" / "SKILL.md").read_text(encoding="utf-8")
+        for marker in required_markers:
+            self.assertIn(marker, text, f"{marker} missing from template/skills/party-mode-v2/SKILL.md")
+        for marker in forbidden_markers:
+            self.assertNotIn(marker, text, f"{marker} should stay out of thin V2 skill template/skills/party-mode-v2/SKILL.md")
 
     def test_readme_distinguishes_party_mode_v1_and_v2(self) -> None:
         text = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -362,7 +352,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "cmd_host_adapters",
             ".cowork-flow/adapters/claude-code/adapter.yaml",
             ".claude/agents/cowork-implement.md",
-            "skills/start/SKILL.md",
+            "template/skills/start/SKILL.md",
             ".claude/settings.json",
             ".claude/hooks/inject-workflow-state.py",
         ):
@@ -387,7 +377,6 @@ class CoworkAgentsTest(unittest.TestCase):
             "writing-skills",
         )
         for legacy_skill in legacy_skills:
-            self.assertFalse((ROOT / "skills" / legacy_skill / "SKILL.md").exists())
             self.assertFalse(
                 (ROOT / "template" / "skills" / legacy_skill / "SKILL.md").exists()
             )
