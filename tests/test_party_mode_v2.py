@@ -1078,7 +1078,6 @@ party_mode_v2:
 
     def test_config_templates_document_party_mode_v2(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "config.yaml",
             ROOT / "template" / ".cowork-flow" / "config.yaml",
         ):
             text = path.read_text(encoding="utf-8")

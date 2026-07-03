@@ -54,7 +54,6 @@ def _parse_scalar(value: str) -> object:
 class HostAdaptersTest(unittest.TestCase):
     def test_adapter_schema_declares_capability_enum(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "schemas" / "adapter.schema.json",
             ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "adapter.schema.json",
         ):
             schema = json.loads(path.read_text(encoding="utf-8"))
@@ -126,7 +125,6 @@ class HostAdaptersTest(unittest.TestCase):
             "codex exec",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
             ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
         ):
             text = path.read_text(encoding="utf-8")
@@ -198,7 +196,6 @@ class HostAdaptersTest(unittest.TestCase):
     def test_workflow_is_host_neutral(self) -> None:
         banned = ("spawn_agent", "fork_turns", "wait_agent", "list_agents", "close_agent", "codex exec")
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
             ROOT / "template" / ".cowork-flow" / "workflow.md",
         ):
             text = path.read_text(encoding="utf-8")
