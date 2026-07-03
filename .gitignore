@@ -26,3 +26,4 @@ __pycache__/
 secrets*
 *.log
 Thumbs.db
+/.codegraph/
