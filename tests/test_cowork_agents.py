@@ -369,5 +369,4 @@ class CoworkAgentsTest(unittest.TestCase):
             )
 
     def test_external_codex_runner_is_not_part_of_fixed_agent_model(self) -> None:
-        self.assertFalse((ROOT / ".cowork-flow" / "scripts" / "agent.py").exists())
         self.assertFalse((ROOT / "template" / ".cowork-flow" / "scripts" / "agent.py").exists())

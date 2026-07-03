@@ -569,7 +569,6 @@ class FlowScriptPathsTest(unittest.TestCase):
 
     def test_rule_scope_contract_includes_task_review(self) -> None:
         for schema_path in (
-            ROOT / ".cowork-flow" / "spec" / "schemas" / "rules.schema.json",
             ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "rules.schema.json",
         ):
             schema = json.loads(schema_path.read_text(encoding="utf-8"))

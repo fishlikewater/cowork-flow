@@ -17,7 +17,7 @@ ENTRY_BOUNDARY = "entry" + "-boundary"
 
 class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_workflow_uses_fixed_agent_mainline(self) -> None:
-        text = (ROOT / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
+        text = (ROOT / "template" / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
         self.assertIn("cowork-research", text)
         self.assertIn("cowork-implement", text)
         self.assertIn("cowork-check", text)
@@ -42,7 +42,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_state_templates_are_externalized(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -68,7 +67,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "PRD、计划或固定代理派发",
         )
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
             ROOT / "template" / ".cowork-flow" / "workflow.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -87,7 +85,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "fail-closed subagent state",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -101,7 +98,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "cannot satisfy formal Implement or Check completion",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -118,7 +114,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "party-mode skill",
         )
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
             ROOT / "template" / ".cowork-flow" / "workflow.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -133,7 +128,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "The `party-mode` skill owns round limits, continuation gates, stop gates, and output schemas.",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -153,7 +147,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明",
         )
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
             ROOT / "template" / ".cowork-flow" / "workflow.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -178,7 +171,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "does not satisfy Implement or Check completion",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -198,7 +190,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             ".cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json",
         )
         for path in (
-            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
@@ -217,7 +208,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn(marker, text, f"{marker} missing from template/skills/start/SKILL.md")
 
         for path in (
-            ROOT / ".cowork-flow" / "config.yaml",
             ROOT / "template" / ".cowork-flow" / "config.yaml",
         ):
             text = path.read_text(encoding="utf-8")
@@ -349,7 +339,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_documents_parallel_operations(self) -> None:
         for path in (
-            ROOT / ".cowork-flow" / "workflow.md",
             ROOT / "template" / ".cowork-flow" / "workflow.md",
         ):
             text = path.read_text(encoding="utf-8")
