@@ -27,6 +27,7 @@ class CodexHooksTest(unittest.TestCase):
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "run.cmd", root / ".cowork-flow" / "run.cmd")
         (root / ".cowork-flow" / "run").chmod(0o755)
         shutil.copytree(TEMPLATE / ".codex", root / ".codex")
+        (root / ".codex" / "hooks" / "inject-workflow-state.py").chmod(0o755)
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "workflow.md", root / ".cowork-flow" / "workflow.md")
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "config.yaml", root / ".cowork-flow" / "config.yaml")
         shutil.copytree(TEMPLATE / ".cowork-flow" / "spec", root / ".cowork-flow" / "spec")
@@ -403,8 +404,12 @@ class CodexHooksTest(unittest.TestCase):
     def test_hook_config_uses_cowork_flow_python_runner(self) -> None:
         hooks = json.loads((TEMPLATE / ".codex" / "hooks.json").read_text(encoding="utf-8"))
         command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
-        self.assertEqual(".cowork-flow/run python .codex/hooks/inject-workflow-state.py", command)
+        # hooks.json must reference the project-relative executable script so the
+        # hook can rely on the fixed path and the script's shebang, without
+        # hard-coding an absolute Python path.
+        self.assertTrue(command.endswith("inject-workflow-state.py"), command)
         self.assertFalse(command.startswith("python "))
+        self.assertIn(".codex/hooks/", command)
 
     def test_hook_config_command_executes_without_bare_python(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -413,10 +418,11 @@ class CodexHooksTest(unittest.TestCase):
             self._write_runtime_context(root, "rtx_hook_command")
             hooks = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
             command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
-
-            command_parts = shlex.split(command)
+            # POSIX: prepend cwd; on Windows the .cmd wrapper handles it
             if os.name == "nt":
-                command_parts[0] = str(root / ".cowork-flow" / "run.cmd")
+                command_parts = [str(root / ".cowork-flow" / "run.cmd")] + shlex.split(command)
+            else:
+                command_parts = ["/bin/sh", "-c", f"cd {shlex.quote(str(root))} && {command}"]
             result = subprocess.run(
                 command_parts,
                 input=json.dumps(
