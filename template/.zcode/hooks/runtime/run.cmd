@@ -1,8 +1,8 @@
 @echo off
 setlocal EnableExtensions
 
-set "MIN_PYTHON_LABEL=Python 3.8+"
-set "VERSION_CHECK=import sys; raise SystemExit(0 if sys.version_info >= (3, 8) else 1)"
+set "MIN_PYTHON_LABEL=Python 3.9+"
+set "VERSION_CHECK=import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)"
 set "WORKFLOW_DIR=%~dp0"
 
 set "RUNTIME_SCRIPTS=%WORKFLOW_DIR%scripts"

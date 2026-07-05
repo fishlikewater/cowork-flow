@@ -18,7 +18,6 @@
   "scripts": {
     "test": "node --test",
     "test:template": "node scripts/run-template-tests.js",
-    "test:integration": "node scripts/run-integration-tests.js",
     "pack:check": "node scripts/pack-check.js",
     "test:all": "npm test && npm run test:template && npm run pack:check",
     "release": "sh scripts/release.sh"

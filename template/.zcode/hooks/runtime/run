@@ -3,8 +3,8 @@
 # Runs commands using the plugin's bundled Python runtime.
 set -u
 
-MIN_PYTHON_LABEL="Python 3.8+"
-VERSION_CHECK='import sys; raise SystemExit(0 if sys.version_info >= (3, 8) else 1)'
+MIN_PYTHON_LABEL="Python 3.9+"
+VERSION_CHECK='import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'
 WORKFLOW_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd) || exit 1
 
 # Plugin cache runtime (resolved relative to this script)
