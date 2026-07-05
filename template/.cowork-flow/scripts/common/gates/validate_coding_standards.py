@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Coding standards gate — dynamically loaded from user-editable spec files.
+"""Spec-driven coding standards — gates honor user-edited spec files.
 
-The markdown files under ``.cowork-flow/spec/backend/``, ``spec/frontend/`` and
-``spec/guides/`` are **not** dead documentation. They are parsed into
-human-readable rules, surfaced as a task checklist, and **enforced** during
-review/complete gates. Anything a user adds to those files is honored at the
-next gate run — the gate re-reads the markdown every time.
+Files under ``.cowork-flow/spec/backend/``, ``spec/frontend/`` and
+``spec/guides/`` are parsed at runtime into review-checklist rules and matched
+against a small registry of registered validators. Anything a user adds to
+those files is activated at the next gate run — the gate re-reads the
+markdown every time.
 """
 
 from __future__ import annotations
@@ -14,24 +14,18 @@ import json
 import re
 import sys
 from pathlib import Path
-
-from common.git.git_snapshot import collect_changed_files, collect_changed_paths
+from typing import Callable, Iterable, Sequence
 
 from common.gates.coding_standards import validate_changed_files
+from common.git.git_snapshot import collect_changed_files, collect_changed_paths
 
-# Source files our spec validators inspect. Broader than the hardcoded
-# TEXT_IO_SUFFIXES set so Python/YAML/TS/JS are all visible to user rules.
+# Source files our spec validators inspect.
 _EXTENSIONS = {
     ".py", ".pyi",
     ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
     ".java", ".go", ".rs", ".rb", ".cs", ".kt", ".php",
     ".yaml", ".yml", ".json", ".toml",
 }
-
-
-# ---------------------------------------------------------------------------
-# File classification
-# ---------------------------------------------------------------------------
 
 _BACKEND_SUFFIXES = re.compile(r"\.(py|java|go|rs|rb|cs|kt|php)$")
 _FRONTEND_SUFFIXES = re.compile(r"\.(tsx|jsx|vue|svelte|ts|js|mjs|cjs|css|scss)$")
@@ -46,108 +40,87 @@ def _is_frontend_file(rel_path: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Spec-driven natural-language rules
+# Registered NL-backed validators
 # ---------------------------------------------------------------------------
 
-# Pattern → (category, validator) where validator(content, rel_path) -> list[(line, message, fix_hint)].
-# Rules live in code because they back natural-language spec text; users do not
-# edit Python. To add a new rule, add a bullet to spec/backend or spec/frontend
-# matching the pattern AND add an entry here.
-_NL_VALIDATORS: list[tuple[str, str, callable]] = []
+# Each entry: (compiled-pattern, category, validator-fn).
+# ``validator(content, rel_path)`` yields ``(lineno, message, fix_hint)``.
+_NL_VALIDATORS: list[tuple[re.Pattern, str, Callable[[str, str], Iterable[tuple[int, str, str]]]]] = []
 
 
-def register_nl_validator(pattern: str):
-    """Decorate a validator that activates when the spec line matches ``pattern``."""
-
-    def decorator(fn) -> callable:
+def register_nl_validator(pattern: str) -> Callable[[Callable], Callable]:
+    def decorator(fn: Callable) -> Callable:
         category = getattr(fn, "_nl_category", "backend")
         _NL_VALIDATORS.append((re.compile(pattern, re.IGNORECASE), category, fn))
         return fn
-
     return decorator
 
 
-def nl_category(category: str):
-    """Set the spec category (backend / frontend) for a validator."""
-
-    def decorator(fn) -> callable:
+def nl_category(category: str) -> Callable[[Callable], Callable]:
+    def decorator(fn: Callable) -> Callable:
         fn._nl_category = category
         return fn
-
     return decorator
-
-
-# Built-in validators ----------------------------------------------------------
 
 
 @register_nl_validator(r"(硬编码|hardcode|hard.code|secret|password|api[_\s]?key|token)")
 @nl_category("backend")
-def _no_hardcoded_secrets(content: str, rel_path: str) -> list[tuple[int, str, str]]:
-    """User rule: '不允许硬编码 secret / 不允许明文 password'."""
-    hits: list[tuple[int, str, str]] = []
+def _no_hardcoded_secrets(content: str, rel_path: str) -> Iterable[tuple[int, str, str]]:
     pattern = re.compile(
         r"""(?ix)
         (?:password|passwd|secret|api[_\s]?key|token|access[_\s]?key|aws_access_key_id|aws_secret_access_key)
-        \s*[:=]\s*["'][^"'"\s$(){}]{3,}["']
+        \s*[:=]\s*["'][^"'}{)($]{3,}["']
         """
     )
     for lineno, raw in enumerate(content.splitlines(), start=1):
         if pattern.search(raw) and "process.env" not in raw and "os.environ" not in raw:
-            hits.append((
-                lineno,
-                "Possible hard-coded secret in source; spec forbids it.",
-                "Read from configuration or environment variables.",
-            ))
-    return hits
+            yield (lineno,
+                   "Possible hard-coded secret in source; spec forbids it.",
+                   "Read from configuration or environment variables.")
 
 
-@register_nl_validator(r"(硬编码|hardcode|明文|magic\s+number)")
-@nl_category("frontend")
-def _no_magic_values_frontend(content: str, rel_path: str) -> list[tuple[int, str, str]]:
-    hits: list[tuple[int, str, str]] = []
-    pattern = re.compile(r"""(?ix)(?:magic\s+number|hardcode|硬编码)""")
-    for lineno, raw in enumerate(content.splitlines(), start=1):
-        if pattern.search(raw):
-            hits.append((lineno, "Hard-coded magic value in frontend source; spec forbids it."))
-    return hits
-
-
-@register_nl_validator(r"(print\b|console\.(log|info|debug)|日志|logger|logging)")
+@register_nl_validator(r"(print\b|console\.(log|info|debug)|日志|logger|logging|结构化日志)")
 @nl_category("backend")
-def _no_debug_prints(content: str, rel_path: str) -> list[tuple[int, str, str]]:
-    """User rule: '不允许 print / 不允许 console.log'."""
-    hits: list[tuple[int, str, str]] = []
+def _no_debug_prints(content: str, rel_path: str) -> Iterable[tuple[int, str, str]]:
     if rel_path.endswith(".py"):
-        pat = re.compile(r"""(?<!#)\bprint\s*\(""")
+        pat = re.compile(r"(?<!\w)print\s*\(")
+    elif rel_path.endswith((".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx")):
+        pat = re.compile(r"\bconsole\.(log|info|debug)\s*\(")
     else:
-        pat = re.compile(r"""\bconsole\.(log|info|debug)\s*\(""")
+        return
     for lineno, raw in enumerate(content.splitlines(), start=1):
         if pat.search(raw):
-            hits.append((lineno, "Debug print found; spec prefers structured logger."))
-    return hits
+            yield (lineno, "Debug print found; spec prefers structured logger.",
+                   "Use a structured logger instead.")
 
 
 @register_nl_validator(r"(吞|swallow|静默|except|空\s*except)")
 @nl_category("backend")
-def _no_silent_except(content: str, rel_path: str) -> list[tuple[int, str, str]]:
-    """User rule: '不允许空 except / 不允许吞异常'."""
+def _no_silent_except(content: str, rel_path: str) -> Iterable[tuple[int, str, str]]:
     if not rel_path.endswith(".py"):
-        return []
-    hits: list[tuple[int, str, str]] = []
+        return
     lines = content.splitlines()
     for lineno, raw in enumerate(lines, start=1):
         if re.match(r"^\s*except\b\s*.*:\s*(#.*)?$", raw):
             nxt = lines[lineno].strip() if lineno < len(lines) else ""
             if nxt in {"pass", "...", ""} or nxt.startswith(("pass ", "...")):
-                hits.append((lineno, "Empty exception handler silently swallows errors."))
-    return hits
+                yield (lineno, "Empty exception handler silently swallows errors.",
+                       "Log or re-raise the exception, or narrow the except types.")
+
+
+@register_nl_validator(r"(硬编码|hardcode|明文|magic\s+number)")
+@nl_category("frontend")
+def _no_magic_values_frontend(content: str, rel_path: str) -> Iterable[tuple[int, str, str]]:
+    pat = re.compile(r"""(?ix)(?:magic\s+number|hardcode|硬编码)""")
+    for lineno, raw in enumerate(content.splitlines(), start=1):
+        if pat.search(raw):
+            yield (lineno, "Hard-coded magic value in frontend source; spec forbids it.")
 
 
 # ---------------------------------------------------------------------------
 # Spec parser
 # ---------------------------------------------------------------------------
 
-# Supported rule patterns (must match the start of a markdown bullet or line).
 _RULE_PATTERNS = [
     re.compile(r"(?i)(?:^|\s)(?:must\s+not|should\s+not|do\s+not|never|avoid)\s+(.+)$"),
     re.compile(r"(?:^|\s)(?:禁止|不得|不能|不应|避免|不要|不可|不许)\s*(.*)$"),
@@ -174,13 +147,10 @@ def load_spec_rules(
 ) -> list[dict]:
     """Return every natural-language rule declared under ``spec/<category>/``.
 
-    The returned dicts are plain JSON so they can be rendered straight onto a
-    review checklist diff. Each rule carries its source file and line so the
-    reviewer can trace it back.
+    Re-reads markdown on every call, so user edits take effect without restart.
     """
     out: list[dict] = []
     repo_root = Path(repo_root)
-
     for category in categories:
         spec_dir = repo_root / ".cowork-flow" / "spec" / category
         if not spec_dir.is_dir():
@@ -193,23 +163,21 @@ def load_spec_rules(
                 rule = _rule_text(raw)
                 if rule is None:
                     continue
-                out.append(
-                    {
-                        "category": category,
-                        "source": f".cowork-flow/spec/{category}/{md.name}",
-                        "line": lineno,
-                        "text": rule,
-                        "validators": [
-                            pat.pattern for pat, cat, _ in _NL_VALIDATORS
-                            if cat in (category, "backend") and re.search(pat, rule)
-                        ],
-                    }
-                )
+                out.append({
+                    "category": category,
+                    "source": f".cowork-flow/spec/{category}/{md.name}",
+                    "line": lineno,
+                    "text": rule,
+                    "validators": [
+                        pat.pattern for pat, cat, _ in _NL_VALIDATORS
+                        if cat in (category, "backend") and re.search(pat, rule)
+                    ],
+                })
     return out
 
 
 # ---------------------------------------------------------------------------
-# Top-level entry
+# Public API
 # ---------------------------------------------------------------------------
 
 
@@ -217,17 +185,13 @@ def get_coding_standards_summary(
     repo_root: Path,
     task_dir: Path,
 ) -> str:
-    """Surface the user-authored rules for the reviewer.
-
-    This is generated content — it NEVER asserts. The actual enforcement
-    happens in :func:`validate_coding_standards`.
-    """
-    paths = collect_changed_paths(repo_root)
-    if not paths:
+    """Render the active user-authored rules as a checklist (read-only)."""
+    changed = collect_changed_paths(repo_root)
+    if not changed:
         return ""
 
-    backend = [p for p in paths if _is_backend_file(p)]
-    frontend = [p for p in paths if _is_frontend_file(p)]
+    backend = [p for p in changed if _is_backend_file(p)]
+    frontend = [p for p in changed if _is_frontend_file(p)]
     if not backend and not frontend:
         return ""
 
@@ -251,18 +215,17 @@ def validate_coding_standards(
     repo_root: Path,
     task_dir: Path | None = None,
 ) -> list[dict]:
-    """Run all coding-standard checks — both hardcoded and user-authored.
+    """Run all coding-standard checks — hardcoded UTF-8 + spec-activated NL rules.
 
-    Hardcoded checks (UTF-8 IO, etc.) always run. Built-in NL validators run
-    only when the user has declared a matching rule in their spec files — this
-    is what makes spec rules "actually work" once a user edits them.
+    The NL rules only run when the user's spec files declare a matching rule
+    text, making spec files genuinely editable quality gates.
     """
     violations: list[dict] = []
 
-    # Phase 1: hardcoded validators (UTF-8 IO, etc.)
+    # Phase 1: hardcoded UTF-8 / IO checks always run.
     violations.extend(validate_changed_files(repo_root, collect_changed_files(repo_root)))
 
-    # Phase 2: spec-backed validators (activated by matching user-declared rules)
+    # Phase 2: spec-driven validators — activated by user-edited spec text.
     spec_rules = load_spec_rules(repo_root)
     if not spec_rules:
         return violations
@@ -289,11 +252,10 @@ def validate_coding_standards(
                 continue
             try:
                 results = validator(content, changed_file.path)
-            except Exception:  # noqa: BLE001 — defensively isolate user-file parsing
+            except Exception:  # noqa: BLE001 — defensively isolate parsing
                 continue
-            for entry in results:
-                lineno, msg = entry[0], entry[1]
-                fix_hint = entry[2] if len(entry) > 2 else ""
+            for lineno, msg, *rest in results:
+                fix_hint = rest[0] if rest else ""
                 violations.append({
                     "rule_id": f"SPEC-{validator.__name__}",
                     "type": "spec_coding_standard",
@@ -308,40 +270,33 @@ def validate_coding_standards(
     return violations
 
 
-
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Dynamic spec-driven coding gate")
-    parser.add_argument("--task-dir", help="Task directory path (optional)")
-    parser.add_argument("--repo-root", default=".", help="Repository root path")
-    parser.add_argument("--summarize", action="store_true", help="Print spec checklist summary")
-    parser.add_argument("--list", action="store_true", help="List parsed spec rules for the repo")
-    parser.add_argument("--validate", action="store_true", help="Run spec validators against changed files")
+    parser = argparse.ArgumentParser(description="Spec-driven coding gate")
+    parser.add_argument("--task-dir", help="Task directory")
+    parser.add_argument("--repo-root", default=".", help="Repo root path")
+    parser.add_argument("--summarize", action="store_true")
+    parser.add_argument("--list", action="store_true", help="List parsed spec rules")
+    parser.add_argument("--validate", action="store_true", help="Run spec validators vs changed files")
 
     args = parser.parse_args()
     repo_root = Path(args.repo_root).resolve()
-    task_dir = Path(args.task_dir).resolve() if args.task_dir else None
+    task_dir = Path(args.task_dir).resolve() if args.task_dir else repo_root
 
     if args.list:
         for r in load_spec_rules(repo_root):
             print(json.dumps(r, ensure_ascii=False))
         return
-
     if args.summarize:
-        out = get_coding_standards_summary(repo_root, task_dir or repo_root)
-        print(out or "No spec rules activated for current changes.")
+        print(get_coding_standards_summary(repo_root, task_dir) or "No spec rules activated.")
         return
-
     if args.validate:
-        violations = validate_coding_standards(repo_root, task_dir)
-        for v in violations:
-            print(json.dumps(v, ensure_ascii=False))
-        sys.exit(1 if violations else 0)
-
-    # default: summary
-    out = get_coding_standards_summary(repo_root, task_dir or repo_root)
-    print(out or "No spec rules activated for current changes.")
+        v = validate_coding_standards(repo_root, task_dir)
+        for x in v:
+            print(json.dumps(x, ensure_ascii=False))
+        sys.exit(1 if v else 0)
+    print(get_coding_standards_summary(repo_root, task_dir) or "No spec rules activated.")
 
 
 if __name__ == "__main__":
