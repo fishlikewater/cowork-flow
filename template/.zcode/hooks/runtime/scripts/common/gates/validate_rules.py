@@ -306,7 +306,7 @@ def _validate_phase_gate(
         elif rule_id == "R-WF-004":
             return _check_plan_link(repo_root, change_dir, rule)
         elif rule_id == "R-WF-005":
-            return _check_task_link(change_dir, rule)
+            return _check_task_link(change_dir, task_dir, rule)
 
     # R-WF-006: Implementation without failing test
     if rule_id == "R-WF-006":
@@ -395,9 +395,11 @@ def _check_plan_link(
 
 def _check_task_link(
     change_dir: Path,
+    task_dir: Path,
     rule: dict,
 ) -> dict | None:
-    """Check if change has a task link."""
+    """Check if change references ``task_dir`` via ``task:``/``tasks:`` or any
+    list-item match in ``change.yaml`` (supports the documented YAML list form)."""
     change_yaml = change_dir / "change.yaml"
     if not change_yaml.exists():
         return rule_violation(rule, change_yaml, detail="change.yaml is missing")
@@ -405,10 +407,16 @@ def _check_task_link(
     with open(change_yaml, encoding="utf-8") as f:
         content = f.read()
 
-    if not _metadata_has_link(content, ("task",)):
-        return rule_violation(rule, change_yaml, detail="task link is missing")
+    if _metadata_has_link(content, ("task", "tasks")):
+        return None
 
-    return None
+    task_name = task_dir.name
+    for raw in content.splitlines():
+        stripped = raw.strip().lstrip("-").strip().strip("#").strip().strip('"').strip("'").strip(",")
+        if stripped == task_name:
+            return None
+
+    return rule_violation(rule, change_yaml, detail="task link is missing")
 
 
 def log_violations(
