@@ -1168,7 +1168,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             with patch("subprocess.run", side_effect=fake_run):
                 summary = validator.get_coding_standards_summary(root, task_dir)
 
-            self.assertIn("Backend Coding Standards", summary)
+            self.assertIn("Backend spec rules", summary)
             self.assertTrue(calls)
             self.assertEqual("utf-8", calls[0].get("encoding"))
             self.assertEqual("replace", calls[0].get("errors"))
