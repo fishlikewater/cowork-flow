@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import ast
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -312,29 +316,64 @@ class CoworkAgentsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
-    def test_doctor_checks_runtime_context_protocol(self) -> None:
+    def _run_doctor(self, cwd: Path) -> subprocess.CompletedProcess[str]:
         doctor = ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "doctor.py"
-        text = doctor.read_text(encoding="utf-8")
-        for marker in (
-            "RUNTIME_CONTEXT_DISPATCH_V2",
-            "cowork_runtime_context_id",
-            "bind_runtime_context",
-            "runtime-context-invalid",
-            "workflow-state-templates.md",
-            "REQUIRED_RUNTIME_HOOK_SNIPPETS",
-            "REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS",
-            "REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET",
-            "FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS",
-            "FORBIDDEN_README_DISPATCH_SNIPPETS",
-            "_check_file_omits",
-            "cmd_host_adapters",
-            ".cowork-flow/adapters/claude-code/adapter.yaml",
-            "template/.claude/agents/cowork-implement.md",
-            "template/skills/start/SKILL.md",
-            "template/.claude/settings.json",
-            "template/.claude/hooks/inject-workflow-state.py",
-        ):
-            self.assertIn(marker, text)
+        return subprocess.run(
+            [sys.executable, str(doctor), "--host-adapters"],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+
+    def _build_deployed_workspace(self, temp_dir: str) -> Path:
+        """Build a workspace that mirrors a deployed project layout.
+
+        Doctor scans both `.cowork-flow/...` and `template/.cowork-flow/...`
+        for spec files and schemas. We replicate the source repo's shape:
+        `.cowork-flow/` + `template/` next to each other under the workspace.
+        """
+        workspace = Path(temp_dir)
+        src_cowork = ROOT / "template" / ".cowork-flow"
+        dst_cowork = workspace / ".cowork-flow"
+        # Skip scripts/ since we're testing from source tree directly.
+        shutil.copytree(
+            src_cowork,
+            dst_cowork,
+            ignore=shutil.ignore_patterns("scripts", "__pycache__", "*.pyc"),
+        )
+        src_template = ROOT / "template"
+        dst_template = workspace / "template"
+        shutil.copytree(src_template, dst_template)
+        # CLAUDE.md referenced relative to repo root in doctor.py.
+        if (src_template / "CLAUDE.md").exists():
+            shutil.copy2(src_template / "CLAUDE.md", workspace / "CLAUDE.md")
+        if (src_template / "AGENTS.md").exists():
+            shutil.copy2(src_template / "AGENTS.md", workspace / "AGENTS.md")
+        return workspace
+
+    def test_doctor_validates_template_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = self._build_deployed_workspace(temp_dir)
+            result = self._run_doctor(workspace)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("ERROR:", result.stderr)
+
+    def test_doctor_finds_broken_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = self._build_deployed_workspace(temp_dir)
+            # Remove a required snippet from one adapter to trigger doctor error.
+            adapter = workspace / "template" / ".cowork-flow" / "adapters" / "claude-code" / "adapter.yaml"
+            original = adapter.read_text(encoding="utf-8")
+            broken = "\n".join(
+                line for line in original.splitlines()
+                if "capabilities:" not in line
+            )
+            assert broken != original
+            adapter.write_text(broken, encoding="utf-8")
+            result = self._run_doctor(workspace)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("ERROR:", result.stderr)
 
     def test_legacy_execution_skill_removed(self) -> None:
         legacy_skills = (

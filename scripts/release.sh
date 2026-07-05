@@ -41,4 +41,5 @@ fi
 run_step git add $GIT_ADD_FILES || exit $?
 run_step git commit -m "chore(release): $PACKAGE_VERSION" || exit $?
 run_step git tag "v$PACKAGE_VERSION" || exit $?
+
 run_step npm publish || exit $?
