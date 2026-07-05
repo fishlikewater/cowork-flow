@@ -16,24 +16,34 @@
 
 ## 0.1 编码前强制门禁
 
-**编辑文件、变更代码、派发子代理之前，MUST 调用 `before-dev` skill。**
+**编辑文件、变更代码、派发子代理之前，先确定当前工作流状态，再决定放行、阻断还是路由。**
 
-该 skill 读取 `<workflow-state>` 决定放行或阻断：
+按以下顺序判定当前状态：
 
-- `no_task` → **阻断**。拒绝写代码；引导 brainstorming → plan → task create → task start
-- `delegated_subtask` → 按子代理规则执行
-- `planning` → **阻断**。PRD 和 implement.jsonl 就绪前不允许实现
-- `in_progress` / `review` → 放行
-- `completed` → **阻断**。创建新任务
+1. **系统提示已包含 `<workflow-state>` 块（hook 注入）**: 直接按该块
+   `Status:` 行路由。
+2. **否则运行一次导航器**：
+   ```bash
+   ./.cowork-flow/run task next [task-dir-or-name]
+   ```
+   按返回的 `task.json.status` 路由，缺失活动任务时先创建再启动。
+
+状态路由：
+
+- `no_task` → **阻断**。拒绝写代码；引导 brainstorming → plan → task create → task start。
+- `delegated_subtask` → 按子代理规则执行，派发方核验绑定。
+- `planning` → **阻断**。PRD 和 implement.jsonl 就绪前不允许实现或派发 cowork-implement。
+- `in_progress` / `review` → 放行；按当前阶段推进。
+- `completed` → **阻断**。创建新任务或归档会话。
 
 豁免：
 
-- 只读问答
-- 纯查询命令（`git status`、`task next`、`task current`）
-- 用户明确说"跳过流程"
-- `before-dev` 本身
+- 只读问答。
+- 纯查询命令（`git status`、`task next`、`task current`）。
+- 用户明确说"跳过流程"。
+- `task next` / `task validate` 本身。
 
-不确定是否需要写代码时，先调用 `before-dev`。
+不确定是否需要写代码时，先运行 `task next`。
 
 ## 1. 先思考
 
