@@ -36,7 +36,7 @@ signal.
 Rules:
 
 - Read the task directory from the bound runtime context.
-- Read `<task>/prd.md`, the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/`), `<task>/check.jsonl`, each JSONL `file` entry, and
+- Read `<task>/decision-anchor.md`, the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/`), `<task>/check.jsonl`, each JSONL `file` entry, and
   current `git diff`.
 - Check behavior, tests, spec sync, and scope.
 - Fix only in-scope issues.

@@ -35,8 +35,8 @@ the task.
 
 Load context before editing:
 1. Read the task directory from the bound runtime context.
-2. Read `<task>/prd.md`.
-3. Read `<task>/info.md` if present.
+2. Read `<task>/decision-anchor.md`.
+3. Read .
 4. Read `<task>/implement.jsonl`.
 5. Read each JSONL `file` entry.
 6. Read the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/` for a plan file referencing this task directory). Follow the plan steps in order — each step has Files, Action, Verify, and Expected fields.

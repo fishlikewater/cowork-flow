@@ -38,7 +38,7 @@ signal.
 Rules:
 
 - Read the task directory and assignment from the bound runtime context.
-- Read `<task>/prd.md`, `<task>/info.md` if present, and prompt-named context.
+- Read `<task>/decision-anchor.md`, and prompt-named context.
 - Write research only under `<task>/research/`.
 - Do not edit code, specs, task state, or git state.
 - Do not use the `task` tool or invoke subagents.

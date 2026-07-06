@@ -485,9 +485,13 @@ def _task_start_blockers(task_dir: Path) -> list[str]:
     if not task_json.is_file():
         blockers.append("task.json is missing")
 
-    prd_file = task_dir / "prd.md"
-    if not _read_text_if_present(prd_file):
-        blockers.append("prd.md is missing or empty")
+    # 只检查存在性 — R-WF-008 负责章节内容完整性
+    if _read_text_if_present(task_dir / "prd.md"):
+        # 旧格式：提示需要迁移（cmd_start 会自动迁移）
+        if not _read_text_if_present(task_dir / "decision-anchor.md"):
+            blockers.append("prd.md found; task start will auto-migrate to decision-anchor.md")
+    elif not _read_text_if_present(task_dir / "decision-anchor.md"):
+        blockers.append("decision-anchor.md is missing or empty")
 
     for jsonl_name in CONTEXT_JSONL_FILES:
         jsonl_file = task_dir / jsonl_name
@@ -661,10 +665,29 @@ def cmd_create(args: argparse.Namespace) -> int:
 
                 print(colored(f"Linked as child of: {parent_dir.name}", Colors.GREEN), file=sys.stderr)
 
+    # --from-plan: 自动生成 decision-anchor.md 骨架
+    if getattr(args, "from_plan", None):
+        plan_path = Path(args.from_plan)
+        if plan_path.is_file():
+            plan_text = plan_path.read_text(encoding="utf-8")
+            goal = next(
+                (line.split(":", 1)[1].strip() for line in plan_text.splitlines()
+                 if line.startswith("**Goal:**") or line.startswith("**目标:**")),
+                None,
+            )
+            if goal:
+                anchor_file = task_dir / "decision-anchor.md"
+                if not anchor_file.exists():
+                    anchor_file.write_text(
+                        f"## 目标\n\n{goal}\n\n## 验收标准\n- [ ] \n",
+                        encoding="utf-8",
+                    )
+                    print(f"  {colored('[OK]', Colors.GREEN)} Generated decision-anchor.md from plan")
+
     print(colored(f"Created task: {dir_name}", Colors.GREEN), file=sys.stderr)
     print("", file=sys.stderr)
     print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
-    print("  1. Create prd.md with requirements", file=sys.stderr)
+    print("  1. Create decision-anchor.md with requirements", file=sys.stderr)
     print("  2. Run: ./.cowork-flow/run task init-context <dir> <dev_type>", file=sys.stderr)
     print("  3. Run: ./.cowork-flow/run task start <dir>", file=sys.stderr)
     print("", file=sys.stderr)
@@ -961,10 +984,28 @@ def cmd_start(args: argparse.Namespace) -> int:
         for blocker in blockers:
             print(f"  - {blocker}", file=sys.stderr)
         print(
-            "Hint: write prd.md, run ./.cowork-flow/run task init-context <dir> <dev_type>, then retry",
+            "Hint: write decision-anchor.md, run ./.cowork-flow/run task init-context <dir> <dev_type>, then retry",
             file=sys.stderr,
         )
         return 1
+
+    # 自动迁移旧 prd.md 到 decision-anchor.md
+    prd_file = full_path / "prd.md"
+    anchor_file = full_path / "decision-anchor.md"
+    if prd_file.exists() and not anchor_file.exists():
+        content = prd_file.read_text(encoding="utf-8").strip()
+        if not content:
+            content = "(empty legacy prd.md)"
+        if "## 目标" not in content and "## Goal" not in content:
+            content = "## 目标\n\n" + content
+        if "## 验收标准" not in content and "## Acceptance" not in content:
+            content += "\n\n## 验收标准\n- [ ] \n"
+        anchor_file.write_text(content, encoding="utf-8")
+        prd_file.unlink()
+        print(
+            colored("  [迁移] prd.md → decision-anchor.md", Colors.YELLOW),
+            file=sys.stderr,
+        )
 
     validation_issues = _task_context_validation_issues(full_path, repo_root)
     if validation_issues:
@@ -1914,6 +1955,7 @@ def main() -> int:
     p_create.add_argument("--priority", "-p", default="P2", help="Priority (P0-P3)")
     p_create.add_argument("--description", "-d", help="Task description")
     p_create.add_argument("--parent", help="Parent task directory (establishes subtask link)")
+    p_create.add_argument("--from-plan", "-f", help="Path to plan file (auto-generate decision-anchor skeleton)")
 
     # init-context
     p_init = subparsers.add_parser("init-context", help="Initialize context files")

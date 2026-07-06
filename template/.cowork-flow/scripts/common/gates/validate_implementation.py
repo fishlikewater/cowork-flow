@@ -190,7 +190,7 @@ def _check_unrequested_features(
     violations = []
 
     # Read PRD
-    prd_path = task_dir / "prd.md"
+    prd_path = task_dir / "decision-anchor.md"
     if not prd_path.exists():
         return violations
 

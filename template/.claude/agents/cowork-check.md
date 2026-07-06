@@ -35,7 +35,7 @@ the task.
 
 Load context before checking:
 1. Read the task directory from the bound runtime context.
-2. Read `<task>/prd.md`.
+2. Read `<task>/decision-anchor.md`.
 3. Read the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/` for a plan file referencing this task directory). Use the plan's Verify commands and Expected results as the checklist for each step.
 4. Read `<task>/check.jsonl`.
 5. Read `git diff`.

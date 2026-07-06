@@ -74,7 +74,7 @@ code changes without passing through this gate.
 任务仍在计划阶段，尚未就绪进入实现。
 
 需要先:
-1. 完善 prd.md（目标、范围、验收标准）
+1. 完善 decision-anchor.md（目标、范围、验收标准）
 2. 整理 implement.jsonl 和 check.jsonl
 3. 运行 task next 确认准备状态
 4. 运行 task start 进入实现阶段
@@ -82,7 +82,7 @@ code changes without passing through this gate.
 现在继续计划工作？
 ```
 
-**例外**: 如果用户明确要求做的是"计划工作"（写 prd.md、整理 jsonl），可以继续，
+**例外**: 如果用户明确要求做的是"计划工作"（写 decision-anchor.md、整理 jsonl），可以继续，
 但只能编辑任务计划文件，不能开始实现代码。
 
 ### Status = `in_progress`
@@ -90,7 +90,7 @@ code changes without passing through this gate.
 **✅ 放行。** 任务正在执行中。
 
 加载任务上下文后继续：
-1. 读取 `<task>/prd.md`
+1. 读取 `<task>/decision-anchor.md`
 2. 读取任务关联的 plan 文件（通过 `<task>/task.json` 的 relatedFiles 查找，或搜索 `.cowork-flow/plans/` 中引用此任务的文件），按 plan 步骤执行
 3. 读取 `<task>/implement.jsonl`
 4. 读取相关 spec 文件

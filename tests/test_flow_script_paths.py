@@ -268,10 +268,10 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             blockers = self.task._task_start_blockers(task_dir)
 
-            self.assertIn("prd.md is missing or empty", blockers)
-            self.assertIn("implement.jsonl is missing or empty", blockers)
-            self.assertIn("check.jsonl is missing or empty", blockers)
-            self.assertIn("debug.jsonl is missing or empty", blockers)
+        self.assertIn("decision-anchor.md is missing or empty", blockers)
+        self.assertIn("implement.jsonl is missing or empty", blockers)
+        self.assertIn("check.jsonl is missing or empty", blockers)
+        self.assertIn("debug.jsonl is missing or empty", blockers)
 
     def test_task_start_blockers_clear_when_prd_and_context_exist(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -279,7 +279,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
@@ -295,7 +295,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             "children": [],
         }
         (task_dir / "task.json").write_text(json.dumps(task_data), encoding="utf-8")
-        (task_dir / "prd.md").write_text(
+        (task_dir / "decision-anchor.md").write_text(
             "# Demo\n\n"
             "## Goal\n\nKeep the workflow safe.\n\n"
             "## Scope\n\nOnly readiness-gated workflow startup changes.\n\n"
@@ -385,7 +385,7 @@ class FlowScriptPathsTest(unittest.TestCase):
         }
 
     def _write_behavior_prd(self, task_dir: Path) -> None:
-        (task_dir / "prd.md").write_text(
+        (task_dir / "decision-anchor.md").write_text(
             "# Behavior task\n\n"
             "## 目标\n\n"
             "实现会改变 CLI/runtime 可观察行为。\n\n"
@@ -440,7 +440,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             json.dumps({"status": status, "completedAt": None}),
             encoding="utf-8",
         )
-        (task_dir / "prd.md").write_text(
+        (task_dir / "decision-anchor.md").write_text(
             "# Docs task\n\n"
             "## 验收标准\n\n"
             "- AC-001: 文档措辞更新。\n",
@@ -746,7 +746,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             (task_dir / "implement.jsonl").write_text("not-json\n", encoding="utf-8")
             for name in ("check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
@@ -774,7 +774,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
             self._write_rules_file(root, [])
@@ -801,7 +801,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
             self._write_rules_file(root, [])
@@ -907,7 +907,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             self._write_rules_file(
                 root,
                 [
@@ -993,7 +993,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             nested = outer / "nested-project"
             task_dir = nested / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
-            (task_dir / "prd.md").write_text("# Nested task\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Nested task\n", encoding="utf-8")
 
             implementation = importlib.import_module("common.gates.validate_implementation")
             coding = importlib.import_module("common.gates.validate_coding_standards")
@@ -1525,7 +1525,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-docs"
             task_dir.mkdir(parents=True)
-            (task_dir / "prd.md").write_text(
+            (task_dir / "decision-anchor.md").write_text(
                 "# Docs task\n\n## 验收标准\n\n- AC-001: 文档措辞更新。\n",
                 encoding="utf-8",
             )
@@ -1656,7 +1656,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("Task: .cowork-flow/tasks/05-19-demo", output)
             self.assertIn("Status: planning", output)
             self.assertIn("Blockers:", output)
-            self.assertIn("prd.md is missing or empty", output)
+            self.assertIn("decision-anchor.md is missing or empty", output)
             self.assertIn("./.cowork-flow/run task init-context", output)
             self.assertFalse((root / ".cowork-flow" / (".current" + "-task")).exists())
 
@@ -1692,7 +1692,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
-            (task_dir / "prd.md").write_text(
+            (task_dir / "decision-anchor.md").write_text(
                 "# Demo\n\n## 验收标准\n\n- AC-001: workflow behavior changes require TDD first.\n",
                 encoding="utf-8",
             )
@@ -1726,7 +1726,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
-            (task_dir / "prd.md").write_text(
+            (task_dir / "decision-anchor.md").write_text(
                 "# Demo\n\n## 验收标准\n\n- AC-001: workflow behavior changes require TDD first.\n",
                 encoding="utf-8",
             )
@@ -1825,7 +1825,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
             self._write_session_task(root)
@@ -1853,7 +1853,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
             self._write_rules_file(root, [])
@@ -2119,7 +2119,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
             )
-            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             (task_dir / "implement.jsonl").write_text(
                 '{"file": ".cowork-flow/plans/2026-05-19-demo.md"}\n',
                 encoding="utf-8",
@@ -2139,7 +2139,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 "Recovery entrypoint (rerun only if context is stale): ./.cowork-flow/run resume",
                 output,
             )
-            self.assertIn("Read active task PRD: .cowork-flow/tasks/05-19-demo/prd.md", output)
+            self.assertIn("Read active task PRD: .cowork-flow/tasks/05-19-demo/decision-anchor.md", output)
             self.assertIn("List task context before reading details: ./.cowork-flow/run task list-context .cowork-flow/tasks/05-19-demo", output)
             self.assertIn("Read current plan status: .cowork-flow/plans/2026-05-19-demo.md", output)
             self.assertIn("Do not bulk-read .cowork-flow/spec/ or workspace journals", output)
@@ -2156,7 +2156,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
             )
-            (task_dir / "prd.md").write_text("# Secret PRD body should not appear\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Secret PRD body should not appear\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
@@ -2176,7 +2176,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 context["resumeChecklist"]["commands"][0],
             )
             self.assertIn(
-                ".cowork-flow/tasks/05-19-demo/prd.md",
+                ".cowork-flow/tasks/05-19-demo/decision-anchor.md",
                 context["resumeChecklist"]["readFiles"],
             )
 
@@ -2192,7 +2192,7 @@ class FlowScriptPathsTest(unittest.TestCase):
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
             )
-            (task_dir / "prd.md").write_text("# Secret PRD body should not appear\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Secret PRD body should not appear\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
@@ -2211,6 +2211,72 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn("COWORK-FLOW RESUME", result.stdout)
             self.assertIn("## RESUME CHECKLIST", result.stdout)
             self.assertNotIn("Secret PRD body", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class DecisionAnchorDriftPreventionTest(unittest.TestCase):
+    """Regression tests for decision-anchor drift prevention mechanism."""
+
+    def setUp(self) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        self.addCleanup(self._cleanup_imports)
+        self.task = importlib.import_module("commands.task")
+        self.tdd = importlib.import_module("common.gates.tdd_evidence")
+
+    def _cleanup_imports(self) -> None:
+        if str(SCRIPTS) in sys.path:
+            sys.path.remove(str(SCRIPTS))
+        for module_name in (
+            "commands.task",
+            "common.gates.tdd_evidence",
+            "common.task.readiness",
+        ):
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+
+    def test_task_start_blockers_accept_legacy_prd_with_migration_hint(self) -> None:
+        """旧格式 prd.md 不再直接报 missing，而是提示会自动迁移。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text("{}", encoding="utf-8")
+            (task_dir / "prd.md").write_text("# Legacy PRD\n## Goal\nTest\n", encoding="utf-8")
+
+            blockers = self.task._task_start_blockers(task_dir)
+
+            # 提示迁移而不是直接 missing
+            self.assertIn("prd.md found; task start will auto-migrate to decision-anchor.md", blockers)
+            self.assertNotIn("decision-anchor.md is missing or empty", blockers)
+
+    def test_task_start_blockers_missing_anchor_and_no_legacy(self) -> None:
+        """没有 prd.md 也没有 decision-anchor.md 时报 missing。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text("{}", encoding="utf-8")
+
+            blockers = self.task._task_start_blockers(task_dir)
+            self.assertIn("decision-anchor.md is missing or empty", blockers)
+
+    def test_ac_accepts_various_formats(self) -> None:
+        """_acceptance_ids 支持 AC-001、AC-1、验收标准：1 等格式。"""
+        text = "## 验收标准\n- [ ] AC-001: 基础功能\n- [ ] AC-2: 进阶功能\n- [ ] 验收标准：3 手动"
+        ids = self.tdd._acceptance_ids(text)
+        self.assertIn("AC-001", ids)
+        self.assertIn("AC-2", ids)
+        self.assertIn("AC-3", ids)
+
+    def test_ac_case_insensitive(self) -> None:
+        """AC 标识符大小写不敏感。"""
+        text = "ac-001 and Ac-002"
+        ids = self.tdd._acceptance_ids(text)
+        self.assertIn("AC-001", ids)
+        self.assertIn("AC-002", ids)
 
 
 if __name__ == "__main__":

@@ -11,13 +11,13 @@ from .task_utils import find_task_by_name
 
 REQUIRED_L2_MARKERS = {
     "goal and user value": (
-        ("## goal", "## problem", "目标"),
+        ("## goal", "## problem", "## 目标", "目标"),
         ("## benefits", "user value", "用户价值", "价值"),
     ),
-    "non-goals": (("## non-goals", "non-goals", "非目标"),),
-    "key assumptions": (("assumption", "assumptions", "关键假设"),),
-    "scope boundary": (("## scope", "scope boundary", "范围边界", "scope:"),),
-    "acceptance criteria": (("acceptance criteria", "## acceptance", "验收标准", "验收"),),
+    "non-goals": (("## non-goals", "non-goals", "## 非目标", "非目标"),),
+    "key assumptions": (("assumption", "assumptions", "## 关键假设", "关键假设"),),
+    "scope boundary": (("## scope", "scope boundary", "## 范围边界", "范围边界", "scope:"),),
+    "acceptance criteria": (("acceptance criteria", "## acceptance", "## 验收标准", "验收标准", "验收"),),
 }
 
 VERIFICATION_COMMAND_MARKERS = (
@@ -167,10 +167,10 @@ def _read_l2_context(repo_root: Path, change_dir: Path, plan_path: Path | None, 
         _read_text(change_dir / "proposal.md"),
         _read_text(change_dir / "spec.md"),
         _read_text(change_dir / "design.md"),
-        _read_text(task_dir / "prd.md"),
+        _read_text(task_dir / "decision-anchor.md"),
     ]
     for ancestor in _task_ancestry(repo_root, task_dir)[1:]:
-        parts.append(_read_text(ancestor / "prd.md"))
+        parts.append(_read_text(ancestor / "decision-anchor.md"))
     if plan_path is not None:
         parts.append(_read_text(plan_path))
     return "\n\n".join(part for part in parts if part)

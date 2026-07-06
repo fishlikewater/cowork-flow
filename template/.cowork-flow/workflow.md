@@ -47,7 +47,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 | --- | --- |
 | 开发者身份 | `.cowork-flow/.developer` |
 | 当前会话任务 | `.cowork-flow/.runtime/sessions/<context-key>.json` |
-| 任务目标 | `.cowork-flow/tasks/<task>/prd.md` |
+| 任务目标 | `.cowork-flow/tasks/<task>/decision-anchor.md` |
 | 实现上下文 | `.cowork-flow/tasks/<task>/implement.jsonl` |
 | 检查上下文 | `.cowork-flow/tasks/<task>/check.jsonl` |
 | 调试上下文 | `.cowork-flow/tasks/<task>/debug.jsonl` |
@@ -77,8 +77,8 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 | 代理 | 读取 | 允许 | 禁止 | 输出 |
 | --- | --- | --- | --- | --- |
 | `cowork-research` | 任务上下文和调研输入 | 只做调研，只写入 `<task>/research/` | 改代码、改规格、改任务状态、操作 Git | 调研结论和证据 |
-| `cowork-implement` | `<task>/prd.md`、`<task>/info.md`、`<task>/implement.jsonl` 和 JSONL 指向的文件 | 按任务范围实现 | 启动其他代理、提交、归档、运行 `task start`、`task finish` 或 `task archive` | 改动文件和验证命令 |
-| `cowork-check` | `<task>/prd.md`、`<task>/check.jsonl` 和 `git diff` | 检查行为、测试、规格同步和遗漏；范围内问题直接修复 | 提交、归档、启动其他代理 | 检查结论、修复内容和验证结果 |
+| `cowork-implement` | `<task>/decision-anchor.md`、`<task>/implement.jsonl` 和 JSONL 指向的文件 | 按任务范围实现 | 启动其他代理、提交、归档、运行 `task start`、`task finish` 或 `task archive` | 改动文件和验证命令 |
+| `cowork-check` | `<task>/decision-anchor.md`、`<task>/check.jsonl` 和 `git diff` | 检查行为、测试、规格同步和遗漏；范围内问题直接修复 | 提交、归档、启动其他代理 | 检查结论、修复内容和验证结果 |
 
 ## 3.1 固定代理派发入口
 
@@ -160,7 +160,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
     ```bash
     ./.cowork-flow/run task create "<title>" --slug <task-name>
     ```
-6. 对创建的每项任务写 `prd.md`，至少包含目标、范围、验收标准、相关文件、验证方式。
+6. 对创建的每项任务写 `decision-anchor.md`，至少包含目标、范围、验收标准、相关文件、验证方式。
 7. 初始化上下文：
     ```bash
     ./.cowork-flow/run task init-context <task-dir> <type>
