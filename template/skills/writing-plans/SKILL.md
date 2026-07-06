@@ -68,6 +68,29 @@ Start with:
 - Avoid placeholders such as TODO, TBD, "handle edge cases", or "write tests".
 - Keep root/template parity explicit when both copies exist.
 
+### Anti-Rationalization - 计划阶段
+
+| Agent 心理 | 反驳 |
+|---|---|
+| "这个 task 太小了，可以合并" | task 粒度由 acceptance criteria 决定，不由行数决定。AC 不可拆分时应合并，否则独立。 |
+| "先写个粗 plan，实现时再细化" | 粗 plan = 实现时没有约束。没有约束的实现 = 范围蔓延或返工。 |
+| "跳过 plan 直接开始反正有了 PRD" | PRD 定义"做什么"，plan 定义"怎么做和按什么顺序做"。缺少 plan 的任务在 midway 发现依赖错误时返工成本翻倍。 |
+| "这个 task 不需要 verify 命令" | 没有 verify = 没有完成信号。每个 task 必须有可运行的验证命令。 |
+
+## Plan Approval Gate
+
+plan 必须满足以下条件才能被标记为 approved：
+- implement.jsonl 中的所有 task 有清晰的 acceptance criteria
+- 每个 task 有 implement 步骤和 verify 命令
+- task 间依赖关系明确（是否可以并行/必须顺序）
+
+## 批准后选项
+
+- **逐 task 推进**（默认路径）：用户 task start 一个 task，完成后再 task start 下一个。
+- **批模式**：用户明确说 "auto" 或 "batch" 后触发 batch skill（参见 skills/batch-mode/SKILL.md）。每个 task 仍然独立验证。
+
+> **默认逐 task 推进。** 当用户没有显式说 "auto" 时，不进入批模式。
+
 ## Parallel Work
 
 Execution strategy guide:

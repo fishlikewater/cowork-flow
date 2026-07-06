@@ -98,6 +98,14 @@ code changes without passing through this gate.
 6. 声明确认的假设、成功标准、涉及文件、验证命令
 7. 继续实现
 
+  7. 继续实现
+
+**L2 任务进入实现前必须完成 doubt-review：**
+- 决策记录在 `<task>/doubt-review.md`
+- 每个决策有 CLAIM + ARTIFACT + CONTRACT + RECONCILE 记录
+- 无记录的非平凡决策视为"未审查"——check stage 应标记为 blocker
+- 参考 skills/doubt-review/SKILL.md 的 5-step cycle
+
 主会话派发固定代理时，必须使用 runtime context dispatch 协议。
 
 ### Status = `review`

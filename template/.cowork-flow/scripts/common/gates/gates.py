@@ -58,6 +58,11 @@ class GateRunner:
             violations.extend(
                 validate_coding_standards(self.repo_root, normalized_task_dir)
             )
+            from .validate_coding_standards import validate_complexity_signals
+
+            violations.extend(
+                validate_complexity_signals(self.repo_root, normalized_task_dir)
+            )
         return GateResult.from_violations(scope, violations, normalized_task_dir)
 
     def log(self, result: GateResult) -> None:

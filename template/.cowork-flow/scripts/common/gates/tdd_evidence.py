@@ -343,6 +343,9 @@ def _validate_exemption(
             )
         )
 
+    from .anti_rationalization import validate_exemption_rationalization
+    violations.extend(validate_exemption_rationalization(str(entry.get("reason", ""))))
+
     return violations
 
 

@@ -59,3 +59,16 @@ Pure documentation, comment-only, or formatting-only tasks may use an exemption 
 ```
 
 Do not use an exemption for runtime, CLI, protocol, state, data format, permission, or error-handling changes.
+
+## Anti-Rationalization
+
+> 以下借口不能免除 TDD 证据要求。每条都对应一个可执行的替代方案。
+
+| Agent 心理 | 反驳 | 替代方案 |
+|---|---|---|
+| "这个逻辑很简单，不需要测试" | 简单逻辑也会因边界条件和后续修改出错。简单不是免除证据的理由。 | 写一个断言核心行为的覆盖测试，耗时 < 2 分钟 |
+| "其他测试已经覆盖了" | "已经覆盖"无法从 tdd.jsonl 证据中验证。看不见的证据 = 不存在。 | 在 tdd.jsonl 中能直接定位到对应的 acceptanceId 和 redCommand |
+| "我会在实现之后补测试" | 实现后补的测试不是红绿循环——它验证的是实现，不是行为。 | 先 red，再 green，证据留在 tdd.jsonl |
+| "肉眼可以看出正确" | 肉眼能看出的错误不会成为 bug。能成为 bug 的都是"看起来正确"的场景。 | 将"看起来正确"的输入变成断言，将"意外输入"变成边界测试 |
+| "写过类似的测试，模式一样" | 模式一样不等于行为一样。每个 acceptanceId 的证据必须是独立的。 | 为当前 acceptanceId 重新运行 redCommand 并记录输出 |
+| "这是内部函数，外部不可见" | 内部函数也会被其他内部调用者依赖。行为变化通过调用链传播。 | 通过调用它的公共入口写测试，或直接测内部函数 |
