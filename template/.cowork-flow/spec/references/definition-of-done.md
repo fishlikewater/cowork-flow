@@ -41,5 +41,5 @@
 | DoD | AC |
 |---|---|
 | 项目级不变量——本次任务不例外 | PRD 特有的完成条件 |
-| 来源：spec/references/definition-of-done | 来源：<task>/prd.md |
+| 来源：spec/references/definition-of-done | 来源：<task>/decision-anchor.md |
 | 两者都满足 = 任务真正完成 |

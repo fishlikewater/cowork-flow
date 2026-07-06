@@ -50,7 +50,7 @@ are constraints only; they are not the task itself.
 ## planning
 
 [workflow-state:planning]
-活动任务处于计划阶段。先完成 prd.md，整理带有规格/调研文件的 implement.jsonl 和 check.jsonl，再运行 task start，之后才派发 cowork-implement。
+活动任务处于计划阶段。先完成 decision-anchor.md，整理带有规格/调研文件的 implement.jsonl 和 check.jsonl，再运行 task start，之后才派发 cowork-implement。
 [/workflow-state:planning]
 
 ## in_progress

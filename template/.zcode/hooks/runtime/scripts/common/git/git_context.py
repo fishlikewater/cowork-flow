@@ -189,7 +189,7 @@ def _get_active_task_snapshot(repo_root: Path) -> ActiveTaskSnapshot:
     return ActiveTaskSnapshot(
         path=active_task,
         data=data,
-        has_prd=(active_task_dir / "prd.md").is_file(),
+        has_prd=(active_task_dir / "decision-anchor.md").is_file(),
     )
 
 
@@ -271,7 +271,7 @@ def _build_resume_checklist(
     commands.append(f"./{DIR_WORKFLOW}/run task list-context {active_task}")
 
     if snapshot.has_prd:
-        read_files.append(f"{active_task}/prd.md")
+        read_files.append(f"{active_task}/decision-anchor.md")
 
     read_files.extend(_task_plan_references(repo_root, snapshot))
     notes.append("Read current plan status only when continuing implementation.")
@@ -314,7 +314,7 @@ def _append_resume_checklist(
         return
 
     active_task = snapshot.path
-    prd_path = f"{active_task}/prd.md"
+    prd_path = f"{active_task}/decision-anchor.md"
     if prd_path in read_files:
         lines.append(f"- Read active task PRD: {prd_path}")
     else:
@@ -362,7 +362,7 @@ def _append_active_task(
 
     if include_prd_hint and snapshot.has_prd:
         lines.append("")
-        lines.append("[!] This task has prd.md - read it for task details")
+        lines.append("[!] This task has decision-anchor.md - read it for task details")
     lines.append("")
 
 

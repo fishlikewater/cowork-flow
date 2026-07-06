@@ -82,7 +82,7 @@ SETUP_FAILURE_MARKERS = (
 def validate_tdd_evidence(task_dir: Path) -> list[dict]:
     """Return TDD evidence violations for a task directory."""
     task_dir = Path(task_dir)
-    prd_text = _read_text(task_dir / "prd.md")
+    prd_text = _read_text(task_dir / "decision-anchor.md")
     evidence_path = task_dir / EVIDENCE_FILE
 
     if not evidence_path.is_file():
@@ -127,7 +127,7 @@ def validate_tdd_evidence(task_dir: Path) -> list[dict]:
 def validate_tdd_red_evidence(task_dir: Path) -> list[dict]:
     """Return violations when implementation would start without red evidence."""
     task_dir = Path(task_dir)
-    prd_text = _read_text(task_dir / "prd.md")
+    prd_text = _read_text(task_dir / "decision-anchor.md")
     if not _task_requires_tdd(prd_text):
         return []
 
@@ -210,7 +210,10 @@ def _read_jsonl(path: Path) -> tuple[list[dict], list[dict]]:
 
 
 def _acceptance_ids(prd_text: str) -> set[str]:
-    return set(re.findall(r"\bAC-\d{3}\b", prd_text))
+    """提取验收标准 ID，支持 AC-001、AC-1、验收标准：1 等格式。"""
+    ids = set(re.findall(r"\bAC-(\d{1,4})\b", prd_text, re.IGNORECASE))
+    ids |= set(re.findall(r"验收标准[：:]\s*(\d+)", prd_text))
+    return {f"AC-{n}" for n in ids}
 
 
 def _validate_evidence(
