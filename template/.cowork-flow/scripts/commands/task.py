@@ -1355,6 +1355,17 @@ def _print_blockers(blockers: list[str]) -> None:
         print(f"  - {blocker}")
 
 
+def _is_git_dirty(repo_root: Path) -> bool:
+    """Check if the git working tree has uncommitted changes."""
+    try:
+        rc, _, _ = _run_git_command(
+            ["status", "--porcelain"], cwd=repo_root
+        )
+        return rc != 0
+    except (OSError, Exception):
+        return False
+
+
 def _linked_active_changes_for_task(repo_root: Path, task_dir: Path) -> list[str]:
     from commands.change import linked_active_changes_for_task
 
@@ -1483,7 +1494,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         return 0
 
     if status in DONE_STATUSES:
-        print("Next action: finalize, commit, archive, and record session")
+        print("Next action: finalize, archive, commit, and record session")
         print("Command: git status --short")
         linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
         print(f"Then: ./.cowork-flow/run task archive {Path(task_path).name}")
@@ -1549,6 +1560,14 @@ def cmd_archive(args: argparse.Namespace) -> int:
     linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
     if linked_changes and not _linked_changes_ready_for_archive(repo_root, linked_changes):
         return 1
+
+    # R-WF-011: warn if uncommitted changes detected (archive should come before commit)
+    if _is_git_dirty(repo_root):
+        print(colored(
+            "Warning: Uncommitted changes detected. "
+            "Archive the task first, then commit the archived result.",
+            Colors.YELLOW,
+        ), file=sys.stderr)
 
     # Archive
     result = archive_task_complete(task_dir, repo_root)
