@@ -216,6 +216,18 @@
       "source_file": ".cowork-flow/workflow.md",
       "source_excerpt": "外科手术式改动: 只改必须改的",
       "enforcement": "metadata_only"
+    },
+    {
+      "id": "R-WF-011",
+      "type": "phase_gate",
+      "severity": "warn",
+      "scope": "task_archive",
+      "condition": "Archive should happen before final commit to avoid committing unreviewed code",
+      "message": "Uncommitted changes detected. Archive the task first, then commit the archived result.",
+      "fix_hint": "Run './.cowork-flow/run task archive <name>' first. Then commit the archive result.",
+      "source_file": ".cowork-flow/workflow.md",
+      "source_excerpt": "归档后再提交",
+      "enforcement": "validate_rules"
     }
   ]
 }
