@@ -221,7 +221,7 @@
       "id": "R-WF-011",
       "type": "phase_gate",
       "severity": "warn",
-      "scope": "task_archive",
+      "scope": "all",
       "condition": "Archive should happen before final commit to avoid committing unreviewed code",
       "message": "Uncommitted changes detected. Archive the task first, then commit the archived result.",
       "fix_hint": "Run './.cowork-flow/run task archive <name>' first. Then commit the archive result.",
