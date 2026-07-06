@@ -143,11 +143,7 @@ def _read_tdd_entries(path: Path) -> list[dict]:
     return entries
 
 
-def _read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return ""
+from common.core.files import read_text_utf8 as _read_text
 
 
 def _classify_test_content(content: str, test_name: str) -> str:

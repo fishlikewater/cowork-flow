@@ -266,14 +266,8 @@ def _validate_rule(
     scope: str,
 ) -> dict | None:
     """Validate a single rule. Returns violation dict if rule fails."""
-    rule_type = rule["type"]
-
-    if rule_type == "phase_gate":
+    if rule["type"] == "phase_gate":
         return _validate_phase_gate(rule, repo_root, task_dir, scope)
-    elif rule_type == "forbidden_action":
-        # Forbidden actions are validated at runtime, not at checkpoints
-        return None
-
     return None
 
 
@@ -307,11 +301,6 @@ def _validate_phase_gate(
             return _check_plan_link(repo_root, change_dir, rule)
         elif rule_id == "R-WF-005":
             return _check_task_link(change_dir, task_dir, rule)
-
-    # R-WF-006: Implementation without failing test
-    if rule_id == "R-WF-006":
-        # This is a warn-level rule, just log
-        return None
 
     # R-WF-007: Task completion without check
     if rule_id == "R-WF-007":

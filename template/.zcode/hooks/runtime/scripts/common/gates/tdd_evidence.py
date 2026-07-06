@@ -161,11 +161,7 @@ def _task_requires_tdd(prd_text: str) -> bool:
     return any(marker.lower() in lower for marker in TDD_REQUIRED_MARKERS)
 
 
-def _read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return ""
+from common.core.files import read_text_utf8 as _read_text
 
 
 def _read_jsonl(path: Path) -> tuple[list[dict], list[dict]]:
@@ -342,6 +338,9 @@ def _validate_exemption(
                 "Map the exemption to a PRD acceptance ID such as AC-001.",
             )
         )
+
+    from .anti_rationalization import validate_exemption_rationalization
+    violations.extend(validate_exemption_rationalization(str(entry.get("reason", ""))))
 
     return violations
 

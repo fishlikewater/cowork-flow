@@ -28,11 +28,11 @@ VERIFICATION_COMMAND_MARKERS = (
 )
 
 
+from common.core.files import read_text_utf8
+
+
 def _read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8").strip()
-    except (OSError, UnicodeDecodeError):
-        return ""
+    return read_text_utf8(path).strip()
 
 
 def _read_json(path: Path) -> dict:

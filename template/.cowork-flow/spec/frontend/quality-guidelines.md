@@ -1,5 +1,7 @@
 # 前端质量规范
 
+> 以下规则在 check / review 阶段注入 LLM 上下文。由 AI 依据规范评估代码并自行修正——**不会被门禁硬拦截**。如需机器强制规则，可使用项目自身的 lint / format / type-check / test / build 命令。
+
 ## 完成定义
 
 至少满足：
