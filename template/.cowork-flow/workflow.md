@@ -160,7 +160,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
     ```bash
     ./.cowork-flow/run task create "<title>" --slug <task-name>
     ```
-6. 对创建的每项任务写 `decision-anchor.md`，至少包含目标、范围、验收标准、相关文件、验证方式。
+6. 对创建的每项任务写 `decision-anchor.md`，至少包含 `## 目标` 和 `## 验收标准` 两个章节。相关文件通过 `implement.jsonl` 跟踪（运行 `task add-context` 添加）。
 7. 初始化上下文：
     ```bash
     ./.cowork-flow/run task init-context <task-dir> <type>

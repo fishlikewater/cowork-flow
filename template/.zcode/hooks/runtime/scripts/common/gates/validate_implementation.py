@@ -186,29 +186,54 @@ def _check_unrequested_features(
     task_dir: Path,
     rule_index: dict[str, dict],
 ) -> list[dict]:
-    """R-AG-005: Check if unrequested features were introduced"""
+    """R-AG-005: Check if unrequested files were modified (diff files must be in implement.jsonl)."""
     violations = []
 
-    # Read PRD
-    prd_path = task_dir / "decision-anchor.md"
-    if not prd_path.exists():
+    # Collect allowed files from implement.jsonl
+    implement_jsonl = task_dir / "implement.jsonl"
+    if not implement_jsonl.exists():
         return violations
 
-    prd_content = prd_path.read_text(encoding="utf-8")
+    allowed_files: set[str] = set()
+    try:
+        for line in implement_jsonl.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            file_path = entry.get("file")
+            if isinstance(file_path, str) and file_path:
+                # Normalize paths (strip repo root prefix if present)
+                allowed_files.add(file_path)
+                # Also add stripped versions for matching
+                if file_path.startswith("./"):
+                    allowed_files.add(file_path[2:])
+                else:
+                    allowed_files.add(f"./{file_path}")
+    except (OSError, UnicodeDecodeError):
+        return violations
 
-    # Check for obvious extra features
-    # This is a simple heuristic check, actual implementation may need more complex NLP analysis
-    feature_indicators = [
-        r"Added.*feature",
-        r"New.*functionality",
-        r"Implemented.*module",
-    ]
+    if not allowed_files:
+        return violations
 
-    for pattern in feature_indicators:
-        if re.search(pattern, diff_output) and not re.search(pattern, prd_content):
+    # Get modified project files (exclude .cowork-flow/ metadata)
+    modified_files = _get_modified_files(repo_root)
+    for file_path in modified_files:
+        # Skip .cowork-flow metadata files and template files
+        if ".cowork-flow/" in file_path:
+            continue
+        normalized = file_path.replace("\\", "/")
+        # Check if file is in allowed list
+        if normalized not in allowed_files and f"./{normalized}" not in allowed_files:
             rule = rule_index.get("R-AG-005")
             violations.append(
-                rule_violation(rule, "", detail=f"detected pattern: {pattern}")
+                rule_violation(
+                    rule, file_path,
+                    detail=f"modified file not in implement.jsonl allowed list"
+                )
                 if rule
                 else _missing_rule(repo_root, "R-AG-005")
             )

@@ -168,6 +168,66 @@
       "source_file": "AGENTS.md",
       "source_excerpt": "不顺手重构无关模块",
       "enforcement": "host_contract"
+    },
+    {
+      "id": "R-WF-008",
+      "type": "phase_gate",
+      "severity": "warn",
+      "scope": "task_start",
+      "condition": "L2 任务的关键决策应有 doubt-review 记录",
+      "message": "Missing doubt-review for L2 non-trivial decision",
+      "fix_hint": "在 <task>/doubt-review.md 中为每个非平凡决策完成 5-step doubt cycle",
+      "source_file": ".cowork-flow/spec/contracts/subagent-dispatch.md",
+      "source_excerpt": "doubt-review is a mandatory sub-step of before-dev gate for L2",
+      "enforcement": "validate_rules"
+    },
+    {
+      "id": "R-WF-009",
+      "type": "phase_gate",
+      "severity": "warn",
+      "scope": "check",
+      "condition": "Bug fix must have regression test that fails without the fix",
+      "message": "Bug fix lacks regression test or modifies existing test to pass",
+      "fix_hint": "Record red-green evidence in tdd.jsonl; test must fail without the fix and pass with the fix",
+      "source_file": ".cowork-flow/workflow.md",
+      "source_excerpt": "先写能失败的测试",
+      "enforcement": "tdd_evidence"
+    },
+    {
+      "id": "R-WF-010",
+      "type": "phase_gate",
+      "severity": "block",
+      "scope": "all",
+      "condition": "Batch mode requires explicit user approval before starting",
+      "message": "Batch mode started without explicit user approval",
+      "fix_hint": "用户必须在 writing-plans 结束时明确说 'approved' + 'auto' 才能进入批模式",
+      "source_file": ".cowork-flow/workflow.md",
+      "source_excerpt": "用户是流程的最终决策者",
+      "enforcement": "host_contract"
+    },
+    {
+      "id": "R-AG-008",
+      "type": "forbidden_action",
+      "severity": "warn",
+      "scope": "check",
+      "condition": "Simplification must preserve observable behavior",
+      "message": "Simplification appears to change observable behavior",
+      "fix_hint": "简化不应改变测试结果。如果测试需要修改才能通过，行为已变——还原或重写测试",
+      "source_file": ".cowork-flow/workflow.md",
+      "source_excerpt": "外科手术式改动: 只改必须改的",
+      "enforcement": "metadata_only"
+    },
+    {
+      "id": "R-WF-011",
+      "type": "phase_gate",
+      "severity": "warn",
+      "scope": "all",
+      "condition": "Archive should happen before final commit to avoid committing unreviewed code",
+      "message": "Uncommitted changes detected. Archive the task first, then commit the archived result.",
+      "fix_hint": "Run './.cowork-flow/run task archive <name>' first. Then commit the archive result.",
+      "source_file": ".cowork-flow/workflow.md",
+      "source_excerpt": "归档后再提交",
+      "enforcement": "validate_rules"
     }
   ]
 }
