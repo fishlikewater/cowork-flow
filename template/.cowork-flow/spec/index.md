@@ -10,6 +10,22 @@
 | `backend/` | Python/runtime 后端实现规范。 |
 | `frontend/` | 前端实现规范。 |
 | `guides/` | 编码前思考、跨层设计和复用判断指引。 |
+| `references/` | 按需参考材料（DoD、测试清单、安全清单、协作模式）；不自动加载。加载条件见 contract-registry.json 的 references 数组。 |
 
 规则执行器只负责事实判断；规则的 `id`、`message`、`severity`、`fix_hint`
 和来源元数据必须来自 `runtime/rules.json`。
+
+## references/
+
+> 按需参考材料。**不在主会话中自动加载**——仅当 skill 入口或 agent 判断需要时读取。
+
+reference 文件之作用是：
+1. 为 skill 入口提供补充上下文（main skill 是入口，reference 是补充）
+2. 减少每次会话需加载的内容（spec/backend/ 等窄域规范只有实际需要时才加载）
+3. 在 check 或 review 阶段提供快速对照清单
+
+加载规则：
+- contract-registry 中 loadWhen 之一被匹配时读取
+- skill 正文中显式引用 reference ID 时读取
+- 用户在主会话请求特定检查时
+- **不**自动加载——这是与 contracts/ 系列的区别

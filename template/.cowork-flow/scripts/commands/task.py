@@ -988,6 +988,10 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
+    if getattr(args, "auto", False):
+        from common.task.batch_mode import run_batch_entry
+        return run_batch_entry(repo_root, full_path, args)
+
     state_blockers = transition_blockers(_load_task_status(full_path), "in_progress")
     if state_blockers:
         _print_transition_blockers(state_blockers)
@@ -1938,6 +1942,10 @@ def main() -> int:
     # start
     p_start = subparsers.add_parser("start", help="Set active session task")
     p_start.add_argument("dir", help="Task directory")
+    p_start.add_argument("--auto", action="store_true",
+                         help="Enable batch mode (requires --approved)")
+    p_start.add_argument("--approved", action="store_true",
+                         help="User has approved the plan")
 
     # current
     subparsers.add_parser("current", help="Show active session task")

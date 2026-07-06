@@ -301,3 +301,52 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def validate_complexity_signals(repo_root: Path, task_dir: Path | None) -> list[dict]:
+    """Detect over-complexity signals in modified files (warn-level)."""
+    import ast
+    import subprocess
+    warnings: list[dict] = []
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD~"],
+            cwd=str(repo_root), capture_output=True, text=True,
+            encoding="utf-8", timeout=10,
+        )
+        changed_files = [f for f in result.stdout.splitlines() if f]
+    except (subprocess.SubprocessError, OSError):
+        return warnings
+
+    for rel_path in changed_files:
+        if not rel_path.endswith(".py"):
+            continue
+        full_path = repo_root / rel_path
+        if not full_path.is_file():
+            continue
+        try:
+            source = full_path.read_text(encoding="utf-8")
+            tree = ast.parse(source)
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                end = getattr(node, "end_lineno", None) or node.lineno
+                func_lines = end - node.lineno
+                if func_lines > 50:
+                    warnings.append({
+                        "rule_id": "COMPLEX-FUNC-001",
+                        "type": "coding_standard",
+                        "severity": "warn",
+                        "passed": False,
+                        "message": (
+                            f"{rel_path}:{node.name} function is "
+                            f"{func_lines} lines (< 50 recommended)"
+                        ),
+                        "file": str(rel_path),
+                        "fix_hint": (
+                            "Split into multiple named functions "
+                            "by responsibility."
+                        ),
+                    })
+    return warnings
