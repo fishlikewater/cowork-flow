@@ -25,6 +25,14 @@ def read_json_file(path: Path) -> dict | None:
         return None
 
 
+def read_text_utf8(path: Path) -> str:
+    """Read a text file as UTF-8; return "" if missing or unreadable."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
 def write_json_file(path: Path, data: dict) -> bool:
     """Write dict to JSON file atomically (temp + os.replace)."""
     try:

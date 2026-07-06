@@ -1,5 +1,7 @@
 # 后端质量规范
 
+> 以下规则在 check / review 阶段注入 LLM 上下文。由 AI 依据规范评估代码并自行修正——**不会被门禁硬拦截**。如需机器强制规则，可使用项目自身的 lint / type-check / test 命令，或在 `quality-guidelines.md` 中使用下方"机器强制检查"段提供正则 pattern。
+
 ## 完成定义
 
 至少满足：

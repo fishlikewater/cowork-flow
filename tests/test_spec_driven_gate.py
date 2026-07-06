@@ -1,8 +1,14 @@
-"""Spec-driven gate tests: user-edited spec files drive review/complete gates."""
+"""Spec-driven gate tests: Approach A.
+
+User-edited spec files surface rules to the LLM via a checklist. The
+workflow no longer uses a hardwired ``_NL_VALIDATORS`` registry to block the
+gate on natural-language matches — only UTF-8 / IO-encoding remains a hard
+block, and ``collect_machine_checks`` emits advisory (non-blocking) hints the
+LLM may choose to follow.
+"""
 from __future__ import annotations
 
 import importlib.machinery
-import os
 import shutil
 import subprocess
 import sys
@@ -17,9 +23,6 @@ GATES_DIR = TEMPLATE / ".cowork-flow" / "scripts" / "common" / "gates"
 
 
 def _load(name: str, file_path: Path) -> types.ModuleType:
-    # Pre-register the module in ``sys.modules`` BEFORE executing it, so
-    # that dataclasses (which resolve their annotation globals at class
-    # creation time) can find their own module globals.
     loader = importlib.machinery.SourceFileLoader(name, str(file_path))
     mod = types.ModuleType(name)
     mod.__package__ = name.rsplit('.', 1)[0] if '.' in name else ''
@@ -96,33 +99,63 @@ class SpecDrivenGateTests(unittest.TestCase):
     def _commit(self, msg: str) -> None:
         subprocess.run(["git", "commit", "-q", "-m", msg], cwd=self.tmp, check=True)
 
-    def test_01_spec_rules_activation(self) -> None:
-        # Backend spec with 3 rules -> spec parser finds 3
+    # ---- helpers ----
+
+    def _seed_service(self, body: str) -> None:
+        self._write("src/service.py", body)
+        self._stage(".")
+        self._commit("base")
+
+    # ---- test_01: spec rules are still parseable ----
+
+    def test_01_spec_rules_are_parsed(self) -> None:
         self._write(".cowork-flow/spec/backend/quality-guidelines.md",
                     "## 默认门禁\n"
                     "- 禁止在业务代码中 print。\n"
                     "- 禁止硬编码密码或 API key。\n"
-                    "- 禁止吞掉异常（空 except）。\n")
-        self._stage(".")
-        self._commit("base")
+                    "- 禁止吞掉异常（空 except）。\n"
+                    "- 禁止在代码后面跟注释。\n")
+        self._stage(".cowork-flow/spec/backend/quality-guidelines.md")
+        self._commit("base spec")
 
         rules = self.vc.load_spec_rules(self.tmp)
-        self.assertEqual(len(rules), 3)
-        self.assertTrue(all(r["validators"] for r in rules),
-                        f"Some rules did not activate a validator: {rules}")
+        self.assertEqual(4, len(rules))
+        # Rules must be discoverable even though no hardcoded validator matches.
+        self.assertIn(
+            "在代码后面跟注释",
+            " ".join(r["text"] for r in rules),
+            "User-authored rule '禁止在代码后面跟注释' must show up in parsed rules "
+            "even without a matching python validator",
+        )
 
-    def test_02_violations_fired(self) -> None:
-        # Same spec; a violating change -> 3 spec violations
+    # ---- test_02: validate_coding_standards no longer hard-blocks NL ----
+
+    def test_02_validate_coding_standards_never_blocks_on_NL(self) -> None:
         self._write(".cowork-flow/spec/backend/quality-guidelines.md",
                     "## 默认门禁\n"
-                    "- 禁止在业务代码中 print。\n"
-                    "- 禁止硬编码密码或 API key。\n"
-                    "- 禁止吞掉异常（空 except）。\n")
-        self._write("src/service.py",
-                    "import logging\ndef work():\n    logging.info('ok')\n")
-        self._stage(".")
-        self._commit("base")
+                    "- 禁止硬编码密码或 API key。\n")
+        self._seed_service(
+            "def work():\n"
+            "    password = 'supersecret'\n"
+            "    try:\n"
+            "        do_it()\n"
+            "    except Exception:\n"
+            "        pass\n",
+        )
 
+        violations = self.vc.validate_coding_standards(self.tmp)
+        block_severity = [v for v in violations if v.get("severity") == "block"]
+        self.assertEqual(
+            [], block_severity,
+            f"validate_coding_standards must NOT block on natural-language rules; "
+            f"found {[v['rule_id'] for v in block_severity]}",
+        )
+
+    # ---- test_03: collect_machine_checks emits advisory hints ----
+
+    def test_03_collect_machine_checks_emits_advisories(self) -> None:
+        # Seed a clean commit, then stage a violating change.
+        self._seed_service("def work():\n    return 1\n")
         self._write("src/service.py",
                     "def work():\n"
                     "    print('debug')\n"
@@ -133,84 +166,91 @@ class SpecDrivenGateTests(unittest.TestCase):
                     "        pass\n")
         self._stage("src/service.py")
 
-        violations = self.vc.validate_coding_standards(self.tmp)
-        fired = {v["rule_id"] for v in violations}
-        self.assertIn("SPEC-_no_debug_prints", fired)
-        self.assertIn("SPEC-_no_hardcoded_secrets", fired)
-        self.assertIn("SPEC-_no_silent_except", fired)
+        advisories = self.vc.collect_machine_checks(self.tmp)
+        self.assertGreater(len(advisories), 0)
+        self.assertTrue(
+            all(a["severity"] == "advisory" for a in advisories),
+            "Every machine-check emission must be severity=advisory (non-blocking).",
+        )
+        fired = {a["rule_id"] for a in advisories}
+        # At least the print + empty-except pattern triggers when present.
+        self.assertIn("MACHINE-DEBUG-PRINT-001", fired)
+        self.assertIn("MACHINE-SILENT-EXCEPT-001", fired)
 
-    def test_03_user_removes_rule_violation_goes_away(self) -> None:
-        # User customizes spec by removing the 'print' rule
-        self._write(".cowork-flow/spec/backend/quality-guidelines.md",
-                    "## 默认门禁\n"
-                    "- 禁止硬编码密码或 API key。\n"
-                    "- 禁止吞掉异常（空 except）。\n")
-        self._write("src/service.py",
-                    "import logging\ndef work():\n    logging.info('ok')\n")
-        self._stage(".")
-        self._commit("base")
+    # ---- test_04: summary still renders checklist for LLM review ----
 
-        self._write("src/service.py",
-                    "def work():\n"
-                    "    print('debug')\n"
-                    "    password = 'supersecret'\n"
-                    "    try:\n"
-                    "        do_it()\n"
-                    "    except Exception:\n"
-                    "        pass\n")
-        self._stage("src/service.py")
-
-        violations = self.vc.validate_coding_standards(self.tmp)
-        fired = {v["rule_id"] for v in violations}
-        self.assertNotIn("SPEC-_no_debug_prints", fired,
-                         "After user removes the print rule, it must not fire anymore")
-        self.assertIn("SPEC-_no_hardcoded_secrets", fired)
-        self.assertIn("SPEC-_no_silent_except", fired)
-
-    def test_04_user_adds_rule_violation_returns(self) -> None:
-        # Customize spec back to include the print rule; a fresh violating
-        # change reactivates the print rule.
-        self._write(".cowork-flow/spec/backend/quality-guidelines.md",
-                    "## 默认门户\n"
-                    "- 禁止硬编码密码或 API key。\n"
-                    "- 禁止吞掉异常（空 except）。\n")
-        self._write("src/service.py",
-                    "import logging\ndef work():\n    logging.info('ok')\n")
-        self._stage(".")
-        self._commit("base")
+    def test_04_summary_renders_user_rules_for_llm_review(self) -> None:
         self._write(".cowork-flow/spec/backend/quality-guidelines.md",
                     "## 默认门禁\n"
                     "- 禁止在业务代码中 print。\n"
-                    "- 禁止硬编码密码或 API key。\n"
-                    "- 禁止吞掉异常（空 except）。\n")
-        self._stage(".")
-        self._commit("more rules")
-
-        self._write("src/other.py",
-                    "def other():\n"
-                    "    print('more debug')\n"
-                    "    password = 'anothersecret'\n")
-        self._stage("src/other.py")
-
-        violations = self.vc.validate_coding_standards(self.tmp)
-        fired = {v["rule_id"] for v in violations}
-        self.assertIn("SPEC-_no_debug_prints", fired)
-        self.assertIn("SPEC-_no_hardcoded_secrets", fired)
-
-    def test_05_get_coding_standards_summary_contains_activated_rules(self) -> None:
-        self._write(".cowork-flow/spec/backend/quality-guidelines.md",
-                    "## 默认门禁\n"
-                    "- 禁止在业务代码中 print。\n")
+                    "- 禁止在代码后面跟注释。\n")
+        self._seed_service(
+            "import logging\ndef work():\n    logging.info('print rule test')\n",
+        )
+        # Stage a follow-up .py change so the summary has a backend file to key on.
         self._write("src/service.py",
-                    "import logging\ndef work():\n    logging.info('ok')\n")
-        self._stage(".")
-        self._commit("base")
-        self._write("src/service.py",
-                    "import logging\ndef work():\n    logging.info('print rule test')\n")
+                    "import logging\ndef work():\n    logging.info('changed')\n")
         self._stage("src/service.py")
 
         summary = self.vc.get_coding_standards_summary(self.tmp, self.tmp)
-        self.assertIn("在业务代码中 print", summary.strip())
+        self.assertIn("在业务代码中 print", summary)
+        self.assertIn("在代码后面跟注释", summary)
+
+    # ---- test_05: backend-vs-frontend routing still works ----
+
+    def test_05_summary_routes_backend_vs_frontend(self) -> None:
+        # Backend changed only -> frontend rules must not appear.
+        self._write(".cowork-flow/spec/backend/quality-guidelines.md",
+                    "## 后端门禁\n"
+                    "- 禁止后端专有规则被破坏\n")
+        self._write(".cowork-flow/spec/frontend/quality-guidelines.md",
+                    "## 前端门禁\n"
+                    "- 禁止前端专有规则被破坏\n")
+        self._write("src/svc.py", "def work():\n    return 1\n")
+        self._stage(".")
+        self._commit("base")
+        self._write("src/svc.py", "def work():\n    return 2\n")
+        self._stage("src/svc.py")
+
+        summary = self.vc.get_coding_standards_summary(self.tmp, self.tmp)
+        self.assertIn("后端专有规则被破坏", summary)
+        self.assertNotIn("前端专有规则被破坏", summary)
+
+    # ---- test_06: UTF-8 hard block still enforced ----
+
+    def test_06_utf8_hard_block_still_enforced(self) -> None:
+        import os
+        # Valid UTF-8 baseline commit.
+        self._write("src/svc.py", "def work():\n    return 1\n")
+        self._stage(".")
+        self._commit("clean")
+        # Overwrite with an invalid UTF-8 byte and stage it.
+        raw = b"def work():\n    return '\xff'\n"
+        (self.tmp / "src" / "svc.py").write_bytes(raw)
+        self._stage("src/svc.py")
+
+        violations = self.vc.validate_coding_standards(self.tmp)
+        blocked = [v for v in violations if v.get("severity") == "block"]
+        self.assertGreater(
+            len(blocked), 0,
+            "Non-UTF-8 changed files must still be a hard block (existing contract).",
+        )
+
+    # ---- test_07: empty spec produces no NL errors ----
+
+    def test_07_empty_spec_does_not_error(self) -> None:
+        self._seed_service("def work():\n    return 1\n")
+        # Re-spec to a file with no rules (headers only).
+        self._write(".cowork-flow/spec/backend/quality-guidelines.md",
+                    "# Quality guidelines (no rules yet)\n")
+        self._stage(".cowork-flow/spec/backend/quality-guidelines.md")
+        self._commit("remove rules")
+
+        rules = self.vc.load_spec_rules(self.tmp)
+        self.assertEqual([], rules)
+        # Must not raise.
+        violations = self.vc.validate_coding_standards(self.tmp)
+        self.assertEqual([], violations)
 
 
 if __name__ == "__main__":
