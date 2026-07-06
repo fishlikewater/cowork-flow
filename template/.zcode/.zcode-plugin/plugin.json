@@ -1,6 +1,6 @@
 {
   "name": "cowork-flow",
-  "version": "0.0.32",
+  "version": "0.0.33",
   "description": "AI 协作工作流引擎：任务生命周期、子代理调度、门禁与状态注入。将 cowork-flow 的完整工作流带入 ZCode。",
   "author": {
     "name": "fisklikewater"
