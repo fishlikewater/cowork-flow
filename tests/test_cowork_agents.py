@@ -47,11 +47,13 @@ def load_agent_toml(path: Path) -> dict[str, str]:
 class CoworkAgentsTest(unittest.TestCase):
     def test_skill_set_is_direct_and_fixed_agent_based(self) -> None:
         expected = {
+            "batch-mode",
             "before-dev",
             "brainstorming",
             "break-loop",
             "check",
             "continue",
+            "doubt-review",
             "finish-work",
             "game-design",
             "meta",
