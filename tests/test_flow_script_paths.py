@@ -306,6 +306,13 @@ class FlowScriptPathsTest(unittest.TestCase):
         )
         for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
             (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+        (task_dir / "doubt-review.md").write_text(
+            "# Doubt Review\n\n"
+            "CLAIM: \"The readiness gate implementation correctly blocks unready L2 tasks.\"\n\n"
+            "## RECONCILE\n\n"
+            "No material findings after self-review.\n",
+            encoding="utf-8",
+        )
 
     def _write_l2_change_fixture(
         self,
