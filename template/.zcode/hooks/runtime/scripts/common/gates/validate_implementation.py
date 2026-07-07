@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-Implementation validation script.
+R-AG-002 到 R-AG-009 的门禁检查器。
 
-Validates code changes against forbidden action rules after task implementation.
+在 task_review 阶段运行：通过 git diff 获取工作树的未提交改动，逐项
+检查 forbidden_action 规则。每项规则以 (repo_root, modified_files, diff_output,
+rule_index) 为入参，返回 violation dict 列表。
+
+结果汇总到 GateResult：存在 severity=block 的 violation 时阻断 review 流程，
+warn 级别仅输出警告。
 """
 
 from __future__ import annotations
