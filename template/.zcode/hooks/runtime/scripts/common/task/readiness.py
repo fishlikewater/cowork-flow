@@ -246,4 +246,22 @@ def task_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
         if not _has_verification_command(plan_text):
             blockers.append(f"L2 readiness ({slug}): linked plan is missing verification commands")
 
+        blockers.extend(_check_doubt_review(task_dir, change_dir))
+
     return blockers
+
+
+def _check_doubt_review(task_dir: Path, change_dir: Path) -> list[str]:
+    """L2 optional check: doubt-review 记录是否存在 (warn 级别, 不阻断)."""
+    doubt_file = Path(task_dir) / "doubt-review.md"
+    if not doubt_file.is_file():
+        return [
+            f"L2 doubt-review 建议: 在 {doubt_file} 中记录关键决策的 "
+            f"CLAIM+CONTRACT（非强制，但强烈推荐）"
+        ]
+    text = _read_text(doubt_file)
+    if "CLAIM:" not in text:
+        return [
+            f"L2 doubt-review: {doubt_file} 存在但没有 CLAIM 记录"
+        ]
+    return []

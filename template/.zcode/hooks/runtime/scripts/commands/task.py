@@ -1520,7 +1520,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         return 0
 
     if status in DONE_STATUSES:
-        print("Next action: finalize, commit, archive, and record session")
+        print("Next action: finalize, archive, commit, and record session")
         print("Command: git status --short")
         linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
         print(f"Then: ./.cowork-flow/run task archive {Path(task_path).name}")
