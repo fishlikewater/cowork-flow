@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""TDD evidence validation for task review gates."""
+"""
+TDD 红绿证据校验（task_review / task_complete 阶段）。
+
+读取 <task>/tdd.jsonl，验证每条 evidence 或 exemption 记录的结构完整
+性与业务意图。验证结果分两类出口：
+- validate_tdd_evidence: 全量校验（review 阶段）
+- validate_tdd_red_evidence: 仅检查 red 证据完整性（implement 入口提醒）
+
+acceptanceId 的提取同时支持 AC-001、AC-1、验收标准：1 三种写法。
+"""
 
 from __future__ import annotations
 
