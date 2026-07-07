@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """TDD RED — these tests should fail before implementation."""
 
+import sys
 import tempfile
 from pathlib import Path
+
+# Add scripts directory to import path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "template" / ".cowork-flow" / "scripts"))
 
 from common.gates.spec_validator import validate_sections
 

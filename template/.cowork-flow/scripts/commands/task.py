@@ -39,6 +39,7 @@ else:
     import _bootstrap  # noqa: F401
 from common.core.files import (
     read_json_file as _read_json_file,
+    read_text_utf8 as _read_text,
     write_json_file as _write_json_file,
 )
 from common.gates.gates import GateResult, GateRunner
@@ -466,17 +467,6 @@ def _write_jsonl(path: Path, entries: list[dict]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _read_text_if_present(path: Path) -> str:
-    """读取文本文件并返回去空白后的内容；不存在或读取失败时返回空字符串。"""
-    if not path.is_file():
-        return ""
-
-    try:
-        return path.read_text(encoding="utf-8").strip()
-    except (OSError, IOError):
-        return ""
-
-
 def _task_start_blockers(task_dir: Path) -> list[str]:
     """返回启动任务前必须处理的准备阻塞项。"""
     blockers: list[str] = []
@@ -486,16 +476,16 @@ def _task_start_blockers(task_dir: Path) -> list[str]:
         blockers.append("task.json is missing")
 
     # 只检查存在性 — R-WF-008 负责章节内容完整性
-    if _read_text_if_present(task_dir / "prd.md"):
+    if _read_text(task_dir / "prd.md"):
         # 旧格式：提示需要迁移（cmd_start 会自动迁移）
-        if not _read_text_if_present(task_dir / "decision-anchor.md"):
+        if not _read_text(task_dir / "decision-anchor.md"):
             blockers.append("prd.md found; task start will auto-migrate to decision-anchor.md")
-    elif not _read_text_if_present(task_dir / "decision-anchor.md"):
+    elif not _read_text(task_dir / "decision-anchor.md"):
         blockers.append("decision-anchor.md is missing or empty")
 
     for jsonl_name in CONTEXT_JSONL_FILES:
         jsonl_file = task_dir / jsonl_name
-        if not _read_text_if_present(jsonl_file):
+        if not _read_text(jsonl_file):
             blockers.append(f"{jsonl_name} is missing or empty")
 
     return blockers
@@ -516,7 +506,7 @@ def _task_context_validation_issues(
 
     for jsonl_name in CONTEXT_JSONL_FILES:
         jsonl_file = task_dir / jsonl_name
-        if not _read_text_if_present(jsonl_file):
+        if not _read_text(jsonl_file):
             continue
 
         error_count = _validate_jsonl(jsonl_file, repo_root, quiet=quiet)

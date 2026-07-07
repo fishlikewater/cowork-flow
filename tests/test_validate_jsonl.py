@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Tests for validate_jsonl utility (TDD RED stage — expected to fail first)."""
 
+import sys
 import json
 import tempfile
 from pathlib import Path
+
+# Add scripts directory to import path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "template" / ".cowork-flow" / "scripts"))
 
 from common.gates.validate_jsonl import validate_format
 
