@@ -14,8 +14,8 @@ const DIR_WORKFLOW = ".cowork-flow";
 const FILE_TASK_JSON = "task.json";
 
 // Derive the installed plugin version from this hook's location in the cache.
-// Path: hooks/runtime/scripts/inject-context.js -> ../.. = <cache>/<version>/
-const PLUGIN_VERSION = basename(dirname(import.meta.dirname));
+// Path: hooks/inject-context.js -> .. = <cache>/<version>/
+const PLUGIN_VERSION = basename(dirname(dirname(import.meta.dirname)));
 
 // ---------------------------------------------------------------------------
 // Version sync
