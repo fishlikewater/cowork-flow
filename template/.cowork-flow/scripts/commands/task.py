@@ -433,22 +433,38 @@ def _skill_path(name: str, repo_root: Path | None = None) -> str:
     return f"{DIR_AGENTS}/skills/{name}/SKILL.md"
 
 
-def get_check_context(dev_type: str) -> list[dict]:
-    """Get check context entries. Injects spec guides per dev_type so the check agent
-    can verify compliance against project conventions."""
+def _discover_spec_files(repo_root: Path, dev_type: str) -> list[str]:
+    """动态发现 spec/<dev_type>/ 下的所有 .md 文件。
+
+    返回形如 ".cowork-flow/spec/backend/error-handling.md" 的相对路径列表，
+    可直接写入 check.jsonl 条目。dev_type="spec" 时返回 spec/index.md。
+    """
+    if dev_type == "spec":
+        return [f"{DIR_WORKFLOW}/{DIR_SPEC}/index.md"]
+
+    spec_dir = Path(repo_root) / DIR_WORKFLOW / DIR_SPEC / dev_type
+    if not spec_dir.is_dir():
+        return []
+    return sorted(
+        f"{DIR_WORKFLOW}/{DIR_SPEC}/{dev_type}/{p.name}"
+        for p in spec_dir.glob("*.md")
+        if p.is_file()
+    )
+
+
+def get_check_context(repo_root: Path, dev_type: str) -> list[dict]:
+    """Get check context entries.
+
+    Injects skill guides and **所有** spec 子文件，使 check agent 可以对照
+    .cowork-flow/spec/<dev_type>/ 的完整规范集逐项验证实现。
+    spec 文件通过 _discover_spec_files 动态发现，新增/删除 spec 文件无需改代码。
+    """
     base = [
         {"file": _skill_path("check"), "reason": "Quality, contract, and template consistency check"},
         {"file": _skill_path("finish-work"), "reason": "Finish, archive, and session recording gate"},
     ]
-    if dev_type in ("backend", "test"):
-        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md", "reason": "Verify backend spec compliance"})
-    elif dev_type == "frontend":
-        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md", "reason": "Verify frontend spec compliance"})
-    elif dev_type == "fullstack":
-        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md", "reason": "Verify backend spec compliance"})
-        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md", "reason": "Verify frontend spec compliance"})
-    elif dev_type == "spec":
-        base.append({"file": f"{DIR_WORKFLOW}/{DIR_SPEC}/index.md", "reason": "Verify spec compliance"})
+    for spec_file in _discover_spec_files(repo_root, dev_type):
+        base.append({"file": spec_file, "reason": f"Verify {Path(spec_file).name} compliance"})
     return base
 
 
@@ -740,7 +756,7 @@ def cmd_init_context(args: argparse.Namespace) -> int:
         _report_jsonl_skip(check_file, "already exists, skipping")
     else:
         print(colored("Creating check.jsonl...", Colors.CYAN))
-        check_entries = get_check_context(dev_type)
+        check_entries = get_check_context(repo_root, dev_type)
         _write_jsonl(check_file, check_entries)
         print(f"  {colored('[OK]', Colors.GREEN)} {len(check_entries)} entries")
 
