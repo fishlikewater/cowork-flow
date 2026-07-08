@@ -276,7 +276,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("before fixed-agent dispatch", text)
         self.assertIn("requirement clarification gate", text)
         self.assertIn("New requirements", text)
-        self.assertIn("before PRD, planning, or fixed-agent dispatch", text)
+        self.assertIn("before writing decision-anchor.md, planning", text)
         self.assertIn("scope boundary", text)
         self.assertIn("acceptance criteria", text)
         self.assertIn(".cowork-flow/run subagent init", text)
