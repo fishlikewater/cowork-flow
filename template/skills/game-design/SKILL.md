@@ -29,7 +29,7 @@ The following guidelines live in `.cowork-flow/spec/game/` and should be read be
 ## Usage
 
 1. Read the relevant spec/game/ guide(s) first.
-2. Read the task PRD and implement.jsonl context.
+2. Read the task decision-anchor.md and implement.jsonl context.
 3. Proceed with implementation through `cowork-implement` or directly (depending on scope).
 
 ## When NOT to use

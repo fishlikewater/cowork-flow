@@ -20,7 +20,7 @@ Use this after implementation and before `finish-work`.
 
 ## Steps
 
-1. Read active task PRD, plan, and `check.jsonl`.
+1. Read active task decision-anchor.md, plan, and `check.jsonl`.
 2. Review `git diff --name-only` and `git diff`.
 3. Check contracts across caller/callee, command output, persisted state, templates, and docs.
 4. Verify spec compliance:
@@ -31,7 +31,7 @@ Use this after implementation and before `finish-work`.
 6. Review test intent: reject shallow tests that do not fail for meaningful behavior breaks.
 7. Run focused tests that would fail if the changed behavior broke.
 8. Run broader validation when the change touches shared runtime, templates, packaging, or public workflow.
-9. Report `test_intent_review` with the key tests that defend PRD acceptance behavior.
+9. Report `test_intent_review` with the key tests that defend decision-anchor.md acceptance behavior.
 10. Report spec compliance: for each spec/ file checked, state pass/fail with evidence from the diff.
 
 ## Report

@@ -19,7 +19,7 @@ child must run the explicit shim bind before formal work.
 2. Read `.cowork-flow/workflow.md`.
 3. Read `.cowork-flow/config.yaml` for Codex dispatch hints and lifecycle hooks.
 4. Run `.cowork-flow/run resume` or `.\.cowork-flow\run.cmd resume` on Windows.
-5. Read the active task PRD and JSONL indexes only when a task is active.
+5. Read the active task decision-anchor.md and JSONL indexes only when a task is active.
 6. Read relevant `.cowork-flow/spec/*/index.md` files before code changes.
 
 Report active task, workflow state, blockers, and the next phase.
@@ -32,7 +32,7 @@ state is loaded, apply the requirement clarification gate from
 `.cowork-flow/workflow.md`, then route to the next workflow phase; clear
 multi-step implementation uses `writing-plans` before fixed-agent dispatch.
 
-New requirements that are unclear, boundary-unclear, multi-approach, behavior-changing, or missing acceptance criteria use `brainstorming` before PRD, planning, or fixed-agent dispatch. Small repository changes proceed directly only when the goal, scope boundary, and acceptance criteria are already clear.
+New requirements that are unclear, boundary-unclear, multi-approach, behavior-changing, or missing acceptance criteria use `brainstorming` before writing decision-anchor.md, planning, or fixed-agent dispatch. Small repository changes proceed directly only when the goal, scope boundary, and acceptance criteria are already clear.
 
 - Question-only work: answer directly.
 - Small repository change with clear goal/scope/acceptance: classify by `.cowork-flow/workflow.md`, create/start a task if required, then proceed.
