@@ -62,18 +62,6 @@
       "enforcement": "validate_rules"
     },
     {
-      "id": "R-WF-006",
-      "type": "phase_gate",
-      "severity": "warn",
-      "scope": "implement",
-      "condition": "实现前必须有失败测试（行为变化场景）",
-      "message": "Implementation without failing test for behavior change",
-      "fix_hint": "先编写失败测试，再实现功能，确保测试在实现后通过",
-      "source_file": ".cowork-flow/workflow.md",
-      "source_excerpt": "先写能失败的测试",
-      "enforcement": "tdd_evidence"
-    },
-    {
       "id": "R-WF-007",
       "type": "phase_gate",
       "severity": "block",
@@ -86,63 +74,39 @@
       "enforcement": "validate_rules"
     },
     {
-      "id": "R-AG-001",
-      "type": "forbidden_action",
+      "id": "R-WF-008",
+      "type": "phase_gate",
       "severity": "block",
-      "scope": "all",
-      "condition": "子代理不派发其他代理",
-      "message": "Subagent attempted to dispatch another agent",
-      "fix_hint": "子代理是叶子执行者，不能派发、等待、列出或取消其他代理",
-      "source_file": "AGENTS.md",
-      "source_excerpt": "cowork-* 固定代理是叶子执行者",
-      "enforcement": "host_contract"
+      "scope": "task_start",
+      "condition": "任务必须有 decision-anchor.md 且包含目标和验收标准章节",
+      "message": "Drift prevention: decision-anchor.md is missing or incomplete",
+      "fix_hint": "创建 <task-dir>/decision-anchor.md，至少包含 ## 目标和 ## 验收标准",
+      "source_file": ".cowork-flow/spec/contracts/decision-anchor.md",
+      "source_excerpt": "每个任务必须有决策锚点",
+      "enforcement": "validate_rules"
     },
     {
       "id": "R-AG-002",
       "type": "forbidden_action",
       "severity": "block",
-      "scope": "all",
-      "condition": "子代理不修改规格文件",
+      "scope": "implement",
+      "condition": "不修改规格文件",
       "message": "Subagent attempted to modify spec files",
       "fix_hint": "规格文件只能由主会话修改，子代理应专注于实现任务",
-      "source_file": "AGENTS.md",
+      "source_file": ".cowork-flow/spec/contracts/subagent-dispatch.md",
       "source_excerpt": "cowork-* 固定代理是叶子执行者",
       "enforcement": "validate_implementation"
-    },
-    {
-      "id": "R-AG-003",
-      "type": "forbidden_action",
-      "severity": "block",
-      "scope": "all",
-      "condition": "子代理不操作 Git",
-      "message": "Subagent attempted to operate Git",
-      "fix_hint": "Git 操作只能由主会话执行，子代理应专注于代码实现",
-      "source_file": "AGENTS.md",
-      "source_excerpt": "cowork-* 固定代理是叶子执行者",
-      "enforcement": "host_contract"
-    },
-    {
-      "id": "R-AG-004",
-      "type": "forbidden_action",
-      "severity": "block",
-      "scope": "all",
-      "condition": "子代理不提交/归档",
-      "message": "Subagent attempted to commit or archive",
-      "fix_hint": "提交和归档只能由主会话执行，子代理应专注于代码实现",
-      "source_file": "AGENTS.md",
-      "source_excerpt": "cowork-* 固定代理是叶子执行者",
-      "enforcement": "host_contract"
     },
     {
       "id": "R-AG-005",
       "type": "forbidden_action",
       "severity": "block",
       "scope": "implement",
-      "condition": "不添加未要求的功能",
-      "message": "Unrequested feature introduced",
-      "fix_hint": "只实现 PRD 中明确要求的功能，不添加额外功能",
-      "source_file": "AGENTS.md",
-      "source_excerpt": "不添加未要求的功能",
+      "condition": "不修改 implement.jsonl 允许范围外的文件",
+      "message": "Modified file not in implement.jsonl allowed list",
+      "fix_hint": "通过 ./.cowork-flow/run task add-context <dir> implement <path> <reason> 登记所有需要修改的文件",
+      "source_file": ".cowork-flow/spec/contracts/decision-anchor.md",
+      "source_excerpt": "implement.jsonl 是任务的权威文件白名单",
       "enforcement": "validate_implementation"
     },
     {
@@ -156,78 +120,6 @@
       "source_file": "AGENTS.md",
       "source_excerpt": "不为一次性代码做抽象",
       "enforcement": "validate_implementation"
-    },
-    {
-      "id": "R-AG-007",
-      "type": "forbidden_action",
-      "severity": "block",
-      "scope": "implement",
-      "condition": "不顺手重构无关模块",
-      "message": "Unrelated module refactored during implementation",
-      "fix_hint": "只修改与当前任务直接相关的代码，不扩大改动范围",
-      "source_file": "AGENTS.md",
-      "source_excerpt": "不顺手重构无关模块",
-      "enforcement": "host_contract"
-    },
-    {
-      "id": "R-WF-008",
-      "type": "phase_gate",
-      "severity": "warn",
-      "scope": "task_start",
-      "condition": "L2 任务的关键决策应有 doubt-review 记录",
-      "message": "Missing doubt-review for L2 non-trivial decision",
-      "fix_hint": "在 <task>/doubt-review.md 中为每个非平凡决策完成 5-step doubt cycle",
-      "source_file": ".cowork-flow/spec/contracts/subagent-dispatch.md",
-      "source_excerpt": "doubt-review is a mandatory sub-step of before-dev gate for L2",
-      "enforcement": "validate_rules"
-    },
-    {
-      "id": "R-WF-009",
-      "type": "phase_gate",
-      "severity": "warn",
-      "scope": "check",
-      "condition": "Bug fix must have regression test that fails without the fix",
-      "message": "Bug fix lacks regression test or modifies existing test to pass",
-      "fix_hint": "Record red-green evidence in tdd.jsonl; test must fail without the fix and pass with the fix",
-      "source_file": ".cowork-flow/workflow.md",
-      "source_excerpt": "先写能失败的测试",
-      "enforcement": "tdd_evidence"
-    },
-    {
-      "id": "R-WF-010",
-      "type": "phase_gate",
-      "severity": "block",
-      "scope": "all",
-      "condition": "Batch mode requires explicit user approval before starting",
-      "message": "Batch mode started without explicit user approval",
-      "fix_hint": "用户必须在 writing-plans 结束时明确说 'approved' + 'auto' 才能进入批模式",
-      "source_file": ".cowork-flow/workflow.md",
-      "source_excerpt": "用户是流程的最终决策者",
-      "enforcement": "host_contract"
-    },
-    {
-      "id": "R-AG-008",
-      "type": "forbidden_action",
-      "severity": "warn",
-      "scope": "check",
-      "condition": "Simplification must preserve observable behavior",
-      "message": "Simplification appears to change observable behavior",
-      "fix_hint": "简化不应改变测试结果。如果测试需要修改才能通过，行为已变——还原或重写测试",
-      "source_file": ".cowork-flow/workflow.md",
-      "source_excerpt": "外科手术式改动: 只改必须改的",
-      "enforcement": "metadata_only"
-    },
-    {
-      "id": "R-WF-011",
-      "type": "phase_gate",
-      "severity": "warn",
-      "scope": "all",
-      "condition": "Archive should happen before final commit to avoid committing unreviewed code",
-      "message": "Uncommitted changes detected. Archive the task first, then commit the archived result.",
-      "fix_hint": "Run './.cowork-flow/run task archive <name>' first. Then commit the archive result.",
-      "source_file": ".cowork-flow/workflow.md",
-      "source_excerpt": "归档后再提交",
-      "enforcement": "validate_rules"
     }
   ]
 }
