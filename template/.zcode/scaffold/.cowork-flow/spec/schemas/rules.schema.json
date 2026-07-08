@@ -67,8 +67,8 @@
           },
           "enforcement": {
             "type": "string",
-            "enum": ["validate_rules", "validate_implementation", "tdd_evidence", "host_contract", "metadata_only"],
-            "description": "Runtime or contract surface responsible for enforcing or carrying this rule"
+            "enum": ["validate_rules", "validate_implementation"],
+            "description": "Runtime surface responsible for enforcing this rule. Must have a corresponding validator module."
           }
         },
         "additionalProperties": false
