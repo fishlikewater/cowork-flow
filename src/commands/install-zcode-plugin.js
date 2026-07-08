@@ -110,6 +110,15 @@ export async function runInstallZCodePlugin(args = []) {
   const scaffoldVersionPath = join(destDir, "scaffold", ".cowork-flow", ".version");
   await writeFile(scaffoldVersionPath, `${version}\n`, "utf8");
 
+  // Sync canonical scripts from main template (single source of truth).
+  // The .zcode/hooks/runtime/scripts/ copy is stale; overwrite with the
+  // authoritative version from template/.cowork-flow/scripts/.
+  const mainScriptsSrc = join(templateRoot, ".cowork-flow", "scripts");
+  const pluginScriptsDest = join(destDir, "hooks", "runtime", "scripts");
+  if (await pathExists(mainScriptsSrc)) {
+    await cp(mainScriptsSrc, pluginScriptsDest, { recursive: true, force: true });
+  }
+
   // Copy canonical skills into the plugin cache so plugin.json "skills" resolves.
   await cp(skillsSrc, join(destDir, "skills"), { recursive: true, force: true });
 
