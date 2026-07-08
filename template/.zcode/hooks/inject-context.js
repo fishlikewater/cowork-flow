@@ -5,13 +5,38 @@
  * Output: ZCode/Claude Code hook format (stdout JSON).
  */
 
-import { readFileSync, existsSync, readdirSync, mkdirSync, copyFileSync } from "fs";
-import { join, dirname } from "path";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, copyFileSync } from "fs";
+import { join, dirname, basename } from "path";
 import { createHash } from "crypto";
 
 const SCAFFOLD_DIR = join(import.meta.dirname, "..", "scaffold");
 const DIR_WORKFLOW = ".cowork-flow";
 const FILE_TASK_JSON = "task.json";
+
+// Derive the installed plugin version from this hook's location in the cache.
+// Path: hooks/runtime/scripts/inject-context.js -> ../.. = <cache>/<version>/
+const PLUGIN_VERSION = basename(dirname(import.meta.dirname));
+
+// ---------------------------------------------------------------------------
+// Version sync
+// ---------------------------------------------------------------------------
+function syncPluginVersion(targetDir) {
+  if (!PLUGIN_VERSION) return;
+  const versionFile = join(targetDir, DIR_WORKFLOW, ".version");
+  let current = "";
+  try {
+    current = readFileSync(versionFile, "utf8").trim();
+  } catch {
+    current = "";
+  }
+  if (current === PLUGIN_VERSION) return;
+  try {
+    mkdirSync(dirname(versionFile), { recursive: true });
+    writeFileSync(versionFile, `${PLUGIN_VERSION}\n`, "utf8");
+  } catch {
+    /* skip — non-fatal */
+  }
+}
 
 const TAG_RE = /\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n(.*?)\n\s*\[\/workflow-state:\1\]/gs;
 const RUNTIME_CONTEXT_PROMPT_RE = /^\s*cowork_runtime_context_id\s*:\s*([A-Za-z0-9._-]+)\s*$/gim;
@@ -337,6 +362,11 @@ function main() {
 
   const copied = envDir ? scaffoldProject(envDir) : [];
   const effectiveRoot = repoRoot || (envDir && existsSync(join(envDir, DIR_WORKFLOW)) ? envDir : null);
+
+  // Always refresh .version so plugin upgrades propagate to existing projects
+  if (effectiveRoot) {
+    syncPluginVersion(effectiveRoot);
+  }
 
   if (!effectiveRoot) {
     context = `<workflow-state>
