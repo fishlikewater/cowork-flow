@@ -105,6 +105,11 @@ export async function runInstallZCodePlugin(args = []) {
   // Copy plugin runtime (.zcode-plugin/, hooks/, runtime/, scaffold/) from .zcode/
   await cp(pluginSrc, destDir, { recursive: true });
 
+  // Sync package.json version to scaffold/.version so the plugin-only launcher
+  // can resolve the correct versioned plugin cache path at runtime.
+  const scaffoldVersionPath = join(destDir, "scaffold", ".cowork-flow", ".version");
+  await writeFile(scaffoldVersionPath, `${version}\n`, "utf8");
+
   // Copy canonical skills into the plugin cache so plugin.json "skills" resolves.
   await cp(skillsSrc, join(destDir, "skills"), { recursive: true, force: true });
 

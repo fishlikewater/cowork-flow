@@ -1,79 +1,24 @@
 #!/bin/sh
+# cowork-flow run launcher (ZCode plugin edition)
+# Delegates to the plugin cache runtime — no local scripts/ required.
 set -u
 
-MIN_PYTHON_LABEL="Python 3.9+"
-VERSION_CHECK='import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'
-WORKFLOW_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd) || exit 1
-RUNNER_SCRIPT="$WORKFLOW_DIR/scripts/run.py"
+VERSION_FILE=$(dirname "$0")/.version
+VERSION="$(cat "$VERSION_FILE" 2>/dev/null | tr -d '\r')"
 
-candidate_is_valid() {
-  candidate_cmd=$1
-  candidate_arg=${2:-}
-
-  command -v "$candidate_cmd" >/dev/null 2>&1 || return 1
-
-  if [ -n "$candidate_arg" ]; then
-    "$candidate_cmd" "$candidate_arg" -c "$VERSION_CHECK" >/dev/null 2>&1
-  else
-    "$candidate_cmd" -c "$VERSION_CHECK" >/dev/null 2>&1
-  fi
-}
-
-select_explicit_python() {
-  env_name=$1
-  env_value=$2
-
-  if candidate_is_valid "$env_value"; then
-    SELECTED_PYTHON=$env_value
-    SELECTED_PYTHON_ARG=
-    return 0
-  fi
-
-  echo "Error: $env_name does not point to a usable ${MIN_PYTHON_LABEL} interpreter: $env_value" >&2
-  echo "Set $env_name to an executable ${MIN_PYTHON_LABEL} interpreter path." >&2
+if [ -z "$VERSION" ]; then
+  echo "Error: cannot determine cowork-flow version (.version missing)" >&2
   exit 127
-}
-
-select_python() {
-  SELECTED_PYTHON=
-  SELECTED_PYTHON_ARG=
-
-  if [ -n "${COWORK_FLOW_PYTHON:-}" ]; then
-    select_explicit_python "COWORK_FLOW_PYTHON" "$COWORK_FLOW_PYTHON"
-    return 0
-  fi
-
-  if [ -n "${PYTHON:-}" ]; then
-    select_explicit_python "PYTHON" "$PYTHON"
-    return 0
-  fi
-
-  if candidate_is_valid "python3"; then
-    SELECTED_PYTHON=python3
-    return 0
-  fi
-
-  if candidate_is_valid "python"; then
-    SELECTED_PYTHON=python
-    return 0
-  fi
-
-  if candidate_is_valid "py" "-3"; then
-    SELECTED_PYTHON=py
-    SELECTED_PYTHON_ARG=-3
-    return 0
-  fi
-
-  echo "Error: ${MIN_PYTHON_LABEL} is required, but no usable interpreter was found." >&2
-  echo "Tried: COWORK_FLOW_PYTHON, PYTHON, python3, python, py -3." >&2
-  echo "Set COWORK_FLOW_PYTHON=/path/to/python3 and retry." >&2
-  exit 127
-}
-
-select_python
-
-if [ -n "$SELECTED_PYTHON_ARG" ]; then
-  exec "$SELECTED_PYTHON" "$SELECTED_PYTHON_ARG" "$RUNNER_SCRIPT" "$@"
 fi
 
-exec "$SELECTED_PYTHON" "$RUNNER_SCRIPT" "$@"
+ZCODE_BASE="${ZCODE_HOME:-$HOME/.zcode}"
+PLUGIN_RUN="$ZCODE_BASE/cli/plugins/cache/zcode-plugins-official/cowork-flow/$VERSION/hooks/runtime/run"
+
+if [ ! -f "$PLUGIN_RUN" ]; then
+  echo "Error: cowork-flow plugin runtime not found at:" >&2
+  echo "  $PLUGIN_RUN" >&2
+  echo "Install the ZCode plugin or run 'cowork-flow init' for standalone." >&2
+  exit 127
+fi
+
+exec "$PLUGIN_RUN" "$@"
