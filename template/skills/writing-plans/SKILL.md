@@ -13,7 +13,7 @@ Before writing a plan, confirm the request has an executable scope, acceptance c
 
 Read:
 
-- Active task PRD.
+- Active task decision-anchor.md.
 - Relevant change spec/design files.
 - Relevant `.cowork-flow/spec/` indexes and target specs.
 - Files that define the contracts being changed.
@@ -64,7 +64,7 @@ Start with:
 - Include a failing test before implementation when behavior can be tested.
 - Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mocks without behavior, or snapshot empty structure.
 - For complex problems, test depth first: cover invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.
-- Map each behavior-changing test to a stable PRD acceptance ID and note where `tdd.jsonl` will record the red-green evidence.
+- Map each behavior-changing test to a stable decision-anchor.md acceptance ID and note where `tdd.jsonl` will record the red-green evidence.
 - Avoid placeholders such as TODO, TBD, "handle edge cases", or "write tests".
 - Keep root/template parity explicit when both copies exist.
 
@@ -74,7 +74,7 @@ Start with:
 |---|---|
 | "这个 task 太小了，可以合并" | task 粒度由 acceptance criteria 决定，不由行数决定。AC 不可拆分时应合并，否则独立。 |
 | "先写个粗 plan，实现时再细化" | 粗 plan = 实现时没有约束。没有约束的实现 = 范围蔓延或返工。 |
-| "跳过 plan 直接开始反正有了 PRD" | PRD 定义"做什么"，plan 定义"怎么做和按什么顺序做"。缺少 plan 的任务在 midway 发现依赖错误时返工成本翻倍。 |
+| "跳过 plan 直接开始反正有了 decision-anchor" | decision-anchor.md 定义"做什么"，plan 定义"怎么做和按什么顺序做"。缺少 plan 的任务在 midway 发现依赖错误时返工成本翻倍。 |
 | "这个 task 不需要 verify 命令" | 没有 verify = 没有完成信号。每个 task 必须有可运行的验证命令。 |
 
 ## Plan Approval Gate
@@ -110,7 +110,7 @@ Execution strategy guide:
 
 Before handoff:
 
-1. Confirm every PRD acceptance criterion maps to a plan step.
+1. Confirm every decision-anchor.md acceptance criterion maps to a plan step.
 2. Search the plan for placeholders.
 3. Check names, paths, command syntax, and expected outputs.
 4. Record remaining risks or blockers.

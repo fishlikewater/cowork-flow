@@ -9,7 +9,7 @@ Use this before editing behavior-changing code.
 
 ## Red-Green-Refactor
 
-1. Map the task PRD acceptance criteria to stable IDs such as `AC-001`.
+1. Map the task decision-anchor.md acceptance criteria to stable IDs such as `AC-001`.
 2. Write the smallest meaningful failing test first.
 3. Run the red command and confirm it fails because the target behavior is missing or wrong.
 4. Implement the smallest change that makes the behavior pass.
@@ -38,7 +38,7 @@ Record TDD proof in `<task>/tdd.jsonl`. Each evidence line is one JSON object:
 }
 ```
 
-Every evidence record must map to a PRD `acceptanceId`. The red failure must be about the target behavior, not syntax, import, environment, fixture, or setup failure.
+Every evidence record must map to a decision-anchor.md `acceptanceId`. The red failure must be about the target behavior, not syntax, import, environment, fixture, or setup failure.
 
 `testName` must resolve to the exact behavior test in `testFile`. Use one of:
 `test_method`, `ClassName.test_method`, or `module.ClassName.test_method`.
