@@ -483,8 +483,34 @@ def _write_jsonl(path: Path, entries: list[dict]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _migrate_prd_to_anchor(task_dir: Path) -> bool:
+    """将旧 prd.md 迁移到 decision-anchor.md。返回是否执行了迁移。"""
+    prd_file = task_dir / "prd.md"
+    anchor_file = task_dir / "decision-anchor.md"
+    if not prd_file.exists() or anchor_file.exists():
+        return False
+    content = prd_file.read_text(encoding="utf-8").strip()
+    if not content:
+        content = "(empty legacy prd.md)"
+    if "## 目标" not in content and "## Goal" not in content:
+        content = "## 目标\n\n" + content
+    if "## 验收标准" not in content and "## Acceptance" not in content:
+        content += "\n\n## 验收标准\n- [ ] \n"
+    anchor_file.write_text(content, encoding="utf-8")
+    prd_file.unlink()
+    print(
+        colored("  [迁移] prd.md → decision-anchor.md", Colors.YELLOW),
+        file=sys.stderr,
+    )
+    return True
+
+
 def _task_start_blockers(task_dir: Path) -> list[str]:
-    """返回启动任务前必须处理的准备阻塞项。"""
+    """返回启动任务前必须处理的准备阻塞项。
+
+    注意：调用前应先执行 _migrate_prd_to_anchor()，
+    本函数不再检查 prd.md（已被迁移处理）。
+    """
     blockers: list[str] = []
 
     task_json = task_dir / FILE_TASK_JSON
@@ -492,11 +518,7 @@ def _task_start_blockers(task_dir: Path) -> list[str]:
         blockers.append("task.json is missing")
 
     # 只检查存在性 — R-WF-008 负责章节内容完整性
-    if _read_text(task_dir / "prd.md"):
-        # 旧格式：提示需要迁移（cmd_start 会自动迁移）
-        if not _read_text(task_dir / "decision-anchor.md"):
-            blockers.append("prd.md found; task start will auto-migrate to decision-anchor.md")
-    elif not _read_text(task_dir / "decision-anchor.md"):
+    if not _read_text(task_dir / "decision-anchor.md"):
         blockers.append("decision-anchor.md is missing or empty")
 
     for jsonl_name in CONTEXT_JSONL_FILES:
@@ -984,6 +1006,10 @@ def cmd_start(args: argparse.Namespace) -> int:
         print(f"Hint: Use task name (e.g., 'my-task') or full path (e.g., '{DIR_WORKFLOW}/tasks/01-31-my-task')")
         return 1
 
+    # 1. 先迁移旧 prd.md（在 blocker 检查之前，确保迁移后 blocker 校验正确）
+    _migrate_prd_to_anchor(full_path)
+
+    # 2. 再检查准备阻塞项
     blockers = _task_start_blockers(full_path)
     if blockers:
         print(colored("Error: Task is not ready to start yet", Colors.RED), file=sys.stderr)
@@ -994,24 +1020,6 @@ def cmd_start(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-
-    # 自动迁移旧 prd.md 到 decision-anchor.md
-    prd_file = full_path / "prd.md"
-    anchor_file = full_path / "decision-anchor.md"
-    if prd_file.exists() and not anchor_file.exists():
-        content = prd_file.read_text(encoding="utf-8").strip()
-        if not content:
-            content = "(empty legacy prd.md)"
-        if "## 目标" not in content and "## Goal" not in content:
-            content = "## 目标\n\n" + content
-        if "## 验收标准" not in content and "## Acceptance" not in content:
-            content += "\n\n## 验收标准\n- [ ] \n"
-        anchor_file.write_text(content, encoding="utf-8")
-        prd_file.unlink()
-        print(
-            colored("  [迁移] prd.md → decision-anchor.md", Colors.YELLOW),
-            file=sys.stderr,
-        )
 
     validation_issues = _task_context_validation_issues(full_path, repo_root)
     if validation_issues:
