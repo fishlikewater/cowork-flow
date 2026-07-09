@@ -433,6 +433,15 @@ def _skill_path(name: str, repo_root: Path | None = None) -> str:
     return f"{DIR_AGENTS}/skills/{name}/SKILL.md"
 
 
+def _is_skill_path(file_path: str) -> bool:
+    """Check if a file path is a skill file (injected by plugin runtime, not a project file)."""
+    return (
+        file_path.startswith(f"{DIR_AGENTS}/skills/") or file_path.startswith(f".claude/skills/")
+        # Also match the legacy pattern for the skills directory
+        or ".skills/" in file_path or "/skills/" in file_path
+    )
+
+
 def _discover_spec_files(repo_root: Path, dev_type: str) -> list[str]:
     """动态发现 spec/<dev_type>/ 下的所有 .md 文件。
 
@@ -913,6 +922,10 @@ def _validate_jsonl(jsonl_file: Path, repo_root: Path, quiet: bool = False) -> i
             if not quiet:
                 print(f"  {colored(f'{file_name}:{line_num}: Missing file field', Colors.RED)}")
             errors += 1
+            continue
+
+        # 技能文件由插件运行时注入，不在项目目录中校验存在性
+        if _is_skill_path(file_path):
             continue
 
         full_path = repo_root / file_path
