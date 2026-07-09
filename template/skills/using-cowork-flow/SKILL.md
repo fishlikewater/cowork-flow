@@ -3,6 +3,14 @@ name: using-cowork-flow
 description: Use at the start of any main-session conversation. Establishes how to navigate the cowork-flow workflow, when to invoke skills, and what to do when auto-injection is unavailable.
 ---
 
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a cowork-flow skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
 # Using Cowork Flow
 
 ## When to Invoke
