@@ -29,7 +29,6 @@ Read the `<workflow-state>` block (Status, Source). If absent, check for `cowork
 | `in_progress` | ALLOW. Load context (below). L2 tasks require `doubt-review` before implementing. |
 | `review` | Verify with `cowork-check`. Minor fixes only — no new implementation. |
 | `completed` | BLOCK. Create a new task via `task archive` → `task create`. |
-| `stale` / `unknown` | BLOCK. Run `resume` to restore state first. |
 
 ### Context loading for `in_progress`
 
@@ -39,4 +38,4 @@ Read the `<workflow-state>` block (Status, Source). If absent, check for `cowork
 
 ---
 
-**Fail-closed fallback**: if `<workflow-state>` is absent AND no `cowork_runtime_context_id` is present, block all changes and direct to `task start` or `continue`. This indicates the hook is not injecting state.
+**Fail-closed fallback**: if `<workflow-state>` is absent AND no `cowork_runtime_context_id` is present, block all changes and direct to `task start` or `continue`. Abnormal statuses (`stale`, `unknown`, or unrecognized) are treated the same — run `resume` first.
