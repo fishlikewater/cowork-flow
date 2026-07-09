@@ -9,14 +9,14 @@ Use this after implementation and before `finish-work`.
 
 ## Step 0: Anti-Rationalization Gate
 
-在开始正式检查之前，用以下问题自检：
+Before starting the formal check, self-examine with the following questions:
 
-- "我是否在跳过某个步骤因为感觉很简单？" → 简单也需要证据
-- "我是否在降低标准因为时间压力？" → 时间压力是红灯，不是借口
-- "我是否在用'看起来对'代替'可验证的正确'？" → 命令输出才是证据
-- "我是否在批量跳过步骤因为'都差不多'？" → 每个步骤有独立目的
+- "Am I skipping a step because it feels simple?" → Simple still requires evidence
+- "Am I lowering the bar because of time pressure?" → Time pressure is a red flag, not an excuse
+- "Am I using 'looks right' instead of 'verifiably correct'?" → Command output is the evidence
+- "Am I batch-skipping steps because 'they're all the same'?" → Each step has an independent purpose
 
-任一项回答"是"时，回退到当前步骤的起点，用可验证的方式重新执行。
+If any answer is "yes," return to the start of the current step and re-execute in a verifiable manner.
 
 ## Steps
 
@@ -47,52 +47,52 @@ Do not claim success from intent. Use command output and reviewed diffs as evide
 
 ## Debug Quality Check
 
-- 根因修复有对应的回归测试（不是症状修复）
-- 不是症状修复（修了 UI 层面的重复而不是 API 层面的重复）
-- 证据记录在 `<task>/debug.jsonl` 中（如有）
-- 如果是重复触发的 bug，break-loop 记录在 `<task>/break-loop.md` 中
+- Root cause fix has a corresponding regression test (not a symptom fix)
+- Not a symptom fix (fixed UI-level duplication instead of API-level duplication)
+- Evidence recorded in `<task>/debug.jsonl` (if applicable)
+- If a repeatedly triggered bug, break-loop record is in `<task>/break-loop.md`
 
-## Simplification Review（代码修改量 > 50 行或 review 发现可读性问题时执行）
+## Simplification Review (run when code changes exceed 50 lines or review finds readability issues)
 
-### 修改前自检（Chesterton's Fence）
+### Pre-Simplification Self-Check (Chesterton's Fence)
 
-对每处简化，回答：
-- 这个代码的职责是什么？谁调用它？它调用什么？
-- 现有测试定义的行为是否会被破坏？
-- 原始作者为什么这样写？（git blame 检查）
-如果无法回答，停下——你不理解这处代码。
+For each simplification, answer:
+- What is this code's responsibility? Who calls it? What does it call?
+- Will existing tests' defined behavior be broken?
+- Why did the original author write it this way? (check git blame)
+If you cannot answer, stop — you do not understand this code.
 
-### 简化信号
+### Simplification Signals
 
-| 信号 | 处理 |
+| Signal | Action |
 |---|---|
-| 嵌套深度 >= 3 层 | 提取 guard clause 或 helper |
-| 函数 > 50 行 | 按职责拆分为多个命名函数 |
-| 嵌套三元表达式 `a ? b : c ? d : e` | 用 if/else / switch / lookup 替代 |
-| 布尔参数标志 `doThing(true, false, true)` | 用 options 对象或拆分为两个函数替代 |
-| 同一条件检查 >= 3 次 | 提取为命名 predicate 函数 |
-| 冗余 wrapper `async () => await foo()` | 直接导出 foo |
-| 未使用的 import / 变量 | 删除（确认无副作用后）|
-| 缺少 type hint（项目约定强制时） | 补充 |
+| Nesting depth >= 3 levels | Extract guard clause or helper |
+| Function > 50 lines | Split by responsibility into multiple named functions |
+| Nested ternary `a ? b : c ? d : e` | Replace with if/else / switch / lookup |
+| Boolean flag arguments `doThing(true, false, true)` | Replace with options object or split into two functions |
+| Same condition checked >= 3 times | Extract as a named predicate function |
+| Redundant wrapper `async () => await foo()` | Export foo directly |
+| Unused import / variable | Remove (after confirming no side effects) |
+| Missing type hint (when project convention requires it) | Add it |
 
-### 命名可读性信号
+### Naming Readability Signals
 
-| 信号 | 处理 |
+| Signal | Action |
 |---|---|
-| `data`、`result`、`temp`、`val` | 改名描述内容：`userProfile`、`errors` |
-| 缩写 `usr`、`cfg`、`btn`、`evt` | 用全称（`id`、`url`、`api` 例外） |
-| 名称与行为不符（`get` 但 mutates） | 改名反映实际行为 |
-| "what" 注释（`// increment counter` 在 `count++` 上） | 删除注释 |
-| "why" 注释（`// Retry because API is flaky`） | 保留 |
+| `data`, `result`, `temp`, `val` | Rename to describe content: `userProfile`, `errors` |
+| Abbreviations `usr`, `cfg`, `btn`, `evt` | Use full words (`id`, `url`, `api` are exceptions) |
+| Name contradicts behavior (`get` but mutates) | Rename to reflect actual behavior |
+| "What" comment (`// increment counter` on `count++`) | Remove comment |
+| "Why" comment (`// Retry because API is flaky`) | Keep |
 
 ### Rule of 500
 
-如果一处重构会修改 > 500 行，用自动化工具（sed/codemod/AST 变换）而不是手工编辑——手工大规模修改容易出错且审查疲劳。
+If a refactoring would modify > 500 lines, use automated tools (sed/codemod/AST transform) rather than manual editing — manual large-scale changes are error-prone and cause review fatigue.
 
 ### Red Flags
 
-- 简化导致测试失败（行为被改变了——违反"保留行为"原则）
-- "简化"后更长且更难读
-- 改名是按个人偏好而非项目约定
-- 删除"让代码更整洁"的错误处理
-- 批量多个简化到一个不可回滚的大 commit
+- Simplification causes test failures (behavior was changed — violates "preserve behavior" principle)
+- "Simplification" results in longer and harder-to-read code
+- Renaming based on personal preference rather than project convention
+- Removing error handling "to make the code cleaner"
+- Batching multiple simplifications into one non-rollbackable large commit
