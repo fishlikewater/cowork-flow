@@ -70,12 +70,12 @@ Start with:
 
 ### Anti-Rationalization - Planning Phase
 
-| Agent Rationalization | Rebuttal |
-|---|---|
-| "This task is too small, let's merge it." | Task granularity is determined by acceptance criteria, not line count. Merge only when AC cannot be split; otherwise keep independent. |
-| "Write a rough plan first, refine during implementation." | Rough plan = no constraints during implementation. Implementation without constraints = scope creep or rework. |
-| "Skip the plan and start directly since we have decision-anchor." | decision-anchor.md defines "what to do"; the plan defines "how to do it and in what order." Tasks without a plan incur doubled rework cost when dependency errors surface midway. |
-| "This task doesn't need a verify command." | No verify = no completion signal. Every task must have an executable verification command. |
+| Agent Rationalization | Rebuttal | Alternative |
+|---|---|---|
+| "This task is too small, let's merge it." | Task granularity is determined by acceptance criteria, not line count. Merge only when AC cannot be split; otherwise keep independent. | Split until each step has a distinct AC; keep them as independent steps even when short. |
+| "Write a rough plan first, refine during implementation." | Rough plan = no constraints during implementation. Implementation without constraints = scope creep or rework. | Write the plan to the full executable format (Files / Action / Verify / Expected) before any code is touched. |
+| "Skip the plan and start directly since we have decision-anchor." | decision-anchor.md defines "what to do"; the plan defines "how to do it and in what order." Tasks without a plan incur doubled rework cost when dependency errors surface midway. | Use decision-anchor.md to derive the AC list, then produce plan steps that map each AC to a concrete file + verify command. |
+| "This task doesn't need a verify command." | No verify = no completion signal. Every task must have an executable verification command. | Add at least one automated check (typecheck, test, lint, build) as the Verify step so completion is observable. |
 
 ## Plan Approval Gate
 

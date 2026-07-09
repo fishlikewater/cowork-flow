@@ -7,12 +7,12 @@ description: Use when the user manually requests Party Mode or a real multi-agen
 
 Use this skill as a manual advisory roundtable. Coordinate true child agents, not simulated personas, through the current Host Adapter.
 
+**Related:** [Party Mode V2](../party-mode-v2/SKILL.md) -- runtime-controlled board discussion where children communicate through board APIs and the moderator only monitors or corrects drift.
+
 ## Boundaries
 
-- Party Mode is advisory only.
-- It cannot mutate task status, start/review/complete/archive tasks, add sessions, commit, push, or satisfy formal workflow gates.
-- It cannot satisfy formal Implement or Check completion. Use `cowork-implement` and `cowork-check` for formal phases.
-- Discussion children are leaf executors. They do not dispatch, wait for, list, or close other agents.
+See [SHARED-BOUNDARIES.md](SHARED-BOUNDARIES.md) for common boundaries and advisory limits.
+
 - Generic `worker`, `default`, or `explorer` agents may provide advisory views, but their output never proves implementation or checking done.
 
 ## Defaults And Config
