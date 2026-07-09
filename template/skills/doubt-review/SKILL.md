@@ -83,13 +83,13 @@ Substantive findings remaining after 3 cycles = artifact is immature. Return to 
 
 ## Common Rationalizations
 
-| Rationalization | Reality |
-|---|---|
-| "I'm confident, skip doubt" | Confidence correlates poorly with correctness. Highest confidence is where blind spots hide. |
-| "Spawning a reviewer is expensive" | Debugging a bad commit in production costs more. The doubt cycle is bounded. |
-| "Review will catch it at the review stage" | Review is the final gate. Doubt catches issues in-flight while course-correction is still cheap. |
-| "Doubting every step causes infinite delay" | Doubt only applies to non-trivial decisions. Re-read When NOT to Use. |
-| "Reviewer disagrees means I'm wrong" | Reviewer lacks your context; disagreement is information, not a verdict. RECONCILE then decide. |
+| Excuse | Why It Fails | Better Approach |
+|---|---|---|
+| "I'm confident, skip doubt" | Confidence correlates poorly with correctness. Highest confidence is where blind spots hide. | Write a 2-line CLAIM and pass the artifact to fresh-context review. Confidence is not a gate. |
+| "Spawning a reviewer is expensive" | Debugging a bad commit in production costs more. The doubt cycle is bounded. | Run one doubt cycle now; a bounded 5-step loop costs far less than a production debug session. |
+| "Review will catch it at the review stage" | Review is the final gate. Doubt catches issues in-flight while course-correction is still cheap. | Catch it in-flight; run doubt-review before the artifact is committed or merged. |
+| "Doubting every step causes infinite delay" | Doubt only applies to non-trivial decisions. Re-read When NOT to Use. | Confirm this decision is non-trivial per trigger conditions; if so, proceed — otherwise skip without guilt. |
+| "Reviewer disagrees means I'm wrong" | Reviewer lacks your context; disagreement is information, not a verdict. RECONCILE then decide. | Classify the finding via RECONCILE: contract fix, valid trade-off, or noise — then proceed on that basis. |
 
 ## Red Flags
 

@@ -7,12 +7,12 @@ description: Use when the user requests a runtime-controlled multi-agent board d
 
 Use this skill as a thin entrypoint for the Party Mode V2 runtime board. The Python runtime is the source of truth for discussion state, board visibility, validation, round limits, and final reports.
 
+**Related:** [Party Mode](../party-mode/SKILL.md) -- manual advisory roundtable where the coordinator directly orchestrates child agents and synthesizes their output.
+
 ## Boundaries
 
-- Party Mode V2 is advisory only.
-- It cannot mutate task status, start/review/complete/archive tasks, add sessions, commit, push, or satisfy formal workflow gates.
-- It cannot satisfy formal Implement or Check completion. Use `cowork-implement` and `cowork-check` for formal phases.
-- Discussion children are leaf executors. They do not dispatch, wait for, list, or close other agents.
+See [SHARED-BOUNDARIES.md](../party-mode/SHARED-BOUNDARIES.md) for common boundaries and advisory limits.
+
 - The moderator does not forward, summarize, rewrite, or synthesize child opinions for other child agents.
 
 ## Runtime First
