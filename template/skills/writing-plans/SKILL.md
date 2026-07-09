@@ -68,28 +68,28 @@ Start with:
 - Avoid placeholders such as TODO, TBD, "handle edge cases", or "write tests".
 - Keep root/template parity explicit when both copies exist.
 
-### Anti-Rationalization - 计划阶段
+### Anti-Rationalization - Planning Phase
 
-| Agent 心理 | 反驳 |
+| Agent Rationalization | Rebuttal |
 |---|---|
-| "这个 task 太小了，可以合并" | task 粒度由 acceptance criteria 决定，不由行数决定。AC 不可拆分时应合并，否则独立。 |
-| "先写个粗 plan，实现时再细化" | 粗 plan = 实现时没有约束。没有约束的实现 = 范围蔓延或返工。 |
-| "跳过 plan 直接开始反正有了 decision-anchor" | decision-anchor.md 定义"做什么"，plan 定义"怎么做和按什么顺序做"。缺少 plan 的任务在 midway 发现依赖错误时返工成本翻倍。 |
-| "这个 task 不需要 verify 命令" | 没有 verify = 没有完成信号。每个 task 必须有可运行的验证命令。 |
+| "This task is too small, let's merge it." | Task granularity is determined by acceptance criteria, not line count. Merge only when AC cannot be split; otherwise keep independent. |
+| "Write a rough plan first, refine during implementation." | Rough plan = no constraints during implementation. Implementation without constraints = scope creep or rework. |
+| "Skip the plan and start directly since we have decision-anchor." | decision-anchor.md defines "what to do"; the plan defines "how to do it and in what order." Tasks without a plan incur doubled rework cost when dependency errors surface midway. |
+| "This task doesn't need a verify command." | No verify = no completion signal. Every task must have an executable verification command. |
 
 ## Plan Approval Gate
 
-plan 必须满足以下条件才能被标记为 approved：
-- implement.jsonl 中的所有 task 有清晰的 acceptance criteria
-- 每个 task 有 implement 步骤和 verify 命令
-- task 间依赖关系明确（是否可以并行/必须顺序）
+A plan can be marked as approved only when all conditions hold:
+- Every task in implement.jsonl has clear acceptance criteria
+- Every task has implement steps and verify commands
+- Task dependencies are explicit (parallelizable vs. strictly sequential)
 
-## 批准后选项
+## Post-Approval Options
 
-- **逐 task 推进**（默认路径）：用户 task start 一个 task，完成后再 task start 下一个。
-- **批模式**：用户明确说 "auto" 或 "batch" 后触发 batch skill（参见 skills/batch-mode/SKILL.md）。每个 task 仍然独立验证。
+- **Step-by-task progression** (default path): user calls `task start` on one task, completes it, then `task start` the next.
+- **Batch mode**: triggered when the user explicitly says "auto" or "batch" (see skills/batch-mode/SKILL.md). Each task is still verified independently.
 
-> **默认逐 task 推进。** 当用户没有显式说 "auto" 时，不进入批模式。
+> **Default is step-by-task progression.** Do not enter batch mode unless the user explicitly says "auto".
 
 ## Parallel Work
 
