@@ -1,6 +1,6 @@
 ---
 name: using-cowork-flow
-description: Use at the start of any main-session conversation. Establishes how to navigate the cowork-flow workflow, when to invoke skills, and what to do when auto-injection is unavailable.
+description: Use when starting any conversation - establishes how to navigate cowork-flow workflow, requiring skill invocation before ANY response including clarifying questions.
 ---
 
 <EXTREMELY-IMPORTANT>
