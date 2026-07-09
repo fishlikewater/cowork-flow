@@ -18,12 +18,17 @@ Apply ERROR_OUTPUT_AS_DATA contract. If tempted to skip steps, re-execute with v
    - Read each spec file listed in `check.jsonl`.
    - For each guideline in the spec, check the diff for violations (naming, structure, encoding, error handling, quality gates).
    - Spec files not listed in `check.jsonl` do not apply to this check.
-5. Confirm `.cowork-flow/spec/` is updated or explicitly unchanged.
-6. Review test intent: reject shallow tests that do not fail for meaningful behavior breaks.
-7. Run focused tests that would fail if the changed behavior broke.
-8. Run broader validation when the change touches shared runtime, templates, packaging, or public workflow.
-9. Report `test_intent_review` with the key tests that defend decision-anchor.md acceptance behavior.
-10. Report spec compliance: for each spec/ file checked, state pass/fail with evidence from the diff.
+5. Verify all new/modified code against project coding standards:
+   - For every source file added or changed in the diff, determine whether it is backend or frontend.
+   - Read the matching index (`.cowork-flow/spec/backend/index.md` or `.cowork-flow/spec/frontend/index.md`) to discover which guideline files apply.
+   - Read each applicable guideline file and cross-check the changed code for violations (UTF-8 enforcement, directory structure, error handling, layering, component patterns, etc.).
+   - Report each violation with: file path, violated rule, and a one-line fix suggestion.
+6. Confirm `.cowork-flow/spec/` is updated or explicitly unchanged.
+7. Review test intent: reject shallow tests that do not fail for meaningful behavior breaks.
+8. Run focused tests that would fail if the changed behavior broke.
+9. Run broader validation when the change touches shared runtime, templates, packaging, or public workflow.
+10. Report `test_intent_review` with the key tests that defend decision-anchor.md acceptance behavior.
+11. Report spec compliance: for each spec/ file checked, state pass/fail with evidence from the diff.
 
 ## Report
 
