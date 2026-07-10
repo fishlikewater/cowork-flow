@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +40,7 @@ REQUIRED_FIELDS = {
     "source",
     "managedPaths",
 }
-ALLOWED_FIELDS = REQUIRED_FIELDS | {"replacement", "removeAfter"}
+ALLOWED_FIELDS = REQUIRED_FIELDS | {"readWhen", "replacement", "removeAfter"}
 
 
 class SkillRegistryError(ValueError):
@@ -62,6 +63,8 @@ class SkillEntry:
     evidence_artifact: str | None
     source: str
     managed_paths: tuple[str, ...]
+    read_when_dev_types: tuple[str, ...]
+    read_when_path_patterns: tuple[str, ...]
     replacement: str | None
     remove_after: str | None
 
@@ -81,6 +84,10 @@ class SkillEntry:
             "evidenceArtifact": self.evidence_artifact,
             "source": self.source,
             "managedPaths": list(self.managed_paths),
+            "readWhen": {
+                "devTypes": list(self.read_when_dev_types),
+                "pathPatterns": list(self.read_when_path_patterns),
+            },
             "replacement": self.replacement,
             "removeAfter": self.remove_after,
         }
@@ -126,6 +133,32 @@ class SkillRegistry:
         if entry_id is None:
             raise SkillRegistryError(f"unknown Skill Registry entry: {id_or_alias}")
         return self._by_id[entry_id]
+
+    def domain_entries_for(
+        self,
+        *,
+        dev_type: str | None,
+        paths: tuple[str, ...] | list[str],
+    ) -> tuple[SkillEntry, ...]:
+        normalized_dev_type = (dev_type or "").strip()
+        normalized_paths = tuple(
+            str(path).replace("\\", "/").removeprefix("./")
+            for path in paths
+        )
+        return tuple(
+            entry
+            for entry in self.entries
+            if entry.kind == "domain"
+            and entry.status == "active"
+            and (
+                normalized_dev_type in entry.read_when_dev_types
+                or any(
+                    fnmatchcase(path, pattern)
+                    for path in normalized_paths
+                    for pattern in entry.read_when_path_patterns
+                )
+            )
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -347,6 +380,11 @@ def _normalize_entry(
             )
         )
     )
+    read_when_dev_types, read_when_path_patterns = _normalize_read_when(
+        raw.get("readWhen"),
+        raw["id"],
+        kind,
+    )
     replacement = _nullable_string(
         raw.get("replacement"),
         raw["id"],
@@ -381,6 +419,8 @@ def _normalize_entry(
         evidence_artifact=evidence_artifact,
         source=source,
         managed_paths=managed_paths,
+        read_when_dev_types=read_when_dev_types,
+        read_when_path_patterns=read_when_path_patterns,
         replacement=replacement,
         remove_after=remove_after,
     )
@@ -417,6 +457,45 @@ def _nullable_string(value: Any, entry_id: str, field_name: str) -> str | None:
             "must be null or a non-empty string"
         )
     return value.strip()
+
+
+def _normalize_read_when(
+    value: Any,
+    entry_id: str,
+    kind: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    if value is None:
+        return (), ()
+    if kind != "domain" or not isinstance(value, dict):
+        raise SkillRegistryError(
+            f"readWhen for {entry_id} is only valid for domain entries"
+        )
+    unexpected = set(value) - {"devTypes", "pathPatterns"}
+    if unexpected:
+        raise SkillRegistryError(
+            f"unexpected readWhen field for {entry_id}: {sorted(unexpected)[0]}"
+        )
+    dev_types = tuple(sorted(set(_string_tuple(
+        value.get("devTypes", []),
+        entry_id,
+        "readWhen.devTypes",
+    ))))
+    patterns = tuple(sorted(set(_string_tuple(
+        value.get("pathPatterns", []),
+        entry_id,
+        "readWhen.pathPatterns",
+    ))))
+    if not dev_types and not patterns:
+        raise SkillRegistryError(
+            f"readWhen for {entry_id} requires devTypes or pathPatterns"
+        )
+    for pattern in patterns:
+        normalized = pattern.replace("\\", "/")
+        if normalized.startswith(("/", "../")) or "/../" in normalized:
+            raise SkillRegistryError(
+                f"invalid readWhen.pathPatterns for {entry_id}: {pattern}"
+            )
+    return dev_types, patterns
 
 
 def _relative_path(value: Any, entry_id: str, field_name: str) -> str:

@@ -253,7 +253,16 @@
       "managedPaths": [
         ".agents/skills/game-design/",
         ".claude/skills/game-design/"
-      ]
+      ],
+      "readWhen": {
+        "devTypes": [],
+        "pathPatterns": [
+          "**/*.godot",
+          "**/*.tscn",
+          "**/game/**",
+          "**/games/**"
+        ]
+      }
     },
     {
       "id": "meta",
@@ -278,7 +287,17 @@
       "managedPaths": [
         ".agents/skills/meta/",
         ".claude/skills/meta/"
-      ]
+      ],
+      "readWhen": {
+        "devTypes": [
+          "spec"
+        ],
+        "pathPatterns": [
+          ".cowork-flow/**",
+          "template/.cowork-flow/**",
+          "template/skills/**"
+        ]
+      }
     },
     {
       "id": "party-mode",
@@ -300,7 +319,7 @@
       ],
       "enforcement": "advisory",
       "runtimeGate": null,
-      "runtimeCommand": null,
+      "runtimeCommand": "party-v2 init",
       "evidenceArtifact": null,
       "source": "skills/party-mode/SKILL.md",
       "managedPaths": [
@@ -361,7 +380,16 @@
       "managedPaths": [
         ".agents/skills/python-design/",
         ".claude/skills/python-design/"
-      ]
+      ],
+      "readWhen": {
+        "devTypes": [
+          "backend",
+          "test"
+        ],
+        "pathPatterns": [
+          "**/*.py"
+        ]
+      }
     },
     {
       "id": "review-gates",

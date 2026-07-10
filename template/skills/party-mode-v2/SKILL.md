@@ -5,7 +5,9 @@ description: Use when the user requests a runtime-controlled multi-agent board d
 
 # Party Mode V2
 
-Use this skill as a thin entrypoint for the Party Mode V2 runtime board. The Python runtime is the source of truth for discussion state, board visibility, validation, round limits, and final reports.
+This internal thin entrypoint for the runtime board delegates to the public
+[Party Mode](../party-mode/SKILL.md) facade. The Python runtime is the source of truth
+for discussion state, board visibility, validation, round limits, and final reports.
 
 **Related:** [Party Mode](../party-mode/SKILL.md) -- manual advisory roundtable where the coordinator directly orchestrates child agents and synthesizes their output.
 

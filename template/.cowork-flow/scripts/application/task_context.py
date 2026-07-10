@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from common.core.files import read_text_utf8
+from common.core.skill_registry import SkillRegistryError, load_skill_registry
 from common.core.paths import (
     DIR_AGENTS,
     DIR_SPEC,
@@ -315,6 +316,28 @@ def skill_path(name: str, repo_root: Path | None = None) -> str:
     return f"{DIR_AGENTS}/skills/{name}/SKILL.md"
 
 
+def get_domain_skill_context(
+    repo_root: Path,
+    *,
+    dev_type: str | None = None,
+    paths: tuple[str, ...] = (),
+) -> list[dict]:
+    try:
+        registry = load_skill_registry(repo_root, validate_sources=False)
+    except SkillRegistryError:
+        return []
+    return [
+        {
+            "file": skill_path(entry.id, repo_root),
+            "reason": f"Auto-routed {entry.display_name} domain guide",
+        }
+        for entry in registry.domain_entries_for(
+            dev_type=dev_type,
+            paths=paths,
+        )
+    ]
+
+
 def protocol_path(name: str) -> str:
     return f"{DIR_WORKFLOW}/{DIR_SPEC}/protocols/{name}.md"
 
@@ -470,21 +493,21 @@ class TaskContextService:
             entry_type,
         )
 
-        if any(
+        existing_entries = self.entries(task_dir, context_name)
+        already_exists = any(
             existing.get("file") == normalized_path
-            for existing in self.entries(task_dir, context_name)
-        ):
-            return ContextAddResult(
-                added=False,
-                entry_type=entry_type,
-                path=normalized_path,
-                entry=entry,
+            for existing in existing_entries
+        )
+        if not already_exists:
+            with context_file.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        if self._context_file_name(context_name) == "implement.jsonl":
+            self._append_domain_guides(
+                context_file,
+                paths=(normalized_path,),
             )
-
-        with context_file.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
         return ContextAddResult(
-            added=True,
+            added=not already_exists,
             entry_type=entry_type,
             path=normalized_path,
             entry=entry,
@@ -604,6 +627,12 @@ class TaskContextService:
 
     def _implement_entries(self, dev_type: str) -> list[dict]:
         entries = get_implement_base()
+        entries.extend(
+            get_domain_skill_context(
+                self.repo_root,
+                dev_type=dev_type,
+            )
+        )
         if dev_type in ("backend", "test"):
             entries.extend(get_implement_backend())
         elif dev_type == "frontend":
@@ -614,6 +643,29 @@ class TaskContextService:
         elif dev_type == "spec":
             entries.extend(get_implement_spec())
         return entries
+
+    def _append_domain_guides(
+        self,
+        context_file: Path,
+        *,
+        paths: tuple[str, ...],
+    ) -> None:
+        guide_entries = get_domain_skill_context(
+            self.repo_root,
+            paths=paths,
+        )
+        if not guide_entries:
+            return
+        existing_files = {
+            entry.get("file")
+            for entry in self.entries(context_file.parent, context_file.name)
+        }
+        with context_file.open("a", encoding="utf-8") as stream:
+            for guide in guide_entries:
+                if guide["file"] in existing_files:
+                    continue
+                stream.write(json.dumps(guide, ensure_ascii=False) + "\n")
+                existing_files.add(guide["file"])
 
     @staticmethod
     def _context_file_name(context_name: str) -> str:
