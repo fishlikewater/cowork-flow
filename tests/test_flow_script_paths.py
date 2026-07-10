@@ -2251,8 +2251,8 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
             if module_name in sys.modules:
                 del sys.modules[module_name]
 
-    def test_task_start_blockers_accept_legacy_prd_with_migration_hint(self) -> None:
-        """旧格式 prd.md 不再直接报 missing，而是提示会自动迁移。"""
+    def test_task_start_migrates_legacy_prd_before_blocker_check(self) -> None:
+        """旧格式 prd.md 在 blocker 检查前迁移为 decision-anchor.md。"""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
@@ -2260,10 +2260,12 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
             (task_dir / "prd.md").write_text("# Legacy PRD\n## Goal\nTest\n", encoding="utf-8")
 
+            migrated = self.task._migrate_prd_to_anchor(task_dir)
             blockers = self.task._task_start_blockers(task_dir)
 
-            # 提示迁移而不是直接 missing
-            self.assertIn("prd.md found; task start will auto-migrate to decision-anchor.md", blockers)
+            self.assertTrue(migrated)
+            self.assertFalse((task_dir / "prd.md").exists())
+            self.assertTrue((task_dir / "decision-anchor.md").is_file())
             self.assertNotIn("decision-anchor.md is missing or empty", blockers)
 
     def test_task_start_blockers_missing_anchor_and_no_legacy(self) -> None:

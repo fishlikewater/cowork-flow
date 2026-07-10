@@ -63,6 +63,20 @@ def scripts_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def resolve_project_python_script(command: str) -> Path | None:
+    candidate = Path(command)
+    if candidate.is_absolute() or candidate.suffix.lower() != ".py":
+        return None
+
+    project_root = scripts_dir().parents[1].resolve()
+    script_path = (project_root / candidate).resolve()
+    try:
+        script_path.relative_to(project_root)
+    except ValueError:
+        return None
+    return script_path if script_path.is_file() else None
+
+
 def run_python(args: list[str], *, pythonpath: Path | None = None) -> int:
     env = None
     if pythonpath is not None:
@@ -113,6 +127,16 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         return run_python(rest, pythonpath=scripts_dir())
+
+    project_script = resolve_project_python_script(command)
+    if project_script is not None:
+        if not context.is_default:
+            print(
+                "Error: execution context flags are not supported with project Python scripts.",
+                file=sys.stderr,
+            )
+            return 2
+        return run_python([str(project_script), *rest], pythonpath=scripts_dir())
 
     script_name = COMMAND_SCRIPTS.get(command)
     if script_name is None:

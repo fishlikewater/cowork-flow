@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,18 @@ def load_agent_toml(path: Path) -> dict[str, str]:
 
 
 class CoworkAgentsTest(unittest.TestCase):
+    def _assert_shared_party_mode_boundaries(self, skill_text: str, link: str) -> None:
+        self.assertIn(link, skill_text)
+        shared_text = (
+            ROOT / "template" / "skills" / "party-mode" / "SHARED-BOUNDARIES.md"
+        ).read_text(encoding="utf-8")
+        normalized = re.sub(r"\s+", " ", shared_text).lower()
+        self.assertIn("advisory", normalized)
+        self.assertRegex(
+            normalized,
+            r"(?:cannot|must not|does not).*formal implement or check completion",
+        )
+
     def test_skill_set_is_direct_and_fixed_agent_based(self) -> None:
         expected = {
             "batch-mode",
@@ -63,6 +76,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "start",
             "tdd",
             "update-spec",
+            "using-cowork-flow",
             "writing-plans",
         }
         # Skills single source of truth: template/skills/
@@ -89,6 +103,22 @@ class CoworkAgentsTest(unittest.TestCase):
         for path in (ROOT / "template" / ".codex" / "agents").glob("*.toml"):
             data = load_agent_toml(path)
             self.assertEqual(path.stem, data["name"], str(path))
+
+    def test_codex_agent_python_command_targets_exist(self) -> None:
+        for path in (
+            ROOT / "template" / ".codex" / "agents" / "cowork-implement.toml",
+            ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
+        ):
+            text = path.read_text(encoding="utf-8")
+            targets = re.findall(r"(?<![\w.-])(\.cowork-flow/[A-Za-z0-9_./-]+\.py)", text)
+            self.assertTrue(targets, f"no runtime Python command found in {path}")
+            for target in targets:
+                template_target = ROOT / "template" / Path(target)
+                self.assertTrue(
+                    template_target.is_file(),
+                    f"{path} references missing runtime script: {target}",
+                )
+            self.assertNotIn("бк", text, f"unexpected mixed-script text in {path}")
 
     def test_opencode_agent_definitions_exist_in_template(self) -> None:
         base = ROOT / "template" / ".opencode"
@@ -145,8 +175,6 @@ class CoworkAgentsTest(unittest.TestCase):
             "continue conditions can be tightened but not removed",
             "stop conditions can be tightened but not removed",
             "core fields can be extended but not removed",
-            "advisory only",
-            "cannot satisfy formal Implement or Check completion",
         )
         child_schema = (
             "position:",
@@ -188,6 +216,10 @@ class CoworkAgentsTest(unittest.TestCase):
         text = (ROOT / "template" / "skills" / "party-mode" / "SKILL.md").read_text(encoding="utf-8")
         for marker in required_markers + child_schema + followup_schema + coordinator_schema:
             self.assertIn(marker, text, f"{marker} missing from template/skills/party-mode/SKILL.md")
+        self._assert_shared_party_mode_boundaries(
+            text,
+            "See [SHARED-BOUNDARIES.md](SHARED-BOUNDARIES.md)",
+        )
 
     def test_party_mode_v2_skill_is_thin_runtime_board_entrypoint(self) -> None:
         required_markers = (
@@ -211,8 +243,6 @@ class CoworkAgentsTest(unittest.TestCase):
             "revise",
             "concede",
             "Unsupported agreement, vague revision, and evidence-free rebuttal are invalid.",
-            "advisory only",
-            "cannot satisfy formal Implement or Check completion",
         )
         forbidden_markers = (
             "Round 1 uses fresh child contexts",
@@ -227,6 +257,10 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn(marker, text, f"{marker} missing from template/skills/party-mode-v2/SKILL.md")
         for marker in forbidden_markers:
             self.assertNotIn(marker, text, f"{marker} should stay out of thin V2 skill template/skills/party-mode-v2/SKILL.md")
+        self._assert_shared_party_mode_boundaries(
+            text,
+            "See [SHARED-BOUNDARIES.md](../party-mode/SHARED-BOUNDARIES.md)",
+        )
 
     def test_agents_require_runtime_context_and_disable_multi_agent(self) -> None:
         for path in (

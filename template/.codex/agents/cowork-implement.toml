@@ -42,7 +42,7 @@ Rules:
 - Report changed files and exact verification commands.
 - BEFORE editing any source file, run the spec-driven coding gate and treat a
   nonzero exit as a hard blocker:
-  ./.cowork-flow/run python .cowork-flow/scripts/common/gates/validate_coding_standaries.py --validate --repo-root .
+  ./.cowork-flow/run python .cowork-flow/scripts/common/gates/validate_coding_standards.py --validate --repo-root .
   Parse every *.md under .cowork-flow/spec/backend and spec/frontend; rules
   declared there activate validators dynamically. On violation, fix the code
   (do not disable the rule) and re-run until exit code 0.

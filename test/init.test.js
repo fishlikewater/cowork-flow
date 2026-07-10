@@ -67,7 +67,11 @@ test('init copies only opencode host assets when platform is opencode', async (t
 
   const code = await main(['init', target, '--developer', 'opencode-user', '--platform', 'opencode'], { io });
 
-  assert.equal(code, 0);
+  assert.equal(code, 0, JSON.stringify({
+    stderr: io.stderr,
+    stdout: io.stdout,
+    target
+  }, null, 2));
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'entry_classifier.py')), false);
