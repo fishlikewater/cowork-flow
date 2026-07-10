@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPTS_DIR = (
@@ -24,6 +25,7 @@ class StateStoreTest(unittest.TestCase):
         state_module = importlib.import_module(
             "common.storage.state_store"
         )
+        cls.state_module = state_module
         operation_module = importlib.import_module(
             "common.storage.operation_log"
         )
@@ -81,6 +83,36 @@ class StateStoreTest(unittest.TestCase):
                 "{not-json",
                 path.read_text(encoding="utf-8"),
             )
+
+    def test_atomic_write_retries_transient_permission_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "state.json"
+            store = self.StateStore()
+            real_replace = self.state_module.os.replace
+            attempts = 0
+
+            def transient_replace(source: object, target: object) -> None:
+                nonlocal attempts
+                attempts += 1
+                if attempts < 3:
+                    raise PermissionError(13, "transient file lock")
+                real_replace(source, target)
+
+            with mock.patch.object(
+                self.state_module.os,
+                "replace",
+                side_effect=transient_replace,
+            ):
+                snapshot = store.replace(
+                    path,
+                    {"value": "稳定"},
+                    expected_revision=0,
+                    operation_id="op-retry",
+                )
+
+            self.assertEqual(3, attempts)
+            self.assertEqual(1, snapshot.revision)
+            self.assertEqual("稳定", store.load(path).data["value"])
 
     def test_unit_of_work_recovers_after_partial_apply(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

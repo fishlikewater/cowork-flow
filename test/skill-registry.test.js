@@ -27,6 +27,7 @@ const SCHEMA_PATH = join(
   'schemas',
   'skill-registry.schema.json'
 );
+const README_PATH = join(ROOT, 'README.md');
 
 
 async function loadModule() {
@@ -98,12 +99,26 @@ test('canonical skill registry and schema load', async () => {
     registry.publicSkillIds,
     [...registry.publicSkillIds].sort()
   );
-  assert.equal(registry.publicSkillIds.includes('batch-mode'), false);
+  assert.equal(registry.publicSkillIds.includes('batch-mode'), true);
   assert.equal(registry.entry('before-dev').enforcement, 'mandatory');
   assert.equal(
     registry.entry(registry.entry('before-dev').runtimeGate).kind,
     'runtime'
   );
+});
+
+test('README public Skill list matches the canonical Registry', async () => {
+  const { loadSkillRegistry } = await loadModule();
+  const registry = loadSkillRegistry();
+  const readme = readFileSync(README_PATH, 'utf8');
+  const match = readme.match(/^分发动作：(.+)$/m);
+
+  assert.notEqual(match, null);
+  const documented = match[1]
+    .split('、')
+    .map((item) => item.trim().replaceAll('`', ''))
+    .sort();
+  assert.deepEqual(documented, registry.publicSkillIds);
 });
 
 

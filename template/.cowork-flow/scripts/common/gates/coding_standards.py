@@ -97,12 +97,8 @@ def _validate_python_text_io(rel_path: str, content: str) -> list[dict]:
 
 def _validate_node_text_io(rel_path: str, content: str) -> list[dict]:
     violations: list[dict] = []
-    lines = content.splitlines()
-    for index, line in enumerate(lines):
-        if not NODE_TEXT_IO_PATTERN.search(line):
-            continue
-
-        segment = "\n".join(lines[index : min(index + 5, len(lines))]).lower()
+    for match in NODE_TEXT_IO_PATTERN.finditer(content):
+        segment = _node_call_segment(content, match.end() - 1).lower()
         if "utf8" in segment or "utf-8" in segment:
             continue
 
@@ -112,11 +108,66 @@ def _validate_node_text_io(rel_path: str, content: str) -> list[dict]:
                 rel_path,
                 "Coding standards: Node file IO must specify utf8 encoding",
                 "Pass 'utf8' or { encoding: 'utf8' } to readFile/writeFile calls.",
-                line=index + 1,
+                line=content.count("\n", 0, match.start()) + 1,
             )
         )
 
     return violations
+
+
+def _node_call_segment(content: str, open_paren_index: int) -> str:
+    depth = 0
+    quote: str | None = None
+    escaped = False
+    line_comment = False
+    block_comment = False
+    index = open_paren_index
+
+    while index < len(content):
+        char = content[index]
+        next_char = content[index + 1] if index + 1 < len(content) else ""
+
+        if line_comment:
+            if char == "\n":
+                line_comment = False
+            index += 1
+            continue
+        if block_comment:
+            if char == "*" and next_char == "/":
+                block_comment = False
+                index += 2
+            else:
+                index += 1
+            continue
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            index += 1
+            continue
+
+        if char in {"'", '"', "`"}:
+            quote = char
+        elif char == "/" and next_char == "/":
+            line_comment = True
+            index += 2
+            continue
+        elif char == "/" and next_char == "*":
+            block_comment = True
+            index += 2
+            continue
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return content[open_paren_index : index + 1]
+        index += 1
+
+    return content[open_paren_index:]
 
 
 def _validate_powershell_text_io(rel_path: str, content: str) -> list[dict]:
