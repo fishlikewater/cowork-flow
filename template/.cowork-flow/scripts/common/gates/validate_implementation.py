@@ -185,20 +185,27 @@ def _check_premature_abstraction(
     return violations
 
 
-def _check_unrequested_features(
-    repo_root: Path,
-    diff_output: str,
-    task_dir: Path,
-    rule_index: dict[str, dict],
-) -> list[dict]:
-    """R-AG-005: Check if unrequested files were modified (diff files must be in implement.jsonl)."""
-    violations = []
+def _normalize_allowed_context_file(entry: dict) -> str | None:
+    entry_type = entry.get("type", "file")
+    file_path = entry.get("file")
+    if entry_type not in ("file", "planned-file"):
+        return None
+    if not isinstance(file_path, str) or not file_path:
+        return None
+    normalized = file_path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    segments = normalized.split("/")
+    invalid = (
+        normalized.startswith("/")
+        or re.match(r"^[A-Za-z]:", normalized)
+        or any(segment in ("", ".", "..") for segment in segments)
+        or any(character in normalized for character in "*?[]")
+    )
+    return None if invalid else normalized
 
-    # Collect allowed files from implement.jsonl
-    implement_jsonl = task_dir / "implement.jsonl"
-    if not implement_jsonl.exists():
-        return violations
 
+def _load_allowed_context_files(implement_jsonl: Path) -> set[str]:
     allowed_files: set[str] = set()
     try:
         for line in implement_jsonl.read_text(encoding="utf-8").splitlines():
@@ -209,18 +216,28 @@ def _check_unrequested_features(
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            file_path = entry.get("file")
-            if isinstance(file_path, str) and file_path:
-                # Normalize paths (strip repo root prefix if present)
-                allowed_files.add(file_path)
-                # Also add stripped versions for matching
-                if file_path.startswith("./"):
-                    allowed_files.add(file_path[2:])
-                else:
-                    allowed_files.add(f"./{file_path}")
+            normalized = _normalize_allowed_context_file(entry)
+            if normalized is not None:
+                allowed_files.add(normalized)
     except (OSError, UnicodeDecodeError):
+        return set()
+    return allowed_files
+
+
+def _check_unrequested_features(
+    repo_root: Path,
+    diff_output: str,
+    task_dir: Path,
+    rule_index: dict[str, dict],
+) -> list[dict]:
+    """R-AG-005: Require modified files to be explicitly listed."""
+    del diff_output
+    violations = []
+    implement_jsonl = task_dir / "implement.jsonl"
+    if not implement_jsonl.exists():
         return violations
 
+    allowed_files = _load_allowed_context_files(implement_jsonl)
     if not allowed_files:
         return violations
 
@@ -232,7 +249,7 @@ def _check_unrequested_features(
             continue
         normalized = file_path.replace("\\", "/")
         # Check if file is in allowed list
-        if normalized not in allowed_files and f"./{normalized}" not in allowed_files:
+        if normalized not in allowed_files:
             rule = rule_index.get("R-AG-005")
             violations.append(
                 rule_violation(

@@ -164,7 +164,8 @@ class TaskLifecycleService:
         except TaskRepositoryError as error:
             return self._repository_failure(stage, task_dir, error)
 
-        if task_data.get("status") == stage.target_status:
+        already_at_target = task_data.get("status") == stage.target_status
+        if already_at_target and stage.name != REVIEW_STAGE.name:
             return LifecycleResult(
                 ok=True,
                 code="LIFECYCLE-IDEMPOTENT",
@@ -217,6 +218,16 @@ class TaskLifecycleService:
         summary = ""
         if stage.includes_coding_summary:
             summary = self.gate_runner.coding_standards_summary(task_dir)
+
+        if already_at_target:
+            return LifecycleResult(
+                ok=True,
+                code="LIFECYCLE-IDEMPOTENT-VALIDATED",
+                stage=stage,
+                task_dir=task_dir,
+                gate_result=gate_result,
+                summary=summary,
+            )
 
         active_task_path = None
         session_state = None
