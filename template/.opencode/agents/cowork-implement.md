@@ -35,6 +35,21 @@ signal.
 
 ---
 
+## Authoritative Internal Protocols
+
+Read and apply:
+
+- `.cowork-flow/spec/protocols/tdd.md`
+- `.cowork-flow/spec/protocols/decision-review.md`
+- `.cowork-flow/spec/protocols/spec-maintenance.md`
+
+Their contracts are Host-neutral. Implementation reports and `tdd.jsonl` must
+preserve `acceptanceId`, `redCommand`, `redExitCode`, `greenCommand`,
+`greenExitCode`, and `specUpdates`. A behavior change requires
+red-green-refactor evidence or a valid documented exemption.
+
+---
+
 ## Mandatory Pre-Implementation Checklist
 
 Before writing any code, you MUST read and apply these spec files:

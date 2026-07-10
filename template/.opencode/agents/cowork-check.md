@@ -33,6 +33,17 @@ or names another agent type, report `needs_context` and stop. Do not infer
 subagent identity from prompt shape; runtime context binding is the only formal
 signal.
 
+Authoritative internal protocols:
+
+- `.cowork-flow/spec/protocols/review.md`
+- `.cowork-flow/spec/protocols/decision-review.md`
+- `.cowork-flow/spec/protocols/spec-maintenance.md`
+
+Apply their Host-neutral output contract. Review output must preserve
+`acceptanceId`, `findings`, `test_intent_review`, `resolution`, and
+`specUpdates`; reject shallow tests that do not cover meaningful behavior
+breaks or map to PRD acceptance.
+
 Rules:
 
 - Read the task directory from the bound runtime context.

@@ -32,6 +32,15 @@ Load context before checking:
 5. Read `git diff`.
 6. Include `test_intent_review` in the review output for meaningful behavior breaks coverage and shallow tests rejection.
 
+Authoritative internal protocols:
+- `.cowork-flow/spec/protocols/review.md`
+- `.cowork-flow/spec/protocols/decision-review.md`
+- `.cowork-flow/spec/protocols/spec-maintenance.md`
+
+Apply their output contracts exactly. Review output must preserve
+`acceptanceId`, `findings`, `test_intent_review`, `resolution`, and
+`specUpdates`.
+
 Rules:
 - Fix issues directly when they are clearly in scope.
 - MUST NOT spawn, wait for, list, or close other agents.

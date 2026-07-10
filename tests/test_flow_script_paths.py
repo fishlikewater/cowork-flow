@@ -109,7 +109,7 @@ class FlowScriptPathsTest(FlowScriptTestCase):
                 for line in (task_dir / "check.jsonl").read_text(encoding="utf-8").splitlines()
             ]
             self.assertEqual(
-                ".claude/skills/check/SKILL.md",
+                ".cowork-flow/spec/protocols/review.md",
                 check_entries[0]["file"],
             )
 

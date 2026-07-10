@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from common.core.paths import DIR_ARCHIVE, DIR_CHANGES, DIR_TASKS, DIR_WORKFLOW, FILE_TASK_JSON, get_tasks_dir
+from .decision_review import DECISION_REVIEW_FILE, validate_decision_review_file
 from .task_utils import find_task_by_name
 
 REQUIRED_L2_MARKERS = {
@@ -246,22 +247,15 @@ def task_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
         if not _has_verification_command(plan_text):
             blockers.append(f"L2 readiness ({slug}): linked plan is missing verification commands")
 
-        blockers.extend(_check_doubt_review(task_dir, change_dir))
+        blockers.extend(_check_decision_review(task_dir))
 
     return blockers
 
 
-def _check_doubt_review(task_dir: Path, change_dir: Path) -> list[str]:
-    """L2 optional check: doubt-review 记录是否存在 (warn 级别, 不阻断)."""
-    doubt_file = Path(task_dir) / "doubt-review.md"
-    if not doubt_file.is_file():
-        return [
-            f"L2 doubt-review 建议: 在 {doubt_file} 中记录关键决策的 "
-            f"CLAIM+CONTRACT（非强制，但强烈推荐）"
-        ]
-    text = _read_text(doubt_file)
-    if "CLAIM:" not in text:
-        return [
-            f"L2 doubt-review: {doubt_file} 存在但没有 CLAIM 记录"
-        ]
-    return []
+def _check_decision_review(task_dir: Path) -> list[str]:
+    """Require accepted structured decision evidence for L2 readiness."""
+    evidence_path = Path(task_dir) / DECISION_REVIEW_FILE
+    return [
+        f"L2 {issue}"
+        for issue in validate_decision_review_file(evidence_path)
+    ]
