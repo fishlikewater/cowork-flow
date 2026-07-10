@@ -35,7 +35,7 @@ test('init copies the template into a new target directory', async (t) => {
 
   assert.equal(code, 0);
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'start', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'run.py')), true);
@@ -89,7 +89,7 @@ test('init copies only opencode host assets when platform is opencode', async (t
   assert.equal(await exists(join(target, '.opencode', 'agents', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.opencode', 'commands', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'start', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.claude')), false);
   assert.equal(await exists(join(target, 'CLAUDE.md')), false);
   assert.match(io.stdout, /Platforms: opencode/);
@@ -105,7 +105,7 @@ test('init copies only claude-code host assets when platform is claude-code', as
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, 'CLAUDE.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills')), false);
-  assert.equal(await exists(join(target, '.claude', 'skills', 'start', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.claude', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'entry_classifier.py')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')), true);
@@ -116,7 +116,7 @@ test('init copies only claude-code host assets when platform is claude-code', as
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.claude', 'agents', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.claude', 'commands', 'cowork-implement.md')), true);
-  assert.equal(await exists(join(target, '.claude', 'skills', 'start', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.claude', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills')), false);
   assert.equal(await exists(join(target, '.claude', 'skills', 'entry' + '-boundary', 'SKILL.md')), false);
   assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
@@ -140,13 +140,13 @@ test('init copies all selected host platforms', async (t) => {
 
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.codex', 'hooks.json')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'start', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
   assert.equal(await exists(join(target, '.claude', 'agents', 'cowork-check.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'check', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'party-mode', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
   assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
@@ -171,11 +171,13 @@ test('init installs clean-room cowork-flow skills directly', async (t) => {
 
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.superpowers')), false);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'before-dev', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'check', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'continue', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'meta', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'python-design', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'brainstorming', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'before-dev', 'SKILL.md')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'check', 'SKILL.md')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'continue', 'SKILL.md')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'meta', 'SKILL.md')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'python-design', 'SKILL.md')), false);
   assert.equal(await exists(join(target, '.agents', 'skills', 'using-superpowers', 'SKILL.md')), false);
 });
 

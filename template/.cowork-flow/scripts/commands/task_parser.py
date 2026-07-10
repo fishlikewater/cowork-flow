@@ -137,6 +137,25 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Task directory or name",
     )
+    next_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Render the stable machine-readable navigation contract",
+    )
+    next_parser.add_argument(
+        "--intent",
+        choices=(
+            "question",
+            "clarify",
+            "plan",
+            "implement",
+            "review",
+            "debug",
+            "discuss",
+            "batch",
+        ),
+        help="Classified user intent for structured routing",
+    )
 
     subparsers.add_parser(
         "finish",
@@ -219,7 +238,7 @@ Usage:
   ./.cowork-flow/run task review [dir]                       Mark task ready for check
   ./.cowork-flow/run task complete [dir]                     Mark task completed
   ./.cowork-flow/run task finish                             Clear active session task
-  ./.cowork-flow/run task next [dir]                         Show next safe workflow action
+  ./.cowork-flow/run task next [dir] [--json] [--intent I]   Show next safe workflow action
   ./.cowork-flow/run task archive <task-name>                Archive completed task and linked changes
   ./.cowork-flow/run task add-subtask <parent> <child>       Link child task to parent
   ./.cowork-flow/run task remove-subtask <parent> <child>    Unlink child from parent

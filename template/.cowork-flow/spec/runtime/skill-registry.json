@@ -33,7 +33,7 @@
       ],
       "kind": "phase",
       "visibility": "public",
-      "status": "active",
+      "status": "deprecated",
       "statuses": [
         "planning",
         "in_progress",
@@ -50,7 +50,9 @@
       "managedPaths": [
         ".agents/skills/before-dev/",
         ".claude/skills/before-dev/"
-      ]
+      ],
+      "replacement": "cowork-flow",
+      "removeAfter": "2026-10-10"
     },
     {
       "id": "brainstorming",
@@ -109,7 +111,7 @@
       "displayName": "Check",
       "aliases": [],
       "kind": "protocol",
-      "visibility": "public",
+      "visibility": "internal",
       "status": "active",
       "statuses": [
         "review"
@@ -133,7 +135,7 @@
       "aliases": [],
       "kind": "phase",
       "visibility": "public",
-      "status": "active",
+      "status": "deprecated",
       "statuses": [
         "in_progress",
         "review"
@@ -149,6 +151,38 @@
       "managedPaths": [
         ".agents/skills/continue/",
         ".claude/skills/continue/"
+      ],
+      "replacement": "cowork-flow",
+      "removeAfter": "2026-10-10"
+    },
+    {
+      "id": "cowork-flow",
+      "displayName": "Cowork Flow",
+      "aliases": [
+        "workflow-entry"
+      ],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "no_task",
+        "planning",
+        "in_progress",
+        "review",
+        "completed",
+        "delegated_subtask"
+      ],
+      "intents": [
+        "route_workflow"
+      ],
+      "enforcement": "mandatory",
+      "runtimeGate": "workflow-readiness",
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/cowork-flow/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/cowork-flow/",
+        ".claude/skills/cowork-flow/"
       ]
     },
     {
@@ -156,7 +190,7 @@
       "displayName": "Doubt Review",
       "aliases": [],
       "kind": "protocol",
-      "visibility": "public",
+      "visibility": "internal",
       "status": "active",
       "statuses": [
         "planning",
@@ -182,7 +216,7 @@
       "aliases": [],
       "kind": "phase",
       "visibility": "public",
-      "status": "active",
+      "status": "deprecated",
       "statuses": [
         "review",
         "completed"
@@ -198,14 +232,16 @@
       "managedPaths": [
         ".agents/skills/finish-work/",
         ".claude/skills/finish-work/"
-      ]
+      ],
+      "replacement": "cowork-flow",
+      "removeAfter": "2026-10-10"
     },
     {
       "id": "game-design",
       "displayName": "Game Design",
       "aliases": [],
       "kind": "domain",
-      "visibility": "public",
+      "visibility": "internal",
       "status": "active",
       "statuses": [
         "planning",
@@ -230,7 +266,7 @@
       "displayName": "Meta",
       "aliases": [],
       "kind": "domain",
-      "visibility": "public",
+      "visibility": "internal",
       "status": "active",
       "statuses": [
         "planning",
@@ -285,7 +321,7 @@
         "party-v2"
       ],
       "kind": "mode",
-      "visibility": "public",
+      "visibility": "internal",
       "status": "active",
       "statuses": [
         "no_task",
@@ -313,7 +349,7 @@
       "displayName": "Python Design",
       "aliases": [],
       "kind": "domain",
-      "visibility": "public",
+      "visibility": "internal",
       "status": "active",
       "statuses": [
         "planning",
@@ -355,7 +391,7 @@
       "aliases": [],
       "kind": "phase",
       "visibility": "public",
-      "status": "active",
+      "status": "deprecated",
       "statuses": [
         "no_task",
         "planning",
@@ -374,14 +410,16 @@
       "managedPaths": [
         ".agents/skills/start/",
         ".claude/skills/start/"
-      ]
+      ],
+      "replacement": "cowork-flow",
+      "removeAfter": "2026-10-10"
     },
     {
       "id": "tdd",
       "displayName": "Test Driven Development",
       "aliases": [],
       "kind": "protocol",
-      "visibility": "public",
+      "visibility": "internal",
       "status": "active",
       "statuses": [
         "in_progress"
@@ -420,7 +458,7 @@
       "displayName": "Update Spec",
       "aliases": [],
       "kind": "protocol",
-      "visibility": "public",
+      "visibility": "internal",
       "status": "active",
       "statuses": [
         "in_progress",
@@ -442,12 +480,10 @@
     {
       "id": "using-cowork-flow",
       "displayName": "Using cowork-flow",
-      "aliases": [
-        "workflow-entry"
-      ],
+      "aliases": [],
       "kind": "phase",
       "visibility": "public",
-      "status": "active",
+      "status": "deprecated",
       "statuses": [
         "no_task",
         "planning",
@@ -467,7 +503,9 @@
       "managedPaths": [
         ".agents/skills/using-cowork-flow/",
         ".claude/skills/using-cowork-flow/"
-      ]
+      ],
+      "replacement": "cowork-flow",
+      "removeAfter": "2026-10-10"
     },
     {
       "id": "workflow-readiness",

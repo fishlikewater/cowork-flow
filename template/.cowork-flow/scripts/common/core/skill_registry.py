@@ -134,7 +134,11 @@ class SkillRegistry:
         }
 
 
-def load_skill_registry(template_root: Path) -> SkillRegistry:
+def load_skill_registry(
+    template_root: Path,
+    *,
+    validate_sources: bool = True,
+) -> SkillRegistry:
     path = Path(template_root) / REGISTRY_PATH
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -142,18 +146,28 @@ def load_skill_registry(template_root: Path) -> SkillRegistry:
         raise SkillRegistryError(
             f"unable to read Skill Registry {path}: {exc}"
         ) from exc
-    return create_skill_registry(raw, template_root)
+    return create_skill_registry(
+        raw,
+        template_root,
+        validate_sources=validate_sources,
+    )
 
 
 def create_skill_registry(
     raw: dict[str, Any],
     template_root: Path,
+    *,
+    validate_sources: bool = True,
 ) -> SkillRegistry:
     _validate_root(raw)
     entries = tuple(
         sorted(
             (
-                _normalize_entry(entry, Path(template_root))
+                _normalize_entry(
+                    entry,
+                    Path(template_root),
+                    validate_sources=validate_sources,
+                )
                 for entry in raw["entries"]
             ),
             key=lambda entry: entry.id,
@@ -240,7 +254,12 @@ def _validate_root(raw: Any) -> None:
         )
 
 
-def _normalize_entry(raw: Any, template_root: Path) -> SkillEntry:
+def _normalize_entry(
+    raw: Any,
+    template_root: Path,
+    *,
+    validate_sources: bool,
+) -> SkillEntry:
     if not isinstance(raw, dict):
         raise SkillRegistryError("Skill Registry entry must be an object")
     entry_id = raw.get("id") if isinstance(raw.get("id"), str) else "<unknown>"
@@ -312,7 +331,7 @@ def _normalize_entry(raw: Any, template_root: Path) -> SkillEntry:
         "evidenceArtifact",
     )
     source = _relative_path(raw["source"], raw["id"], "source")
-    if not (template_root / Path(source)).exists():
+    if validate_sources and not (template_root / Path(source)).exists():
         raise SkillRegistryError(
             f"source does not exist for {raw['id']}: {source}"
         )

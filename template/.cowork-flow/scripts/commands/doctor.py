@@ -24,16 +24,14 @@ from common.core.skill_registry import SkillRegistryError, load_skill_registry
 
 ENTRY_BOUNDARY_DIR = "entry" + "-boundary"
 
-REQUIRED_START_SNIPPETS = [
-    "This skill is for the main session",
-    "accepted only after runtime context binding is recorded",
-    "Main repository changes follow `Plan -> Implement -> Check -> Finish`",
-    "Host Adapter",
-    ".cowork-flow/run subagent init",
-    "cowork_runtime_context_id",
-    "cowork_host_context_key",
-    ".cowork-flow/run subagent bind <runtime_context_id> <host_context_key>",
-    ".cowork-flow/run subagent close",
+REQUIRED_ROUTER_SNIPPETS = [
+    "only public workflow router",
+    "<workflow-state>",
+    "./.cowork-flow/run task next --json",
+    "allowedOperations",
+    "recommendedSkill",
+    "internalProtocols",
+    "Deprecated aliases",
 ]
 
 REQUIRED_FIXED_AGENT_SNIPPETS = [
@@ -259,7 +257,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
     for rel in (
-        "template/skills/start/SKILL.md",
+        "template/skills/cowork-flow/SKILL.md",
         "template/skills/check/SKILL.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_SKILL_SNIPPETS, errors)
@@ -330,9 +328,9 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     errors: list[str] = []
     for rel in (
-        "template/skills/start/SKILL.md",
+        "template/skills/cowork-flow/SKILL.md",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_START_SNIPPETS, errors)
+        _check_file_contains(repo_root / rel, REQUIRED_ROUTER_SNIPPETS, errors)
     for rel in (
         f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):
