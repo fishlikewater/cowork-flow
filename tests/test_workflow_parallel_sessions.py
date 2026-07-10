@@ -197,17 +197,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
-        skill_markers = (
-            ".cowork-flow/run subagent init",
-            "cowork_runtime_context_id",
-            "fails closed",
-            "adapter wait/list/cancel primitives",
-            ".cowork-flow/run subagent close",
-        )
-        text = (ROOT / "template" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
-        for marker in skill_markers:
-            self.assertIn(marker, text, f"{marker} missing from template/skills/start/SKILL.md")
-
         for path in (
             ROOT / "template" / ".cowork-flow" / "config.yaml",
         ):
@@ -287,25 +276,18 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
-    def test_start_skill_routes_to_fixed_agents(self) -> None:
-        text = (ROOT / "template" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("Plan -> Implement -> Check -> Finish", text)
-        self.assertIn("Host Adapter", text)
-        self.assertNotIn("agent" + "-team-execution", text)
-        self.assertNotIn("specific assignment", text)
-        self.assertIn("accepted only after runtime context binding is recorded", text)
-        self.assertIn("cowork_host_context_key", text)
-        self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
-        self.assertIn("Route in stages", text)
-        self.assertIn("Repository-changing main-session requests load state first", text)
-        self.assertIn("before fixed-agent dispatch", text)
-        self.assertIn("requirement clarification gate", text)
-        self.assertIn("New requirements", text)
-        self.assertIn("before writing decision-anchor.md, planning", text)
-        self.assertIn("scope boundary", text)
-        self.assertIn("acceptance criteria", text)
-        self.assertIn(".cowork-flow/run subagent init", text)
-        self.assertIn("Do not infer subagent identity from prompt shape", text)
+    def test_cowork_flow_skill_routes_without_copying_agent_protocol(self) -> None:
+        text = (
+            ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("only public workflow router", text)
+        self.assertIn("./.cowork-flow/run task next --json", text)
+        self.assertIn("allowedOperations", text)
+        self.assertIn("recommendedSkill", text)
+        self.assertIn("internalProtocols", text)
+        self.assertNotIn(".cowork-flow/run subagent init", text)
+        self.assertNotIn("cowork_host_context_key", text)
+        self.assertNotIn("adapter wait/list/cancel primitives", text)
 
     def test_brainstorming_skill_requires_clarification_output(self) -> None:
         required_markers = (
@@ -324,12 +306,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         for marker in required_markers:
             self.assertIn(marker, text, f"{marker} missing from template/skills/brainstorming/SKILL.md")
 
-    def test_start_skill_mentions_parallel_session_model(self) -> None:
-        text = (ROOT / "template" / "skills" / "start" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("parallel sessions", text)
-        self.assertIn("separate `git worktree`", text)
-        self.assertIn("low-conflict slices", text)
-        self.assertIn("final integrated verification", text)
+    def test_cowork_flow_skill_does_not_copy_parallel_session_model(self) -> None:
+        text = (
+            ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("parallel sessions", text)
+        self.assertNotIn("separate `git worktree`", text)
+        self.assertNotIn("low-conflict slices", text)
+        self.assertNotIn("final integrated verification", text)
 
     def test_entry_boundary_skill_is_removed(self) -> None:
         self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
@@ -338,9 +322,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         doctor = ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "doctor.py"
         text = doctor.read_text(encoding="utf-8")
         # Verify doctor.py contains the expected safety checks
-        self.assertIn("REQUIRED_START_SNIPPETS", text)
+        self.assertIn("REQUIRED_ROUTER_SNIPPETS", text)
         self.assertIn("cowork_runtime_context_id", text)
-        self.assertIn("template/skills/start/SKILL.md", text)
+        self.assertIn("template/skills/cowork-flow/SKILL.md", text)
         self.assertIn("template/.codex/agents/cowork-research.toml", text)
         self.assertIn("template/.codex/agents/cowork-implement.toml", text)
         self.assertIn("template/.codex/agents/cowork-check.toml", text)

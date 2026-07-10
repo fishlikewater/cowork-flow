@@ -180,6 +180,31 @@ class SkillRegistryTest(unittest.TestCase):
         ):
             module.create_skill_registry(raw, TEMPLATE)
 
+    def test_runtime_load_can_skip_template_source_existence(self) -> None:
+        module = self._module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runtime_root = Path(temp_dir)
+            registry_path = (
+                runtime_root
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "skill-registry.json"
+            )
+            registry_path.parent.mkdir(parents=True)
+            registry_path.write_text(
+                json.dumps(registry_fixture(), ensure_ascii=False, indent=2)
+                + "\n",
+                encoding="utf-8",
+            )
+
+            registry = module.load_skill_registry(
+                runtime_root,
+                validate_sources=False,
+            )
+
+        self.assertEqual(("example",), registry.public_skill_ids)
+
     def test_overlapping_managed_paths_are_rejected(self) -> None:
         module = self._module()
         raw = registry_fixture()

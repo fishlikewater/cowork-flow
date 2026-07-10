@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from application.task_context import TaskContextService
 from commands.task_archive_commands import linked_active_changes_for_task
 from commands.task_support import resolve_task_dir
+from common.core.execution_context import execution_context_from_namespace
 from common.core.paths import get_repo_root
+from common.core.skill_registry import SkillRegistry, load_skill_registry
 from common.gates.gates import GateRunner
 from common.task.active_task import get_active_task
 from common.task.readiness import task_readiness_blockers
@@ -17,6 +20,41 @@ from common.task.task_repository import TaskRepository, TaskRepositoryError
 
 CHECK_STATUSES = ("review",)
 DONE_STATUSES = ("completed", "done")
+USER_INTENTS = (
+    "question",
+    "clarify",
+    "plan",
+    "implement",
+    "review",
+    "debug",
+    "discuss",
+    "batch",
+)
+INTENT_REGISTRY_KEYS = {
+    "question": None,
+    "clarify": "clarify_requirement",
+    "plan": "write_plan",
+    "implement": "route_workflow",
+    "review": "route_workflow",
+    "debug": "analyze_repeated_failure",
+    "discuss": "discuss_options",
+    "batch": "batch_execute_plan",
+}
+INTENT_OPERATIONS = {
+    "question": {"answer_questions"},
+    "clarify": {"edit_planning_artifacts"},
+    "plan": {"edit_planning_artifacts"},
+    "implement": {
+        "create_task",
+        "start_task",
+        "implement_change",
+        "execute_delegated_work",
+    },
+    "review": {"request_review", "verify_change", "complete_task"},
+    "debug": {"debug_failure"},
+    "discuss": {"discuss_options"},
+    "batch": {"batch_execute"},
+}
 
 
 def _display(repo_root: Path, task_dir: Path) -> str:
@@ -69,11 +107,214 @@ def _implementation(task_path: str) -> None:
     print(f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}")
 
 
+def _main_operations(
+    status: str,
+    blockers: tuple[str, ...],
+    active_target: bool,
+) -> list[str]:
+    operations = ["answer_questions", "debug_failure", "discuss_options"]
+    if status == "no_task":
+        operations.extend(["create_task", "edit_planning_artifacts"])
+    elif status == "planning":
+        operations.append("edit_planning_artifacts")
+        if not blockers:
+            if active_target:
+                operations.extend(["implement_change", "request_review"])
+            else:
+                operations.append("start_task")
+            operations.append("batch_execute")
+    elif status == "in_progress":
+        operations.extend(
+            ["implement_change", "request_review", "batch_execute"]
+        )
+    elif status in CHECK_STATUSES:
+        operations.extend(
+            ["verify_change", "apply_review_fix", "complete_task"]
+        )
+    elif status in DONE_STATUSES:
+        operations.extend(["archive_task", "create_task"])
+    elif status == "delegated_subtask":
+        operations.extend(["execute_delegated_work", "report_result"])
+    else:
+        operations.append("repair_workflow_state")
+    return operations
+
+
+def _allowed_operations(
+    status: str,
+    context: str,
+    blockers: tuple[str, ...],
+    active_target: bool,
+) -> list[str]:
+    if context == "delegated" and status != "delegated_subtask":
+        return [
+            "answer_questions",
+            "debug_failure",
+            "discuss_options",
+            "report_needs_context",
+        ]
+    return _main_operations(status, blockers, active_target)
+
+
+def _required_artifacts(status: str) -> list[str]:
+    if status in {"no_task", "planning"}:
+        return ["decision-anchor.md", "implement.jsonl"]
+    if status == "in_progress":
+        return ["decision-anchor.md", "implement.jsonl"]
+    if status in CHECK_STATUSES:
+        return ["decision-anchor.md", "check.jsonl"]
+    if status in DONE_STATUSES:
+        return ["check.jsonl"]
+    if status == "delegated_subtask":
+        return ["runtime-context"]
+    return []
+
+
+def _intent_is_allowed(intent: str, operations: list[str]) -> bool:
+    return bool(INTENT_OPERATIONS[intent].intersection(operations))
+
+
+def _matching_public_skills(
+    registry: SkillRegistry,
+    status: str,
+    intent: str,
+) -> list[str]:
+    registry_intent = INTENT_REGISTRY_KEYS[intent]
+    if registry_intent is None:
+        return []
+    return [
+        entry.id
+        for entry in registry.public_entries
+        if status in entry.statuses and registry_intent in entry.intents
+    ]
+
+
+def route_request(
+    registry: SkillRegistry,
+    *,
+    status: str,
+    intent: str,
+    context: str,
+    blockers: tuple[str, ...] | list[str],
+    active_target: bool,
+) -> dict[str, object]:
+    """Return the stable state, intent, and execution-context route."""
+    if intent not in USER_INTENTS:
+        raise ValueError(f"unsupported workflow intent: {intent}")
+    if context not in {"main", "delegated"}:
+        raise ValueError(f"unsupported workflow context: {context}")
+
+    route_blockers = [str(blocker) for blocker in blockers]
+    blocker_tuple = tuple(route_blockers)
+    operations = _allowed_operations(
+        status,
+        context,
+        blocker_tuple,
+        active_target,
+    )
+    intent_allowed = _intent_is_allowed(intent, operations)
+    matches = (
+        _matching_public_skills(registry, status, intent)
+        if intent_allowed
+        else []
+    )
+
+    if context == "delegated" and status != "delegated_subtask":
+        route_blockers.append(
+            "delegated context cannot operate main-session workflow state"
+        )
+    if not intent_allowed:
+        route_blockers.append(
+            f"intent {intent} is not allowed while status is {status}"
+        )
+    if len(matches) > 1:
+        route_blockers.append(
+            "multiple active public Skills match the same routing cell"
+        )
+    if intent == "batch" and not matches:
+        route_blockers.append("batch-mode is disabled")
+
+    protocols: list[str] = []
+    if intent_allowed and intent == "implement" and status in {
+        "in_progress",
+        "delegated_subtask",
+    }:
+        protocols.append("tdd")
+    elif intent_allowed and intent == "review" and status in CHECK_STATUSES:
+        protocols.append("check")
+
+    return {
+        "status": status,
+        "allowedOperations": operations,
+        "requiredArtifacts": _required_artifacts(status),
+        "recommendedSkill": matches[0] if len(matches) == 1 else None,
+        "internalProtocols": protocols,
+        "blockers": route_blockers,
+    }
+
+
+def _default_intent(
+    status: str,
+    blockers: list[str],
+    active_target: bool,
+) -> str:
+    if status == "no_task":
+        return "clarify"
+    if status == "planning":
+        return "plan" if blockers else "implement"
+    if status == "in_progress":
+        return "implement"
+    if status in CHECK_STATUSES:
+        return "review"
+    if status == "delegated_subtask":
+        return "implement"
+    if active_target:
+        return "implement"
+    return "question"
+
+
+def _routing_context(args) -> str:
+    execution_context = execution_context_from_namespace(args)
+    if execution_context.is_worker or execution_context.is_subagent:
+        return "delegated"
+    return "main"
+
+
+def _load_navigation_registry() -> SkillRegistry:
+    runtime_root = Path(__file__).resolve().parents[3]
+    return load_skill_registry(runtime_root, validate_sources=False)
+
+
+def _print_json_route(
+    *,
+    args,
+    status: str,
+    blockers: list[str],
+    active_target: bool,
+) -> None:
+    intent = getattr(args, "intent", None) or _default_intent(
+        status,
+        blockers,
+        active_target,
+    )
+    payload = route_request(
+        _load_navigation_registry(),
+        status=status,
+        intent=intent,
+        context=_routing_context(args),
+        blockers=blockers,
+        active_target=active_target,
+    )
+    print(json.dumps(payload, ensure_ascii=False, sort_keys=False))
+
+
 def cmd_next(args) -> int:
     repo_root = get_repo_root()
     target = getattr(args, "dir", None)
     active_target = False
-    print("Workflow Next")
+    structured = bool(getattr(args, "json", False))
+    if not structured:
+        print("Workflow Next")
     if target:
         task_dir = resolve_task_dir(target, repo_root)
         task_path = _display(repo_root, task_dir)
@@ -82,6 +323,14 @@ def cmd_next(args) -> int:
         active = get_active_task(repo_root)
         source = f"{active.source}:{active.context_key or '-'}"
         if not active.task_path:
+            if structured:
+                _print_json_route(
+                    args=args,
+                    status="no_task",
+                    blockers=[],
+                    active_target=False,
+                )
+                return 0
             print("Status: no_task")
             print(f"Source: {source}")
             print("Next action: create or start a task before repository changes")
@@ -93,8 +342,17 @@ def cmd_next(args) -> int:
         task_dir = repo_root / task_path
         active_target = True
 
-    print(f"Task: {task_path}")
+    if not structured:
+        print(f"Task: {task_path}")
     if not task_dir.is_dir():
+        if structured:
+            _print_json_route(
+                args=args,
+                status="stale",
+                blockers=[f"task directory not found: {task_path}"],
+                active_target=active_target,
+            )
+            return 0
         print("Status: stale")
         print(f"Source: {source}")
         print("Next action: clear or replace the missing active task")
@@ -105,6 +363,15 @@ def cmd_next(args) -> int:
 
     status = _status(repo_root, task_dir)
     blockers = _blockers(repo_root, task_dir)
+    if structured:
+        _print_json_route(
+            args=args,
+            status=status,
+            blockers=blockers,
+            active_target=active_target,
+        )
+        return 0
+
     print(f"Status: {status}")
     print(f"Source: {source}")
     if status == "planning":

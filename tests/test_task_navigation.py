@@ -20,6 +20,52 @@ from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 
 
 class TaskNavigationTest(FlowScriptTestCase):
+    def test_task_next_parser_accepts_structured_output_options(self) -> None:
+        args = self.task.build_parser().parse_args(
+            ["next", "--json", "--intent", "question"]
+        )
+
+        self.assertTrue(args.json)
+        self.assertEqual("question", args.intent)
+
+    def test_cmd_next_json_outputs_stable_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(
+                                dir=None,
+                                json=True,
+                                intent="question",
+                            )
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual("no_task", payload["status"])
+            self.assertEqual(
+                {
+                    "status",
+                    "allowedOperations",
+                    "requiredArtifacts",
+                    "recommendedSkill",
+                    "internalProtocols",
+                    "blockers",
+                },
+                set(payload),
+            )
+            self.assertIn("answer_questions", payload["allowedOperations"])
+            self.assertEqual([], payload["internalProtocols"])
+            self.assertIsNone(payload["recommendedSkill"])
+
     def test_cmd_current_prints_session_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

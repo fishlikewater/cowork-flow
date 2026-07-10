@@ -1,32 +1,9 @@
 ---
 name: finish-work
-description: Use when implementation and verification are complete and cowork-flow work needs final scope review, commit/archive/session recording, or handoff.
+description: DEPRECATED compatibility alias for review and completion through the canonical cowork-flow router.
 ---
 
-# Finish Work
+# DEPRECATED
 
-Use this in the main session after implementation and `check` are complete.
-
-## Gate
-
-Before claiming completion, verify:
-
-- Active task exists, or the work was explicitly read-only/no-task.
-- `check` or equivalent final review ran.
-- `git diff` was reviewed for scope.
-- Relevant tests, build, lint, or focused validation ran.
-- `.cowork-flow/spec/` was updated when the change created durable knowledge.
-- Plan checkboxes and task status match reality.
-- No unrelated dirty files are staged.
-
-## Sequence
-
-1. Run `git status --short`.
-2. Run `git diff --check`.
-3. Run focused tests and then broader project verification when appropriate.
-4. Update the plan/task status.
-5. Archive completed task/change artifacts when requested or required by workflow.
-6. Record the session with `.cowork-flow/run add-session --commit "-"` unless a prior commit hash is intentionally being recorded.
-7. If commit policy allows, stage only expected files and commit once.
-
-If the user asks not to commit, stop before staging and report the verified state.
+Use [cowork-flow](../cowork-flow/SKILL.md) instead and follow it directly.
+Do not define lifecycle states, gates, fallback commands, or agent routing here.
