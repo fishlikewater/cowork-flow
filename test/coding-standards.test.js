@@ -132,3 +132,66 @@ test('template coding standards validator allows binary Python open modes', asyn
 
   assert.equal(result.stderr, '');
 });
+
+test('template coding standards validator accepts multiline Node utf8 options', async (t) => {
+  const repo = await mkdtemp(join(tmpdir(), 'cowork-flow-coding-'));
+  t.after(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  const taskDir = join(repo, '.cowork-flow', 'tasks', 'demo');
+  await mkdir(taskDir, { recursive: true });
+  await mkdir(join(repo, 'src'), { recursive: true });
+  const source = [
+    "import { writeFile } from 'node:fs/promises';",
+    "import { join } from 'node:path';",
+    '',
+    'await write' + 'File(',
+    '  join(',
+    "    'nested',",
+    "    'output.txt'",
+    '  ),',
+    '  [',
+    "    'first line',",
+    "    'second line'",
+    "  ].join('\\n'),",
+    "  'utf8'",
+    ');',
+    ''
+  ].join('\n');
+  await writeFile(join(repo, 'src', 'multiline.js'), source, 'utf8');
+
+  await execFileAsync('git', ['init'], { cwd: repo, encoding: 'utf8' });
+  const scriptsDir = join(packageRoot, 'template', '.cowork-flow', 'scripts');
+  const runner = join(
+    packageRoot,
+    'template',
+    '.cowork-flow',
+    process.platform === 'win32' ? 'run.cmd' : 'run'
+  );
+
+  const result = await execFileAsync(
+    runner,
+    [
+      'python',
+      '-m',
+      'common.gates.validate_coding_standards',
+      '--validate',
+      '--repo-root',
+      repo,
+      '--task-dir',
+      taskDir
+    ],
+    {
+      cwd: scriptsDir,
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+      env: {
+        ...process.env,
+        PYTHONPATH: scriptsDir
+      }
+    }
+  );
+
+  assert.equal(result.stderr, '');
+});

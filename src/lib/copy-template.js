@@ -41,6 +41,110 @@ function toTemplatePath(relativePath) {
   return relativePath.replaceAll('\\', '/');
 }
 
+function managedPathParent(managedPath) {
+  const withoutTrailingSlash = managedPath.slice(0, -1);
+  return withoutTrailingSlash.slice(
+    0,
+    withoutTrailingSlash.lastIndexOf('/') + 1
+  );
+}
+
+function buildManagedSkillMigrations() {
+  const entriesById = new Map(
+    skillRegistry.entries.map((entry) => [entry.id, entry])
+  );
+  const migrations = [];
+
+  for (const entry of skillRegistry.entries) {
+    if (entry.status !== 'deprecated') {
+      continue;
+    }
+    const replacement = entriesById.get(entry.replacement);
+    for (const sourcePath of entry.managedPaths) {
+      const parent = managedPathParent(sourcePath);
+      const destinationPath = replacement.managedPaths.find(
+        (candidate) => managedPathParent(candidate) === parent
+      );
+      if (!destinationPath) {
+        throw new Error(
+          `Replacement Skill ${replacement.id} has no managed path for ${sourcePath}`
+        );
+      }
+      migrations.push({ sourcePath, destinationPath });
+    }
+  }
+
+  return migrations;
+}
+
+function migrateTaskContextContent(content, migrations) {
+  let changed = false;
+  const lines = content.split('\n').map((line) => {
+    if (line.trim() === '') {
+      return line;
+    }
+
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      return line;
+    }
+    if (
+      !record
+      || typeof record !== 'object'
+      || Array.isArray(record)
+      || typeof record.file !== 'string'
+    ) {
+      return line;
+    }
+
+    const file = record.file.replaceAll('\\', '/').replace(/^\.\//, '');
+    for (const migration of migrations) {
+      if (!file.startsWith(migration.sourcePath)) {
+        continue;
+      }
+      record.file = `${migration.destinationPath}${file.slice(migration.sourcePath.length)}`;
+      changed = true;
+      return JSON.stringify(record);
+    }
+    return line;
+  });
+
+  return changed ? lines.join('\n') : null;
+}
+
+async function buildTaskContextMigrationActions(targetDir, migrations) {
+  const tasksRoot = join(targetDir, '.cowork-flow', 'tasks');
+  if (migrations.length === 0 || !await pathExists(tasksRoot)) {
+    return [];
+  }
+
+  const actions = [];
+  for (const file of await listFiles(tasksRoot)) {
+    const normalizedFile = toTemplatePath(file);
+    if (!normalizedFile.endsWith('.jsonl')) {
+      continue;
+    }
+    const destination = join(tasksRoot, file);
+    const content = migrateTaskContextContent(
+      await readFile(destination, 'utf8'),
+      migrations
+    );
+    if (content === null) {
+      continue;
+    }
+    actions.push({
+      action: 'update',
+      source: null,
+      destination,
+      relativePath: `.cowork-flow/tasks/${normalizedFile}`,
+      content
+    });
+  }
+  return actions;
+}
+
 export async function buildInitPlan(targetDir, options = {}) {
   const files = await listFiles(templateRoot);
   const actions = [];
@@ -257,6 +361,29 @@ export async function buildSyncPlan(targetDir, options = {}) {
       }
     }
   }
+
+  for (const entry of skillRegistry.entries) {
+    if (entry.status === 'active') {
+      continue;
+    }
+    for (const managedPath of entry.managedPaths) {
+      const relativePath = managedPath.slice(0, -1);
+      const destination = join(targetDir, relativePath);
+      if (await pathExists(destination)) {
+        actions.push({
+          action: 'delete',
+          source: null,
+          destination,
+          relativePath
+        });
+      }
+    }
+  }
+
+  actions.push(...await buildTaskContextMigrationActions(
+    targetDir,
+    buildManagedSkillMigrations()
+  ));
 
   for (const file of OBSOLETE_SYNC_FILES) {
     const destination = join(targetDir, file);

@@ -107,7 +107,7 @@ class SkillRegistryTest(unittest.TestCase):
             tuple(sorted(registry.public_skill_ids)),
             registry.public_skill_ids,
         )
-        self.assertNotIn("batch-mode", registry.public_skill_ids)
+        self.assertIn("batch-mode", registry.public_skill_ids)
         before_dev = registry.entry("before-dev")
         self.assertEqual("mandatory", before_dev.enforcement)
         self.assertEqual("runtime", registry.entry(before_dev.runtime_gate).kind)

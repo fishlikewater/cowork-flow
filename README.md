@@ -68,7 +68,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` 时按平台分发到�
 | `codex` / `opencode` | `.agents/skills/` |
 | `claude-code` | `.claude/skills/` |
 
-分发动作：`before-dev`、`brainstorming`、`break-loop`、`check`、`continue`、`finish-work`、`game-design`、`meta`、`party-mode`、`party-mode-v2`、`python-design`、`start`、`tdd`、`update-spec`、`writing-plans`
+分发动作：`batch-mode`、`brainstorming`、`break-loop`、`cowork-flow`、`party-mode`、`writing-plans`
 
 ## CLI 命令
 

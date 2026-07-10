@@ -13,6 +13,8 @@ from typing import Iterator
 
 
 STATE_METADATA_KEY = "_state"
+ATOMIC_REPLACE_ATTEMPTS = 5
+ATOMIC_REPLACE_RETRY_SECONDS = 0.01
 
 
 class StateStoreError(RuntimeError):
@@ -219,7 +221,7 @@ class StateStore:
         ) + "\n"
         try:
             temp_path.write_text(json_text, encoding="utf-8")
-            os.replace(temp_path, path)
+            StateStore._replace_with_retry(temp_path, path)
         except OSError as error:
             try:
                 temp_path.unlink(missing_ok=True)
@@ -230,6 +232,19 @@ class StateStore:
                 path,
                 "state file could not be written atomically",
             ) from error
+
+    @staticmethod
+    def _replace_with_retry(source: Path, target: Path) -> None:
+        for attempt in range(ATOMIC_REPLACE_ATTEMPTS):
+            try:
+                os.replace(source, target)
+                return
+            except PermissionError:
+                if attempt == ATOMIC_REPLACE_ATTEMPTS - 1:
+                    raise
+                time.sleep(
+                    ATOMIC_REPLACE_RETRY_SECONDS * (2 ** attempt)
+                )
 
     @contextmanager
     def _lock(self, path: Path) -> Iterator[None]:

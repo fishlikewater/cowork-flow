@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 import { test } from 'node:test';
 
@@ -201,6 +201,107 @@ test('sync preserves direct skill layout without legacy seed material', async (t
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.superpowers')), false);
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
+});
+
+test('sync migrates managed Skills and task contexts without touching custom Skills', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main([
+      'init',
+      target,
+      '--developer',
+      'codex',
+      '--platform',
+      'codex,claude'
+    ], { io: createIo() }),
+    0
+  );
+
+  const legacyAgentSkill = join(target, '.agents', 'skills', 'start');
+  const legacyClaudeSkill = join(target, '.claude', 'skills', 'finish-work');
+  const customSkill = join(target, '.agents', 'skills', 'custom-local', 'SKILL.md');
+  await mkdir(legacyAgentSkill, { recursive: true });
+  await mkdir(legacyClaudeSkill, { recursive: true });
+  await writeFile(join(legacyAgentSkill, 'SKILL.md'), 'legacy start\n', 'utf8');
+  await writeFile(join(legacyClaudeSkill, 'SKILL.md'), 'legacy finish\n', 'utf8');
+  await mkdir(join(target, '.agents', 'skills', 'custom-local'), { recursive: true });
+  await writeFile(customSkill, 'custom content\n', 'utf8');
+  if (process.platform !== 'win32') {
+    await chmod(customSkill, 0o640);
+  }
+  const customMode = (await stat(customSkill)).mode & 0o777;
+
+  const activeTask = join(target, '.cowork-flow', 'tasks', 'demo');
+  const archivedTask = join(
+    target,
+    '.cowork-flow',
+    'tasks',
+    'archive',
+    '2026-07',
+    'done'
+  );
+  await mkdir(activeTask, { recursive: true });
+  await mkdir(archivedTask, { recursive: true });
+  await writeFile(
+    join(activeTask, 'implement.jsonl'),
+    [
+      JSON.stringify({
+        file: '.agents/skills/start/SKILL.md',
+        reason: 'legacy managed path',
+        reference: '.agents/skills/start/SKILL.md'
+      }),
+      JSON.stringify({
+        file: '.agents/skills/custom-local/SKILL.md',
+        reason: 'custom path'
+      }),
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  await writeFile(
+    join(archivedTask, 'check.jsonl'),
+    `${JSON.stringify({
+      file: '.claude/skills/finish-work/SKILL.md',
+      reason: 'legacy archived path'
+    })}\n`,
+    'utf8'
+  );
+
+  assert.equal(await main(['sync', target], { io: createIo() }), 0);
+
+  assert.equal(await exists(legacyAgentSkill), false);
+  assert.equal(await exists(legacyClaudeSkill), false);
+  assert.equal(await readText(customSkill), 'custom content\n');
+  if (process.platform !== 'win32') {
+    assert.equal((await stat(customSkill)).mode & 0o777, customMode);
+  }
+  const activeContext = await readText(join(activeTask, 'implement.jsonl'));
+  const archivedContext = await readText(join(archivedTask, 'check.jsonl'));
+  const activeRecords = activeContext.trimEnd().split('\n').map(JSON.parse);
+  assert.match(activeContext, /\.agents\/skills\/cowork-flow\/SKILL\.md/);
+  assert.match(activeContext, /\.agents\/skills\/custom-local\/SKILL\.md/);
+  assert.match(archivedContext, /\.claude\/skills\/cowork-flow\/SKILL\.md/);
+  assert.equal(
+    activeRecords[0].reference,
+    '.agents/skills/start/SKILL.md'
+  );
+  assert.equal(
+    activeRecords[1].file,
+    '.agents/skills/custom-local/SKILL.md'
+  );
+
+  const secondIo = createIo();
+  assert.equal(await main(['sync', target], { io: secondIo }), 0);
+  assert.match(secondIo.stdout, /deleted=0/);
+  assert.equal(
+    await readText(join(activeTask, 'implement.jsonl')),
+    activeContext
+  );
+  assert.equal(
+    await readText(join(archivedTask, 'check.jsonl')),
+    archivedContext
+  );
+  assert.equal(await readText(customSkill), 'custom content\n');
 });
 
 test('sync overwrites protected files with --force', async (t) => {

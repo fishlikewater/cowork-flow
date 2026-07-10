@@ -78,6 +78,7 @@ class SkillRoutingTest(unittest.TestCase):
         self.assertLessEqual(public_ids.__len__(), 6)
         self.assertEqual(
             {
+                "batch-mode",
                 "brainstorming",
                 "break-loop",
                 "cowork-flow",

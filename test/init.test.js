@@ -172,6 +172,7 @@ test('init installs clean-room cowork-flow skills directly', async (t) => {
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.superpowers')), false);
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'batch-mode', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'brainstorming', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'before-dev', 'SKILL.md')), false);
   assert.equal(await exists(join(target, '.agents', 'skills', 'check', 'SKILL.md')), false);
