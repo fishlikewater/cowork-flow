@@ -37,6 +37,7 @@ const REQUIRED_FIELDS = new Set([
 ]);
 const ALLOWED_FIELDS = new Set([
   ...REQUIRED_FIELDS,
+  'readWhen',
   'replacement',
   'removeAfter'
 ]);
@@ -178,6 +179,26 @@ export function createSkillRegistry(raw, options = {}) {
     normalized,
     publicEntries,
     publicSkillIds: publicEntries.map((entry) => entry.id),
+    domainEntriesFor({ devType = null, paths = [] } = {}) {
+      const normalizedDevType = typeof devType === 'string'
+        ? devType.trim()
+        : '';
+      const normalizedPaths = paths.map(
+        (path) => String(path).replaceAll('\\', '/').replace(/^\.\//, '')
+      );
+      return entries.filter((entry) => (
+        entry.kind === 'domain'
+        && entry.status === 'active'
+        && (
+          entry.readWhen.devTypes.includes(normalizedDevType)
+          || normalizedPaths.some((path) => (
+            entry.readWhen.pathPatterns.some(
+              (pattern) => globMatches(path, pattern)
+            )
+          ))
+        )
+      ));
+    },
     entry(idOrAlias) {
       if (typeof idOrAlias !== 'string') {
         return null;
@@ -318,6 +339,7 @@ function normalizeEntry(raw, templateRoot) {
     raw.id,
     'managedPaths'
   ).map((path) => normalizeManagedPath(path, raw.id));
+  const readWhen = normalizeReadWhen(raw.readWhen ?? null, raw.id, kind);
   const replacement = nullableString(
     raw.replacement ?? null,
     raw.id,
@@ -354,6 +376,7 @@ function normalizeEntry(raw, templateRoot) {
     evidenceArtifact,
     source,
     managedPaths: uniqueSorted(managedPaths),
+    readWhen,
     replacement,
     removeAfter
   };
@@ -395,6 +418,64 @@ function nullableString(value, id, field) {
     );
   }
   return value.trim();
+}
+
+
+function normalizeReadWhen(value, id, kind) {
+  if (value === null) {
+    return { devTypes: [], pathPatterns: [] };
+  }
+  if (kind !== 'domain' || typeof value !== 'object' || Array.isArray(value)) {
+    throw new SkillRegistryError(
+      `readWhen for ${id} is only valid for domain entries`
+    );
+  }
+  for (const field of Object.keys(value)) {
+    if (!['devTypes', 'pathPatterns'].includes(field)) {
+      throw new SkillRegistryError(
+        `unexpected readWhen field for ${id}: ${field}`
+      );
+    }
+  }
+  const devTypes = uniqueSorted(
+    normalizeStringArray(value.devTypes ?? [], id, 'readWhen.devTypes')
+  );
+  const pathPatterns = uniqueSorted(
+    normalizeStringArray(
+      value.pathPatterns ?? [],
+      id,
+      'readWhen.pathPatterns'
+    )
+  );
+  if (devTypes.length === 0 && pathPatterns.length === 0) {
+    throw new SkillRegistryError(
+      `readWhen for ${id} requires devTypes or pathPatterns`
+    );
+  }
+  for (const pattern of pathPatterns) {
+    const normalized = pattern.replaceAll('\\', '/');
+    if (
+      normalized.startsWith('/')
+      || normalized.startsWith('../')
+      || normalized.includes('/../')
+    ) {
+      throw new SkillRegistryError(
+        `invalid readWhen.pathPatterns for ${id}: ${pattern}`
+      );
+    }
+  }
+  return { devTypes, pathPatterns };
+}
+
+
+function globMatches(path, pattern) {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replaceAll('**', '\u0000')
+    .replaceAll('*', '[^/]*')
+    .replaceAll('\u0000', '.*')
+    .replaceAll('?', '.');
+  return new RegExp(`^${escaped}$`).test(path);
 }
 
 

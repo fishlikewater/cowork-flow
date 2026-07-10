@@ -141,6 +141,43 @@
             "pattern": "^[A-Za-z0-9._/-]+/$"
           }
         },
+        "readWhen": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "devTypes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "pathPatterns": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "devTypes"
+              ]
+            },
+            {
+              "required": [
+                "pathPatterns"
+              ]
+            }
+          ]
+        },
         "replacement": {
           "type": [
             "string",

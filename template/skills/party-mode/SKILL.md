@@ -5,9 +5,29 @@ description: Use when the user manually requests Party Mode or a real multi-agen
 
 # Party Mode
 
-Use this skill as a manual advisory roundtable. Coordinate true child agents, not simulated personas, through the current Host Adapter.
+Use this skill as the single public Party Mode facade.
 
-**Related:** [Party Mode V2](../party-mode-v2/SKILL.md) -- runtime-controlled board discussion where children communicate through board APIs and the moderator only monitors or corrects drift.
+## Default: V2 Runtime
+
+Start with the runtime-controlled board:
+
+```text
+.cowork-flow/run party-v2 init
+```
+
+Continue through the runtime-emitted actions and board commands. The V2 runtime
+is the default because it owns validation, round limits, board visibility, and
+final reporting.
+
+## Explicit Manual Fallback
+
+Use the remaining manual advisory roundtable only when the user explicitly
+requests the manual fallback or the V2 runtime is unavailable and the user
+accepts the reduced guarantees. Never select it merely because direct
+orchestration is more convenient.
+
+Coordinate true child agents, not simulated personas, through the current Host
+Adapter.
 
 ## Boundaries
 
