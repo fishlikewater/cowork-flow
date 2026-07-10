@@ -18,6 +18,7 @@ if __package__:
 else:
     import _bootstrap  # noqa: F401
 from common.core.paths import get_repo_root
+from common.core.host_manifest import validate_host_assets
 
 
 ENTRY_BOUNDARY_DIR = "entry" + "-boundary"
@@ -82,7 +83,7 @@ REQUIRED_SUBAGENT_DISPATCH_SNIPPETS = [
 ]
 
 REQUIRED_HOOK_SNIPPETS = [
-    ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
+    '"command": ".codex/hooks/inject-workflow-state.py"',
 ]
 
 REQUIRED_RUNTIME_HOOK_SNIPPETS = [
@@ -114,26 +115,6 @@ REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '".cowork-flow/spec/contracts/subagent-dispatch.md"',
     '".cowork-flow/spec/contracts/capabilities.md"',
     '".cowork-flow/spec/schemas/adapter.schema.json"',
-]
-
-REQUIRED_ADAPTER_SNIPPETS = [
-    "schemaVersion: 1",
-    "capabilities:",
-    "dispatchSubagent:",
-    "freshChildContext:",
-    "waitChild:",
-    "listChildren:",
-    "cancelChild:",
-    "runtimeContextDispatch:",
-    "runtimeContextBinding:",
-    "runtimeContextCleanup:",
-    "runtimeContext:",
-    "promptKey: cowork_runtime_context_id",
-    "envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID",
-    "metadataKey: cowork_runtime_context_id",
-    "dispatch: RUNTIME_CONTEXT_DISPATCH_V2",
-    "leafExecutor: true",
-    "whenRuntimeContextMissing: fail_closed",
 ]
 
 REQUIRED_OPENCODE_AGENT_SNIPPETS = [
@@ -228,6 +209,7 @@ def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
         _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
 
 def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
+    errors.extend(validate_host_assets(repo_root / "template"))
     for rel in (
         ".cowork-flow/spec/schemas/adapter.schema.json",
         "template/.cowork-flow/spec/schemas/adapter.schema.json",
@@ -237,24 +219,6 @@ def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
         _check_file_contains(
             repo_root / rel,
             ["dispatchSubagent", "freshChildContext", "runtimeContextDispatch", "unsupported"],
-            errors,
-        )
-    for rel in (
-        "template/.cowork-flow/adapters/codex/adapter.yaml",
-        "template/.cowork-flow/adapters/opencode/adapter.yaml",
-        "template/.cowork-flow/adapters/claude-code/adapter.yaml",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_ADAPTER_SNIPPETS, errors)
-    for rel in (
-        "template/.cowork-flow/adapters/claude-code/adapter.yaml",
-    ):
-        _check_file_contains(
-            repo_root / rel,
-            [
-                "skillsPath: .claude/skills",
-                "settingsPath: .claude/settings.json",
-                "hooksPath: .claude/hooks",
-            ],
             errors,
         )
 
@@ -297,11 +261,24 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         "template/.claude/settings.json",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
+    _check_file_contains(
+        repo_root
+        / "template/.cowork-flow/scripts/common/host/workflow_state_hook.py",
+        REQUIRED_RUNTIME_HOOK_SNIPPETS,
+        errors,
+    )
     for rel in (
         "template/.claude/hooks/inject-workflow-state.py",
         "template/.codex/hooks/inject-workflow-state.py",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_HOOK_SNIPPETS, errors)
+        _check_file_contains(
+            repo_root / rel,
+            [
+                "common.host.workflow_state_hook import",
+                "build_hook_context",
+            ],
+            errors,
+        )
     for rel in (
         "CLAUDE.md",
         "template/CLAUDE.md",
@@ -392,11 +369,24 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.codex/hooks.json",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_HOOK_SNIPPETS, errors)
+    _check_file_contains(
+        repo_root
+        / "template/.cowork-flow/scripts/common/host/workflow_state_hook.py",
+        REQUIRED_RUNTIME_HOOK_SNIPPETS,
+        errors,
+    )
     for rel in (
         "template/.codex/hooks/inject-workflow-state.py",
         "template/.claude/hooks/inject-workflow-state.py",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_HOOK_SNIPPETS, errors)
+        _check_file_contains(
+            repo_root / rel,
+            [
+                "common.host.workflow_state_hook import",
+                "build_hook_context",
+            ],
+            errors,
+        )
     for rel in (
         "template/.cowork-flow/scripts/commands/subagent.py",
         "template/.cowork-flow/scripts/common/core/execution_context.py",

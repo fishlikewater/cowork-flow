@@ -287,11 +287,8 @@ class HostAdaptersTest(unittest.TestCase):
                 settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
             )
             hook = (base / "hooks" / "inject-workflow-state.py").read_text(encoding="utf-8")
-            self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', hook)
-            self.assertIn("workflow-state-templates.md", hook)
-            self.assertIn("resolve_runtime_context_id", hook)
-            self.assertIn("bind_runtime_context", hook)
-            self.assertIn("runtime-context-invalid", hook)
+            self.assertIn("common.host.workflow_state_hook import", hook)
+            self.assertIn("build_hook_context", hook)
             self.assertIn("hookSpecificOutput", hook)
             self.assertIn("additionalContext", hook)
 
@@ -303,3 +300,36 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertNotIn("cowork_runtime_context_id: <runtime_context_id>", text)
             self.assertNotIn(".claude/agents/cowork-implement.md", text)
             self.assertNotIn("skills/", text)
+
+    def test_host_hooks_delegate_to_shared_workflow_state_core(self) -> None:
+        core_path = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "scripts"
+            / "common"
+            / "host"
+            / "workflow_state_hook.py"
+        )
+        self.assertTrue(core_path.is_file())
+        core = core_path.read_text(encoding="utf-8")
+        for marker in (
+            "workflow-state-templates.md",
+            "resolve_runtime_context_id",
+            "bind_runtime_context",
+            "runtime-context-invalid",
+            "build_hook_context",
+        ):
+            self.assertIn(marker, core)
+
+        for hook_path in (
+            ROOT / "template" / ".codex" / "hooks" / "inject-workflow-state.py",
+            ROOT / "template" / ".claude" / "hooks" / "inject-workflow-state.py",
+        ):
+            hook = hook_path.read_text(encoding="utf-8")
+            self.assertIn(
+                "common.host.workflow_state_hook import",
+                hook,
+            )
+            self.assertIn("build_hook_context", hook)
+            self.assertNotIn("def _load_contract_registry", hook)

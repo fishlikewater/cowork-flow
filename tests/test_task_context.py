@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+import importlib
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
+
+
+class TaskContextServiceTest(unittest.TestCase):
+    def setUp(self) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        self.addCleanup(self._cleanup_imports)
+        context_module = importlib.import_module("application.task_context")
+        self.TaskContextService = context_module.TaskContextService
+
+    def _cleanup_imports(self) -> None:
+        if str(SCRIPTS) in sys.path:
+            sys.path.remove(str(SCRIPTS))
+        for module_name in (
+            "application.task_context",
+            "application",
+            "common.core.files",
+            "common.core.paths",
+            "common",
+        ):
+            sys.modules.pop(module_name, None)
+
+    @staticmethod
+    def _prepare_root(root: Path) -> Path:
+        task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+        task_dir.mkdir(parents=True)
+        spec_dir = root / ".cowork-flow" / "spec" / "backend"
+        spec_dir.mkdir(parents=True)
+        (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+        (root / ".cowork-flow" / "workflow.md").write_text(
+            "# Workflow\n",
+            encoding="utf-8",
+        )
+        (spec_dir / "index.md").write_text("# Backend\n", encoding="utf-8")
+        return task_dir
+
+    def test_initialize_preserves_existing_context_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            custom = '{"file":"自定义.md","reason":"保留"}\n'
+            (task_dir / "implement.jsonl").write_text(
+                custom,
+                encoding="utf-8",
+            )
+            service = self.TaskContextService(root)
+
+            result = service.initialize(task_dir, "backend")
+
+            self.assertEqual(("check.jsonl", "debug.jsonl"), result.created)
+            self.assertEqual(("implement.jsonl",), result.skipped)
+            self.assertEqual(
+                custom,
+                (task_dir / "implement.jsonl").read_text(encoding="utf-8"),
+            )
+            self.assertTrue((task_dir / "check.jsonl").is_file())
+            self.assertTrue((task_dir / "debug.jsonl").is_file())
+
+    def test_add_entry_deduplicates_and_preserves_utf8_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            docs_dir = root / "docs"
+            docs_dir.mkdir()
+            target = docs_dir / "说明.md"
+            target.write_text("# 说明\n", encoding="utf-8")
+            service = self.TaskContextService(root)
+
+            first = service.add(
+                task_dir,
+                "implement",
+                "docs/说明.md",
+                "中文原因",
+            )
+            second = service.add(
+                task_dir,
+                "implement",
+                "docs/说明.md",
+                "重复原因",
+            )
+
+            self.assertTrue(first.added)
+            self.assertFalse(second.added)
+            entries = service.entries(task_dir, "implement")
+            self.assertEqual(1, len(entries))
+            self.assertEqual("中文原因", entries[0]["reason"])
+            self.assertEqual("docs/说明.md", entries[0]["file"])
+
+    def test_validate_returns_structured_json_and_path_issues(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (task_dir / "implement.jsonl").write_text(
+                "{invalid\n"
+                + json.dumps(
+                    {"file": "missing.md", "reason": "missing"},
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            service = self.TaskContextService(root)
+
+            issues = service.validate(task_dir)
+
+            self.assertEqual(2, len(issues))
+            self.assertEqual(
+                ["invalid_json", "file_not_found"],
+                [issue.code for issue in issues],
+            )
+            self.assertEqual([1, 2], [issue.line for issue in issues])
+
+
+if __name__ == "__main__":
+    unittest.main()

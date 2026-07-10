@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import importlib
+import json
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
+FIXTURES = ROOT / "tests" / "fixtures" / "migrations"
+
+
+class StateMigrationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        self.addCleanup(self._cleanup_imports)
+        self.active_task = importlib.import_module("common.task.active_task")
+        runtime_module = importlib.import_module(
+            "application.runtime_context_service"
+        )
+        repository_module = importlib.import_module(
+            "common.task.task_repository"
+        )
+        self.RuntimeContextService = runtime_module.RuntimeContextService
+        self.TaskRepository = repository_module.TaskRepository
+
+    def _cleanup_imports(self) -> None:
+        if str(SCRIPTS) in sys.path:
+            sys.path.remove(str(SCRIPTS))
+        for module_name in tuple(sys.modules):
+            if module_name == "application" or module_name.startswith(
+                ("application.", "common.")
+            ):
+                sys.modules.pop(module_name, None)
+
+    @staticmethod
+    def _fixture(name: str) -> dict:
+        return json.loads(
+            (FIXTURES / name).read_text(encoding="utf-8")
+        )
+
+    def test_legacy_unscoped_host_session_remains_main_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            session_path = (
+                root
+                / ".cowork-flow"
+                / ".runtime"
+                / "sessions"
+                / "main.json"
+            )
+            session_path.parent.mkdir(parents=True)
+            session_path.write_text(
+                json.dumps(
+                    self._fixture("legacy-main-session-v1.json"),
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ,
+                {"COWORK_FLOW_CONTEXT_ID": "main"},
+                clear=True,
+            ):
+                self.assertEqual(
+                    ".cowork-flow/tasks/legacy-task",
+                    self.active_task.get_active_task(root).task_path,
+                )
+                self.assertTrue(self.active_task.is_main_session(root))
+
+    def test_legacy_runtime_context_binds_without_losing_unknown_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            runtime_path = (
+                root
+                / ".cowork-flow"
+                / ".runtime"
+                / "subagents"
+                / "rtx_legacy.json"
+            )
+            runtime_path.parent.mkdir(parents=True)
+            runtime_path.write_text(
+                json.dumps(
+                    self._fixture("legacy-runtime-context-v1.json"),
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.RuntimeContextService(root).bind(
+                "rtx_legacy",
+                "codex_legacy-host",
+            )
+
+            self.assertEqual("bound", result["status"])
+            self.assertEqual("旧运行时上下文", result["legacy_note"])
+            host_session = json.loads(
+                (
+                    root
+                    / ".cowork-flow"
+                    / ".runtime"
+                    / "sessions"
+                    / "codex_legacy-host.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(2, host_session["schema_version"])
+            self.assertEqual("subagent", host_session["scope"])
+
+    def test_legacy_task_save_preserves_unknown_fields_and_utf8(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "legacy-task"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    self._fixture("legacy-task-v1.json"),
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            saved = self.TaskRepository(root).save(
+                task_dir,
+                {"status": "review"},
+            )
+
+            self.assertEqual("review", saved["status"])
+            self.assertEqual("旧任务", saved["title"])
+            self.assertEqual("必须保留", saved["unknown_legacy_field"])
+
+
+if __name__ == "__main__":
+    unittest.main()

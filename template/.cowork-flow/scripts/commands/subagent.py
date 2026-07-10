@@ -17,15 +17,14 @@ if __package__:
 else:
     import _bootstrap  # noqa: F401
 from common.task.active_task import (
-    bind_runtime_context,
-    close_runtime_context,
-    read_runtime_context,
     resolve_context_key,
     runtime_context_path,
     sessions_dir,
     subagent_contexts_dir,
-    write_runtime_context,
-    write_subagent_logical_session,
+)
+from application.runtime_context_service import (
+    RuntimeContextError,
+    RuntimeContextService,
 )
 from common.core.execution_context import build_internal_execution_context_parser
 from common.core.paths import get_repo_root
@@ -170,13 +169,15 @@ def cmd_init(args: argparse.Namespace) -> int:
         "bound_context_key": None,
         "closed_at": None,
     }
-    write_runtime_context(repo_root, runtime_context_id, context)
-    logical_context_key = write_subagent_logical_session(
-        repo_root,
-        runtime_context_id,
-        task_dir,
-        host,
-    )
+    try:
+        initialized = RuntimeContextService(repo_root).initialize(
+            runtime_context_id,
+            context,
+        )
+    except RuntimeContextError as error:
+        print(f"Error: {error.detail}", file=sys.stderr)
+        return 1
+    logical_context_key = initialized.logical_context_key
     host_context_key = _suggest_host_context_key(host, runtime_context_id)
 
     print(
@@ -206,7 +207,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def _find_subagent(repo_root: Path, runtime_context_id: str) -> dict:
-    context = read_runtime_context(repo_root, runtime_context_id)
+    context = RuntimeContextService(repo_root).load(runtime_context_id)
     if not context:
         raise FileNotFoundError(runtime_context_id)
     return context
@@ -233,26 +234,32 @@ def cmd_update(args: argparse.Namespace) -> int:
     except FileNotFoundError:
         print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
         return 1
-    context["status"] = args.status
-    context["updated_at"] = _now()
-    if args.note:
-        context["note"] = args.note
-    write_runtime_context(repo_root, args.subagent_id, context)
+    try:
+        context = RuntimeContextService(repo_root).update(
+            args.subagent_id,
+            status=args.status,
+            note=args.note,
+        )
+    except RuntimeContextError as error:
+        print(f"Error: {error.detail}", file=sys.stderr)
+        return 1
+    if context is None:
+        print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
+        return 1
     print(f"subagent {args.subagent_id} status={args.status}")
     return 0
 
 
 def cmd_bind(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
-    existing = read_runtime_context(repo_root, args.subagent_id)
-    existing_key = existing.get("bound_context_key") if existing else None
-    if isinstance(existing_key, str) and existing_key.strip() and existing_key != args.context_key:
-        print(
-            f"Error: runtime context {args.subagent_id} already bound to {existing_key}",
-            file=sys.stderr,
+    try:
+        context = RuntimeContextService(repo_root).bind(
+            args.subagent_id,
+            args.context_key,
         )
+    except RuntimeContextError as error:
+        print(f"Error: {error.detail}", file=sys.stderr)
         return 1
-    context = bind_runtime_context(repo_root, args.subagent_id, args.context_key)
     if context is None:
         print(f"Error: cannot bind runtime context: {args.subagent_id}", file=sys.stderr)
         return 1
@@ -262,7 +269,12 @@ def cmd_bind(args: argparse.Namespace) -> int:
 
 def cmd_close(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
-    if not close_runtime_context(repo_root, args.subagent_id):
+    try:
+        closed = RuntimeContextService(repo_root).close(args.subagent_id)
+    except RuntimeContextError as error:
+        print(f"Error: {error.detail}", file=sys.stderr)
+        return 1
+    if not closed:
         print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
         return 1
     print(f"subagent {args.subagent_id} closed")
