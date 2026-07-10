@@ -380,8 +380,8 @@ def get_check_context(repo_root: Path, dev_type: str) -> list[dict]:
             "reason": "Verify specification maintenance decisions",
         },
         {
-            "file": skill_path("finish-work", repo_root),
-            "reason": "Finish, archive, and session recording gate",
+            "file": skill_path("cowork-flow", repo_root),
+            "reason": "Workflow review, completion, and archive routing",
         },
     ]
     entries.extend(

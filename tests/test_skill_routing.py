@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
 SCRIPTS = TEMPLATE / ".cowork-flow" / "scripts"
-LEGACY_ENTRY_SKILLS = (
+REMOVED_ENTRY_SKILLS = (
     "using-cowork-flow",
     "start",
     "before-dev",
@@ -170,29 +170,20 @@ class SkillRoutingTest(unittest.TestCase):
             if status == "delegated_subtask":
                 self.assertIn("execute_delegated_work", route["allowedOperations"])
 
-    def test_legacy_entry_skills_are_deprecated_thin_aliases(self) -> None:
+    def test_removed_entry_skills_have_no_registry_or_source_presence(self) -> None:
         registry = self._registry()
 
-        for skill_id in LEGACY_ENTRY_SKILLS:
+        for skill_id in REMOVED_ENTRY_SKILLS:
             with self.subTest(skill_id=skill_id):
-                entry = registry.entry(skill_id)
-                self.assertEqual("deprecated", entry.status)
-                self.assertEqual("cowork-flow", entry.replacement)
-                self.assertIsNotNone(entry.remove_after)
-
-                path = TEMPLATE / entry.source
-                text = path.read_text(encoding="utf-8")
-                self.assertIn("DEPRECATED", text)
-                self.assertIn("../cowork-flow/SKILL.md", text)
-                self.assertLessEqual(len(text.splitlines()), 16)
-                for duplicated_rule in (
-                    "Workflow Navigation",
-                    "Load State",
-                    "Context loading for `in_progress`",
-                    "Fixed Agents",
-                    "Skills as Gates",
+                with self.assertRaisesRegex(
+                    ValueError,
+                    f"unknown Skill Registry entry: {skill_id}",
                 ):
-                    self.assertNotIn(duplicated_rule, text)
+                    registry.entry(skill_id)
+                self.assertFalse(
+                    (TEMPLATE / "skills" / skill_id).exists(),
+                    skill_id,
+                )
 
     def test_cowork_flow_skill_owns_the_single_read_only_fallback(self) -> None:
         path = TEMPLATE / "skills" / "cowork-flow" / "SKILL.md"
@@ -203,6 +194,7 @@ class SkillRoutingTest(unittest.TestCase):
             1,
             text.count("./.cowork-flow/run task next --json"),
         )
+        self.assertNotIn("deprecated alias", text.lower())
         for marker in (
             "<workflow-state>",
             "question",

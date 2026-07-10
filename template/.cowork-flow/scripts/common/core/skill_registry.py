@@ -11,7 +11,7 @@ from typing import Any
 REGISTRY_PATH = Path(".cowork-flow/spec/runtime/skill-registry.json")
 KINDS = {"phase", "protocol", "domain", "mode", "runtime"}
 VISIBILITIES = {"public", "internal"}
-ENTRY_STATUSES = {"active", "deprecated", "disabled"}
+ENTRY_STATUSES = {"active", "disabled"}
 WORKFLOW_STATUSES = {
     "no_task",
     "planning",
@@ -23,7 +23,6 @@ WORKFLOW_STATUSES = {
 ENFORCEMENTS = {"advisory", "mandatory", "runtime"}
 ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 INTENT_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
-DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 REQUIRED_FIELDS = {
     "id",
     "displayName",
@@ -40,7 +39,7 @@ REQUIRED_FIELDS = {
     "source",
     "managedPaths",
 }
-ALLOWED_FIELDS = REQUIRED_FIELDS | {"readWhen", "replacement", "removeAfter"}
+ALLOWED_FIELDS = REQUIRED_FIELDS | {"readWhen"}
 
 
 class SkillRegistryError(ValueError):
@@ -65,8 +64,6 @@ class SkillEntry:
     managed_paths: tuple[str, ...]
     read_when_dev_types: tuple[str, ...]
     read_when_path_patterns: tuple[str, ...]
-    replacement: str | None
-    remove_after: str | None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -88,8 +85,6 @@ class SkillEntry:
                 "devTypes": list(self.read_when_dev_types),
                 "pathPatterns": list(self.read_when_path_patterns),
             },
-            "replacement": self.replacement,
-            "removeAfter": self.remove_after,
         }
 
 
@@ -245,20 +240,6 @@ def create_skill_registry(
             raise SkillRegistryError(
                 f"non-runtime entry {entry.id} cannot use runtime enforcement"
             )
-        if entry.status == "deprecated":
-            if entry.replacement is None or entry.remove_after is None:
-                raise SkillRegistryError(
-                    f"deprecated entry {entry.id} "
-                    "requires replacement and removeAfter"
-                )
-            if (
-                entry.replacement not in by_id
-                or entry.replacement == entry.id
-            ):
-                raise SkillRegistryError(
-                    f"deprecated entry {entry.id} has invalid replacement: "
-                    f"{entry.replacement}"
-                )
         if entry.visibility == "public" and entry.status == "active":
             for intent in entry.intents:
                 if intent in public_intents:
@@ -385,25 +366,6 @@ def _normalize_entry(
         raw["id"],
         kind,
     )
-    replacement = _nullable_string(
-        raw.get("replacement"),
-        raw["id"],
-        "replacement",
-    )
-    if replacement is not None and not ID_PATTERN.fullmatch(replacement):
-        raise SkillRegistryError(
-            f"invalid replacement for {raw['id']}: {replacement}"
-        )
-    remove_after = _nullable_string(
-        raw.get("removeAfter"),
-        raw["id"],
-        "removeAfter",
-    )
-    if remove_after is not None and not DATE_PATTERN.fullmatch(remove_after):
-        raise SkillRegistryError(
-            f"invalid removeAfter for {raw['id']}: {remove_after}"
-        )
-
     return SkillEntry(
         id=raw["id"],
         display_name=display_name.strip(),
@@ -421,8 +383,6 @@ def _normalize_entry(
         managed_paths=managed_paths,
         read_when_dev_types=read_when_dev_types,
         read_when_path_patterns=read_when_path_patterns,
-        replacement=replacement,
-        remove_after=remove_after,
     )
 
 

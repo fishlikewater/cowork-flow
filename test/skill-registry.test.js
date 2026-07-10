@@ -100,11 +100,15 @@ test('canonical skill registry and schema load', async () => {
     [...registry.publicSkillIds].sort()
   );
   assert.equal(registry.publicSkillIds.includes('batch-mode'), true);
-  assert.equal(registry.entry('before-dev').enforcement, 'mandatory');
-  assert.equal(
-    registry.entry(registry.entry('before-dev').runtimeGate).kind,
-    'runtime'
-  );
+  for (const legacyId of [
+    'before-dev',
+    'start',
+    'continue',
+    'finish-work',
+    'using-cowork-flow'
+  ]) {
+    assert.equal(registry.entry(legacyId), null, legacyId);
+  }
 });
 
 test('README public Skill list matches the canonical Registry', async () => {
@@ -151,6 +155,25 @@ test('schema validation rejects invalid enums', async () => {
   assert.throws(
     () => createSkillRegistry(raw),
     /invalid kind for example: unknown/
+  );
+});
+
+
+test('formal registry rejects compatibility lifecycle fields', async () => {
+  const { createSkillRegistry } = await loadModule();
+  const deprecated = registryFixture();
+  deprecated.entries[1].status = 'deprecated';
+
+  assert.throws(
+    () => createSkillRegistry(deprecated),
+    /invalid status for example: deprecated/
+  );
+
+  const replacement = registryFixture();
+  replacement.entries[1].replacement = 'workflow-readiness';
+  assert.throws(
+    () => createSkillRegistry(replacement),
+    /unexpected field for example: replacement/
   );
 });
 

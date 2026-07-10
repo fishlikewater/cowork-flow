@@ -31,7 +31,6 @@ REQUIRED_ROUTER_SNIPPETS = [
     "allowedOperations",
     "recommendedSkill",
     "internalProtocols",
-    "Deprecated aliases",
 ]
 
 REQUIRED_FIXED_AGENT_SNIPPETS = [

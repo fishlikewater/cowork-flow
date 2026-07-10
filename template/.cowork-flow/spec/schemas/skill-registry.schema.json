@@ -75,7 +75,6 @@
         "status": {
           "enum": [
             "active",
-            "deprecated",
             "disabled"
           ]
         },
@@ -177,20 +176,6 @@
               ]
             }
           ]
-        },
-        "replacement": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-        },
-        "removeAfter": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
         }
       },
       "allOf": [
@@ -207,31 +192,6 @@
               "runtimeGate": {
                 "type": "string",
                 "minLength": 1
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "status": {
-                "const": "deprecated"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "replacement",
-              "removeAfter"
-            ],
-            "properties": {
-              "replacement": {
-                "type": "string",
-                "minLength": 1
-              },
-              "removeAfter": {
-                "type": "string",
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
               }
             }
           }

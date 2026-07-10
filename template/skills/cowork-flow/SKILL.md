@@ -40,6 +40,3 @@ operation directly or report the blocker; never guess a second workflow entry.
 
 Load only the protocols listed in `internalProtocols`. These protocols refine
 execution but are not public alternatives and cannot override Runtime Gates.
-
-Deprecated aliases may redirect here, but this file remains the sole workflow
-state router.
