@@ -5,6 +5,15 @@ description: Use when user approves a full plan and wants autonomous execution t
 
 # Batch Mode
 
+## Current Status: Disabled
+
+The public Batch entry is fail-closed until the task-graph scheduler is complete.
+`task start --auto` returns `BATCH-SCHEDULER-NOT-IMPLEMENTED` and does not change
+task status, active sessions, commits, or the working tree.
+
+Do not simulate Batch execution from `implement.jsonl`. Continue tasks manually
+through start, implement, review, check, complete, and commit.
+
 ## Overview
 
 User approves the plan once (`implement.jsonl`), then the agent autonomously completes all tasks. **This does not bypass verification gates** -- each task still:

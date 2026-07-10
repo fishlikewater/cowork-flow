@@ -126,6 +126,9 @@ changes → brainstorming → read spec → plan → tasks → implement → che
 | 归档 | `task archive <name>` | `completed`（归档副本） |
 | 清会话指针 | `task finish` | 不变 |
 
+> Batch 临时禁用：真实任务图调度器完成前，`task start --auto` 会以
+> `BATCH-SCHEDULER-NOT-IMPLEMENTED` fail-closed，且不会修改任务或会话状态。
+
 ## 常用命令
 
 ```bash
