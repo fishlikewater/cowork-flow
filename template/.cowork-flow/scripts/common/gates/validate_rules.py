@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,6 +25,7 @@ REQUIRED_RULE_FIELDS = (
     "fix_hint",
     "source_file",
     "enforcement",
+    "validator",
 )
 ENUM_RULE_FIELDS = {
     "type": {"phase_gate", "forbidden_action"},
@@ -37,6 +39,16 @@ ENUM_RULE_FIELDS = {
         "metadata_only",
     },
 }
+
+
+class RuleParameterError(ValueError):
+    """Raised when runtime rule validator parameters are invalid."""
+
+
+RuntimeRuleValidator = Callable[
+    [dict, Path, Path | None, Mapping[str, object]],
+    dict | None,
+]
 
 
 def runtime_rules_path(repo_root: Path) -> Path:
@@ -169,6 +181,14 @@ def _validate_runtime_rule_metadata(rules: list[object], rules_path: Path) -> li
                 )
             )
 
+        if not isinstance(raw_rule.get("parameters"), dict):
+            violations.append(
+                _rule_schema_violation(
+                    rules_path,
+                    f"{label} must define parameters as an object",
+                )
+            )
+
         if not (
             _is_nonempty_string(raw_rule.get("source_anchor"))
             or _is_nonempty_string(raw_rule.get("source_excerpt"))
@@ -246,13 +266,14 @@ def validate_rules(
     # Filter rules by scope
     applicable_rules = [
         r for r in rules
-        if r["scope"] == scope or r["scope"] == "all"
+        if r["enforcement"] == "validate_rules"
+        and (r["scope"] == scope or r["scope"] == "all")
     ]
 
     # Validate each rule
     violations = []
     for rule in applicable_rules:
-        violation = _validate_rule(rule, repo_root, task_dir, scope)
+        violation = _validate_rule(rule, repo_root, task_dir)
         if violation:
             violations.append(violation)
 
@@ -263,55 +284,172 @@ def _validate_rule(
     rule: dict,
     repo_root: Path,
     task_dir: Path | None,
-    scope: str,
 ) -> dict | None:
-    """Validate a single rule. Returns violation dict if rule fails."""
-    if rule["type"] == "phase_gate":
-        return _validate_phase_gate(rule, repo_root, task_dir, scope)
-    return None
+    """Validate one rule through its registered validator capability."""
+    validator_key = rule["validator"]
+    validator = RUNTIME_RULE_VALIDATORS.get(validator_key)
+    if validator is None:
+        return config_violation(
+            "RULES-CONFIG-005",
+            (
+                f"Runtime workflow rule {rule['id']} references unknown "
+                f"validator: {validator_key}"
+            ),
+            runtime_rules_path(repo_root),
+            "Register the validator capability or fix the rule validator key.",
+        )
+
+    try:
+        return validator(rule, repo_root, task_dir, rule["parameters"])
+    except RuleParameterError as error:
+        return config_violation(
+            "RULES-CONFIG-006",
+            (
+                f"Runtime workflow rule {rule['id']} has invalid parameters "
+                f"for {validator_key}: {error}"
+            ),
+            runtime_rules_path(repo_root),
+            "Fix the validator parameters in the runtime rules file.",
+        )
 
 
-def _validate_phase_gate(
+def _reject_unknown_parameters(
+    parameters: Mapping[str, object],
+    allowed: frozenset[str],
+) -> None:
+    unknown = sorted(set(parameters) - allowed)
+    if unknown:
+        raise RuleParameterError(
+            f"unexpected parameters: {', '.join(unknown)}"
+        )
+
+
+def _string_parameter(
+    parameters: Mapping[str, object],
+    name: str,
+) -> str:
+    value = parameters.get(name)
+    if not _is_nonempty_string(value):
+        raise RuleParameterError(f"{name} must be a non-empty string")
+    return str(value)
+
+
+def _string_list_parameter(
+    parameters: Mapping[str, object],
+    name: str,
+) -> list[str]:
+    value = parameters.get(name)
+    if not isinstance(value, list) or not value:
+        raise RuleParameterError(f"{name} must be a non-empty string array")
+    if not all(_is_nonempty_string(item) for item in value):
+        raise RuleParameterError(f"{name} must contain only non-empty strings")
+    return [str(item) for item in value]
+
+
+def _validate_l2_required_file(
     rule: dict,
     repo_root: Path,
     task_dir: Path | None,
-    scope: str,
+    parameters: Mapping[str, object],
 ) -> dict | None:
-    """Validate a phase_gate rule."""
-    rule_id = rule["id"]
+    _reject_unknown_parameters(parameters, frozenset({"filename"}))
+    filename = _string_parameter(parameters, "filename")
+    if task_dir is None:
+        return None
+    change_dir = _find_linked_change(repo_root, task_dir)
+    if change_dir is None:
+        return None
+    return _check_file_exists(change_dir / filename, rule, filename)
 
-    # R-WF-001 to R-WF-005: L2 readiness checks
-    if rule_id in ["R-WF-001", "R-WF-002", "R-WF-003", "R-WF-004", "R-WF-005"]:
-        if task_dir is None:
-            return None
 
-        # Check if task has L2 change
-        change_dir = _find_linked_change(repo_root, task_dir)
-        if change_dir is None:
-            return None
+def _validate_l2_plan_link(
+    rule: dict,
+    repo_root: Path,
+    task_dir: Path | None,
+    parameters: Mapping[str, object],
+) -> dict | None:
+    _reject_unknown_parameters(parameters, frozenset())
+    if task_dir is None:
+        return None
+    change_dir = _find_linked_change(repo_root, task_dir)
+    if change_dir is None:
+        return None
+    return _check_plan_link(repo_root, change_dir, rule)
 
-        # Validate specific file requirements
-        if rule_id == "R-WF-001":
-            return _check_file_exists(change_dir / "proposal.md", rule, "proposal.md")
-        elif rule_id == "R-WF-002":
-            return _check_file_exists(change_dir / "spec.md", rule, "spec.md")
-        elif rule_id == "R-WF-003":
-            return _check_file_exists(change_dir / "design.md", rule, "design.md")
-        elif rule_id == "R-WF-004":
-            return _check_plan_link(repo_root, change_dir, rule)
-        elif rule_id == "R-WF-005":
-            return _check_task_link(change_dir, task_dir, rule)
 
-    # R-WF-007: Task completion without check
-    if rule_id == "R-WF-007":
-        if scope == "task_complete" and task_dir:
-            task_json = task_dir / "task.json"
-            if task_json.exists():
-                with open(task_json, encoding="utf-8") as f:
-                    task_data = json.load(f)
-                if task_data.get("status") not in ("review",):
-                    return rule_violation(rule, task_json)
+def _validate_l2_task_link(
+    rule: dict,
+    repo_root: Path,
+    task_dir: Path | None,
+    parameters: Mapping[str, object],
+) -> dict | None:
+    _reject_unknown_parameters(parameters, frozenset())
+    if task_dir is None:
+        return None
+    change_dir = _find_linked_change(repo_root, task_dir)
+    if change_dir is None:
+        return None
+    return _check_task_link(change_dir, task_dir, rule)
 
+
+def _validate_task_status(
+    rule: dict,
+    repo_root: Path,
+    task_dir: Path | None,
+    parameters: Mapping[str, object],
+) -> dict | None:
+    del repo_root
+    _reject_unknown_parameters(parameters, frozenset({"allowed_statuses"}))
+    allowed_statuses = _string_list_parameter(parameters, "allowed_statuses")
+    if task_dir is None:
+        return None
+    task_json = task_dir / "task.json"
+    if not task_json.exists():
+        return None
+    with open(task_json, encoding="utf-8") as f:
+        task_data = json.load(f)
+    if task_data.get("status") not in allowed_statuses:
+        return rule_violation(rule, task_json)
+    return None
+
+
+def _validate_decision_anchor(
+    rule: dict,
+    repo_root: Path,
+    task_dir: Path | None,
+    parameters: Mapping[str, object],
+) -> dict | None:
+    del repo_root
+    _reject_unknown_parameters(parameters, frozenset({"required_sections"}))
+    required_sections = _string_list_parameter(
+        parameters,
+        "required_sections",
+    )
+    if task_dir is None:
+        return None
+    anchor_path = task_dir / "decision-anchor.md"
+    if not anchor_path.exists():
+        return rule_violation(
+            rule,
+            anchor_path,
+            detail="decision-anchor.md is missing",
+        )
+    with open(anchor_path, encoding="utf-8") as f:
+        content = f.read()
+    missing_sections = [
+        section
+        for section in required_sections
+        if f"## {section}" not in content
+    ]
+    if missing_sections:
+        return rule_violation(
+            rule,
+            anchor_path,
+            detail=(
+                "decision-anchor.md is missing sections: "
+                + ", ".join(missing_sections)
+            ),
+        )
     return None
 
 
@@ -406,6 +544,15 @@ def _check_task_link(
             return None
 
     return rule_violation(rule, change_yaml, detail="task link is missing")
+
+
+RUNTIME_RULE_VALIDATORS: dict[str, RuntimeRuleValidator] = {
+    "runtime.l2_required_file": _validate_l2_required_file,
+    "runtime.l2_plan_link": _validate_l2_plan_link,
+    "runtime.l2_task_link": _validate_l2_task_link,
+    "runtime.task_status": _validate_task_status,
+    "runtime.decision_anchor": _validate_decision_anchor,
+}
 
 
 def log_violations(

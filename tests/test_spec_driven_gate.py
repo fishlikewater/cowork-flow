@@ -16,6 +16,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
@@ -251,6 +252,184 @@ class SpecDrivenGateTests(unittest.TestCase):
         # Must not raise.
         violations = self.vc.validate_coding_standards(self.tmp)
         self.assertEqual([], violations)
+
+
+class GatePipelineTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        _bootstrap_common()
+        cls.gates = _load(
+            "common.gates.gates",
+            GATES_DIR / "gates.py",
+        )
+        cls.models = sys.modules["common.gates.models"]
+        cls.registry = sys.modules["common.gates.registry"]
+
+    def tearDown(self) -> None:
+        sys.modules.pop("common.gates._test_validator", None)
+
+    def _registry_for_result(self, raw_result: object):
+        validator_module = types.ModuleType("common.gates._test_validator")
+        validator_module.validate = lambda: raw_result
+        sys.modules["common.gates._test_validator"] = validator_module
+
+        registry = self.gates.GateRegistry()
+        registry.register_validator(
+            self.models.ValidatorBinding(
+                key="test_validator",
+                module="_test_validator",
+                function="validate",
+            )
+        )
+        registry.register_gate(
+            self.models.GateDefinition(
+                id="test_gate",
+                validator_key="test_validator",
+                required=True,
+                block_message="Test gate blocked",
+            )
+        )
+        return registry
+
+    def _run_test_gate(self, raw_result: object):
+        registry = self._registry_for_result(raw_result)
+        with mock.patch.dict(
+            self.gates.STAGE_GATES,
+            {"task_start": ("test_gate",)},
+        ):
+            return self.gates.GatePipeline(registry).run(
+                self.models.GateContext(ROOT, "task_start", ROOT)
+            )
+
+    def test_missing_required_gate_blocks(self) -> None:
+        original_import = __import__
+
+        def import_without_rules(
+            name: str,
+            globals_: dict | None = None,
+            locals_: dict | None = None,
+            fromlist: tuple[str, ...] = (),
+            level: int = 0,
+        ):
+            if name == "validate_rules" and level == 1:
+                raise ImportError("required validator is unavailable")
+            return original_import(name, globals_, locals_, fromlist, level)
+
+        with mock.patch("builtins.__import__", side_effect=import_without_rules):
+            result = self.gates.GateRunner(ROOT).run("task_review", ROOT)
+
+        self.assertTrue(result.blocked)
+        self.assertEqual("GATE-LOAD-001", result.blockers[0]["rule_id"])
+        self.assertEqual("task_review", result.blockers[0]["scope"])
+        self.assertEqual("block", result.blockers[0]["severity"])
+
+    def test_registry_rejects_duplicate_validator_and_gate_ids(self) -> None:
+        registry = self.gates.GateRegistry()
+        binding = self.models.ValidatorBinding(
+            key="duplicate",
+            module="_test_validator",
+            function="validate",
+        )
+        registry.register_validator(binding)
+        with self.assertRaisesRegex(
+            self.registry.GateRegistryError,
+            "duplicate validator key",
+        ):
+            registry.register_validator(binding)
+
+        definition = self.models.GateDefinition(
+            id="duplicate_gate",
+            validator_key="duplicate",
+            required=True,
+            block_message="Blocked",
+        )
+        registry.register_gate(definition)
+        with self.assertRaisesRegex(
+            self.registry.GateRegistryError,
+            "duplicate gate id",
+        ):
+            registry.register_gate(definition)
+
+    def test_registry_rejects_unknown_validator_key(self) -> None:
+        registry = self.gates.GateRegistry()
+        with self.assertRaisesRegex(
+            self.registry.GateRegistryError,
+            "references unknown validator",
+        ):
+            registry.register_gate(
+                self.models.GateDefinition(
+                    id="unknown_gate",
+                    validator_key="missing",
+                    required=True,
+                    block_message="Blocked",
+                )
+            )
+
+    def test_non_list_validator_result_blocks_with_protocol_error(self) -> None:
+        result = self._run_test_gate({"rule_id": "INVALID"})
+
+        self.assertTrue(result.blocked)
+        self.assertEqual("GATE-PROTOCOL-001", result.blockers[0]["rule_id"])
+        self.assertEqual("test_gate", result.blockers[0]["gate_id"])
+
+    def test_violation_missing_required_metadata_blocks(self) -> None:
+        invalid_violations = (
+            {"severity": "block", "message": "missing rule id"},
+            {"rule_id": "TEST-001", "message": "missing severity"},
+            {"rule_id": "TEST-001", "severity": "block"},
+        )
+        for violation in invalid_violations:
+            with self.subTest(violation=violation):
+                result = self._run_test_gate([violation])
+                self.assertTrue(result.blocked)
+                self.assertEqual(
+                    "GATE-PROTOCOL-001",
+                    result.blockers[0]["rule_id"],
+                )
+
+    def test_review_complete_difference_lives_in_stage_configuration(self) -> None:
+        self.assertEqual(
+            {
+                "id",
+                "validator_key",
+                "required",
+                "block_message",
+                "warning_message",
+                "log_violations",
+            },
+            set(self.models.GateDefinition.__dataclass_fields__),
+        )
+
+        registry = self.gates.build_default_registry()
+        executions: list[tuple[str, str]] = []
+
+        def record_execution(definition, context):
+            executions.append((context.scope, definition.id))
+            return []
+
+        with mock.patch.object(
+            registry,
+            "invoke",
+            side_effect=record_execution,
+        ):
+            pipeline = self.gates.GatePipeline(registry)
+            review_result = pipeline.run(
+                self.models.GateContext(ROOT, "task_review", ROOT)
+            )
+            complete_result = pipeline.run(
+                self.models.GateContext(ROOT, "task_complete", ROOT)
+            )
+
+        self.assertEqual(
+            list(self.gates.STAGE_GATES["task_review"]),
+            [gate_id for scope, gate_id in executions if scope == "task_review"],
+        )
+        self.assertEqual(
+            list(self.gates.STAGE_GATES["task_complete"]),
+            [gate_id for scope, gate_id in executions if scope == "task_complete"],
+        )
+        self.assertEqual([], review_result.violations)
+        self.assertEqual([], complete_result.violations)
 
 
 if __name__ == "__main__":

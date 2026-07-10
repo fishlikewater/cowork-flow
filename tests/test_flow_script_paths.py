@@ -371,6 +371,24 @@ class FlowScriptPathsTest(unittest.TestCase):
         )
 
     def _workflow_rule(self, rule_id: str, scope: str) -> dict:
+        validator, parameters = {
+            "R-WF-001": ("runtime.l2_required_file", {"filename": "proposal.md"}),
+            "R-WF-002": ("runtime.l2_required_file", {"filename": "spec.md"}),
+            "R-WF-003": ("runtime.l2_required_file", {"filename": "design.md"}),
+            "R-WF-004": ("runtime.l2_plan_link", {}),
+            "R-WF-005": ("runtime.l2_task_link", {}),
+            "R-WF-007": (
+                "runtime.task_status",
+                {"allowed_statuses": ["review"]},
+            ),
+            "R-WF-008": (
+                "runtime.decision_anchor",
+                {"required_sections": ["目标", "验收标准"]},
+            ),
+            "R-AG-002": ("implementation.spec_files", {}),
+            "R-AG-005": ("implementation.allowed_files", {}),
+            "R-AG-006": ("implementation.premature_abstraction", {}),
+        }.get(rule_id, ("runtime.unknown", {}))
         return {
             "id": rule_id,
             "type": "phase_gate",
@@ -382,6 +400,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             "source_file": ".cowork-flow/workflow.md",
             "source_anchor": f"{rule_id}-anchor",
             "enforcement": "validate_rules",
+            "validator": validator,
+            "parameters": parameters,
         }
 
     def _write_behavior_prd(self, task_dir: Path) -> None:
@@ -586,6 +606,60 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertEqual("block", violations[0]["severity"])
             self.assertIn("message", violations[0]["message"])
 
+    def test_validate_rules_dispatches_by_validator_key_not_rule_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ready_task_files(root, task_dir)
+            task_data = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            task_data["status"] = "in_progress"
+            (task_dir / "task.json").write_text(
+                json.dumps(task_data, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            custom_rule = self._workflow_rule("R-WF-999", "task_complete")
+            custom_rule["validator"] = "runtime.task_status"
+            custom_rule["parameters"] = {"allowed_statuses": ["review"]}
+            self._write_rules_file(root, [custom_rule])
+            validator = importlib.import_module("common.gates.validate_rules")
+
+            violations = validator.validate_rules(root, "task_complete", task_dir)
+
+            self.assertEqual(["R-WF-999"], [v["rule_id"] for v in violations])
+
+    def test_validate_rules_blocks_unknown_validator_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ready_task_files(root, task_dir)
+            unknown_rule = self._workflow_rule("R-WF-999", "task_review")
+            unknown_rule["validator"] = "runtime.missing"
+            self._write_rules_file(root, [unknown_rule])
+            validator = importlib.import_module("common.gates.validate_rules")
+
+            violations = validator.validate_rules(root, "task_review", task_dir)
+
+            self.assertEqual(["RULES-CONFIG-005"], [v["rule_id"] for v in violations])
+            self.assertIn("runtime.missing", violations[0]["message"])
+
+    def test_validate_rules_blocks_invalid_validator_parameters(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ready_task_files(root, task_dir)
+            invalid_rule = self._workflow_rule("R-WF-999", "task_complete")
+            invalid_rule["validator"] = "runtime.task_status"
+            invalid_rule["parameters"] = {}
+            self._write_rules_file(root, [invalid_rule])
+            validator = importlib.import_module("common.gates.validate_rules")
+
+            violations = validator.validate_rules(root, "task_complete", task_dir)
+
+            self.assertEqual(["RULES-CONFIG-006"], [v["rule_id"] for v in violations])
+            self.assertIn("allowed_statuses", violations[0]["message"])
+
     def test_rule_scope_contract_includes_task_review(self) -> None:
         for schema_path in (
             ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "rules.schema.json",
@@ -598,6 +672,8 @@ class FlowScriptPathsTest(unittest.TestCase):
             self.assertIn({"required": ["source_anchor"]}, source_requirements)
             self.assertIn({"required": ["source_excerpt"]}, source_requirements)
             self.assertIn("enforcement", required)
+            self.assertIn("validator", required)
+            self.assertIn("parameters", required)
             self.assertIn("task_review", scope_enum)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -640,7 +716,15 @@ class FlowScriptPathsTest(unittest.TestCase):
 
             self.assertTrue(result.blocked)
             self.assertEqual(1, result.exit_code)
-            self.assertEqual(["R-WF-007"], [v["rule_id"] for v in result.violations])
+            runtime_execution = next(
+                execution
+                for execution in result.executions
+                if execution.definition.id == "runtime_rules"
+            )
+            self.assertEqual(
+                ["R-WF-007"],
+                [v["rule_id"] for v in runtime_execution.result.violations],
+            )
 
     def test_task_state_machine_requires_review_before_complete(self) -> None:
         state_machine = importlib.import_module("common.task.state_machine")

@@ -11,7 +11,11 @@
       "fix_hint": "创建 .cowork-flow/changes/<slug>/proposal.md 并填写目标、用户价值、范围边界",
       "source_file": ".cowork-flow/workflow.md",
       "source_excerpt": "定义 L1（增量）、L2（结构性）和 L3（重大）三级工作",
-      "enforcement": "validate_rules"
+      "enforcement": "validate_rules",
+      "validator": "runtime.l2_required_file",
+      "parameters": {
+        "filename": "proposal.md"
+      }
     },
     {
       "id": "R-WF-002",
@@ -23,7 +27,11 @@
       "fix_hint": "创建 .cowork-flow/changes/<slug>/spec.md 并填写功能规格",
       "source_file": ".cowork-flow/workflow.md",
       "source_excerpt": "L2（结构性）",
-      "enforcement": "validate_rules"
+      "enforcement": "validate_rules",
+      "validator": "runtime.l2_required_file",
+      "parameters": {
+        "filename": "spec.md"
+      }
     },
     {
       "id": "R-WF-003",
@@ -35,7 +43,11 @@
       "fix_hint": "创建 .cowork-flow/changes/<slug>/design.md 并填写技术设计",
       "source_file": ".cowork-flow/workflow.md",
       "source_excerpt": "L2（结构性）",
-      "enforcement": "validate_rules"
+      "enforcement": "validate_rules",
+      "validator": "runtime.l2_required_file",
+      "parameters": {
+        "filename": "design.md"
+      }
     },
     {
       "id": "R-WF-004",
@@ -47,7 +59,9 @@
       "fix_hint": "在 change.yaml 中添加 plan 字段指向 .cowork-flow/plans/ 下的计划文件",
       "source_file": ".cowork-flow/workflow.md",
       "source_excerpt": "L2（结构性）",
-      "enforcement": "validate_rules"
+      "enforcement": "validate_rules",
+      "validator": "runtime.l2_plan_link",
+      "parameters": {}
     },
     {
       "id": "R-WF-005",
@@ -59,7 +73,9 @@
       "fix_hint": "在 change.yaml 中添加 tasks 字段指向相关任务目录",
       "source_file": ".cowork-flow/workflow.md",
       "source_excerpt": "L2（结构性）",
-      "enforcement": "validate_rules"
+      "enforcement": "validate_rules",
+      "validator": "runtime.l2_task_link",
+      "parameters": {}
     },
     {
       "id": "R-WF-007",
@@ -71,7 +87,13 @@
       "fix_hint": "运行 ./.cowork-flow/run task review [task-dir] 进入检查阶段，然后运行验证命令",
       "source_file": ".cowork-flow/workflow.md",
       "source_excerpt": "先验证再完成",
-      "enforcement": "validate_rules"
+      "enforcement": "validate_rules",
+      "validator": "runtime.task_status",
+      "parameters": {
+        "allowed_statuses": [
+          "review"
+        ]
+      }
     },
     {
       "id": "R-WF-008",
@@ -83,7 +105,14 @@
       "fix_hint": "创建 <task-dir>/decision-anchor.md，至少包含 ## 目标和 ## 验收标准",
       "source_file": ".cowork-flow/spec/contracts/decision-anchor.md",
       "source_excerpt": "每个任务必须有决策锚点",
-      "enforcement": "validate_rules"
+      "enforcement": "validate_rules",
+      "validator": "runtime.decision_anchor",
+      "parameters": {
+        "required_sections": [
+          "目标",
+          "验收标准"
+        ]
+      }
     },
     {
       "id": "R-AG-002",
@@ -95,7 +124,9 @@
       "fix_hint": "规格文件只能由主会话修改，子代理应专注于实现任务",
       "source_file": ".cowork-flow/spec/contracts/subagent-dispatch.md",
       "source_excerpt": "cowork-* 固定代理是叶子执行者",
-      "enforcement": "validate_implementation"
+      "enforcement": "validate_implementation",
+      "validator": "implementation.spec_files",
+      "parameters": {}
     },
     {
       "id": "R-AG-005",
@@ -107,7 +138,9 @@
       "fix_hint": "通过 ./.cowork-flow/run task add-context <dir> implement <path> <reason> 登记所有需要修改的文件",
       "source_file": ".cowork-flow/spec/contracts/decision-anchor.md",
       "source_excerpt": "implement.jsonl 是任务的权威文件白名单",
-      "enforcement": "validate_implementation"
+      "enforcement": "validate_implementation",
+      "validator": "implementation.allowed_files",
+      "parameters": {}
     },
     {
       "id": "R-AG-006",
@@ -119,7 +152,9 @@
       "fix_hint": "保持代码简单直接，只有在确认需要复用时才进行抽象",
       "source_file": "AGENTS.md",
       "source_excerpt": "不为一次性代码做抽象",
-      "enforcement": "validate_implementation"
+      "enforcement": "validate_implementation",
+      "validator": "implementation.premature_abstraction",
+      "parameters": {}
     }
   ]
 }

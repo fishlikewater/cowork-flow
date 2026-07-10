@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import unittest
@@ -217,7 +218,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_gate_runtime_common_modules_exist_in_template(self) -> None:
         required_markers = {
             "gates/coding_standards.py": ("validate_changed_files", "encoding=\"utf-8\"", "CS-UTF8"),
-            "gates/gates.py": ("GateResult", "GateRunner", "exit_code"),
+            "gates/gates.py": ("GateResult", "GateRunner", "GatePipeline"),
+            "gates/models.py": ("class GateResult", "exit_code", "class Violation"),
+            "gates/registry.py": ("class GateRegistry", "duplicate validator key", "GateLoadError"),
             "git/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
             "task/state_machine.py": ("transition_blockers", "task review", "completed"),
             "gates/tdd_evidence.py": ("validate_tdd_evidence", "tdd.jsonl", "redExitCode"),
@@ -232,6 +235,28 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
             for marker in markers:
                 self.assertIn(marker, template_text)
+
+    def test_runtime_rule_metadata_is_synced_to_zcode_scaffold(self) -> None:
+        template_spec = ROOT / "template" / ".cowork-flow" / "spec"
+        zcode_spec = (
+            ROOT
+            / "template"
+            / ".zcode"
+            / "scaffold"
+            / ".cowork-flow"
+            / "spec"
+        )
+        for relative_path in (
+            Path("runtime") / "rules.json",
+            Path("schemas") / "rules.schema.json",
+        ):
+            template_data = json.loads(
+                (template_spec / relative_path).read_text(encoding="utf-8")
+            )
+            zcode_data = json.loads(
+                (zcode_spec / relative_path).read_text(encoding="utf-8")
+            )
+            self.assertEqual(template_data, zcode_data, str(relative_path))
 
     def test_tdd_skill_is_synced_between_root_template_and_claude_mirrors(self) -> None:
         required_markers = (
