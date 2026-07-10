@@ -126,8 +126,10 @@ changes → brainstorming → read spec → plan → tasks → implement → che
 | 归档 | `task archive <name>` | `completed`（归档副本） |
 | 清会话指针 | `task finish` | 不变 |
 
-> Batch 临时禁用：真实任务图调度器完成前，`task start --auto` 会以
-> `BATCH-SCHEDULER-NOT-IMPLEMENTED` fail-closed，且不会修改任务或会话状态。
+> Batch 使用任务图和持久化 Host action：运行
+> `task start <parent-task> --auto --approved` 获取 `next_action`，
+> Host 完成真实生命周期动作后用 `task batch-record-result <batch-id> --file <result.json>`
+> 回写结果；失败会暂停，可用 `task batch-resume <batch-id>` 生成新的重试动作。
 
 ## 常用命令
 

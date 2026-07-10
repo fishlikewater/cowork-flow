@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from common.core.execution_context import (
     build_internal_execution_context_parser,
@@ -101,6 +102,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--approved",
         action="store_true",
         help="User has approved the plan",
+    )
+
+    batch_resume = subparsers.add_parser(
+        "batch-resume",
+        help="Resume a paused Batch operation",
+    )
+    batch_resume.add_argument(
+        "operation_id",
+        help="Batch operation id",
+    )
+
+    batch_result = subparsers.add_parser(
+        "batch-record-result",
+        help="Record one Host action result and advance Batch",
+    )
+    batch_result.add_argument(
+        "operation_id",
+        help="Batch operation id",
+    )
+    batch_result.add_argument(
+        "--file",
+        type=Path,
+        required=True,
+        help="UTF-8 JSON Host action result",
     )
 
     subparsers.add_parser(
