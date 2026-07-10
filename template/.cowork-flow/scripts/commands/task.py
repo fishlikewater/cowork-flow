@@ -141,6 +141,26 @@ def _report_gate_warnings(title: str, result: GateResult) -> None:
         print(json.dumps(violation, ensure_ascii=False), file=sys.stderr)
 
 
+def _report_pipeline_outcomes(
+    result: GateResult,
+    runner: GateRunner,
+) -> int | None:
+    for execution in result.executions:
+        definition = execution.definition
+        if execution.blocked:
+            return _report_gate_block(
+                definition.block_message,
+                execution.result,
+                runner if definition.log_violations else None,
+            )
+        if definition.warning_message and execution.result.violations:
+            _report_gate_warnings(
+                definition.warning_message,
+                execution.result,
+            )
+    return None
+
+
 def _print_transition_blockers(blockers: list[str]) -> None:
     print(colored("Error: Task state transition blocked", Colors.RED), file=sys.stderr)
     for blocker in blockers:
@@ -1122,78 +1142,21 @@ def cmd_review(args: argparse.Namespace) -> int:
         _print_transition_blockers(state_blockers)
         return 1
 
-    # Validate implementation against forbidden action rules
-    try:
-        from common.gates.validate_implementation import validate_implementation
-        violations = validate_implementation(
-            repo_root,
-            task_dir,
-            allow_spec_file_modifications=execution_context.is_coordinator,
-        )
-        gate_result = GateResult.from_violations("task_review", violations, task_dir)
-        if gate_result.blocked:
-            return _report_gate_block(
-                "Implementation gate blocked task review",
-                gate_result,
-            )
-        if gate_result.violations:
-            print(colored("Warning: Implementation violations detected", Colors.YELLOW), file=sys.stderr)
-            for v in gate_result.violations:
-                print(f"  - {v['message']}", file=sys.stderr)
-    except ImportError:
-        pass
-
-    try:
-        from common.gates.tdd_evidence import validate_tdd_evidence
-
-        tdd_result = GateResult.from_violations(
-            "task_review_tdd",
-            validate_tdd_evidence(task_dir),
-            task_dir,
-        )
-        if tdd_result.blocked:
-            return _report_gate_block(
-                "TDD evidence gate blocked task review",
-                tdd_result,
-            )
-    except ImportError:
-        pass
-
-    try:
-        from common.gates.test_intent import validate_test_intent
-
-        intent_result = GateResult.from_violations(
-            "task_review_test_intent",
-            validate_test_intent(repo_root, task_dir),
-            task_dir,
-        )
-        if intent_result.blocked:
-            return _report_gate_block(
-                "Test intent gate blocked task review",
-                intent_result,
-            )
-        _report_gate_warnings("Test intent review warnings", intent_result)
-    except ImportError:
-        pass
-
     gate_runner = GateRunner(repo_root)
-    gate_result = gate_runner.run("task_review", task_dir)
-    if gate_result.blocked:
-        return _report_gate_block(
-            "Coding standards gate blocked task review",
-            gate_result,
-            gate_runner,
-        )
+    gate_result = gate_runner.run(
+        "task_review",
+        task_dir,
+        allow_spec_file_modifications=execution_context.is_coordinator,
+    )
+    gate_exit = _report_pipeline_outcomes(gate_result, gate_runner)
+    if gate_exit is not None:
+        return gate_exit
 
     # Get coding standards summary for Agent review
-    try:
-        from common.gates.validate_coding_standards import get_coding_standards_summary
-        summary = get_coding_standards_summary(repo_root, task_dir)
-        if summary:
-            print(colored("Coding Standards to Verify:", Colors.CYAN))
-            print(summary)
-    except ImportError:
-        pass
+    summary = gate_runner.coding_standards_summary(task_dir)
+    if summary:
+        print(colored("Coding Standards to Verify:", Colors.CYAN))
+        print(summary)
 
     if not _set_task_status(task_dir, "review"):
         return 1
@@ -1221,47 +1184,11 @@ def cmd_complete(args: argparse.Namespace) -> int:
         )
         return 1
 
-    try:
-        from common.gates.tdd_evidence import validate_tdd_evidence
-
-        tdd_result = GateResult.from_violations(
-            "task_complete_tdd",
-            validate_tdd_evidence(task_dir),
-            task_dir,
-        )
-        if tdd_result.blocked:
-            return _report_gate_block(
-                "TDD evidence gate blocked task completion",
-                tdd_result,
-            )
-    except ImportError:
-        pass
-
-    try:
-        from common.gates.test_intent import validate_test_intent
-
-        intent_result = GateResult.from_violations(
-            "task_complete_test_intent",
-            validate_test_intent(repo_root, task_dir),
-            task_dir,
-        )
-        if intent_result.blocked:
-            return _report_gate_block(
-                "Test intent gate blocked task completion",
-                intent_result,
-            )
-        _report_gate_warnings("Test intent completion warnings", intent_result)
-    except ImportError:
-        pass
-
     gate_runner = GateRunner(repo_root)
     gate_result = gate_runner.run("task_complete", task_dir)
-    if gate_result.blocked:
-        return _report_gate_block(
-            "Spec enforcement blocked task completion",
-            gate_result,
-            gate_runner,
-        )
+    gate_exit = _report_pipeline_outcomes(gate_result, gate_runner)
+    if gate_exit is not None:
+        return gate_exit
 
     today = datetime.now().strftime("%Y-%m-%d")
     if not _set_task_status(task_dir, "completed", completed_at=today):

@@ -1,71 +1,348 @@
 #!/usr/bin/env python3
-"""Shared gate result helpers for cowork-flow lifecycle commands."""
+"""Typed, fail-closed gate pipeline for lifecycle commands."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Mapping
 from pathlib import Path
 
+from .models import (
+    GateContext,
+    GateDefinition,
+    GateExecution,
+    GateResult,
+    ValidatorBinding,
+    Violation,
+)
+from .registry import GateLoadError, GateRegistry
 
-@dataclass
-class GateResult:
-    """Normalized result returned by workflow gates."""
 
-    scope: str
-    task_dir: Path | None = None
-    violations: list[dict] = field(default_factory=list)
+STAGE_GATES = {
+    "task_start": ("runtime_rules",),
+    "task_review": (
+        "implementation",
+        "tdd_evidence",
+        "test_intent",
+        "runtime_rules",
+        "coding_standards",
+        "complexity",
+    ),
+    "task_complete": (
+        "tdd_evidence",
+        "test_intent",
+        "runtime_rules",
+        "coding_standards",
+        "complexity",
+    ),
+}
 
-    @classmethod
-    def from_violations(
-        cls,
-        scope: str,
-        violations: list[dict],
-        task_dir: Path | None = None,
-    ) -> "GateResult":
-        return cls(scope=scope, task_dir=task_dir, violations=list(violations))
 
-    @property
-    def blockers(self) -> list[dict]:
+def build_default_registry() -> GateRegistry:
+    registry = GateRegistry()
+    for binding in (
+        ValidatorBinding(
+            key="runtime_rules",
+            module="validate_rules",
+            function="validate_rules",
+            positional=("repo_root", "scope", "task_dir"),
+        ),
+        ValidatorBinding(
+            key="implementation",
+            module="validate_implementation",
+            function="validate_implementation",
+            positional=("repo_root", "task_dir"),
+            keyword={
+                "allow_spec_file_modifications": "allow_spec_file_modifications",
+            },
+        ),
+        ValidatorBinding(
+            key="tdd_evidence",
+            module="tdd_evidence",
+            function="validate_tdd_evidence",
+            positional=("task_dir",),
+        ),
+        ValidatorBinding(
+            key="test_intent",
+            module="test_intent",
+            function="validate_test_intent",
+            positional=("repo_root", "task_dir"),
+        ),
+        ValidatorBinding(
+            key="coding_standards",
+            module="validate_coding_standards",
+            function="validate_coding_standards",
+            positional=("repo_root", "task_dir"),
+        ),
+        ValidatorBinding(
+            key="complexity",
+            module="validate_coding_standards",
+            function="validate_complexity_signals",
+            positional=("repo_root", "task_dir"),
+        ),
+    ):
+        registry.register_validator(binding)
+
+    definitions = (
+        GateDefinition(
+            id="runtime_rules",
+            validator_key="runtime_rules",
+            required=True,
+            block_message="Spec enforcement blocked lifecycle transition",
+            log_violations=True,
+        ),
+        GateDefinition(
+            id="implementation",
+            validator_key="implementation",
+            required=True,
+            block_message="Implementation gate blocked task review",
+            warning_message="Implementation violations detected",
+        ),
+        GateDefinition(
+            id="tdd_evidence",
+            validator_key="tdd_evidence",
+            required=True,
+            block_message="TDD evidence gate blocked lifecycle transition",
+        ),
+        GateDefinition(
+            id="test_intent",
+            validator_key="test_intent",
+            required=True,
+            block_message="Test intent gate blocked lifecycle transition",
+            warning_message="Test intent review warnings",
+        ),
+        GateDefinition(
+            id="coding_standards",
+            validator_key="coding_standards",
+            required=True,
+            block_message="Coding standards gate blocked lifecycle transition",
+        ),
+        GateDefinition(
+            id="complexity",
+            validator_key="complexity",
+            required=False,
+            block_message="",
+            warning_message="Complexity review warnings",
+        ),
+    )
+    for definition in definitions:
+        registry.register_gate(definition)
+    return registry
+
+
+def _pipeline_violation(
+    *,
+    rule_id: str,
+    context: GateContext,
+    definition: GateDefinition,
+    message: str,
+    fix_hint: str,
+) -> dict:
+    severity = "block" if definition.required else "warn"
+    return Violation(
+        rule_id=rule_id,
+        type="gate_pipeline",
+        severity=severity,
+        message=message,
+        file=definition.validator_key,
+        fix_hint=fix_hint,
+        scope=context.scope,
+        gate_id=definition.id,
+        error_code=rule_id,
+    ).to_dict()
+
+
+def _normalize_violations(
+    raw_result: object,
+    context: GateContext,
+    definition: GateDefinition,
+) -> list[dict]:
+    if not isinstance(raw_result, list):
         return [
-            violation
-            for violation in self.violations
-            if violation.get("severity") == "block"
+            _pipeline_violation(
+                rule_id="GATE-PROTOCOL-001",
+                context=context,
+                definition=definition,
+                message=(
+                    f"Gate {definition.id} returned "
+                    f"{type(raw_result).__name__}; expected a list of violations"
+                ),
+                fix_hint="Return list[dict] from the registered gate validator.",
+            )
         ]
 
-    @property
-    def blocked(self) -> bool:
-        return bool(self.blockers)
+    normalized: list[dict] = []
+    for raw_violation in raw_result:
+        if not isinstance(raw_violation, Mapping):
+            normalized.append(
+                _pipeline_violation(
+                    rule_id="GATE-PROTOCOL-001",
+                    context=context,
+                    definition=definition,
+                    message=(
+                        f"Gate {definition.id} returned a non-object violation"
+                    ),
+                    fix_hint="Return violation dictionaries with stable metadata.",
+                )
+            )
+            continue
+        try:
+            normalized.append(
+                Violation.from_mapping(
+                    raw_violation,
+                    scope=context.scope,
+                    gate_id=definition.id,
+                ).to_dict()
+            )
+        except ValueError as error:
+            normalized.append(
+                _pipeline_violation(
+                    rule_id="GATE-PROTOCOL-001",
+                    context=context,
+                    definition=definition,
+                    message=f"Gate {definition.id} returned invalid metadata: {error}",
+                    fix_hint=(
+                        "Return violations with rule_id, severity, and message."
+                    ),
+                )
+            )
+    return normalized
 
-    @property
-    def exit_code(self) -> int:
-        return 1 if self.blocked else 0
+
+class GatePipeline:
+    """Execute the configured stage gates with fail-closed semantics."""
+
+    def __init__(self, registry: GateRegistry | None = None) -> None:
+        self.registry = registry or build_default_registry()
+
+    def run(self, context: GateContext) -> GateResult:
+        executions: list[GateExecution] = []
+        priority_violations: list[dict] = []
+        ordinary_violations: list[dict] = []
+
+        for gate_id in STAGE_GATES[context.scope]:
+            definition = self.registry.gate(gate_id)
+            try:
+                raw_result = self.registry.invoke(definition, context)
+            except GateLoadError as error:
+                violations = [
+                    _pipeline_violation(
+                        rule_id="GATE-LOAD-001",
+                        context=context,
+                        definition=definition,
+                        message=f"Gate {definition.id} could not load: {error}",
+                        fix_hint=(
+                            "Restore the required validator module and function."
+                        ),
+                    )
+                ]
+            except Exception as error:
+                violations = [
+                    _pipeline_violation(
+                        rule_id="GATE-EXEC-001",
+                        context=context,
+                        definition=definition,
+                        message=f"Gate {definition.id} failed during execution: {error}",
+                        fix_hint=(
+                            "Fix the validator exception; lifecycle gates fail closed."
+                        ),
+                    )
+                ]
+            else:
+                violations = _normalize_violations(
+                    raw_result,
+                    context,
+                    definition,
+                )
+
+            gate_result = GateResult.from_violations(
+                context.scope,
+                violations,
+                context.task_dir,
+            )
+            executions.append(
+                GateExecution(
+                    definition=definition,
+                    result=gate_result,
+                )
+            )
+            for violation in gate_result.violations:
+                if str(violation.get("rule_id", "")).startswith("GATE-"):
+                    priority_violations.append(violation)
+                else:
+                    ordinary_violations.append(violation)
+
+        return GateResult(
+            scope=context.scope,
+            task_dir=context.task_dir,
+            violations=[*priority_violations, *ordinary_violations],
+            executions=executions,
+        )
 
 
 class GateRunner:
-    """Run existing validators through a common gate interface."""
+    """Compatibility facade used by lifecycle commands and tests."""
 
-    def __init__(self, repo_root: Path) -> None:
+    def __init__(
+        self,
+        repo_root: Path,
+        registry: GateRegistry | None = None,
+    ) -> None:
         self.repo_root = Path(repo_root)
+        self.pipeline = GatePipeline(registry)
 
-    def run(self, scope: str, task_dir: Path | None = None) -> GateResult:
-        from .validate_rules import validate_rules
-
-        normalized_task_dir = Path(task_dir) if task_dir is not None else None
-        violations = validate_rules(self.repo_root, scope, normalized_task_dir)
-        if scope in {"task_review", "task_complete"}:
-            from .validate_coding_standards import validate_coding_standards
-
-            violations.extend(
-                validate_coding_standards(self.repo_root, normalized_task_dir)
+    def run(
+        self,
+        scope: str,
+        task_dir: Path | None = None,
+        *,
+        allow_spec_file_modifications: bool = False,
+    ) -> GateResult:
+        return self.pipeline.run(
+            GateContext(
+                repo_root=self.repo_root,
+                scope=scope,
+                task_dir=task_dir,
+                allow_spec_file_modifications=allow_spec_file_modifications,
             )
-            from .validate_coding_standards import validate_complexity_signals
+        )
 
-            violations.extend(
-                validate_complexity_signals(self.repo_root, normalized_task_dir)
-            )
-        return GateResult.from_violations(scope, violations, normalized_task_dir)
+    def coding_standards_summary(self, task_dir: Path | None = None) -> str:
+        module = __import__(
+            "validate_coding_standards",
+            globals(),
+            locals(),
+            ["get_coding_standards_summary"],
+            1,
+        )
+        return module.get_coding_standards_summary(self.repo_root, task_dir)
 
     def log(self, result: GateResult) -> None:
-        from .validate_rules import log_violations
+        try:
+            module = __import__(
+                "validate_rules",
+                globals(),
+                locals(),
+                ["log_violations"],
+                1,
+            )
+        except ImportError:
+            return
+        module.log_violations(
+            result.violations,
+            result.scope,
+            result.task_dir,
+            self.repo_root,
+        )
 
-        log_violations(result.violations, result.scope, result.task_dir, self.repo_root)
+
+__all__ = [
+    "GateContext",
+    "GateDefinition",
+    "GateExecution",
+    "GatePipeline",
+    "GateRegistry",
+    "GateResult",
+    "GateRunner",
+    "Violation",
+    "build_default_registry",
+]
