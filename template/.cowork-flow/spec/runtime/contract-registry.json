@@ -51,6 +51,19 @@
       ]
     },
     {
+      "id": "SKILL_REGISTRY_V1",
+      "path": ".cowork-flow/spec/runtime/skill-registry.json",
+      "digest": [
+        "Skill identity, visibility, lifecycle status, enforcement, sources, and managed paths have one canonical registry.",
+        "Node distribution and Python runtime validation must produce the same normalized registry."
+      ],
+      "readWhen": [
+        "before adding, removing, or renaming a Skill",
+        "when changing Skill visibility, enforcement, routing, or managed paths",
+        "when modifying init, sync, README Skill lists, or Skill tests"
+      ]
+    },
+    {
       "id": "WORKFLOW_STATE_TEMPLATES_V1",
       "path": ".cowork-flow/spec/contracts/workflow-state-templates.md",
       "digest": [

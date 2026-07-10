@@ -1,0 +1,513 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "batch-mode",
+      "displayName": "Batch Mode",
+      "aliases": [],
+      "kind": "mode",
+      "visibility": "public",
+      "status": "disabled",
+      "statuses": [
+        "planning",
+        "in_progress"
+      ],
+      "intents": [
+        "batch_execute_plan"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/batch-mode/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/batch-mode/",
+        ".claude/skills/batch-mode/"
+      ]
+    },
+    {
+      "id": "before-dev",
+      "displayName": "Before Development",
+      "aliases": [
+        "preflight"
+      ],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "planning",
+        "in_progress",
+        "review"
+      ],
+      "intents": [
+        "guard_before_change"
+      ],
+      "enforcement": "mandatory",
+      "runtimeGate": "workflow-readiness",
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/before-dev/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/before-dev/",
+        ".claude/skills/before-dev/"
+      ]
+    },
+    {
+      "id": "brainstorming",
+      "displayName": "Brainstorming",
+      "aliases": [],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "no_task",
+        "planning"
+      ],
+      "intents": [
+        "clarify_requirement"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": "decision-anchor.md",
+      "source": "skills/brainstorming/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/brainstorming/",
+        ".claude/skills/brainstorming/"
+      ]
+    },
+    {
+      "id": "break-loop",
+      "displayName": "Break Loop",
+      "aliases": [],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "no_task",
+        "planning",
+        "in_progress",
+        "review",
+        "completed",
+        "delegated_subtask"
+      ],
+      "intents": [
+        "analyze_repeated_failure"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/break-loop/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/break-loop/",
+        ".claude/skills/break-loop/"
+      ]
+    },
+    {
+      "id": "check",
+      "displayName": "Check",
+      "aliases": [],
+      "kind": "protocol",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "review"
+      ],
+      "intents": [
+        "check_implementation"
+      ],
+      "enforcement": "mandatory",
+      "runtimeGate": "review-gates",
+      "runtimeCommand": null,
+      "evidenceArtifact": "check.jsonl",
+      "source": "skills/check/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/check/",
+        ".claude/skills/check/"
+      ]
+    },
+    {
+      "id": "continue",
+      "displayName": "Continue",
+      "aliases": [],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "in_progress",
+        "review"
+      ],
+      "intents": [
+        "continue_task"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/continue/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/continue/",
+        ".claude/skills/continue/"
+      ]
+    },
+    {
+      "id": "doubt-review",
+      "displayName": "Doubt Review",
+      "aliases": [],
+      "kind": "protocol",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "planning",
+        "in_progress",
+        "review"
+      ],
+      "intents": [
+        "review_decision"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": "doubt-review.md",
+      "source": "skills/doubt-review/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/doubt-review/",
+        ".claude/skills/doubt-review/"
+      ]
+    },
+    {
+      "id": "finish-work",
+      "displayName": "Finish Work",
+      "aliases": [],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "review",
+        "completed"
+      ],
+      "intents": [
+        "finish_task"
+      ],
+      "enforcement": "mandatory",
+      "runtimeGate": "review-gates",
+      "runtimeCommand": null,
+      "evidenceArtifact": "check.jsonl",
+      "source": "skills/finish-work/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/finish-work/",
+        ".claude/skills/finish-work/"
+      ]
+    },
+    {
+      "id": "game-design",
+      "displayName": "Game Design",
+      "aliases": [],
+      "kind": "domain",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "planning",
+        "in_progress",
+        "review"
+      ],
+      "intents": [
+        "guide_game_design"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/game-design/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/game-design/",
+        ".claude/skills/game-design/"
+      ]
+    },
+    {
+      "id": "meta",
+      "displayName": "Meta",
+      "aliases": [],
+      "kind": "domain",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "planning",
+        "in_progress",
+        "review"
+      ],
+      "intents": [
+        "apply_meta_constraints"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/meta/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/meta/",
+        ".claude/skills/meta/"
+      ]
+    },
+    {
+      "id": "party-mode",
+      "displayName": "Party Mode",
+      "aliases": [],
+      "kind": "mode",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "no_task",
+        "planning",
+        "in_progress",
+        "review",
+        "completed",
+        "delegated_subtask"
+      ],
+      "intents": [
+        "discuss_options"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/party-mode/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/party-mode/",
+        ".claude/skills/party-mode/"
+      ]
+    },
+    {
+      "id": "party-mode-v2",
+      "displayName": "Party Mode V2",
+      "aliases": [
+        "party-v2"
+      ],
+      "kind": "mode",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "no_task",
+        "planning",
+        "in_progress",
+        "review",
+        "completed",
+        "delegated_subtask"
+      ],
+      "intents": [
+        "run_party_board"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/party-mode-v2/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/party-mode-v2/",
+        ".claude/skills/party-mode-v2/"
+      ]
+    },
+    {
+      "id": "python-design",
+      "displayName": "Python Design",
+      "aliases": [],
+      "kind": "domain",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "planning",
+        "in_progress",
+        "review"
+      ],
+      "intents": [
+        "guide_python_design"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/python-design/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/python-design/",
+        ".claude/skills/python-design/"
+      ]
+    },
+    {
+      "id": "review-gates",
+      "displayName": "Review Gates Runtime",
+      "aliases": [],
+      "kind": "runtime",
+      "visibility": "internal",
+      "status": "active",
+      "statuses": [],
+      "intents": [],
+      "enforcement": "runtime",
+      "runtimeGate": null,
+      "runtimeCommand": "task review",
+      "evidenceArtifact": "check.jsonl",
+      "source": ".cowork-flow/scripts/common/gates/gates.py",
+      "managedPaths": []
+    },
+    {
+      "id": "start",
+      "displayName": "Start",
+      "aliases": [],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "no_task",
+        "planning",
+        "in_progress",
+        "review",
+        "completed"
+      ],
+      "intents": [
+        "start_task"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/start/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/start/",
+        ".claude/skills/start/"
+      ]
+    },
+    {
+      "id": "tdd",
+      "displayName": "Test Driven Development",
+      "aliases": [],
+      "kind": "protocol",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "in_progress"
+      ],
+      "intents": [
+        "apply_tdd"
+      ],
+      "enforcement": "mandatory",
+      "runtimeGate": "tdd-evidence",
+      "runtimeCommand": null,
+      "evidenceArtifact": "tdd.jsonl",
+      "source": "skills/tdd/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/tdd/",
+        ".claude/skills/tdd/"
+      ]
+    },
+    {
+      "id": "tdd-evidence",
+      "displayName": "TDD Evidence Runtime",
+      "aliases": [],
+      "kind": "runtime",
+      "visibility": "internal",
+      "status": "active",
+      "statuses": [],
+      "intents": [],
+      "enforcement": "runtime",
+      "runtimeGate": null,
+      "runtimeCommand": "task review",
+      "evidenceArtifact": "tdd.jsonl",
+      "source": ".cowork-flow/scripts/common/gates/tdd_evidence.py",
+      "managedPaths": []
+    },
+    {
+      "id": "update-spec",
+      "displayName": "Update Spec",
+      "aliases": [],
+      "kind": "protocol",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "in_progress",
+        "review"
+      ],
+      "intents": [
+        "maintain_spec"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": ".cowork-flow/spec/",
+      "source": "skills/update-spec/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/update-spec/",
+        ".claude/skills/update-spec/"
+      ]
+    },
+    {
+      "id": "using-cowork-flow",
+      "displayName": "Using cowork-flow",
+      "aliases": [
+        "workflow-entry"
+      ],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "no_task",
+        "planning",
+        "in_progress",
+        "review",
+        "completed",
+        "delegated_subtask"
+      ],
+      "intents": [
+        "route_workflow"
+      ],
+      "enforcement": "mandatory",
+      "runtimeGate": "workflow-readiness",
+      "runtimeCommand": null,
+      "evidenceArtifact": null,
+      "source": "skills/using-cowork-flow/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/using-cowork-flow/",
+        ".claude/skills/using-cowork-flow/"
+      ]
+    },
+    {
+      "id": "workflow-readiness",
+      "displayName": "Workflow Readiness Runtime",
+      "aliases": [],
+      "kind": "runtime",
+      "visibility": "internal",
+      "status": "active",
+      "statuses": [],
+      "intents": [],
+      "enforcement": "runtime",
+      "runtimeGate": null,
+      "runtimeCommand": "task next",
+      "evidenceArtifact": null,
+      "source": ".cowork-flow/scripts/common/task/readiness.py",
+      "managedPaths": []
+    },
+    {
+      "id": "writing-plans",
+      "displayName": "Writing Plans",
+      "aliases": [],
+      "kind": "phase",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "no_task",
+        "planning"
+      ],
+      "intents": [
+        "write_plan"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": ".cowork-flow/plans/",
+      "source": "skills/writing-plans/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/writing-plans/",
+        ".claude/skills/writing-plans/"
+      ]
+    }
+  ]
+}

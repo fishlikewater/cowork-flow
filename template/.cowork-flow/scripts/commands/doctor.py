@@ -19,6 +19,7 @@ else:
     import _bootstrap  # noqa: F401
 from common.core.paths import get_repo_root
 from common.core.host_manifest import validate_host_assets
+from common.core.skill_registry import SkillRegistryError, load_skill_registry
 
 
 ENTRY_BOUNDARY_DIR = "entry" + "-boundary"
@@ -111,6 +112,7 @@ REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '"HOST_ADAPTER_CAPABILITIES_V1"',
     '"HOST_ADAPTER_SCHEMA_V1"',
     '"PARTY_MODE_V2_BOARD_V1"',
+    '"SKILL_REGISTRY_V1"',
     '"readWhen"',
     '".cowork-flow/spec/contracts/subagent-dispatch.md"',
     '".cowork-flow/spec/contracts/capabilities.md"',
@@ -208,7 +210,15 @@ def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
 
+def _check_skill_registry(repo_root: Path, errors: list[str]) -> None:
+    try:
+        load_skill_registry(repo_root / "template")
+    except SkillRegistryError as exc:
+        errors.append(f"Skill Registry: {exc}")
+
+
 def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
+    _check_skill_registry(repo_root, errors)
     errors.extend(validate_host_assets(repo_root / "template"))
     for rel in (
         ".cowork-flow/spec/schemas/adapter.schema.json",
