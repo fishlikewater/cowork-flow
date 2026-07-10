@@ -169,13 +169,6 @@ def _read_json(path: Path) -> dict:
     except FileNotFoundError:
         return {}
     except (json.JSONDecodeError, OSError):
-        # Corrupt file — remove to avoid orphan state
-        import sys
-        print(f"Warning: Corrupt JSON cleaned up: {path}", file=sys.stderr)
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -249,11 +242,15 @@ def resolve_host_context_key(values: Mapping[str, object] | None = None) -> str 
 
 
 def read_runtime_context(repo_root: Path, runtime_context_id: str) -> dict:
-    return _read_json(runtime_context_path(repo_root, runtime_context_id))
+    from application.runtime_context_service import RuntimeContextService
+
+    return RuntimeContextService(repo_root).load(runtime_context_id)
 
 
 def write_runtime_context(repo_root: Path, runtime_context_id: str, data: dict) -> None:
-    _write_json(runtime_context_path(repo_root, runtime_context_id), data)
+    from application.runtime_context_service import RuntimeContextService
+
+    RuntimeContextService(repo_root).replace(runtime_context_id, data)
 
 
 def write_subagent_logical_session(
@@ -284,12 +281,6 @@ def bind_runtime_context(
     host_context_key: str | None = None,
     values: Mapping[str, object] | None = None,
 ) -> dict | None:
-    context = read_runtime_context(repo_root, runtime_context_id)
-    if not context or context.get(FIELD_SCOPE) != SCOPE_SUBAGENT:
-        return None
-    if context.get("status") == "closed":
-        return None
-
     resolved_key = (
         _sanitize(host_context_key)
         if host_context_key
@@ -298,53 +289,31 @@ def bind_runtime_context(
     if not resolved_key:
         return None
 
-    existing_key = context.get("bound_context_key")
-    if isinstance(existing_key, str) and existing_key.strip() and existing_key != resolved_key:
+    from application.runtime_context_service import (
+        RuntimeContextError,
+        RuntimeContextService,
+    )
+
+    try:
+        return RuntimeContextService(repo_root).bind(
+            runtime_context_id,
+            resolved_key,
+        )
+    except RuntimeContextError:
         return None
-
-    task_path = context.get("task_dir")
-    session: dict[str, object] = {
-        "schema_version": 2,
-        FIELD_SCOPE: SCOPE_SUBAGENT,
-        FIELD_RUNTIME_CONTEXT_ID: runtime_context_id,
-        "platform": _platform_from_context_key(resolved_key),
-        "status": "bound",
-        "last_seen_at": _now(),
-    }
-    if isinstance(task_path, str) and task_path.strip():
-        session[FIELD_ACTIVE_TASK_PATH] = task_path.strip()
-    _write_json(_session_path(repo_root, resolved_key), session)
-
-    context["status"] = "bound"
-    context["bound_context_key"] = resolved_key
-    if not context.get("bound_at"):
-        context["bound_at"] = _now()
-    context["last_seen_at"] = _now()
-    write_runtime_context(repo_root, runtime_context_id, context)
-    return context
 
 
 def close_runtime_context(repo_root: Path, runtime_context_id: str) -> bool:
-    context = read_runtime_context(repo_root, runtime_context_id)
-    if not context:
-        return False
+    from application.runtime_context_service import RuntimeContextService
 
-    bound_context_key = context.get("bound_context_key")
-    for context_key in (bound_context_key, logical_subagent_context_key(runtime_context_id)):
-        if isinstance(context_key, str) and context_key.strip():
-            try:
-                _session_path(repo_root, context_key).unlink()
-            except OSError:
-                pass
-
-    context["status"] = "closed"
-    context["closed_at"] = _now()
-    context["last_seen_at"] = _now()
-    write_runtime_context(repo_root, runtime_context_id, context)
-    return True
+    return RuntimeContextService(repo_root).close(runtime_context_id)
 
 
-def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
+def build_active_task_session(
+    repo_root: Path,
+    task_path: str,
+) -> tuple[Path, dict, ActiveTask] | None:
+    """Build the session state needed to activate a task."""
     context_key = resolve_context_key()
     if not context_key:
         return None
@@ -352,16 +321,26 @@ def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
     target = repo_root / normalized
     if not target.is_dir():
         return None
-    _write_json(
+    data = {
+        FIELD_ACTIVE_TASK_PATH: normalized,
+        FIELD_SCOPE: SCOPE_MAIN,
+        "platform": _platform_from_context_key(context_key),
+        "last_seen_at": _now(),
+    }
+    return (
         _session_path(repo_root, context_key),
-        {
-            FIELD_ACTIVE_TASK_PATH: normalized,
-            FIELD_SCOPE: SCOPE_MAIN,
-            "platform": _platform_from_context_key(context_key),
-            "last_seen_at": _now(),
-        },
+        data,
+        ActiveTask(normalized, context_key, "session"),
     )
-    return ActiveTask(normalized, context_key, "session")
+
+
+def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
+    prepared = build_active_task_session(repo_root, task_path)
+    if prepared is None:
+        return None
+    session_path, data, active = prepared
+    _write_json(session_path, data)
+    return active
 
 
 def get_active_task(repo_root: Path, values: Mapping[str, object] | None = None) -> ActiveTask:
@@ -373,6 +352,23 @@ def get_active_task(repo_root: Path, values: Mapping[str, object] | None = None)
     if isinstance(task_path, str) and task_path.strip():
         return ActiveTask(task_path.strip(), context_key, "session")
     return ActiveTask(None, context_key, "empty-session")
+
+
+def is_main_session(repo_root: Path, values: Mapping[str, object] | None = None) -> bool:
+    """Return whether the current host session is an unscoped main session."""
+    context_key = resolve_context_key(values)
+    if not context_key:
+        return False
+    data = _read_json(_session_path(repo_root, context_key))
+    scope = data.get(FIELD_SCOPE)
+    legacy_main_session = (
+        scope is None
+        and not context_key.startswith("subagent_")
+    )
+    return (
+        (scope == SCOPE_MAIN or legacy_main_session)
+        and not data.get(FIELD_RUNTIME_CONTEXT_ID)
+    )
 
 
 def clear_active_task(repo_root: Path) -> ActiveTask:

@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
+import { runInitWithOptions } from '../src/commands/init.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
-import { createTempDir, exists, readText } from './helpers/fs.js';
+import {
+  createTempDir,
+  exists,
+  fileSystemWithRenameFailure,
+  readText
+} from './helpers/fs.js';
 
 function createIo() {
   return {
@@ -199,6 +205,28 @@ test('init overwrites existing files with --force', async (t) => {
   assert.equal(code, 0);
   assert.notEqual(await readText(join(target, 'AGENTS.md')), 'custom agents\n');
   assert.match(io.stdout, /updated=/);
+});
+
+test('init rolls back template and developer assets after an injected commit failure', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const developerFile = join(target, '.cowork-flow', '.developer');
+  const fileSystem = fileSystemWithRenameFailure(
+    (source, destination) => source.includes(`${sep}staging${sep}`)
+      && destination === developerFile
+  );
+
+  await assert.rejects(
+    runInitWithOptions(
+      [target, '--developer', 'codex', '--platform', 'codex'],
+      { io: createIo(), prompt: null, selectPlatforms: null, fileSystem }
+    ),
+    /injected commit failure/
+  );
+
+  assert.equal(await exists(join(target, 'AGENTS.md')), false);
+  assert.equal(await exists(developerFile), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'workspace', 'codex', 'journal-1.md')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', '.version')), false);
 });
 
 test('init dry-run does not write files', async (t) => {

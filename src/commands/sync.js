@@ -25,7 +25,7 @@ function parseSyncArgs(args) {
   return options;
 }
 
-export async function runSync(args, { io }) {
+export async function runSync(args, { io, fileSystem }) {
   const options = parseSyncArgs(args);
   const packageInfo = await readPackageInfo();
   const platforms = await detectInstalledPlatforms(options.target);
@@ -35,7 +35,7 @@ export async function runSync(args, { io }) {
     version: packageInfo.version
   });
 
-  await applyPlan(plan, { dryRun: options.dryRun });
+  await applyPlan(plan, { dryRun: options.dryRun, fileSystem });
   io.writeOut(summarizePlan(plan, options.dryRun));
   io.writeOut(`Platforms: ${platforms.length > 0 ? formatPlatformList(platforms) : 'none'}\n`);
   return 0;

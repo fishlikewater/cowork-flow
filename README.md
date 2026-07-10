@@ -51,6 +51,14 @@ template/
     └── workspace/             # 开发者工作区
 ```
 
+## 架构与扩展点
+
+- **应用服务层**：任务创建、生命周期、归档、上下文、任务树和 runtime context 编排位于 `scripts/application/`；命令层只负责参数和输出适配。
+- **状态存储层**：`scripts/common/storage/` 提供显式 UTF-8、修订检查、操作日志和可恢复 Unit of Work；任务与会话写入不再直接散落在命令函数中。
+- **Host Asset Manifest**：`spec/runtime/host-assets.json` 是宿主资产、平台识别、同步策略和 obsolete 迁移清单的权威来源。新增平台或资产时更新 Manifest 与 schema，不在 CLI 中新增硬编码集合。
+- **事务式 init/sync**：CLI 先构建不可变 Asset Plan，在同文件系统 staging 中校验 hash/权限，再按备份清单提交；失败时逆序回滚，`.cowork-flow/.version` 最后更新。
+- **共享 Hook 核心**：Codex 与 Claude Code Hook 只做宿主输入适配，工作流状态解析由 `scripts/common/host/workflow_state_hook.py` 统一实现。
+
 ## Skills 分发机制
 
 Skills 维护在 `template/skills/` 唯一源码，`init` 时按平台分发到对应目录：
@@ -85,6 +93,8 @@ Skills 维护在 `template/skills/` 唯一源码，`init` 时按平台分发到�
 - **自动识别**已安装 host 目录，只同步对应平台资产
 - **Skills** 从 `template/skills/` 按平台分发
 - **保护文件**：`config.yaml`、`workflow.md`、`spec/`（除 `workflow-state-templates.md`）、任务、计划、变更、workspace
+- **兼容升级**：旧脚本位置、旧 adapter 资产和已废弃文件按 Host Asset Manifest 的 `obsoleteFiles` 迁移清理；用户保护文件保持不变
+- **事务恢复**：上次未完成事务会在新一轮 sync 前恢复；事务元数据缺失或损坏时 fail-closed，不在未知状态上继续写入
 - `--force` 整文件覆盖保护文件
 
 ## ZCode 插件
@@ -166,13 +176,16 @@ npm run release -- minor # minor
 ```
 
 **发布流程：**
-1. `npm run test:all`（Node + Python + pack check）
-2. `npm version` 升级版本
-3. 同步版本到 `template/.cowork-flow/.version` 和 `template/.zcode/.zcode-plugin/plugin.json`
-4. `git commit` + `git tag`
-5. `npm publish`
+1. `npm test`、`npm run test:template`、`npm run pack:check`、`git diff --check`
+2. 稳定性变更使用 `COWORK_TEMPLATE_TEST_REPEAT=3` 和固定 `COWORK_TEMPLATE_TEST_SEED` 重复运行模板测试
+3. `npm version` 升级版本
+4. 同步版本到 `template/.cowork-flow/.version` 和 `template/.zcode/.zcode-plugin/plugin.json`
+5. `git commit` + `git tag`
+6. `npm publish`
 
 CI 需要 `NPM_TOKEN` secret。
+
+Windows 上发布前使用 `run.cmd` 入口验证；POSIX shell 专属 release 用例在没有 shell 的 Windows 环境会明确跳过，不得记录为通过。
 
 ## 接入原则
 

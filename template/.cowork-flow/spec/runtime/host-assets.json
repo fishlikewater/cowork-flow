@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "capabilityValues": [
+    "native",
+    "shim",
+    "plugin",
+    "external",
+    "experimental",
+    "unsupported"
+  ],
+  "platforms": [
+    {
+      "id": "codex",
+      "displayName": "Codex",
+      "aliases": [
+        "codex"
+      ],
+      "detectAny": [
+        ".codex"
+      ],
+      "assetPrefixes": [
+        ".codex/",
+        ".cowork-flow/adapters/codex/"
+      ],
+      "assetFiles": [],
+      "skillTarget": ".agents/skills",
+      "adapterPath": ".cowork-flow/adapters/codex/adapter.yaml",
+      "capabilities": {
+        "dispatchSubagent": "native",
+        "freshChildContext": "native",
+        "sendFollowup": "native",
+        "waitChild": "native",
+        "listChildren": "native",
+        "cancelChild": "native",
+        "stateInjection": "native",
+        "backgroundChild": "native",
+        "runtimeContextDispatch": "native",
+        "runtimeContextBinding": "shim",
+        "runtimeContextCleanup": "native"
+      },
+      "commandTargets": [
+        {
+          "config": ".codex/hooks.json",
+          "format": "json",
+          "target": ".codex/hooks/inject-workflow-state.py"
+        }
+      ]
+    },
+    {
+      "id": "opencode",
+      "displayName": "OpenCode",
+      "aliases": [
+        "opencode"
+      ],
+      "detectAny": [
+        ".opencode"
+      ],
+      "assetPrefixes": [
+        ".opencode/",
+        ".cowork-flow/adapters/opencode/"
+      ],
+      "assetFiles": [],
+      "skillTarget": ".agents/skills",
+      "adapterPath": ".cowork-flow/adapters/opencode/adapter.yaml",
+      "capabilities": {
+        "dispatchSubagent": "native",
+        "freshChildContext": "native",
+        "sendFollowup": "shim",
+        "waitChild": "native",
+        "listChildren": "native",
+        "cancelChild": "native",
+        "stateInjection": "plugin",
+        "backgroundChild": "experimental",
+        "runtimeContextDispatch": "native",
+        "runtimeContextBinding": "shim",
+        "runtimeContextCleanup": "native"
+      },
+      "commandTargets": []
+    },
+    {
+      "id": "claude-code",
+      "displayName": "Claude Code",
+      "aliases": [
+        "claude-code",
+        "claude",
+        "claudecode"
+      ],
+      "detectAny": [
+        ".claude",
+        "CLAUDE.md"
+      ],
+      "assetPrefixes": [
+        ".claude/",
+        ".cowork-flow/adapters/claude-code/"
+      ],
+      "assetFiles": [
+        "CLAUDE.md"
+      ],
+      "skillTarget": ".claude/skills",
+      "adapterPath": ".cowork-flow/adapters/claude-code/adapter.yaml",
+      "capabilities": {
+        "dispatchSubagent": "native",
+        "freshChildContext": "native",
+        "sendFollowup": "native",
+        "waitChild": "native",
+        "listChildren": "native",
+        "cancelChild": "native",
+        "stateInjection": "external",
+        "backgroundChild": "native",
+        "runtimeContextDispatch": "native",
+        "runtimeContextBinding": "shim",
+        "runtimeContextCleanup": "native"
+      },
+      "commandTargets": [
+        {
+          "config": ".claude/settings.json",
+          "format": "json",
+          "target": ".claude/hooks/inject-workflow-state.py"
+        }
+      ]
+    }
+  ],
+  "excludedPrefixes": [
+    "skills/",
+    ".zcode/"
+  ],
+  "syncPolicy": {
+    "protectedFiles": [
+      ".cowork-flow/config.yaml"
+    ],
+    "protectedPrefixes": [
+      ".cowork-flow/spec/",
+      ".cowork-flow/workspace/",
+      ".cowork-flow/tasks/",
+      ".cowork-flow/changes/",
+      ".cowork-flow/plans/"
+    ],
+    "safeFiles": [
+      ".cowork-flow/.gitignore",
+      ".cowork-flow/.version",
+      ".cowork-flow/run",
+      ".cowork-flow/run.cmd",
+      ".cowork-flow/spec/runtime/rules.json",
+      ".cowork-flow/spec/contracts/workflow-state-templates.md"
+    ],
+    "safePrefixes": [
+      ".cowork-flow/"
+    ],
+    "managedBlockFiles": [
+      "AGENTS.md",
+      "CLAUDE.md"
+    ],
+    "obsoleteFiles": [
+      ".cowork-flow/project-context.md",
+      ".cowork-flow/scripts/add_session.py",
+      ".cowork-flow/scripts/change.py",
+      ".cowork-flow/scripts/doctor.py",
+      ".cowork-flow/scripts/get_context.py",
+      ".cowork-flow/scripts/get_developer.py",
+      ".cowork-flow/scripts/init_developer.py",
+      ".cowork-flow/scripts/party_mode_v2.py",
+      ".cowork-flow/scripts/project_context.py",
+      ".cowork-flow/scripts/resume.py",
+      ".cowork-flow/scripts/subagent.py",
+      ".cowork-flow/scripts/task.py",
+      ".cowork-flow/scripts/common/active_task.py",
+      ".cowork-flow/scripts/common/archive_utils.py",
+      ".cowork-flow/scripts/common/coding_standards.py",
+      ".cowork-flow/scripts/common/config.py",
+      ".cowork-flow/scripts/common/developer.py",
+      ".cowork-flow/scripts/common/execution_context.py",
+      ".cowork-flow/scripts/common/files.py",
+      ".cowork-flow/scripts/common/gates.py",
+      ".cowork-flow/scripts/common/git_context.py",
+      ".cowork-flow/scripts/common/git_snapshot.py",
+      ".cowork-flow/scripts/common/paths.py",
+      ".cowork-flow/scripts/common/readiness.py",
+      ".cowork-flow/scripts/common/state_machine.py",
+      ".cowork-flow/scripts/common/task_utils.py",
+      ".cowork-flow/scripts/common/tdd_evidence.py",
+      ".cowork-flow/scripts/common/test_intent.py",
+      ".cowork-flow/scripts/common/validate_coding_standards.py",
+      ".cowork-flow/scripts/common/validate_implementation.py",
+      ".cowork-flow/scripts/common/validate_rules.py",
+      ".cowork-flow/spec/contracts/entry-contract.md"
+    ]
+  }
+}

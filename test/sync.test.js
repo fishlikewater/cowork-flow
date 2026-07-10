@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
+import { runSync } from '../src/commands/sync.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { templateRoot } from '../src/lib/paths.js';
-import { createTempDir, exists, readText } from './helpers/fs.js';
+import {
+  createTempDir,
+  exists,
+  fileSystemWithRenameFailure,
+  readText
+} from './helpers/fs.js';
 
 function createIo() {
   return {
@@ -116,6 +122,42 @@ test('sync updates safe template files and preserves protected files', async (t)
   assert.match(io.stdout, /protected=/);
 });
 
+test('sync upgrades framework-owned runtime rules metadata without overwriting local specs', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
+    0
+  );
+  const rulesPath = join(target, '.cowork-flow', 'spec', 'runtime', 'rules.json');
+  const templateRules = await readText(
+    join(templateRoot, '.cowork-flow', 'spec', 'runtime', 'rules.json')
+  );
+  const legacyRules = JSON.parse(templateRules);
+  for (const rule of legacyRules.rules) {
+    delete rule.validator;
+    delete rule.parameters;
+  }
+  await writeFile(
+    rulesPath,
+    `${JSON.stringify(legacyRules, null, 2)}\n`,
+    'utf8'
+  );
+  const localSpecPath = join(
+    target,
+    '.cowork-flow',
+    'spec',
+    'contracts',
+    'local-extension.md'
+  );
+  await writeFile(localSpecPath, '# Local extension\n', 'utf8');
+
+  const code = await main(['sync', target], { io: createIo() });
+
+  assert.equal(code, 0);
+  assert.equal(await readText(rulesPath), templateRules);
+  assert.equal(await readText(localSpecPath), '# Local extension\n');
+});
+
 test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
@@ -184,6 +226,30 @@ test('sync dry-run does not write safe file updates', async (t) => {
   assert.equal(await readText(join(target, '.agents', 'skills', 'start', 'SKILL.md')), 'old skill\n');
   assert.match(io.stdout, /dry-run/);
   assert.match(io.stdout, /would-update=/);
+});
+
+test('sync rolls back after an injected commit failure', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
+    0
+  );
+  const runner = join(target, '.cowork-flow', 'run');
+  const versionFile = join(target, '.cowork-flow', '.version');
+  await writeFile(runner, 'old runner\n', 'utf8');
+  await writeFile(versionFile, '0.1.0\n', 'utf8');
+  const fileSystem = fileSystemWithRenameFailure(
+    (source, destination) => source.includes(`${sep}staging${sep}`)
+      && destination === versionFile
+  );
+
+  await assert.rejects(
+    runSync([target], { io: createIo(), fileSystem }),
+    /injected commit failure/
+  );
+
+  assert.equal(await readText(runner), 'old runner\n');
+  assert.equal(await readText(versionFile), '0.1.0\n');
 });
 
 test('sync creates missing safe placeholder files', async (t) => {

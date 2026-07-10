@@ -301,3 +301,162 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertFalse((sessions / "subagent_rtx_demo.json").exists())
             context = json.loads((context_dir / "rtx_demo.json").read_text(encoding="utf-8"))
             self.assertEqual("closed", context["status"])
+
+    def test_corrupt_session_is_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sessions = self.active_task.sessions_dir(root)
+            sessions.mkdir(parents=True)
+            session_path = sessions / "codex_main.json"
+            session_path.write_text("{broken", encoding="utf-8")
+
+            with patch.dict(os.environ, {"CODEX_SESSION_ID": "main"}, clear=True):
+                active = self.active_task.get_active_task(root)
+
+            self.assertIsNone(active.task_path)
+            self.assertEqual("empty-session", active.source)
+            self.assertTrue(session_path.exists())
+            self.assertEqual("{broken", session_path.read_text(encoding="utf-8"))
+
+
+class RuntimeContextTransactionTest(unittest.TestCase):
+    def setUp(self) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        self.addCleanup(self._cleanup_imports)
+        self.active_task = importlib.import_module("common.task.active_task")
+        self.runtime_context = importlib.import_module(
+            "application.runtime_context_service"
+        )
+
+    def _cleanup_imports(self) -> None:
+        if str(SCRIPTS) in sys.path:
+            sys.path.remove(str(SCRIPTS))
+        for module_name in (
+            "application.runtime_context_service",
+            "application",
+            "common.task.active_task",
+            "common.storage.unit_of_work",
+            "common.storage.operation_log",
+            "common.storage.state_store",
+            "common.core.paths",
+            "common",
+        ):
+            sys.modules.pop(module_name, None)
+
+    @staticmethod
+    def _fail_after_first(index, _mutation) -> None:
+        if index == 0:
+            raise RuntimeError("simulated crash")
+
+    @staticmethod
+    def _context() -> dict:
+        return {
+            "schema_version": 2,
+            "runtime_context_id": "rtx_demo",
+            "scope": "subagent",
+            "host": "codex",
+            "task_dir": ".cowork-flow/tasks/05-28-demo",
+            "status": "pending",
+            "bound_context_key": None,
+        }
+
+    def test_init_recovers_after_runtime_context_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            service = self.runtime_context.RuntimeContextService(
+                root,
+                fault_injector=self._fail_after_first,
+            )
+
+            with self.assertRaises(RuntimeError):
+                service.initialize("rtx_demo", self._context())
+
+            context_path = self.active_task.runtime_context_path(root, "rtx_demo")
+            logical_path = (
+                self.active_task.sessions_dir(root) / "subagent_rtx_demo.json"
+            )
+            self.assertTrue(context_path.exists())
+            self.assertFalse(logical_path.exists())
+
+            result = self.runtime_context.RuntimeContextService(root).initialize(
+                "rtx_demo",
+                self._context(),
+            )
+
+            self.assertEqual("subagent_rtx_demo", result.logical_context_key)
+            self.assertTrue(logical_path.exists())
+            session = json.loads(logical_path.read_text(encoding="utf-8"))
+            self.assertEqual("pending_bind", session["status"])
+
+    def test_bind_recovers_after_host_session_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context_path = self.active_task.runtime_context_path(root, "rtx_demo")
+            context_path.parent.mkdir(parents=True)
+            context_path.write_text(
+                json.dumps(self._context(), ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            service = self.runtime_context.RuntimeContextService(
+                root,
+                fault_injector=self._fail_after_first,
+            )
+
+            with self.assertRaises(RuntimeError):
+                service.bind("rtx_demo", "codex_child")
+
+            host_path = self.active_task.sessions_dir(root) / "codex_child.json"
+            self.assertTrue(host_path.exists())
+            partial = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("pending", partial["status"])
+
+            bound = self.runtime_context.RuntimeContextService(root).bind(
+                "rtx_demo",
+                "codex_child",
+            )
+
+            self.assertIsNotNone(bound)
+            self.assertEqual("bound", bound["status"])
+            self.assertEqual("codex_child", bound["bound_context_key"])
+
+    def test_close_recovers_after_host_session_delete(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context = self._context()
+            context["status"] = "bound"
+            context["bound_context_key"] = "codex_child"
+            context_path = self.active_task.runtime_context_path(root, "rtx_demo")
+            context_path.parent.mkdir(parents=True)
+            context_path.write_text(
+                json.dumps(context, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            sessions = self.active_task.sessions_dir(root)
+            sessions.mkdir(parents=True)
+            host_path = sessions / "codex_child.json"
+            logical_path = sessions / "subagent_rtx_demo.json"
+            host_path.write_text("{}\n", encoding="utf-8")
+            logical_path.write_text("{}\n", encoding="utf-8")
+            service = self.runtime_context.RuntimeContextService(
+                root,
+                fault_injector=self._fail_after_first,
+            )
+
+            with self.assertRaises(RuntimeError):
+                service.close("rtx_demo")
+
+            self.assertFalse(host_path.exists())
+            self.assertTrue(logical_path.exists())
+            partial = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("bound", partial["status"])
+
+            closed = self.runtime_context.RuntimeContextService(root).close(
+                "rtx_demo"
+            )
+
+            self.assertTrue(closed)
+            self.assertFalse(host_path.exists())
+            self.assertFalse(logical_path.exists())
+            final = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("closed", final["status"])

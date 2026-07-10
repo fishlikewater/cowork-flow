@@ -1,7 +1,10 @@
-﻿import { constants } from 'node:fs';
-import { access, chmod, copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { constants } from 'node:fs';
+import { access, readFile, readdir } from 'node:fs/promises';
+import { join, relative } from 'node:path';
 
+import { createAssetPlan, planActions } from './asset-plan.js';
+import { hostRegistry } from './host-assets.js';
+import { applyAssetPlan } from './plan-applier.js';
 import { templateRoot } from './paths.js';
 import { shouldIncludeForPlatforms, skillDestinationForPlatform } from './platforms.js';
 
@@ -96,71 +99,36 @@ export async function buildInitPlan(targetDir, options = {}) {
     content: `${options.version}\n`
   });
 
-  return actions;
+  const additionalActions = options.additionalActions ?? [];
+  const overrides = new Set(
+    additionalActions.map((action) => action.destination)
+  );
+  return createAssetPlan({
+    kind: 'init',
+    targetDir,
+    actions: [
+      ...actions.filter((action) => !overrides.has(action.destination)),
+      ...additionalActions
+    ]
+  });
 }
 
-const PROTECTED_SYNC_FILES = new Set([
-  '.cowork-flow/config.yaml'
-]);
-
-const PROTECTED_SYNC_PREFIXES = [
-  '.cowork-flow/spec/',
-  '.cowork-flow/workspace/',
-  '.cowork-flow/tasks/',
-  '.cowork-flow/changes/',
-  '.cowork-flow/plans/'
-];
-
+const PROTECTED_SYNC_FILES = new Set(
+  hostRegistry.syncPolicy.protectedFiles
+);
+const PROTECTED_SYNC_PREFIXES = hostRegistry.syncPolicy.protectedPrefixes;
+const SAFE_SYNC_FILES = new Set(hostRegistry.syncPolicy.safeFiles);
 const SAFE_SYNC_PREFIXES = [
-  '.codex/',
-  '.opencode/',
-  '.claude/',
-  '.agents/skills/',
-  '.cowork-flow/'
+  ...hostRegistry.syncPolicy.safePrefixes,
+  ...hostRegistry.assetPrefixes,
+  ...hostRegistry.skillTargets.map((target) => `${target}/`)
 ];
-
-const SAFE_SYNC_FILES = new Set([
-  '.cowork-flow/.gitignore',
-  '.cowork-flow/.version',
-  '.cowork-flow/run',
-  '.cowork-flow/run.cmd',
-  '.cowork-flow/spec/contracts/workflow-state-templates.md'
-]);
-
-const OBSOLETE_SYNC_FILES = new Set([
-  '.cowork-flow/project-context.md',
-  '.cowork-flow/scripts/add_session.py',
-  '.cowork-flow/scripts/change.py',
-  '.cowork-flow/scripts/doctor.py',
-  '.cowork-flow/scripts/get_context.py',
-  '.cowork-flow/scripts/get_developer.py',
-  '.cowork-flow/scripts/init_developer.py',
-  '.cowork-flow/scripts/party_mode_v2.py',
-  '.cowork-flow/scripts/project_context.py',
-  '.cowork-flow/scripts/resume.py',
-  '.cowork-flow/scripts/subagent.py',
-  '.cowork-flow/scripts/task.py',
-  '.cowork-flow/scripts/common/active_task.py',
-  '.cowork-flow/scripts/common/archive_utils.py',
-  '.cowork-flow/scripts/common/coding_standards.py',
-  '.cowork-flow/scripts/common/config.py',
-  '.cowork-flow/scripts/common/developer.py',
-  '.cowork-flow/scripts/common/execution_context.py',
-  '.cowork-flow/scripts/common/files.py',
-  '.cowork-flow/scripts/common/gates.py',
-  '.cowork-flow/scripts/common/git_context.py',
-  '.cowork-flow/scripts/common/git_snapshot.py',
-  '.cowork-flow/scripts/common/paths.py',
-  '.cowork-flow/scripts/common/readiness.py',
-  '.cowork-flow/scripts/common/state_machine.py',
-  '.cowork-flow/scripts/common/task_utils.py',
-  '.cowork-flow/scripts/common/tdd_evidence.py',
-  '.cowork-flow/scripts/common/test_intent.py',
-  '.cowork-flow/scripts/common/validate_coding_standards.py',
-  '.cowork-flow/scripts/common/validate_implementation.py',
-  '.cowork-flow/scripts/common/validate_rules.py',
-  '.cowork-flow/spec/contracts/entry-contract.md'
-]);
+const MANAGED_BLOCK_FILES = new Set(
+  hostRegistry.syncPolicy.managedBlockFiles
+);
+const OBSOLETE_SYNC_FILES = new Set(
+  hostRegistry.syncPolicy.obsoleteFiles
+);
 
 const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';
 const COWORK_FLOW_END = '<!-- COWORK-FLOW:END -->';
@@ -178,6 +146,7 @@ function isSafeSyncFile(relativePath) {
   const templatePath = toTemplatePath(relativePath);
   return SAFE_SYNC_FILES.has(templatePath)
     || SAFE_SYNC_PREFIXES.some((prefix) => templatePath.startsWith(prefix))
+    || hostRegistry.isKnownPlatformAsset(templatePath)
     || templatePath.endsWith('/.gitkeep');
 }
 
@@ -247,7 +216,7 @@ export async function buildSyncPlan(targetDir, options = {}) {
 
     const source = join(templateRoot, file);
     const exists = await pathExists(destination);
-    if (file === 'AGENTS.md' || file === 'CLAUDE.md') {
+    if (MANAGED_BLOCK_FILES.has(toTemplatePath(file))) {
       actions.push(await buildManagedBlockSyncAction({ source, destination, exists, options, relativePath: file }));
       continue;
     }
@@ -280,7 +249,9 @@ export async function buildSyncPlan(targetDir, options = {}) {
         if (seen.has(dest)) continue;
         seen.add(dest);
         const destExists = await pathExists(dest);
-        const safe = ['.agents/skills', '.claude/skills'].some((p) => dest.startsWith(join(targetDir, p)));
+        const safe = hostRegistry.skillTargets.some(
+          (target) => dest.startsWith(join(targetDir, target))
+        );
         if (destExists && (safe || options.force)) {
           actions.push({ action: 'update', source: join(skillsSrc, skillName, 'SKILL.md'), destination: dest, relativePath: join(destBase, skillName, 'SKILL.md') });
         } else if (!destExists) {
@@ -305,24 +276,19 @@ export async function buildSyncPlan(targetDir, options = {}) {
     content: `${options.version}\n`
   });
 
-  return actions;
+  return createAssetPlan({
+    kind: 'sync',
+    targetDir,
+    actions
+  });
 }
 
 export async function detectInstalledPlatforms(targetDir) {
-  const platforms = [];
-  if (await pathExists(join(targetDir, '.codex'))) {
-    platforms.push('codex');
-  }
-  if (await pathExists(join(targetDir, '.opencode'))) {
-    platforms.push('opencode');
-  }
-  if (await pathExists(join(targetDir, '.claude')) || await pathExists(join(targetDir, 'CLAUDE.md'))) {
-    platforms.push('claude-code');
-  }
-  return platforms;
+  return hostRegistry.detectInstalledPlatforms(targetDir, pathExists);
 }
 
-export function summarizePlan(actions, dryRun = false) {
+export function summarizePlan(plan, dryRun = false) {
+  const actions = planActions(plan);
   const counts = { create: 0, update: 0, skip: 0, protected: 0, delete: 0 };
   for (const action of actions) {
     counts[action.action] += 1;
@@ -335,27 +301,6 @@ export function summarizePlan(actions, dryRun = false) {
   return `${prefix}${createLabel}=${counts.create} ${updateLabel}=${counts.update} ${deleteLabel}=${counts.delete} skipped=${counts.skip} protected=${counts.protected}\n`;
 }
 
-export async function applyPlan(actions, options = {}) {
-  if (options.dryRun) {
-    return;
-  }
-
-  for (const item of actions) {
-    if (item.action === 'skip' || item.action === 'protected') {
-      continue;
-    }
-    if (item.action === 'delete') {
-      await rm(item.destination, { force: true });
-      continue;
-    }
-
-    await mkdir(dirname(item.destination), { recursive: true });
-    if (item.content !== undefined) {
-      await writeFile(item.destination, item.content, 'utf8');
-    } else {
-      await copyFile(item.source, item.destination);
-      const sourceStats = await stat(item.source);
-      await chmod(item.destination, sourceStats.mode & 0o777);
-    }
-  }
+export async function applyPlan(plan, options = {}) {
+  await applyAssetPlan(plan, options);
 }

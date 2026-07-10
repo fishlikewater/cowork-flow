@@ -1,0 +1,7 @@
+{
+  "id": "legacy-task",
+  "name": "legacy-task",
+  "title": "旧任务",
+  "status": "in_progress",
+  "unknown_legacy_field": "必须保留"
+}

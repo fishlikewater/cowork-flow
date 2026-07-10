@@ -362,6 +362,27 @@ class CoworkAgentsTest(unittest.TestCase):
             timeout=30,
         )
 
+    def test_subagent_safety_doctor_accepts_current_codex_hook_command(self) -> None:
+        doctor = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "scripts"
+            / "commands"
+            / "doctor.py"
+        )
+
+        result = subprocess.run(
+            [sys.executable, str(doctor), "--subagent-safety"],
+            cwd=ROOT,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=30,
+        )
+
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
     def _build_deployed_workspace(self, temp_dir: str) -> Path:
         """Build a workspace that mirrors a deployed project layout.
 

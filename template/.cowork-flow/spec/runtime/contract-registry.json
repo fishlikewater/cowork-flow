@@ -39,6 +39,18 @@
       ]
     },
     {
+      "id": "HOST_ASSET_MANIFEST_V1",
+      "path": ".cowork-flow/spec/runtime/host-assets.json",
+      "digest": [
+        "Host platform aliases, assets, capabilities, and sync policies are declared in one manifest.",
+        "Node init/sync and Python Doctor consume the same host asset registry."
+      ],
+      "readWhen": [
+        "before adding or changing a host platform",
+        "when modifying init, sync, Doctor, or host assets"
+      ]
+    },
+    {
       "id": "WORKFLOW_STATE_TEMPLATES_V1",
       "path": ".cowork-flow/spec/contracts/workflow-state-templates.md",
       "digest": [
