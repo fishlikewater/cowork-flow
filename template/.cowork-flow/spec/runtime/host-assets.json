@@ -141,6 +141,8 @@
       ".cowork-flow/run",
       ".cowork-flow/run.cmd",
       ".cowork-flow/spec/runtime/rules.json",
+      ".cowork-flow/spec/runtime/skill-registry.json",
+      ".cowork-flow/spec/schemas/skill-registry.schema.json",
       ".cowork-flow/spec/contracts/workflow-state-templates.md"
     ],
     "safePrefixes": [

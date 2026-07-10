@@ -7,6 +7,7 @@ import { hostRegistry } from './host-assets.js';
 import { applyAssetPlan } from './plan-applier.js';
 import { templateRoot } from './paths.js';
 import { shouldIncludeForPlatforms, skillDestinationForPlatform } from './platforms.js';
+import { skillRegistry } from './skill-registry.js';
 
 async function pathExists(path) {
   try {
@@ -66,26 +67,19 @@ export async function buildInitPlan(targetDir, options = {}) {
     actions.push({ action, source, destination, relativePath: file });
   }
 
-  // Inject per-platform skills directories from the canonical template/skills/.
-  const skillsSrc = join(templateRoot, 'skills');
-  if (await pathExists(skillsSrc)) {
-    const skillEntries = await readdir(skillsSrc, { withFileTypes: true });
-    for (const entry of skillEntries) {
-      if (!entry.isDirectory()) continue;
-      const skillName = entry.name;
-      for (const platform of platforms) {
-        const destBase = skillDestinationForPlatform(platform);
-        if (!destBase) continue;
-        const dest = join(targetDir, destBase, skillName, 'SKILL.md');
-        if (seen.has(dest)) continue;
-        seen.add(dest);
-        actions.push({
-          action: (await pathExists(dest)) ? 'skip' : 'create',
-          source: join(skillsSrc, skillName, 'SKILL.md'),
-          destination: dest,
-          relativePath: join(destBase, skillName, 'SKILL.md')
-        });
-      }
+  for (const entry of skillRegistry.publicEntries) {
+    for (const platform of platforms) {
+      const destBase = skillDestinationForPlatform(platform);
+      if (!destBase) continue;
+      const dest = join(targetDir, destBase, entry.id, 'SKILL.md');
+      if (seen.has(dest)) continue;
+      seen.add(dest);
+      actions.push({
+        action: (await pathExists(dest)) ? 'skip' : 'create',
+        source: join(templateRoot, entry.source),
+        destination: dest,
+        relativePath: join(destBase, entry.id, 'SKILL.md')
+      });
     }
   }
 
@@ -235,28 +229,31 @@ export async function buildSyncPlan(targetDir, options = {}) {
     }
   }
 
-  // Inject per-platform skills directories from the canonical template/skills/.
-  const skillsSrc = join(templateRoot, 'skills');
-  if (await pathExists(skillsSrc)) {
-    const skillEntries = await readdir(skillsSrc, { withFileTypes: true });
-    for (const entry of skillEntries) {
-      if (!entry.isDirectory()) continue;
-      const skillName = entry.name;
-      for (const platform of platforms) {
-        const destBase = skillDestinationForPlatform(platform);
-        if (!destBase) continue;
-        const dest = join(targetDir, destBase, skillName, 'SKILL.md');
-        if (seen.has(dest)) continue;
-        seen.add(dest);
-        const destExists = await pathExists(dest);
-        const safe = hostRegistry.skillTargets.some(
-          (target) => dest.startsWith(join(targetDir, target))
-        );
-        if (destExists && (safe || options.force)) {
-          actions.push({ action: 'update', source: join(skillsSrc, skillName, 'SKILL.md'), destination: dest, relativePath: join(destBase, skillName, 'SKILL.md') });
-        } else if (!destExists) {
-          actions.push({ action: 'create', source: join(skillsSrc, skillName, 'SKILL.md'), destination: dest, relativePath: join(destBase, skillName, 'SKILL.md') });
-        }
+  for (const entry of skillRegistry.publicEntries) {
+    for (const platform of platforms) {
+      const destBase = skillDestinationForPlatform(platform);
+      if (!destBase) continue;
+      const dest = join(targetDir, destBase, entry.id, 'SKILL.md');
+      if (seen.has(dest)) continue;
+      seen.add(dest);
+      const destExists = await pathExists(dest);
+      const safe = hostRegistry.skillTargets.some(
+        (target) => dest.startsWith(join(targetDir, target))
+      );
+      if (destExists && (safe || options.force)) {
+        actions.push({
+          action: 'update',
+          source: join(templateRoot, entry.source),
+          destination: dest,
+          relativePath: join(destBase, entry.id, 'SKILL.md')
+        });
+      } else if (!destExists) {
+        actions.push({
+          action: 'create',
+          source: join(templateRoot, entry.source),
+          destination: dest,
+          relativePath: join(destBase, entry.id, 'SKILL.md')
+        });
       }
     }
   }

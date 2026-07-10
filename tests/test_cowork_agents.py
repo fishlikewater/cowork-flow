@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 import shutil
 import subprocess
@@ -17,6 +18,19 @@ except ModuleNotFoundError:  # Python 3.8-3.10
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY_BOUNDARY = "entry" + "-boundary"
+
+
+def load_skill_entries() -> list[dict[str, object]]:
+    registry_path = (
+        ROOT
+        / "template"
+        / ".cowork-flow"
+        / "spec"
+        / "runtime"
+        / "skill-registry.json"
+    )
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
+    return data["entries"]
 
 
 def load_agent_toml(path: Path) -> dict[str, str]:
@@ -60,27 +74,15 @@ class CoworkAgentsTest(unittest.TestCase):
 
     def test_skill_set_is_direct_and_fixed_agent_based(self) -> None:
         expected = {
-            "batch-mode",
-            "before-dev",
-            "brainstorming",
-            "break-loop",
-            "check",
-            "continue",
-            "doubt-review",
-            "finish-work",
-            "game-design",
-            "meta",
-            "party-mode",
-            "party-mode-v2",
-            "python-design",
-            "start",
-            "tdd",
-            "update-spec",
-            "using-cowork-flow",
-            "writing-plans",
+            Path(entry["source"]).parent.name
+            for entry in load_skill_entries()
+            if str(entry["source"]).startswith("skills/")
         }
-        # Skills single source of truth: template/skills/
-        actual = {path.name for path in (ROOT / "template" / "skills").iterdir() if path.is_dir() and not path.name.startswith("bmad-")}
+        actual = {
+            path.name
+            for path in (ROOT / "template" / "skills").iterdir()
+            if path.is_dir() and not path.name.startswith("bmad-")
+        }
         self.assertEqual(expected, actual)
 
     def test_codex_agent_definitions_exist_in_template(self) -> None:
@@ -134,11 +136,9 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertTrue((base / "commands" / f"{name}.md").is_file())
         self.assertTrue((base / "settings.json").is_file())
         self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
-        # Skills single source of truth: template/skills/
-        for name in ("before-dev", "brainstorming", "break-loop", "check", "continue",
-                     "finish-work", "meta", "party-mode", "party-mode-v2",
-                     "python-design", "start", "tdd", "update-spec", "writing-plans"):
-            self.assertTrue((ROOT / "template" / "skills" / name / "SKILL.md").is_file())
+        for entry in load_skill_entries():
+            if entry["visibility"] == "public" and entry["status"] == "active":
+                self.assertTrue((ROOT / "template" / entry["source"]).is_file())
         self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
         self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
