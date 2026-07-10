@@ -78,6 +78,22 @@
       "parameters": {}
     },
     {
+      "id": "R-WF-006",
+      "type": "phase_gate",
+      "severity": "block",
+      "scope": "task_start",
+      "condition": "L2 任务必须有有效的 decision-review.jsonl",
+      "message": "L2 decision review evidence is missing or invalid",
+      "fix_hint": "按 .cowork-flow/spec/protocols/decision-review.md 写入已接受的结构化记录",
+      "source_file": ".cowork-flow/spec/protocols/decision-review.md",
+      "source_excerpt": "L2 task start requires accepted structured decision evidence",
+      "enforcement": "validate_rules",
+      "validator": "runtime.l2_decision_review",
+      "parameters": {
+        "filename": "decision-review.jsonl"
+      }
+    },
+    {
       "id": "R-WF-007",
       "type": "phase_gate",
       "severity": "block",

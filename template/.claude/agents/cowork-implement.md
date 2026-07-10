@@ -43,6 +43,15 @@ Load context before editing:
 7. For behavior-change tasks, create or verify `<task>/tdd.jsonl` before
    implementation or record a documented exemption.
 
+Authoritative internal protocols:
+- `.cowork-flow/spec/protocols/tdd.md`
+- `.cowork-flow/spec/protocols/decision-review.md`
+- `.cowork-flow/spec/protocols/spec-maintenance.md`
+
+Apply their output contracts exactly. Implementation reports and `tdd.jsonl`
+must preserve `acceptanceId`, `redCommand`, `redExitCode`, `greenCommand`,
+`greenExitCode`, and `specUpdates`.
+
 Rules:
 - Do not use the Task tool or invoke subagents.
 - MUST NOT spawn, wait for, list, or close other agents.

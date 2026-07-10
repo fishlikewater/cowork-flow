@@ -247,7 +247,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             )
             self.assertEqual(template_data, zcode_data, str(relative_path))
 
-    def test_tdd_skill_is_synced_between_root_template_and_claude_mirrors(self) -> None:
+    def test_tdd_internal_protocol_preserves_evidence_contract(self) -> None:
         required_markers = (
             "red-green-refactor",
             "tdd.jsonl",
@@ -258,18 +258,25 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "ClassName.test_method",
             "exemption",
         )
-        tdd_text = (ROOT / "template" / "skills" / "tdd" / "SKILL.md").read_text(encoding="utf-8")
+        tdd_text = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "spec"
+            / "protocols"
+            / "tdd.md"
+        ).read_text(encoding="utf-8")
         for marker in required_markers:
             self.assertIn(marker, tdd_text)
 
-    def test_check_skill_and_agent_require_test_intent_review(self) -> None:
+    def test_review_protocol_and_agent_require_test_intent_review(self) -> None:
         required_markers = (
             "test intent",
             "shallow tests",
             "test_intent_review",
         )
         for path in (
-            ROOT / "template" / "skills" / "check" / "SKILL.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "protocols" / "review.md",
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
         ):
             text = path.read_text(encoding="utf-8")

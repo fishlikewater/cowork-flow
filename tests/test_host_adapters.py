@@ -271,11 +271,17 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
                 self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
 
-            for name in ("start", "check"):
+            for name in ("start",):
                 text = (ROOT / "template" / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
                 self.assertIn("name:", text)
                 self.assertIn("description:", text)
                 self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
+
+            review_protocol = (
+                ROOT / "template" / ".cowork-flow" / "spec" / "protocols" / "review.md"
+            ).read_text(encoding="utf-8")
+            self.assertIn("# Review Protocol", review_protocol)
+            self.assertIn("test_intent_review", review_protocol)
 
             settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(

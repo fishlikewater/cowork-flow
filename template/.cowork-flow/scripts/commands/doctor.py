@@ -144,6 +144,31 @@ REQUIRED_CLAUDE_SKILL_SNIPPETS = [
     "description:",
 ]
 
+REQUIRED_PROTOCOL_SNIPPETS = {
+    "template/.cowork-flow/spec/protocols/tdd.md": [
+        "# TDD Protocol",
+        "redCommand",
+        "greenCommand",
+        "acceptanceId",
+    ],
+    "template/.cowork-flow/spec/protocols/review.md": [
+        "# Review Protocol",
+        "test_intent_review",
+        "findings",
+        "resolution",
+    ],
+    "template/.cowork-flow/spec/protocols/decision-review.md": [
+        "# Decision Review Protocol",
+        "decision-review.jsonl",
+        "reviewerContext",
+        "accepted",
+    ],
+    "template/.cowork-flow/spec/protocols/spec-maintenance.md": [
+        "# Spec Maintenance Protocol",
+        "specUpdates",
+    ],
+}
+
 REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS = [
     '${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run',
     '${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py',
@@ -256,11 +281,10 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         "template/.opencode/commands/cowork-check.md",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
-    for rel in (
-        "template/skills/cowork-flow/SKILL.md",
-        "template/skills/check/SKILL.md",
-    ):
+    for rel in ("template/skills/cowork-flow/SKILL.md",):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_SKILL_SNIPPETS, errors)
+    for rel, snippets in REQUIRED_PROTOCOL_SNIPPETS.items():
+        _check_file_contains(repo_root / rel, snippets, errors)
     for rel in (
         f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
     ):

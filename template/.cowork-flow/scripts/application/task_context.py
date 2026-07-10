@@ -243,6 +243,18 @@ def get_implement_base() -> list[dict]:
             ),
             "reason": "Mandatory pre-coding checklist",
         },
+        {
+            "file": protocol_path("tdd"),
+            "reason": "Behavior-change red-green evidence protocol",
+        },
+        {
+            "file": protocol_path("decision-review"),
+            "reason": "Structured decision review evidence contract",
+        },
+        {
+            "file": protocol_path("spec-maintenance"),
+            "reason": "Specification maintenance decision protocol",
+        },
     ]
 
 
@@ -303,6 +315,10 @@ def skill_path(name: str, repo_root: Path | None = None) -> str:
     return f"{DIR_AGENTS}/skills/{name}/SKILL.md"
 
 
+def protocol_path(name: str) -> str:
+    return f"{DIR_WORKFLOW}/{DIR_SPEC}/protocols/{name}.md"
+
+
 def is_skill_path(file_path: str) -> bool:
     return (
         file_path.startswith(f"{DIR_AGENTS}/skills/")
@@ -329,8 +345,16 @@ def discover_spec_files(repo_root: Path, dev_type: str) -> list[str]:
 def get_check_context(repo_root: Path, dev_type: str) -> list[dict]:
     entries = [
         {
-            "file": skill_path("check", repo_root),
+            "file": protocol_path("review"),
             "reason": "Quality, contract, and template consistency check",
+        },
+        {
+            "file": protocol_path("decision-review"),
+            "reason": "Verify structured decision review evidence",
+        },
+        {
+            "file": protocol_path("spec-maintenance"),
+            "reason": "Verify specification maintenance decisions",
         },
         {
             "file": skill_path("finish-work", repo_root),
@@ -359,11 +383,11 @@ def get_debug_context(
             "reason": "Deep bug analysis workflow",
         },
         {
-            "file": skill_path("update-spec", root),
+            "file": protocol_path("spec-maintenance"),
             "reason": "Capture implementation lessons and contracts",
         },
         {
-            "file": skill_path("check", root),
+            "file": protocol_path("review"),
             "reason": "Verify the fix and related contracts",
         },
     ]

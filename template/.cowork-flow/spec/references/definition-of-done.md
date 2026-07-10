@@ -32,9 +32,9 @@
 | # | 检查项 |
 |---|---|
 | L2-1 | proposal.md / spec.md / design.md 齐全 |
-| L2-2 | doubt-review.md 记录了非平凡决策的 CLAIM+CONTRACT |
+| L2-2 | decision-review.jsonl 至少包含一条 fresh reviewer 接受的有效结构化记录 |
 | L2-3 | readiness gate 全部通过（task start 无 blocker）|
-| L2-4 | spec/ 子集变更已同步到 update-spec |
+| L2-4 | spec-maintenance 协议已确认规格同步或明确记录无需更新 |
 
 ## DoD 与 per-task AC 的区别
 

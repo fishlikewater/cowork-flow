@@ -352,6 +352,49 @@ class CoworkAgentsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
+    def test_fixed_agents_share_internal_protocol_contracts(self) -> None:
+        role_contracts = {
+            "cowork-implement": (
+                ".cowork-flow/spec/protocols/tdd.md",
+                ".cowork-flow/spec/protocols/decision-review.md",
+                ".cowork-flow/spec/protocols/spec-maintenance.md",
+                "redCommand",
+                "redExitCode",
+                "greenCommand",
+                "greenExitCode",
+                "acceptanceId",
+            ),
+            "cowork-check": (
+                ".cowork-flow/spec/protocols/review.md",
+                ".cowork-flow/spec/protocols/decision-review.md",
+                ".cowork-flow/spec/protocols/spec-maintenance.md",
+                "test_intent_review",
+                "findings",
+                "resolution",
+                "acceptanceId",
+            ),
+        }
+        role_paths = {
+            role: (
+                ROOT / "template" / ".codex" / "agents" / f"{role}.toml",
+                ROOT / "template" / ".claude" / "agents" / f"{role}.md",
+                ROOT / "template" / ".opencode" / "agents" / f"{role}.md",
+            )
+            for role in role_contracts
+        }
+
+        for role, paths in role_paths.items():
+            for path in paths:
+                text = path.read_text(encoding="utf-8")
+                missing = [
+                    marker for marker in role_contracts[role] if marker not in text
+                ]
+                self.assertEqual(
+                    [],
+                    missing,
+                    f"{role} protocol contract drift in {path}: {missing}",
+                )
+
     def _run_doctor(self, cwd: Path) -> subprocess.CompletedProcess[str]:
         doctor = ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "doctor.py"
         return subprocess.run(

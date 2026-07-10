@@ -107,8 +107,8 @@
       ]
     },
     {
-      "id": "check",
-      "displayName": "Check",
+      "id": "review-protocol",
+      "displayName": "Review Protocol",
       "aliases": [],
       "kind": "protocol",
       "visibility": "internal",
@@ -123,11 +123,8 @@
       "runtimeGate": "review-gates",
       "runtimeCommand": null,
       "evidenceArtifact": "check.jsonl",
-      "source": "skills/check/SKILL.md",
-      "managedPaths": [
-        ".agents/skills/check/",
-        ".claude/skills/check/"
-      ]
+      "source": ".cowork-flow/spec/protocols/review.md",
+      "managedPaths": []
     },
     {
       "id": "continue",
@@ -186,8 +183,8 @@
       ]
     },
     {
-      "id": "doubt-review",
-      "displayName": "Doubt Review",
+      "id": "decision-review",
+      "displayName": "Decision Review",
       "aliases": [],
       "kind": "protocol",
       "visibility": "internal",
@@ -200,15 +197,12 @@
       "intents": [
         "review_decision"
       ],
-      "enforcement": "advisory",
-      "runtimeGate": null,
+      "enforcement": "mandatory",
+      "runtimeGate": "workflow-readiness",
       "runtimeCommand": null,
-      "evidenceArtifact": "doubt-review.md",
-      "source": "skills/doubt-review/SKILL.md",
-      "managedPaths": [
-        ".agents/skills/doubt-review/",
-        ".claude/skills/doubt-review/"
-      ]
+      "evidenceArtifact": "decision-review.jsonl",
+      "source": ".cowork-flow/spec/protocols/decision-review.md",
+      "managedPaths": []
     },
     {
       "id": "finish-work",
@@ -415,8 +409,8 @@
       "removeAfter": "2026-10-10"
     },
     {
-      "id": "tdd",
-      "displayName": "Test Driven Development",
+      "id": "tdd-protocol",
+      "displayName": "TDD Protocol",
       "aliases": [],
       "kind": "protocol",
       "visibility": "internal",
@@ -431,11 +425,8 @@
       "runtimeGate": "tdd-evidence",
       "runtimeCommand": null,
       "evidenceArtifact": "tdd.jsonl",
-      "source": "skills/tdd/SKILL.md",
-      "managedPaths": [
-        ".agents/skills/tdd/",
-        ".claude/skills/tdd/"
-      ]
+      "source": ".cowork-flow/spec/protocols/tdd.md",
+      "managedPaths": []
     },
     {
       "id": "tdd-evidence",
@@ -454,8 +445,8 @@
       "managedPaths": []
     },
     {
-      "id": "update-spec",
-      "displayName": "Update Spec",
+      "id": "spec-maintenance",
+      "displayName": "Spec Maintenance",
       "aliases": [],
       "kind": "protocol",
       "visibility": "internal",
@@ -471,11 +462,8 @@
       "runtimeGate": null,
       "runtimeCommand": null,
       "evidenceArtifact": ".cowork-flow/spec/",
-      "source": "skills/update-spec/SKILL.md",
-      "managedPaths": [
-        ".agents/skills/update-spec/",
-        ".claude/skills/update-spec/"
-      ]
+      "source": ".cowork-flow/spec/protocols/spec-maintenance.md",
+      "managedPaths": []
     },
     {
       "id": "using-cowork-flow",

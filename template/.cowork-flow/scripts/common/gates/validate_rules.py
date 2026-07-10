@@ -13,6 +13,8 @@ from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 
+from common.task.decision_review import validate_decision_review_file
+
 
 RULES_RELATIVE_PATH = ".cowork-flow/spec/runtime/rules.json"
 REQUIRED_RULE_FIELDS = (
@@ -392,6 +394,26 @@ def _validate_l2_task_link(
     return _check_task_link(change_dir, task_dir, rule)
 
 
+def _validate_l2_decision_review(
+    rule: dict,
+    repo_root: Path,
+    task_dir: Path | None,
+    parameters: Mapping[str, object],
+) -> dict | None:
+    _reject_unknown_parameters(parameters, frozenset({"filename"}))
+    filename = _string_parameter(parameters, "filename")
+    if task_dir is None:
+        return None
+    change_dir = _find_linked_change(repo_root, task_dir)
+    if change_dir is None or _read_change_level(change_dir) != "L2":
+        return None
+    evidence_path = task_dir / filename
+    issues = validate_decision_review_file(evidence_path)
+    if issues:
+        return rule_violation(rule, evidence_path, detail=issues[0])
+    return None
+
+
 def _validate_task_status(
     rule: dict,
     repo_root: Path,
@@ -469,6 +491,18 @@ def _find_linked_change(repo_root: Path, task_dir: Path) -> Path | None:
                 if task_name in content:
                     return change_dir
 
+    return None
+
+
+def _read_change_level(change_dir: Path) -> str | None:
+    change_yaml = change_dir / "change.yaml"
+    if not change_yaml.is_file():
+        return None
+    with change_yaml.open("r", encoding="utf-8") as stream:
+        for raw_line in stream:
+            line = raw_line.strip()
+            if line.startswith("level:"):
+                return line.split(":", 1)[1].strip()
     return None
 
 
@@ -550,6 +584,7 @@ RUNTIME_RULE_VALIDATORS: dict[str, RuntimeRuleValidator] = {
     "runtime.l2_required_file": _validate_l2_required_file,
     "runtime.l2_plan_link": _validate_l2_plan_link,
     "runtime.l2_task_link": _validate_l2_task_link,
+    "runtime.l2_decision_review": _validate_l2_decision_review,
     "runtime.task_status": _validate_task_status,
     "runtime.decision_anchor": _validate_decision_anchor,
 }

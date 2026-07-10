@@ -240,6 +240,55 @@ class SkillRegistryTest(unittest.TestCase):
 
         self.assertEqual(registry.to_dict(), json.loads(completed.stdout))
 
+    def test_internal_protocols_use_spec_sources_and_are_not_distributed(self) -> None:
+        registry = self._module().load_skill_registry(TEMPLATE)
+        expected = {
+            "tdd-protocol": (
+                ".cowork-flow/spec/protocols/tdd.md",
+                "mandatory",
+                "tdd-evidence",
+                "tdd.jsonl",
+            ),
+            "review-protocol": (
+                ".cowork-flow/spec/protocols/review.md",
+                "mandatory",
+                "review-gates",
+                "check.jsonl",
+            ),
+            "decision-review": (
+                ".cowork-flow/spec/protocols/decision-review.md",
+                "mandatory",
+                "workflow-readiness",
+                "decision-review.jsonl",
+            ),
+            "spec-maintenance": (
+                ".cowork-flow/spec/protocols/spec-maintenance.md",
+                "advisory",
+                None,
+                ".cowork-flow/spec/",
+            ),
+        }
+        entries = {entry.id: entry for entry in registry.entries}
+
+        for protocol_id, contract in expected.items():
+            source, enforcement, runtime_gate, evidence_artifact = contract
+            entry = entries[protocol_id]
+            self.assertEqual("protocol", entry.kind)
+            self.assertEqual("internal", entry.visibility)
+            self.assertEqual(source, entry.source)
+            self.assertEqual(enforcement, entry.enforcement)
+            self.assertEqual(runtime_gate, entry.runtime_gate)
+            self.assertEqual(evidence_artifact, entry.evidence_artifact)
+            self.assertEqual((), entry.managed_paths)
+            self.assertNotIn(protocol_id, registry.public_skill_ids)
+
+        for legacy_id in ("tdd", "check", "doubt-review", "update-spec"):
+            self.assertNotIn(legacy_id, entries)
+            self.assertFalse(
+                (TEMPLATE / "skills" / legacy_id / "SKILL.md").exists(),
+                legacy_id,
+            )
+
     def test_doctor_loads_registry_and_rejects_invalid_contract(self) -> None:
         doctor = importlib.import_module("commands.doctor")
         errors: list[str] = []
