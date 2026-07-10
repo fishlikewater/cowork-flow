@@ -6,7 +6,7 @@ import { templateRoot as defaultTemplateRoot } from './paths.js';
 
 const KINDS = new Set(['phase', 'protocol', 'domain', 'mode', 'runtime']);
 const VISIBILITIES = new Set(['public', 'internal']);
-const ENTRY_STATUSES = new Set(['active', 'deprecated', 'disabled']);
+const ENTRY_STATUSES = new Set(['active', 'disabled']);
 const WORKFLOW_STATUSES = new Set([
   'no_task',
   'planning',
@@ -18,7 +18,6 @@ const WORKFLOW_STATUSES = new Set([
 const ENFORCEMENTS = new Set(['advisory', 'mandatory', 'runtime']);
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const INTENT_PATTERN = /^[a-z][a-z0-9_]*$/;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const REQUIRED_FIELDS = new Set([
   'id',
   'displayName',
@@ -37,9 +36,7 @@ const REQUIRED_FIELDS = new Set([
 ]);
 const ALLOWED_FIELDS = new Set([
   ...REQUIRED_FIELDS,
-  'readWhen',
-  'replacement',
-  'removeAfter'
+  'readWhen'
 ]);
 
 
@@ -139,18 +136,6 @@ export function createSkillRegistry(raw, options = {}) {
       throw new SkillRegistryError(
         `non-runtime entry ${entry.id} cannot use runtime enforcement`
       );
-    }
-    if (entry.status === 'deprecated') {
-      if (!entry.replacement || !entry.removeAfter) {
-        throw new SkillRegistryError(
-          `deprecated entry ${entry.id} requires replacement and removeAfter`
-        );
-      }
-      if (!byId.has(entry.replacement) || entry.replacement === entry.id) {
-        throw new SkillRegistryError(
-          `deprecated entry ${entry.id} has invalid replacement: ${entry.replacement}`
-        );
-      }
     }
     if (entry.visibility === 'public' && entry.status === 'active') {
       for (const intent of entry.intents) {
@@ -340,27 +325,6 @@ function normalizeEntry(raw, templateRoot) {
     'managedPaths'
   ).map((path) => normalizeManagedPath(path, raw.id));
   const readWhen = normalizeReadWhen(raw.readWhen ?? null, raw.id, kind);
-  const replacement = nullableString(
-    raw.replacement ?? null,
-    raw.id,
-    'replacement'
-  );
-  if (replacement && !ID_PATTERN.test(replacement)) {
-    throw new SkillRegistryError(
-      `invalid replacement for ${raw.id}: ${replacement}`
-    );
-  }
-  const removeAfter = nullableString(
-    raw.removeAfter ?? null,
-    raw.id,
-    'removeAfter'
-  );
-  if (removeAfter && !DATE_PATTERN.test(removeAfter)) {
-    throw new SkillRegistryError(
-      `invalid removeAfter for ${raw.id}: ${removeAfter}`
-    );
-  }
-
   return {
     id: raw.id,
     displayName: raw.displayName.trim(),
@@ -376,9 +340,7 @@ function normalizeEntry(raw, templateRoot) {
     evidenceArtifact,
     source,
     managedPaths: uniqueSorted(managedPaths),
-    readWhen,
-    replacement,
-    removeAfter
+    readWhen
   };
 }
 

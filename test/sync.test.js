@@ -203,7 +203,7 @@ test('sync preserves direct skill layout without legacy seed material', async (t
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
 });
 
-test('sync migrates managed Skills and task contexts without touching custom Skills', async (t) => {
+test('sync leaves unregistered Skills and task contexts untouched', async (t) => {
   const target = await createTempDir(t);
   assert.equal(
     await main([
@@ -266,29 +266,33 @@ test('sync migrates managed Skills and task contexts without touching custom Ski
     })}\n`,
     'utf8'
   );
+  const activeContextBefore = await readText(
+    join(activeTask, 'implement.jsonl')
+  );
+  const archivedContextBefore = await readText(
+    join(archivedTask, 'check.jsonl')
+  );
 
   assert.equal(await main(['sync', target], { io: createIo() }), 0);
 
-  assert.equal(await exists(legacyAgentSkill), false);
-  assert.equal(await exists(legacyClaudeSkill), false);
+  assert.equal(await exists(legacyAgentSkill), true);
+  assert.equal(await exists(legacyClaudeSkill), true);
+  assert.equal(
+    await readText(join(legacyAgentSkill, 'SKILL.md')),
+    'legacy start\n'
+  );
+  assert.equal(
+    await readText(join(legacyClaudeSkill, 'SKILL.md')),
+    'legacy finish\n'
+  );
   assert.equal(await readText(customSkill), 'custom content\n');
   if (process.platform !== 'win32') {
     assert.equal((await stat(customSkill)).mode & 0o777, customMode);
   }
   const activeContext = await readText(join(activeTask, 'implement.jsonl'));
   const archivedContext = await readText(join(archivedTask, 'check.jsonl'));
-  const activeRecords = activeContext.trimEnd().split('\n').map(JSON.parse);
-  assert.match(activeContext, /\.agents\/skills\/cowork-flow\/SKILL\.md/);
-  assert.match(activeContext, /\.agents\/skills\/custom-local\/SKILL\.md/);
-  assert.match(archivedContext, /\.claude\/skills\/cowork-flow\/SKILL\.md/);
-  assert.equal(
-    activeRecords[0].reference,
-    '.agents/skills/start/SKILL.md'
-  );
-  assert.equal(
-    activeRecords[1].file,
-    '.agents/skills/custom-local/SKILL.md'
-  );
+  assert.equal(activeContext, activeContextBefore);
+  assert.equal(archivedContext, archivedContextBefore);
 
   const secondIo = createIo();
   assert.equal(await main(['sync', target], { io: secondIo }), 0);

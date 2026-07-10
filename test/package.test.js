@@ -59,8 +59,11 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.opencode/agents/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/commands/cowork-implement.md'), true);
   assert.equal(files.has('template/.opencode/plugins/cowork-flow.js'), true);
-  assert.equal(files.has('template/skills/start/SKILL.md'), true);
-  assert.equal(files.has('template/skills/before-dev/SKILL.md'), true);
+  assert.equal(files.has('template/skills/start/SKILL.md'), false);
+  assert.equal(files.has('template/skills/before-dev/SKILL.md'), false);
+  assert.equal(files.has('template/skills/continue/SKILL.md'), false);
+  assert.equal(files.has('template/skills/finish-work/SKILL.md'), false);
+  assert.equal(files.has('template/skills/using-cowork-flow/SKILL.md'), false);
   assert.equal(files.has('template/skills/check/SKILL.md'), false);
   assert.equal(files.has('template/skills/tdd/SKILL.md'), false);
   assert.equal(files.has('template/skills/update-spec/SKILL.md'), false);
@@ -69,7 +72,6 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/spec/protocols/review.md'), true);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/decision-review.md'), true);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/spec-maintenance.md'), true);
-  assert.equal(files.has('template/skills/continue/SKILL.md'), true);
   assert.equal(files.has('template/skills/meta/SKILL.md'), true);
   assert.equal(files.has('template/skills/python-design/SKILL.md'), true);
   assert.equal([...files].some((file) => file.startsWith('template/.superpowers/')), false);

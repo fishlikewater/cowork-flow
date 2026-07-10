@@ -108,9 +108,18 @@ class SkillRegistryTest(unittest.TestCase):
             registry.public_skill_ids,
         )
         self.assertIn("batch-mode", registry.public_skill_ids)
-        before_dev = registry.entry("before-dev")
-        self.assertEqual("mandatory", before_dev.enforcement)
-        self.assertEqual("runtime", registry.entry(before_dev.runtime_gate).kind)
+        for legacy_id in (
+            "before-dev",
+            "start",
+            "continue",
+            "finish-work",
+            "using-cowork-flow",
+        ):
+            with self.assertRaisesRegex(
+                self._module().SkillRegistryError,
+                f"unknown Skill Registry entry: {legacy_id}",
+            ):
+                registry.entry(legacy_id)
 
     def test_duplicate_id_or_alias_is_rejected(self) -> None:
         module = self._module()
@@ -145,6 +154,25 @@ class SkillRegistryTest(unittest.TestCase):
             "invalid kind for example: unknown",
         ):
             module.create_skill_registry(raw, TEMPLATE)
+
+    def test_compatibility_lifecycle_fields_are_rejected(self) -> None:
+        module = self._module()
+        deprecated = registry_fixture()
+        deprecated["entries"][1]["status"] = "deprecated"
+
+        with self.assertRaisesRegex(
+            module.SkillRegistryError,
+            "invalid status for example: deprecated",
+        ):
+            module.create_skill_registry(deprecated, TEMPLATE)
+
+        replacement = registry_fixture()
+        replacement["entries"][1]["replacement"] = "workflow-readiness"
+        with self.assertRaisesRegex(
+            module.SkillRegistryError,
+            "unexpected field for example: replacement",
+        ):
+            module.create_skill_registry(replacement, TEMPLATE)
 
     def test_mandatory_entry_requires_runtime_gate(self) -> None:
         module = self._module()
@@ -307,10 +335,10 @@ class SkillRegistryTest(unittest.TestCase):
                 / "skill-registry.json"
             )
             raw = json.loads(registry_path.read_text(encoding="utf-8"))
-            before_dev = next(
-                entry for entry in raw["entries"] if entry["id"] == "before-dev"
+            brainstorming = next(
+                entry for entry in raw["entries"] if entry["id"] == "brainstorming"
             )
-            before_dev["runtimeGate"] = None
+            brainstorming["status"] = "deprecated"
             registry_path.write_text(
                 json.dumps(raw, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
@@ -320,7 +348,7 @@ class SkillRegistryTest(unittest.TestCase):
 
         self.assertTrue(
             any(
-                "mandatory entry before-dev requires runtimeGate" in error
+                "invalid status for brainstorming: deprecated" in error
                 for error in errors
             ),
             errors,

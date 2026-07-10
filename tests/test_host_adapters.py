@@ -271,7 +271,7 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
                 self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
 
-            for name in ("start",):
+            for name in ("cowork-flow",):
                 text = (ROOT / "template" / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
                 self.assertIn("name:", text)
                 self.assertIn("description:", text)

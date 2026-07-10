@@ -54,8 +54,8 @@ class FlowScriptPathsTest(FlowScriptTestCase):
             (root / ".cowork-flow").mkdir()
             (root / "CLAUDE.md").write_text("# project instructions", encoding="utf-8")
             self.assertEqual(
-                ".claude/skills/finish-work/SKILL.md",
-                self.task._skill_path("finish-work", root),
+                ".claude/skills/cowork-flow/SKILL.md",
+                self.task._skill_path("cowork-flow", root),
             )
 
     def test_skill_path_uses_claude_skills_for_claude_only_project(self) -> None:
@@ -111,6 +111,15 @@ class FlowScriptPathsTest(FlowScriptTestCase):
             self.assertEqual(
                 ".cowork-flow/spec/protocols/review.md",
                 check_entries[0]["file"],
+            )
+            check_files = [entry["file"] for entry in check_entries]
+            self.assertIn(
+                ".claude/skills/cowork-flow/SKILL.md",
+                check_files,
+            )
+            self.assertNotIn(
+                ".claude/skills/finish-work/SKILL.md",
+                check_files,
             )
 
     def test_default_implement_context_includes_workflow_gates(self) -> None:
