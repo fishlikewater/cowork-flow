@@ -439,7 +439,8 @@ def cmd_review(args: argparse.Namespace) -> int:
             return _report_lifecycle_repository_error(result)
         return 1
 
-    _report_pipeline_outcomes(result.gate_result, service.gate_runner)
+    if result.gate_result is not None:
+        _report_pipeline_outcomes(result.gate_result, service.gate_runner)
     if result.summary:
         print(colored("Coding Standards to Verify:", Colors.CYAN))
         print(result.summary)

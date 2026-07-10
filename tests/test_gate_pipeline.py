@@ -20,6 +20,67 @@ from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 
 
 class GatePipelineTest(FlowScriptTestCase):
+    @staticmethod
+    def _write_context_scope_fixture(task_dir: Path) -> None:
+        entries = [
+            {
+                "file": "src/planned.py",
+                "reason": "Planned source",
+                "type": "planned-file",
+            },
+            {
+                "file": "src/unknown.py",
+                "reason": "Unknown type",
+                "type": "mystery",
+            },
+            {
+                "file": "src/",
+                "reason": "Directory context",
+                "type": "directory",
+            },
+        ]
+        (task_dir / "implement.jsonl").write_text(
+            "\n".join(json.dumps(entry) for entry in entries) + "\n",
+            encoding="utf-8",
+        )
+
+    def test_r_ag_005_only_authorizes_known_exact_context_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            self._write_context_scope_fixture(task_dir)
+            implementation = importlib.import_module(
+                "common.gates.validate_implementation"
+            )
+            rule_index = {
+                "R-AG-005": self._workflow_rule("R-AG-005", "all"),
+            }
+
+            with patch.object(
+                implementation,
+                "_get_modified_files",
+                return_value=[
+                    "src/planned.py",
+                    "src/planned_extra.py",
+                    "src/unknown.py",
+                    "src/nested.py",
+                ],
+            ):
+                violations = implementation._check_unrequested_features(
+                    root,
+                    "",
+                    task_dir,
+                    rule_index,
+                )
+
+            violation_paths = {violation.get("file") for violation in violations}
+            self.assertNotIn("src/planned.py", violation_paths)
+            self.assertEqual(
+                {"src/planned_extra.py", "src/unknown.py", "src/nested.py"},
+                violation_paths,
+            )
+
     def test_cmd_review_and_complete_update_active_task_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

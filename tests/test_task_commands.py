@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -20,6 +21,92 @@ from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 
 
 class TaskCommandsTest(FlowScriptTestCase):
+    def test_cmd_review_handles_idempotent_result_without_gate_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status":"review"}\n',
+                encoding="utf-8",
+            )
+            lifecycle_result = SimpleNamespace(
+                ok=True,
+                code="LIFECYCLE-IDEMPOTENT",
+                gate_result=None,
+                summary="",
+            )
+            service = SimpleNamespace(
+                review=lambda *args, **kwargs: lifecycle_result,
+                gate_runner=None,
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.object(self.task, "TaskLifecycleService", return_value=service),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_review(argparse.Namespace(dir=str(task_dir)))
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result)
+
+    def test_add_context_parser_accepts_explicit_planned_file_type(self) -> None:
+        args = self.task.build_parser().parse_args(
+            [
+                "add-context",
+                ".cowork-flow/tasks/07-10-demo",
+                "implement",
+                "src/new_module.py",
+                "Planned source",
+                "--type",
+                "planned-file",
+            ]
+        )
+
+        self.assertEqual("planned-file", args.entry_type)
+
+    def test_cmd_add_context_writes_explicit_planned_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "implement.jsonl").write_text("", encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_add_context(
+                        argparse.Namespace(
+                            dir=str(task_dir),
+                            file="implement",
+                            path="src/new_module.py",
+                            reason="Planned source",
+                            entry_type="planned-file",
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            entries = [
+                json.loads(line)
+                for line in (task_dir / "implement.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line
+            ]
+            self.assertEqual(0, result)
+            self.assertEqual("planned-file", entries[0]["type"])
+            self.assertFalse((root / "src" / "new_module.py").exists())
+
     def test_cmd_create_adds_date_prefix_to_plain_slug(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

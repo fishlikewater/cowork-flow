@@ -67,6 +67,13 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Reason for adding",
     )
+    add_context.add_argument(
+        "--type",
+        dest="entry_type",
+        choices=("file", "directory", "planned-file"),
+        default=None,
+        help="Context entry type; planned-file may target a file not created yet",
+    )
 
     validate = subparsers.add_parser(
         "validate",
@@ -204,7 +211,8 @@ Usage:
   ./.cowork-flow/run task create <title>                     Create new task directory
   ./.cowork-flow/run task create <title> --parent <dir>      Create task as child of parent
   ./.cowork-flow/run task init-context <dir> <dev_type>      Initialize jsonl files
-  ./.cowork-flow/run task add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
+  ./.cowork-flow/run task add-context <dir> <jsonl> <path> [reason] [--type TYPE]
+                                                                  Add entry to jsonl
   ./.cowork-flow/run task validate <dir>                     Validate jsonl files
   ./.cowork-flow/run task list-context <dir>                 List jsonl entries
   ./.cowork-flow/run task start <dir>                        Set active session task
@@ -231,6 +239,7 @@ Examples:
   ./.cowork-flow/run task init-context .cowork-flow/tasks/01-21-add-login backend
   ./.cowork-flow/run task next
   ./.cowork-flow/run task add-context <dir> implement .cowork-flow/spec/backend/auth.md "Auth guidelines"
+  ./.cowork-flow/run task add-context <dir> implement src/new.py "Planned source" --type planned-file
   ./.cowork-flow/run task start .cowork-flow/tasks/01-21-add-login
   ./.cowork-flow/run task review
   ./.cowork-flow/run task complete

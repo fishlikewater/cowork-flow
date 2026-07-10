@@ -18,6 +18,7 @@ class TaskContextServiceTest(unittest.TestCase):
         self.addCleanup(self._cleanup_imports)
         context_module = importlib.import_module("application.task_context")
         self.TaskContextService = context_module.TaskContextService
+        self.TaskContextError = context_module.TaskContextError
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
@@ -120,6 +121,119 @@ class TaskContextServiceTest(unittest.TestCase):
                 [issue.code for issue in issues],
             )
             self.assertEqual([1, 2], [issue.line for issue in issues])
+
+    def test_add_allows_explicit_planned_file_without_creating_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            service = self.TaskContextService(root)
+
+            result = service.add(
+                task_dir,
+                "implement",
+                "src/new_module.py",
+                "Planned source file",
+                entry_type="planned-file",
+            )
+
+            self.assertTrue(result.added)
+            self.assertEqual("planned-file", result.entry_type)
+            self.assertFalse((root / "src" / "new_module.py").exists())
+            self.assertEqual(
+                [
+                    {
+                        "file": "src/new_module.py",
+                        "reason": "Planned source file",
+                        "type": "planned-file",
+                    }
+                ],
+                service.entries(task_dir, "implement"),
+            )
+
+    def test_add_missing_path_without_planned_type_still_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+
+            with self.assertRaises(self.TaskContextError) as raised:
+                self.TaskContextService(root).add(
+                    task_dir,
+                    "implement",
+                    "src/typo.py",
+                    "Must not be inferred",
+                )
+
+            self.assertEqual("TASK-CONTEXT-PATH-001", raised.exception.code)
+
+    def test_planned_file_rejects_unsafe_or_non_file_paths(self) -> None:
+        invalid_paths = (
+            "../outside.py",
+            "C:/outside.py",
+            "//server/share.py",
+            "src/*.py",
+            "src/new_module.py/",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            service = self.TaskContextService(root)
+
+            for invalid_path in invalid_paths:
+                with self.subTest(path=invalid_path):
+                    with self.assertRaises(self.TaskContextError) as raised:
+                        service.add(
+                            task_dir,
+                            "implement",
+                            invalid_path,
+                            "Unsafe planned path",
+                            entry_type="planned-file",
+                        )
+                    self.assertEqual("TASK-CONTEXT-PATH-002", raised.exception.code)
+
+    def test_validate_accepts_missing_planned_file_and_rejects_unknown_type(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            existing = root / "existing.py"
+            existing.write_text("VALUE = 1\n", encoding="utf-8")
+            entries = [
+                {
+                    "file": "src/future.py",
+                    "reason": "Planned source",
+                    "type": "planned-file",
+                },
+                {
+                    "file": "existing.py",
+                    "reason": "Unknown type must fail",
+                    "type": "mystery",
+                },
+            ]
+            (task_dir / "implement.jsonl").write_text(
+                "\n".join(json.dumps(entry, ensure_ascii=False) for entry in entries) + "\n",
+                encoding="utf-8",
+            )
+
+            issues = self.TaskContextService(root).validate(task_dir)
+
+            self.assertEqual(["invalid_entry_type"], [issue.code for issue in issues])
+            self.assertEqual([2], [issue.line for issue in issues])
+
+    def test_live_and_template_context_implementations_match(self) -> None:
+        relative_files = (
+            "application/task_context.py",
+            "common/gates/validate_implementation.py",
+            "commands/task_context_commands.py",
+            "commands/task_parser.py",
+        )
+
+        for relative_file in relative_files:
+            with self.subTest(file=relative_file):
+                live = ROOT / ".cowork-flow" / "scripts" / relative_file
+                template = ROOT / "template" / ".cowork-flow" / "scripts" / relative_file
+                self.assertEqual(
+                    live.read_text(encoding="utf-8"),
+                    template.read_text(encoding="utf-8"),
+                )
 
 
 if __name__ == "__main__":

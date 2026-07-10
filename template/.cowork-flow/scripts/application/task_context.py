@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from common.core.paths import (
 
 
 CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
+CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file"))
 
 
 class TaskContextError(RuntimeError):
@@ -28,6 +30,165 @@ class TaskContextError(RuntimeError):
         self.path = path
         self.detail = detail
         super().__init__(f"{code}: {detail}: {path}")
+
+
+def normalize_context_path(
+    repo_root: Path,
+    path: str,
+    entry_type: str,
+) -> tuple[str, Path]:
+    """Return a canonical repo-relative context path and its absolute target."""
+    candidate = Path(repo_root) / str(path)
+    if entry_type not in CONTEXT_ENTRY_TYPES:
+        raise TaskContextError(
+            "TASK-CONTEXT-TYPE-001",
+            candidate,
+            f"unsupported context entry type: {entry_type}",
+        )
+
+    normalized = str(path).replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    if entry_type == "directory" and normalized.endswith("/"):
+        normalized = normalized[:-1]
+
+    segments = normalized.split("/")
+    invalid_path = (
+        not normalized
+        or normalized.startswith("/")
+        or re.match(r"^[A-Za-z]:", normalized) is not None
+        or any(segment in ("", ".", "..") for segment in segments)
+        or any(character in normalized for character in "*?[]")
+        or (entry_type == "planned-file" and str(path).endswith(("/", "\\")))
+    )
+    if invalid_path:
+        raise TaskContextError(
+            "TASK-CONTEXT-PATH-002",
+            candidate,
+            "context path must be a canonical repository-relative path",
+        )
+
+    repo_root = Path(repo_root).resolve()
+    full_path = repo_root.joinpath(*segments).resolve(strict=False)
+    try:
+        full_path.relative_to(repo_root)
+    except ValueError as error:
+        raise TaskContextError(
+            "TASK-CONTEXT-PATH-002",
+            full_path,
+            "context path resolves outside the repository",
+        ) from error
+
+    if entry_type == "directory":
+        normalized = f"{normalized}/"
+    return normalized, full_path
+
+
+def prepare_context_entry(
+    repo_root: Path,
+    path: str,
+    reason: str,
+    requested_type: str | None,
+) -> tuple[str, str, dict]:
+    """Build one validated context entry without writing it."""
+    entry_type = requested_type
+    if entry_type is None:
+        candidate = Path(repo_root) / path
+        entry_type = "directory" if candidate.is_dir() else "file"
+
+    normalized_path, full_path = normalize_context_path(
+        repo_root,
+        path,
+        entry_type,
+    )
+    valid_target = {
+        "directory": full_path.is_dir(),
+        "planned-file": not full_path.is_dir(),
+        "file": full_path.is_file(),
+    }[entry_type]
+    if not valid_target:
+        raise TaskContextError(
+            "TASK-CONTEXT-PATH-001",
+            full_path,
+            f"context {entry_type} path does not exist or has the wrong type",
+        )
+
+    entry = {"file": normalized_path, "reason": reason}
+    if entry_type != "file":
+        entry["type"] = entry_type
+    return entry_type, normalized_path, entry
+
+
+def _context_issue(
+    context_file: str,
+    line: int,
+    code: str,
+    message: str,
+) -> ContextValidationIssue:
+    return ContextValidationIssue(
+        context_file=context_file,
+        line=line,
+        code=code,
+        message=message,
+    )
+
+
+def validate_context_entry(
+    repo_root: Path,
+    context_file: str,
+    line: int,
+    data: object,
+) -> ContextValidationIssue | None:
+    """Validate one parsed JSONL entry."""
+    if not isinstance(data, dict) or not data.get("file"):
+        return _context_issue(
+            context_file,
+            line,
+            "missing_file_field",
+            "Missing file field",
+        )
+
+    entry_type = data.get("type", "file")
+    try:
+        normalized_path, full_path = normalize_context_path(
+            repo_root,
+            str(data["file"]),
+            entry_type,
+        )
+    except TaskContextError as error:
+        code = (
+            "invalid_entry_type"
+            if error.code == "TASK-CONTEXT-TYPE-001"
+            else "invalid_path"
+        )
+        return _context_issue(context_file, line, code, error.detail)
+
+    if is_skill_path(normalized_path):
+        return None
+    if entry_type == "planned-file":
+        if full_path.is_dir():
+            return _context_issue(
+                context_file,
+                line,
+                "invalid_path",
+                f"Planned file is a directory: {normalized_path}",
+            )
+        return None
+    if entry_type == "directory" and not full_path.is_dir():
+        return _context_issue(
+            context_file,
+            line,
+            "directory_not_found",
+            f"Directory not found: {normalized_path}",
+        )
+    if entry_type == "file" and not full_path.is_file():
+        return _context_issue(
+            context_file,
+            line,
+            "file_not_found",
+            f"File not found: {normalized_path}",
+        )
+    return None
 
 
 @dataclass(frozen=True)
@@ -267,6 +428,7 @@ class TaskContextService:
         context_name: str,
         path: str,
         reason: str,
+        entry_type: str | None = None,
     ) -> ContextAddResult:
         task_dir = Path(task_dir)
         if not task_dir.is_dir():
@@ -277,23 +439,12 @@ class TaskContextService:
             )
 
         context_file = task_dir / self._context_file_name(context_name)
-        full_path = self.repo_root / path
-        entry_type = "file"
-        normalized_path = path
-        if full_path.is_dir():
-            entry_type = "directory"
-            if not normalized_path.endswith("/"):
-                normalized_path = f"{normalized_path}/"
-        elif not full_path.is_file():
-            raise TaskContextError(
-                "TASK-CONTEXT-PATH-001",
-                full_path,
-                "context path does not exist",
-            )
-
-        entry = {"file": normalized_path, "reason": reason}
-        if entry_type == "directory":
-            entry["type"] = "directory"
+        entry_type, normalized_path, entry = prepare_context_entry(
+            self.repo_root,
+            path,
+            reason,
+            entry_type,
+        )
 
         if any(
             existing.get("file") == normalized_path
@@ -371,41 +522,14 @@ class TaskContextService:
                 )
                 continue
 
-            if not isinstance(data, dict) or not data.get("file"):
-                issues.append(
-                    ContextValidationIssue(
-                        context_file=context_file.name,
-                        line=line_number,
-                        code="missing_file_field",
-                        message="Missing file field",
-                    )
-                )
-                continue
-
-            file_path = str(data["file"])
-            if is_skill_path(file_path):
-                continue
-
-            full_path = self.repo_root / file_path
-            entry_type = data.get("type", "file")
-            if entry_type == "directory" and not full_path.is_dir():
-                issues.append(
-                    ContextValidationIssue(
-                        context_file=context_file.name,
-                        line=line_number,
-                        code="directory_not_found",
-                        message=f"Directory not found: {file_path}",
-                    )
-                )
-            elif entry_type != "directory" and not full_path.is_file():
-                issues.append(
-                    ContextValidationIssue(
-                        context_file=context_file.name,
-                        line=line_number,
-                        code="file_not_found",
-                        message=f"File not found: {file_path}",
-                    )
-                )
+            issue = validate_context_entry(
+                self.repo_root,
+                context_file.name,
+                line_number,
+                data,
+            )
+            if issue is not None:
+                issues.append(issue)
 
         return ContextFileValidation(
             context_file=context_file.name,

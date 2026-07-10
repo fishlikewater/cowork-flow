@@ -95,6 +95,7 @@ def cmd_add_context(args: argparse.Namespace) -> int:
             args.file,
             path,
             reason,
+            entry_type=getattr(args, "entry_type", None),
         )
     except TaskContextError as error:
         if error.code == "TASK-CONTEXT-PATH-001":
@@ -104,6 +105,8 @@ def cmd_add_context(args: argparse.Namespace) -> int:
                     Colors.RED,
                 )
             )
+        elif error.code in ("TASK-CONTEXT-PATH-002", "TASK-CONTEXT-TYPE-001"):
+            print(colored(f"Error: {error.detail}", Colors.RED))
         else:
             print(
                 colored(
@@ -204,6 +207,11 @@ def cmd_list_context(args: argparse.Namespace) -> int:
                 print(
                     f"  {colored(f'{count}.', Colors.GREEN)} "
                     f"[DIR] {file_path}"
+                )
+            elif entry_type == "planned-file":
+                print(
+                    f"  {colored(f'{count}.', Colors.GREEN)} "
+                    f"[PLANNED] {file_path}"
                 )
             else:
                 print(
