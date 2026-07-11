@@ -32,7 +32,7 @@
 
 - `no_task` → **阻断**。拒绝写代码；引导 brainstorming → plan → task create → task start
 - `delegated_subtask` → 按子代理规则执行，派发方核验绑定
-- `planning` → **阻断**。PRD 和 implement.jsonl 就绪前不允许实现或派发 cowork-implement
+- `planning` → **阻断**。decision-anchor.md 和 implement.jsonl 就绪前不允许实现或派发 cowork-implement
 - `in_progress` / `review` → 放行；按当前阶段推进
 - `completed` → **阻断**。创建新任务或归档会话
 

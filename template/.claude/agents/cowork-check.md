@@ -57,5 +57,5 @@ Rules:
 - MUST NOT spawn, wait for, list, or close other agents.
 - MUST NOT commit, archive, or mutate cowork-flow task state.
 - Report findings, changed files, and exact verification commands.
-- Include test intent findings that map tests back to PRD acceptance or
+- Include test intent findings that map tests back to decision-anchor acceptance or
   regression behavior.

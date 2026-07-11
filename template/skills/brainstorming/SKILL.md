@@ -5,7 +5,7 @@ description: Use when requirements are unclear, a requested change has multiple 
 
 # Brainstorming
 
-Use this skill as the active clarification gate for new requirements. Turn an idea into a clear change request before PRD, planning, fixed-agent dispatch, or code changes begin.
+Use this skill as the active clarification gate for new requirements. Turn an idea into a clear change request before decision-anchor, planning, fixed-agent dispatch, or code changes begin.
 
 ## Flow
 
@@ -13,7 +13,7 @@ Use this skill as the active clarification gate for new requirements. Turn an id
 2. State the goal, non-goals, assumptions, scope boundary, success criteria, and the smallest useful scope.
 3. Ask one high-value question only when the answer cannot be inferred safely; otherwise proceed with explicit assumptions.
 4. Present 2-3 viable approaches when trade-offs matter, with a concrete recommended direction.
-5. Do not write PRD, planning, or fixed-agent dispatch input until the direction and acceptance criteria are clear.
+5. Do not write decision-anchor, planning, or fixed-agent dispatch input until the direction and acceptance criteria are clear.
 6. For L1/L2 work, create or update the change/task artifacts required by `.cowork-flow/workflow.md` after the clarification output is stable.
 7. Hand off to `writing-plans` when the requested behavior and acceptance criteria are clear.
 

@@ -91,11 +91,11 @@ SETUP_FAILURE_MARKERS = (
 def validate_tdd_evidence(task_dir: Path) -> list[dict]:
     """Return TDD evidence violations for a task directory."""
     task_dir = Path(task_dir)
-    prd_text = _read_text(task_dir / "decision-anchor.md")
+    decision_anchor_text = _read_text(task_dir / "decision-anchor.md")
     evidence_path = task_dir / EVIDENCE_FILE
 
     if not evidence_path.is_file():
-        if _task_requires_tdd(prd_text):
+        if _task_requires_tdd(decision_anchor_text):
             return [
                 _violation(
                     "TDD-RED-001",
@@ -122,7 +122,7 @@ def validate_tdd_evidence(task_dir: Path) -> list[dict]:
             )
         ]
 
-    acceptance_ids = _acceptance_ids(prd_text)
+    acceptance_ids = _acceptance_ids(decision_anchor_text)
     violations: list[dict] = []
     for index, entry in enumerate(entries, start=1):
         if entry.get("type") == "exemption":
@@ -136,8 +136,8 @@ def validate_tdd_evidence(task_dir: Path) -> list[dict]:
 def validate_tdd_red_evidence(task_dir: Path) -> list[dict]:
     """Return violations when implementation would start without red evidence."""
     task_dir = Path(task_dir)
-    prd_text = _read_text(task_dir / "decision-anchor.md")
-    if not _task_requires_tdd(prd_text):
+    decision_anchor_text = _read_text(task_dir / "decision-anchor.md")
+    if not _task_requires_tdd(decision_anchor_text):
         return []
 
     evidence_path = task_dir / EVIDENCE_FILE
@@ -152,7 +152,7 @@ def validate_tdd_red_evidence(task_dir: Path) -> list[dict]:
     if not red_entries:
         return [_missing_red_evidence_violation(evidence_path)]
 
-    acceptance_ids = _acceptance_ids(prd_text)
+    acceptance_ids = _acceptance_ids(decision_anchor_text)
     violations: list[dict] = []
     for index, entry in enumerate(entries, start=1):
         if entry.get("type") == "exemption":
@@ -161,8 +161,8 @@ def validate_tdd_red_evidence(task_dir: Path) -> list[dict]:
     return violations
 
 
-def _task_requires_tdd(prd_text: str) -> bool:
-    lower = prd_text.lower()
+def _task_requires_tdd(decision_anchor_text: str) -> bool:
+    lower = decision_anchor_text.lower()
     if not lower:
         return False
     if any(marker.lower() in lower for marker in NON_BEHAVIOR_MARKERS):
@@ -218,10 +218,10 @@ def _read_jsonl(path: Path) -> tuple[list[dict], list[dict]]:
     return entries, violations
 
 
-def _acceptance_ids(prd_text: str) -> set[str]:
+def _acceptance_ids(decision_anchor_text: str) -> set[str]:
     """提取验收标准 ID，支持 AC-001、AC-1、验收标准：1 等格式。"""
-    ids = set(re.findall(r"\bAC-(\d{1,4})\b", prd_text, re.IGNORECASE))
-    ids |= set(re.findall(r"验收标准[：:]\s*(\d+)", prd_text))
+    ids = set(re.findall(r"\bAC-(\d{1,4})\b", decision_anchor_text, re.IGNORECASE))
+    ids |= set(re.findall(r"验收标准[：:]\s*(\d+)", decision_anchor_text))
     return {f"AC-{n}" for n in ids}
 
 
@@ -285,7 +285,7 @@ def _validate_red_evidence(
                 "TDD-AC-001",
                 f"TDD evidence record {index} references unknown acceptanceId: {acceptance_id}",
                 evidence_path,
-                "Map evidence to a PRD acceptance ID such as AC-001.",
+                "Map evidence to a decision-anchor acceptance criterion such as AC-001.",
             )
         )
 
@@ -347,7 +347,7 @@ def _validate_exemption(
                 "TDD-EXEMPT-002",
                 f"TDD exemption record {index} references unknown acceptanceId: {acceptance_id}",
                 evidence_path,
-                "Map the exemption to a PRD acceptance ID such as AC-001.",
+                "Map the exemption to a decision-anchor acceptance criterion such as AC-001.",
             )
         )
 

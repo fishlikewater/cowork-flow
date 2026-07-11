@@ -14,7 +14,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 2. brainstorming：对changes需求做头脑风暴,确定目标、范围、验收标准、范围边界、被拒方案、实现方案、检查方案。
 3. read spec: 读取项目规范
 4. plan：构建开发计划。
-5. tasks：根据plan拆分具体执行任务、明确 PRD、整理 `implement.jsonl` / `check.jsonl`。
+5. tasks：根据plan拆分具体执行任务、明确 `decision-anchor.md`、整理 `implement.jsonl` / `check.jsonl`。
 6. implement：主会话通过当前宿主适配器派发 `cowork-implement`，按 `.cowork-flow/spec/contracts/subagent-dispatch.md` 执行固定代理派发协议。
 7. check：主会话通过当前宿主适配器派发 `cowork-check`，按 `.cowork-flow/spec/contracts/subagent-dispatch.md` 执行固定代理派发协议。
 8. complete：主会话做最终验证、同步规格、归档、记录会话、提交。
@@ -31,7 +31,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 ## 1.2 需求澄清与头脑风暴门禁
 
-1. 新需求先判断清晰度。只读问题、单步且目标/范围/验收标准都清楚的小改可以绕过；否则必须先进入 `brainstorming`，在写 PRD、计划或固定代理派发前收束方向。
+1. 新需求先判断清晰度。只读问题、单步且目标/范围/验收标准都清楚的小改可以绕过；否则必须先进入 `brainstorming`，在写决策锚点、计划或固定代理派发前收束方向。
 2. 以下情况触发头脑风暴：
     - 目标、用户价值或期望行为不清楚。
     - 范围边界、非目标或影响面不清楚。
@@ -39,7 +39,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
     - 涉及 L1/L2 行为变化，或影响架构、接口、数据、权限、发布迁移。
     - 验收标准缺失、风险未知，或关键假设需要暴露。
 
-3. `brainstorming` 输出至少包括：目标、非目标、关键假设、范围边界、推荐方向、被拒方案、验收标准、开放问题/阻塞。只有方向和验收标准清楚后，才进入 PRD、计划或固定代理派发。
+3. `brainstorming` 输出至少包括：目标、非目标、关键假设、范围边界、推荐方向、被拒方案、验收标准、开放问题/阻塞。只有方向和验收标准清楚后，才进入决策锚点、计划或固定代理派发。
 
 ## 2. 状态文件
 
@@ -200,7 +200,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
 1. 先运行 `task next` 确认任务处于 `review` 检查阶段。
 2. 默认通过宿主适配器派发 `cowork-check`。派发必须使用新鲜子上下文，并遵守 `.cowork-flow/spec/contracts/subagent-dispatch.md`。
 3. 检查内容：
-    - PRD 验收标准是否满足。
+    - decision-anchor 验收标准是否满足。
     - `git diff` 是否只包含预期范围。
     - 测试是否覆盖关键行为。
     - `.cowork-flow/spec/` 是否需要更新。
@@ -238,7 +238,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
 
 恢复时只读取最小上下文：
 1. 运行 `./.cowork-flow/run resume`。
-2. 按 `RESUME CHECKLIST` 读取当前任务 PRD、计划状态和 JSONL 指向文件。
+2. 按 `RESUME CHECKLIST` 读取当前任务 decision-anchor、计划状态和 JSONL 指向文件。
 3. 不批量读取所有规格、计划、任务或工作区日志。
 4. 不存在当前会话任务时，先创建或启动任务。
 

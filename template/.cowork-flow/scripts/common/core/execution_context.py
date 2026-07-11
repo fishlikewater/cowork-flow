@@ -269,7 +269,7 @@ def build_worker_resume_text(
                 suffix = f" - {reason}" if isinstance(reason, str) and reason.strip() else ""
                 lines.append(f"- {file_value}{suffix}")
     if context.task_dir and (repo_root / context.task_dir / "decision-anchor.md").is_file():
-        lines.append(f"- Read task PRD: {context.task_dir}/decision-anchor.md")
+        lines.append(f"- Read task decision-anchor: {context.task_dir}/decision-anchor.md")
     lines.append("- Follow only the files, steps, and commands named in the worker brief.")
 
     forbidden_actions = context_data.get("forbiddenActions")
