@@ -217,3 +217,33 @@ Anchored Claude Code hook, command, agent, skill, and runtime bind commands thro
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 70: P1 doctor release health
+
+**Date**: 2026-07-11
+**Task**: P1 doctor release health
+
+### Summary
+
+新增 doctor --release-health 聚合检查，覆盖 UTF-8/BOM、root/template sync、DB migration、host adapter、subagent safety、pack boundary，并补充行为测试和质量证据。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

@@ -5,7 +5,10 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 try:
@@ -186,6 +189,309 @@ REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS = [
     "UserPromptSubmit",
     "SessionStart",
 ]
+
+
+@dataclass(frozen=True)
+class ReleaseHealthResult:
+    name: str
+    status: str
+    current: str
+    blocker: str = ""
+    next_command: str = ""
+    files: tuple[str, ...] = ()
+
+
+def _compact_lines(text: str, limit: int = 3) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    excerpt = "; ".join(lines[:limit])
+    if len(lines) > limit:
+        excerpt += f"; +{len(lines) - limit} more line(s)"
+    return excerpt
+
+
+def _compact_errors(errors: list[str], limit: int = 3) -> str:
+    excerpt = "; ".join(errors[:limit])
+    if len(errors) > limit:
+        excerpt += f"; +{len(errors) - limit} more issue(s)"
+    return excerpt
+
+
+def _result_from_errors(
+    name: str,
+    errors: list[str],
+    *,
+    ok_current: str,
+    next_command: str,
+    files: tuple[str, ...],
+) -> ReleaseHealthResult:
+    if errors:
+        return ReleaseHealthResult(
+            name=name,
+            status="FAIL",
+            current=f"{len(errors)} issue(s) detected",
+            blocker=_compact_errors(errors),
+            next_command=next_command,
+            files=files,
+        )
+    return ReleaseHealthResult(name=name, status="OK", current=ok_current, files=files)
+
+
+def _result_from_subprocess(
+    name: str,
+    result: subprocess.CompletedProcess[str],
+    *,
+    next_command: str,
+    files: tuple[str, ...],
+) -> ReleaseHealthResult:
+    output = _compact_lines(result.stdout) or _compact_lines(result.stderr)
+    if result.returncode == 0:
+        return ReleaseHealthResult(
+            name=name,
+            status="OK",
+            current=output or "command completed successfully",
+            next_command=next_command,
+            files=files,
+        )
+    return ReleaseHealthResult(
+        name=name,
+        status="FAIL",
+        current=f"command exited with {result.returncode}",
+        blocker=_compact_lines(result.stderr) or output or "command failed",
+        next_command=next_command,
+        files=files,
+    )
+
+
+def _run_doctor_subcheck(
+    repo_root: Path,
+    name: str,
+    args: list[str],
+    *,
+    next_command: str,
+    files: tuple[str, ...],
+) -> ReleaseHealthResult:
+    try:
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve()), *args],
+            cwd=repo_root,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return ReleaseHealthResult(
+            name=name,
+            status="FAIL",
+            current="subcheck could not run",
+            blocker=str(exc),
+            next_command=next_command,
+            files=files,
+        )
+    return _result_from_subprocess(
+        name, result, next_command=next_command, files=files
+    )
+
+
+def _check_release_encoding(repo_root: Path) -> ReleaseHealthResult:
+    try:
+        from common import coding_standards
+    except Exception as exc:
+        return ReleaseHealthResult(
+            name="UTF-8/BOM",
+            status="FAIL",
+            current="coding standard scanner could not load",
+            blocker=str(exc),
+            next_command=".\\.cowork-flow\\run.cmd python -m pytest tests/test_coding_standards.py -q",
+            files=(".cowork-flow/scripts/common/coding_standards.py",),
+        )
+
+    scan_paths = [
+        repo_root / ".cowork-flow" / "scripts",
+        repo_root / "template" / ".cowork-flow" / "scripts",
+    ]
+    bom = coding_standards.scan_bom(scan_paths)
+    encoding = coding_standards.scan_encoding(scan_paths)
+    errors = [
+        *bom.get("violations", []),
+        *encoding.get("violations", []),
+    ]
+    return _result_from_errors(
+        "UTF-8/BOM",
+        errors,
+        ok_current="BOM and explicit UTF-8 scans passed",
+        next_command=".\\.cowork-flow\\run.cmd python -m pytest tests/test_coding_standards.py -q",
+        files=(
+            ".cowork-flow/scripts/common/coding_standards.py",
+            "template/.cowork-flow/scripts/common/coding_standards.py",
+        ),
+    )
+
+
+def _check_release_template_sync(repo_root: Path) -> ReleaseHealthResult:
+    checked = (
+        ".cowork-flow/scripts/doctor.py",
+        ".cowork-flow/scripts/common/coding_standards.py",
+        ".cowork-flow/scripts/flow/store.py",
+    )
+    errors: list[str] = []
+    for rel in checked:
+        root_file = repo_root / rel
+        template_file = repo_root / "template" / rel
+        if not root_file.is_file():
+            errors.append(f"missing root file: {rel}")
+            continue
+        if not template_file.is_file():
+            errors.append(f"missing template file: template/{rel}")
+            continue
+        if root_file.read_bytes() != template_file.read_bytes():
+            errors.append(f"template drift: {rel}")
+    return _result_from_errors(
+        "root/template sync",
+        errors,
+        ok_current=f"{len(checked)} mirrored files match",
+        next_command="npm test -- test/sync.test.js",
+        files=tuple(checked),
+    )
+
+
+def _check_release_migrations(repo_root: Path) -> ReleaseHealthResult:
+    try:
+        from flow.store import FlowStore
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = str(Path(tmp) / "release-health.sqlite")
+            with FlowStore(db_path) as store:
+                applied = store._get_applied_migrations()
+                pending = store._discover_pending_migrations()
+        errors = [f"pending migration v{version}: {name}" for version, name, _ in pending]
+        return _result_from_errors(
+            "DB migration",
+            errors,
+            ok_current=f"{len(applied)} migration(s) apply cleanly to a fresh DB",
+            next_command=".\\.cowork-flow\\run.cmd flow migrate --status",
+            files=(
+                ".cowork-flow/scripts/flow/store.py",
+                ".cowork-flow/scripts/flow/migrations",
+            ),
+        )
+    except Exception as exc:
+        return ReleaseHealthResult(
+            name="DB migration",
+            status="FAIL",
+            current="fresh DB migration check failed",
+            blocker=str(exc),
+            next_command=".\\.cowork-flow\\run.cmd python -m pytest tests/test_flow_migration.py -q",
+            files=(
+                ".cowork-flow/scripts/flow/store.py",
+                ".cowork-flow/scripts/flow/migrations",
+            ),
+        )
+
+
+def _check_release_pack_boundary(repo_root: Path) -> ReleaseHealthResult:
+    try:
+        result = subprocess.run(
+            ["node", "scripts/pack-check.js"],
+            cwd=repo_root,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            check=False,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return ReleaseHealthResult(
+            name="pack boundary",
+            status="FAIL",
+            current="pack-check could not run",
+            blocker=str(exc),
+            next_command="npm run pack:check",
+            files=("scripts/pack-check.js", "package.json"),
+        )
+    if result.returncode == 0:
+        ok_line = next(
+            (
+                line.strip()
+                for line in result.stdout.splitlines()
+                if line.strip().startswith("pack-check ok:")
+            ),
+            "package boundary check passed",
+        )
+        return ReleaseHealthResult(
+            name="pack boundary",
+            status="OK",
+            current=ok_line,
+            next_command="npm run pack:check",
+            files=("scripts/pack-check.js", "package.json"),
+        )
+    return _result_from_subprocess(
+        "pack boundary",
+        result,
+        next_command="npm run pack:check",
+        files=("scripts/pack-check.js", "package.json"),
+    )
+
+
+def build_release_health_results(repo_root: Path) -> list[ReleaseHealthResult]:
+    return [
+        _check_release_encoding(repo_root),
+        _check_release_template_sync(repo_root),
+        _check_release_migrations(repo_root),
+        _run_doctor_subcheck(
+            repo_root,
+            "host adapter",
+            ["--host-adapters"],
+            next_command=".\\.cowork-flow\\run.cmd doctor --host-adapters",
+            files=(
+                ".cowork-flow/adapters",
+                "template/.cowork-flow/adapters",
+                ".cowork-flow/spec/reference/adapters/adapter.schema.json",
+            ),
+        ),
+        _run_doctor_subcheck(
+            repo_root,
+            "subagent safety",
+            ["--subagent-safety"],
+            next_command=".\\.cowork-flow\\run.cmd doctor --subagent-safety",
+            files=(
+                ".codex/agents",
+                ".claude/agents",
+                ".cowork-flow/spec/core/dispatch.md",
+            ),
+        ),
+        _check_release_pack_boundary(repo_root),
+    ]
+
+
+def format_release_health_results(results: list[ReleaseHealthResult]) -> str:
+    lines = ["Release health:"]
+    counts = {"OK": 0, "WARN": 0, "FAIL": 0}
+    for result in results:
+        counts[result.status] = counts.get(result.status, 0) + 1
+        lines.append(f"[{result.status}] {result.name}")
+        lines.append(f"  current: {result.current}")
+        if result.blocker:
+            lines.append(f"  blocker: {result.blocker}")
+        if result.next_command:
+            lines.append(f"  next: {result.next_command}")
+        if result.files:
+            lines.append("  files:")
+            for file in result.files:
+                lines.append(f"    - {file}")
+    lines.append(
+        f"Summary: OK={counts.get('OK', 0)} WARN={counts.get('WARN', 0)} FAIL={counts.get('FAIL', 0)}"
+    )
+    return "\n".join(lines) + "\n"
+
+
+def cmd_release_health(_: argparse.Namespace) -> int:
+    results = build_release_health_results(get_repo_root())
+    print(format_release_health_results(results), end="")
+    return 1 if any(result.status == "FAIL" for result in results) else 0
 
 
 def _check_claude_skill_commands_anchored(path: Path, errors: list[str]) -> None:
@@ -563,6 +869,11 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="cowork-flow diagnostics")
     parser.add_argument(
+        "--release-health",
+        action="store_true",
+        help="Run aggregate release health diagnostics",
+    )
+    parser.add_argument(
         "--subagent-safety", action="store_true", help="Check subagent safety wiring"
     )
     parser.add_argument(
@@ -579,6 +890,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if args.release_health:
+        return cmd_release_health(args)
     if args.subagent_safety:
         return cmd_subagent_safety(args)
     if args.entry_contract:
