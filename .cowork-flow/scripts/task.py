@@ -598,6 +598,7 @@ def cmd_create(args: argparse.Namespace) -> int:
             priority=args.priority or "P2",
             creator=creator,
             assignee=assignee,
+            level=getattr(args, "level", "L1") or "L1",
             parent_id=parent_slug,
             artifact_dir=dir_name,
             meta=meta,
@@ -959,7 +960,49 @@ def cmd_start(args: argparse.Namespace) -> int:
                 for a in rh["advisories"]:
                     print(f"  - {a}", file=sys.stderr)
         except Exception:
-            pass  # contract check failures are non-fatal in the caller
+            print(
+                colored(
+                    "Error: readWhen contract check raised an exception — "
+                    "registry unreadable or git error. Failing closed.",
+                    Colors.RED,
+                ),
+                file=sys.stderr,
+            )
+            return 1
+
+    # L0 scope evidence gate (P1-C): warn if L0 task has a linked change.yaml
+    try:
+        _l0_task_dir_rel = (
+            full_path.relative_to(repo_root).as_posix()
+            if full_path.is_relative_to(repo_root)
+            else str(full_path)
+        )
+        _l0_task_id = _resolve_task_id(_l0_task_dir_rel, repo_root)
+        with _get_flow_store(repo_root) as store:
+            _l0_view = store.get_task(_l0_task_id)
+            if _l0_view is not None and _l0_view.level == "L0":
+                _changes_dir = repo_root / DIR_WORKFLOW / "changes"
+                if _changes_dir.exists():
+                    import yaml as _yaml
+                    for _cy in _changes_dir.glob("*/change.yaml"):
+                        try:
+                            _cdata = _yaml.safe_load(_cy.read_text(encoding="utf-8")) or {}
+                            _c_task = str(_cdata.get("task", ""))
+                            if _c_task and (_c_task == _l0_task_id or _c_task in _l0_task_dir_rel):
+                                print(
+                                    colored(
+                                        f"[L0 scope advisory] L0 task '{_l0_view.id}' has a linked "
+                                        f"change record at {_cy.parent.name}/change.yaml. "
+                                        "Verify no user-observable behavior change, or reclassify to L1.",
+                                        Colors.YELLOW,
+                                    ),
+                                    file=sys.stderr,
+                                )
+                                break
+                        except Exception:
+                            continue
+    except Exception:
+        pass  # best-effort advisory, never blocks
 
     # Convert to relative path for storage
     try:
@@ -982,6 +1025,24 @@ def cmd_start(args: argparse.Namespace) -> int:
             colored(f"[WARN] FlowStore pattern gate failed: {exc}", Colors.YELLOW),
             file=sys.stderr,
         )
+
+    # Rules engine gate (P1-D): validate rules.json for task_start scope
+    try:
+        from common.gates import GateRunner as _GateRunner
+        _gr = _GateRunner(repo_root)
+        _gr_result = _gr.check_start(full_path)
+        if _gr_result.blocked:
+            print(colored("Error: Rules engine gate failed", Colors.RED), file=sys.stderr)
+            for b in _gr_result.blockers:
+                print(f"  [BLOCK] {b['rule_id']}: {b['message']}", file=sys.stderr)
+                if b.get("fix_hint"):
+                    print(f"    fix: {b['fix_hint']}", file=sys.stderr)
+            return 1
+        for v in _gr_result.violations:
+            if v.get("severity") == "warn":
+                print(colored(f"[rule warning] {v['rule_id']}: {v['message']}", Colors.YELLOW), file=sys.stderr)
+    except Exception:
+        pass  # best-effort, never blocks hard gates
 
     active = set_active_task(repo_root, task_dir)
     if active is None:
@@ -1040,12 +1101,34 @@ def cmd_review(args: argparse.Namespace) -> int:
         if issues:
             _print_pattern_errors(pattern, ctx, "review", issues)
             return 1
+        # Rules engine gate: task_review scope
+        try:
+            from common.gates import GateRunner as _GateRunner
+            _gr = _GateRunner(repo_root)
+            _gr_result = _gr.check_review(task_dir)
+            for v in _gr_result.violations:
+                sev = v.get("severity", "warn")
+                tag = Colors.RED if sev == "block" else Colors.YELLOW
+                print(colored(f"[rule {sev}] {v['rule_id']}: {v['message']}", tag), file=sys.stderr)
+        except Exception:
+            pass
         if not store.update_status(task_id, "review", "system", "task review"):
             print(
                 colored(f"Error: Flow task not found: {task_id}", Colors.RED),
                 file=sys.stderr,
             )
             return 1
+
+    # Spec-driven coding gate (P2): validate NL rules from spec/backend, spec/frontend
+    try:
+        from common.spec_coding_gate import validate_spec_coding as _validate_spec
+        _spec_violations = _validate_spec(repo_root, task_dir)
+        if _spec_violations:
+            print(colored("Spec coding gate violations:", Colors.YELLOW), file=sys.stderr)
+            for v in _spec_violations:
+                print(f"  [{v['rule_id']}] {v.get('file', '?')}:{v.get('line', '?')} — {v['message']}", file=sys.stderr)
+    except Exception:
+        pass  # best-effort advisory
 
     task_path = _display_task_path(repo_root, task_dir)
     print(colored(f"[OK] Task marked for check: {task_path}", Colors.GREEN))
@@ -1078,12 +1161,77 @@ def cmd_complete(args: argparse.Namespace) -> int:
         if issues:
             _print_pattern_errors(pattern, ctx, "completed", issues)
             return 1
+        # Rules engine gate: task_complete scope (hard block)
+        try:
+            from common.gates import GateRunner as _GateRunner
+            _gr = _GateRunner(repo_root)
+            _gr_result = _gr.check_complete(task_dir)
+            if _gr_result.blocked:
+                print(colored("Error: Rules engine blocks completion", Colors.RED), file=sys.stderr)
+                for b in _gr_result.blockers:
+                    print(f"  [BLOCK] {b['rule_id']}: {b['message']}", file=sys.stderr)
+                return 1
+        except Exception:
+            pass
+        # Inline bypass audit (P1-C): detect tasks completed without formal dispatch
+        try:
+            _ctxs = store.list_runtime_contexts_for_task(task_id)
+            _formal_agents = {"cowork-implement", "cowork-check"}
+            _has_formal = any(
+                c.get("agent_type") in _formal_agents for c in _ctxs
+            )
+            if not _has_formal:
+                store._record_bypass_audit(
+                    task_id, "completed", "system",
+                    "task completed without formal cowork-implement or cowork-check dispatch"
+                )
+                print(
+                    colored(
+                        "[bypass audit] Task completed without formal cowork-implement/cowork-check "
+                        "dispatch. If this was an inline execution, ensure the reason is documented "
+                        "in the task's prd.md or review.jsonl.",
+                        Colors.YELLOW,
+                    ),
+                    file=sys.stderr,
+                )
+        except Exception:
+            pass  # best-effort advisory
+
+        # Spec-driven coding gate (P2 hard block): prevent completion with spec violations
+        try:
+            from common.spec_coding_gate import validate_spec_coding as _validate_spec_c
+            _spec_v = _validate_spec_c(repo_root, task_dir)
+            if _spec_v:
+                print(colored("Error: Spec coding gate blocks completion", Colors.RED), file=sys.stderr)
+                for v in _spec_v:
+                    sev = v.get("severity", "block")
+                    print(f"  [{sev}] {v.get('file', '?')}:{v.get('line', '?')} — {v['message']}", file=sys.stderr)
+                    if v.get("fix_hint"):
+                        print(f"    fix: {v['fix_hint']}", file=sys.stderr)
+                return 1
+        except Exception:
+            pass
+
         if not store.update_status(task_id, "completed", "system", "task complete"):
             print(
                 colored(f"Error: Flow task not found: {task_id}", Colors.RED),
                 file=sys.stderr,
             )
             return 1
+
+    # Auto-run doctor static checks on complete (advisory, gated by config)
+    try:
+        from common.config import _load_config
+        _cfg = _load_config(repo_root)
+        if _cfg.get("doctor", {}).get("autorun_on_complete", False):
+            import subprocess as _sp
+            _sp.run(
+                [sys.executable, str(repo_root / DIR_WORKFLOW / "scripts" / "doctor.py"),
+                 "--entry-contract", "--host-adapters"],
+                capture_output=True, timeout=30,
+            )
+    except Exception:
+        pass  # best-effort, never blocks completion
 
     task_path = _display_task_path(repo_root, task_dir)
     print(colored(f"[OK] Task marked completed: {task_path}", Colors.GREEN))
@@ -1427,7 +1575,7 @@ def cmd_next(args: argparse.Namespace) -> int:
                 for a in rh.get("advisories", []):
                     print(f"  [ADVISORY] - {a}")
         except Exception:
-            pass
+            print(colored("[readWhen] check raised an exception; skipping", Colors.YELLOW), file=sys.stderr)
 
 
 # =============================================================================
@@ -1614,6 +1762,12 @@ def cmd_unblock(args: argparse.Namespace) -> int:
     """Unblock a blocked task (requires --force)."""
     repo_root = get_repo_root()
     task_id = _resolve_task_id(args.dir, repo_root)
+    if not getattr(args, "force", False):
+        print(
+            colored("Error: unblock requires --force", Colors.RED),
+            file=sys.stderr,
+        )
+        return 1
     with _get_flow_store(repo_root) as store:
         if store.get_task(task_id) is None:
             print(
@@ -1934,6 +2088,12 @@ def main() -> int:
         "--pattern",
         default="generic",
         help="Collaboration pattern: generic",
+    )
+    p_create.add_argument(
+        "--level",
+        choices=["L0", "L1", "L2"],
+        default="L1",
+        help="Task level: L0 (no behavior change), L1 (local), L2 (cross-layer/significant)",
     )
     p_create.add_argument(
         "--meta", default=None, help="JSON metadata for pattern configuration"

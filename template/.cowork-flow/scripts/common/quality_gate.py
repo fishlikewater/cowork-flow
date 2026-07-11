@@ -3,15 +3,17 @@
 """Quality gate kernel for lifecycle evidence validation.
 
 Provides:
-    GateResult                  - structured gate result
+    GateResult                  - structured gate result with violations
     load_quality_evidence       - read quality.json from task directory
     validate_tdd_evidence       - validate testPlan, red, green per work_type
     validate_completion_evidence - validate green, standards, check evidence
+    execute_red_test            - actually run red.command and verify exit code
 """
 
 from __future__ import annotations
 
 import json
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -23,11 +25,55 @@ from pathlib import Path
 
 @dataclass
 class GateResult:
-    """Structured gate check result."""
+    """Structured gate check result with rule violations.
+
+    Attributes:
+        ok: True when no blockers present.
+        scope: Lifecycle phase that produced this result (e.g. "task_start").
+        violations: Structured rule violations with rule_id/severity/fix_hint.
+        errors: Legacy error messages (backward compatible).
+        warnings: Legacy warning messages (backward compatible).
+    """
 
     ok: bool
+    scope: str = ""
+    violations: list[dict] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def blockers(self) -> list[dict]:
+        """Return violations with severity == 'block'."""
+        return [v for v in self.violations if v.get("severity") == "block"]
+
+    @property
+    def blocked(self) -> bool:
+        """True when at least one blocker exists."""
+        return len(self.blockers) > 0
+
+    @property
+    def exit_code(self) -> int:
+        """1 if blocked, 0 otherwise — for sys.exit."""
+        return 1 if self.blocked else 0
+
+    def add_violation(
+        self,
+        rule_id: str,
+        severity: str,
+        message: str,
+        fix_hint: str = "",
+        file: str = "",
+    ) -> None:
+        """Add a structured rule violation."""
+        self.violations.append({
+            "rule_id": rule_id,
+            "severity": severity,
+            "message": message,
+            "fix_hint": fix_hint,
+            "file": file,
+        })
+        if severity == "block":
+            self.ok = False
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +193,82 @@ def _check_red_evidence(evidence: dict, errors: list[str]) -> None:
             "red evidence exitCode is 0, but the red phase requires at least one "
             "failing test. Write a failing test first, run it, and record the non-zero exit code."
         )
+
+
+# ---------------------------------------------------------------------------
+# Execution-backed red test verification
+# ---------------------------------------------------------------------------
+
+RED_TEST_TIMEOUT = 120  # seconds
+
+
+def execute_red_test(task_dir: Path, repo_root: Path | None = None) -> GateResult:
+    """Actually run the red command from quality.json and verify it fails.
+
+    Returns ok=True only if:
+    - quality.json exists and has a red.command
+    - The command exits with a non-zero code
+    - The actual exit code matches the claimed exit_code (if present)
+    Returns ok=True with a warning when execution-based checking is disabled
+    by config (quality_gate.execute_red_test != True).
+    """
+    from .config import _load_config
+
+    config = _load_config(repo_root)
+    if not config.get("quality_gate", {}).get("execute_red_test", False):
+        return GateResult(ok=True, warnings=["execute_red_test disabled by config"])
+
+    evidence = load_quality_evidence(task_dir)
+    red = evidence.get("red")
+    if not isinstance(red, dict) or not red.get("command"):
+        return GateResult(ok=True, warnings=["No red.command to execute; skipping execution check"])
+
+    command = red["command"]
+    claimed_exit_code = red.get("exitCode")
+    work_dir = str(task_dir)
+
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            cwd=work_dir,
+            capture_output=True,
+            timeout=RED_TEST_TIMEOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except subprocess.TimeoutExpired:
+        return GateResult(
+            ok=False,
+            errors=[
+                f"Red test timed out after {RED_TEST_TIMEOUT}s: {command!r}. "
+                "If the command is legitimately slow, increase quality_gate.execute_red_timeout."
+            ],
+        )
+    except OSError as exc:
+        return GateResult(
+            ok=False,
+            errors=[f"Failed to execute red test command {command!r}: {exc}"],
+        )
+
+    actual_exit = result.returncode
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if actual_exit == 0:
+        errors.append(
+            f"Red test exited with 0 (expected non-zero) when run in {work_dir}: {command!r}. "
+            "The test that should fail is passing — either the bug is already fixed or the test is wrong."
+        )
+
+    if claimed_exit_code is not None and actual_exit != claimed_exit_code:
+        warnings.append(
+            f"Red test actual exit code ({actual_exit}) differs from claimed ({claimed_exit_code}). "
+            f"Command: {command!r}. Update quality.json to match reality."
+        )
+
+    return GateResult(ok=len(errors) == 0, errors=errors, warnings=warnings)
 
 
 # ---------------------------------------------------------------------------

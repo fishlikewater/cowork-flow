@@ -1,0 +1,19 @@
+{
+  "name": "cowork-flow",
+  "version": "0.1.0",
+  "description": "AI 协作工作流引擎 — 任务生命周期、子代理调度、门禁与状态注入。将 cowork-flow 的完整工作流带入 ZCode。",
+  "author": {
+    "name": "zhangxiang",
+    "email": "fishlikewater@126.com"
+  },
+  "license": "MIT",
+  "skills": "skills",
+  "hooks": [
+    "hooks/hooks.json"
+  ],
+  "scaffold": "scaffold",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cowork-flow/cowork-flow.git"
+  }
+}

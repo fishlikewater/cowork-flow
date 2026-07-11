@@ -35,6 +35,12 @@ Rules:
 - MUST NOT spawn, wait for, list, or close other agents.
 - MUST NOT commit, archive, or mutate cowork-flow task state.
 - Report findings, changed files, and exact verification commands.
+
+Coding gate (spec-driven — runs after check passes):
+./.cowork-flow/run python .cowork-flow/scripts/common/spec_coding_gate.py --validate --repo-root . --task-dir <task-dir>
+Parse every *.md under .cowork-flow/spec/backend and spec/frontend; rules declared
+there activate validators dynamically. On violation, fix the code (do not disable
+the rule) and re-run until exit code 0.
 """
 
 [features]

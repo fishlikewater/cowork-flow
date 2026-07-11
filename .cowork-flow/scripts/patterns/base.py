@@ -26,6 +26,7 @@ class TaskView:
     priority: str
     creator: str
     assignee: str
+    level: str
     parent_id: str | None
     children: list[str]
     meta: dict

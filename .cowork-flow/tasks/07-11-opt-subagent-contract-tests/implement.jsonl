@@ -1,0 +1,9 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/core/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/core/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".cowork-flow/scripts/subagent.py", "reason": "Formal subagent runtime"}
+{"file": ".cowork-flow/spec/core/dispatch.md", "reason": "Dispatch contract"}
+{"file": ".codex/agents/cowork-implement.toml", "reason": "Codex implement agent contract"}
+{"file": ".codex/agents/cowork-check.toml", "reason": "Codex check agent contract"}
+{"file": ".opencode/plugins/cowork-flow.js", "reason": "OpenCode plugin signals"}

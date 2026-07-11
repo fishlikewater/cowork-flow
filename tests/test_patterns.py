@@ -21,6 +21,7 @@ def make_task(
     pattern: str = "generic",
     *,
     id: str = "task-1",
+    level: str = "L1",
     children: list[str] | None = None,
     meta: dict | None = None,
 ) -> TaskView:
@@ -33,6 +34,7 @@ def make_task(
         priority="P2",
         creator="codex",
         assignee="codex",
+        level=level,
         parent_id=None,
         children=children or [],
         meta=meta or {},

@@ -5,6 +5,7 @@ import { createInterface } from 'node:readline/promises';
 import { runInit } from './commands/init.js';
 import { runSync } from './commands/sync.js';
 import { runUpdate } from './commands/update.js';
+import { runInstallZCodePlugin } from './commands/install-zcode-plugin.js';
 import { readPackageInfo } from './lib/package-info.js';
 
 const HELP = `cowork-flow
@@ -13,6 +14,7 @@ Usage:
   cowork-flow init [target] --platform <codex|opencode|claude-code|all> [--developer <name>] [--dry-run] [--force]
   cowork-flow update
   cowork-flow sync [target] [--dry-run] [--force]
+  cowork-flow install-zcode-plugin [--dry-run] [--force]
   cowork-flow --version
   cowork-flow --help
 `;
@@ -173,6 +175,10 @@ export async function main(argv = process.argv.slice(2), options = {}) {
 
     if (command === 'update') {
       return await runUpdate(args, { io });
+    }
+
+    if (command === 'install-zcode-plugin') {
+      return await runInstallZCodePlugin(args, { io });
     }
 
     io.writeErr(`Unknown command: ${command}\n`);

@@ -73,6 +73,73 @@ def _run_git_command(args: list[str], cwd: Path | None = None) -> tuple[int, str
         return 1, "", str(e)
 
 
+# ---------------------------------------------------------------------------
+# ChangedFile — type-safe git status parsing
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ChangedFile:
+    """Structured representation of a changed file from git status.
+
+    Attributes:
+        path: Normalized relative path (forward slashes).
+        statuses: One or more of "staged", "modified", "untracked", "renamed".
+    """
+
+    path: str
+    statuses: tuple[str, ...]
+
+
+def get_changed_files(repo_root: Path | None = None) -> list[ChangedFile]:
+    """Parse `git status --porcelain` into structured ChangedFile objects.
+
+    Returns an empty list on error or if git is not available.
+    """
+    if repo_root is None:
+        repo_root = get_repo_root()
+    rc, stdout, _ = _run_git_command(
+        ["status", "--porcelain=v1", "-uall"], cwd=repo_root
+    )
+    if rc != 0:
+        return []
+
+    files: dict[str, set[str]] = {}
+    for line in stdout.splitlines():
+        if len(line) < 4:
+            continue
+        index_status = line[0]
+        work_status = line[1]
+        path = line[3:].strip().strip('"').replace("\\", "/")
+
+        # Handle rename: "old -> new"
+        if " -> " in path:
+            path = path.split(" -> ")[-1]
+
+        if not path:
+            continue
+
+        statuses: set[str] = set()
+        if index_status in ("A", "M", "D", "R", "C"):
+            statuses.add("staged")
+        if work_status in ("M", "D"):
+            statuses.add("modified")
+        if index_status == "?" and work_status == "?":
+            statuses.add("untracked")
+        if index_status == "R" or work_status == "R":
+            statuses.add("renamed")
+
+        if path in files:
+            files[path].update(statuses)
+        else:
+            files[path] = statuses
+
+    return [
+        ChangedFile(path=path, statuses=tuple(sorted(statuses)))
+        for path, statuses in sorted(files.items())
+    ]
+
+
 def _iter_task_dirs(tasks_dir: Path, sort: bool = True):
     """Yield active task directories."""
     if not tasks_dir.is_dir():

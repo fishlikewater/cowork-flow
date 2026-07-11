@@ -363,4 +363,4 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertNotIn(".cowork-flow/run subagent init", text)
             self.assertNotIn("cowork_runtime_context_id: <runtime_context_id>", text)
             self.assertNotIn(".claude/agents/cowork-implement.md", text)
-            self.assertNotIn(".claude/skills/", text)
+            self.assertNotIn(".claude/skills", text)

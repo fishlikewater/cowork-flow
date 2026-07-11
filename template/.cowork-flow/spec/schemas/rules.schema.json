@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "cowork-flow runtime rules",
+  "description": "Machine-readable rule set for lifecycle quality gates and agent behavior enforcement",
+  "type": "object",
+  "required": ["schemaVersion", "rules"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "type", "severity", "scope",
+          "condition", "message", "fix_hint",
+          "source_file", "enforcement"
+        ],
+        "anyOf": [
+          { "required": ["source_anchor"] },
+          { "required": ["source_excerpt"] }
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^R-[A-Z]+-\\d{3}$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["phase_gate", "forbidden_action"]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["block", "warn"]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "task_start", "task_review", "task_complete",
+              "check", "implement", "all"
+            ]
+          },
+          "condition": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fix_hint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_excerpt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_anchor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "enforcement": {
+            "type": "string",
+            "enum": [
+              "validate_rules",
+              "validate_implementation",
+              "tdd_evidence",
+              "host_contract",
+              "metadata_only"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

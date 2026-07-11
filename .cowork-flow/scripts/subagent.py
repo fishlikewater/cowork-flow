@@ -535,6 +535,7 @@ def cmd_check_family(args: argparse.Namespace) -> int:
     pending: list[dict] = []
     done: list[dict] = []
     failed: list[dict] = []
+    unbound: list[dict] = []
 
     with FlowStore(str(get_db_path(repo_root))) as store:
         parent = _resolve_flow_task(store, args.parent_id)
@@ -567,19 +568,34 @@ def cmd_check_family(args: argparse.Namespace) -> int:
                 "taskStatus": child.status,
                 "status": run["status"],
                 "hostContextKey": run.get("host_context_key"),
+                "bound": run.get("status") == "bound" and bool(run.get("bound_context_key")),
+                "boundContextKey": run.get("bound_context_key"),
             }
             if run["status"] in FAILED_AGENT_RUN_STATUSES:
                 failed.append(entry)
             elif run["status"] in DONE_AGENT_RUN_STATUSES or child.status in DONE_TASK_STATUSES:
-                done.append(entry)
+                if entry["bound"]:
+                    done.append(entry)
+                else:
+                    unbound.append(entry)
             else:
                 pending.append(entry)
 
+    if unbound:
+        print(
+            f"[bind gate] {len(unbound)} child(ren) completed without valid binding "
+            "(status != 'bound' or missing bound_context_key). Their output MUST NOT be accepted.",
+            file=sys.stderr,
+        )
+        for u in unbound:
+            print(f"  - {u['taskId']} (runtimeContextId={u['runtimeContextId']})", file=sys.stderr)
+
     payload = {
-        "all_done": not pending and not failed,
+        "all_done": not pending and not failed and not unbound,
         "pending": pending,
         "done": done,
         "failed": failed,
+        "unbound_rejected": unbound,
     }
     print(json.dumps(payload, ensure_ascii=False))
     return 0 if payload["all_done"] else 1

@@ -1,0 +1,7 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/core/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/core/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "test/sync.test.js", "reason": "Root/template parity tests"}
+{"file": "scripts/pack-check.js", "reason": "Pack boundary checks"}
+{"file": "src/lib/copy-template.js", "reason": "Template copy behavior"}

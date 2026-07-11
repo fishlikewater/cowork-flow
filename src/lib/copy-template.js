@@ -3,7 +3,7 @@ import { access, chmod, copyFile, mkdir, readFile, readdir, stat, writeFile } fr
 import { dirname, join, relative } from 'node:path';
 
 import { templateRoot } from './paths.js';
-import { shouldIncludeForPlatforms } from './platforms.js';
+import { shouldIncludeForPlatforms, skillDestinationForPlatform } from './platforms.js';
 
 async function pathExists(path) {
   try {
@@ -26,6 +26,8 @@ function shouldSkipTemplatePath(relativePath) {
   return (
     templatePath === '.cowork-flow/.runtime'
     || templatePath.startsWith('.cowork-flow/.runtime/')
+    || templatePath === 'skills'
+    || templatePath.startsWith('skills/')
   );
 }
 
@@ -96,10 +98,10 @@ const PROTECTED_SYNC_PREFIXES = [
 ];
 
 const SAFE_SYNC_PREFIXES = [
+  '.agents/',
   '.codex/',
   '.opencode/',
   '.claude/',
-  '.agents/skills/',
   '.cowork-flow/'
 ];
 
@@ -209,6 +211,33 @@ export async function buildSyncPlan(targetDir, options = {}) {
       actions.push({ action: 'create', source, destination, relativePath: file });
     } else {
       actions.push({ action: 'protected', source, destination, relativePath: file });
+    }
+  }
+
+  // Inject per-platform skills directories from the canonical template/skills/.
+  const skillsSrc = join(templateRoot, 'skills');
+  if (await pathExists(skillsSrc)) {
+    const skillEntries = await readdir(skillsSrc, { withFileTypes: true });
+    const seen = new Set(actions.map((a) => a.destination));
+    for (const entry of skillEntries) {
+      if (!entry.isDirectory()) continue;
+      const skillName = entry.name;
+      const skillSource = join(skillsSrc, skillName, 'SKILL.md');
+      if (!(await pathExists(skillSource))) continue;
+      for (const platform of platforms) {
+        const destBase = skillDestinationForPlatform(platform);
+        if (!destBase) continue;
+        const dest = join(targetDir, destBase, skillName, 'SKILL.md');
+        if (seen.has(dest)) continue;
+        seen.add(dest);
+        const exists = await pathExists(dest);
+        actions.push({
+          action: exists ? 'update' : 'create',
+          source: skillSource,
+          destination: dest,
+          relativePath: join(destBase, skillName, 'SKILL.md')
+        });
+      }
     }
   }
 

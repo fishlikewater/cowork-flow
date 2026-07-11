@@ -37,6 +37,12 @@ Rules:
 - MUST NOT commit or push.
 - Keep edits inside requested scope.
 - Report changed files and exact verification commands.
+
+Coding gate (spec-driven — runs at review):
+./.cowork-flow/run python .cowork-flow/scripts/common/spec_coding_gate.py --validate --repo-root . --task-dir <task-dir>
+This naturally enforces every rule the user added to .cowork-flow/spec/backend/*.md
+and spec/frontend/*.md — they are not just documentation but active validators.
+On violation, either fix the code or explicitly discard the spec rule; do not skip the gate.
 """
 
 [features]

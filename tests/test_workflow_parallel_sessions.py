@@ -182,7 +182,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         )
         for path in (
             ROOT / ".agents" / "skills" / "start" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "start" / "SKILL.md",
+            ROOT / "template" / "skills" / "start" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in skill_markers:
@@ -231,7 +231,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         )
         for path in (
             ROOT / ".agents" / "skills" / "brainstorming" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "brainstorming" / "SKILL.md",
+            ROOT / "template" / "skills" / "brainstorming" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
@@ -240,7 +240,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_start_skill_mentions_parallel_session_model(self) -> None:
         for path in (
             ROOT / ".agents" / "skills" / "start" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "start" / "SKILL.md",
+            ROOT / "template" / "skills" / "start" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("parallel sessions", text)
@@ -251,9 +251,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_entry_boundary_skill_is_removed(self) -> None:
         for path in (
             ROOT / ".agents" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
-            ROOT / ".claude" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
-            ROOT / "template" / ".claude" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
+            ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
+            ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
+            ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md",
         ):
             self.assertFalse(path.exists(), str(path))
 
@@ -263,7 +263,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
                 encoding="utf-8"
             )
             template_skill = (
-                ROOT / "template" / ".agents" / "skills" / skill_name / "SKILL.md"
+                ROOT / "template" / "skills" / skill_name / "SKILL.md"
             ).read_text(encoding="utf-8")
             self.assertEqual(root_skill, template_skill)
 
@@ -288,7 +288,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_writing_plans_routes_to_fixed_agents(self) -> None:
         for path in (
             ROOT / ".agents" / "skills" / "writing-plans" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "writing-plans" / "SKILL.md",
+            ROOT / "template" / "skills" / "writing-plans" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("cowork-implement", text)
@@ -326,7 +326,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_writing_plan_skills_require_parallel_scope_fields(self) -> None:
         for path in (
             ROOT / ".agents" / "skills" / "writing-plans" / "SKILL.md",
-            ROOT / "template" / ".agents" / "skills" / "writing-plans" / "SKILL.md",
+            ROOT / "template" / "skills" / "writing-plans" / "SKILL.md",
         ):
             text = path.read_text(encoding="utf-8")
             self.assertIn("executable scope", text)

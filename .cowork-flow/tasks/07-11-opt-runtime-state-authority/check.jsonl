@@ -1,0 +1,4 @@
+{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
+{"file": "tests/test_active_task_runtime.py", "reason": "Active task runtime tests"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "Subagent dispatch tests"}

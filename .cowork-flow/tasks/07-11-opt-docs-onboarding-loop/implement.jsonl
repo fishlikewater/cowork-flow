@@ -1,0 +1,8 @@
+{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
+{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".cowork-flow/spec/core/backend/index.md", "reason": "Backend development guide"}
+{"file": ".cowork-flow/spec/core/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "README.md", "reason": "User-facing entry documentation"}
+{"file": ".cowork-flow/spec/core/dispatch.md", "reason": "Formal dispatch contract"}
+{"file": ".agents/skills/start/SKILL.md", "reason": "Start skill instructions"}
+{"file": ".agents/skills/writing-plans/SKILL.md", "reason": "Planning skill instructions"}

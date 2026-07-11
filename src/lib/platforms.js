@@ -51,9 +51,24 @@ export function formatPlatformList(platforms) {
   return platforms.join(', ');
 }
 
+export function skillDestinationForPlatform(platform) {
+  switch (platform) {
+    case 'codex':
+    case 'opencode':
+      return '.agents/skills';
+    case 'claude-code':
+      return '.claude/skills';
+    default:
+      return null;
+  }
+}
+
 export function shouldIncludeForPlatforms(relativePath, platforms) {
   const normalized = relativePath.replaceAll('\\', '/');
-  if (normalized.startsWith('.agents/skills/')) {
+  if (normalized === 'skills' || normalized.startsWith('skills/')) {
+    return false;
+  }
+  if (normalized.startsWith('.agents/')) {
     return platforms.includes('codex') || platforms.includes('opencode');
   }
   if (normalized.startsWith('.codex/') || normalized.startsWith('.cowork-flow/adapters/codex/')) {

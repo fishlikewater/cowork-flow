@@ -742,6 +742,21 @@ class FlowStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def _record_bypass_audit(
+        self, task_id: str, to_status: str, operator: str, reason: str,
+    ) -> None:
+        """Record a bypass audit entry when a task skips formal dispatch."""
+        now = _now()
+
+        def _do_insert():
+            self.db.execute(
+                "INSERT INTO audit (task_id, from_status, to_status, operator, reason, created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (task_id, "bypass_inline", to_status, operator, reason, now),
+            )
+
+        self._transaction(_do_insert)
+
     def archive_task(self, task_id: str, operator: str, reason: str = "") -> bool:
         def _do_archive():
             now = _now()
@@ -1110,6 +1125,7 @@ def _row_to_taskview(row, children: list[str] | None = None):
         priority=row["priority"] if "priority" in row.keys() else "P2",
         creator=row["creator"] if "creator" in row.keys() else "",
         assignee=row["assignee"] if "assignee" in row.keys() else "",
+        level=row["level"] if "level" in row.keys() else "L1",
         parent_id=row["parent_id"],
         children=children if children is not None else [],
         meta=meta,
