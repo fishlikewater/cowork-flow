@@ -43,7 +43,7 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## P0 — 规划基线与风险盘点
 
-- [ ] Task: `07-11-opt-baseline-risk-map`
+- [x] Task: `07-11-opt-baseline-risk-map`
 - 目标：形成后续优化的事实基线，避免在未确认状态权威、文件复杂度和测试缺口前直接重构。
 - 修改文件：
   - `.cowork-flow/tasks/07-11-opt-baseline-risk-map/prd.md`
@@ -61,7 +61,7 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## P1-A — 强化 doctor 与发布前健康检查
 
-- [ ] Task: `07-11-opt-doctor-release-health`
+- [x] Task: `07-11-opt-doctor-release-health`
 - 目标：让维护者用一个健康检查入口发现编码、同步、迁移、宿主契约和发布边界问题。
 - 主要文件：
   - `.cowork-flow/scripts/doctor.py`
@@ -84,7 +84,7 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## P1-B — 建立 root/template 同步强门禁
 
-- [ ] Task: `07-11-opt-template-sync-gate`
+- [x] Task: `07-11-opt-template-sync-gate`
 - 目标：把 root/template 漂移从人工审查问题变成可测试、可阻断的问题。
 - 主要文件：
   - `test/sync.test.js`
@@ -105,7 +105,7 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## P1-C — 收敛运行时状态权威
 
-- [ ] Task: `07-11-opt-runtime-state-authority`
+- [x] Task: `07-11-opt-runtime-state-authority`
 - 目标：明确并收敛 active task、runtime context、runtime session、archive、journal 的读写入口，减少历史文件态和兼容路径。
 - 主要文件：
   - `.cowork-flow/scripts/common/active_task.py`
@@ -130,7 +130,7 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## P2-A — 拆分任务生命周期运行时服务层
 
-- [ ] Task: `07-11-opt-task-lifecycle-service`
+- [x] Task: `07-11-opt-task-lifecycle-service`
 - 目标：把 `task.py` 从“命令解析 + 状态机 + pattern + 输出”拆成可测试服务层，保持 CLI 行为兼容。
 - 主要文件：
   - `.cowork-flow/scripts/task.py`
@@ -153,7 +153,7 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## P2-B — 拆分 FlowStore 存储与迁移边界
 
-- [ ] Task: `07-11-opt-flowstore-boundaries`
+- [x] Task: `07-11-opt-flowstore-boundaries`
 - 目标：把 `flow/store.py` 的 schema/migration、task repository、runtime repository、dashboard repository 职责拆清，保持 SQLite 行为兼容。
 - 主要文件：
   - `.cowork-flow/scripts/flow/store.py`
@@ -178,7 +178,7 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## P2-C — 强化正式子代理宿主契约测试
 
-- [ ] Task: `07-11-opt-subagent-contract-tests`
+- [x] Task: `07-11-opt-subagent-contract-tests`
 - 目标：把 formal subagent 的宿主差异、绑定门禁和 fail-closed 安全边界固定为回归测试。
 - 主要文件：
   - `.cowork-flow/scripts/subagent.py`
@@ -206,7 +206,7 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## P3 — 文档与新用户闭环体验重构
 
-- [ ] Task: `07-11-opt-docs-onboarding-loop`
+- [x] Task: `07-11-opt-docs-onboarding-loop`
 - 目标：让新用户能在 5 分钟内跑完最小闭环，让维护者能理解状态模型和宿主适配边界。
 - 主要文件：
   - `README.md`
@@ -230,14 +230,14 @@ Execution strategy: serial by default. P1 doctor health 与 template sync gate �
 
 ## 最终集成验证
 
-- [ ] `git status --short` 确认只纳入计划内文件。
-- [ ] `git diff --check`。
-- [ ] `npm run test:all`。
-- [ ] `.cowork-flow/run.cmd python -m unittest discover -s tests -p "test_*.py"`。
-- [ ] `.cowork-flow/run.cmd doctor --release-health`。
-- [ ] `.cowork-flow/run.cmd doctor --subagent-safety`。
-- [ ] `task next` 对所有任务不显示 readiness blocker。
-- [ ] change validate 通过后归档。
+- [x] `git status --short` 确认只纳入计划内文件。
+- [x] `git diff --check`。
+- [x] `npm run test:all`。
+- [x] `.cowork-flow/run.cmd python -m unittest discover -s tests -p "test_*.py"`。
+- [x] `.cowork-flow/run.cmd doctor --release-health`。
+- [x] `.cowork-flow/run.cmd doctor --subagent-safety`。
+- [x] `task next` 对所有任务不显示 readiness blocker。
+- [x] change validate 通过后归档。
 
 ## 风险与缓解
 
