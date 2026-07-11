@@ -91,17 +91,13 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 - 固定 `cowork-*` 代理是叶子执行者；不得再派发、等待、列出或取消其他代理。
 - 通用 `worker`、`default` 或 `explorer` 只能作为 advisory work，不能满足正式实现或检查完成条件。
 
-## 3.2 手动 Party Mode
+## 3.2 Party Mode
 
-Party Mode 是用户手动触发的 advisory roundtable。主会话可通过当前宿主适配器创建 fresh child contexts，收集真实讨论子代理的证据、分歧、风险和可测验收信号，再由主会话综合结论。
+Party Mode 是用户手动触发的 runtime board advisory workflow。主会话通过 `party-mode` 入口启动 `party-v2` runtime；Python runtime 控制看板、当前轮视图、schema 校验、轮次上限、纠偏事件和最终报告。
 
-Party Mode 不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。轮次上限、继续/停止条件、输出 schema 和可配置默认值由 party-mode skill 定义；正式子代理协议仍以 `.cowork-flow/spec/contracts/subagent-dispatch.md` 为准。
+Party Mode 子代理通过 board API 交流，主持人只监控 runtime status、执行宿主适配器动作和记录偏题纠正。Party Mode 不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。
 
-## 3.2.1 手动 Party Mode V2
-
-Party Mode V2 是用户手动触发的 runtime board advisory workflow。Python runtime 控制看板、当前轮视图、schema 校验、轮次上限、纠偏事件和最终报告；子代理通过 board API 交流，主持人只监控 runtime status、执行宿主适配器动作和记录偏题纠正。
-
-Party Mode V2 仍不能推进任务状态，不能满足正式实现或检查完成条件，也不能替代 `cowork-implement` 或 `cowork-check`。V2 runtime 只输出 host-neutral next actions，宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明。
+Party Mode runtime 只输出 host-neutral next actions，宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明。正式子代理协议仍以 `.cowork-flow/spec/contracts/subagent-dispatch.md` 为准。
 
 ## 3.3 并行会话
 

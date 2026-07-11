@@ -14,11 +14,9 @@ classification or a prompt handshake.
 
 ## Advisory Party Mode
 
-Party Mode discussion children are advisory leaf executors. They use fresh child contexts for evidence gathering, disagreement surfacing, risk review, and acceptance-signal review. They cannot mutate task status, write code, archive, commit, or coordinate other agents. Their output cannot satisfy formal Implement or Check completion.
+Party Mode discussion children are advisory leaf executors. They communicate through the `party-v2` runtime board for evidence gathering, disagreement surfacing, risk review, and acceptance-signal review. They cannot mutate task status, write code, archive, commit, or coordinate other agents. Their output cannot satisfy formal Implement or Check completion.
 
-The `party-mode` skill owns round limits, continuation gates, stop gates, and output schemas. This document remains the formal `cowork-*` dispatch protocol source.
-
-Party Mode V2 discussion children are also advisory leaf executors. The `party-mode-v2` entrypoint delegates discussion state, current-round board visibility, schema validation, drift warnings, round limits, and final reports to the Party Mode V2 runtime board controller. The runtime emits host-neutral next actions; it does not change the formal `cowork-*` dispatch protocol and does not satisfy Implement or Check completion.
+The public `party-mode` skill delegates discussion state, current-round board visibility, schema validation, drift warnings, round limits, and final reports to the `party-v2` runtime board controller. The runtime emits host-neutral next actions; it does not change the formal `cowork-*` dispatch protocol and does not satisfy Implement or Check completion. This document remains the formal `cowork-*` dispatch protocol source.
 
 ## Runtime Context
 

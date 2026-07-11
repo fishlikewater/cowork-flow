@@ -105,45 +105,16 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
-    def test_party_mode_is_bounded_manual_advisory_workflow(self) -> None:
+    def test_party_mode_is_single_runtime_board_advisory_workflow(self) -> None:
         workflow_markers = (
-            "手动 Party Mode",
-            "advisory roundtable",
-            "fresh child contexts",
-            "不能推进任务状态",
-            "不能满足正式实现或检查完成条件",
-            "party-mode skill",
-        )
-        for path in (
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in workflow_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
-
-        spec_markers = (
-            "Party Mode discussion children are advisory leaf executors.",
-            "They use fresh child contexts for evidence gathering",
-            "cannot mutate task status",
-            "cannot satisfy formal Implement or Check completion",
-            "The `party-mode` skill owns round limits, continuation gates, stop gates, and output schemas.",
-        )
-        for path in (
-            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in spec_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
-
-    def test_party_mode_v2_is_runtime_board_advisory_workflow(self) -> None:
-        workflow_markers = (
-            "手动 Party Mode V2",
-            "runtime board advisory workflow",
+            "Party Mode 是用户手动触发的 runtime board advisory workflow",
+            "通过 `party-mode` 入口启动 `party-v2` runtime",
             "Python runtime 控制看板",
             "当前轮视图",
             "子代理通过 board API 交流",
             "主持人只监控 runtime status",
-            "V2 runtime 只输出 host-neutral next actions",
+            "Party Mode runtime 只输出 host-neutral next actions",
+            "不能推进任务状态",
             "不能满足正式实现或检查完成条件",
             "宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明",
         )
@@ -153,15 +124,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for marker in workflow_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
-            self.assertNotIn("spawn_agent", text)
-            self.assertNotIn("wait_agent", text)
-            self.assertNotIn("close_agent", text)
-            self.assertNotIn("Claude Task", text)
-            self.assertNotIn("OpenCode task", text)
+            self.assertNotIn("手动 Party Mode V2", text)
 
         spec_markers = (
-            "Party Mode V2 discussion children are also advisory leaf executors.",
-            "`party-mode-v2` entrypoint delegates discussion state",
+            "Party Mode discussion children are advisory leaf executors.",
+            "communicate through the `party-v2` runtime board",
+            "cannot mutate task status",
+            "cannot satisfy formal Implement or Check completion",
+            "The public `party-mode` skill delegates discussion state",
             "current-round board visibility",
             "schema validation",
             "drift warnings",
@@ -177,6 +147,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for marker in spec_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
+            self.assertNotIn("party-mode-v2` entrypoint", text)
             self.assertNotIn("spawn_agent", text)
             self.assertNotIn("wait_agent", text)
             self.assertNotIn("close_agent", text)

@@ -1,171 +1,80 @@
 ---
 name: party-mode
-description: Use when the user manually requests Party Mode or a real multi-agent roundtable for advisory discussion, option review, risk review, or decision convergence.
+description: Use when the user manually requests Party Mode or a runtime-controlled multi-agent board discussion where children communicate through board APIs and the moderator only monitors or corrects drift.
 ---
 
 # Party Mode
 
-Use this skill as the single public Party Mode facade.
+Use this skill as the single public Party Mode entrypoint.
 
-## Default: V2 Runtime
-
-Start with the runtime-controlled board:
-
-```text
-.cowork-flow/run party-v2 init
-```
-
-Continue through the runtime-emitted actions and board commands. The V2 runtime
-is the default because it owns validation, round limits, board visibility, and
-final reporting.
-
-## Explicit Manual Fallback
-
-Use the remaining manual advisory roundtable only when the user explicitly
-requests the manual fallback or the V2 runtime is unavailable and the user
-accepts the reduced guarantees. Never select it merely because direct
-orchestration is more convenient.
-
-Coordinate true child agents, not simulated personas, through the current Host
-Adapter.
+The Python runtime is the source of truth for discussion state, board
+visibility, validation, round limits, and final reports. The runtime board owns
+child-visible discussion state.
 
 ## Boundaries
 
 See [SHARED-BOUNDARIES.md](SHARED-BOUNDARIES.md) for common boundaries and advisory limits.
 
-- Generic `worker`, `default`, or `explorer` agents may provide advisory views, but their output never proves implementation or checking done.
+- Party Mode is advisory only. It does not satisfy formal Implement or Check.
+- The moderator does not forward, summarize, rewrite, or synthesize child opinions for other child agents.
 
-## Defaults And Config
+## Runtime First
 
-Built-in defaults:
-
-- `max_agents=3`
-- `max_rounds=5`
-
-These defaults are configurable values, not hard-coded constants. Effective config order:
+Always use the runtime controller:
 
 ```text
-call arguments > task/change config > `.cowork-flow/config.yaml` > skill defaults
+.cowork-flow/run party-v2 init
+.cowork-flow/run party-v2 monitor
+.cowork-flow/run party-v2 view
+.cowork-flow/run party-v2 post
+.cowork-flow/run party-v2 respond
+.cowork-flow/run party-v2 advance
+.cowork-flow/run party-v2 record-action-result
+.cowork-flow/run party-v2 finalize
 ```
 
-Configurable fields:
+Do not bypass a runtime rejection by manually accepting child output. Runtime
+validation failures must be fixed by a corrected child submission or by ending
+the discussion.
 
-- `max_agents`
-- `max_rounds`
-- agent roster or review lenses
-- report enabled
-- report path
-- round phase policy, including when challenge may continue and when convergence must begin
+## Board Rules
 
-Safety gates:
+- Child agents communicate through the board API.
+- Child-visible board output must be current-round only.
+- Historical board state is runtime-private and may be used only for audit or final reports.
+- Use at least three child agents unless the effective runtime config explicitly allows a different value.
+- The runtime emits host-neutral next actions. The active Host Adapter or moderator executes them for Codex, Claude Code, or OpenCode.
+- Host action results must be recorded back through `record-action-result` so `agents.json`, audit logs, and action history can prove lifecycle state.
 
-- continue conditions can be tightened but not removed
-- stop conditions can be tightened but not removed
-- schema core fields can be extended but not removed
-- exceeding effective limits requires explicit user approval
+## Child Response Rules
 
-## Round Model
-
-1. Frame the question, decision needed, scope, and evidence packet.
-2. Select the smallest useful agent roster or review lenses within effective `max_agents`. Record why each selected voice is useful and why omitted voices are not needed.
-3. Round 1 uses fresh child contexts. Send each child the same packet and one lens. Child agents cannot see each other.
-4. Synthesize evidence-backed positions into a compact claim table: `claim_id`, owner, claim, evidence, counterclaim, evidence gap, and decision impact.
-5. Continue only when a continue condition is met. Send narrow follow-up prompts to the smallest useful set of children, and bind each prompt to one `claim_id`.
-6. Follow-up rounds should prefer the same live child that produced or challenged the relevant position. Send only the target claim, counterclaim, evidence gap, and ask the child to `agree`, `reject`, or `revise`.
-7. For Challenge rounds, the default stance is scrutiny. Test the opposing claim first; choose `agree` only after naming the evidence that compels agreement.
-8. Spawn an extra child only when the effective roster or lens config allows it, a live child failed, or the user approves expansion.
-9. Stop when any stop condition is met and no dispatched child is still running. Then close live children through the Host Adapter close primitive.
-
-Round intent:
-
-- Opening round: independent first judgments.
-- Challenge rounds: rebuttal, risk drilldown, or evidence repair on specific disagreements.
-- Convergence rounds: decision check only. Verify, narrow, or choose. Do not open new directions.
-
-Default mapping:
-
-- Round 1 = Opening.
-- Round 2+ = Challenge while continue conditions still expose material disagreement, material risk, missing evidence, or untestable acceptance criteria.
-- Convergence begins when the coordinator can write one recommended direction and no material challenge condition remains.
-
-After convergence begins, do not reopen exploration unless the user approves or new concrete evidence appears.
-
-## Continue Conditions
-
-Run another round only if at least one condition holds:
-
-- A disagreement could change the recommended decision.
-- A high risk lacks enough evidence.
-- Acceptance criteria are still not testable.
-- A child found new file, command, rule, or user-scenario evidence.
-- The coordinator cannot write one recommended direction.
-
-## Stop Conditions
-
-Stop when any condition holds:
-
-- Recommendation, rejected options, and measurable acceptance criteria are clear.
-- Remaining issue is user value preference, not missing evidence.
-- A full round adds no evidence and does not narrow scope.
-- Effective `max_rounds` is reached.
-- Output fails schema, and one repair prompt does not fix it.
-
-## Waiting Children
-
-- A wait timeout is not a child timeout.
-- If a child remains live after a wait timeout, wait again or report it in `pending_children`.
-- Do not close, cancel, omit, or synthesize around a live child unless the user explicitly asks to close it.
-- When the discussion has converged or the user ends it, close live children after their final output is recorded.
-
-## Child Output Schema
-
-Each child must return these core fields. Extra fields are allowed only after them.
+When a child sees a different position, it must choose exactly one:
 
 ```text
-position:
-evidence:
-risk:
-tradeoff:
-rejected_option:
-acceptance_signal:
-what_would_change_my_mind:
+maintain
+revise
+concede
 ```
 
-Follow-up rounds may add these fields after the core fields:
+`concede` requires accepted evidence and why the prior position failed.
+`revise` requires the accepted part, rejected part, and updated position.
+`maintain` requires counter evidence or counter reasoning.
 
-```text
-claim_id:
-responding_to:
-opposing_claim:
-position_delta:
-evidence_delta:
-still_disagree:
-```
+Unsupported agreement, vague revision, and evidence-free rebuttal are invalid.
 
-Use `position_delta` to say whether the child maintained, narrowed, or changed its position.
-Reject unsupported opinion. Evidence should name files, commands, rules, observed behavior, user scenarios, or concrete assumptions.
+## Moderator Role
 
-## Coordinator Output Schema
+The moderator may:
 
-Final synthesis must return these core fields. Extra fields are allowed only after them.
+- run runtime commands,
+- execute host-neutral next actions through the active host,
+- record off-topic warnings through the runtime,
+- close children only when the runtime asks for closeout,
+- show runtime status or final reports to the user.
 
-```text
-effective_max_agents:
-effective_max_rounds:
-rounds_used:
-selected_agents:
-claim_table:
-agent_turns:
-pending_children:
-consensus:
-disagreements:
-evidence:
-decision:
-rejected_options:
-acceptance_criteria:
-open_questions:
-early_stop_reason:
-stop_reason:
-```
+The moderator must not:
 
-`selected_agents` must include the selected agent or lens names and selection reasons. `agent_turns` should preserve a compact transcript with round, agent or lens, `claim_id`, position, and `position_delta`. Keep the final decision traceable to child evidence. Do not count votes as validation.
+- forward one child opinion to another child,
+- create a claim table for child prompts,
+- vote-count as validation,
+- decide which child is correct.

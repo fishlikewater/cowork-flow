@@ -12,6 +12,7 @@ import sys
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 from common.task.decision_review import validate_decision_review_file
 
@@ -48,8 +49,8 @@ class RuleParameterError(ValueError):
 
 
 RuntimeRuleValidator = Callable[
-    [dict, Path, Path | None, Mapping[str, object]],
-    dict | None,
+    [dict, Path, Optional[Path], Mapping[str, object]],
+    Optional[dict],
 ]
 
 

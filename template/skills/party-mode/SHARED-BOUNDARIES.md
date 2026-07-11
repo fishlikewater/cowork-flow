@@ -1,6 +1,6 @@
 # Shared Boundaries
 
-These boundaries apply to both Party Mode and Party Mode V2.
+These boundaries apply to Party Mode runtime-board discussions.
 
 - This skill is advisory only.
 - It cannot mutate task status, start/review/complete/archive tasks, add sessions, commit, push, or satisfy formal workflow gates.

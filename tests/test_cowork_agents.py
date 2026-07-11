@@ -143,87 +143,9 @@ class CoworkAgentsTest(unittest.TestCase):
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
         self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
 
-    def test_party_mode_skill_defines_bounded_advisory_roundtable(self) -> None:
+    def test_party_mode_skill_is_single_runtime_board_entrypoint(self) -> None:
         required_markers = (
-            "manual advisory roundtable",
-            "true child agents",
-            "not simulated personas",
-            "Select the smallest useful agent roster or review lenses",
-            "Record why each selected voice is useful",
-            "Round 1 uses fresh child contexts",
-            "Child agents cannot see each other",
-            "compact claim table: `claim_id`, owner, claim, evidence, counterclaim, evidence gap, and decision impact",
-            "bind each prompt to one `claim_id`",
-            "Follow-up rounds should prefer the same live child",
-            "Send only the target claim, counterclaim, evidence gap",
-            "`agree`, `reject`, or `revise`",
-            "For Challenge rounds, the default stance is scrutiny.",
-            "choose `agree` only after naming the evidence that compels agreement",
-            "Spawn an extra child only when the effective roster or lens config allows it",
-            "Opening round: independent first judgments.",
-            "Challenge rounds: rebuttal, risk drilldown, or evidence repair on specific disagreements.",
-            "Convergence rounds: decision check only. Verify, narrow, or choose.",
-            "round phase policy, including when challenge may continue and when convergence must begin",
-            "Round 2+ = Challenge while continue conditions still expose material disagreement",
-            "Convergence begins when the coordinator can write one recommended direction",
-            "After convergence begins, do not reopen exploration unless the user approves or new concrete evidence appears.",
-            "A wait timeout is not a child timeout.",
-            "When the discussion has converged or the user ends it, close live children after their final output is recorded.",
-            "`max_agents=3`",
-            "`max_rounds=5`",
-            "call arguments > task/change config > `.cowork-flow/config.yaml` > skill defaults",
-            "continue conditions can be tightened but not removed",
-            "stop conditions can be tightened but not removed",
-            "core fields can be extended but not removed",
-        )
-        child_schema = (
-            "position:",
-            "evidence:",
-            "risk:",
-            "tradeoff:",
-            "rejected_option:",
-            "acceptance_signal:",
-            "what_would_change_my_mind:",
-        )
-        followup_schema = (
-            "claim_id:",
-            "responding_to:",
-            "opposing_claim:",
-            "position_delta:",
-            "evidence_delta:",
-            "still_disagree:",
-        )
-        coordinator_schema = (
-            "effective_max_agents:",
-            "effective_max_rounds:",
-            "rounds_used:",
-            "selected_agents:",
-            "pending_children:",
-            "claim_table:",
-            "agent_turns:",
-            "consensus:",
-            "disagreements:",
-            "evidence:",
-            "decision:",
-            "rejected_options:",
-            "acceptance_criteria:",
-            "open_questions:",
-            "early_stop_reason:",
-            "stop_reason:",
-            "selected agent or lens names and selection reasons",
-            "compact transcript with round, agent or lens, `claim_id`, position, and `position_delta`",
-        )
-        text = (ROOT / "template" / "skills" / "party-mode" / "SKILL.md").read_text(encoding="utf-8")
-        for marker in required_markers + child_schema + followup_schema + coordinator_schema:
-            self.assertIn(marker, text, f"{marker} missing from template/skills/party-mode/SKILL.md")
-        self._assert_shared_party_mode_boundaries(
-            text,
-            "See [SHARED-BOUNDARIES.md](SHARED-BOUNDARIES.md)",
-        )
-
-    def test_party_mode_v2_skill_is_thin_runtime_board_entrypoint(self) -> None:
-        required_markers = (
-            "thin entrypoint",
+            "single public Party Mode entrypoint",
             "runtime board",
             "Python runtime is the source of truth",
             "The moderator does not forward",
@@ -248,18 +170,23 @@ class CoworkAgentsTest(unittest.TestCase):
             "Round 1 uses fresh child contexts",
             "compact claim table",
             "Coordinator Output Schema",
+            "manual fallback",
+            "manual advisory roundtable",
             "spawn_agent",
             "wait_agent",
             "close_agent",
         )
-        text = (ROOT / "template" / "skills" / "party-mode-v2" / "SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / "template" / "skills" / "party-mode" / "SKILL.md").read_text(encoding="utf-8")
         for marker in required_markers:
-            self.assertIn(marker, text, f"{marker} missing from template/skills/party-mode-v2/SKILL.md")
+            self.assertIn(marker, text, f"{marker} missing from template/skills/party-mode/SKILL.md")
         for marker in forbidden_markers:
-            self.assertNotIn(marker, text, f"{marker} should stay out of thin V2 skill template/skills/party-mode-v2/SKILL.md")
+            self.assertNotIn(marker, text, f"{marker} should stay out of template/skills/party-mode/SKILL.md")
+        self.assertFalse(
+            (ROOT / "template" / "skills" / "party-mode-v2" / "SKILL.md").exists()
+        )
         self._assert_shared_party_mode_boundaries(
             text,
-            "See [SHARED-BOUNDARIES.md](../party-mode/SHARED-BOUNDARIES.md)",
+            "See [SHARED-BOUNDARIES.md](SHARED-BOUNDARIES.md)",
         )
 
     def test_agents_require_runtime_context_and_disable_multi_agent(self) -> None:

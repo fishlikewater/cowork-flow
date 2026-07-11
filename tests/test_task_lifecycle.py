@@ -196,6 +196,18 @@ class TaskLifecycleServiceTest(unittest.TestCase):
 
         return FakeGateRunner()
 
+    def test_task_lifecycle_imports_on_supported_python_runtime(self) -> None:
+        lifecycle_module = importlib.import_module("application.task_lifecycle")
+
+        self.assertEqual(
+            "TaskLifecycleService",
+            lifecycle_module.TaskLifecycleService.__name__,
+        )
+        self.assertEqual(
+            "LifecyclePreflightFailure",
+            lifecycle_module.LifecyclePreflightFailure.__name__,
+        )
+
     def test_preflight_failure_stops_before_gate_and_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
