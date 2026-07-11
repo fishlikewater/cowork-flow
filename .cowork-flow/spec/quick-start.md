@@ -72,6 +72,37 @@ All rules below are mandatory. Violations break the fail-closed safety chain.
 ./.cowork-flow/run flow migrate --status
 ```
 
+## 5-minute loop
+
+```bash
+./.cowork-flow/run get-developer
+./.cowork-flow/run task create "Document first workflow" --slug docs-first-workflow
+./.cowork-flow/run task start .cowork-flow/tasks/docs-first-workflow
+./.cowork-flow/run task next
+./.cowork-flow/run task review
+./.cowork-flow/run task complete
+./.cowork-flow/run task archive docs-first-workflow
+./.cowork-flow/run add-session --title "First workflow" --commit "-" --summary "Completed the first cowork-flow task."
+```
+
+The loop leaves task context, archive evidence, and a workspace journal entry.
+`task next` is read-only; it reports the next safe command from the DB-backed
+current session and the task lifecycle stage.
+
+## Maintainer state map
+
+```mermaid
+flowchart LR
+    Change["change"] --> Plan["plan"]
+    Plan --> Task["task"]
+    Task --> RuntimeSession["DB runtime_session"]
+    Task --> RuntimeContext["DB runtime_context"]
+    RuntimeContext --> RuntimeSession
+    Task --> Archive["archive"]
+    RuntimeSession --> Journal["journal"]
+    Archive --> Journal
+```
+
 ## Task levels
 
 | Level | Description | Flow |
@@ -85,3 +116,4 @@ All rules below are mandatory. Violations break the fail-closed safety chain.
 - **Fail-closed**: `UNKNOWN` entry classification blocks workflow mutation.
 - **Fixed agents are leaves**: They cannot dispatch other agents.
 - **Runtime context is the source of truth**: Formal subagent identity comes from DB, not from prompt text.
+- **Runtime session is current-state authority**: The active task and host bindings come from DB `runtime_session`; archived files are evidence, not live state.

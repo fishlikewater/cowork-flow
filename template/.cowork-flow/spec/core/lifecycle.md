@@ -6,7 +6,7 @@ See `.cowork-flow/workflow.md` for the full workflow narrative.
 
 ## Stage machine
 
-| Stage | Command | `task.json.status` |
+| Stage | Command | Task stage |
 | --- | --- | --- |
 | Planning | `task create` | `planning` |
 | In progress | `task start <task-dir>` | `in_progress` |
@@ -14,8 +14,8 @@ See `.cowork-flow/workflow.md` for the full workflow narrative.
 | Completed | `task complete [task-dir]` | `completed` |
 | Archived | `task archive <task-name>` | Copy keeps `completed` |
 
-`task finish` only clears the current-session task pointer; it does not
-change `task.json.status`.
+`task finish` only clears the current-session task pointer in DB
+`runtime_session`; it does not change the task stage.
 
 ## Task levels
 
@@ -99,3 +99,7 @@ The formal dispatch protocol is defined in
 > The current task is session-level state. Do not guess the current task
 > without `COWORK_FLOW_CONTEXT_ID`, `CODEX_SESSION_ID`, `CODEX_THREAD_ID`,
 > `OPENCODE_SESSION_ID`, or `CLAUDE_SESSION_ID`.
+>
+> Historical `.cowork-flow/.runtime/` files are migration or diagnostic inputs
+> only. New runtime writes must use DB `runtime_session` and
+> `runtime_context`.

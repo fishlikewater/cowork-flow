@@ -397,3 +397,33 @@ Anchored Claude Code hook, command, agent, skill, and runtime bind commands thro
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 76: P3 docs onboarding loop
+
+**Date**: 2026-07-12
+**Task**: P3 docs onboarding loop
+
+### Summary
+
+Improved README onboarding, documented the 5-minute loop, and aligned root/template workflow docs around DB-backed runtime state authority. Verified stale wording scan, sync/package tests, CLI help smoke checks, release health, pack check, and template tests.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

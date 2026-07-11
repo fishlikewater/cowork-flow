@@ -21,7 +21,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 `cowork-flow` 只保存项目状态、任务上下文、宿主适配器契约和恢复线索；实际执行由主会话和固定 `cowork-*` 代理完成。宿主工具名只写在 `.cowork-flow/adapters/<host>/adapter.yaml`，不进入流程分支。
 
-`task next` 是主会话的阶段导航器。进入任务阶段、恢复会话、派发实现、进入检查、完成收口前，先运行 `./.cowork-flow/run task next` 或 `.\.cowork-flow\run.cmd task next`，用当前任务和 `task.json.status` 决定下一步。该命令只读，不推进状态。
+`task next` 是主会话的阶段导航器。进入任务阶段、恢复会话、派发实现、进入检查、完成收口前，先运行 `./.cowork-flow/run task next` 或 `.\.cowork-flow\run.cmd task next`，用 DB 中的当前会话任务和任务生命周期阶段决定下一步。该命令只读，不推进状态。
 
 ## 1.1 状态注入与入口分类
 
@@ -61,9 +61,9 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 > 当前任务是会话级状态。没有 `COWORK_FLOW_CONTEXT_ID`、`CODEX_SESSION_ID`、`CODEX_THREAD_ID`、`OPENCODE_SESSION_ID` 或 `CLAUDE_SESSION_ID` 时，不得猜测当前任务。
 
-任务阶段状态由生命周期命令维护：
+任务阶段状态由生命周期命令维护；当前会话任务由 DB `runtime_session` 维护：
 
-| 阶段 | 命令 | `task.json.status` |
+| 阶段 | 命令 | 任务阶段 |
 | --- | --- | --- |
 | 计划 | `task create` | `planning` |
 | 执行 | `task start <task-dir>` | `in_progress` |
@@ -71,7 +71,7 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 | 完成 | `task complete [task-dir]` | `completed` |
 | 归档 | `task archive <task-name>` | 归档副本保持 `completed` |
 
-`task finish` 只清理当前会话任务指针，不改变 `task.json.status`。
+`task finish` 只清理当前会话任务指针，不改变任务阶段。
 
 ## 3. 固定代理
 
@@ -166,7 +166,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
     ```bash
     ./.cowork-flow/run task next <task-dir>
     ```
-9. 启动当前会话任务；该命令会把 `task.json.status` 推进到 `in_progress`：
+9. 启动当前会话任务；该命令会把任务阶段推进到 `in_progress`，并更新当前会话任务：
     ```bash
     ./.cowork-flow/run task start <task-dir>
     ```

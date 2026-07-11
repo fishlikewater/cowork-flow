@@ -4,6 +4,8 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 
 这个仓库本身不绑定具体技术栈，也不提供业务代码脚手架。它提供的是协作与治理基础设施：你可以把 `template/` 复制到目标项目中，再按目标项目的真实情况补充技术栈、质量门禁、目录规范和提交策略。
 
+最短路径是：初始化模板、确认开发者身份、创建一个小任务、跑 `task next` 看下一步、完成后归档并记录 session。整个闭环只依赖 `.cowork-flow/run` / `.\.cowork-flow\run.cmd` 中真实存在的命令；正式子代理身份和当前会话任务以 DB 中的 `runtime_context` / `runtime_session` 为运行时权威，文件只保存 PRD、计划、上下文和归档记录。
+
 ## 适用场景
 
 - 新项目需要建立 `AGENTS.md`、任务流、规格文档和开发记录。
@@ -65,7 +67,7 @@ cowork-flow 是一个用于新项目初始化协作流程的模板仓库。它�
 固定角色 agent 定义，包含 `cowork-research`、`cowork-implement` 和 `cowork-check`，以及对 Codex 默认 `worker`、`default`、`explorer` 的项目级防漂移约束。主会话负责计划与收口，并通过 host adapter 派发固定 agent；正式派发必须先创建 runtime context，再把 `cowork_runtime_context_id` 和 `cowork_host_context_key` 传给子代理。
 
 `template/.codex/config.toml`、`template/.codex/hooks.json`、`template/.codex/hooks/`
-Codex 项目级配置与每轮上下文注入入口。hook 会先用共享 entry classifier 判定当前输入，再读取当前 session task、`.cowork-flow/spec/workflow-state-templates.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。注入的 `codex-dispatch-mode` 只是主会话调度提示，不代表当前线程身份。
+Codex 项目级配置与每轮上下文注入入口。hook 会先用共享 entry classifier 判定当前输入，再读取 DB 中的当前 session task、`.cowork-flow/spec/core/state-templates.md` 中的 `workflow-state` 片段和 `codex.dispatch_mode`，把流程状态注入到当前轮对话。注入的 `codex-dispatch-mode` 只是主会话调度提示，不代表当前线程身份。
 
 `template/CLAUDE.md`、`template/.claude/settings.json`、`template/.claude/agents/`、`template/.claude/skills/`、`template/.claude/commands/`、`template/.claude/hooks/`
 Claude Code 项目级记忆、hook、固定 agent、skills 和 slash command。`CLAUDE.md` 显式导入 `AGENTS.md`。`.claude/settings.json` 注册 `UserPromptSubmit` 和 `SessionStart` hook，注入当前 workflow state 与 contract digest。固定 agent 通过 `.cowork-flow/run subagent init` 生成 runtime context，并在 prompt、env 或 metadata transport 中传递 `cowork_runtime_context_id`；hook 绑定成功后才进入叶子执行，绑定失败则 fail closed，避免被项目 bootstrap 或无任务首屏上下文拉偏。Claude Code 不自动加载 `.agents/skills/`，所以项目技能要放进 `.claude/skills/`。
@@ -113,6 +115,34 @@ cowork-flow init ./my-project --platform codex --developer <your-name>
 3. 更新 `.cowork-flow/workflow.md` 中与项目流程不一致的门禁、分级和完成定义。
 4. 按项目实际情况调整 `.cowork-flow/spec/`，删除不存在的 frontend、backend 或行为变更场景。
 5. 按团队实践使用 `.cowork-flow/changes/` 管理规格变更，使用 `.cowork-flow/plans/` 管理实现计划和验证状态。
+
+## 5 分钟最小闭环
+
+以下 demo 只使用已安装模板中的真实命令。macOS / Linux / Git Bash / WSL 使用 `./.cowork-flow/run`；Windows PowerShell 使用 `.\.cowork-flow\run.cmd`。
+
+```bash
+# 1. 安装模板到目标项目
+npx cowork-flow init ./my-project --platform codex --developer <your-name>
+cd ./my-project
+
+# 2. 确认身份和当前导航状态
+./.cowork-flow/run get-developer
+./.cowork-flow/run task next
+
+# 3. 创建并启动一个最小任务
+./.cowork-flow/run task create "Document first workflow" --slug docs-first-workflow
+./.cowork-flow/run task start .cowork-flow/tasks/docs-first-workflow
+./.cowork-flow/run task next
+
+# 4. 完成检查、归档和会话记录
+./.cowork-flow/run task review
+./.cowork-flow/run task complete
+./.cowork-flow/run task archive docs-first-workflow
+./.cowork-flow/run add-session --title "First workflow" --commit "-" --summary "Initialized cowork-flow and completed the first task."
+```
+
+这个闭环会留下三类证据：任务目录中的 `prd.md` / JSONL 上下文、归档副本，以及 `.cowork-flow/workspace/<developer>/journal-*.md` 中的 session 记录。`task next` 始终只读，它根据当前会话和任务阶段提示下一步，不替代实现或检查。
+
 
 ## CLI 使用
 
@@ -163,7 +193,7 @@ cowork-flow sync .
 cowork-flow sync . --dry-run
 ```
 
-`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者；对应 `.cowork-flow/adapters/<host>/` 也按识别出的平台同步。检测到 Codex 或 OpenCode 时会刷新 `.agents/skills/`；Claude Code-only 项目只刷新 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`，不会创建 `.agents/skills/`。通用部分默认刷新 `.cowork-flow/scripts/`、`.cowork-flow/spec/workflow-state-templates.md`，以及 `AGENTS.md` 和 `CLAUDE.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、除 `workflow-state-templates.md` 外的 `.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
+`sync` 会自动识别目标项目已安装的 host 目录：只有 `.codex/` 时只同步 Codex 资产，只有 `.opencode/` 时只同步 OpenCode 资产，两者都有时同步两者；对应 `.cowork-flow/adapters/<host>/` 也按识别出的平台同步。检测到 Codex 或 OpenCode 时会刷新 `.agents/skills/`；Claude Code-only 项目只刷新 `.claude/settings.json`、`.claude/hooks/`、`.claude/skills/`，不会创建 `.agents/skills/`。通用部分默认刷新 `.cowork-flow/scripts/`、`.cowork-flow/spec/core/state-templates.md`，以及 `AGENTS.md` 和 `CLAUDE.md` 中的 `<!-- COWORK-FLOW:START --> ... <!-- COWORK-FLOW:END -->` 托管块，保留托管块之外的项目自定义内容。`.cowork-flow/config.yaml`、`.cowork-flow/workflow.md`、除 `core/state-templates.md` 外的 `.cowork-flow/spec/`、任务、计划、变更和 workspace 记录默认受保护。只有明确传入 `--force` 时才整文件覆盖保护文件。
 
 ## 常用入口
 
@@ -222,9 +252,9 @@ L2 任务的 readiness gate 会在 `task start` 前阻塞缺失的 proposal/spec
 计划、任务链接、边界、假设、验收标准或 verification commands；同一 blocker
 会出现在 `task next` 输出中。
 
-任务状态由阶段命令推进，`task next` 只读取状态：
+任务阶段由生命周期命令推进；当前会话任务来自 DB `runtime_session`，任务目录中的状态字段用于任务自身阶段和归档副本：
 
-| 阶段 | 命令 | `task.json.status` |
+| 阶段 | 命令 | 任务阶段 |
 | --- | --- | --- |
 | 创建/计划 | `task create` | `planning` |
 | 开始执行 | `task start <task-dir>` | `in_progress` |
@@ -249,7 +279,27 @@ cowork_host_context_key: <host_context_key>
 
 子代理首步执行 `./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`；主会话验收前必须确认 runtime context 中 `status=bound` 且 `bound_context_key` 匹配。默认角色为 `cowork-research`、`cowork-implement`、`cowork-check`，任务上下文来自已绑定 runtime context，而不是 prompt 形状。
 
-Codex hook 启用后，每轮会自动注入 `<workflow-state>`，其中包含入口分类、当前任务、状态来源和下一步流程提示。状态文本来自 `.cowork-flow/spec/workflow-state-templates.md`；`workflow.md` 只描述流程，不内联状态片段。hook 不替代主会话验收；它只负责把 task 状态和 workflow gate 放进上下文。
+Codex hook 启用后，每轮会自动注入 `<workflow-state>`，其中包含入口分类、当前任务、状态来源和下一步流程提示。状态文本来自 `.cowork-flow/spec/core/state-templates.md`；`workflow.md` 只描述流程，不内联状态片段。hook 不替代主会话验收；它只负责把 task 状态和 workflow gate 放进上下文。
+
+## 维护者状态模型
+
+```mermaid
+flowchart LR
+    Change["change<br/>proposal/design/spec"] --> Plan["plan<br/>steps + verification"]
+    Plan --> Task["task<br/>prd + implement/check JSONL"]
+    Task --> RuntimeSession["DB runtime_session<br/>current task + host session"]
+    Task --> RuntimeContext["DB runtime_context<br/>formal child identity"]
+    RuntimeContext --> RuntimeSession
+    Task --> Archive["archive<br/>completed task/change copy"]
+    RuntimeSession --> Journal["journal<br/>workspace session record"]
+    Archive --> Journal
+```
+
+- `change` 记录需求、设计和行为规格；`plan` 把方案拆成可验证步骤；`task` 承载 PRD、实现上下文和检查上下文。
+- `runtime_session` 是当前会话任务和 host 绑定的运行时入口；`runtime_context` 是正式子代理身份、绑定状态和关闭状态的运行时权威。
+- `journal` 记录完成后的会话摘要；`archive` 保存已完成 task/change 的副本，不能反向充当当前运行时状态。
+- 历史 `.cowork-flow/.runtime/` 文件只能作为迁移或诊断对象，不是新增写入口，也不是当前运行时权威。
+
 
 记录 session：
 

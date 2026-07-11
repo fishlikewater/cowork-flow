@@ -1,0 +1,96 @@
+{
+  "work_type": "docs_chore",
+  "ok": true,
+  "summary": "README, workflow, lifecycle, and quick-start docs now describe the 5-minute loop and DB-backed runtime authority without old file-state wording.",
+  "red_evidence": null,
+  "test_plan": [
+    {
+      "command": "stale wording scan",
+      "purpose": "Reject old workflow-state-templates.md and task.json.status wording in changed docs."
+    },
+    {
+      "command": "npm test -- test/sync.test.js test/package.test.js",
+      "purpose": "Verify template sync and package boundaries for documentation assets."
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd task --help",
+      "purpose": "Smoke-check task CLI command documented in the onboarding loop."
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd change --help",
+      "purpose": "Smoke-check change CLI command documented in workflow docs."
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd subagent --help",
+      "purpose": "Smoke-check subagent CLI command documented in runtime contract docs."
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd flow migrate --help",
+      "purpose": "Smoke-check migration CLI command documented in quick-start."
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd doctor --release-health",
+      "purpose": "Verify release health after documentation changes."
+    },
+    {
+      "command": "npm run pack:check",
+      "purpose": "Verify package boundary after README/template doc changes."
+    },
+    {
+      "command": "npm run test:template",
+      "purpose": "Verify root/template contracts and broad template behavior."
+    },
+    {
+      "command": "git diff --check",
+      "purpose": "Verify whitespace cleanliness."
+    }
+  ],
+  "green_evidence": [
+    {
+      "command": "stale wording scan",
+      "result": "passed; no workflow-state-templates.md or task.json.status hits in target docs"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    },
+    {
+      "command": "npm test -- test/sync.test.js test/package.test.js",
+      "result": "passed; 13 tests"
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd task --help",
+      "result": "passed"
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd change --help",
+      "result": "passed"
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd subagent --help",
+      "result": "passed"
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd flow migrate --help",
+      "result": "passed"
+    },
+    {
+      "command": ".\\.cowork-flow\\run.cmd doctor --release-health",
+      "result": "passed; OK=6 WARN=0 FAIL=0"
+    },
+    {
+      "command": "npm run pack:check",
+      "result": "passed"
+    },
+    {
+      "command": "npm run test:template",
+      "result": "passed; 387 tests, 6 skipped"
+    }
+  ],
+  "standards": {
+    "encoding": "All writes used explicit UTF-8; release-health UTF-8/BOM check passed.",
+    "scope": "Docs-only changes across README, root spec/workflow, and template mirrors.",
+    "template_sync": "Root/template workflow, lifecycle, and quick-start docs were updated together. Skill mirrors were inspected and required no content changes."
+  },
+  "checked_at": "2026-07-11T16:25:50.021053+00:00"
+}
