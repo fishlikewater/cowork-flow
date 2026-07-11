@@ -217,21 +217,21 @@ test('sync deletes removed official Skills and leaves custom Skills and task con
     0
   );
 
-  const legacyAgentSkill = join(target, '.agents', 'skills', 'start');
+  const removedAgentSkill = join(target, '.agents', 'skills', 'start');
   const removedPartyModeV2Skill = join(target, '.agents', 'skills', 'party-mode-v2');
-  const legacyClaudeSkill = join(target, '.claude', 'skills', 'finish-work');
+  const removedClaudeSkill = join(target, '.claude', 'skills', 'finish-work');
   const customSkill = join(target, '.agents', 'skills', 'custom-local', 'SKILL.md');
   const removedSpecValidator = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'spec_validator.py');
   const removedJsonlValidator = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'validate_jsonl.py');
-  await mkdir(legacyAgentSkill, { recursive: true });
+  await mkdir(removedAgentSkill, { recursive: true });
   await mkdir(removedPartyModeV2Skill, { recursive: true });
-  await mkdir(legacyClaudeSkill, { recursive: true });
+  await mkdir(removedClaudeSkill, { recursive: true });
   await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'gates'), { recursive: true });
-  await writeFile(join(legacyAgentSkill, 'SKILL.md'), 'legacy start\n', 'utf8');
-  await writeFile(join(removedPartyModeV2Skill, 'SKILL.md'), 'legacy party v2\n', 'utf8');
-  await writeFile(join(legacyClaudeSkill, 'SKILL.md'), 'legacy finish\n', 'utf8');
-  await writeFile(removedSpecValidator, 'legacy spec validator\n', 'utf8');
-  await writeFile(removedJsonlValidator, 'legacy jsonl validator\n', 'utf8');
+  await writeFile(join(removedAgentSkill, 'SKILL.md'), 'removed start\n', 'utf8');
+  await writeFile(join(removedPartyModeV2Skill, 'SKILL.md'), 'removed party v2\n', 'utf8');
+  await writeFile(join(removedClaudeSkill, 'SKILL.md'), 'removed finish\n', 'utf8');
+  await writeFile(removedSpecValidator, 'removed spec validator\n', 'utf8');
+  await writeFile(removedJsonlValidator, 'removed jsonl validator\n', 'utf8');
   await mkdir(join(target, '.agents', 'skills', 'custom-local'), { recursive: true });
   await writeFile(customSkill, 'custom content\n', 'utf8');
   if (process.platform !== 'win32') {
@@ -255,7 +255,7 @@ test('sync deletes removed official Skills and leaves custom Skills and task con
     [
       JSON.stringify({
         file: '.agents/skills/start/SKILL.md',
-        reason: 'legacy managed path',
+        reason: 'removed managed path',
         reference: '.agents/skills/start/SKILL.md'
       }),
       JSON.stringify({
@@ -270,7 +270,7 @@ test('sync deletes removed official Skills and leaves custom Skills and task con
     join(archivedTask, 'check.jsonl'),
     `${JSON.stringify({
       file: '.claude/skills/finish-work/SKILL.md',
-      reason: 'legacy archived path'
+      reason: 'removed archived path'
     })}\n`,
     'utf8'
   );
@@ -283,9 +283,9 @@ test('sync deletes removed official Skills and leaves custom Skills and task con
 
   assert.equal(await main(['sync', target], { io: createIo() }), 0);
 
-  assert.equal(await exists(legacyAgentSkill), false);
+  assert.equal(await exists(removedAgentSkill), false);
   assert.equal(await exists(removedPartyModeV2Skill), false);
-  assert.equal(await exists(legacyClaudeSkill), false);
+  assert.equal(await exists(removedClaudeSkill), false);
   assert.equal(await exists(removedSpecValidator), false);
   assert.equal(await exists(removedJsonlValidator), false);
   assert.equal(await readText(customSkill), 'custom content\n');

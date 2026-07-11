@@ -585,24 +585,6 @@ class TaskContextService:
             issues=tuple(issues),
         )
 
-    def migrate_legacy_prd(self, task_dir: Path) -> bool:
-        task_dir = Path(task_dir)
-        prd_file = task_dir / "prd.md"
-        anchor_file = task_dir / "decision-anchor.md"
-        if not prd_file.exists() or anchor_file.exists():
-            return False
-
-        content = prd_file.read_text(encoding="utf-8").strip()
-        if not content:
-            content = "(empty legacy prd.md)"
-        if "## 目标" not in content and "## Goal" not in content:
-            content = f"## 目标\n\n{content}"
-        if "## 验收标准" not in content and "## Acceptance" not in content:
-            content += "\n\n## 验收标准\n- [ ] \n"
-        anchor_file.write_text(content, encoding="utf-8")
-        prd_file.unlink()
-        return True
-
     def start_blockers(self, task_dir: Path) -> tuple[str, ...]:
         task_dir = Path(task_dir)
         blockers: list[str] = []

@@ -100,14 +100,14 @@ test('canonical skill registry and schema load', async () => {
     [...registry.publicSkillIds].sort()
   );
   assert.equal(registry.publicSkillIds.includes('batch-mode'), true);
-  for (const legacyId of [
+  for (const removedSkillId of [
     'before-dev',
     'start',
     'continue',
     'finish-work',
     'using-cowork-flow'
   ]) {
-    assert.equal(registry.entry(legacyId), null, legacyId);
+    assert.equal(registry.entry(removedSkillId), null, removedSkillId);
   }
 });
 

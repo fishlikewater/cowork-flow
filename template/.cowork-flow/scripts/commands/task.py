@@ -188,21 +188,6 @@ def _resolve_status_task_dir(
     return task_dir
 
 
-def _migrate_prd_to_anchor(task_dir: Path) -> bool:
-    migrated = TaskContextService(
-        get_repo_root(task_dir)
-    ).migrate_legacy_prd(task_dir)
-    if migrated:
-        print(
-            colored(
-                "  [迁移] prd.md → decision-anchor.md",
-                Colors.YELLOW,
-            ),
-            file=sys.stderr,
-        )
-    return migrated
-
-
 def _task_start_blockers(task_dir: Path) -> list[str]:
     return list(
         TaskContextService(get_repo_root(task_dir)).start_blockers(task_dir)
@@ -343,8 +328,6 @@ def cmd_start(args: argparse.Namespace) -> int:
             f"(e.g., '{DIR_WORKFLOW}/tasks/01-31-my-task')"
         )
         return 1
-
-    _migrate_prd_to_anchor(full_path)
 
     def preflight(
         task_dir: Path,
