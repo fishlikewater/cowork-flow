@@ -108,7 +108,7 @@ class SkillRegistryTest(unittest.TestCase):
             registry.public_skill_ids,
         )
         self.assertIn("batch-mode", registry.public_skill_ids)
-        for legacy_id in (
+        for removed_skill_id in (
             "before-dev",
             "start",
             "continue",
@@ -117,9 +117,9 @@ class SkillRegistryTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(
                 self._module().SkillRegistryError,
-                f"unknown Skill Registry entry: {legacy_id}",
+                f"unknown Skill Registry entry: {removed_skill_id}",
             ):
-                registry.entry(legacy_id)
+                registry.entry(removed_skill_id)
 
     def test_duplicate_id_or_alias_is_rejected(self) -> None:
         module = self._module()

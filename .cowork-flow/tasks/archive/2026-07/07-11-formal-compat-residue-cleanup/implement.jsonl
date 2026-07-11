@@ -1,0 +1,9 @@
+{"file":"template/.cowork-flow/scripts/application/task_context.py","reason":"Remove legacy prd.md migration behavior from formal runtime startup"}
+{"file":"template/.cowork-flow/scripts/commands/task.py","reason":"Remove task start migration call and migration message"}
+{"file":"template/.codex/agents/default.toml","reason":"Remove stale start skill defensive prompt"}
+{"file":"template/.codex/agents/explorer.toml","reason":"Remove stale start skill defensive prompt"}
+{"file":"template/.codex/agents/worker.toml","reason":"Remove stale start skill defensive prompt"}
+{"file":"tests/test_decision_anchor.py","reason":"Update startup tests for formal fail-closed decision-anchor behavior"}
+{"file":"test/sync.test.js","reason":"Rename obsolete cleanup test variables away from legacy lifecycle wording"}
+{"file":"test/skill-registry.test.js","reason":"Rename removed skill assertions away from compatibility lifecycle wording"}
+{"file":"tests/test_skill_registry.py","reason":"Rename removed skill assertions away from compatibility lifecycle wording"}

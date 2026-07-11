@@ -1,0 +1,11 @@
+{"file": ".cowork-flow/spec/protocols/review.md", "reason": "Quality, contract, and template consistency check"}
+{"file": ".cowork-flow/spec/protocols/decision-review.md", "reason": "Verify structured decision review evidence"}
+{"file": ".cowork-flow/spec/protocols/spec-maintenance.md", "reason": "Verify specification maintenance decisions"}
+{"file": ".agents/skills/cowork-flow/SKILL.md", "reason": "Workflow review, completion, and archive routing"}
+{"file": ".cowork-flow/spec/backend/database-guidelines.md", "reason": "Verify database-guidelines.md compliance"}
+{"file": ".cowork-flow/spec/backend/directory-structure.md", "reason": "Verify directory-structure.md compliance"}
+{"file": ".cowork-flow/spec/backend/encoding-guidelines.md", "reason": "Verify encoding-guidelines.md compliance"}
+{"file": ".cowork-flow/spec/backend/error-handling.md", "reason": "Verify error-handling.md compliance"}
+{"file": ".cowork-flow/spec/backend/index.md", "reason": "Verify index.md compliance"}
+{"file": ".cowork-flow/spec/backend/logging-guidelines.md", "reason": "Verify logging-guidelines.md compliance"}
+{"file": ".cowork-flow/spec/backend/quality-guidelines.md", "reason": "Verify quality-guidelines.md compliance"}
