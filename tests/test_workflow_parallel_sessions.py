@@ -80,7 +80,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "验收标准",
             "推荐方向",
             "开放问题/阻塞",
-            "PRD、计划或固定代理派发",
+            "进入决策锚点、计划或固定代理派发",
         )
         for path in (
             ROOT / "template" / ".cowork-flow" / "workflow.md",
@@ -313,10 +313,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_brainstorming_skill_requires_clarification_output(self) -> None:
         required_markers = (
             "active clarification gate",
-            "before PRD, planning, fixed-agent dispatch, or code changes begin",
+            "before decision-anchor, planning, fixed-agent dispatch, or code changes begin",
             "goal, non-goals, assumptions, scope boundary, success criteria",
             "recommended direction",
-            "Do not write PRD, planning, or fixed-agent dispatch input",
+            "Do not write decision-anchor, planning, or fixed-agent dispatch input",
             "Key assumptions",
             "Scope boundary",
             "Recommended direction and rejected alternatives",

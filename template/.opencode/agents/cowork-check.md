@@ -42,7 +42,7 @@ Authoritative internal protocols:
 Apply their Host-neutral output contract. Review output must preserve
 `acceptanceId`, `findings`, `test_intent_review`, `resolution`, and
 `specUpdates`; reject shallow tests that do not cover meaningful behavior
-breaks or map to PRD acceptance.
+breaks or map to decision-anchor acceptance.
 
 Rules:
 

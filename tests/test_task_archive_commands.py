@@ -284,7 +284,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
                 "Recovery entrypoint (rerun only if context is stale): ./.cowork-flow/run resume",
                 output,
             )
-            self.assertIn("Read active task PRD: .cowork-flow/tasks/05-19-demo/decision-anchor.md", output)
+            self.assertIn("Read active task decision-anchor: .cowork-flow/tasks/05-19-demo/decision-anchor.md", output)
             self.assertIn("List task context before reading details: ./.cowork-flow/run task list-context .cowork-flow/tasks/05-19-demo", output)
             self.assertIn("Read current plan status: .cowork-flow/plans/2026-05-19-demo.md", output)
             self.assertIn("Do not bulk-read .cowork-flow/spec/ or workspace journals", output)
@@ -301,7 +301,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
             )
-            (task_dir / "decision-anchor.md").write_text("# Secret PRD body should not appear\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Secret decision-anchor body should not appear\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
@@ -337,7 +337,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
                 '{"name": "demo", "status": "in_progress", "assignee": "codex"}',
                 encoding="utf-8",
             )
-            (task_dir / "decision-anchor.md").write_text("# Secret PRD body should not appear\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Secret decision-anchor body should not appear\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
@@ -355,7 +355,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             self.assertEqual(0, result.returncode)
             self.assertIn("COWORK-FLOW RESUME", result.stdout)
             self.assertIn("## RESUME CHECKLIST", result.stdout)
-            self.assertNotIn("Secret PRD body", result.stdout)
+            self.assertNotIn("Secret decision-anchor body", result.stdout)
 
 
 if __name__ == "__main__":

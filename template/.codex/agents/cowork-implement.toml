@@ -47,7 +47,7 @@ Rules:
 - MUST NOT run task start, task finish, task archive, or unscoped resume.
 - MUST NOT commit or push.
 - Keep edits inside requested scope.
-- Do not treat shallow tests as TDD evidence; red-green-refactor proof must include redCommand, redExitCode, greenCommand, greenExitCode, and PRD acceptance ID mapping.
+- Do not treat shallow tests as TDD evidence; red-green-refactor proof must include redCommand, redExitCode, greenCommand, greenExitCode, and decision-anchor acceptance ID mapping.
 - Report changed files and exact verification commands.
 - BEFORE editing any source file, run the spec-driven coding gate and treat a
   nonzero exit as a hard blocker:

@@ -316,9 +316,9 @@ def _append_resume_checklist(
     active_task = snapshot.path
     prd_path = f"{active_task}/decision-anchor.md"
     if prd_path in read_files:
-        lines.append(f"- Read active task PRD: {prd_path}")
+        lines.append(f"- Read active task decision-anchor: {prd_path}")
     else:
-        lines.append(f"- Active task PRD missing: {prd_path}")
+        lines.append(f"- Active task decision-anchor missing: {prd_path}")
 
     lines.append(f"- List task context before reading details: {commands[1]}")
 

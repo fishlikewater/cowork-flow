@@ -52,6 +52,45 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
         self.assertEqual([], offenders)
 
+    def test_formal_prompt_surfaces_do_not_use_prd_terminology(self) -> None:
+        forbidden = (
+            "Read task PRD",
+            "Read active task PRD",
+            "Active task PRD missing",
+            "PRD acceptance",
+            "before PRD, planning",
+            "Do not write PRD, planning",
+            "PRD 和 implement.jsonl",
+            "PRD、计划或固定代理派发",
+            "Deprecated aliases may redirect here",
+        )
+        scanned_roots = (
+            ROOT / "AGENTS.md",
+            TEMPLATE / "AGENTS.md",
+            TEMPLATE / "skills",
+            TEMPLATE / ".codex" / "agents",
+            TEMPLATE / ".claude" / "agents",
+            TEMPLATE / ".opencode" / "agents",
+            TEMPLATE / ".cowork-flow" / "workflow.md",
+            TEMPLATE / ".cowork-flow" / "scripts",
+            TEMPLATE / ".zcode" / "scaffold" / "AGENTS.md",
+            TEMPLATE / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md",
+        )
+        suffixes = {".md", ".py", ".toml"}
+        offenders: list[str] = []
+
+        for root in scanned_roots:
+            paths = [root] if root.is_file() else [path for path in root.rglob("*") if path.is_file()]
+            for path in paths:
+                if path.suffix not in suffixes:
+                    continue
+                text = path.read_text(encoding="utf-8")
+                for pattern in forbidden:
+                    if pattern in text:
+                        offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
+
+        self.assertEqual([], offenders)
+
     def test_template_does_not_ship_superpowers_seed(self) -> None:
         self.assertFalse((TEMPLATE / ".superpowers").exists())
 

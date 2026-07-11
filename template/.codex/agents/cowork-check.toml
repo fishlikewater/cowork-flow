@@ -46,8 +46,8 @@ Rules:
 - MUST NOT spawn, wait for, list, or close other agents.
 - MUST NOT commit, archive, or mutate cowork-flow task state.
 - Report findings, changed files, and exact verification commands.
-- Include test intent findings that map tests back to PRD acceptance or regression behavior.
-- BEFORE declaring PRD acceptance passed, run the spec-driven coding gate and
+- Include test intent findings that map tests back to decision-anchor acceptance criteria or regression behavior.
+- BEFORE declaring decision-anchor acceptance passed, run the spec-driven coding gate and
   treat a nonzero exit as a hard blocker:
   ./.cowork-flow/run python .cowork-flow/scripts/common/gates/validate_coding_standards.py --validate --repo-root .
   This naturally enforces every rule the user added to

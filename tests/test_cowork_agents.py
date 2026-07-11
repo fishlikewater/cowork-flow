@@ -234,7 +234,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "test_intent_review",
             "shallow tests",
             "meaningful behavior breaks",
-            "PRD acceptance",
+            "decision-anchor acceptance",
         )
         for path in (
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
