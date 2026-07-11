@@ -759,7 +759,9 @@ class SubagentDispatchTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, spawn.returncode, msg=spawn.stderr)
-            runtime_id = json.loads(spawn.stdout)[0]["runtimeContextId"]
+            spawn_payload = json.loads(spawn.stdout)[0]
+            runtime_id = spawn_payload["runtimeContextId"]
+            host_context_key = spawn_payload["hostContextKey"]
 
             pending = subprocess.run(
                 [sys.executable, str(SUBAGENT), "check-family", "parent"],
@@ -773,6 +775,42 @@ class SubagentDispatchTest(unittest.TestCase):
             pending_payload = json.loads(pending.stdout)
             self.assertFalse(pending_payload["all_done"])
             self.assertEqual(["child-a"], [item["task_id"] for item in pending_payload["pending"]])
+
+            success_update = subprocess.run(
+                [sys.executable, str(SUBAGENT), "update", runtime_id, "--status", "success"],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, success_update.returncode, msg=success_update.stderr)
+            unbound_success = subprocess.run(
+                [sys.executable, str(SUBAGENT), "check-family", "parent"],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, unbound_success.returncode)
+            unbound_payload = json.loads(unbound_success.stdout)
+            self.assertFalse(unbound_payload["all_done"])
+            self.assertEqual(
+                ["child-a"],
+                [item["task_id"] for item in unbound_payload["unbound_rejected"]],
+            )
+            self.assertIn("bound_context_key", unbound_success.stderr)
+
+            bind = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", runtime_id, host_context_key],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, bind.returncode, msg=bind.stderr)
 
             success_update = subprocess.run(
                 [sys.executable, str(SUBAGENT), "update", runtime_id, "--status", "success"],

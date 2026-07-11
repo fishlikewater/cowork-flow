@@ -46,6 +46,7 @@ class Phase4FreshInstallAcceptanceTest(unittest.TestCase):
             "# Acceptance Task\n\n"
             "## Goal\n\nVerify the fresh install workflow.\n\n"
             "## Scope\n\nOnly this temp project task.\n\n"
+            "## Relevant Specs\n\n- .cowork-flow/spec/core/entry.md\n\n"
             "## Acceptance Criteria\n\nTask can start and report next action.\n",
             encoding="utf-8",
         )

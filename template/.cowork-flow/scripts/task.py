@@ -938,6 +938,38 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         return 1
 
+    # readWhen contract enforcement (P1-C)
+    try:
+        from common.contract_check import check_read_when as _check_read_when
+    except ImportError:
+        _check_read_when = None
+    if _check_read_when is not None:
+        try:
+            rh = _check_read_when(repo_root, "task_start", full_path)
+            if rh.get("blockers"):
+                print(colored("Error: readWhen contract check failed", Colors.RED), file=sys.stderr)
+                for b in rh["blockers"]:
+                    print(f"  - {b}", file=sys.stderr)
+                print(
+                    "Hint: reference the missing spec in prd.md, implement.jsonl, or review with `task next`",
+                    file=sys.stderr,
+                )
+                return 1
+            if rh.get("advisories"):
+                print(colored("[readWhen advisory]", Colors.YELLOW), file=sys.stderr)
+                for a in rh["advisories"]:
+                    print(f"  - {a}", file=sys.stderr)
+        except Exception:
+            print(
+                colored(
+                    "Error: readWhen contract check raised an exception — "
+                    "registry unreadable or git error. Failing closed.",
+                    Colors.RED,
+                ),
+                file=sys.stderr,
+            )
+            return 1
+
     # L0 scope evidence gate (P1-C): warn if L0 task has a linked change.yaml
     try:
         _l0_task_dir_rel = (

@@ -568,7 +568,7 @@ def cmd_check_family(args: argparse.Namespace) -> int:
                 "taskStatus": child.status,
                 "status": run["status"],
                 "hostContextKey": run.get("host_context_key"),
-                "bound": run.get("status") == "bound" and bool(run.get("bound_context_key")),
+                "bound": bool(run.get("bound_context_key")),
                 "boundContextKey": run.get("bound_context_key"),
             }
             if run["status"] in FAILED_AGENT_RUN_STATUSES:
@@ -584,7 +584,7 @@ def cmd_check_family(args: argparse.Namespace) -> int:
     if unbound:
         print(
             f"[bind gate] {len(unbound)} child(ren) completed without valid binding "
-            "(status != 'bound' or missing bound_context_key). Their output MUST NOT be accepted.",
+            "(missing bound_context_key). Their output MUST NOT be accepted.",
             file=sys.stderr,
         )
         for u in unbound:

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 70
+- **Total Sessions**: 71
 - **Last Active**: 2026-07-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~249 | Current |
+| `journal-2.md` | ~279 | Current |
 | `journal-1.md` | ~1992 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 71 | 2026-07-11 | 完成 template sync gate 门禁 | - |
 | 70 | 2026-07-11 | P1 doctor release health | - |
 | 69 | 2026-06-27 | Fix Claude Code host path portability | - |
 | 68 | 2026-06-26 | Deliver lifecycle TDD quality gates | - |
