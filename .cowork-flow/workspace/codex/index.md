@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 73
-- **Last Active**: 2026-07-11
+- **Total Sessions**: 74
+- **Last Active**: 2026-07-12
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~339 | Current |
+| `journal-2.md` | ~369 | Current |
 | `journal-1.md` | ~1992 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 74 | 2026-07-12 | P2 FlowStore migration boundary split | - |
 | 73 | 2026-07-11 | 完成 task lifecycle service 拆分 | - |
 | 72 | 2026-07-11 | 完成 runtime state authority 收敛 | - |
 | 71 | 2026-07-11 | 完成 template sync gate 门禁 | - |

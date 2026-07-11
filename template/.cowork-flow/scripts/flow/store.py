@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import hashlib
 import json
 import sqlite3
@@ -16,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from common.time_utils import now_utc_iso as _now
 from patterns.base import TaskView
+from flow.migration_store import MigrationStore
 
 
 class FlowStore:
@@ -27,6 +27,11 @@ class FlowStore:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
+        self.migrations = MigrationStore(
+            db=self.db,
+            db_path=self.db_path,
+            transaction=self._transaction,
+        )
         self._ensure_schema()
 
     def __enter__(self):
@@ -55,39 +60,11 @@ class FlowStore:
 
     def _validate_applied_checksums(self) -> None:
         """Verify that all applied migrations' checksums match their current file content."""
-        migration_dir = Path(__file__).resolve().parent / "migrations"
-        if not migration_dir.is_dir():
-            return
-        rows = self.db.execute(
-            "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
-        ).fetchall()
-        for row in rows:
-            expected = row["checksum"]
-            # name is the stem (e.g. "0001_initial"), reconstruct the filename
-            sql_file = migration_dir / f"{row['name']}.sql"
-            if not sql_file.is_file():
-                raise RuntimeError(
-                    f"migration v{row['version']} ({row['name']}): file not found at {sql_file}"
-                )
-            content = sql_file.read_text(encoding="utf-8")
-            actual = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
-            if actual != expected:
-                raise RuntimeError(
-                    f"migration v{row['version']} ({row['name']}): "
-                    f"checksum mismatch (expected={expected}, actual={actual})"
-                )
+        self.migrations.validate_applied_checksums()
 
     def _ensure_schema_migrations_table(self) -> None:
         """Create schema_migrations table if it does not exist."""
-        self.db.execute(
-            """CREATE TABLE IF NOT EXISTS schema_migrations (
-                version     INTEGER PRIMARY KEY,
-                name        TEXT NOT NULL,
-                applied_at  TEXT NOT NULL,
-                checksum    TEXT NOT NULL
-            )"""
-        )
-        self.db.commit()
+        self.migrations.ensure_schema_migrations_table()
 
     def _discover_pending_migrations(self) -> list[tuple[int, str, Path]]:
         """Return list of (version, name, path) for migrations not yet applied.
@@ -95,75 +72,19 @@ class FlowStore:
         Raises RuntimeError if a version gap is detected (e.g. v1 applied, v3 file
         present but v2 missing).
         """
-        applied = {
-            row["version"]
-            for row in self.db.execute(
-                "SELECT version FROM schema_migrations"
-            ).fetchall()
-        }
-        migration_dir = Path(__file__).resolve().parent / "migrations"
-        if not migration_dir.is_dir():
-            return []
-        pattern = re.compile(r"^(\d{4})_.+\.sql$")
-        pending: list[tuple[int, str, Path]] = []
-        for sql_file in sorted(migration_dir.glob("*.sql")):
-            m = pattern.match(sql_file.name)
-            if not m:
-                continue
-            version = int(m.group(1))
-            name = sql_file.stem
-            if version not in applied:
-                pending.append((version, name, sql_file))
-        # Gap detection: if the highest applied version is N and the lowest pending
-        # version is M > N+1, we have a missing migration.
-        if pending and applied:
-            max_applied = max(applied)
-            min_pending = min(p[0] for p in pending)
-            if min_pending > max_applied + 1:
-                raise RuntimeError(
-                    f"version gap detected: max applied v{max_applied}, "
-                    f"but next pending is v{min_pending}; "
-                    f"missing migration(s) between v{max_applied + 1} and v{min_pending - 1}"
-                )
-        return pending
+        return self.migrations.discover_pending()
 
     def _apply_migration(self, version: int, name: str, path: Path) -> None:
         """Apply a single migration file in its own transaction, record version/checksum."""
-        content = path.read_text(encoding="utf-8")
-        checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
-        now = _now()
-
-        # executescript auto-commits, so we run it directly, then record in a new tx.
-        self.db.executescript(content)
-
-        def _do_record():
-            self.db.execute(
-                "INSERT INTO schema_migrations (version, name, applied_at, checksum) VALUES (?,?,?,?)",
-                (version, name, now, checksum),
-            )
-            return None
-
-        self._transaction(_do_record)
+        self.migrations.apply(version, name, path)
 
     def _backup_before_migration(self) -> None:
         """Copy the DB file to a backup location before applying migrations."""
-        db_path = Path(self.db_path)
-        if not db_path.exists():
-            return
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        backup_dir = Path(__file__).resolve().parent.parent.parent / ".runtime"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        backup_path = backup_dir / f"db-backup-v{timestamp}.sqlite"
-        import shutil
-
-        shutil.copy2(str(db_path), str(backup_path))
+        self.migrations.backup_before_migration()
 
     def _get_applied_migrations(self) -> list[dict]:
         """Return list of applied migration records ordered by version."""
-        rows = self.db.execute(
-            "SELECT version, name, applied_at, checksum FROM schema_migrations ORDER BY version"
-        ).fetchall()
-        return [dict(r) for r in rows]
+        return self.migrations.get_applied()
 
     def _transaction(self, fn):
         """Execute fn() inside a BEGIN IMMEDIATE transaction with retry."""

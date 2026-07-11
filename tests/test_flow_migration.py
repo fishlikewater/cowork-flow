@@ -133,6 +133,58 @@ def test_cli_status_shows_applied():
             assert rows[0]["name"] == "0001_initial"
 
 
+def test_flowstore_migration_facade_delegates_to_boundary():
+    """FlowStore should keep migration methods as facade wrappers."""
+    with tempfile.TemporaryDirectory() as tmp:
+        db_path = str(Path(tmp) / "test.db")
+        with FlowStore(db_path) as store:
+            boundary = store.migrations
+            calls = []
+
+            def fake_applied():
+                calls.append("applied")
+                return []
+
+            def fake_pending():
+                calls.append("pending")
+                return []
+
+            def fake_apply(version, name, path):
+                calls.append(("apply", version, name, path))
+
+            store.migrations.get_applied = fake_applied
+            store.migrations.discover_pending = fake_pending
+            store.migrations.apply = fake_apply
+
+            assert store._get_applied_migrations() == []
+            assert store._discover_pending_migrations() == []
+            fake_path = Path(tmp) / "0002_test.sql"
+            store._apply_migration(2, "0002_test", fake_path)
+
+            assert store.migrations is boundary
+            assert calls == [
+                "applied",
+                "pending",
+                ("apply", 2, "0002_test", fake_path),
+            ]
+
+
+def test_failed_migration_is_not_recorded():
+    """A failed migration must not be marked as applied."""
+    with tempfile.TemporaryDirectory() as tmp:
+        db_path = str(Path(tmp) / "test.db")
+        bad_migration = Path(tmp) / "0002_bad.sql"
+        bad_migration.write_text("CREATE TABLE broken_migration (id INTEGER PRIMARY KEY);\nTHIS IS INVALID;", encoding="utf-8")
+
+        with FlowStore(db_path) as store:
+            with pytest.raises(sqlite3.Error):
+                store._apply_migration(2, "0002_bad", bad_migration)
+
+            rows = store._get_applied_migrations()
+            versions = {row["version"] for row in rows}
+            assert 2 not in versions
+
+
 # ---------------------------------------------------------------------------
 # Test: backup created before migration
 # ---------------------------------------------------------------------------

@@ -337,3 +337,33 @@ Anchored Claude Code hook, command, agent, skill, and runtime bind commands thro
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 74: P2 FlowStore migration boundary split
+
+**Date**: 2026-07-12
+**Task**: P2 FlowStore migration boundary split
+
+### Summary
+
+拆分 FlowStore schema/migration 边界为 MigrationStore，保留 facade API，补充迁移边界与失败迁移回归测试，并同步 template。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
