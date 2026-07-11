@@ -62,7 +62,7 @@ are constraints only; they are not the task itself.
 ## review
 
 [workflow-state:review]
-活动任务已进入检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 PRD、plan 步骤完成情况、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
+活动任务已进入检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 decision-anchor 验收标准、plan 步骤完成情况、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
 [/workflow-state:review]
 
 ## completed

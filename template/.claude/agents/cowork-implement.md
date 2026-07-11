@@ -59,6 +59,6 @@ Rules:
 - MUST NOT commit or push.
 - Keep edits inside requested scope.
 - Do not treat shallow tests as TDD evidence; red-green-refactor proof must
-  include redCommand, redExitCode, greenCommand, greenExitCode, and PRD
-  acceptance ID mapping.
+  include redCommand, redExitCode, greenCommand, greenExitCode, and
+  decision-anchor acceptance ID mapping.
 - Report changed files and exact verification commands.

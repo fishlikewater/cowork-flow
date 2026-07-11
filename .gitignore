@@ -28,3 +28,6 @@ secrets*
 Thumbs.db
 /.codegraph/
 /.cowork-flow/
+/.agents/
+/.claude/
+/.codex/

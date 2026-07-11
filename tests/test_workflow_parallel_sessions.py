@@ -367,6 +367,16 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("runtime context", text)
         self.assertNotIn("agent" + "-team prepare", text)
 
+    def test_zcode_scaffold_workflow_matches_template_workflow(self) -> None:
+        template_workflow = (
+            ROOT / "template" / ".cowork-flow" / "workflow.md"
+        ).read_text(encoding="utf-8")
+        scaffold_workflow = (
+            ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(template_workflow, scaffold_workflow)
+
     def test_workflow_documents_parallel_operations(self) -> None:
         for path in (
             ROOT / "template" / ".cowork-flow" / "workflow.md",
