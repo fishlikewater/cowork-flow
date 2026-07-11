@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 71
+- **Total Sessions**: 72
 - **Last Active**: 2026-07-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~279 | Current |
+| `journal-2.md` | ~309 | Current |
 | `journal-1.md` | ~1992 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 72 | 2026-07-11 | 完成 runtime state authority 收敛 | - |
 | 71 | 2026-07-11 | 完成 template sync gate 门禁 | - |
 | 70 | 2026-07-11 | P1 doctor release health | - |
 | 69 | 2026-06-27 | Fix Claude Code host path portability | - |

@@ -93,11 +93,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         )
         for path in (
             ROOT / ".cowork-flow" / "spec" / "core" / "dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "core" / "dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
+            self.assertNotIn(".runtime/subagents", text, str(path))
+            self.assertNotIn(".runtime/sessions", text, str(path))
 
     def test_workflow_limits_generic_worker_to_advisory_work(self) -> None:
         required_markers = (
@@ -107,6 +110,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         )
         for path in (
             ROOT / ".cowork-flow" / "spec" / "core" / "dispatch.md",
+            ROOT / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "core" / "dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")

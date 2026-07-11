@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { existsSync, readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -276,22 +277,59 @@ function resolveHostContextKey(input) {
   return match ? sanitize(match[1]) : null
 }
 
-function readJson(path) {
+function nowIso() {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, "Z")
+}
+
+function flowStoreEval(root, code, payload = {}) {
+  const script = [
+    "import json, os, sys",
+    "from pathlib import Path",
+    "root = Path(sys.argv[1])",
+    "payload = json.loads(sys.stdin.read() or '{}')",
+    "sys.path.insert(0, str(root / '.cowork-flow' / 'scripts'))",
+    "from flow.store import FlowStore",
+    "from common.paths import FILE_FLOW_DB",
+    "db = root / '.cowork-flow' / FILE_FLOW_DB",
+    "with FlowStore(str(db)) as store:",
+    ...code.map((line) => `    ${line}`),
+  ].join("\n")
   try {
-    const data = JSON.parse(readFileSync(path, "utf8"))
-    return data && typeof data === "object" && !Array.isArray(data) ? data : null
+    const output = execFileSync(process.env.PYTHON || "python", ["-c", script, root], {
+      encoding: "utf8",
+      input: JSON.stringify(payload),
+      env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
+    })
+    return output.trim() ? JSON.parse(output) : null
   } catch {
     return null
   }
 }
 
-function writeJson(path, data) {
-  mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, "utf8")
+function readRuntimeContext(root, runtimeContextId) {
+  return flowStoreEval(root, [
+    "context = store.get_runtime_context(payload.get('runtime_context_id', ''))",
+    "print(json.dumps(context, ensure_ascii=False, sort_keys=True))",
+  ], { runtime_context_id: runtimeContextId })
 }
 
-function nowIso() {
-  return new Date().toISOString().replace(/\.\d{3}Z$/, "Z")
+function writeRuntimeContext(root, context) {
+  return flowStoreEval(root, [
+    "context = payload.get('context')",
+    "if isinstance(context, dict):",
+    "    store.upsert_runtime_context(context)",
+    "    print(json.dumps(store.get_runtime_context(context.get('runtime_context_id') or context.get('id')), ensure_ascii=False, sort_keys=True))",
+  ], { context })
+}
+
+function writeRuntimeSession(root, contextKey, session) {
+  return flowStoreEval(root, [
+    "context_key = payload.get('context_key')",
+    "session = payload.get('session')",
+    "if isinstance(context_key, str) and isinstance(session, dict):",
+    "    store.upsert_runtime_session(context_key, session)",
+    "    print(json.dumps(store.get_runtime_session(context_key), ensure_ascii=False, sort_keys=True))",
+  ], { context_key: contextKey, session })
 }
 
 function bindRuntimeContext(root, runtimeContextId, context, input) {
@@ -313,7 +351,7 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
   if (typeof context.task_dir === "string" && context.task_dir.trim()) {
     session.active_task_path = context.task_dir.trim()
   }
-  writeJson(resolve(root, ".cowork-flow", ".runtime", "sessions", `${contextKey}.json`), session)
+  writeRuntimeSession(root, contextKey, session)
   const updated = {
     ...context,
     status: "bound",
@@ -321,8 +359,7 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
     bound_at: context.bound_at || nowIso(),
     last_seen_at: nowIso(),
   }
-  writeJson(resolve(root, ".cowork-flow", ".runtime", "subagents", `${runtimeContextId}.json`), updated)
-  return updated
+  return writeRuntimeContext(root, updated) || updated
 }
 
 function buildRuntimeWorkflowState(input) {
@@ -332,8 +369,7 @@ function buildRuntimeWorkflowState(input) {
     return null
   }
 
-  const contextFile = resolve(root, ".cowork-flow", ".runtime", "subagents", `${runtimeContextId}.json`)
-  const context = readJson(contextFile)
+  const context = readRuntimeContext(root, runtimeContextId)
   if (!context || context.scope !== "subagent" || context.status === "closed") {
     return [
       "<workflow-state>",

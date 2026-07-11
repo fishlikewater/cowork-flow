@@ -22,10 +22,25 @@ Party Mode V2 discussion children are also advisory leaf executors. The `party-m
 
 ## Runtime Context
 
-Before spawning a formal child, the main session creates:
+Before spawning a formal child, the main session creates DB runtime rows:
 
-- `.cowork-flow/.runtime/subagents/<runtime_context_id>.json`
-- `.cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json`
+- `runtime_context`: one row keyed by `<runtime_context_id>`
+- `runtime_session`: one logical row keyed by `subagent_<runtime_context_id>`
+
+Creating these rows or preparing a host payload is not proof that a host child
+exists. A child is considered created only after the host dispatch primitive
+reports or lists the child context, and accepted only after the runtime context
+is bound as described below.
+
+Formal dispatch no longer writes or reads compatibility JSON runtime files.
+`runtime_context` and `runtime_session` in the DB are the only active state
+authority.
+
+For direct formal dispatch with `--execution-task-dir`, `subagent init`
+resolves the Flow task id, stores the resolved `cowork-*` agent type in
+`runtime_context`, and suggests a host context key for binding. `agent_run`
+rows are no longer written by the runtime; the table remains compatibility-only
+and must not be treated as the active dispatch authority.
 
 The child receives the runtime id and host context key through the host adapter
 transport. The baseline prompt transport is:
@@ -51,17 +66,16 @@ before formal work:
 ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
 ```
 
-A valid context is bound to the host child session under
-`.cowork-flow/.runtime/sessions/<host_context_key>.json` with
-`scope: "subagent"`. Binding the same runtime id to the same key is idempotent;
-binding it to a different key must fail.
+A valid context is bound to the host child session as a `runtime_session` DB row
+keyed by `<host_context_key>` with `scope: "subagent"`. Binding the same runtime
+id to the same key is idempotent; binding it to a different key must fail.
 
 Verified binding is the formal dispatch acceptance event. The parent must check
-that `.cowork-flow/.runtime/subagents/<runtime_context_id>.json` has
-`status: "bound"` and `bound_context_key: "<host_context_key>"` before accepting
-child output. If binding fails, the child must receive fail-closed subagent state
-and must not run main-session start/resume, task activation, archive, commit,
-or agent coordination.
+that the `runtime_context` row has `status: "bound"` and
+`bound_context_key: "<host_context_key>"` before accepting child output. If
+binding fails, the child must receive fail-closed subagent state and must not run
+main-session start/resume, task activation, archive, commit, or agent
+coordination.
 
 ## Return Acceptance And Closeout
 
@@ -74,12 +88,32 @@ or agent coordination.
 - The child remains a leaf executor and must not dispatch, wait for, list, or
   cancel other agents.
 
+## Fan-out Family Helpers
+
+Fan-out parents may prepare child contexts in one CLI step:
+
+```text
+./.cowork-flow/run subagent spawn-family <parent-task> --agent-type cowork-implement
+```
+
+`spawn-family` creates one runtime context per eligible child task. It is
+idempotent for active `(task_id, agent_type)` runtime contexts and returns JSON
+for the host adapter to dispatch. It does not call host-specific child
+primitives by itself.
+
+The main session can inspect family progress with:
+
+```text
+./.cowork-flow/run subagent check-family <parent-task>
+```
+
+`check-family` returns JSON buckets for pending, done, and failed children. It
+exits `0` only when all children are done and no failed run remains. Task status
+transitions still go through `task.py`; family helpers do not complete or review
+tasks directly.
+
 ## Cleanup
 
-Closing a child removes:
-
-- `.cowork-flow/.runtime/sessions/<host_context_key>.json`
-- `.cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json`
-
-The subagent context is deleted or marked `closed` until runtime garbage
-collection removes it.
+Closing a child removes the bound and logical `runtime_session` DB rows. The
+subagent `runtime_context` row is marked `closed` until DB maintenance removes
+it after the configured retention window.

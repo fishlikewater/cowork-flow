@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { execFileSync } from "node:child_process"
 import { test } from "node:test"
 
 import { CoworkFlowPlugin } from "../.opencode/plugins/cowork-flow.js"
@@ -39,6 +40,70 @@ async function createRegistryRepo(t) {
     "utf8"
   )
   return root
+}
+
+async function createRuntimeRepo(t) {
+  const root = await createRegistryRepo(t)
+  const workflowRoot = join(root, ".cowork-flow")
+  await mkdir(join(workflowRoot, "scripts"), { recursive: true })
+  await mkdir(join(workflowRoot, "tasks", "06-04-demo"), { recursive: true })
+  await writeFile(join(workflowRoot, "scripts", "run.py"), "placeholder\n", "utf8")
+  execFileSync(
+    process.execPath,
+    [
+      "-e",
+      "import { cpSync } from 'node:fs'; cpSync(process.argv[1], process.argv[2], { recursive: true })",
+      join(process.cwd(), ".cowork-flow", "scripts", "flow"),
+      join(workflowRoot, "scripts", "flow"),
+    ],
+    { encoding: "utf8" }
+  )
+  execFileSync(
+    process.execPath,
+    [
+      "-e",
+      "import { cpSync } from 'node:fs'; cpSync(process.argv[1], process.argv[2], { recursive: true })",
+      join(process.cwd(), ".cowork-flow", "scripts", "common"),
+      join(workflowRoot, "scripts", "common"),
+    ],
+    { encoding: "utf8" }
+  )
+  execFileSync(
+    process.execPath,
+    [
+      "-e",
+      "import { cpSync } from 'node:fs'; cpSync(process.argv[1], process.argv[2], { recursive: true })",
+      join(process.cwd(), ".cowork-flow", "scripts", "patterns"),
+      join(workflowRoot, "scripts", "patterns"),
+    ],
+    { encoding: "utf8" }
+  )
+  return root
+}
+
+function flowStoreEval(root, code) {
+  return execFileSync(
+    process.env.PYTHON || "python",
+    [
+      "-c",
+      [
+        "import json, sys",
+        "from pathlib import Path",
+        "root = Path(sys.argv[1])",
+        "sys.path.insert(0, str(root / '.cowork-flow' / 'scripts'))",
+        "from flow.store import FlowStore",
+        "from common.paths import FILE_FLOW_DB",
+        "db = root / '.cowork-flow' / FILE_FLOW_DB",
+        "with FlowStore(str(db)) as store:",
+        ...code.map((line) => `    ${line}`),
+      ].join("\n"),
+      root,
+    ],
+    {
+      encoding: "utf8",
+      env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
+    }
+  )
 }
 
 async function renderPluginContext(cwd, input = {}) {
@@ -95,30 +160,21 @@ test("opencode plugin fingerprint changes when referenced spec changes", async (
 })
 
 test("opencode plugin injects and binds runtime subagent state", async (t) => {
-  const root = await createRegistryRepo(t)
-  const runtimeDir = join(root, ".cowork-flow", ".runtime", "subagents")
-  await mkdir(runtimeDir, { recursive: true })
-  await writeFile(
-    join(runtimeDir, "rtx_plugin.json"),
-    JSON.stringify(
-      {
-        schema_version: 2,
-        runtime_context_id: "rtx_plugin",
-        scope: "subagent",
-        host: "opencode",
-        adapter: "opencode.task",
-        agent_type: "cowork-check",
-        role: "check",
-        task_dir: ".cowork-flow/tasks/06-04-demo",
-        status: "pending",
-        assignment: { goal: "Check the runtime binding." },
-        bound_context_key: null,
-      },
-      null,
-      2
-    ),
-    "utf8"
-  )
+  const root = await createRuntimeRepo(t)
+  flowStoreEval(root, [
+    "store.upsert_runtime_context({",
+    "  'runtime_context_id': 'rtx_plugin',",
+    "  'scope': 'subagent',",
+    "  'host': 'opencode',",
+    "  'adapter': 'opencode.task',",
+    "  'agent_type': 'cowork-check',",
+    "  'role': 'check',",
+    "  'task_dir': '.cowork-flow/tasks/06-04-demo',",
+    "  'status': 'pending',",
+    "  'assignment': {'goal': 'Check the runtime binding.'},",
+    "  'bound_context_key': None,",
+    "})",
+  ])
 
   const context = await renderPluginContext(root, {
     opencode_session_id: "child-session",
@@ -131,18 +187,27 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   assert.match(context, /Agent: cowork-check/)
   assert.match(context, /Scope: subagent/)
   const session = JSON.parse(
-    await readFile(
-      join(root, ".cowork-flow", ".runtime", "sessions", "opencode_prompt_key.json"),
-      "utf8"
-    )
+    flowStoreEval(root, [
+      "session = store.get_runtime_session('opencode_prompt_key')",
+      "print(json.dumps(session, ensure_ascii=False, sort_keys=True))",
+    ])
   )
   assert.equal(session.scope, "subagent")
   assert.equal(session.runtime_context_id, "rtx_plugin")
   await assert.rejects(
     readFile(join(root, ".cowork-flow", ".runtime", "sessions", "opencode_child-session.json"), "utf8")
   )
+  await assert.rejects(
+    readFile(join(root, ".cowork-flow", ".runtime", "sessions", "opencode_prompt_key.json"), "utf8")
+  )
+  await assert.rejects(
+    readFile(join(root, ".cowork-flow", ".runtime", "subagents", "rtx_plugin.json"), "utf8")
+  )
   const runtimeContext = JSON.parse(
-    await readFile(join(root, ".cowork-flow", ".runtime", "subagents", "rtx_plugin.json"), "utf8")
+    flowStoreEval(root, [
+      "context = store.get_runtime_context('rtx_plugin')",
+      "print(json.dumps(context, ensure_ascii=False, sort_keys=True))",
+    ])
   )
   assert.equal(runtimeContext.bound_context_key, "opencode_prompt_key")
 })

@@ -1,0 +1,41 @@
+{
+  "workType": "behavior_change",
+  "testPlan": [
+    {
+      "acceptancePoint": "OpenCode plugin reads and writes runtime_context/runtime_session through DB authority",
+      "testCommand": "npm test -- test/opencode-plugin.test.js",
+      "breaksWhen": "plugin only reads .runtime/subagents JSON or writes .runtime/sessions files instead of binding DB rows"
+    },
+    {
+      "acceptancePoint": "runtime dispatch contracts no longer describe .runtime subagent/session files as active authority",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_workflow_parallel_sessions.WorkflowParallelSessionsTest.test_workflow_requires_runtime_context_dispatch_gate tests.test_workflow_parallel_sessions.WorkflowParallelSessionsTest.test_workflow_requires_runtime_context_closeout",
+      "breaksWhen": "contract docs omit DB runtime_context/runtime_session authority or reintroduce .runtime/subagents/.runtime/sessions as active state"
+    },
+    {
+      "acceptancePoint": "host hooks, subagent dispatch, active task, and adapter safety still fail closed",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m pytest tests/test_active_task_runtime.py tests/test_subagent_dispatch.py tests/test_host_adapters.py tests/test_codex_hooks.py tests/test_claude_hooks.py -q",
+      "breaksWhen": "missing, closed, invalid, or mismatched runtime contexts are accepted as executable formal subagent state"
+    }
+  ],
+  "red": {
+    "command": "npm test -- test/opencode-plugin.test.js",
+    "exitCode": 1,
+    "failingTests": [
+      "opencode plugin injects and binds runtime subagent state"
+    ],
+    "outputExcerpt": "Source: runtime-context-invalid:rtx_plugin because plugin only looked for .cowork-flow/.runtime/subagents/<id>.json while test seeded DB runtime_context"
+  },
+  "green": {
+    "command": "npm test -- test/opencode-plugin.test.js; .\\.cowork-flow\\run.cmd python -m unittest tests.test_workflow_parallel_sessions.WorkflowParallelSessionsTest.test_workflow_requires_runtime_context_dispatch_gate tests.test_workflow_parallel_sessions.WorkflowParallelSessionsTest.test_workflow_requires_runtime_context_closeout; full verification batch",
+    "exitCode": 0,
+    "passingTests": [
+      "opencode plugin injects and binds runtime subagent state",
+      "workflow runtime context dispatch/closeout contract tests",
+      "83 focused runtime authority pytest tests",
+      "npm run test:template",
+      "npm run pack:check",
+      "python unittest discover 381 tests"
+    ],
+    "outputExcerpt": "83 passed; opencode plugin 5 passed; doctor subagent safety checks passed; template tests passed; pack-check ok; 381 unittest passed with 6 skipped; git diff --check passed"
+  }
+}
