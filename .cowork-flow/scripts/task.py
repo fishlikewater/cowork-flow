@@ -75,6 +75,7 @@ from common.execution_context import (
     execution_context_from_namespace,
     worker_command_block_message,
 )
+from common.lifecycle import LifecycleResult, TaskLifecycleService
 
 CONTEXT_JSONL_FILES = ["implement.jsonl", "check.jsonl", "debug.jsonl"]
 DONE_STATUSES = ("completed", "done")
@@ -124,6 +125,25 @@ def _print_pattern_errors(pattern, ctx, to_status: str, issues: list[str]) -> No
     print(colored("Error: Pattern transition blocked", Colors.RED), file=sys.stderr)
     print(f"  Pattern: {pattern.name}", file=sys.stderr)
     print(f"  Transition: {ctx.task.status} -> {to_status}", file=sys.stderr)
+    for issue in issues:
+        print(f"  - {issue}", file=sys.stderr)
+
+
+def _print_lifecycle_errors(result: LifecycleResult) -> None:
+    issues = result.issues or []
+    if any(issue.startswith("Flow task not found") for issue in issues):
+        for issue in issues:
+            print(colored(f"Error: {issue}", Colors.RED), file=sys.stderr)
+        return
+    if any("failed to " in issue for issue in issues):
+        for issue in issues:
+            print(colored(f"Error: {issue}", Colors.RED), file=sys.stderr)
+        return
+    print(colored("Error: Pattern transition blocked", Colors.RED), file=sys.stderr)
+    if result.pattern_name:
+        print(f"  Pattern: {result.pattern_name}", file=sys.stderr)
+    if result.from_status and result.to_status:
+        print(f"  Transition: {result.from_status} -> {result.to_status}", file=sys.stderr)
     for issue in issues:
         print(f"  - {issue}", file=sys.stderr)
 
@@ -1089,17 +1109,10 @@ def cmd_review(args: argparse.Namespace) -> int:
 
     task_id = _resolve_task_id(task_dir.name, repo_root)
     with _get_flow_store(repo_root) as store:
-        ctx = _build_pattern_context(store, task_id)
-        if ctx is None:
-            print(
-                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
-                file=sys.stderr,
-            )
-            return 1
-        pattern = _resolve_pattern(ctx)
-        issues = _pattern_transition_issues(pattern, ctx, "review")
-        if issues:
-            _print_pattern_errors(pattern, ctx, "review", issues)
+        service = TaskLifecycleService(store)
+        result = service.validate_transition(task_id, "review")
+        if not result.ok:
+            _print_lifecycle_errors(result)
             return 1
         # Rules engine gate: task_review scope
         try:
@@ -1112,11 +1125,9 @@ def cmd_review(args: argparse.Namespace) -> int:
                 print(colored(f"[rule {sev}] {v['rule_id']}: {v['message']}", tag), file=sys.stderr)
         except Exception:
             pass
-        if not store.update_status(task_id, "review", "system", "task review"):
-            print(
-                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
-                file=sys.stderr,
-            )
+        result = service.review(task_id)
+        if not result.ok:
+            _print_lifecycle_errors(result)
             return 1
 
     # Spec-driven coding gate (P2): validate NL rules from spec/backend, spec/frontend
@@ -1145,21 +1156,14 @@ def cmd_complete(args: argparse.Namespace) -> int:
 
     task_id = _resolve_task_id(task_dir.name, repo_root)
     with _get_flow_store(repo_root) as store:
-        ctx = _build_pattern_context(store, task_id)
-        if ctx is None:
-            print(
-                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
-                file=sys.stderr,
-            )
+        service = TaskLifecycleService(store)
+        result = service.validate_transition(task_id, "completed", validate_current=True)
+        if not result.ok:
+            _print_lifecycle_errors(result)
             return 1
-        pattern = _resolve_pattern(ctx)
-        validation_issues = pattern.validate(ctx)
-        if validation_issues:
-            _print_pattern_errors(pattern, ctx, "completed", validation_issues)
-            return 1
-        issues = _pattern_transition_issues(pattern, ctx, "completed")
-        if issues:
-            _print_pattern_errors(pattern, ctx, "completed", issues)
+        result = service.validate_transition(task_id, "completed")
+        if not result.ok:
+            _print_lifecycle_errors(result)
             return 1
         # Rules engine gate: task_complete scope (hard block)
         try:
@@ -1212,11 +1216,9 @@ def cmd_complete(args: argparse.Namespace) -> int:
         except Exception:
             pass
 
-        if not store.update_status(task_id, "completed", "system", "task complete"):
-            print(
-                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
-                file=sys.stderr,
-            )
+        result = service.complete(task_id)
+        if not result.ok:
+            _print_lifecycle_errors(result)
             return 1
 
     # Auto-run doctor static checks on complete (advisory, gated by config)
@@ -1731,26 +1733,14 @@ def cmd_block(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     task_id = _resolve_task_id(args.dir, repo_root)
     with _get_flow_store(repo_root) as store:
-        ctx = _build_pattern_context(store, task_id)
-        if ctx is None:
-            print(
-                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
-                file=sys.stderr,
-            )
+        service = TaskLifecycleService(store)
+        result = service.block(task_id, args.reason)
+        if not result.ok:
+            _print_lifecycle_errors(result)
             return 1
-        pattern = _resolve_pattern(ctx)
-        issues = _pattern_transition_issues(pattern, ctx, "blocked")
-        if issues:
-            _print_pattern_errors(pattern, ctx, "blocked", issues)
-            return 1
-        if store.block_task(task_id, args.reason):
-            print(colored(f"Task blocked: {task_id}", Colors.YELLOW), file=sys.stderr)
-            print(f"  Reason: {args.reason}", file=sys.stderr)
-            return 0
-    print(
-        colored(f"Error: failed to block task: {task_id}", Colors.RED), file=sys.stderr
-    )
-    return 1
+        print(colored(f"Task blocked: {task_id}", Colors.YELLOW), file=sys.stderr)
+        print(f"  Reason: {args.reason}", file=sys.stderr)
+        return 0
 
 
 # =============================================================================
@@ -1769,17 +1759,10 @@ def cmd_unblock(args: argparse.Namespace) -> int:
         )
         return 1
     with _get_flow_store(repo_root) as store:
-        if store.get_task(task_id) is None:
-            print(
-                colored(f"Error: Flow task not found: {task_id}", Colors.RED),
-                file=sys.stderr,
-            )
-            return 1
-        if not store.update_status(task_id, "in_progress", "manual", "force unblock"):
-            print(
-                colored(f"Error: failed to unblock task: {task_id}", Colors.RED),
-                file=sys.stderr,
-            )
+        service = TaskLifecycleService(store)
+        result = service.force_unblock(task_id)
+        if not result.ok:
+            _print_lifecycle_errors(result)
             return 1
         print(
             colored(f"Task force unblocked: {task_id}", Colors.GREEN),

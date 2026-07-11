@@ -13,6 +13,7 @@ SCRIPTS = ROOT / ".cowork-flow" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from common import lifecycle
+from flow.store import FlowStore
 
 
 class TestTransitionAllowed(unittest.TestCase):
@@ -118,6 +119,63 @@ class TestStatusMetadata(unittest.TestCase):
         for status, meta in lifecycle.STATUS_METADATA.items():
             self.assertIn("label", meta)
             self.assertIn("description", meta)
+
+
+class TestTaskLifecycleService(unittest.TestCase):
+    """Behavior tests for DB-backed task lifecycle service."""
+
+    def test_review_and_complete_update_store(self):
+        with FlowStore(":memory:") as store:
+            task_id = store.create_task(id="demo", title="Demo", creator="d", assignee="d")
+            store.update_status(task_id, "in_progress", "d")
+            service = lifecycle.TaskLifecycleService(store)
+
+            review = service.review(task_id)
+            complete = service.complete(task_id)
+
+            self.assertTrue(review.ok, review.issues)
+            self.assertTrue(complete.ok, complete.issues)
+            task = store.get_task(task_id)
+            self.assertIsNotNone(task)
+            self.assertEqual("completed", task.status)
+
+    def test_block_and_force_unblock_update_store(self):
+        with FlowStore(":memory:") as store:
+            task_id = store.create_task(id="demo", title="Demo", creator="d", assignee="d")
+            store.update_status(task_id, "in_progress", "d")
+            service = lifecycle.TaskLifecycleService(store)
+
+            block = service.block(task_id, "needs human decision")
+            unblock = service.force_unblock(task_id)
+
+            self.assertTrue(block.ok, block.issues)
+            self.assertTrue(unblock.ok, unblock.issues)
+            task = store.get_task(task_id)
+            self.assertIsNotNone(task)
+            self.assertEqual("in_progress", task.status)
+
+    def test_duplicate_or_invalid_transition_is_rejected_without_status_mutation(self):
+        with FlowStore(":memory:") as store:
+            task_id = store.create_task(id="demo", title="Demo", creator="d", assignee="d")
+            service = lifecycle.TaskLifecycleService(store)
+
+            result = service.complete(task_id)
+
+            self.assertFalse(result.ok)
+            self.assertIn("does not allow planning -> completed", "\n".join(result.issues))
+            task = store.get_task(task_id)
+            self.assertIsNotNone(task)
+            self.assertEqual("planning", task.status)
+
+    def test_missing_task_returns_explicit_not_found_result(self):
+        with FlowStore(":memory:") as store:
+            service = lifecycle.TaskLifecycleService(store)
+
+            result = service.review("missing")
+
+            self.assertFalse(result.ok)
+            self.assertEqual("missing", result.task_id)
+            self.assertIn("Flow task not found: missing", result.issues)
 
 
 if __name__ == "__main__":
