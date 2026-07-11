@@ -92,6 +92,34 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
+    def test_zcode_scaffold_uses_current_workflow_entrypoint(self) -> None:
+        text = (
+            ROOT / "template" / ".zcode" / "scaffold" / "AGENTS.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("./.cowork-flow/run task next", text)
+        self.assertIn("task.json.status", text)
+        self.assertIn("in_progress", text)
+        self.assertIn("review", text)
+        self.assertNotIn("before-dev", text)
+
+    def test_zcode_scaffold_party_mode_contract_matches_formal_entrypoint(self) -> None:
+        text = (
+            ROOT
+            / "template"
+            / ".zcode"
+            / "scaffold"
+            / ".cowork-flow"
+            / "spec"
+            / "contracts"
+            / "subagent-dispatch.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("communicate through the `party-v2` runtime board", text)
+        self.assertIn("The public `party-mode` skill delegates discussion state", text)
+        self.assertIn("host-neutral next actions", text)
+        self.assertNotIn("party-mode-v2` entrypoint", text)
+
     def test_workflow_limits_generic_worker_to_advisory_work(self) -> None:
         required_markers = (
             "Formal dispatch uses `cowork-research`, `cowork-implement`, or `cowork-check`.",
