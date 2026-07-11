@@ -41,6 +41,21 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("agent" + "-team prepare", text)
         self.assertNotIn("agent" + "-team next", text)
 
+    def test_workflow_names_obsolete_cleanup_without_compatibility_period(self) -> None:
+        for path in (
+            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("旧资产清理", text, str(path))
+            self.assertIn("obsolete cleanup", text, str(path))
+            self.assertIn("读取边界保留", text, str(path))
+            self.assertNotIn("兼容迁移", text, str(path))
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("正式版旧资产清理", readme)
+        self.assertNotIn("兼容升级", readme)
+
     def test_workflow_state_templates_are_externalized(self) -> None:
         for path in (
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",

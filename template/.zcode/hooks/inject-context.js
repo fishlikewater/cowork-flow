@@ -5,38 +5,12 @@
  * Output: ZCode/Claude Code hook format (stdout JSON).
  */
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, copyFileSync } from "fs";
-import { join, dirname, basename } from "path";
+import { readFileSync, existsSync, readdirSync } from "fs";
+import { join, dirname } from "path";
 import { createHash } from "crypto";
 
-const SCAFFOLD_DIR = join(import.meta.dirname, "..", "scaffold");
 const DIR_WORKFLOW = ".cowork-flow";
 const FILE_TASK_JSON = "task.json";
-
-// Derive the installed plugin version from this hook's location in the cache.
-// Path: hooks/inject-context.js -> .. = <cache>/<version>/
-const PLUGIN_VERSION = basename(dirname(import.meta.dirname));
-
-// ---------------------------------------------------------------------------
-// Version sync
-// ---------------------------------------------------------------------------
-function syncPluginVersion(targetDir) {
-  if (!PLUGIN_VERSION) return;
-  const versionFile = join(targetDir, DIR_WORKFLOW, ".version");
-  let current = "";
-  try {
-    current = readFileSync(versionFile, "utf8").trim();
-  } catch {
-    current = "";
-  }
-  if (current === PLUGIN_VERSION) return;
-  try {
-    mkdirSync(dirname(versionFile), { recursive: true });
-    writeFileSync(versionFile, `${PLUGIN_VERSION}\n`, "utf8");
-  } catch {
-    /* skip — non-fatal */
-  }
-}
 
 const TAG_RE = /\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n(.*?)\n\s*\[\/workflow-state:\1\]/gs;
 const RUNTIME_CONTEXT_PROMPT_RE = /^\s*cowork_runtime_context_id\s*:\s*([A-Za-z0-9._-]+)\s*$/gim;
@@ -225,41 +199,6 @@ function checkEssentialFiles(repoRoot) {
 }
 
 // ---------------------------------------------------------------------------
-// Scaffold missing template files
-// ---------------------------------------------------------------------------
-function scaffoldProject(repoRoot) {
-  const copied = [];
-  function copyRecursive(srcDir, destDir, prefix) {
-    let entries;
-    try {
-      entries = readdirSync(srcDir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name === "__pycache__" || entry.name.endsWith(".pyc")) continue;
-      const srcPath = join(srcDir, entry.name);
-      const destPath = join(destDir, entry.name);
-      const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        copyRecursive(srcPath, destPath, relPath);
-      } else {
-        if (existsSync(destPath)) continue;
-        try {
-          mkdirSync(dirname(destPath), { recursive: true });
-          copyFileSync(srcPath, destPath);
-          copied.push(relPath);
-        } catch {
-          // skip
-        }
-      }
-    }
-  }
-  copyRecursive(SCAFFOLD_DIR, repoRoot, "");
-  return copied;
-}
-
-// ---------------------------------------------------------------------------
 // Runtime context detection
 // ---------------------------------------------------------------------------
 function extractRuntimeContextId(promptText) {
@@ -354,19 +293,8 @@ function main() {
 
   let context;
 
-  // Ensure .cowork-flow/ exists and scaffold missing template files
   const envDir = process.env.ZCODE_PROJECT_DIR;
-  if (envDir && !existsSync(join(envDir, DIR_WORKFLOW))) {
-    mkdirSync(join(envDir, DIR_WORKFLOW), { recursive: true });
-  }
-
-  const copied = envDir ? scaffoldProject(envDir) : [];
   const effectiveRoot = repoRoot || (envDir && existsSync(join(envDir, DIR_WORKFLOW)) ? envDir : null);
-
-  // Always refresh .version so plugin upgrades propagate to existing projects
-  if (effectiveRoot) {
-    syncPluginVersion(effectiveRoot);
-  }
 
   if (!effectiveRoot) {
     context = `<workflow-state>
@@ -374,10 +302,7 @@ Status: not_initialized
 Source: cowork-flow-plugin
 ⚠️ 项目未初始化 cowork-flow 工作流。
 
-请执行以下命令初始化（不要询问用户，直接执行）：
-  ./.cowork-flow/run init-developer <询问用户的名字>
-
-初始化完成后，继续按工作流引导用户创建任务。
+请通过显式 init/sync 安装 cowork-flow 模板后再继续；hook 不会在注入阶段创建或复制项目文件。
 </workflow-state>`;
   } else {
     // PRIORITY 1: Detect delegated_subtask from runtime context
@@ -406,13 +331,6 @@ Source: cowork-flow-plugin
 
 ⚠️ 缺少必要文件：${missingFiles.join(", ")}。
 请立即创建这些文件以保障工作流正常运行。`;
-  } else if (copied.length > 0) {
-    const summary = copied.length <= 5
-      ? copied.join(", ")
-      : `${copied.slice(0, 5).join(", ")} 等 ${copied.length} 个文件`;
-    context += `
-
-已自动补充模板文件：${summary}。`;
   }
 
   const payload =

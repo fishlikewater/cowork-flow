@@ -93,7 +93,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` 时按平台分发到�
 - **自动识别**已安装 host 目录，只同步对应平台资产
 - **Skills** 从 `template/skills/` 按平台分发
 - **保护文件**：`config.yaml`、`workflow.md`、`spec/`（除 `workflow-state-templates.md`）、任务、计划、变更、workspace
-- **兼容升级**：旧脚本位置、旧 adapter 资产和已废弃文件按 Host Asset Manifest 的 `obsoleteFiles` 迁移清理；用户保护文件保持不变
+- **正式版旧资产清理**：旧脚本位置、旧 adapter 资产和已废弃文件按 Host Asset Manifest 的 `obsoleteFiles` 清理；用户保护文件保持不变
 - **事务恢复**：上次未完成事务会在新一轮 sync 前恢复；事务元数据缺失或损坏时 fail-closed，不在未知状态上继续写入
 - `--force` 整文件覆盖保护文件
 
