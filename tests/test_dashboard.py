@@ -25,6 +25,7 @@ class DashboardTest(unittest.TestCase):
         for module_name in (
             "common.paths",
             "common.time_utils",
+            "flow.migration_store",
             "flow.store",
             "flow",
             "patterns.base",

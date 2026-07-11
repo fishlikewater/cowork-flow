@@ -45,6 +45,7 @@ class FlowScriptPathsTest(unittest.TestCase):
             "common.readiness",
             "common.task_context_defaults",
             "common.task_utils",
+            "flow.migration_store",
             "flow.store",
             "flow",
             "common",

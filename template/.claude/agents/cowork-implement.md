@@ -36,5 +36,6 @@ Rules:
 - Keep edits inside the assigned scope.
 - Report changed files and exact verification commands.
 - Do not use the Task tool or invoke subagents.
+- Do not spawn, wait for, list, or close other agents.
 - Do not run task start, task finish, task archive, unscoped resume, commit, or
   push.

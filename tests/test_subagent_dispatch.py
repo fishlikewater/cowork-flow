@@ -24,6 +24,7 @@ class SubagentDispatchTest(unittest.TestCase):
             "common.execution_context",
             "common.paths",
             "common.time_utils",
+            "flow.migration_store",
             "flow.store",
             "flow",
             "patterns.base",

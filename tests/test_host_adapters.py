@@ -264,6 +264,19 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("bound runtime context", text)
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
+                for forbidden in (
+                    "task start",
+                    "task finish",
+                    "task archive",
+                    "unscoped resume",
+                    "commit",
+                    "push",
+                    "spawn",
+                    "wait for",
+                    "list",
+                    "close other agents",
+                ):
+                    self.assertIn(forbidden, text)
 
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")
@@ -312,6 +325,19 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("needs_context", text)
                 self.assertIn("leaf", text)
                 self.assertIn("Do not use the Task tool or invoke subagents", text)
+                for forbidden in (
+                    "task start",
+                    "task finish",
+                    "task archive",
+                    "unscoped resume",
+                    "commit",
+                    "push",
+                    "spawn",
+                    "wait for",
+                    "list",
+                    "close other agents",
+                ):
+                    self.assertIn(forbidden, text)
 
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")

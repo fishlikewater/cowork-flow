@@ -212,6 +212,34 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   assert.equal(runtimeContext.bound_context_key, "opencode_prompt_key")
 })
 
+test("opencode plugin fails closed for closed runtime context", async (t) => {
+  const root = await createRuntimeRepo(t)
+  flowStoreEval(root, [
+    "store.upsert_runtime_context({",
+    "  'runtime_context_id': 'rtx_closed_plugin',",
+    "  'scope': 'subagent',",
+    "  'host': 'opencode',",
+    "  'adapter': 'opencode.task',",
+    "  'agent_type': 'cowork-check',",
+    "  'role': 'check',",
+    "  'task_dir': '.cowork-flow/tasks/06-04-demo',",
+    "  'status': 'closed',",
+    "  'assignment': {'goal': 'Check the runtime binding.'},",
+    "  'bound_context_key': None,",
+    "})",
+  ])
+
+  const context = await renderPluginContext(root, {
+    opencode_session_id: "child-session",
+    prompt: "cowork_runtime_context_id: rtx_closed_plugin",
+  })
+
+  assert.match(context, /Status: delegated_subtask/)
+  assert.match(context, /runtime-context-invalid:rtx_closed_plugin/)
+  assert.match(context, /Runtime context is missing, closed, or invalid/)
+  assert.match(context, /Do not run start\/resume\/task start\/archive\/commit\/spawn\./)
+})
+
 test("opencode plugin exposes main session env to shell commands", async (t) => {
   const root = await createRegistryRepo(t)
 

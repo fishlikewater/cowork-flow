@@ -83,6 +83,7 @@ class ClaudeHooksTest(unittest.TestCase):
             "common.active_task",
             "common.paths",
             "common.time_utils",
+            "flow.migration_store",
             "flow.store",
             "flow",
             "patterns.base",
@@ -326,6 +327,38 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
         self.assertIn("runtime-context-invalid", context)
+        self.assertNotIn("requires creating or starting a task first", context)
+
+    def test_hook_closed_runtime_context_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_runtime_context(root, "rtx_claude_closed")
+            script_root = root / ".cowork-flow" / "scripts"
+            sys.path.insert(0, str(script_root))
+            try:
+                paths = importlib.import_module("common.paths")
+                flow_store = importlib.import_module("flow.store")
+                with flow_store.FlowStore(str(paths.get_db_path(root))) as store:
+                    context = store.get_runtime_context("rtx_claude_closed")
+                    context["status"] = "closed"
+                    store.upsert_runtime_context(context)
+            finally:
+                self._cleanup_script_imports(script_root)
+
+            data = self._run_hook(
+                root,
+                {
+                    "session_id": "child-session",
+                    "prompt": "cowork_runtime_context_id: rtx_claude_closed",
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn("runtime-context-invalid:rtx_claude_closed", context)
+        self.assertIn("Runtime context is missing, closed, or invalid", context)
+        self.assertIn("Do not run start/resume/task start/archive/commit/spawn.", context)
         self.assertNotIn("requires creating or starting a task first", context)
 
     def test_hook_keeps_unclassified_nonempty_prompt_on_no_task_state(self) -> None:

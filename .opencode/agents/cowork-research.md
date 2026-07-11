@@ -42,5 +42,6 @@ Rules:
 - Write research only under `<task>/research/`.
 - Do not edit code, specs, task state, or git state.
 - Do not use the `task` tool or invoke subagents.
+- Do not spawn, wait for, list, or close other agents.
 - Do not run task start, task finish, task archive, unscoped resume, commit, or
   push.

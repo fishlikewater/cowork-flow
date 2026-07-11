@@ -367,3 +367,33 @@ Anchored Claude Code hook, command, agent, skill, and runtime bind commands thro
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 75: P2 formal subagent host contract tests
+
+**Date**: 2026-07-12
+**Task**: P2 formal subagent host contract tests
+
+### Summary
+
+补充 closed runtime context fail-closed 覆盖，强化 OpenCode/Codex/Claude 子代理契约测试，明确 fixed-agent 禁止协调动作并同步 template。
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

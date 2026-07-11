@@ -37,5 +37,6 @@ Rules:
 - Fix in-scope issues directly when small and clear.
 - Report findings, fixes, and exact verification commands.
 - Do not use the Task tool or invoke subagents.
+- Do not spawn, wait for, list, or close other agents.
 - Do not run task start, task finish, task archive, unscoped resume, commit, or
   push.
