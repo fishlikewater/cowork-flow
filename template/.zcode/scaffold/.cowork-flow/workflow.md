@@ -70,6 +70,15 @@ changes -> brainstorming -> read spec -> plan -> tasks -> implement -> check -> 
 
 `task finish` 只清理当前会话任务指针，不改变 `task.json.status`。
 
+## 2.1 运行时权威边界与旧资产清理
+
+1. `scripts/commands/` 只负责参数解析和输出；任务、上下文、归档和 runtime context 业务流程由 `scripts/application/` 编排。
+2. JSON 状态写入统一经过 `scripts/common/storage/`，显式使用 UTF-8、修订检查和可恢复 Unit of Work。
+3. 宿主资产、平台识别、同步保护和 obsolete cleanup 清单以 `spec/runtime/host-assets.json` 为权威来源；禁止在命令层维护第二套平台集合。
+4. init/sync 必须先构建和验证 Asset Plan，再通过 staging、备份和 rollback 提交；`.cowork-flow/.version` 最后更新。
+5. 旧 task/session/runtime-context 只允许在带保护测试的读取边界保留；旧受管资产只允许由 sync 的 obsolete cleanup 删除。新写入必须使用当前 schema、当前目录和共享 Hook 核心。
+6. 未完成事务、损坏状态或未知 schema 不能静默继续写入；无法安全恢复时 fail-closed 并保留诊断现场。
+
 ## 3. 固定代理
 
 固定代理只执行主会话派发的叶子任务。子代理是执行者，子任务是工作单元。

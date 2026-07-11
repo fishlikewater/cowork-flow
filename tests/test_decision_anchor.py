@@ -145,20 +145,30 @@ class DecisionAnchorSchemaTest(unittest.TestCase):
     """Validate decision-anchor.md schema structure."""
 
     def test_anchor_spec_no_related_files_section(self) -> None:
-        """decision-anchor schema 不应包含废弃的 ## 相关文件章节。"""
-        anchor_path = SCRIPTS / ".." / ".." / "spec" / "contracts" / "decision-anchor.md"
-        if anchor_path.exists():
+        """decision-anchor schema 不应包含废弃章节或自动迁移承诺。"""
+        anchor_paths = (
+            SCRIPTS / ".." / ".." / "spec" / "contracts" / "decision-anchor.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "decision-anchor.md",
+            ROOT
+            / "template"
+            / ".zcode"
+            / "scaffold"
+            / ".cowork-flow"
+            / "spec"
+            / "contracts"
+            / "decision-anchor.md",
+        )
+        for anchor_path in anchor_paths:
+            if not anchor_path.exists():
+                continue
             content = anchor_path.read_text(encoding="utf-8")
             self.assertIn("## 目标", content)
             self.assertIn("## 验收标准", content)
             self.assertNotIn("## 相关文件", content)
-        # Also check template version
-        template_anchor = ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "decision-anchor.md"
-        if template_anchor.exists():
-            content = template_anchor.read_text(encoding="utf-8")
-            self.assertIn("## 目标", content)
-            self.assertIn("## 验收标准", content)
-            self.assertNotIn("## 相关文件", content)
+            self.assertNotIn("自动搬运", content)
+            self.assertNotIn("删除 `prd.md`", content)
+            self.assertIn("正式版不自动迁移旧 `prd.md`", content)
+            self.assertIn("fail-closed", content)
 
 
 if __name__ == "__main__":

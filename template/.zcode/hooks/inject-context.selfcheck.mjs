@@ -36,7 +36,7 @@ function runHook(env = {}, stdin) {
 }
 
 function copyScaffoldTemplate(repoRoot) {
-  const src = join(import.meta.dirname, "..", "scaffold", "spec", "contracts", "workflow-state-templates.md");
+  const src = join(import.meta.dirname, "..", "scaffold", ".cowork-flow", "spec", "contracts", "workflow-state-templates.md");
   const dest = join(repoRoot, ".cowork-flow", "spec", "contracts", "workflow-state-templates.md");
   if (existsSync(src)) {
     mkdirSync(dirname(dest), { recursive: true });
@@ -85,7 +85,7 @@ try {
     assert.match(ctx, /Status: in_progress/);
   });
 
-  test("auto-scaffolds .cowork-flow/ when ZCODE_PROJECT_DIR has none", () => {
+  test("reports not_initialized without scaffolding when ZCODE_PROJECT_DIR has none", () => {
     const scaffoldTmp = join(import.meta.dirname, ".scaffold-test");
     if (existsSync(scaffoldTmp)) rmSync(scaffoldTmp, { recursive: true, force: true });
     const emptyDir = join(scaffoldTmp, "fresh-proj");
@@ -93,10 +93,10 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: emptyDir });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /no_task/);
-    assert.ok(existsSync(join(emptyDir, ".cowork-flow", "config.yaml")), "config.yaml should be created");
-    assert.ok(existsSync(join(emptyDir, ".cowork-flow", "workflow.md")), "workflow.md should be created");
-    assert.ok(existsSync(join(emptyDir, "AGENTS.md")), "AGENTS.md should be created");
+    assert.match(ctx, /not_initialized/);
+    assert.match(ctx, /hook 不会在注入阶段创建或复制项目文件/);
+    assert.ok(!existsSync(join(emptyDir, ".cowork-flow")), ".cowork-flow should not be created");
+    assert.ok(!existsSync(join(emptyDir, "AGENTS.md")), "AGENTS.md should not be created");
   });
 
   test("workflow-state block is well-formed XML", () => {

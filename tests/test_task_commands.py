@@ -172,7 +172,7 @@ class TaskCommandsTest(FlowScriptTestCase):
             self.assertFalse(doubled.exists())
             self.assertIn(slug, stdout.getvalue())
 
-    def test_task_start_blockers_require_prd_and_context(self) -> None:
+    def test_task_start_blockers_require_decision_anchor_and_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
@@ -186,7 +186,7 @@ class TaskCommandsTest(FlowScriptTestCase):
         self.assertIn("check.jsonl is missing or empty", blockers)
         self.assertIn("debug.jsonl is missing or empty", blockers)
 
-    def test_task_start_blockers_clear_when_prd_and_context_exist(self) -> None:
+    def test_task_start_blockers_clear_when_decision_anchor_and_context_exist(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
