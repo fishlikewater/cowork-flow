@@ -203,7 +203,7 @@ test('sync preserves direct skill layout without legacy seed material', async (t
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
 });
 
-test('sync leaves unregistered Skills and task contexts untouched', async (t) => {
+test('sync deletes removed official Skills and leaves custom Skills and task contexts untouched', async (t) => {
   const target = await createTempDir(t);
   assert.equal(
     await main([
@@ -218,12 +218,20 @@ test('sync leaves unregistered Skills and task contexts untouched', async (t) =>
   );
 
   const legacyAgentSkill = join(target, '.agents', 'skills', 'start');
+  const removedPartyModeV2Skill = join(target, '.agents', 'skills', 'party-mode-v2');
   const legacyClaudeSkill = join(target, '.claude', 'skills', 'finish-work');
   const customSkill = join(target, '.agents', 'skills', 'custom-local', 'SKILL.md');
+  const removedSpecValidator = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'spec_validator.py');
+  const removedJsonlValidator = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'validate_jsonl.py');
   await mkdir(legacyAgentSkill, { recursive: true });
+  await mkdir(removedPartyModeV2Skill, { recursive: true });
   await mkdir(legacyClaudeSkill, { recursive: true });
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'gates'), { recursive: true });
   await writeFile(join(legacyAgentSkill, 'SKILL.md'), 'legacy start\n', 'utf8');
+  await writeFile(join(removedPartyModeV2Skill, 'SKILL.md'), 'legacy party v2\n', 'utf8');
   await writeFile(join(legacyClaudeSkill, 'SKILL.md'), 'legacy finish\n', 'utf8');
+  await writeFile(removedSpecValidator, 'legacy spec validator\n', 'utf8');
+  await writeFile(removedJsonlValidator, 'legacy jsonl validator\n', 'utf8');
   await mkdir(join(target, '.agents', 'skills', 'custom-local'), { recursive: true });
   await writeFile(customSkill, 'custom content\n', 'utf8');
   if (process.platform !== 'win32') {
@@ -275,16 +283,11 @@ test('sync leaves unregistered Skills and task contexts untouched', async (t) =>
 
   assert.equal(await main(['sync', target], { io: createIo() }), 0);
 
-  assert.equal(await exists(legacyAgentSkill), true);
-  assert.equal(await exists(legacyClaudeSkill), true);
-  assert.equal(
-    await readText(join(legacyAgentSkill, 'SKILL.md')),
-    'legacy start\n'
-  );
-  assert.equal(
-    await readText(join(legacyClaudeSkill, 'SKILL.md')),
-    'legacy finish\n'
-  );
+  assert.equal(await exists(legacyAgentSkill), false);
+  assert.equal(await exists(removedPartyModeV2Skill), false);
+  assert.equal(await exists(legacyClaudeSkill), false);
+  assert.equal(await exists(removedSpecValidator), false);
+  assert.equal(await exists(removedJsonlValidator), false);
   assert.equal(await readText(customSkill), 'custom content\n');
   if (process.platform !== 'win32') {
     assert.equal((await stat(customSkill)).mode & 0o777, customMode);

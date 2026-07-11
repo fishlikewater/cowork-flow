@@ -44,6 +44,8 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/scripts/common/task/state_machine.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/gates/tdd_evidence.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/gates/test_intent.py'), true);
+  assert.equal(files.has('template/.cowork-flow/scripts/common/gates/spec_validator.py'), false);
+  assert.equal(files.has('template/.cowork-flow/scripts/common/gates/validate_jsonl.py'), false);
   assert.equal(files.has('template/.cowork-flow/scripts/common/gates/validate_coding_standards.py'), true);
   assert.equal(files.has('template/.cowork-flow/spec/contracts/workflow-state-templates.md'), true);
   assert.equal(files.has('template/.cowork-flow/adapters/claude-code/adapter.yaml'), true);
