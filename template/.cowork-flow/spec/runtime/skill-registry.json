@@ -247,36 +247,6 @@
       ]
     },
     {
-      "id": "party-mode-v2",
-      "displayName": "Party Mode V2",
-      "aliases": [
-        "party-v2"
-      ],
-      "kind": "mode",
-      "visibility": "internal",
-      "status": "active",
-      "statuses": [
-        "no_task",
-        "planning",
-        "in_progress",
-        "review",
-        "completed",
-        "delegated_subtask"
-      ],
-      "intents": [
-        "run_party_board"
-      ],
-      "enforcement": "advisory",
-      "runtimeGate": null,
-      "runtimeCommand": null,
-      "evidenceArtifact": null,
-      "source": "skills/party-mode-v2/SKILL.md",
-      "managedPaths": [
-        ".agents/skills/party-mode-v2/",
-        ".claude/skills/party-mode-v2/"
-      ]
-    },
-    {
       "id": "python-design",
       "displayName": "Python Design",
       "aliases": [],

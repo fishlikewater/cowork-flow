@@ -162,14 +162,9 @@ changes → brainstorming → read spec → plan → tasks → implement → che
 
 ## Party Mode
 
-| | v1 | v2 |
-|---|---|---|
-| 机制 | 真实子代理 roundtable | Runtime board controlled |
-| 默认 | `max_agents=3`、`max_rounds=5` | 由 runtime 管理 |
-| 交互 | Host Adapter 协调 | Board API |
-| 产出 | 建议、证据、分歧、验收信号 | 同上 |
-
-party-mode、party-mode-v2 是两种 advisory roundtable 模式。默认 `max_agents=3`、`max_rounds=5`（v1）。`party-mode-v2` 是 runtime board controlled advisory workflow，子代理通过 board API 交流，主持人只监控和纠偏。
+`party-mode` 是唯一公开的 advisory roundtable 入口。它默认使用
+runtime board controlled workflow：子代理通过 Board API 交流，主持人只执行
+runtime 发出的 host-neutral action、记录执行结果并纠偏漂移。
 
 > Party Mode 只产出建议，不能推进任务状态，也不能替代 `cowork-implement` / `cowork-check`。
 

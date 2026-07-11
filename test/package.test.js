@@ -68,6 +68,8 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/skills/tdd/SKILL.md'), false);
   assert.equal(files.has('template/skills/update-spec/SKILL.md'), false);
   assert.equal(files.has('template/skills/doubt-review/SKILL.md'), false);
+  assert.equal(files.has('template/skills/party-mode/SKILL.md'), true);
+  assert.equal(files.has('template/skills/party-mode-v2/SKILL.md'), false);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/tdd.md'), true);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/review.md'), true);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/decision-review.md'), true);

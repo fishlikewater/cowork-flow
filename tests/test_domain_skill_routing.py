@@ -43,7 +43,8 @@ class DomainSkillRoutingTest(FlowScriptTestCase):
             encoding="utf-8"
         )
         self.assertIn(".cowork-flow/run party-v2 init", facade)
-        self.assertIn("explicit manual fallback", facade.lower())
+        self.assertIn("single public Party Mode entrypoint", facade)
+        self.assertNotIn("manual fallback", facade.lower())
 
     def test_registry_routes_domain_guides_by_dev_type_and_path(self) -> None:
         registry = self.registry_module.load_skill_registry(TEMPLATE)

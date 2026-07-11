@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from common.gates.gates import GateRunner
 from common.storage.unit_of_work import (
@@ -79,7 +80,7 @@ class LifecycleResult:
     repository_error: TaskRepositoryError | None = None
 
 
-Preflight = Callable[[Path], LifecyclePreflightFailure | None]
+Preflight = Callable[[Path], Optional[LifecyclePreflightFailure]]
 
 
 class TaskLifecycleService:
