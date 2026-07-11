@@ -6,7 +6,7 @@
 
 | # | 检查项 | 验证 |
 |---|---|---|
-| G1 | 代码实现符合 PRD acceptance criteria | AC 全部为 verified |
+| G1 | 代码实现符合 decision-anchor acceptance criteria | AC 全部为 verified |
 | G2 | L1/L2: tdd.jsonl 有 red-green evidence | ./cowork-flow/run task validate |
 | G3 | check phase 完成，无 unresolved blocker | check.jsonl status=pass |
 | G4 | 无新引入 lint/type/build 警告 | lint / build 命令通过 |
@@ -40,6 +40,6 @@
 
 | DoD | AC |
 |---|---|
-| 项目级不变量——本次任务不例外 | PRD 特有的完成条件 |
+| 项目级不变量——本次任务不例外 | decision-anchor 特有的完成条件 |
 | 来源：spec/references/definition-of-done | 来源：<task>/decision-anchor.md |
 | 两者都满足 = 任务真正完成 |

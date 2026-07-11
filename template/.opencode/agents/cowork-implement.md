@@ -180,7 +180,7 @@ You MUST NOT do any of the following:
 - Rely on implicit side effects for interactions without explicit data flow and cleanup logic
 - Elevate local state to global state, or duplicate server state as multiple local states
 - Only verify ideal paths, not failures, empty data, or repeated operations
-- Introduce features not required by the PRD
+- Introduce features not required by the decision-anchor
 - Refactor unrelated modules "while you're at it"
 - Make premature abstractions for one-off code
 

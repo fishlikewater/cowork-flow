@@ -1,0 +1,26 @@
+{
+  "id": "07-11-formal-final-polish",
+  "name": "07-11-formal-final-polish",
+  "title": "正式版最终术语与结构收口",
+  "description": "清理残余 PRD 术语、重命名 decision-anchor 内部变量、补充模板同步防漂移测试，并降低上下文渲染复杂度噪音。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "<your-developer-name>",
+  "assignee": "<your-developer-name>",
+  "createdAt": "2026-07-11",
+  "completedAt": "2026-07-12",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "_state": {
+    "schema_version": 1,
+    "revision": 5,
+    "operation_id": "task-save-7e115142b32f48699264642eb0d889b9"
+  }
+}

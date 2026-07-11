@@ -54,14 +54,18 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
     def test_formal_prompt_surfaces_do_not_use_prd_terminology(self) -> None:
         forbidden = (
+            " PRD",
             "Read task PRD",
             "Read active task PRD",
             "Active task PRD missing",
             "PRD acceptance",
+            "PRD 特有",
+            "PRD 验收",
             "before PRD, planning",
             "Do not write PRD, planning",
             "PRD 和 implement.jsonl",
             "PRD、计划或固定代理派发",
+            "required by the PRD",
             "Deprecated aliases may redirect here",
         )
         scanned_roots = (
@@ -73,6 +77,8 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             TEMPLATE / ".opencode" / "agents",
             TEMPLATE / ".cowork-flow" / "workflow.md",
             TEMPLATE / ".cowork-flow" / "scripts",
+            TEMPLATE / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",
+            TEMPLATE / ".cowork-flow" / "spec" / "references" / "definition-of-done.md",
             TEMPLATE / ".zcode" / "scaffold" / "AGENTS.md",
             TEMPLATE / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md",
         )
@@ -90,6 +96,17 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
                         offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
 
         self.assertEqual([], offenders)
+
+    def test_git_context_uses_decision_anchor_internal_names(self) -> None:
+        path = TEMPLATE / ".cowork-flow" / "scripts" / "common" / "git" / "git_context.py"
+        text = path.read_text(encoding="utf-8")
+
+        self.assertIn("has_decision_anchor", text)
+        self.assertIn("decision_anchor_path", text)
+        self.assertIn("include_decision_anchor_hint", text)
+        self.assertNotIn("has_prd", text)
+        self.assertNotIn("prd_path", text)
+        self.assertNotIn("include_prd_hint", text)
 
     def test_template_does_not_ship_superpowers_seed(self) -> None:
         self.assertFalse((TEMPLATE / ".superpowers").exists())

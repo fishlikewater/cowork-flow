@@ -50,7 +50,7 @@ class GitSnapshot:
 class ActiveTaskSnapshot:
     path: str | None
     data: dict | None
-    has_prd: bool
+    has_decision_anchor: bool
 
 
 def _run_git_command(args: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
@@ -179,7 +179,7 @@ def _get_active_task_snapshot(repo_root: Path) -> ActiveTaskSnapshot:
     """Collect active-task metadata once for text and JSON renderers."""
     active_task = get_active_task(repo_root).task_path
     if not active_task:
-        return ActiveTaskSnapshot(path=None, data=None, has_prd=False)
+        return ActiveTaskSnapshot(path=None, data=None, has_decision_anchor=False)
 
     active_task_dir = repo_root / active_task
     task_json_path = active_task_dir / FILE_TASK_JSON
@@ -189,7 +189,7 @@ def _get_active_task_snapshot(repo_root: Path) -> ActiveTaskSnapshot:
     return ActiveTaskSnapshot(
         path=active_task,
         data=data,
-        has_prd=(active_task_dir / "decision-anchor.md").is_file(),
+        has_decision_anchor=(active_task_dir / "decision-anchor.md").is_file(),
     )
 
 
@@ -270,7 +270,7 @@ def _build_resume_checklist(
     active_task = snapshot.path
     commands.append(f"./{DIR_WORKFLOW}/run task list-context {active_task}")
 
-    if snapshot.has_prd:
+    if snapshot.has_decision_anchor:
         read_files.append(f"{active_task}/decision-anchor.md")
 
     read_files.extend(_task_plan_references(repo_root, snapshot))
@@ -314,11 +314,11 @@ def _append_resume_checklist(
         return
 
     active_task = snapshot.path
-    prd_path = f"{active_task}/decision-anchor.md"
-    if prd_path in read_files:
-        lines.append(f"- Read active task decision-anchor: {prd_path}")
+    decision_anchor_path = f"{active_task}/decision-anchor.md"
+    if decision_anchor_path in read_files:
+        lines.append(f"- Read active task decision-anchor: {decision_anchor_path}")
     else:
-        lines.append(f"- Active task decision-anchor missing: {prd_path}")
+        lines.append(f"- Active task decision-anchor missing: {decision_anchor_path}")
 
     lines.append(f"- List task context before reading details: {commands[1]}")
 
@@ -338,7 +338,7 @@ def _append_active_task(
     snapshot: ActiveTaskSnapshot,
     include_created: bool = False,
     include_description: bool = False,
-    include_prd_hint: bool = False,
+    include_decision_anchor_hint: bool = False,
 ) -> None:
     """Append the ACTIVE TASK section to text output."""
     lines.append("## ACTIVE TASK")
@@ -360,7 +360,7 @@ def _append_active_task(
             if description:
                 lines.append(f"Description: {description}")
 
-    if include_prd_hint and snapshot.has_prd:
+    if include_decision_anchor_hint and snapshot.has_decision_anchor:
         lines.append("")
         lines.append("[!] This task has decision-anchor.md - read it for task details")
     lines.append("")
@@ -402,6 +402,85 @@ def _children_progress(children: list[str], statuses: dict[str, str]) -> str:
     if not children:
         return ""
     return f" [{_children_done_count(children, statuses)}/{len(children)} done]"
+
+
+def _append_active_tasks(lines: list[str], tasks_dir: Path) -> None:
+    """Append active task hierarchy to text output."""
+    lines.append("## ACTIVE TASKS")
+    task_count = 0
+
+    all_task_data = _load_task_context_by_dir(tasks_dir)
+    all_task_statuses = {
+        dir_name: data["status"]
+        for dir_name, data in all_task_data.items()
+    }
+
+    def _print_task_tree(name: str, indent: int = 0) -> None:
+        nonlocal task_count
+        info = all_task_data[name]
+        progress = _children_progress(info["children"], all_task_statuses)
+        prefix = "  " * indent
+        lines.append(f"{prefix}- {name}/ ({info['status']}){progress} @{info['assignee']}")
+        task_count += 1
+        for child in info["children"]:
+            if child in all_task_data:
+                _print_task_tree(child, indent + 1)
+
+    for dir_name in sorted(all_task_data.keys()):
+        if not all_task_data[dir_name]["parent"]:
+            _print_task_tree(dir_name)
+
+    if task_count == 0:
+        lines.append("(no active tasks)")
+    lines.append(f"Total: {task_count} active task(s)")
+    lines.append("")
+
+
+def _append_my_tasks(lines: list[str], developer: str, tasks_dir: Path) -> None:
+    """Append tasks assigned to the current developer."""
+    lines.append("## MY TASKS (Assigned to me)")
+    my_task_count = 0
+    all_task_data = _load_task_context_by_dir(tasks_dir)
+    all_task_statuses = _task_statuses(all_task_data)
+
+    for dir_name in sorted(all_task_data.keys()):
+        info = all_task_data[dir_name]
+        assignee = info["my_assignee"]
+        status = info["my_status"]
+
+        if assignee == developer and status != "done":
+            progress = _children_progress(info["children"], all_task_statuses)
+            lines.append(f"- [{info['priority']}] {info['title']} ({status}){progress}")
+            my_task_count += 1
+
+    if my_task_count == 0:
+        lines.append("(no tasks assigned to you)")
+    lines.append("")
+
+
+def _append_journal_file(lines: list[str], repo_root: Path, developer: str) -> None:
+    """Append journal file information to text output."""
+    lines.append("## JOURNAL FILE")
+    journal_file = get_active_journal_file(repo_root)
+    if journal_file:
+        journal_lines = count_lines(journal_file)
+        relative = f"{DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/{journal_file.name}"
+        lines.append(f"Active file: {relative}")
+        lines.append(f"Line count: {journal_lines} / 2000")
+        if journal_lines > 1800:
+            lines.append("[!] WARNING: Approaching 2000 line limit!")
+    else:
+        lines.append("No journal file found")
+    lines.append("")
+
+
+def _append_paths(lines: list[str], developer: str) -> None:
+    """Append standard cowork-flow paths."""
+    lines.append("## PATHS")
+    lines.append(f"Workspace: {DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/")
+    lines.append(f"Tasks: {DIR_WORKFLOW}/{DIR_TASKS}/")
+    lines.append(f"Spec: {DIR_WORKFLOW}/{DIR_SPEC}/")
+    lines.append("")
 
 
 # =============================================================================
@@ -519,80 +598,15 @@ def get_context_text(repo_root: Path | None = None) -> str:
         active_task_snapshot,
         include_created=True,
         include_description=True,
-        include_prd_hint=True,
+        include_decision_anchor_hint=True,
     )
     _append_resume_checklist(lines, repo_root, active_task_snapshot)
 
-    # Active tasks
-    lines.append("## ACTIVE TASKS")
     tasks_dir = get_tasks_dir(repo_root)
-    task_count = 0
-
-    all_task_data = _load_task_context_by_dir(tasks_dir)
-    all_task_statuses = {
-        dir_name: data["status"]
-        for dir_name, data in all_task_data.items()
-    }
-
-    def _print_task_tree(name: str, indent: int = 0) -> None:
-        nonlocal task_count
-        info = all_task_data[name]
-        progress = _children_progress(info["children"], all_task_statuses)
-        prefix = "  " * indent
-        lines.append(f"{prefix}- {name}/ ({info['status']}){progress} @{info['assignee']}")
-        task_count += 1
-        for child in info["children"]:
-            if child in all_task_data:
-                _print_task_tree(child, indent + 1)
-
-    for dir_name in sorted(all_task_data.keys()):
-        if not all_task_data[dir_name]["parent"]:
-            _print_task_tree(dir_name)
-
-    if task_count == 0:
-        lines.append("(no active tasks)")
-    lines.append(f"Total: {task_count} active task(s)")
-    lines.append("")
-
-    # My tasks
-    lines.append("## MY TASKS (Assigned to me)")
-    my_task_count = 0
-
-    for dir_name in sorted(all_task_data.keys()):
-        info = all_task_data[dir_name]
-        assignee = info["my_assignee"]
-        status = info["my_status"]
-
-        if assignee == developer and status != "done":
-            children_list = info["children"]
-            progress = _children_progress(children_list, all_task_statuses)
-            lines.append(f"- [{info['priority']}] {info['title']} ({status}){progress}")
-            my_task_count += 1
-
-    if my_task_count == 0:
-        lines.append("(no tasks assigned to you)")
-    lines.append("")
-
-    # Journal file
-    lines.append("## JOURNAL FILE")
-    journal_file = get_active_journal_file(repo_root)
-    if journal_file:
-        journal_lines = count_lines(journal_file)
-        relative = f"{DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/{journal_file.name}"
-        lines.append(f"Active file: {relative}")
-        lines.append(f"Line count: {journal_lines} / 2000")
-        if journal_lines > 1800:
-            lines.append("[!] WARNING: Approaching 2000 line limit!")
-    else:
-        lines.append("No journal file found")
-    lines.append("")
-
-    # Paths
-    lines.append("## PATHS")
-    lines.append(f"Workspace: {DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/")
-    lines.append(f"Tasks: {DIR_WORKFLOW}/{DIR_TASKS}/")
-    lines.append(f"Spec: {DIR_WORKFLOW}/{DIR_SPEC}/")
-    lines.append("")
+    _append_active_tasks(lines, tasks_dir)
+    _append_my_tasks(lines, developer, tasks_dir)
+    _append_journal_file(lines, repo_root, developer)
+    _append_paths(lines, developer)
 
     lines.append("========================================")
 
