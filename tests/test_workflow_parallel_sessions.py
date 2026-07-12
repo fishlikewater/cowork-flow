@@ -239,6 +239,26 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in markers:
                 self.assertIn(marker, template_text)
 
+    def test_local_bootstrap_files_match_template_when_present(self) -> None:
+        local_root = ROOT / ".cowork-flow"
+        if not local_root.exists():
+            self.skipTest("local bootstrap .cowork-flow is not checked in")
+
+        mirrored_files = (
+            Path("workflow.md"),
+            Path("spec/runtime/contract-registry.json"),
+            Path("spec/references/definition-of-done.md"),
+            Path("spec/contracts/workflow-state-templates.md"),
+            Path("scripts/common/gates/tdd_evidence.py"),
+        )
+
+        for relative_path in mirrored_files:
+            local_text = (local_root / relative_path).read_text(encoding="utf-8")
+            template_text = (
+                ROOT / "template" / ".cowork-flow" / relative_path
+            ).read_text(encoding="utf-8")
+            self.assertEqual(template_text, local_text, str(relative_path))
+
     def test_runtime_rule_metadata_is_synced_to_zcode_scaffold(self) -> None:
         template_spec = ROOT / "template" / ".cowork-flow" / "spec"
         zcode_spec = (

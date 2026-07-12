@@ -1,0 +1,26 @@
+{
+  "id": "07-12-root-template-formal-sync",
+  "name": "07-12-root-template-formal-sync",
+  "title": "root 自举正式版同步",
+  "description": "同步 root 自举 workflow/spec/runtime 副本与 template 正式版术语，补充漂移保护，避免本仓库开发入口继续暴露 PRD/兼容期残留。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "<your-developer-name>",
+  "assignee": "<your-developer-name>",
+  "createdAt": "2026-07-12",
+  "completedAt": "2026-07-12",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "_state": {
+    "schema_version": 1,
+    "revision": 5,
+    "operation_id": "task-save-1a151771ecc94583812e7edf7406eb64"
+  }
+}
