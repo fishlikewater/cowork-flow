@@ -70,6 +70,21 @@ class TaskCommandsTest(FlowScriptTestCase):
 
         self.assertEqual("planned-file", args.entry_type)
 
+    def test_add_planned_file_parser_sets_command(self) -> None:
+        args = self.task.build_parser().parse_args(
+            [
+                "add-planned-file",
+                ".cowork-flow/tasks/07-10-demo",
+                "implement",
+                "src/new_module.py",
+                "Planned source",
+            ]
+        )
+
+        self.assertEqual("add-planned-file", args.command)
+        self.assertEqual("implement", args.file)
+        self.assertEqual("src/new_module.py", args.path)
+
     def test_cmd_add_context_writes_explicit_planned_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -107,6 +122,73 @@ class TaskCommandsTest(FlowScriptTestCase):
             self.assertEqual("planned-file", entries[0]["type"])
             self.assertFalse((root / "src" / "new_module.py").exists())
 
+    def test_cmd_add_planned_file_writes_planned_file_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "implement.jsonl").write_text("", encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_add_planned_file(
+                        argparse.Namespace(
+                            dir=str(task_dir),
+                            file="implement",
+                            path="src/new_module.py",
+                            reason="Planned source",
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            entries = [
+                json.loads(line)
+                for line in (task_dir / "implement.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line
+            ]
+            self.assertEqual(0, result)
+            self.assertIn("Added planned-file", stdout.getvalue())
+            self.assertEqual("planned-file", entries[0]["type"])
+            self.assertFalse((root / "src" / "new_module.py").exists())
+
+    def test_cmd_validate_prints_planned_file_hint_for_missing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps({"file": "src/new_module.py", "reason": "Planned source"})
+                + "\n",
+                encoding="utf-8",
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_validate(
+                        argparse.Namespace(dir=str(task_dir))
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            output = stdout.getvalue()
+            self.assertEqual(1, result)
+            self.assertIn("File not found: src/new_module.py", output)
+            self.assertIn("add-planned-file", output)
+            self.assertIn('"type": "planned-file"', output)
+
     def test_cmd_create_adds_date_prefix_to_plain_slug(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -118,7 +200,7 @@ class TaskCommandsTest(FlowScriptTestCase):
                 os.chdir(root)
                 with (
                     contextlib.redirect_stdout(io.StringIO()) as stdout,
-                    contextlib.redirect_stderr(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
                     result = self.task.cmd_create(
                         argparse.Namespace(
@@ -137,6 +219,7 @@ class TaskCommandsTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertTrue((root / ".cowork-flow" / "tasks" / dir_name / "task.json").is_file())
             self.assertIn(dir_name, stdout.getvalue())
+            self.assertIn("add-planned-file", stderr.getvalue())
 
     def test_cmd_create_keeps_existing_date_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -340,6 +423,83 @@ class TaskCommandsTest(FlowScriptTestCase):
 
             self.assertEqual(1, result)
             self.assertFalse((root / ".cowork-flow" / (".current" + "-task")).exists())
+
+    def test_cmd_start_auto_creates_task_local_placeholders(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps(
+                    {
+                        "file": ".cowork-flow/tasks/05-19-demo/report.md",
+                        "reason": "Task-local report",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            for name in ("check.jsonl", "debug.jsonl"):
+                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            self._write_rules_file(root, [])
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_start(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-demo")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, result)
+            self.assertEqual("in_progress", data["status"])
+            self.assertTrue((task_dir / "report.md").is_file())
+
+    def test_cmd_start_keeps_non_task_missing_file_blocking_with_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps({"file": "src/new_module.py", "reason": "Planned source"})
+                + "\n",
+                encoding="utf-8",
+            )
+            for name in ("check.jsonl", "debug.jsonl"):
+                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_start(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-demo")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertFalse((root / "src" / "new_module.py").exists())
+            self.assertIn("Task context validation failed", stderr.getvalue())
+            self.assertIn("add-planned-file", stderr.getvalue())
 
     def test_cmd_start_requires_session_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

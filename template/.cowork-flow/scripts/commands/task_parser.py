@@ -42,6 +42,8 @@ Usage:
   ./.cowork-flow/run task init-context <dir> <dev_type>      Initialize jsonl files
   ./.cowork-flow/run task add-context <dir> <jsonl> <path> [reason] [--type TYPE]
                                                                   Add entry to jsonl
+  ./.cowork-flow/run task add-planned-file <dir> <jsonl> <path> [reason]
+                                                                  Add planned file entry
   ./.cowork-flow/run task validate <dir>                     Validate jsonl files
   ./.cowork-flow/run task list-context <dir>                 List jsonl entries
   ./.cowork-flow/run task start <dir>                        Set active session task
@@ -69,6 +71,7 @@ Examples:
   ./.cowork-flow/run task next
   ./.cowork-flow/run task add-context <dir> implement .cowork-flow/spec/backend/auth.md "Auth guidelines"
   ./.cowork-flow/run task add-context <dir> implement src/new.py "Planned source" --type planned-file
+  ./.cowork-flow/run task add-planned-file <dir> implement src/new.py "Planned source"
   ./.cowork-flow/run task start .cowork-flow/tasks/01-21-add-login
   ./.cowork-flow/run task review
   ./.cowork-flow/run task complete
@@ -119,6 +122,24 @@ def _add_add_context_command(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def _add_add_planned_file_command(subparsers: argparse._SubParsersAction) -> None:
+    add_planned_file = subparsers.add_parser(
+        "add-planned-file",
+        help="Add planned file context entry",
+    )
+    add_planned_file.add_argument("dir", help="Task directory")
+    add_planned_file.add_argument(
+        "file",
+        help="JSONL file (implement|check|debug)",
+    )
+    add_planned_file.add_argument("path", help="Planned file path to add")
+    add_planned_file.add_argument(
+        "reason",
+        nargs="?",
+        help="Reason for adding",
+    )
+
+
 def _add_context_validation_commands(subparsers: argparse._SubParsersAction) -> None:
     validate = subparsers.add_parser(
         "validate",
@@ -136,6 +157,7 @@ def _add_context_validation_commands(subparsers: argparse._SubParsersAction) -> 
 def _add_context_commands(subparsers: argparse._SubParsersAction) -> None:
     _add_init_context_command(subparsers)
     _add_add_context_command(subparsers)
+    _add_add_planned_file_command(subparsers)
     _add_context_validation_commands(subparsers)
 
 
