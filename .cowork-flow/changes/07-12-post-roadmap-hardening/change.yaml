@@ -1,0 +1,25 @@
+
+schema_version: 1
+slug: 07-12-post-roadmap-hardening
+status: draft
+level: L2
+created_at: 2026-07-12T14:53:34+08:00
+documentation_only: false
+owner: codex
+title: Post-roadmap hardening follow-up
+plan: .cowork-flow/plans/2026-07-12-post-roadmap-hardening.md
+task: 07-12-followup-historical-doc-boundaries
+goal: >-
+  Close the remaining post-roadmap ambiguity around historical state wording,
+  legacy sync allowlist entries, and roadmap task archive consistency.
+user_value: >-
+  Maintainers can distinguish historical migration material from current
+  runtime contracts, trust sync-gate exceptions, and see a fully consistent
+  task/archive surface after the optimization roadmap.
+key_assumptions:
+  - The previous optimization roadmap is complete and archived.
+  - DB runtime_session/runtime_context remains the current runtime authority.
+  - Follow-up work should be small, serial, and independently verifiable.
+summary: >-
+  Create focused follow-up tasks for historical documentation boundaries,
+  legacy template-sync allowlist review, and baseline task archive consistency.

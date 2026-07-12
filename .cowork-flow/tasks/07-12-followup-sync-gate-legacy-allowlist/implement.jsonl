@@ -1,0 +1,4 @@
+
+{"file": "src/lib/template-sync-gate.js", "reason": "Legacy allowlist implementation and reasons"}
+{"file": "test/template-sync-gate.test.js", "reason": "Focused sync gate regression tests"}
+{"file": "test/sync.test.js", "reason": "Sync behavior coverage"}

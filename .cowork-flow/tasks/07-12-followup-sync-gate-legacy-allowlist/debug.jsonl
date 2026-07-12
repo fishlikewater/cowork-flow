@@ -1,0 +1,3 @@
+
+{"file": ".cowork-flow/changes/07-12-post-roadmap-hardening/design.md", "reason": "Allowlist review strategy and risk framing"}
+{"file": "test/package.test.js", "reason": "Package boundary regression context if sync-gate tests expose packaging drift"}
