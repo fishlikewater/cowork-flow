@@ -10,6 +10,6 @@ plan: .cowork-flow/plans/2026-07-12-post-roadmap-hardening.md
 task: archive/2026-07/07-12-followup-baseline-archive-consistency
 goal: >-
 user_value: >-
-key_assumptions: 
+key_assumptions:
 summary: >-
 archived_at: 2026-07-12T15:21:05+08:00
