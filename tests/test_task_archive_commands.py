@@ -377,6 +377,96 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             self.assertIn(".cowork-flow/workspace/codex/", status)
             self.assertNotIn("Metadata auto-committed", stderr.getvalue())
 
+    def test_placeholder_developer_identity_is_not_initialized(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            workflow_dir.mkdir()
+            (workflow_dir / ".developer").write_text(
+                "name=<your-developer-name>\ninitialized_at=<YYYY-MM-DD>\n",
+                encoding="utf-8",
+            )
+
+            self.assertIsNone(self.paths.get_developer(root))
+            self.assertFalse(self.paths.check_developer(root))
+
+    def test_init_developer_replaces_placeholder_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            workflow_dir.mkdir()
+            (workflow_dir / ".developer").write_text(
+                "name=<your-developer-name>\ninitialized_at=<YYYY-MM-DD>\n",
+                encoding="utf-8",
+            )
+            init_developer = importlib.import_module("commands.init_developer")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.object(
+                    sys,
+                    "argv",
+                    ["init_developer.py", "codex"],
+                ):
+                    with self.assertRaises(SystemExit) as raised:
+                        init_developer.main()
+            finally:
+                os.chdir(previous_cwd)
+                sys.modules.pop("commands.init_developer", None)
+
+            self.assertEqual(0, raised.exception.code)
+            self.assertEqual("codex", self.paths.get_developer(root))
+            self.assertTrue(
+                (workflow_dir / "workspace" / "codex" / "index.md").is_file()
+            )
+
+    def test_add_session_rejects_missing_index_before_journal_append(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            workflow_dir.mkdir()
+            self.developer.init_developer("codex", root)
+            workspace = workflow_dir / "workspace" / "codex"
+            journal = workspace / "journal-1.md"
+            original = journal.read_bytes()
+            (workspace / "index.md").unlink()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    result = self.add_session.add_session("Demo session")
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertEqual(original, journal.read_bytes())
+            self.assertIn("workspace index is missing", stderr.getvalue())
+
+    def test_add_session_rejects_missing_journal_before_index_update(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            workflow_dir.mkdir()
+            self.developer.init_developer("codex", root)
+            workspace = workflow_dir / "workspace" / "codex"
+            index = workspace / "index.md"
+            original = index.read_bytes()
+            (workspace / "journal-1.md").unlink()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    result = self.add_session.add_session("Demo session")
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertEqual(original, index.read_bytes())
+            self.assertIn("workspace journal is missing", stderr.getvalue())
+
     def test_add_session_auto_commit_flag_commits_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

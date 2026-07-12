@@ -196,6 +196,42 @@ def generate_session_content(
 """
 
 
+def _replace_index_section(
+    lines: list[str],
+    start_marker: str,
+    end_marker: str,
+    replacement: list[str],
+) -> list[str]:
+    rendered: list[str] = []
+    inside = False
+    for line in lines:
+        if start_marker in line:
+            rendered.extend((line, *replacement))
+            inside = True
+        elif end_marker in line:
+            rendered.append(line)
+            inside = False
+        elif not inside:
+            rendered.append(line)
+    return rendered
+
+
+def _insert_session_history(lines: list[str], row: str) -> list[str]:
+    rendered: list[str] = []
+    inside = False
+    inserted = False
+    for line in lines:
+        if MARKER_SESSION_HISTORY_START in line:
+            inside = True
+        elif MARKER_SESSION_HISTORY_END in line:
+            inside = False
+        rendered.append(line)
+        if inside and re.match(r"^\|\s*-", line) and not inserted:
+            rendered.append(row)
+            inserted = True
+    return rendered
+
+
 def update_index(
     index_file: Path,
     dev_dir: Path,
@@ -207,8 +243,6 @@ def update_index(
 ) -> bool:
     """Update index.md with new session info."""
     commit_display = _format_commit_display(commit)
-
-    # Get file number from active_file name
     match = re.search(r"(\d+)", active_file)
     active_num = int(match.group(1)) if match else 0
     files_table = count_journal_files(dev_dir, active_num)
@@ -225,69 +259,26 @@ def update_index(
         print("Error: index.md is missing auto-update markers. Please restore the template first.", file=sys.stderr)
         return False
 
-    # Process sections
     lines = content.splitlines()
-    new_lines = []
-
-    in_current_status = False
-    in_active_documents = False
-    in_session_history = False
-    header_written = False
-
-    for line in lines:
-        if MARKER_CURRENT_STATUS_START in line:
-            new_lines.append(line)
-            in_current_status = True
-            new_lines.append(f"- **Current file**: `{active_file}`")
-            new_lines.append(f"- **Total Sessions**: {new_session}")
-            new_lines.append(f"- **Last Active**: {today}")
-            continue
-
-        if MARKER_CURRENT_STATUS_END in line:
-            in_current_status = False
-            new_lines.append(line)
-            continue
-
-        if MARKER_ACTIVE_DOCUMENTS_START in line:
-            new_lines.append(line)
-            in_active_documents = True
-            new_lines.append("| File | Lines | Status |")
-            new_lines.append("|------|------|------|")
-            new_lines.append(files_table)
-            continue
-
-        if MARKER_ACTIVE_DOCUMENTS_END in line:
-            in_active_documents = False
-            new_lines.append(line)
-            continue
-
-        if MARKER_SESSION_HISTORY_START in line:
-            new_lines.append(line)
-            in_session_history = True
-            header_written = False
-            continue
-
-        if MARKER_SESSION_HISTORY_END in line:
-            in_session_history = False
-            new_lines.append(line)
-            continue
-
-        if in_current_status:
-            continue
-
-        if in_active_documents:
-            continue
-
-        if in_session_history:
-            new_lines.append(line)
-            if re.match(r"^\|\s*-", line) and not header_written:
-                new_lines.append(f"| {new_session} | {today} | {title} | {commit_display} |")
-                header_written = True
-            continue
-
-        new_lines.append(line)
-
-    index_file.write_text("\n".join(new_lines), encoding="utf-8")
+    lines = _replace_index_section(
+        lines,
+        MARKER_CURRENT_STATUS_START,
+        MARKER_CURRENT_STATUS_END,
+        [
+            f"- **Current file**: `{active_file}`",
+            f"- **Total Sessions**: {new_session}",
+            f"- **Last Active**: {today}",
+        ],
+    )
+    lines = _replace_index_section(
+        lines,
+        MARKER_ACTIVE_DOCUMENTS_START,
+        MARKER_ACTIVE_DOCUMENTS_END,
+        ["| File | Lines | Status |", "|------|------|------|", files_table],
+    )
+    row = f"| {new_session} | {today} | {title} | {commit_display} |"
+    lines = _insert_session_history(lines, row)
+    index_file.write_text("\n".join(lines), encoding="utf-8")
     print("[OK] index.md updated.", file=sys.stderr)
     return True
 
@@ -326,6 +317,74 @@ def _auto_commit_workspace(repo_root: Path) -> None:
         print(f"[WARN] Metadata auto-commit failed: {commit_result.stderr.strip()}", file=sys.stderr)
 
 
+def _session_workspace(repo_root: Path):
+    developer = get_developer(repo_root)
+    if not developer:
+        print("Error: developer identity has not been initialized.", file=sys.stderr)
+        return None
+    dev_dir = get_workspace_dir(repo_root)
+    if dev_dir is None or not dev_dir.is_dir():
+        print("Error: workspace directory not found.", file=sys.stderr)
+        return None
+    index_file = dev_dir / "index.md"
+    journal_file, current_num, current_lines = get_latest_journal_info(dev_dir)
+    if not index_file.is_file():
+        print(f"Error: workspace index is missing: {index_file}", file=sys.stderr)
+        return None
+    if journal_file is None:
+        print(f"Error: workspace journal is missing: {dev_dir}", file=sys.stderr)
+        return None
+    return developer, dev_dir, index_file, journal_file, current_num, current_lines
+
+
+def _print_session_preview(
+    new_session: int,
+    title: str,
+    commit: str,
+    current_num: int,
+    current_lines: int,
+    content_lines: int,
+) -> None:
+    print("=" * 40, "Add Session Record", "=" * 40, sep="\n", file=sys.stderr)
+    print(f"\nSession: {new_session}", file=sys.stderr)
+    print(f"Title: {title}", file=sys.stderr)
+    print(f"Commit: {commit}\n", file=sys.stderr)
+    print(f"Current journal file: {FILE_JOURNAL_PREFIX}{current_num}.md", file=sys.stderr)
+    print(f"Current lines: {current_lines}", file=sys.stderr)
+    print(f"New content lines: {content_lines}", file=sys.stderr)
+    print(f"Total lines after append: {current_lines + content_lines}\n", file=sys.stderr)
+
+
+def _session_target(
+    journal_file: Path,
+    current_num: int,
+    current_lines: int,
+    content_lines: int,
+    max_lines: int,
+    dev_dir: Path,
+    developer: str,
+    today: str,
+) -> tuple[Path, int]:
+    if current_lines + content_lines <= max_lines:
+        return journal_file, current_num
+    target_num = current_num + 1
+    print(f"[!] Over {max_lines} lines, creating {FILE_JOURNAL_PREFIX}{target_num}.md", file=sys.stderr)
+    target_file = create_new_journal_file(
+        dev_dir, target_num, developer, today, max_lines
+    )
+    print(f"Created: {target_file}", file=sys.stderr)
+    return target_file, target_num
+
+
+def _print_session_success(new_session: int, target_file: Path) -> None:
+    print("\n" + "=" * 40, file=sys.stderr)
+    print(f"[OK] Session {new_session} recorded successfully.", file=sys.stderr)
+    print("=" * 40 + "\n", file=sys.stderr)
+    print("Updated files:", file=sys.stderr)
+    print(f"  - {target_file.name}", file=sys.stderr)
+    print("  - index.md", file=sys.stderr)
+
+
 def add_session(
     title: str,
     commit: str = "-",
@@ -336,77 +395,31 @@ def add_session(
     """Add a new session."""
     repo_root = get_repo_root()
     ensure_developer(repo_root)
-
-    developer = get_developer(repo_root)
-    if not developer:
-        print("Error: developer identity has not been initialized.", file=sys.stderr)
+    workspace = _session_workspace(repo_root)
+    if workspace is None:
         return 1
-
-    dev_dir = get_workspace_dir(repo_root)
-    if not dev_dir:
-        print("Error: workspace directory not found.", file=sys.stderr)
-        return 1
-
+    developer, dev_dir, index_file, journal_file, current_num, current_lines = workspace
     max_lines = get_max_journal_lines(repo_root)
-
-    index_file = dev_dir / "index.md"
     today = datetime.now().strftime("%Y-%m-%d")
-
-    journal_file, current_num, current_lines = get_latest_journal_info(dev_dir)
-    current_session = get_current_session(index_file)
-    new_session = current_session + 1
-
+    new_session = get_current_session(index_file) + 1
     session_content = generate_session_content(
         new_session, title, commit, summary, extra_content, today
     )
     content_lines = len(session_content.splitlines())
-
-    print("========================================", file=sys.stderr)
-    print("Add Session Record", file=sys.stderr)
-    print("========================================", file=sys.stderr)
-    print("", file=sys.stderr)
-    print(f"Session: {new_session}", file=sys.stderr)
-    print(f"Title: {title}", file=sys.stderr)
-    print(f"Commit: {commit}", file=sys.stderr)
-    print("", file=sys.stderr)
-    print(f"Current journal file: {FILE_JOURNAL_PREFIX}{current_num}.md", file=sys.stderr)
-    print(f"Current lines: {current_lines}", file=sys.stderr)
-    print(f"New content lines: {content_lines}", file=sys.stderr)
-    print(f"Total lines after append: {current_lines + content_lines}", file=sys.stderr)
-    print("", file=sys.stderr)
-
-    target_file = journal_file
-    target_num = current_num
-
-    if current_lines + content_lines > max_lines:
-        target_num = current_num + 1
-        print(f"[!] Over {max_lines} lines, creating {FILE_JOURNAL_PREFIX}{target_num}.md", file=sys.stderr)
-        target_file = create_new_journal_file(dev_dir, target_num, developer, today, max_lines)
-        print(f"Created: {target_file}", file=sys.stderr)
-
-    # Append session content
-    if target_file:
-        with target_file.open("a", encoding="utf-8") as f:
-            f.write(session_content)
-        print(f"[OK] Appended session to {target_file.name}", file=sys.stderr)
-
-    print("", file=sys.stderr)
-
-    # Update index.md
+    _print_session_preview(
+        new_session, title, commit, current_num, current_lines, content_lines
+    )
+    target_file, target_num = _session_target(
+        journal_file, current_num, current_lines, content_lines,
+        max_lines, dev_dir, developer, today,
+    )
+    with target_file.open("a", encoding="utf-8") as stream:
+        stream.write(session_content)
+    print(f"[OK] Appended session to {target_file.name}\n", file=sys.stderr)
     active_file = f"{FILE_JOURNAL_PREFIX}{target_num}.md"
     if not update_index(index_file, dev_dir, title, commit, new_session, active_file, today):
         return 1
-
-    print("", file=sys.stderr)
-    print("========================================", file=sys.stderr)
-    print(f"[OK] Session {new_session} recorded successfully.", file=sys.stderr)
-    print("========================================", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("Updated files:", file=sys.stderr)
-    print(f"  - {target_file.name if target_file else 'journal'}", file=sys.stderr)
-    print("  - index.md", file=sys.stderr)
-
-    # Auto-commit workspace changes only when explicitly requested.
+    _print_session_success(new_session, target_file)
     if auto_commit:
         print("", file=sys.stderr)
         _auto_commit_workspace(repo_root)

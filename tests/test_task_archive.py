@@ -122,6 +122,82 @@ class TaskArchiveServiceTest(unittest.TestCase):
             self.assertTrue(task_dir.is_dir())
             self.assertEqual("keep", self._read_task(task_dir)["custom"])
 
+    def test_archive_normalizes_task_context_self_references(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {"status": "completed"},
+            )
+            active_path = ".cowork-flow/tasks/07-10-demo"
+            entries = (
+                {"file": active_path, "reason": "task root"},
+                {
+                    "file": f"{active_path}/decision-anchor.md",
+                    "reason": "task artifact",
+                },
+                {"file": "src/example.py", "reason": "project file"},
+            )
+            (task_dir / "implement.jsonl").write_text(
+                "".join(json.dumps(entry) + "\n" for entry in entries),
+                encoding="utf-8",
+            )
+
+            result = self.TaskArchiveService(root).archive(
+                task_dir,
+                archived_at="2026-07-10",
+            )
+
+            archived_path = (
+                ".cowork-flow/tasks/archive/2026-07/07-10-demo"
+            )
+            archived_entries = [
+                json.loads(line)
+                for line in (result.destination / "implement.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            self.assertEqual(archived_path, archived_entries[0]["file"])
+            self.assertEqual(
+                f"{archived_path}/decision-anchor.md",
+                archived_entries[1]["file"],
+            )
+            self.assertEqual("src/example.py", archived_entries[2]["file"])
+
+    def test_archive_rollback_restores_original_context_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {"status": "completed"},
+            )
+            context_file = task_dir / "implement.jsonl"
+            original = (
+                b'{"file": ".cowork-flow/tasks/07-10-demo", '
+                b'"reason": "keep exact bytes"}\n'
+            )
+            context_file.write_bytes(original)
+            destination = (
+                tasks_dir / "archive" / "2026-07" / "07-10-demo"
+            )
+
+            with self.assertRaises(self.TaskArchiveError):
+                self.TaskArchiveService(root).archive(
+                    task_dir,
+                    archived_at="2026-07-10",
+                    finalize=lambda: False,
+                )
+
+            self.assertTrue(task_dir.is_dir())
+            self.assertFalse(destination.exists())
+            self.assertEqual(original, context_file.read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()

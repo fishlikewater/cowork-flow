@@ -89,7 +89,10 @@ def get_developer(repo_root: Path | None = None) -> str | None:
         content = dev_file.read_text(encoding="utf-8")
         for line in content.splitlines():
             if line.startswith("name="):
-                return line.split("=", 1)[1].strip()
+                name = line.split("=", 1)[1].strip()
+                if not name or (name.startswith("<") and name.endswith(">")):
+                    return None
+                return name
     except (OSError, IOError):
         pass
 
