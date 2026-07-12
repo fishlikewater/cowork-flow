@@ -39,6 +39,16 @@ _EXTENSIONS = {
 
 _BACKEND_SUFFIXES = re.compile(r"\.(py|java|go|rs|rb|cs|kt|php)$")
 _FRONTEND_SUFFIXES = re.compile(r"\.(tsx|jsx|vue|svelte|ts|js|mjs|cjs|css|scss)$")
+_SECRET_RE = re.compile(
+    r"""(?ix)
+    (?:password|passwd|secret|api[_\s]?key|token|access[_\s]?key)
+    \s*[:=]\s*["'][^"'}{)($]{3,}["']
+    """
+)
+_SILENT_EXCEPT_RE = re.compile(r"^\s*except\b\s*.*:\s*(#.*)?$")
+_BARE_PRINT_RE = re.compile(r"(?<!\w)print\s*\(")
+_CONSOLE_RE = re.compile(r"\bconsole\.(log|info|debug)\s*\(")
+_JS_SUFFIXES = {".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"}
 
 
 def _is_backend_file(rel_path: str) -> bool:
@@ -170,70 +180,103 @@ def collect_machine_checks(
     whether to render them in a gate log, inject them into context, or ignore.
     """
     violations: list[dict] = []
-    try:
-        changed_files = collect_changed_files(repo_root)
-    except Exception:  # noqa: BLE001 — defensively isolate git errors
-        return violations
-
-    secret_re = re.compile(
-        r"""(?ix)
-        (?:password|passwd|secret|api[_\s]?key|token|access[_\s]?key)
-        \s*[:=]\s*["'][^"'}{)($]{3,}["']
-        """
-    )
-    silent_except_re = re.compile(r"^\s*except\b\s*.*:\s*(#.*)?$")
-    bare_print_re = re.compile(r"(?<!\w)print\s*\(")
-    console_re = re.compile(r"\bconsole\.(log|info|debug)\s*\(")
-
-    for changed_file in changed_files:
-        file_path = repo_root / changed_file.path
-        if not file_path.is_file():
-            continue
-        suffix = file_path.suffix.lower()
-        if suffix not in _EXTENSIONS:
-            continue
-        try:
-            content = file_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        lines = content.splitlines()
-        for lineno, raw in enumerate(lines, start=1):
-            # Low-signal heuristic: only flag if the line also has an
-            # assignment / call so variable-name mentions do not trip it.
-            if (secret_re.search(raw)
-                    and "process.env" not in raw
-                    and "os.environ" not in raw):
-                violations.append(_adv(
-                    "MACHINE-HARDCODED-SECRET-001",
-                    "Possible hard-coded secret in source",
-                    changed_file.path, lineno,
-                    "Read the value from configuration or environment variables.",
-                ))
-            if suffix == ".py" and bare_print_re.search(raw):
-                violations.append(_adv(
-                    "MACHINE-DEBUG-PRINT-001",
-                    "Debug print on changed line",
-                    changed_file.path, lineno,
-                    "Use a structured logger or remove the print.",
-                ))
-            if suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"} and console_re.search(raw):
-                violations.append(_adv(
-                    "MACHINE-CONSOLE-LOG-001",
-                    "console.{log,info,debug} on changed line",
-                    changed_file.path, lineno,
-                    "Use the project logger or remove the call.",
-                ))
-            if (suffix == ".py"
-                    and silent_except_re.match(raw)
-                    and lineno < len(lines)
-                    and lines[lineno].strip() in {"pass", "...", ""}):
-                violations.append(_adv(
-                    "MACHINE-SILENT-EXCEPT-001",
-                    "Empty exception handler silently swallows errors",
-                    changed_file.path, lineno,
-                    "Log or re-raise the exception, or narrow the except types.",
-                ))
+    for changed_file in _changed_machine_check_files(repo_root):
+        violations.extend(_machine_check_violations_for_file(repo_root, changed_file))
     return violations
+
+
+def _changed_machine_check_files(repo_root: Path) -> Sequence[object]:
+    try:
+        return collect_changed_files(repo_root)
+    except Exception:  # noqa: BLE001 — defensively isolate git errors
+        return ()
+
+
+def _machine_check_violations_for_file(repo_root: Path, changed_file: object) -> list[dict]:
+    file_path = repo_root / changed_file.path
+    if not file_path.is_file():
+        return []
+    suffix = file_path.suffix.lower()
+    if suffix not in _EXTENSIONS:
+        return []
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    return _machine_check_violations_for_lines(changed_file.path, suffix, content.splitlines())
+
+
+def _machine_check_violations_for_lines(
+    rel_path: str,
+    suffix: str,
+    lines: list[str],
+) -> list[dict]:
+    violations: list[dict] = []
+    for lineno, raw in enumerate(lines, start=1):
+        violations.extend(_machine_check_violations_for_line(rel_path, suffix, lines, lineno, raw))
+    return violations
+
+
+def _machine_check_violations_for_line(
+    rel_path: str,
+    suffix: str,
+    lines: list[str],
+    lineno: int,
+    raw: str,
+) -> list[dict]:
+    violations: list[dict] = []
+    if _looks_like_hardcoded_secret(raw):
+        violations.append(_adv(
+            "MACHINE-HARDCODED-SECRET-001",
+            "Possible hard-coded secret in source",
+            rel_path, lineno,
+            "Read the value from configuration or environment variables.",
+        ))
+    if suffix == ".py" and _BARE_PRINT_RE.search(raw):
+        violations.append(_adv(
+            "MACHINE-DEBUG-PRINT-001",
+            "Debug print on changed line",
+            rel_path, lineno,
+            "Use a structured logger or remove the print.",
+        ))
+    if suffix in _JS_SUFFIXES and _CONSOLE_RE.search(raw):
+        violations.append(_adv(
+            "MACHINE-CONSOLE-LOG-001",
+            "console.{log,info,debug} on changed line",
+            rel_path, lineno,
+            "Use the project logger or remove the call.",
+        ))
+    if _is_silent_python_except(suffix, lines, lineno, raw):
+        violations.append(_adv(
+            "MACHINE-SILENT-EXCEPT-001",
+            "Empty exception handler silently swallows errors",
+            rel_path, lineno,
+            "Log or re-raise the exception, or narrow the except types.",
+        ))
+    return violations
+
+
+def _looks_like_hardcoded_secret(raw: str) -> bool:
+    # Low-signal heuristic: only flag if the line also has an assignment / call.
+    return (
+        _SECRET_RE.search(raw) is not None
+        and "process.env" not in raw
+        and "os.environ" not in raw
+    )
+
+
+def _is_silent_python_except(
+    suffix: str,
+    lines: list[str],
+    lineno: int,
+    raw: str,
+) -> bool:
+    return (
+        suffix == ".py"
+        and _SILENT_EXCEPT_RE.match(raw) is not None
+        and lineno < len(lines)
+        and lines[lineno].strip() in {"pass", "...", ""}
+    )
 
 
 def _adv(

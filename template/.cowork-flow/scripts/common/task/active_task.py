@@ -54,88 +54,50 @@ def _first_prompt_value(values: Mapping[str, object] | None) -> str | None:
 
 
 def resolve_context_key(values: Mapping[str, object] | None = None) -> str | None:
+    return _resolve_env_context_key() or _resolve_input_context_key(values)
+
+
+def _prefixed_context_key(prefix: str, raw: str | None) -> str | None:
+    if raw and raw.strip():
+        return f"{prefix}_{_sanitize(raw)}"
+    return None
+
+
+def _resolve_env_context_key() -> str | None:
     explicit = os.environ.get("COWORK_FLOW_CONTEXT_ID")
     if explicit and explicit.strip():
         return _sanitize(explicit)
 
-    opencode_session = os.environ.get("OPENCODE_SESSION_ID")
-    if opencode_session and opencode_session.strip():
-        return f"opencode_{_sanitize(opencode_session)}"
+    for prefix, env_name in (
+        ("opencode", "OPENCODE_SESSION_ID"),
+        ("claude", "CLAUDE_SESSION_ID"),
+        ("claude", "CLAUDE_CODE_SESSION_ID"),
+        ("codex", "CODEX_SESSION_ID"),
+        ("codex", "CODEX_THREAD_ID"),
+    ):
+        context_key = _prefixed_context_key(prefix, os.environ.get(env_name))
+        if context_key:
+            return context_key
+    return None
 
-    claude_session = os.environ.get("CLAUDE_SESSION_ID")
-    if claude_session and claude_session.strip():
-        return f"claude_{_sanitize(claude_session)}"
 
-    claude_code_session = os.environ.get("CLAUDE_CODE_SESSION_ID")
-    if claude_code_session and claude_code_session.strip():
-        return f"claude_{_sanitize(claude_code_session)}"
-
-    codex_session = os.environ.get("CODEX_SESSION_ID")
-    if codex_session and codex_session.strip():
-        return f"codex_{_sanitize(codex_session)}"
-
-    codex_thread = os.environ.get("CODEX_THREAD_ID")
-    if codex_thread and codex_thread.strip():
-        return f"codex_{_sanitize(codex_thread)}"
-
-    input_explicit = _first_input_value(
+def _resolve_input_context_key(values: Mapping[str, object] | None) -> str | None:
+    explicit = _first_input_value(
         values,
-        (
-            "COWORK_FLOW_CONTEXT_ID",
-            "cowork_flow_context_id",
-            "context_id",
-        ),
+        ("COWORK_FLOW_CONTEXT_ID", "cowork_flow_context_id", "context_id"),
     )
-    if input_explicit:
-        return _sanitize(input_explicit)
+    if explicit:
+        return _sanitize(explicit)
 
-    input_opencode_session = _first_input_value(
-        values,
-        (
-            "OPENCODE_SESSION_ID",
-            "opencode_session_id",
-            "sessionID",
-            "sessionId",
-        ),
-    )
-    if input_opencode_session:
-        return f"opencode_{_sanitize(input_opencode_session)}"
-
-    input_claude_session = _first_input_value(
-        values,
-        (
-            "CLAUDE_SESSION_ID",
-            "claude_session_id",
-            "CLAUDE_CODE_SESSION_ID",
-            "claude_code_session_id",
-        ),
-    )
-    if input_claude_session:
-        return f"claude_{_sanitize(input_claude_session)}"
-
-    input_session = _first_input_value(
-        values,
-        (
-            "CODEX_SESSION_ID",
-            "codex_session_id",
-            "session_id",
-        ),
-    )
-    if input_session:
-        return f"codex_{_sanitize(input_session)}"
-
-    input_thread = _first_input_value(
-        values,
-        (
-            "CODEX_THREAD_ID",
-            "codex_thread_id",
-            "thread_id",
-            "conversation_id",
-        ),
-    )
-    if input_thread:
-        return f"codex_{_sanitize(input_thread)}"
-
+    for prefix, names in (
+        ("opencode", ("OPENCODE_SESSION_ID", "opencode_session_id", "sessionID", "sessionId")),
+        ("claude", ("CLAUDE_SESSION_ID", "claude_session_id", "CLAUDE_CODE_SESSION_ID", "claude_code_session_id")),
+        ("codex", ("CODEX_SESSION_ID", "codex_session_id", "session_id")),
+        ("codex", ("CODEX_THREAD_ID", "codex_thread_id", "thread_id", "conversation_id")),
+    ):
+        context_key = _prefixed_context_key(prefix, _first_input_value(values, names))
+        if context_key:
+            return context_key
     return None
 
 
