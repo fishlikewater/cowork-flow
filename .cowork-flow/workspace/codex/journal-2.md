@@ -457,3 +457,33 @@ Marked the workflow optimization roadmap and final integration checks complete, 
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 78: Historical design doc boundary
+
+**Date**: 2026-07-12
+**Task**: Historical design doc boundary
+
+### Summary
+
+Marked FLOW-UPGRADE-DESIGN as historical migration design, named current runtime authority docs, removed the file BOM, and verified authority docs plus diff checks.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

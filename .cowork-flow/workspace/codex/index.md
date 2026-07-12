@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 77
+- **Total Sessions**: 78
 - **Last Active**: 2026-07-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~459 | Current |
+| `journal-2.md` | ~489 | Current |
 | `journal-1.md` | ~1992 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 78 | 2026-07-12 | Historical design doc boundary | - |
 | 77 | 2026-07-12 | Workflow optimization roadmap closeout | - |
 | 76 | 2026-07-12 | P3 docs onboarding loop | - |
 | 75 | 2026-07-12 | P2 formal subagent host contract tests | - |

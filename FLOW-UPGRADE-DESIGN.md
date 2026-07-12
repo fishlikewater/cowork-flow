@@ -1,4 +1,6 @@
-﻿# Cowork-flow 框架升级设计：Flow 看板 + 协作模式引擎
+# Cowork-flow 框架升级设计：Flow 看板 + 协作模式引擎
+
+> **历史设计说明（2026-07-12）**：本文是 Flow 看板、协作模式引擎、SQLite 迁移和旧文件态兼容策略的历史/迁移设计记录，不是当前运行时权威文档。当前运行时契约以 `README.md`、`.cowork-flow/workflow.md`、`.cowork-flow/spec/core/dispatch.md` 和 `.cowork-flow/spec/core/lifecycle.md` 为准；正式运行时状态以 DB `runtime_session` 与 DB `runtime_context` 为权威。文中出现的 `task.json`、`.runtime/subagents` 等旧路径仅表示迁移、诊断或兼容背景。
 
 > 面向 Hermes Flow 模式库的架构升级设计。
 > 宗旨：工作流逻辑不绑定具体原语，协作模式不绑定具体流程实现。
