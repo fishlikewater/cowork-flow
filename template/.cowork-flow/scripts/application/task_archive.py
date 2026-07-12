@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -64,12 +65,14 @@ class TaskArchiveService:
             task_dir.name,
             task_data,
         )
+        context_snapshots = self._context_snapshots(task_dir)
         self._move_task(task_dir, destination)
         self._apply_archive_state(
             task_dir,
             destination,
             task_data,
             relationship_updates,
+            context_snapshots,
             archive_date,
             finalize,
         )
@@ -135,6 +138,7 @@ class TaskArchiveService:
         destination: Path,
         task_data: dict,
         relationship_updates: list[tuple[Path, dict, dict]],
+        context_snapshots: dict[str, bytes],
         archive_date: str,
         finalize: ArchiveFinalizer | None,
     ) -> None:
@@ -147,6 +151,7 @@ class TaskArchiveService:
                 },
             )
             self._apply_relationship_updates(relationship_updates)
+            self._normalize_context_paths(task_dir, destination)
             if finalize is not None and not finalize():
                 raise TaskArchiveError(
                     "TASK-ARCHIVE-FINALIZE-001",
@@ -159,6 +164,7 @@ class TaskArchiveService:
                 destination,
                 task_data,
                 relationship_updates,
+                context_snapshots,
             )
             if isinstance(error, TaskArchiveError):
                 raise
@@ -217,6 +223,81 @@ class TaskArchiveService:
             )
         return updates
 
+    @staticmethod
+    def _context_snapshots(task_dir: Path) -> dict[str, bytes]:
+        try:
+            return {
+                path.name: path.read_bytes()
+                for path in task_dir.glob("*.jsonl")
+                if path.is_file()
+            }
+        except OSError as error:
+            raise TaskArchiveError(
+                "TASK-ARCHIVE-CONTEXT-001",
+                task_dir,
+                f"failed to snapshot task context: {error}",
+            ) from error
+
+    def _normalize_context_paths(
+        self,
+        source: Path,
+        destination: Path,
+    ) -> None:
+        source_path = source.relative_to(self.repo_root).as_posix()
+        destination_path = destination.relative_to(self.repo_root).as_posix()
+        for context_file in sorted(destination.glob("*.jsonl")):
+            self._normalize_context_file(
+                context_file,
+                source_path,
+                destination_path,
+            )
+
+    @staticmethod
+    def _normalize_context_file(
+        context_file: Path,
+        source_path: str,
+        destination_path: str,
+    ) -> None:
+        original = context_file.read_text(encoding="utf-8")
+        rendered: list[str] = []
+        changed = False
+        for line in original.splitlines(keepends=True):
+            content = line.rstrip("\r\n")
+            ending = line[len(content):]
+            try:
+                entry = json.loads(content)
+            except json.JSONDecodeError:
+                rendered.append(line)
+                continue
+            file_path = entry.get("file") if isinstance(entry, dict) else None
+            normalized = TaskArchiveService._archived_context_path(
+                file_path,
+                source_path,
+                destination_path,
+            )
+            if normalized == file_path:
+                rendered.append(line)
+                continue
+            entry["file"] = normalized
+            rendered.append(
+                json.dumps(entry, ensure_ascii=False) + ending
+            )
+            changed = True
+        if changed:
+            context_file.write_text("".join(rendered), encoding="utf-8")
+
+    @staticmethod
+    def _archived_context_path(
+        file_path: object,
+        source_path: str,
+        destination_path: str,
+    ) -> object:
+        if file_path == source_path:
+            return destination_path
+        if isinstance(file_path, str) and file_path.startswith(f"{source_path}/"):
+            return destination_path + file_path[len(source_path):]
+        return file_path
+
     def _apply_relationship_updates(
         self,
         updates: list[tuple[Path, dict, dict]],
@@ -244,6 +325,7 @@ class TaskArchiveService:
         destination: Path,
         task_data: dict,
         relationship_updates: list[tuple[Path, dict, dict]],
+        context_snapshots: dict[str, bytes],
     ) -> None:
         for task_dir, original, _ in relationship_updates:
             try:
@@ -254,6 +336,11 @@ class TaskArchiveService:
         if destination.is_dir() and not source.exists():
             archive_directory_resumable(destination, source)
         if source.is_dir():
+            for name, content in context_snapshots.items():
+                try:
+                    (source / name).write_bytes(content)
+                except OSError:
+                    pass
             try:
                 self.repository.replace(source, task_data)
             except TaskRepositoryError:
