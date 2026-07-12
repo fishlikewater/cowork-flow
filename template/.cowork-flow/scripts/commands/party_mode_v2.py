@@ -207,7 +207,20 @@ def _prompt_text(
     phase: str,
 ) -> str:
     agent_id = agent["agent_id"]
-    base = (
+    base = _prompt_header(discussion_id, agent, round_number, phase)
+    if phase == "publish":
+        return base + _publish_prompt_payload(discussion_id, agent_id, round_number)
+    return base + _respond_prompt_payload(discussion_id, agent_id, round_number)
+
+
+def _prompt_header(
+    discussion_id: str,
+    agent: dict[str, str],
+    round_number: int,
+    phase: str,
+) -> str:
+    agent_id = agent["agent_id"]
+    return (
         f"# Party Mode V2 Child: {agent_id}\n\n"
         f"discussion_id: {discussion_id}\n"
         f"agent_id: {agent_id}\n"
@@ -221,29 +234,32 @@ def _prompt_text(
         f".\\.cowork-flow\\run.cmd party-v2 view --discussion-id {discussion_id} --agent-id {agent_id}\n"
         "```\n"
     )
-    if phase == "publish":
-        return (
-            base
-            + "\nSubmit one current-round post with `party-v2 post --file`:\n\n"
-            "```powershell\n"
-            f".\\.cowork-flow\\run.cmd party-v2 post --discussion-id {discussion_id} --agent-id {agent_id} --file <payload.json>\n"
-            "```\n\n"
-            "Payload fields:\n\n"
-            "```json\n"
-            "{\n"
-            f"  \"round\": {round_number},\n"
-            "  \"claim\": \"...\",\n"
-            "  \"evidence\": [\"...\"],\n"
-            "  \"risk\": \"...\",\n"
-            "  \"tradeoff\": \"...\",\n"
-            "  \"acceptance_signal\": \"...\",\n"
-            "  \"what_would_change_my_mind\": \"...\"\n"
-            "}\n"
-            "```\n"
-        )
+
+
+def _publish_prompt_payload(discussion_id: str, agent_id: str, round_number: int) -> str:
     return (
-        base
-        + "\nRespond to current-round target posts only. Respect `max_rebuttal_targets_per_agent`.\n\n"
+        "\nSubmit one current-round post with `party-v2 post --file`:\n\n"
+        "```powershell\n"
+        f".\\.cowork-flow\\run.cmd party-v2 post --discussion-id {discussion_id} --agent-id {agent_id} --file <payload.json>\n"
+        "```\n\n"
+        "Payload fields:\n\n"
+        "```json\n"
+        "{\n"
+        f"  \"round\": {round_number},\n"
+        "  \"claim\": \"...\",\n"
+        "  \"evidence\": [\"...\"],\n"
+        "  \"risk\": \"...\",\n"
+        "  \"tradeoff\": \"...\",\n"
+        "  \"acceptance_signal\": \"...\",\n"
+        "  \"what_would_change_my_mind\": \"...\"\n"
+        "}\n"
+        "```\n"
+    )
+
+
+def _respond_prompt_payload(discussion_id: str, agent_id: str, round_number: int) -> str:
+    return (
+        "\nRespond to current-round target posts only. Respect `max_rebuttal_targets_per_agent`.\n\n"
         "Submit with `party-v2 respond --file`:\n\n"
         "```powershell\n"
         f".\\.cowork-flow\\run.cmd party-v2 respond --discussion-id {discussion_id} --agent-id {agent_id} --file <payload.json>\n"
@@ -267,6 +283,24 @@ def _prompt_text(
     )
 
 
+def _round_empty_state(items: list[Any], phase: str, *, item_type: str) -> str | None:
+    if items:
+        return None
+    if item_type == "posts":
+        if phase == "publish":
+            return "waiting_for_current_round_posts"
+        if phase == "closed":
+            return "discussion_closed"
+        return "no_current_round_posts"
+    if phase == "publish":
+        return "responses_not_open_yet"
+    if phase == "respond":
+        return "waiting_for_current_round_responses"
+    if phase == "closed":
+        return "discussion_closed"
+    return "no_current_round_responses"
+
+
 def _build_public_round(board: dict[str, Any]) -> dict[str, Any]:
     current_round = int(board["round"]["current"])
     current = next(
@@ -280,24 +314,6 @@ def _build_public_round(board: dict[str, Any]) -> dict[str, Any]:
     posts = list(current.get("posts", []))
     responses = list(current.get("responses", []))
     phase = board["round"]["phase"]
-    if posts:
-        posts_empty = None
-    elif phase == "publish":
-        posts_empty = "waiting_for_current_round_posts"
-    elif phase == "closed":
-        posts_empty = "discussion_closed"
-    else:
-        posts_empty = "no_current_round_posts"
-    if responses:
-        responses_empty = None
-    elif phase == "publish":
-        responses_empty = "responses_not_open_yet"
-    elif phase == "respond":
-        responses_empty = "waiting_for_current_round_responses"
-    elif phase == "closed":
-        responses_empty = "discussion_closed"
-    else:
-        responses_empty = "no_current_round_responses"
     expected_next_action = {
         "publish": "post",
         "respond": "respond",
@@ -313,10 +329,56 @@ def _build_public_round(board: dict[str, Any]) -> dict[str, Any]:
         "visible_responses": responses,
         "moderator_events": list(current.get("moderator_events", [])),
         "empty_state": {
-            "visible_posts": posts_empty,
-            "visible_responses": responses_empty,
+            "visible_posts": _round_empty_state(posts, phase, item_type="posts"),
+            "visible_responses": _round_empty_state(responses, phase, item_type="responses"),
         },
         "expected_next_action": expected_next_action,
+    }
+
+
+def _agent_prompt_file(
+    base_dir: Path,
+    discussion_id: str,
+    agent: dict[str, str],
+    *,
+    round_number: int,
+    phase: str,
+) -> tuple[str, str]:
+    agent_id = agent["agent_id"]
+    prompt_name = f"{agent_id}-r{round_number}-{phase}.md"
+    prompt_path = base_dir / "prompts" / prompt_name
+    prompt_path.write_text(
+        _prompt_text(discussion_id, agent, round_number, phase),
+        encoding="utf-8",
+    )
+    prompt_file = Path(DIR_WORKFLOW) / RUNTIME_DIR / MODE_DIR / discussion_id / "prompts" / prompt_name
+    return prompt_name, str(prompt_file)
+
+
+def _child_action(
+    base_dir: Path,
+    discussion_id: str,
+    agent: dict[str, str],
+    *,
+    round_number: int,
+    phase: str,
+) -> dict[str, Any]:
+    agent_id = agent["agent_id"]
+    _prompt_name, prompt_file = _agent_prompt_file(
+        base_dir,
+        discussion_id,
+        agent,
+        round_number=round_number,
+        phase=phase,
+    )
+    return {
+        "action_id": f"r{round_number}-{phase}-{agent_id}",
+        "type": "dispatch_child" if phase == "publish" else "send_control_message",
+        "agent_id": agent_id,
+        "agent_kind": "advisory",
+        "lens": agent["lens"],
+        "message_kind": f"board_{phase}",
+        "prompt_file": prompt_file,
     }
 
 
@@ -332,37 +394,21 @@ def _build_actions(
     prompts_dir = base_dir / "prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
     for agent in agents:
-        agent_id = agent["agent_id"]
-        prompt_name = f"{agent_id}-r{round_number}-{phase}.md"
-        prompt_path = prompts_dir / prompt_name
-        prompt_path.write_text(
-            _prompt_text(discussion_id, agent, round_number, phase),
-            encoding="utf-8",
+        action = _child_action(
+            base_dir,
+            discussion_id,
+            agent,
+            round_number=round_number,
+            phase=phase,
         )
-        action_id = f"r{round_number}-{phase}-{agent_id}"
-        action = {
-            "action_id": action_id,
-            "type": "dispatch_child" if phase == "publish" else "send_control_message",
-            "agent_id": agent_id,
-            "agent_kind": "advisory",
-            "lens": agent["lens"],
-            "message_kind": f"board_{phase}",
-            "prompt_file": str(
-                Path(DIR_WORKFLOW) / RUNTIME_DIR / MODE_DIR / discussion_id / "prompts" / prompt_name
-            ),
-        }
-        actions.append(
-            action
-        )
+        actions.append(action)
         _append_action_history(base_dir, "action-issued", action)
     wait_action = {
         "action_id": f"r{round_number}-{phase}-wait",
         "type": "wait_children",
         "agent_ids": [agent["agent_id"] for agent in agents],
     }
-    actions.append(
-        wait_action
-    )
+    actions.append(wait_action)
     _append_action_history(base_dir, "action-issued", wait_action)
     return {"schema_version": 1, "discussion_id": discussion_id, "next_actions": actions}
 
@@ -405,6 +451,34 @@ def _with_terminal_state(data: dict[str, Any], terminal: bool) -> dict[str, Any]
     return data
 
 
+def _initial_board(discussion_id: str, topic: str, max_rounds: int) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "discussion_id": discussion_id,
+        "topic": topic,
+        "round": {"current": 1, "max": max_rounds, "phase": "publish"},
+        "rounds": [{"round": 1, "posts": [], "responses": [], "moderator_events": []}],
+        "termination": {"reason": None},
+    }
+
+
+def _initial_agents_state(discussion_id: str, agents: list[dict[str, str]]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "discussion_id": discussion_id,
+        "agents": [
+            {
+                "agent_id": agent["agent_id"],
+                "lens": agent["lens"],
+                "status": "pending",
+                "drift_warnings": 0,
+                "host_child_id": None,
+            }
+            for agent in agents
+        ],
+    }
+
+
 def init_discussion(
     repo_root: Path,
     *,
@@ -419,35 +493,8 @@ def init_discussion(
     base_dir = discussion_dir(repo_root, discussion_id)
     with _state_lock(base_dir):
         max_rounds = int(config["max_rounds"])
-        board = {
-            "schema_version": 1,
-            "discussion_id": discussion_id,
-            "topic": topic,
-            "round": {"current": 1, "max": max_rounds, "phase": "publish"},
-            "rounds": [
-                {
-                    "round": 1,
-                    "posts": [],
-                    "responses": [],
-                    "moderator_events": [],
-                }
-            ],
-            "termination": {"reason": None},
-        }
-        agents_state = {
-            "schema_version": 1,
-            "discussion_id": discussion_id,
-            "agents": [
-                {
-                    "agent_id": agent["agent_id"],
-                    "lens": agent["lens"],
-                    "status": "pending",
-                    "drift_warnings": 0,
-                    "host_child_id": None,
-                }
-                for agent in agents
-            ],
-        }
+        board = _initial_board(discussion_id, topic, max_rounds)
+        agents_state = _initial_agents_state(discussion_id, agents)
         actions = _build_actions(base_dir, discussion_id, agents, round_number=1, phase="publish")
         public_round = _build_public_round(board)
         _write_json(base_dir / "board.json", board)
@@ -556,6 +603,33 @@ def _require_non_empty_list(payload: dict[str, Any], key: str, error: str) -> li
     return value
 
 
+def _build_post_payload(
+    *,
+    current_round: int,
+    agent_id: str,
+    payload: dict[str, Any],
+    post_number: int,
+) -> dict[str, Any]:
+    return {
+        "post_id": f"r{current_round}-{agent_id}-p{post_number}",
+        "agent_id": agent_id,
+        "claim": _require_non_empty_text(payload, "claim", "missing_claim"),
+        "evidence": _require_non_empty_list(payload, "evidence", "missing_evidence"),
+        "risk": _require_non_empty_text(payload, "risk", "missing_risk"),
+        "tradeoff": _require_non_empty_text(payload, "tradeoff", "missing_tradeoff"),
+        "acceptance_signal": _require_non_empty_text(
+            payload,
+            "acceptance_signal",
+            "missing_acceptance_signal",
+        ),
+        "what_would_change_my_mind": _require_non_empty_text(
+            payload,
+            "what_would_change_my_mind",
+            "missing_what_would_change_my_mind",
+        ),
+    }
+
+
 def _write_runtime_state(base_dir: Path, board: dict[str, Any]) -> None:
     _write_json(base_dir / "board.json", board)
     _write_json(base_dir / "public_round.json", _build_public_round(board))
@@ -579,34 +653,16 @@ def post_submission(
             raise ValueError("agent_not_active")
         current_round = int(board["round"]["current"])
         _payload_round(payload, current_round, config)
-        claim = _require_non_empty_text(payload, "claim", "missing_claim")
-        evidence = _require_non_empty_list(payload, "evidence", "missing_evidence")
-        risk = _require_non_empty_text(payload, "risk", "missing_risk")
-        tradeoff = _require_non_empty_text(payload, "tradeoff", "missing_tradeoff")
-        acceptance_signal = _require_non_empty_text(
-            payload,
-            "acceptance_signal",
-            "missing_acceptance_signal",
-        )
-        what_would_change_my_mind = _require_non_empty_text(
-            payload,
-            "what_would_change_my_mind",
-            "missing_what_would_change_my_mind",
-        )
         current = _current_round(board)
         posts = current.setdefault("posts", [])
         if any(post.get("agent_id") == agent_id for post in posts):
             raise ValueError("duplicate_post")
-        post = {
-            "post_id": f"r{current_round}-{agent_id}-p{len(posts) + 1}",
-            "agent_id": agent_id,
-            "claim": claim,
-            "evidence": evidence,
-            "risk": risk,
-            "tradeoff": tradeoff,
-            "acceptance_signal": acceptance_signal,
-            "what_would_change_my_mind": what_would_change_my_mind,
-        }
+        post = _build_post_payload(
+            current_round=current_round,
+            agent_id=agent_id,
+            payload=payload,
+            post_number=len(posts) + 1,
+        )
         posts.append(post)
         _write_runtime_state(base_dir, board)
         _append_audit(base_dir, "post", {"agent_id": agent_id, "post_id": post["post_id"]})
@@ -652,6 +708,149 @@ def _confidence(payload: dict[str, Any]) -> str:
     return value
 
 
+def _response_target_and_decision(
+    board: dict[str, Any],
+    agent_id: str,
+    payload: dict[str, Any],
+) -> tuple[str, str]:
+    target_post_id = _require_non_empty_text(payload, "target_post_id", "missing_target_post_id")
+    post_agent_map = _current_post_agent_map(board)
+    if target_post_id not in post_agent_map:
+        raise ValueError("target_not_in_current_round")
+    if post_agent_map[target_post_id] == agent_id:
+        raise ValueError("self_target_response")
+    decision = _require_non_empty_text(payload, "decision", "missing_decision")
+    if decision not in {"maintain", "revise", "concede"}:
+        raise ValueError("invalid_decision")
+    return target_post_id, decision
+
+
+def _validate_response_target_limit(
+    responses: list[Any],
+    *,
+    agent_id: str,
+    target_post_id: str,
+    max_targets: int,
+) -> None:
+    agent_targets = {
+        str(response["target_post_id"])
+        for response in responses
+        if str(response.get("agent_id")) == agent_id
+    }
+    if target_post_id in agent_targets:
+        raise ValueError("duplicate_target_response")
+    if len(agent_targets) >= max_targets:
+        raise ValueError("too_many_rebuttal_targets")
+
+
+def _build_response_base(
+    *,
+    current_round: int,
+    agent_id: str,
+    target_post_id: str,
+    decision: str,
+    payload: dict[str, Any],
+    response_number: int,
+) -> dict[str, Any]:
+    return {
+        "response_id": f"r{current_round}-{agent_id}-resp{response_number}",
+        "agent_id": agent_id,
+        "target_post_id": target_post_id,
+        "decision": decision,
+        "my_current_position": _require_non_empty_text(
+            payload,
+            "my_current_position",
+            "missing_current_position",
+        ),
+        "opponent_claim": _require_non_empty_text(
+            payload,
+            "opponent_claim",
+            "missing_opponent_claim",
+        ),
+        "opponent_evidence_i_checked": _require_non_empty_list(
+            payload,
+            "opponent_evidence_i_checked",
+            "missing_checked_evidence",
+        ),
+        "reasoning": _require_non_empty_text(payload, "reasoning", "missing_reasoning"),
+        "confidence_after_review": _confidence(payload),
+    }
+
+
+def _apply_concede_response(response: dict[str, Any], payload: dict[str, Any]) -> None:
+    response["why_opponent_is_right"] = _require_non_empty_text(
+        payload,
+        "why_opponent_is_right",
+        "shallow_concession",
+    )
+    response["accepted_evidence"] = _require_non_empty_list(
+        payload,
+        "accepted_evidence",
+        "shallow_concession",
+    )
+    response["why_my_previous_position_failed"] = _require_non_empty_text(
+        payload,
+        "why_my_previous_position_failed",
+        "shallow_concession",
+    )
+    response["position_delta"] = "changed"
+    response["still_disagree"] = False
+
+
+def _apply_revise_response(response: dict[str, Any], payload: dict[str, Any]) -> None:
+    response["accepted_part"] = _require_non_empty_text(
+        payload,
+        "accepted_part",
+        "vague_revision",
+    )
+    response["rejected_part"] = _require_non_empty_text(
+        payload,
+        "rejected_part",
+        "vague_revision",
+    )
+    response["updated_position"] = _require_non_empty_text(
+        payload,
+        "updated_position",
+        "vague_revision",
+    )
+    response["position_delta"] = str(payload.get("position_delta") or "narrowed")
+    response["still_disagree"] = _require_bool(payload, "still_disagree", True)
+
+
+def _apply_maintain_response(response: dict[str, Any], payload: dict[str, Any]) -> None:
+    response["why_opponent_is_wrong"] = _require_non_empty_text(
+        payload,
+        "why_opponent_is_wrong",
+        "unsupported_rebuttal",
+    )
+    counter_evidence = payload.get("counter_evidence")
+    counter_reasoning = payload.get("counter_reasoning")
+    if not counter_evidence and not counter_reasoning:
+        raise ValueError("unsupported_rebuttal")
+    if counter_evidence is not None:
+        if not isinstance(counter_evidence, list) or not counter_evidence:
+            raise ValueError("unsupported_rebuttal")
+        response["counter_evidence"] = counter_evidence
+    if counter_reasoning is not None:
+        response["counter_reasoning"] = str(counter_reasoning)
+    response["position_delta"] = "unchanged"
+    response["still_disagree"] = True
+
+
+def _apply_decision_response(
+    response: dict[str, Any],
+    *,
+    decision: str,
+    payload: dict[str, Any],
+) -> None:
+    if decision == "concede":
+        _apply_concede_response(response, payload)
+    elif decision == "revise":
+        _apply_revise_response(response, payload)
+    else:
+        _apply_maintain_response(response, payload)
+
+
 def respond_submission(
     repo_root: Path,
     *,
@@ -670,107 +869,24 @@ def respond_submission(
             raise ValueError("agent_not_active")
         current_round = int(board["round"]["current"])
         _payload_round(payload, current_round, config)
-        target_post_id = _require_non_empty_text(payload, "target_post_id", "missing_target_post_id")
-        post_agent_map = _current_post_agent_map(board)
-        if target_post_id not in post_agent_map:
-            raise ValueError("target_not_in_current_round")
-        if post_agent_map[target_post_id] == agent_id:
-            raise ValueError("self_target_response")
-        decision = _require_non_empty_text(payload, "decision", "missing_decision")
-        if decision not in {"maintain", "revise", "concede"}:
-            raise ValueError("invalid_decision")
-        my_current_position = _require_non_empty_text(
-            payload,
-            "my_current_position",
-            "missing_current_position",
-        )
-        opponent_claim = _require_non_empty_text(payload, "opponent_claim", "missing_opponent_claim")
-        checked_evidence = _require_non_empty_list(
-            payload,
-            "opponent_evidence_i_checked",
-            "missing_checked_evidence",
-        )
-        reasoning = _require_non_empty_text(payload, "reasoning", "missing_reasoning")
-
+        target_post_id, decision = _response_target_and_decision(board, agent_id, payload)
         current = _current_round(board)
         responses = current.setdefault("responses", [])
-        agent_targets = {
-            str(response["target_post_id"])
-            for response in responses
-            if str(response.get("agent_id")) == agent_id
-        }
-        if target_post_id in agent_targets:
-            raise ValueError("duplicate_target_response")
-        max_targets = int(config["max_rebuttal_targets_per_agent"])
-        if len(agent_targets) >= max_targets:
-            raise ValueError("too_many_rebuttal_targets")
-
-        response: dict[str, Any] = {
-            "response_id": f"r{current_round}-{agent_id}-resp{len(responses) + 1}",
-            "agent_id": agent_id,
-            "target_post_id": target_post_id,
-            "decision": decision,
-            "my_current_position": my_current_position,
-            "opponent_claim": opponent_claim,
-            "opponent_evidence_i_checked": checked_evidence,
-            "reasoning": reasoning,
-            "confidence_after_review": _confidence(payload),
-        }
-        if decision == "concede":
-            response["why_opponent_is_right"] = _require_non_empty_text(
-                payload,
-                "why_opponent_is_right",
-                "shallow_concession",
-            )
-            response["accepted_evidence"] = _require_non_empty_list(
-                payload,
-                "accepted_evidence",
-                "shallow_concession",
-            )
-            response["why_my_previous_position_failed"] = _require_non_empty_text(
-                payload,
-                "why_my_previous_position_failed",
-                "shallow_concession",
-            )
-            response["position_delta"] = "changed"
-            response["still_disagree"] = False
-        elif decision == "revise":
-            response["accepted_part"] = _require_non_empty_text(
-                payload,
-                "accepted_part",
-                "vague_revision",
-            )
-            response["rejected_part"] = _require_non_empty_text(
-                payload,
-                "rejected_part",
-                "vague_revision",
-            )
-            response["updated_position"] = _require_non_empty_text(
-                payload,
-                "updated_position",
-                "vague_revision",
-            )
-            response["position_delta"] = str(payload.get("position_delta") or "narrowed")
-            response["still_disagree"] = _require_bool(payload, "still_disagree", True)
-        else:
-            response["why_opponent_is_wrong"] = _require_non_empty_text(
-                payload,
-                "why_opponent_is_wrong",
-                "unsupported_rebuttal",
-            )
-            counter_evidence = payload.get("counter_evidence")
-            counter_reasoning = payload.get("counter_reasoning")
-            if not counter_evidence and not counter_reasoning:
-                raise ValueError("unsupported_rebuttal")
-            if counter_evidence is not None:
-                if not isinstance(counter_evidence, list) or not counter_evidence:
-                    raise ValueError("unsupported_rebuttal")
-                response["counter_evidence"] = counter_evidence
-            if counter_reasoning is not None:
-                response["counter_reasoning"] = str(counter_reasoning)
-            response["position_delta"] = "unchanged"
-            response["still_disagree"] = True
-
+        _validate_response_target_limit(
+            responses,
+            agent_id=agent_id,
+            target_post_id=target_post_id,
+            max_targets=int(config["max_rebuttal_targets_per_agent"]),
+        )
+        response = _build_response_base(
+            current_round=current_round,
+            agent_id=agent_id,
+            target_post_id=target_post_id,
+            decision=decision,
+            payload=payload,
+            response_number=len(responses) + 1,
+        )
+        _apply_decision_response(response, decision=decision, payload=payload)
         responses.append(response)
         _write_runtime_state(base_dir, board)
         _append_audit(
@@ -801,6 +917,131 @@ def _write_actions_for_phase(
     _write_json(base_dir / "actions.json", actions)
 
 
+def _advance_publish_phase(
+    repo_root: Path,
+    *,
+    base_dir: Path,
+    discussion_id: str,
+    board: dict[str, Any],
+    current: dict[str, Any],
+    active_agents: list[str],
+    current_round: int,
+) -> dict[str, Any]:
+    posted_agents = {str(post["agent_id"]) for post in current.get("posts", [])}
+    missing = sorted(set(active_agents) - posted_agents)
+    if missing:
+        raise ValueError(f"publish_incomplete:{','.join(missing)}")
+    board["round"]["phase"] = "respond"
+    _write_runtime_state(base_dir, board)
+    _write_actions_for_phase(base_dir, discussion_id, current_round, "respond")
+    _append_audit(
+        base_dir,
+        "advance",
+        {"round": current_round, "from": "publish", "to": "respond"},
+    )
+    return monitor_discussion(repo_root, discussion_id=discussion_id)
+
+
+def _close_discussion(
+    repo_root: Path,
+    *,
+    base_dir: Path,
+    discussion_id: str,
+    board: dict[str, Any],
+    current_round: int,
+    reason: str,
+) -> dict[str, Any]:
+    board["round"]["phase"] = "closed"
+    board["termination"] = {"reason": reason}
+    _write_runtime_state(base_dir, board)
+    _write_json(base_dir / "actions.json", _empty_actions(discussion_id))
+    _append_audit(
+        base_dir,
+        "advance",
+        {"round": current_round, "from": "respond", "to": "closed", "reason": reason},
+    )
+    return finalize_discussion(repo_root, discussion_id=discussion_id)
+
+
+def _advance_next_round(
+    repo_root: Path,
+    *,
+    base_dir: Path,
+    discussion_id: str,
+    board: dict[str, Any],
+    current_round: int,
+) -> dict[str, Any]:
+    next_round = current_round + 1
+    config = get_party_mode_v2_config(repo_root)
+    close_actions = []
+    if bool(config.get("fresh_context_per_round", True)):
+        close_actions = _build_close_actions(
+            base_dir,
+            _agent_lenses(base_dir),
+            round_number=current_round,
+            reason="fresh_context_per_round",
+        )
+    board["round"] = {"current": next_round, "max": board["round"]["max"], "phase": "publish"}
+    board.setdefault("rounds", []).append(
+        {"round": next_round, "posts": [], "responses": [], "moderator_events": []}
+    )
+    _write_runtime_state(base_dir, board)
+    _write_actions_for_phase(
+        base_dir,
+        discussion_id,
+        next_round,
+        "publish",
+        leading_actions=close_actions,
+    )
+    _append_audit(
+        base_dir,
+        "advance",
+        {"round": current_round, "from": "respond", "to": "publish", "next_round": next_round},
+    )
+    return monitor_discussion(repo_root, discussion_id=discussion_id)
+
+
+def _advance_respond_phase(
+    repo_root: Path,
+    *,
+    base_dir: Path,
+    discussion_id: str,
+    board: dict[str, Any],
+    current: dict[str, Any],
+    active_agents: list[str],
+    current_round: int,
+) -> dict[str, Any]:
+    responded_agents = {str(response["agent_id"]) for response in current.get("responses", [])}
+    missing = sorted(set(active_agents) - responded_agents)
+    if missing:
+        raise ValueError(f"respond_incomplete:{','.join(missing)}")
+    if not any(bool(response.get("still_disagree")) for response in current.get("responses", [])):
+        return _close_discussion(
+            repo_root,
+            base_dir=base_dir,
+            discussion_id=discussion_id,
+            board=board,
+            current_round=current_round,
+            reason="converged",
+        )
+    if current_round >= int(board["round"]["max"]):
+        return _close_discussion(
+            repo_root,
+            base_dir=base_dir,
+            discussion_id=discussion_id,
+            board=board,
+            current_round=current_round,
+            reason="max_rounds_unconverged",
+        )
+    return _advance_next_round(
+        repo_root,
+        base_dir=base_dir,
+        discussion_id=discussion_id,
+        board=board,
+        current_round=current_round,
+    )
+
+
 def advance_discussion(repo_root: Path, *, discussion_id: str) -> dict[str, Any]:
     base_dir = discussion_dir(repo_root, discussion_id)
     with _state_lock(base_dir):
@@ -809,85 +1050,28 @@ def advance_discussion(repo_root: Path, *, discussion_id: str) -> dict[str, Any]
         active_agents = _active_agent_ids(base_dir)
         current_round = int(board["round"]["current"])
         if board["round"]["phase"] == "publish":
-            posted_agents = {str(post["agent_id"]) for post in current.get("posts", [])}
-            missing = sorted(set(active_agents) - posted_agents)
-            if missing:
-                raise ValueError(f"publish_incomplete:{','.join(missing)}")
-            board["round"]["phase"] = "respond"
-            _write_runtime_state(base_dir, board)
-            _write_actions_for_phase(base_dir, discussion_id, current_round, "respond")
-            _append_audit(
-                base_dir,
-                "advance",
-                {"round": current_round, "from": "publish", "to": "respond"},
+            return _advance_publish_phase(
+                repo_root,
+                base_dir=base_dir,
+                discussion_id=discussion_id,
+                board=board,
+                current=current,
+                active_agents=active_agents,
+                current_round=current_round,
             )
-            return monitor_discussion(repo_root, discussion_id=discussion_id)
 
         if board["round"]["phase"] != "respond":
             raise ValueError("phase_not_advanceable")
 
-        responded_agents = {str(response["agent_id"]) for response in current.get("responses", [])}
-        missing = sorted(set(active_agents) - responded_agents)
-        if missing:
-            raise ValueError(f"respond_incomplete:{','.join(missing)}")
-
-        if not any(bool(response.get("still_disagree")) for response in current.get("responses", [])):
-            board["round"]["phase"] = "closed"
-            board["termination"] = {"reason": "converged"}
-            _write_runtime_state(base_dir, board)
-            _write_json(base_dir / "actions.json", _empty_actions(discussion_id))
-            _append_audit(
-                base_dir,
-                "advance",
-                {"round": current_round, "from": "respond", "to": "closed", "reason": "converged"},
-            )
-            return finalize_discussion(repo_root, discussion_id=discussion_id)
-
-        if current_round >= int(board["round"]["max"]):
-            board["round"]["phase"] = "closed"
-            board["termination"] = {"reason": "max_rounds_unconverged"}
-            _write_runtime_state(base_dir, board)
-            _write_json(base_dir / "actions.json", _empty_actions(discussion_id))
-            _append_audit(
-                base_dir,
-                "advance",
-                {
-                    "round": current_round,
-                    "from": "respond",
-                    "to": "closed",
-                    "reason": "max_rounds_unconverged",
-                },
-            )
-            return finalize_discussion(repo_root, discussion_id=discussion_id)
-
-        next_round = current_round + 1
-        config = get_party_mode_v2_config(repo_root)
-        close_actions = []
-        if bool(config.get("fresh_context_per_round", True)):
-            close_actions = _build_close_actions(
-                base_dir,
-                _agent_lenses(base_dir),
-                round_number=current_round,
-                reason="fresh_context_per_round",
-            )
-        board["round"] = {"current": next_round, "max": board["round"]["max"], "phase": "publish"}
-        board.setdefault("rounds", []).append(
-            {"round": next_round, "posts": [], "responses": [], "moderator_events": []}
+        return _advance_respond_phase(
+            repo_root,
+            base_dir=base_dir,
+            discussion_id=discussion_id,
+            board=board,
+            current=current,
+            active_agents=active_agents,
+            current_round=current_round,
         )
-        _write_runtime_state(base_dir, board)
-        _write_actions_for_phase(
-            base_dir,
-            discussion_id,
-            next_round,
-            "publish",
-            leading_actions=close_actions,
-        )
-        _append_audit(
-            base_dir,
-            "advance",
-            {"round": current_round, "from": "respond", "to": "publish", "next_round": next_round},
-        )
-        return monitor_discussion(repo_root, discussion_id=discussion_id)
 
 
 def _set_all_agents_status(base_dir: Path, status: str) -> None:
@@ -905,6 +1089,132 @@ def _default_agent_status(action_type: str, outcome: str) -> str:
     return "active"
 
 
+def _ensure_finalizable(
+    base_dir: Path,
+    discussion_id: str,
+    board: dict[str, Any],
+    *,
+    manual_termination: bool,
+) -> None:
+    if board["round"]["phase"] == "closed":
+        return
+    if not manual_termination:
+        raise ValueError("finalize_requires_closed_discussion")
+    board["round"]["phase"] = "closed"
+    board["termination"] = {"reason": "manual_terminated"}
+    _write_runtime_state(base_dir, board)
+    _write_json(base_dir / "actions.json", _empty_actions(discussion_id))
+
+
+def _discussion_posts(board: dict[str, Any]) -> list[dict[str, Any]]:
+    return [post for item in board.get("rounds", []) for post in item.get("posts", [])]
+
+
+def _discussion_responses(board: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        response
+        for item in board.get("rounds", [])
+        for response in item.get("responses", [])
+    ]
+
+
+def _round_responses(board: dict[str, Any], round_number: int) -> list[dict[str, Any]]:
+    return [
+        response
+        for item in board.get("rounds", [])
+        if int(item.get("round", -1)) == round_number
+        for response in item.get("responses", [])
+    ]
+
+
+def _historical_disagreements(
+    board: dict[str, Any],
+    current_round: int,
+) -> list[dict[str, Any]]:
+    return [
+        response
+        for item in board.get("rounds", [])
+        if int(item.get("round", -1)) < current_round
+        for response in item.get("responses", [])
+        if response.get("still_disagree")
+    ]
+
+
+def _build_final_report(
+    *,
+    discussion_id: str,
+    board: dict[str, Any],
+    posts: list[dict[str, Any]],
+    responses: list[dict[str, Any]],
+    current_responses: list[dict[str, Any]],
+    historical_disagreements: list[dict[str, Any]],
+    stop_reason: str,
+) -> dict[str, Any]:
+    current_round = int(board["round"]["current"])
+    current_unresolved = [
+        response for response in current_responses if response.get("still_disagree")
+    ]
+    board_status = {
+        "round": current_round,
+        "phase": board["round"]["phase"],
+        "max_rounds": board["round"]["max"],
+        "termination_reason": stop_reason,
+    }
+    return {
+        "schema_version": 1,
+        "discussion_id": discussion_id,
+        "terminal": True,
+        "stop_reason": stop_reason,
+        "board_status": board_status,
+        "next_actions": [],
+        "pro": _report_pro_posts(posts),
+        "con": _report_con_responses(responses),
+        "changed_positions": _responses_with_delta(responses, "changed"),
+        "maintained_positions": _responses_with_delta(responses, "unchanged"),
+        "revised_positions": _responses_with_decision(responses, "revise"),
+        "current_unresolved_disagreements": current_unresolved,
+        "historical_disagreements": historical_disagreements,
+        "unresolved_disagreements": current_unresolved,
+    }
+
+
+def _report_pro_posts(posts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {"agent_id": post["agent_id"], "claim": post["claim"], "evidence": post["evidence"]}
+        for post in posts
+    ]
+
+
+def _report_con_responses(responses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "agent_id": response["agent_id"],
+            "target_post_id": response["target_post_id"],
+            "reasoning": response["reasoning"],
+        }
+        for response in responses
+        if response.get("decision") == "maintain"
+    ]
+
+
+def _responses_with_delta(
+    responses: list[dict[str, Any]],
+    position_delta: str,
+) -> list[dict[str, Any]]:
+    return [
+        response for response in responses if response.get("position_delta") == position_delta
+    ]
+
+
+def _responses_with_decision(
+    responses: list[dict[str, Any]],
+    decision: str,
+) -> list[dict[str, Any]]:
+    return [
+        response for response in responses if response.get("decision") == decision
+    ]
+
+
 def finalize_discussion(
     repo_root: Path,
     *,
@@ -914,77 +1224,24 @@ def finalize_discussion(
     base_dir = discussion_dir(repo_root, discussion_id)
     with _state_lock(base_dir):
         board = _read_json(base_dir / "board.json")
-        if board["round"]["phase"] != "closed":
-            if not manual_termination:
-                raise ValueError("finalize_requires_closed_discussion")
-            board["round"]["phase"] = "closed"
-            board["termination"] = {"reason": "manual_terminated"}
-            _write_runtime_state(base_dir, board)
-            _write_json(base_dir / "actions.json", _empty_actions(discussion_id))
+        _ensure_finalizable(
+            base_dir,
+            discussion_id,
+            board,
+            manual_termination=manual_termination,
+        )
         _set_all_agents_status(base_dir, "closed")
         current_round = int(board["round"]["current"])
-        posts = [post for item in board.get("rounds", []) for post in item.get("posts", [])]
-        responses = [
-            response
-            for item in board.get("rounds", [])
-            for response in item.get("responses", [])
-        ]
-        current_responses = [
-            response
-            for item in board.get("rounds", [])
-            if int(item.get("round", -1)) == current_round
-            for response in item.get("responses", [])
-        ]
-        historical_disagreements = [
-            response
-            for item in board.get("rounds", [])
-            if int(item.get("round", -1)) < current_round
-            for response in item.get("responses", [])
-            if response.get("still_disagree")
-        ]
         stop_reason = board.get("termination", {}).get("reason") or "manual_finalize"
-        current_unresolved = [
-            response for response in current_responses if response.get("still_disagree")
-        ]
-        unresolved = current_unresolved
-        report = {
-            "schema_version": 1,
-            "discussion_id": discussion_id,
-            "terminal": True,
-            "stop_reason": stop_reason,
-            "board_status": {
-                "round": current_round,
-                "phase": board["round"]["phase"],
-                "max_rounds": board["round"]["max"],
-                "termination_reason": stop_reason,
-            },
-            "next_actions": [],
-            "pro": [
-                {"agent_id": post["agent_id"], "claim": post["claim"], "evidence": post["evidence"]}
-                for post in posts
-            ],
-            "con": [
-                {
-                    "agent_id": response["agent_id"],
-                    "target_post_id": response["target_post_id"],
-                    "reasoning": response["reasoning"],
-                }
-                for response in responses
-                if response.get("decision") == "maintain"
-            ],
-            "changed_positions": [
-                response for response in responses if response.get("position_delta") == "changed"
-            ],
-            "maintained_positions": [
-                response for response in responses if response.get("position_delta") == "unchanged"
-            ],
-            "revised_positions": [
-                response for response in responses if response.get("decision") == "revise"
-            ],
-            "current_unresolved_disagreements": current_unresolved,
-            "historical_disagreements": historical_disagreements,
-            "unresolved_disagreements": unresolved,
-        }
+        report = _build_final_report(
+            discussion_id=discussion_id,
+            board=board,
+            posts=_discussion_posts(board),
+            responses=_discussion_responses(board),
+            current_responses=_round_responses(board, current_round),
+            historical_disagreements=_historical_disagreements(board, current_round),
+            stop_reason=stop_reason,
+        )
         reports_dir = base_dir / "reports"
         reports_dir.mkdir(parents=True, exist_ok=True)
         _write_json(reports_dir / "final.json", report)
@@ -1087,79 +1344,68 @@ def _read_payload(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _command_result(repo_root: Path, args: argparse.Namespace) -> dict[str, Any]:
+    if args.command == "init":
+        return init_discussion(
+            repo_root,
+            discussion_id=args.discussion_id,
+            topic=args.topic,
+            agent_specs=args.agent,
+        )
+    if args.command == "view":
+        return view_discussion(
+            repo_root,
+            discussion_id=args.discussion_id,
+            agent_id=args.agent_id,
+        )
+    if args.command == "monitor":
+        return monitor_discussion(repo_root, discussion_id=args.discussion_id)
+    if args.command == "post":
+        return _payload_submission_result(repo_root, args, responder=False)
+    if args.command == "respond":
+        return _payload_submission_result(repo_root, args, responder=True)
+    if args.command == "advance":
+        return advance_discussion(repo_root, discussion_id=args.discussion_id)
+    if args.command == "finalize":
+        return finalize_discussion(
+            repo_root,
+            discussion_id=args.discussion_id,
+            manual_termination=args.manual_termination,
+        )
+    if args.command == "record-action-result":
+        return record_action_result(
+            repo_root,
+            discussion_id=args.discussion_id,
+            payload=_read_payload(args.file),
+        )
+    raise ValueError(f"unknown command: {args.command}")
+
+
+def _payload_submission_result(
+    repo_root: Path,
+    args: argparse.Namespace,
+    *,
+    responder: bool,
+) -> dict[str, Any]:
+    submit = respond_submission if responder else post_submission
+    return submit(
+        repo_root,
+        discussion_id=args.discussion_id,
+        agent_id=args.agent_id,
+        payload=_read_payload(args.file),
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     repo_root = args.repo_root or get_repo_root()
     try:
-        if args.command == "init":
-            _print_json(
-                init_discussion(
-                    repo_root,
-                    discussion_id=args.discussion_id,
-                    topic=args.topic,
-                    agent_specs=args.agent,
-                )
-            )
-            return 0
-        if args.command == "view":
-            _print_json(
-                view_discussion(
-                    repo_root,
-                    discussion_id=args.discussion_id,
-                    agent_id=args.agent_id,
-                )
-            )
-            return 0
-        if args.command == "monitor":
-            _print_json(monitor_discussion(repo_root, discussion_id=args.discussion_id))
-            return 0
-        if args.command == "post":
-            _print_json(
-                post_submission(
-                    repo_root,
-                    discussion_id=args.discussion_id,
-                    agent_id=args.agent_id,
-                    payload=_read_payload(args.file),
-                )
-            )
-            return 0
-        if args.command == "respond":
-            _print_json(
-                respond_submission(
-                    repo_root,
-                    discussion_id=args.discussion_id,
-                    agent_id=args.agent_id,
-                    payload=_read_payload(args.file),
-                )
-            )
-            return 0
-        if args.command == "advance":
-            _print_json(advance_discussion(repo_root, discussion_id=args.discussion_id))
-            return 0
-        if args.command == "finalize":
-            _print_json(
-                finalize_discussion(
-                    repo_root,
-                    discussion_id=args.discussion_id,
-                    manual_termination=args.manual_termination,
-                )
-            )
-            return 0
-        if args.command == "record-action-result":
-            _print_json(
-                record_action_result(
-                    repo_root,
-                    discussion_id=args.discussion_id,
-                    payload=_read_payload(args.file),
-                )
-            )
-            return 0
+        _print_json(_command_result(repo_root, args))
+        return 0
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 2
-    parser.print_usage()
-    return 2
 
 
 if __name__ == "__main__":

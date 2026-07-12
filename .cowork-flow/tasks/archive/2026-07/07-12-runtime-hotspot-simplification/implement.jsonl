@@ -1,0 +1,17 @@
+{"file":"tests/test_workflow_parallel_sessions.py","reason":"修复本地 bootstrap 漂移测试边界"}
+{"file":"template/.cowork-flow/scripts/commands/task_parser.py","reason":"拆分 task parser 子命令注册"}
+{"file":".cowork-flow/scripts/commands/task_parser.py","reason":"同步 root task parser 本地运行时副本"}
+{"file":"template/.cowork-flow/scripts/application/task_lifecycle.py","reason":"拆分 lifecycle execute 阶段处理"}
+{"file":".cowork-flow/scripts/application/task_lifecycle.py","reason":"同步 root lifecycle 本地运行时副本"}
+{"file":"template/.cowork-flow/scripts/commands/party_mode_v2.py","reason":"拆分 Party Mode V2 命令热点函数"}
+{"file":".cowork-flow/scripts/commands/party_mode_v2.py","reason":"同步 root Party Mode V2 本地运行时副本"}
+{"file":"template/.cowork-flow/scripts/common/core/skill_registry.py","reason":"拆分 registry entry normalization"}
+{"file":".cowork-flow/scripts/common/core/skill_registry.py","reason":"同步 root registry 本地运行时副本"}
+{"file":"tests/test_task_lifecycle.py","reason":"验证 lifecycle 行为"}
+{"file":"tests/test_gate_pipeline.py","reason":"验证 lifecycle gate 管线行为"}
+{"file":"tests/test_party_actions.py","reason":"验证 Party Mode action 行为"}
+{"file":"tests/test_party_board.py","reason":"验证 Party Mode board 行为"}
+{"file":"tests/test_skill_registry.py","reason":"验证 Python skill registry 行为"}
+{"file":"test/skill-registry.test.js","reason":"验证 Node skill registry 行为"}
+{"file":"tests/test_task_commands.py","reason":"验证 task parser/task command 行为"}
+{"file":"tests/test_task_navigation.py","reason":"验证 task parser/navigation 行为"}

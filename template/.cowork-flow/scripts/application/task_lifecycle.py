@@ -142,6 +142,145 @@ class TaskLifecycleService:
     ) -> LifecycleResult:
         """Resolve, preflight, validate, gate, and persist one transition."""
         task_dir = self.repository.resolve(task)
+        prepared = self._prepare_transition(stage, task_dir, preflight)
+        if isinstance(prepared, LifecycleResult):
+            return prepared
+        task_data, already_at_target = prepared
+
+        gated = self._run_validated_gate(
+            stage,
+            task_dir,
+            allow_spec_file_modifications=allow_spec_file_modifications,
+        )
+        if isinstance(gated, LifecycleResult):
+            return gated
+        gate_result, summary = gated
+
+        if already_at_target:
+            return self._validated_idempotent_result(
+                stage,
+                task_dir,
+                gate_result,
+                summary,
+            )
+
+        return self._persist_transition_result(
+            stage,
+            task_dir,
+            task_data,
+            gate_result,
+            summary,
+            completed_at,
+        )
+
+    def _prepare_transition(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        preflight: Preflight | None,
+    ) -> tuple[dict, bool] | LifecycleResult:
+        task_data_or_failure = self._load_transition_task(stage, task_dir)
+        if isinstance(task_data_or_failure, LifecycleResult):
+            return task_data_or_failure
+        task_data = task_data_or_failure
+
+        already_at_target = task_data.get("status") == stage.target_status
+        idempotent = self._early_idempotent_result(
+            stage,
+            task_dir,
+            already_at_target,
+        )
+        if idempotent is not None:
+            return idempotent
+
+        preflight_failure = self._run_preflight(stage, task_dir, preflight)
+        if preflight_failure is not None:
+            return preflight_failure
+
+        transition_failure = self._validate_transition(stage, task_dir, task_data)
+        if transition_failure is not None:
+            return transition_failure
+        return task_data, already_at_target
+
+    def _run_validated_gate(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        *,
+        allow_spec_file_modifications: bool,
+    ) -> tuple[object, str] | LifecycleResult:
+        gate_result_or_failure = self._run_stage_gate(
+            stage,
+            task_dir,
+            allow_spec_file_modifications=allow_spec_file_modifications,
+        )
+        if isinstance(gate_result_or_failure, LifecycleResult):
+            return gate_result_or_failure
+        gate_result = gate_result_or_failure
+        return gate_result, self._stage_summary(stage, task_dir)
+
+    def _validated_idempotent_result(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        gate_result: object,
+        summary: str,
+    ) -> LifecycleResult:
+        return LifecycleResult(
+            ok=True,
+            code="LIFECYCLE-IDEMPOTENT-VALIDATED",
+            stage=stage,
+            task_dir=task_dir,
+            gate_result=gate_result,
+            summary=summary,
+        )
+
+    def _persist_transition_result(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        gate_result: object,
+        summary: str,
+        completed_at: str | None,
+    ) -> LifecycleResult:
+        session_state_or_failure = self._build_session_state(
+            stage,
+            task_dir,
+            gate_result,
+            summary,
+        )
+        if isinstance(session_state_or_failure, LifecycleResult):
+            return session_state_or_failure
+        session_state, active_task_path = session_state_or_failure
+
+        commit_failure = self._commit_transition(
+            stage,
+            task_dir,
+            task_data,
+            self._persisted_task_data(stage, task_data, completed_at),
+            session_state,
+            gate_result,
+            summary,
+        )
+        if commit_failure is not None:
+            return commit_failure
+
+        return LifecycleResult(
+            ok=True,
+            code="LIFECYCLE-OK",
+            stage=stage,
+            task_dir=task_dir,
+            gate_result=gate_result,
+            summary=summary,
+            active_task_path=active_task_path,
+        )
+
+    def _load_transition_task(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+    ) -> dict | LifecycleResult:
         if not task_dir.is_dir():
             return self._failure(
                 stage,
@@ -149,7 +288,6 @@ class TaskLifecycleService:
                 "LIFECYCLE-TASK-001",
                 title="Task not found",
             )
-
         try:
             UnitOfWork.recover_all(self.repo_root)
         except UnitOfWorkError as error:
@@ -159,107 +297,145 @@ class TaskLifecycleService:
                 "LIFECYCLE-RECOVERY-001",
                 title=error.detail,
             )
-
         try:
-            task_data = self.repository.load(task_dir)
+            return self.repository.load(task_dir)
         except TaskRepositoryError as error:
             return self._repository_failure(stage, task_dir, error)
 
-        already_at_target = task_data.get("status") == stage.target_status
-        if already_at_target and stage.name != REVIEW_STAGE.name:
-            return LifecycleResult(
-                ok=True,
-                code="LIFECYCLE-IDEMPOTENT",
-                stage=stage,
-                task_dir=task_dir,
-                active_task_path=(
-                    self._display_task_path(task_dir)
-                    if stage.activates_session
-                    else None
-                ),
-            )
+    def _early_idempotent_result(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        already_at_target: bool,
+    ) -> LifecycleResult | None:
+        if not already_at_target or stage.name == REVIEW_STAGE.name:
+            return None
+        return LifecycleResult(
+            ok=True,
+            code="LIFECYCLE-IDEMPOTENT",
+            stage=stage,
+            task_dir=task_dir,
+            active_task_path=(
+                self._display_task_path(task_dir)
+                if stage.activates_session
+                else None
+            ),
+        )
 
-        if preflight is not None:
-            failure = preflight(task_dir)
-            if failure is not None:
-                return self._failure(
-                    stage,
-                    task_dir,
-                    failure.code,
-                    title=failure.title,
-                    blockers=failure.blockers,
-                    hint=failure.hint,
-                )
+    def _run_preflight(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        preflight: Preflight | None,
+    ) -> LifecycleResult | None:
+        if preflight is None:
+            return None
+        failure = preflight(task_dir)
+        if failure is None:
+            return None
+        return self._failure(
+            stage,
+            task_dir,
+            failure.code,
+            title=failure.title,
+            blockers=failure.blockers,
+            hint=failure.hint,
+        )
 
+    def _validate_transition(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+    ) -> LifecycleResult | None:
         blockers = transition_blockers(
             task_data.get("status"),
             stage.target_status,
         )
-        if blockers:
-            return self._failure(
-                stage,
-                task_dir,
-                "LIFECYCLE-TRANSITION-001",
-                blockers=tuple(blockers),
-            )
+        if not blockers:
+            return None
+        return self._failure(
+            stage,
+            task_dir,
+            "LIFECYCLE-TRANSITION-001",
+            blockers=tuple(blockers),
+        )
 
+    def _run_stage_gate(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        *,
+        allow_spec_file_modifications: bool,
+    ) -> object | LifecycleResult:
         gate_result = self.gate_runner.run(
             stage.gate_scope,
             task_dir,
             allow_spec_file_modifications=allow_spec_file_modifications,
         )
-        if gate_result.blocked:
+        if not gate_result.blocked:
+            return gate_result
+        return self._failure(
+            stage,
+            task_dir,
+            "LIFECYCLE-GATE-001",
+            gate_result=gate_result,
+        )
+
+    def _stage_summary(self, stage: LifecycleStage, task_dir: Path) -> str:
+        if not stage.includes_coding_summary:
+            return ""
+        return self.gate_runner.coding_standards_summary(task_dir)
+
+    def _build_session_state(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        gate_result: object,
+        summary: str,
+    ) -> tuple[object | None, str | None] | LifecycleResult:
+        if not stage.activates_session:
+            return None, None
+        active_task_path = self._display_task_path(task_dir)
+        session_state = build_active_task_session(
+            self.repo_root,
+            active_task_path,
+        )
+        if session_state is None:
             return self._failure(
                 stage,
                 task_dir,
-                "LIFECYCLE-GATE-001",
-                gate_result=gate_result,
-            )
-
-        summary = ""
-        if stage.includes_coding_summary:
-            summary = self.gate_runner.coding_standards_summary(task_dir)
-
-        if already_at_target:
-            return LifecycleResult(
-                ok=True,
-                code="LIFECYCLE-IDEMPOTENT-VALIDATED",
-                stage=stage,
-                task_dir=task_dir,
+                "LIFECYCLE-CONTEXT-001",
                 gate_result=gate_result,
                 summary=summary,
             )
+        return session_state, session_state[2].task_path
 
-        active_task_path = None
-        session_state = None
-        if stage.activates_session:
-            active_task_path = self._display_task_path(task_dir)
-            session_state = build_active_task_session(
-                self.repo_root,
-                active_task_path,
-            )
-            if session_state is None:
-                return self._failure(
-                    stage,
-                    task_dir,
-                    "LIFECYCLE-CONTEXT-001",
-                    gate_result=gate_result,
-                    summary=summary,
-                )
-            active_task_path = session_state[2].task_path
-
+    def _persisted_task_data(
+        self,
+        stage: LifecycleStage,
+        task_data: dict,
+        completed_at: str | None,
+    ) -> dict:
         persisted = dict(task_data)
         persisted["status"] = stage.target_status
         if stage.records_completion_date:
             persisted["completedAt"] = (
                 completed_at or datetime.now().strftime("%Y-%m-%d")
             )
+        return persisted
 
-        operation_id = self._operation_id(
-            stage,
-            task_dir,
-            task_data,
-        )
+    def _commit_transition(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        persisted: dict,
+        session_state: object | None,
+        gate_result: object,
+        summary: str,
+    ) -> LifecycleResult | None:
+        operation_id = self._operation_id(stage, task_dir, task_data)
         unit = UnitOfWork(
             self.repo_root,
             operation_id=operation_id,
@@ -283,16 +459,7 @@ class TaskLifecycleService:
                 gate_result=gate_result,
                 summary=summary,
             )
-
-        return LifecycleResult(
-            ok=True,
-            code="LIFECYCLE-OK",
-            stage=stage,
-            task_dir=task_dir,
-            gate_result=gate_result,
-            summary=summary,
-            active_task_path=active_task_path,
-        )
+        return None
 
     def _operation_id(
         self,
