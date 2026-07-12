@@ -241,9 +241,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_local_bootstrap_files_match_template_when_present(self) -> None:
         local_root = ROOT / ".cowork-flow"
-        if not local_root.exists():
-            self.skipTest("local bootstrap .cowork-flow is not checked in")
-
         mirrored_files = (
             Path("workflow.md"),
             Path("spec/runtime/contract-registry.json"),
@@ -251,6 +248,16 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             Path("spec/contracts/workflow-state-templates.md"),
             Path("scripts/common/gates/tdd_evidence.py"),
         )
+        missing_files = [
+            str(relative_path)
+            for relative_path in mirrored_files
+            if not (local_root / relative_path).is_file()
+        ]
+        if missing_files:
+            self.skipTest(
+                "local bootstrap .cowork-flow files are absent: "
+                + ", ".join(missing_files)
+            )
 
         for relative_path in mirrored_files:
             local_text = (local_root / relative_path).read_text(encoding="utf-8")

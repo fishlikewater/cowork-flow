@@ -11,17 +11,7 @@ from common.core.execution_context import (
 )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Task Management Script for cowork-flow workflow",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        parents=[build_internal_execution_context_parser()],
-    )
-    subparsers = parser.add_subparsers(
-        dest="command",
-        help="Commands",
-    )
-
+def _add_create_command(subparsers: argparse._SubParsersAction) -> None:
     create = subparsers.add_parser("create", help="Create new task")
     create.add_argument("title", help="Task title")
     create.add_argument("--slug", "-s", help="Task slug")
@@ -43,213 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to plan file (auto-generate decision-anchor skeleton)",
     )
 
-    init_context = subparsers.add_parser(
-        "init-context",
-        help="Initialize context files",
-    )
-    init_context.add_argument("dir", help="Task directory")
-    init_context.add_argument(
-        "type",
-        help="Dev type: backend|frontend|fullstack|test|docs",
-    )
 
-    add_context = subparsers.add_parser(
-        "add-context",
-        help="Add context entry",
-    )
-    add_context.add_argument("dir", help="Task directory")
-    add_context.add_argument(
-        "file",
-        help="JSONL file (implement|check|debug)",
-    )
-    add_context.add_argument("path", help="File path to add")
-    add_context.add_argument(
-        "reason",
-        nargs="?",
-        help="Reason for adding",
-    )
-    add_context.add_argument(
-        "--type",
-        dest="entry_type",
-        choices=("file", "directory", "planned-file"),
-        default=None,
-        help="Context entry type; planned-file may target a file not created yet",
-    )
-
-    validate = subparsers.add_parser(
-        "validate",
-        help="Validate context files",
-    )
-    validate.add_argument("dir", help="Task directory")
-
-    list_context = subparsers.add_parser(
-        "list-context",
-        help="List context entries",
-    )
-    list_context.add_argument("dir", help="Task directory")
-
-    start = subparsers.add_parser(
-        "start",
-        help="Set active session task",
-    )
-    start.add_argument("dir", help="Task directory")
-    start.add_argument(
-        "--auto",
-        action="store_true",
-        help="Enable batch mode (requires --approved)",
-    )
-    start.add_argument(
-        "--approved",
-        action="store_true",
-        help="User has approved the plan",
-    )
-
-    batch_resume = subparsers.add_parser(
-        "batch-resume",
-        help="Resume a paused Batch operation",
-    )
-    batch_resume.add_argument(
-        "operation_id",
-        help="Batch operation id",
-    )
-
-    batch_result = subparsers.add_parser(
-        "batch-record-result",
-        help="Record one Host action result and advance Batch",
-    )
-    batch_result.add_argument(
-        "operation_id",
-        help="Batch operation id",
-    )
-    batch_result.add_argument(
-        "--file",
-        type=Path,
-        required=True,
-        help="UTF-8 JSON Host action result",
-    )
-
-    subparsers.add_parser(
-        "current",
-        help="Show active session task",
-    )
-
-    review = subparsers.add_parser(
-        "review",
-        help="Mark task ready for check",
-    )
-    review.add_argument(
-        "dir",
-        nargs="?",
-        help="Task directory or name",
-    )
-
-    complete = subparsers.add_parser(
-        "complete",
-        help="Mark task completed",
-    )
-    complete.add_argument(
-        "dir",
-        nargs="?",
-        help="Task directory or name",
-    )
-
-    next_parser = subparsers.add_parser(
-        "next",
-        help="Show next safe workflow action",
-    )
-    next_parser.add_argument(
-        "dir",
-        nargs="?",
-        help="Task directory or name",
-    )
-    next_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Render the stable machine-readable navigation contract",
-    )
-    next_parser.add_argument(
-        "--intent",
-        choices=(
-            "question",
-            "clarify",
-            "plan",
-            "implement",
-            "review",
-            "debug",
-            "discuss",
-            "batch",
-        ),
-        help="Classified user intent for structured routing",
-    )
-
-    subparsers.add_parser(
-        "finish",
-        help="Clear active session task",
-    )
-
-    archive = subparsers.add_parser("archive", help="Archive task")
-    archive.add_argument("name", help="Task name")
-    archive.add_argument(
-        "--commit",
-        action="store_true",
-        help="Auto git commit after archive",
-    )
-
-    list_parser = subparsers.add_parser("list", help="List tasks")
-    list_parser.add_argument(
-        "--mine",
-        "-m",
-        action="store_true",
-        help="My tasks only",
-    )
-    list_parser.add_argument(
-        "--status",
-        "-s",
-        help="Filter by status",
-    )
-
-    add_subtask = subparsers.add_parser(
-        "add-subtask",
-        help="Link child task to parent",
-    )
-    add_subtask.add_argument(
-        "parent_dir",
-        help="Parent task directory",
-    )
-    add_subtask.add_argument(
-        "child_dir",
-        help="Child task directory",
-    )
-
-    remove_subtask = subparsers.add_parser(
-        "remove-subtask",
-        help="Unlink child task from parent",
-    )
-    remove_subtask.add_argument(
-        "parent_dir",
-        help="Parent task directory",
-    )
-    remove_subtask.add_argument(
-        "child_dir",
-        help="Child task directory",
-    )
-
-    list_archive = subparsers.add_parser(
-        "list-archive",
-        help="List archived tasks",
-    )
-    list_archive.add_argument(
-        "month",
-        nargs="?",
-        help="Month (YYYY-MM)",
-    )
-    return parser
-
-
-def show_usage() -> None:
-    """Show usage help."""
-    print(
-        """Task Management Script for cowork-flow workflow
+USAGE_TEXT = """Task Management Script for cowork-flow workflow
 
 Usage:
   ./.cowork-flow/run task create <title>                     Create new task directory
@@ -295,4 +80,263 @@ Examples:
   ./.cowork-flow/run task list --mine
   ./.cowork-flow/run task list --mine --status in_progress
 """
+
+
+def _add_init_context_command(subparsers: argparse._SubParsersAction) -> None:
+    init_context = subparsers.add_parser(
+        "init-context",
+        help="Initialize context files",
     )
+    init_context.add_argument("dir", help="Task directory")
+    init_context.add_argument(
+        "type",
+        help="Dev type: backend|frontend|fullstack|test|docs",
+    )
+
+
+def _add_add_context_command(subparsers: argparse._SubParsersAction) -> None:
+    add_context = subparsers.add_parser(
+        "add-context",
+        help="Add context entry",
+    )
+    add_context.add_argument("dir", help="Task directory")
+    add_context.add_argument(
+        "file",
+        help="JSONL file (implement|check|debug)",
+    )
+    add_context.add_argument("path", help="File path to add")
+    add_context.add_argument(
+        "reason",
+        nargs="?",
+        help="Reason for adding",
+    )
+    add_context.add_argument(
+        "--type",
+        dest="entry_type",
+        choices=("file", "directory", "planned-file"),
+        default=None,
+        help="Context entry type; planned-file may target a file not created yet",
+    )
+
+
+def _add_context_validation_commands(subparsers: argparse._SubParsersAction) -> None:
+    validate = subparsers.add_parser(
+        "validate",
+        help="Validate context files",
+    )
+    validate.add_argument("dir", help="Task directory")
+
+    list_context = subparsers.add_parser(
+        "list-context",
+        help="List context entries",
+    )
+    list_context.add_argument("dir", help="Task directory")
+
+
+def _add_context_commands(subparsers: argparse._SubParsersAction) -> None:
+    _add_init_context_command(subparsers)
+    _add_add_context_command(subparsers)
+    _add_context_validation_commands(subparsers)
+
+
+def _add_start_and_batch_commands(subparsers: argparse._SubParsersAction) -> None:
+    start = subparsers.add_parser(
+        "start",
+        help="Set active session task",
+    )
+    start.add_argument("dir", help="Task directory")
+    start.add_argument(
+        "--auto",
+        action="store_true",
+        help="Enable batch mode (requires --approved)",
+    )
+    start.add_argument(
+        "--approved",
+        action="store_true",
+        help="User has approved the plan",
+    )
+
+    batch_resume = subparsers.add_parser(
+        "batch-resume",
+        help="Resume a paused Batch operation",
+    )
+    batch_resume.add_argument(
+        "operation_id",
+        help="Batch operation id",
+    )
+
+    batch_result = subparsers.add_parser(
+        "batch-record-result",
+        help="Record one Host action result and advance Batch",
+    )
+    batch_result.add_argument(
+        "operation_id",
+        help="Batch operation id",
+    )
+    batch_result.add_argument(
+        "--file",
+        type=Path,
+        required=True,
+        help="UTF-8 JSON Host action result",
+    )
+
+
+def _add_optional_task_dir(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "dir",
+        nargs="?",
+        help="Task directory or name",
+    )
+
+
+def _add_review_command(subparsers: argparse._SubParsersAction) -> None:
+    review = subparsers.add_parser(
+        "review",
+        help="Mark task ready for check",
+    )
+    _add_optional_task_dir(review)
+
+
+def _add_complete_command(subparsers: argparse._SubParsersAction) -> None:
+    complete = subparsers.add_parser(
+        "complete",
+        help="Mark task completed",
+    )
+    _add_optional_task_dir(complete)
+
+
+def _add_next_command(subparsers: argparse._SubParsersAction) -> None:
+    next_parser = subparsers.add_parser(
+        "next",
+        help="Show next safe workflow action",
+    )
+    _add_optional_task_dir(next_parser)
+    next_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Render the stable machine-readable navigation contract",
+    )
+    next_parser.add_argument(
+        "--intent",
+        choices=(
+            "question",
+            "clarify",
+            "plan",
+            "implement",
+            "review",
+            "debug",
+            "discuss",
+            "batch",
+        ),
+        help="Classified user intent for structured routing",
+    )
+
+
+def _add_lifecycle_commands(subparsers: argparse._SubParsersAction) -> None:
+    subparsers.add_parser(
+        "current",
+        help="Show active session task",
+    )
+    _add_review_command(subparsers)
+    _add_complete_command(subparsers)
+    _add_next_command(subparsers)
+    subparsers.add_parser(
+        "finish",
+        help="Clear active session task",
+    )
+
+
+def _add_archive_command(subparsers: argparse._SubParsersAction) -> None:
+    archive = subparsers.add_parser("archive", help="Archive task")
+    archive.add_argument("name", help="Task name")
+    archive.add_argument(
+        "--commit",
+        action="store_true",
+        help="Auto git commit after archive",
+    )
+
+
+def _add_list_command(subparsers: argparse._SubParsersAction) -> None:
+    list_parser = subparsers.add_parser("list", help="List tasks")
+    list_parser.add_argument(
+        "--mine",
+        "-m",
+        action="store_true",
+        help="My tasks only",
+    )
+    list_parser.add_argument(
+        "--status",
+        "-s",
+        help="Filter by status",
+    )
+
+
+def _add_subtask_commands(subparsers: argparse._SubParsersAction) -> None:
+    add_subtask = subparsers.add_parser(
+        "add-subtask",
+        help="Link child task to parent",
+    )
+    add_subtask.add_argument(
+        "parent_dir",
+        help="Parent task directory",
+    )
+    add_subtask.add_argument(
+        "child_dir",
+        help="Child task directory",
+    )
+
+    remove_subtask = subparsers.add_parser(
+        "remove-subtask",
+        help="Unlink child task from parent",
+    )
+    remove_subtask.add_argument(
+        "parent_dir",
+        help="Parent task directory",
+    )
+    remove_subtask.add_argument(
+        "child_dir",
+        help="Child task directory",
+    )
+
+
+def _add_list_archive_command(subparsers: argparse._SubParsersAction) -> None:
+    list_archive = subparsers.add_parser(
+        "list-archive",
+        help="List archived tasks",
+    )
+    list_archive.add_argument(
+        "month",
+        nargs="?",
+        help="Month (YYYY-MM)",
+    )
+
+
+def _add_archive_and_listing_commands(subparsers: argparse._SubParsersAction) -> None:
+    _add_archive_command(subparsers)
+    _add_list_command(subparsers)
+    _add_subtask_commands(subparsers)
+    _add_list_archive_command(subparsers)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Task Management Script for cowork-flow workflow",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[build_internal_execution_context_parser()],
+    )
+    subparsers = parser.add_subparsers(
+        dest="command",
+        help="Commands",
+    )
+
+    _add_create_command(subparsers)
+    _add_context_commands(subparsers)
+    _add_start_and_batch_commands(subparsers)
+    _add_lifecycle_commands(subparsers)
+    _add_archive_and_listing_commands(subparsers)
+    return parser
+
+
+def show_usage() -> None:
+    """Show usage help."""
+    print(USAGE_TEXT)
