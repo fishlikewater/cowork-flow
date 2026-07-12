@@ -66,6 +66,46 @@ def registry_fixture() -> dict[str, object]:
     }
 
 
+NODE_REJECTION_SCRIPT = """
+import { createSkillRegistry } from './src/lib/skill-registry.js';
+let input = '';
+process.stdin.setEncoding('utf8');
+for await (const chunk of process.stdin) input += chunk;
+try {
+  createSkillRegistry(JSON.parse(input));
+  process.stdout.write('OK');
+} catch (error) {
+  process.stdout.write(error.message);
+  process.exitCode = 42;
+}
+"""
+
+
+def registry_rejection_cases() -> list[tuple[dict[str, object], str]]:
+    deprecated = registry_fixture()
+    deprecated["entries"][1]["status"] = "deprecated"
+
+    replacement = registry_fixture()
+    replacement["entries"][1]["replacement"] = "workflow-readiness"
+
+    overlap = registry_fixture()
+    nested = deepcopy(overlap["entries"][1])
+    nested.update(
+        {
+            "id": "nested",
+            "intents": ["nested_intent"],
+            "managedPaths": [".agents/skills/example/nested/"],
+        }
+    )
+    overlap["entries"].append(nested)
+
+    return [
+        (deprecated, "invalid status for example: deprecated"),
+        (replacement, "unexpected field for example: replacement"),
+        (overlap, "managed path overlap"),
+    ]
+
+
 class SkillRegistryTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
@@ -155,7 +195,7 @@ class SkillRegistryTest(unittest.TestCase):
         ):
             module.create_skill_registry(raw, TEMPLATE)
 
-    def test_compatibility_lifecycle_fields_are_rejected(self) -> None:
+    def test_removed_lifecycle_fields_are_rejected(self) -> None:
         module = self._module()
         deprecated = registry_fixture()
         deprecated["entries"][1]["status"] = "deprecated"
@@ -267,6 +307,26 @@ class SkillRegistryTest(unittest.TestCase):
         )
 
         self.assertEqual(registry.to_dict(), json.loads(completed.stdout))
+
+    def test_node_and_python_reject_same_registry_drift_cases(self) -> None:
+        module = self._module()
+
+        for raw, expected in registry_rejection_cases():
+            with self.subTest(expected=expected):
+                with self.assertRaisesRegex(module.SkillRegistryError, expected):
+                    module.create_skill_registry(deepcopy(raw), TEMPLATE)
+
+                completed = subprocess.run(
+                    ["node", "--input-type=module", "-e", NODE_REJECTION_SCRIPT],
+                    cwd=ROOT,
+                    input=json.dumps(raw),
+                    capture_output=True,
+                    encoding="utf-8",
+                    check=False,
+                )
+
+                self.assertEqual(42, completed.returncode, completed.stdout)
+                self.assertIn(expected, completed.stdout)
 
     def test_internal_protocols_use_spec_sources_and_are_not_distributed(self) -> None:
         registry = self._module().load_skill_registry(TEMPLATE)

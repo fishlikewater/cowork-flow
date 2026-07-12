@@ -159,7 +159,7 @@ test('schema validation rejects invalid enums', async () => {
 });
 
 
-test('formal registry rejects compatibility lifecycle fields', async () => {
+test('formal registry rejects removed lifecycle fields', async () => {
   const { createSkillRegistry } = await loadModule();
   const deprecated = registryFixture();
   deprecated.entries[1].status = 'deprecated';

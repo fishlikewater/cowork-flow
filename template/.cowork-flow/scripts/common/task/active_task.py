@@ -361,12 +361,12 @@ def is_main_session(repo_root: Path, values: Mapping[str, object] | None = None)
         return False
     data = _read_json(_session_path(repo_root, context_key))
     scope = data.get(FIELD_SCOPE)
-    legacy_main_session = (
+    historical_unscoped_main_session = (
         scope is None
         and not context_key.startswith("subagent_")
     )
     return (
-        (scope == SCOPE_MAIN or legacy_main_session)
+        (scope == SCOPE_MAIN or historical_unscoped_main_session)
         and not data.get(FIELD_RUNTIME_CONTEXT_ID)
     )
 

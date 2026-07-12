@@ -80,8 +80,8 @@ def load_spec_rules(
     """Return every natural-language rule declared under ``spec/<category>/``.
 
     Re-reads markdown on every call, so user edits take effect without restart.
-    ``validators`` is preserved as an empty list (legacy field kept so external
-    tooling that inspects the rule dict does not break).
+    The returned rule shape is the current runtime checklist contract:
+    category, source, line, and text.
     """
     out: list[dict] = []
     repo_root = Path(repo_root)
@@ -102,7 +102,6 @@ def load_spec_rules(
                     "source": f".cowork-flow/spec/{category}/{md.name}",
                     "line": lineno,
                     "text": rule,
-                    "validators": [],
                 })
     return out
 
