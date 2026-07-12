@@ -19,6 +19,14 @@ class ChangedFile:
 
 def collect_changed_files(repo_root: Path) -> list[ChangedFile]:
     """Return modified, staged, and untracked files from git status."""
+    prefix_rc, prefix_stdout, _ = _run_git_command(
+        ["rev-parse", "--show-prefix"],
+        cwd=repo_root,
+    )
+    if prefix_rc != 0:
+        return []
+    repo_prefix = prefix_stdout.strip().replace("\\", "/")
+
     rc, stdout, _ = _run_git_command(
         ["status", "--porcelain=v1", "-uall", "--", "."],
         cwd=repo_root,
@@ -32,6 +40,12 @@ def collect_changed_files(repo_root: Path) -> list[ChangedFile]:
         if parsed is None:
             continue
         path, statuses = parsed
+        if repo_prefix:
+            if not path.startswith(repo_prefix):
+                continue
+            path = path[len(repo_prefix):]
+        if not path:
+            continue
         changed.setdefault(path, set()).update(statuses)
 
     return [

@@ -20,6 +20,22 @@ from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 
 
 class TaskArchiveCommandsTest(FlowScriptTestCase):
+    def test_is_git_dirty_checks_porcelain_output(self) -> None:
+        archive_commands = importlib.import_module(
+            "commands.task_archive_commands"
+        )
+
+        for status, expected in (("", False), (" M src/example.py\n", True)):
+            with self.subTest(status=status), patch.object(
+                archive_commands,
+                "_run_git_command",
+                return_value=(0, status, ""),
+            ):
+                self.assertEqual(
+                    expected,
+                    archive_commands.is_git_dirty(Path("/repo")),
+                )
+
     def test_task_archive_resumes_when_source_and_destination_match(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -98,6 +114,148 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             self.assertIn("05-19-demo", metadata)
             self.assertIn("Archived linked change: 05-19-demo-change", stderr.getvalue())
             self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
+
+    def test_task_archive_rolls_back_task_when_linked_change_archive_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            tasks_dir = workflow_dir / "tasks"
+            task_dir = tasks_dir / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "completed", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            change_dir = self._write_l2_change_fixture(
+                root,
+                level="L1",
+                task_link=".cowork-flow/tasks/05-19-demo",
+            )
+            month = datetime.now().strftime("%Y-%m")
+            task_archive_dest = tasks_dir / "archive" / month / "05-19-demo"
+
+            change_module = importlib.import_module("commands.change")
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.object(change_module, "archive_change_by_slug", return_value=None):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_archive(
+                            argparse.Namespace(name="05-19-demo", commit=False)
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertTrue(task_dir.is_dir())
+            self.assertFalse(task_archive_dest.exists())
+            self.assertTrue(change_dir.is_dir())
+            self.assertIn("Failed to archive linked change", stderr.getvalue())
+
+    def _write_multi_change_archive_fixture(self, root: Path):
+        workflow_dir = root / ".cowork-flow"
+        tasks_dir = workflow_dir / "tasks"
+        task_dir = tasks_dir / "05-19-demo"
+        task_dir.mkdir(parents=True)
+        (workflow_dir / ".developer").write_text(
+            "name=codex\n",
+            encoding="utf-8",
+        )
+        (task_dir / "task.json").write_text(
+            '{"name": "demo", "status": "completed", "assignee": "codex"}',
+            encoding="utf-8",
+        )
+        first_change = self._write_l2_change_fixture(
+            root,
+            level="L1",
+            task_link=".cowork-flow/tasks/05-19-demo",
+        )
+        second_change = first_change.parent / "05-19-z-change"
+        shutil.copytree(first_change, second_change)
+        second_metadata = (second_change / "change.yaml").read_text(
+            encoding="utf-8"
+        )
+        (second_change / "change.yaml").write_text(
+            second_metadata.replace(
+                "slug: 05-19-demo-change",
+                "slug: 05-19-z-change",
+            ),
+            encoding="utf-8",
+        )
+        changes = (first_change, second_change)
+        metadata = {
+            change.name: (change / "change.yaml").read_bytes()
+            for change in changes
+        }
+        return workflow_dir, tasks_dir, task_dir, changes, metadata
+
+    def _archive_with_second_change_failure(
+        self,
+        root: Path,
+        second_change: Path,
+    ):
+        change_module = importlib.import_module("commands.change")
+        archive_change = change_module.archive_change_by_slug
+
+        def fail_second_change(repo_root, slug):
+            if slug == second_change.name:
+                return None
+            return archive_change(repo_root, slug)
+
+        previous_cwd = Path.cwd()
+        try:
+            os.chdir(root)
+            with patch.object(
+                change_module,
+                "archive_change_by_slug",
+                side_effect=fail_second_change,
+            ):
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_archive(
+                        argparse.Namespace(name="05-19-demo", commit=False)
+                    )
+        finally:
+            os.chdir(previous_cwd)
+        return result, stderr.getvalue()
+
+    def test_task_archive_rolls_back_previously_archived_linked_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            fixture = self._write_multi_change_archive_fixture(root)
+            workflow_dir, tasks_dir, task_dir, changes, metadata = fixture
+            result, stderr = self._archive_with_second_change_failure(
+                root,
+                changes[1],
+            )
+
+            month = datetime.now().strftime("%Y-%m")
+            self.assertEqual(1, result)
+            self.assertTrue(task_dir.is_dir())
+            self.assertFalse((tasks_dir / "archive" / month / task_dir.name).exists())
+            for change in changes:
+                self.assertTrue(change.is_dir())
+                self.assertEqual(
+                    metadata[change.name],
+                    (change / "change.yaml").read_bytes(),
+                )
+                self.assertFalse(
+                    (
+                        workflow_dir
+                        / "changes"
+                        / "archive"
+                        / month
+                        / change.name
+                    ).exists()
+                )
+            self.assertIn("Failed to archive linked change", stderr)
+            self.assertNotIn("Archived linked change", stderr)
 
     def test_task_archive_does_not_commit_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,7 @@ from common.task.task_utils import find_task_by_name
 
 
 DONE_STATUSES = ("completed", "done")
+ArchiveFinalizer = Callable[[], bool]
 
 
 class TaskArchiveError(RuntimeError):
@@ -53,7 +55,36 @@ class TaskArchiveService:
         task: str | Path,
         *,
         archived_at: str | None = None,
+        finalize: ArchiveFinalizer | None = None,
     ) -> TaskArchiveResult:
+        task_dir, task_data = self._load_completed_task(task)
+        archive_date = archived_at or datetime.now().strftime("%Y-%m-%d")
+        destination = self._archive_destination(task_dir, archive_date)
+        relationship_updates = self._relationship_updates(
+            task_dir.name,
+            task_data,
+        )
+        self._move_task(task_dir, destination)
+        self._apply_archive_state(
+            task_dir,
+            destination,
+            task_data,
+            relationship_updates,
+            archive_date,
+            finalize,
+        )
+        clear_task_from_sessions(
+            self.repo_root,
+            task_dir.relative_to(self.repo_root).as_posix(),
+        )
+        return TaskArchiveResult(
+            source=task_dir,
+            destination=destination,
+            task_name=task_dir.name,
+            archived_at=archive_date,
+        )
+
+    def _load_completed_task(self, task: str | Path) -> tuple[Path, dict]:
         task_dir = self.repository.resolve(task)
         if not task_dir.is_dir():
             raise TaskArchiveError(
@@ -78,19 +109,18 @@ class TaskArchiveService:
                 task_dir,
                 f"task status is {status}",
             )
+        return task_dir, task_data
 
-        archive_date = archived_at or datetime.now().strftime("%Y-%m-%d")
-        destination = (
+    def _archive_destination(self, task_dir: Path, archive_date: str) -> Path:
+        return (
             self.tasks_dir
             / DIR_ARCHIVE
             / archive_date[:7]
             / task_dir.name
         )
-        relationship_updates = self._relationship_updates(
-            task_dir.name,
-            task_data,
-        )
 
+    @staticmethod
+    def _move_task(task_dir: Path, destination: Path) -> None:
         move_result = archive_directory_resumable(task_dir, destination)
         if not move_result.ok:
             raise TaskArchiveError(
@@ -99,6 +129,15 @@ class TaskArchiveService:
                 move_result.message,
             )
 
+    def _apply_archive_state(
+        self,
+        task_dir: Path,
+        destination: Path,
+        task_data: dict,
+        relationship_updates: list[tuple[Path, dict, dict]],
+        archive_date: str,
+        finalize: ArchiveFinalizer | None,
+    ) -> None:
         try:
             self.repository.save(
                 destination,
@@ -108,7 +147,13 @@ class TaskArchiveService:
                 },
             )
             self._apply_relationship_updates(relationship_updates)
-        except (TaskRepositoryError, TaskArchiveError) as error:
+            if finalize is not None and not finalize():
+                raise TaskArchiveError(
+                    "TASK-ARCHIVE-FINALIZE-001",
+                    destination,
+                    "linked change archive failed",
+                )
+        except Exception as error:
             self._rollback(
                 task_dir,
                 destination,
@@ -117,22 +162,17 @@ class TaskArchiveService:
             )
             if isinstance(error, TaskArchiveError):
                 raise
+            if isinstance(error, TaskRepositoryError):
+                raise TaskArchiveError(
+                    "TASK-ARCHIVE-WRITE-001",
+                    error.path,
+                    error.detail,
+                ) from error
             raise TaskArchiveError(
-                "TASK-ARCHIVE-WRITE-001",
-                error.path,
-                error.detail,
+                "TASK-ARCHIVE-FINALIZE-001",
+                destination,
+                f"archive finalizer failed: {error}",
             ) from error
-
-        clear_task_from_sessions(
-            self.repo_root,
-            task_dir.relative_to(self.repo_root).as_posix(),
-        )
-        return TaskArchiveResult(
-            source=task_dir,
-            destination=destination,
-            task_name=task_dir.name,
-            archived_at=archive_date,
-        )
 
     def _relationship_updates(
         self,

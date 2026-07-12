@@ -10,7 +10,7 @@
 | G2 | L1/L2: tdd.jsonl 有 red-green evidence | ./cowork-flow/run task validate |
 | G3 | check phase 完成，无 unresolved blocker | check.jsonl status=pass |
 | G4 | 无新引入 lint/type/build 警告 | lint / build 命令通过 |
-| G5 | git diff 仅含任务相关变更 | git diff --name-only |
+| G5 | Git status snapshot 仅含任务相关变更，包括 staged、unstaged、untracked | git status --porcelain=v1 -uall |
 
 ## L0 专属（docs/format/comments only）
 

@@ -266,6 +266,26 @@ class TaskLifecycleServiceTest(unittest.TestCase):
                 (task_dir / "task.json").read_text(encoding="utf-8"),
             )
 
+    def test_repeated_complete_reruns_gates_without_persisting_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "completed")
+            before = (task_dir / "task.json").read_text(encoding="utf-8")
+            gate_runner = self._gate_runner()
+            service = self.TaskLifecycleService(root, gate_runner=gate_runner)
+
+            result = service.complete(task_dir, completed_at="2026-07-10")
+
+            self.assertTrue(result.ok)
+            self.assertEqual("LIFECYCLE-IDEMPOTENT-VALIDATED", result.code)
+            self.assertIsNotNone(result.gate_result)
+            self.assertEqual("task_complete", gate_runner.calls[0][0])
+            self.assertEqual(
+                before,
+                (task_dir / "task.json").read_text(encoding="utf-8"),
+            )
+
     def test_review_and_complete_share_transition_pipeline(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -561,6 +561,7 @@ def cmd_complete(args: argparse.Namespace) -> int:
     result = service.complete(
         task_dir,
         completed_at=datetime.now().strftime("%Y-%m-%d"),
+        allow_spec_file_modifications=is_main_session(repo_root),
     )
     if not result.ok:
         if result.code == "LIFECYCLE-TRANSITION-001":

@@ -28,6 +28,13 @@ class TaskNavigationTest(FlowScriptTestCase):
         self.assertTrue(args.json)
         self.assertEqual("question", args.intent)
 
+    def test_task_next_parser_accepts_archive_intent(self) -> None:
+        args = self.task.build_parser().parse_args(
+            ["next", "--json", "--intent", "archive"]
+        )
+
+        self.assertEqual("archive", args.intent)
+
     def test_cmd_next_json_outputs_stable_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -65,6 +72,35 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertIn("answer_questions", payload["allowedOperations"])
             self.assertEqual([], payload["internalProtocols"])
             self.assertIsNone(payload["recommendedSkill"])
+
+    def test_cmd_next_json_blocks_implementation_without_active_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(
+                                dir=None,
+                                json=True,
+                                intent="implement",
+                            )
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual("no_task", payload["status"])
+            self.assertIsNone(payload["recommendedSkill"])
+            self.assertIn(
+                "intent implement is not allowed while status is no_task",
+                payload["blockers"],
+            )
 
     def test_cmd_current_prints_session_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -306,6 +342,63 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertIn("task archive 05-19-demo", output)
             self.assertIn("change archive 05-19-demo-change", output)
+
+    def test_cmd_next_json_defaults_completed_task_to_archive_route(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text('{"status": "completed"}\n', encoding="utf-8")
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(dir=None, json=True, intent=None)
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual("completed", payload["status"])
+            self.assertIn("archive_task", payload["allowedOperations"])
+            self.assertEqual([], payload["blockers"])
+
+    def test_cmd_next_json_blocks_implementation_for_completed_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text('{"status": "completed"}\n', encoding="utf-8")
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(
+                                dir=None,
+                                json=True,
+                                intent="implement",
+                            )
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual("completed", payload["status"])
+            self.assertIsNone(payload["recommendedSkill"])
+            self.assertIn(
+                "intent implement is not allowed while status is completed",
+                payload["blockers"],
+            )
 
     def test_cmd_next_routes_active_ready_planning_task_to_implementation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

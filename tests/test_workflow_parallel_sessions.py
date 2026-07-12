@@ -239,6 +239,30 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in markers:
                 self.assertIn(marker, template_text)
 
+    def test_workflow_closeout_records_real_implementation_commit(self) -> None:
+        text = (
+            ROOT / "template" / ".cowork-flow" / "workflow.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('implementation_commit="$(git rev-parse HEAD)"', text)
+        self.assertIn("follow-up metadata commit", text)
+        self.assertIn('--commit "$implementation_commit"', text)
+        self.assertNotIn('add-session --title "<title>" --commit "-"', text)
+
+    def test_definition_of_done_uses_complete_git_status_snapshot(self) -> None:
+        text = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "spec"
+            / "references"
+            / "definition-of-done.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("git status --porcelain=v1 -uall", text)
+        self.assertIn("staged、unstaged、untracked", text)
+        self.assertNotIn("git diff --name-only", text)
+
     def test_local_bootstrap_files_match_template_when_present(self) -> None:
         local_root = ROOT / ".cowork-flow"
         mirrored_files = (
