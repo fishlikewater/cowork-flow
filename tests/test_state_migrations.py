@@ -44,7 +44,7 @@ class StateMigrationTest(unittest.TestCase):
             (FIXTURES / name).read_text(encoding="utf-8")
         )
 
-    def test_legacy_unscoped_host_session_remains_main_session(self) -> None:
+    def test_historical_unscoped_host_session_remains_main_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             session_path = (
@@ -57,7 +57,7 @@ class StateMigrationTest(unittest.TestCase):
             session_path.parent.mkdir(parents=True)
             session_path.write_text(
                 json.dumps(
-                    self._fixture("legacy-main-session-v1.json"),
+                    self._fixture("historical-main-session-v1.json"),
                     ensure_ascii=False,
                 )
                 + "\n",
@@ -70,12 +70,12 @@ class StateMigrationTest(unittest.TestCase):
                 clear=True,
             ):
                 self.assertEqual(
-                    ".cowork-flow/tasks/legacy-task",
+                    ".cowork-flow/tasks/historical-task",
                     self.active_task.get_active_task(root).task_path,
                 )
                 self.assertTrue(self.active_task.is_main_session(root))
 
-    def test_legacy_runtime_context_binds_without_losing_unknown_fields(self) -> None:
+    def test_historical_runtime_context_binds_without_losing_unknown_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             runtime_path = (
@@ -83,12 +83,12 @@ class StateMigrationTest(unittest.TestCase):
                 / ".cowork-flow"
                 / ".runtime"
                 / "subagents"
-                / "rtx_legacy.json"
+                / "rtx_historical.json"
             )
             runtime_path.parent.mkdir(parents=True)
             runtime_path.write_text(
                 json.dumps(
-                    self._fixture("legacy-runtime-context-v1.json"),
+                    self._fixture("historical-runtime-context-v1.json"),
                     ensure_ascii=False,
                 )
                 + "\n",
@@ -96,32 +96,32 @@ class StateMigrationTest(unittest.TestCase):
             )
 
             result = self.RuntimeContextService(root).bind(
-                "rtx_legacy",
-                "codex_legacy-host",
+                "rtx_historical",
+                "codex_historical-host",
             )
 
             self.assertEqual("bound", result["status"])
-            self.assertEqual("旧运行时上下文", result["legacy_note"])
+            self.assertEqual("历史运行时上下文", result["persisted_note"])
             host_session = json.loads(
                 (
                     root
                     / ".cowork-flow"
                     / ".runtime"
                     / "sessions"
-                    / "codex_legacy-host.json"
+                    / "codex_historical-host.json"
                 ).read_text(encoding="utf-8")
             )
             self.assertEqual(2, host_session["schema_version"])
             self.assertEqual("subagent", host_session["scope"])
 
-    def test_legacy_task_save_preserves_unknown_fields_and_utf8(self) -> None:
+    def test_historical_task_save_preserves_unknown_fields_and_utf8(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "legacy-task"
+            task_dir = root / ".cowork-flow" / "tasks" / "historical-task"
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text(
                 json.dumps(
-                    self._fixture("legacy-task-v1.json"),
+                    self._fixture("historical-task-v1.json"),
                     ensure_ascii=False,
                 )
                 + "\n",
@@ -134,8 +134,8 @@ class StateMigrationTest(unittest.TestCase):
             )
 
             self.assertEqual("review", saved["status"])
-            self.assertEqual("旧任务", saved["title"])
-            self.assertEqual("必须保留", saved["unknown_legacy_field"])
+            self.assertEqual("历史任务", saved["title"])
+            self.assertEqual("必须保留", saved["unknown_persisted_field"])
 
 
 if __name__ == "__main__":

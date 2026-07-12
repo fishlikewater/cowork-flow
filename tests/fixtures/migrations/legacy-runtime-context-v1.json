@@ -1,8 +1,0 @@
-{
-  "runtime_context_id": "rtx_legacy",
-  "scope": "subagent",
-  "task_dir": ".cowork-flow/tasks/legacy-task",
-  "host": "codex",
-  "status": "pending_bind",
-  "legacy_note": "旧运行时上下文"
-}
