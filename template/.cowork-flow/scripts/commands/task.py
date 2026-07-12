@@ -16,6 +16,7 @@ else:
     import _bootstrap  # noqa: F401
 
 from application.task_context import (
+    PLANNED_FILE_HINT,
     TaskContextService,
     detect_installed_platforms as _detect_installed_platforms,
     discover_spec_files as _discover_spec_files,
@@ -42,6 +43,7 @@ from application.batch_execution import (
 )
 from commands.task_archive_commands import cmd_archive
 from commands.task_context_commands import (
+    cmd_add_planned_file,
     cmd_add_context,
     cmd_init_context,
     cmd_list_context,
@@ -205,6 +207,15 @@ def _task_context_validation_issues(
     )
 
 
+def _refresh_task_artifact_placeholders(
+    task_dir: Path,
+    repo_root: Path,
+) -> list[str]:
+    service = TaskContextService(repo_root)
+    service.ensure_task_artifact_placeholders(task_dir)
+    return _task_context_validation_issues(task_dir, repo_root)
+
+
 def _optional_readiness_blockers(
     repo_root: Path,
     task_dir: Path,
@@ -244,13 +255,15 @@ def _start_preflight(
         repo_root,
     )
     if validation_issues:
+        validation_issues = _refresh_task_artifact_placeholders(task_dir, repo_root)
+    if validation_issues:
         return LifecyclePreflightFailure(
             code="TASK-CONTEXT-001",
             title="Task context validation failed",
             blockers=tuple(validation_issues),
             hint=(
                 "run ./.cowork-flow/run task validate <dir> and fix the "
-                "reported issues"
+                f"reported issues. {PLANNED_FILE_HINT}"
             ),
         )
 
@@ -302,79 +315,83 @@ def _report_lifecycle_repository_error(
     return 1
 
 
-def cmd_start(args: argparse.Namespace) -> int:
-    """Set the active task for this session."""
-    repo_root = get_repo_root()
-    task_input = args.dir
-    if not task_input:
-        print(
-            colored(
-                "Error: task directory or name required",
-                Colors.RED,
-            )
-        )
-        return 1
-
+def _resolve_start_task(
+    task_input: str,
+    repo_root: Path,
+) -> Path | None:
     full_path = _resolve_task_dir(task_input, repo_root)
-    if not full_path.is_dir():
-        print(
-            colored(
-                f"Error: Task not found: {task_input}",
-                Colors.RED,
-            )
+    if full_path.is_dir():
+        return full_path
+    print(
+        colored(
+            f"Error: Task not found: {task_input}",
+            Colors.RED,
         )
-        print(
-            "Hint: Use task name (e.g., 'my-task') or full path "
-            f"(e.g., '{DIR_WORKFLOW}/tasks/01-31-my-task')"
-        )
+    )
+    print(
+        "Hint: Use task name (e.g., 'my-task') or full path "
+        f"(e.g., '{DIR_WORKFLOW}/tasks/01-31-my-task')"
+    )
+    return None
+
+
+def _run_auto_start(
+    args: argparse.Namespace,
+    full_path: Path,
+    preflight,
+) -> int:
+    failure = preflight(full_path)
+    if failure is not None:
+        return _report_lifecycle_preflight(failure)
+    from common.task.batch_mode import run_batch_entry
+
+    return run_batch_entry(get_repo_root(), full_path, args)
+
+
+def _report_start_failure(
+    result: LifecycleResult,
+    service: TaskLifecycleService,
+) -> int:
+    if result.title:
+        return _report_lifecycle_preflight(result)
+    if result.code == "LIFECYCLE-TRANSITION-001":
+        _print_transition_blockers(list(result.blockers))
         return 1
-
-    def preflight(
-        task_dir: Path,
-    ) -> LifecyclePreflightFailure | None:
-        return _start_preflight(task_dir, repo_root)
-
-    if getattr(args, "auto", False):
-        failure = preflight(full_path)
-        if failure is not None:
-            return _report_lifecycle_preflight(failure)
-        from common.task.batch_mode import run_batch_entry
-
-        return run_batch_entry(repo_root, full_path, args)
-
-    service = TaskLifecycleService(repo_root)
-    result = service.start(full_path, preflight=preflight)
-    if not result.ok:
-        if result.title:
-            return _report_lifecycle_preflight(result)
-        if result.code == "LIFECYCLE-TRANSITION-001":
-            _print_transition_blockers(list(result.blockers))
-            return 1
-        if result.code == "LIFECYCLE-GATE-001":
-            return _report_gate_block(
-                "Spec enforcement blocked task start",
-                result.gate_result,
-                service.gate_runner,
-            )
-        if result.code == "LIFECYCLE-CONTEXT-001":
-            print(
-                colored(
-                    "Error: Missing session context. Set "
-                    "COWORK_FLOW_CONTEXT_ID or run inside a "
-                    "supported host session.",
-                    Colors.RED,
-                ),
-                file=sys.stderr,
-            )
-            return 1
-        if result.repository_error is not None:
-            return _report_lifecycle_repository_error(result)
-        print(
-            colored("Error: Task lifecycle failed", Colors.RED),
-            file=sys.stderr,
+    if result.code == "LIFECYCLE-GATE-001":
+        return _report_gate_block(
+            "Spec enforcement blocked task start",
+            result.gate_result,
+            service.gate_runner,
         )
-        return 1
+    if result.code == "LIFECYCLE-CONTEXT-001":
+        return _report_missing_session_context()
+    if result.repository_error is not None:
+        return _report_lifecycle_repository_error(result)
+    print(
+        colored("Error: Task lifecycle failed", Colors.RED),
+        file=sys.stderr,
+    )
+    return 1
 
+
+def _report_missing_session_context() -> int:
+    print(
+        colored(
+            "Error: Missing session context. Set "
+            "COWORK_FLOW_CONTEXT_ID or run inside a "
+            "supported host session.",
+            Colors.RED,
+        ),
+        file=sys.stderr,
+    )
+    return 1
+
+
+def _report_start_success(
+    result: LifecycleResult,
+    repo_root: Path,
+    full_path: Path,
+) -> None:
     task_dir = result.active_task_path or _display_task_path(
         repo_root,
         full_path,
@@ -392,6 +409,39 @@ def cmd_start(args: argparse.Namespace) -> int:
             Colors.BLUE,
         )
     )
+
+
+def cmd_start(args: argparse.Namespace) -> int:
+    """Set the active task for this session."""
+    repo_root = get_repo_root()
+    task_input = args.dir
+    if not task_input:
+        print(
+            colored(
+                "Error: task directory or name required",
+                Colors.RED,
+            )
+        )
+        return 1
+
+    full_path = _resolve_start_task(task_input, repo_root)
+    if full_path is None:
+        return 1
+
+    def preflight(
+        task_dir: Path,
+    ) -> LifecyclePreflightFailure | None:
+        return _start_preflight(task_dir, repo_root)
+
+    if getattr(args, "auto", False):
+        return _run_auto_start(args, full_path, preflight)
+
+    service = TaskLifecycleService(repo_root)
+    result = service.start(full_path, preflight=preflight)
+    if not result.ok:
+        return _report_start_failure(result, service)
+
+    _report_start_success(result, repo_root, full_path)
     _run_hooks("after_start", full_path / FILE_TASK_JSON, repo_root)
     return 0
 
@@ -592,6 +642,60 @@ def cmd_current(args: argparse.Namespace) -> int:
     return 0
 
 
+WORKER_BLOCKED_COMMANDS = frozenset((
+    "create",
+    "init-context",
+    "add-context",
+    "add-planned-file",
+    "start",
+    "batch-resume",
+    "batch-record-result",
+    "review",
+    "complete",
+    "finish",
+    "archive",
+    "add-subtask",
+    "remove-subtask",
+))
+
+COMMANDS = {
+    "create": cmd_create,
+    "init-context": cmd_init_context,
+    "add-context": cmd_add_context,
+    "add-planned-file": cmd_add_planned_file,
+    "validate": cmd_validate,
+    "list-context": cmd_list_context,
+    "start": cmd_start,
+    "batch-resume": cmd_batch_resume,
+    "batch-record-result": cmd_batch_record_result,
+    "current": cmd_current,
+    "review": cmd_review,
+    "complete": cmd_complete,
+    "next": cmd_next,
+    "finish": cmd_finish,
+    "archive": cmd_archive,
+    "add-subtask": cmd_add_subtask,
+    "remove-subtask": cmd_remove_subtask,
+    "list": cmd_list,
+    "list-archive": cmd_list_archive,
+}
+
+
+def _worker_command_blocked(execution_context, command: str) -> bool:
+    if not execution_context.is_worker or command not in WORKER_BLOCKED_COMMANDS:
+        return False
+    print(
+        worker_command_block_message(
+            execution_context,
+            f"task {command}",
+            "Workers must not activate, archive, or mutate "
+            "cowork-flow task state.",
+        ),
+        file=sys.stderr,
+    )
+    return True
+
+
 def main() -> int:
     """CLI entry point."""
     args = build_parser().parse_args()
@@ -600,53 +704,10 @@ def main() -> int:
         show_usage()
         return 1
 
-    worker_blocked_commands = {
-        "create",
-        "init-context",
-        "add-context",
-        "start",
-        "batch-resume",
-        "batch-record-result",
-        "review",
-        "complete",
-        "finish",
-        "archive",
-        "add-subtask",
-        "remove-subtask",
-    }
-    if execution_context.is_worker and args.command in worker_blocked_commands:
-        print(
-            worker_command_block_message(
-                execution_context,
-                f"task {args.command}",
-                "Workers must not activate, archive, or mutate "
-                "cowork-flow task state.",
-            ),
-            file=sys.stderr,
-        )
+    if _worker_command_blocked(execution_context, args.command):
         return 2
 
-    commands = {
-        "create": cmd_create,
-        "init-context": cmd_init_context,
-        "add-context": cmd_add_context,
-        "validate": cmd_validate,
-        "list-context": cmd_list_context,
-        "start": cmd_start,
-        "batch-resume": cmd_batch_resume,
-        "batch-record-result": cmd_batch_record_result,
-        "current": cmd_current,
-        "review": cmd_review,
-        "complete": cmd_complete,
-        "next": cmd_next,
-        "finish": cmd_finish,
-        "archive": cmd_archive,
-        "add-subtask": cmd_add_subtask,
-        "remove-subtask": cmd_remove_subtask,
-        "list": cmd_list,
-        "list-archive": cmd_list_archive,
-    }
-    command = commands.get(args.command)
+    command = COMMANDS.get(args.command)
     if command is None:
         show_usage()
         return 1

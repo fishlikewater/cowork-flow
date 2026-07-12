@@ -21,6 +21,11 @@ from common.core.paths import (
 
 CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
 CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file"))
+PLANNED_FILE_HINT = (
+    "If this is a planned new file, run "
+    "./.cowork-flow/run task add-planned-file <dir> <jsonl> <path> "
+    '"reason" or add "type": "planned-file" to the JSONL entry.'
+)
 
 
 class TaskContextError(RuntimeError):
@@ -40,6 +45,15 @@ def normalize_context_path(
 ) -> tuple[str, Path]:
     """Return a canonical repo-relative context path and its absolute target."""
     candidate = Path(repo_root) / str(path)
+    _validate_context_entry_type(candidate, entry_type)
+    normalized = _normalized_context_path(path, entry_type)
+    segments = normalized.split("/")
+    _validate_context_path(candidate, normalized, segments, path, entry_type)
+    repo_root, full_path = _resolved_context_target(repo_root, segments)
+    return _typed_context_path(normalized, full_path, repo_root, entry_type)
+
+
+def _validate_context_entry_type(candidate: Path, entry_type: str) -> None:
     if entry_type not in CONTEXT_ENTRY_TYPES:
         raise TaskContextError(
             "TASK-CONTEXT-TYPE-001",
@@ -47,14 +61,38 @@ def normalize_context_path(
             f"unsupported context entry type: {entry_type}",
         )
 
+
+def _normalized_context_path(path: str, entry_type: str) -> str:
     normalized = str(path).replace("\\", "/")
     while normalized.startswith("./"):
         normalized = normalized[2:]
     if entry_type == "directory" and normalized.endswith("/"):
         normalized = normalized[:-1]
+    return normalized
 
-    segments = normalized.split("/")
-    invalid_path = (
+
+def _validate_context_path(
+    candidate: Path,
+    normalized: str,
+    segments: list[str],
+    path: str,
+    entry_type: str,
+) -> None:
+    if not _is_valid_context_path(normalized, segments, path, entry_type):
+        raise TaskContextError(
+            "TASK-CONTEXT-PATH-002",
+            candidate,
+            "context path must be a canonical repository-relative path",
+        )
+
+
+def _is_valid_context_path(
+    normalized: str,
+    segments: list[str],
+    path: str,
+    entry_type: str,
+) -> bool:
+    return not (
         not normalized
         or normalized.startswith("/")
         or re.match(r"^[A-Za-z]:", normalized) is not None
@@ -62,15 +100,22 @@ def normalize_context_path(
         or any(character in normalized for character in "*?[]")
         or (entry_type == "planned-file" and str(path).endswith(("/", "\\")))
     )
-    if invalid_path:
-        raise TaskContextError(
-            "TASK-CONTEXT-PATH-002",
-            candidate,
-            "context path must be a canonical repository-relative path",
-        )
 
-    repo_root = Path(repo_root).resolve()
-    full_path = repo_root.joinpath(*segments).resolve(strict=False)
+
+def _resolved_context_target(
+    repo_root: Path,
+    segments: list[str],
+) -> tuple[Path, Path]:
+    resolved_root = Path(repo_root).resolve()
+    return resolved_root, resolved_root.joinpath(*segments).resolve(strict=False)
+
+
+def _typed_context_path(
+    normalized: str,
+    full_path: Path,
+    repo_root: Path,
+    entry_type: str,
+) -> tuple[str, Path]:
     try:
         full_path.relative_to(repo_root)
     except ValueError as error:
@@ -150,31 +195,43 @@ def validate_context_entry(
         )
 
     entry_type = data.get("type", "file")
+    normalized = str(data["file"])
     try:
         normalized_path, full_path = normalize_context_path(
             repo_root,
-            str(data["file"]),
+            normalized,
             entry_type,
         )
     except TaskContextError as error:
-        code = (
-            "invalid_entry_type"
-            if error.code == "TASK-CONTEXT-TYPE-001"
-            else "invalid_path"
-        )
+        code = _context_error_issue_code(error)
         return _context_issue(context_file, line, code, error.detail)
 
     if is_skill_path(normalized_path):
         return None
+    return _validate_context_entry_target(
+        context_file,
+        line,
+        entry_type,
+        normalized_path,
+        full_path,
+    )
+
+
+def _context_error_issue_code(error: TaskContextError) -> str:
+    if error.code == "TASK-CONTEXT-TYPE-001":
+        return "invalid_entry_type"
+    return "invalid_path"
+
+
+def _validate_context_entry_target(
+    context_file: str,
+    line: int,
+    entry_type: str,
+    normalized_path: str,
+    full_path: Path,
+) -> ContextValidationIssue | None:
     if entry_type == "planned-file":
-        if full_path.is_dir():
-            return _context_issue(
-                context_file,
-                line,
-                "invalid_path",
-                f"Planned file is a directory: {normalized_path}",
-            )
-        return None
+        return _planned_file_issue(context_file, line, normalized_path, full_path)
     if entry_type == "directory" and not full_path.is_dir():
         return _context_issue(
             context_file,
@@ -187,9 +244,25 @@ def validate_context_entry(
             context_file,
             line,
             "file_not_found",
-            f"File not found: {normalized_path}",
+            f"File not found: {normalized_path}. {PLANNED_FILE_HINT}",
         )
     return None
+
+
+def _planned_file_issue(
+    context_file: str,
+    line: int,
+    normalized_path: str,
+    full_path: Path,
+) -> ContextValidationIssue | None:
+    if not full_path.is_dir():
+        return None
+    return _context_issue(
+        context_file,
+        line,
+        "invalid_path",
+        f"Planned file is a directory: {normalized_path}",
+    )
 
 
 @dataclass(frozen=True)
@@ -463,6 +536,7 @@ class TaskContextService:
             created.append(file_name)
             entry_counts[file_name] = len(entries)
 
+        self.ensure_task_artifact_placeholders(task_dir)
         return ContextInitializationResult(
             created=tuple(created),
             skipped=tuple(skipped),
@@ -607,6 +681,33 @@ class TaskContextService:
                 )
         return tuple(summaries)
 
+    def ensure_task_artifact_placeholders(self, task_dir: Path) -> tuple[str, ...]:
+        """Create empty placeholders for planned task-local context files."""
+        task_dir = Path(task_dir)
+        created: list[str] = []
+        for entry in self.entries(task_dir, "implement"):
+            if entry.get("type") == "planned-file":
+                continue
+            file_path = str(entry.get("file", "")).strip()
+            if not file_path:
+                continue
+            try:
+                normalized, full_path = normalize_context_path(
+                    self.repo_root,
+                    file_path,
+                    "planned-file",
+                )
+            except TaskContextError:
+                continue
+            if not _is_task_local_artifact(task_dir, full_path):
+                continue
+            if full_path.exists():
+                continue
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path.write_text("", encoding="utf-8")
+            created.append(normalized)
+        return tuple(created)
+
     def _implement_entries(self, dev_type: str) -> list[dict]:
         entries = get_implement_base()
         entries.extend(
@@ -654,3 +755,11 @@ class TaskContextService:
         if context_name.endswith(".jsonl"):
             return context_name
         return f"{context_name}.jsonl"
+
+
+def _is_task_local_artifact(task_dir: Path, full_path: Path) -> bool:
+    try:
+        full_path.resolve(strict=False).relative_to(task_dir.resolve(strict=False))
+    except ValueError:
+        return False
+    return not full_path.exists() or full_path.is_file()

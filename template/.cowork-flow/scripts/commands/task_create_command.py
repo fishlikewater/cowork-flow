@@ -25,9 +25,30 @@ from common.core.paths import (
 def cmd_create(args: argparse.Namespace) -> int:
     """Create a new task."""
     repo_root = get_repo_root()
+    request = _build_create_request(args, repo_root)
+    if request is None:
+        return 1
+
+    result = _create_task(repo_root, request)
+    if result is None:
+        return 1
+
+    _print_create_result(result)
+    run_hooks(
+        "after_create",
+        result.task_dir / FILE_TASK_JSON,
+        repo_root,
+    )
+    return 0
+
+
+def _build_create_request(
+    args: argparse.Namespace,
+    repo_root,
+) -> TaskCreationRequest | None:
     if not args.title:
         print(colored("Error: title is required", Colors.RED), file=sys.stderr)
-        return 1
+        return None
 
     assignee = args.assignee or get_developer(repo_root)
     if not assignee:
@@ -39,7 +60,7 @@ def cmd_create(args: argparse.Namespace) -> int:
             ),
             file=sys.stderr,
         )
-        return 1
+        return None
 
     creator = get_developer(repo_root) or assignee
     slug = args.slug or slugify(args.title)
@@ -51,21 +72,23 @@ def cmd_create(args: argparse.Namespace) -> int:
             ),
             file=sys.stderr,
         )
-        return 1
+        return None
 
+    return TaskCreationRequest(
+        title=args.title,
+        slug=slug,
+        assignee=assignee,
+        priority=args.priority,
+        description=args.description,
+        creator=creator,
+        parent=args.parent,
+        from_plan=getattr(args, "from_plan", None),
+    )
+
+
+def _create_task(repo_root, request: TaskCreationRequest):
     try:
-        result = TaskCreationService(repo_root).create(
-            TaskCreationRequest(
-                title=args.title,
-                slug=slug,
-                assignee=assignee,
-                priority=args.priority,
-                description=args.description,
-                creator=creator,
-                parent=args.parent,
-                from_plan=getattr(args, "from_plan", None),
-            )
-        )
+        return TaskCreationService(repo_root).create(request)
     except TaskCreationError as error:
         print(
             colored(
@@ -74,8 +97,10 @@ def cmd_create(args: argparse.Namespace) -> int:
             ),
             file=sys.stderr,
         )
-        return 1
+        return None
 
+
+def _print_create_result(result) -> None:
     dir_name = result.task_dir.name
     if result.directory_existed:
         print(
@@ -112,6 +137,11 @@ def cmd_create(args: argparse.Namespace) -> int:
         colored(f"Created task: {dir_name}", Colors.GREEN),
         file=sys.stderr,
     )
+    _print_next_steps()
+    print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
+
+
+def _print_next_steps() -> None:
     print("", file=sys.stderr)
     print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
     print(
@@ -126,12 +156,9 @@ def cmd_create(args: argparse.Namespace) -> int:
         "  3. Run: ./.cowork-flow/run task start <dir>",
         file=sys.stderr,
     )
-    print("", file=sys.stderr)
-    print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}")
-
-    run_hooks(
-        "after_create",
-        result.task_dir / FILE_TASK_JSON,
-        repo_root,
+    print(
+        "  Planned new files: ./.cowork-flow/run task add-planned-file "
+        "<dir> implement <path> \"reason\"",
+        file=sys.stderr,
     )
-    return 0
+    print("", file=sys.stderr)

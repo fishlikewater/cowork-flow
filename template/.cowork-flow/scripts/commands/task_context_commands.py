@@ -8,6 +8,7 @@ from pathlib import Path
 
 from application.task_context import (
     CONTEXT_JSONL_FILES,
+    PLANNED_FILE_HINT,
     TaskContextError,
     TaskContextService,
 )
@@ -57,6 +58,15 @@ def cmd_init_context(args: argparse.Namespace) -> int:
         )
         return 1
 
+    _report_init_context_result(target_dir, dev_type, result)
+    return 0
+
+
+def _report_init_context_result(
+    target_dir: Path,
+    dev_type: str,
+    result,
+) -> None:
     print(
         colored(
             "=== Initializing Agent Context Files ===",
@@ -79,7 +89,6 @@ def cmd_init_context(args: argparse.Namespace) -> int:
             f"  {colored('[OK]', Colors.GREEN)} "
             f"{result.entry_counts[file_name]} entries"
         )
-    return 0
 
 
 def cmd_add_context(args: argparse.Namespace) -> int:
@@ -133,6 +142,12 @@ def cmd_add_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_add_planned_file(args: argparse.Namespace) -> int:
+    """Add a planned-file entry to a JSONL context file."""
+    args.entry_type = "planned-file"
+    return cmd_add_context(args)
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate JSONL context files."""
     repo_root = get_repo_root()
@@ -158,6 +173,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
             print(
                 f"  {colored(f'{jsonl_name}:{issue.line}: {issue.message}', Colors.RED)}"
             )
+            if issue.code == "file_not_found":
+                print(f"    Hint: {PLANNED_FILE_HINT}")
         error_count = len(result.issues)
         total_errors += error_count
         if error_count == 0:

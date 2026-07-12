@@ -218,6 +218,83 @@ class TaskContextServiceTest(unittest.TestCase):
             self.assertEqual(["invalid_entry_type"], [issue.code for issue in issues])
             self.assertEqual([2], [issue.line for issue in issues])
 
+    def test_missing_file_issue_includes_planned_file_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps(
+                    {"file": "src/future.py", "reason": "Planned source"},
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            issues = self.TaskContextService(root).validate(task_dir)
+
+            self.assertEqual(["file_not_found"], [issue.code for issue in issues])
+            self.assertIn("add-planned-file", issues[0].message)
+            self.assertIn('"type": "planned-file"', issues[0].message)
+
+    def test_initialize_creates_task_local_placeholder_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            report = task_dir / "workflow-smoke-audit.md"
+            source = root / "src" / "future.py"
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps(
+                    {
+                        "file": ".cowork-flow/tasks/07-10-demo/workflow-smoke-audit.md",
+                        "reason": "Task-local report",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+                + json.dumps(
+                    {
+                        "file": "src/future.py",
+                        "reason": "Normal missing source must remain missing",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.TaskContextService(root).initialize(task_dir, "backend")
+
+            self.assertEqual(("check.jsonl", "debug.jsonl"), result.created)
+            self.assertTrue(report.is_file())
+            self.assertEqual("", report.read_text(encoding="utf-8"))
+            self.assertFalse(source.exists())
+
+    def test_start_placeholder_helper_reports_created_paths_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            report = task_dir / "notes" / "audit.md"
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps(
+                    {
+                        "file": ".cowork-flow/tasks/07-10-demo/notes/audit.md",
+                        "reason": "Task-local nested report",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            service = self.TaskContextService(root)
+
+            first = service.ensure_task_artifact_placeholders(task_dir)
+            second = service.ensure_task_artifact_placeholders(task_dir)
+
+            self.assertEqual((".cowork-flow/tasks/07-10-demo/notes/audit.md",), first)
+            self.assertEqual((), second)
+            self.assertTrue(report.is_file())
+
     def test_live_and_template_context_implementations_match(self) -> None:
         relative_files = (
             "application/task_context.py",
