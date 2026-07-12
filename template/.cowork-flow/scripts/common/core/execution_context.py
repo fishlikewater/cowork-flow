@@ -228,13 +228,104 @@ def worker_command_block_message(
     return f"Blocked: worker mode cannot run `{command}` for assignment {assignment}. {reason}"
 
 
-def build_worker_resume_text(
-    context: ExecutionContext,
-    repo_root: Path | None = None,
-) -> str:
-    if repo_root is None:
-        repo_root = get_repo_root()
+def _append_allowed_context(
+    lines: list[str],
+    allowed_context: object,
+    *,
+    allow_string_items: bool,
+) -> None:
+    if not isinstance(allowed_context, list) or not allowed_context:
+        return
+    lines.extend(["", "## Allowed context"])
+    for item in allowed_context:
+        if allow_string_items and isinstance(item, str) and item.strip():
+            lines.append(f"- {item.strip()}")
+        elif isinstance(item, dict):
+            _append_file_reason_item(lines, item)
 
+
+def _append_file_reason_item(lines: list[str], item: dict) -> None:
+    file_value = item.get("file")
+    reason = item.get("reason")
+    if isinstance(file_value, str) and file_value.strip():
+        suffix = f" - {reason}" if isinstance(reason, str) and reason.strip() else ""
+        lines.append(f"- {file_value}{suffix}")
+
+
+def _append_string_list_section(
+    lines: list[str],
+    title: str,
+    values: object,
+) -> None:
+    if not isinstance(values, list) or not values:
+        return
+    items = [value.strip() for value in values if isinstance(value, str) and value.strip()]
+    if not items:
+        return
+    lines.extend(["", title])
+    lines.extend(f"- {item}" for item in items)
+
+
+def _append_context_metadata(
+    lines: list[str],
+    context_data: dict[str, object],
+) -> None:
+    metadata_fields = [
+        ("runtimeContextId", "Runtime context"),
+        ("runtimeContextStatus", "Runtime context status"),
+        ("agentType", "Agent type"),
+        ("dispatchReliability", "Dispatch reliability"),
+    ]
+    runtime_context_id = (
+        context_data.get("runtimeContextId")
+        or context_data.get("runtime_context_id")
+    )
+    if isinstance(runtime_context_id, str) and runtime_context_id.strip():
+        lines.append(f"Runtime context: {runtime_context_id}")
+    for key, label in metadata_fields[1:]:
+        value = context_data.get(key)
+        if isinstance(value, str) and value.strip():
+            lines.append(f"{label}: {value}")
+
+
+def _append_status_file(
+    lines: list[str],
+    repo_root: Path,
+    status_file: object,
+) -> None:
+    if not isinstance(status_file, str) or not status_file.strip():
+        return
+    status_path = repo_root / status_file
+    if not status_path.is_file():
+        return
+    try:
+        status = json.loads(status_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        lines.extend(["", "## Current status", f"Status file unreadable: {status_file}"])
+        return
+    lines.extend(["", "## Current status", f"Status: {status.get('status', 'unknown')}"])
+    note = status.get("note")
+    if isinstance(note, str) and note.strip():
+        lines.append(f"Note: {note}")
+
+
+def _append_recent_events(
+    lines: list[str],
+    repo_root: Path,
+    events_file: object,
+) -> None:
+    if not isinstance(events_file, str) or not events_file.strip():
+        return
+    events_path = repo_root / events_file
+    if not events_path.is_file():
+        return
+    events = events_path.read_text(encoding="utf-8").splitlines()[-5:]
+    if events:
+        lines.extend(["", "## Recent events"])
+        lines.extend(f"- {event}" for event in events)
+
+
+def _worker_resume_header(context: ExecutionContext) -> list[str]:
     lines = [
         "========================================",
         "WORKER CONTEXT",
@@ -249,36 +340,28 @@ def build_worker_resume_text(
         lines.append(f"Prompt file: {context.prompt_file}")
     if context.context_file:
         lines.append(f"Context file: {context.context_file}")
-    lines.extend(
-        [
-            "",
-            "## READ FIRST",
-            f"- Read worker brief: {context.prompt_file or '(missing prompt file)'}",
-        ]
+    return lines
+
+
+def _append_worker_read_first(
+    lines: list[str],
+    context: ExecutionContext,
+    repo_root: Path,
+    context_data: dict[str, object],
+) -> None:
+    lines.extend(["", "## READ FIRST", f"- Read worker brief: {context.prompt_file or '(missing prompt file)'}"])
+    _append_allowed_context(
+        lines,
+        context_data.get("allowedContext"),
+        allow_string_items=False,
     )
-    context_data = _load_context_file(context.context_file) if context.context_file else {}
-    allowed_context = context_data.get("allowedContext")
-    if isinstance(allowed_context, list) and allowed_context:
-        lines.extend(["", "## Allowed context"])
-        for item in allowed_context:
-            if not isinstance(item, dict):
-                continue
-            file_value = item.get("file")
-            reason = item.get("reason")
-            if isinstance(file_value, str) and file_value.strip():
-                suffix = f" - {reason}" if isinstance(reason, str) and reason.strip() else ""
-                lines.append(f"- {file_value}{suffix}")
-    if context.task_dir and (repo_root / context.task_dir / "decision-anchor.md").is_file():
+    decision_anchor = repo_root / (context.task_dir or "") / "decision-anchor.md"
+    if context.task_dir and decision_anchor.is_file():
         lines.append(f"- Read task decision-anchor: {context.task_dir}/decision-anchor.md")
     lines.append("- Follow only the files, steps, and commands named in the worker brief.")
 
-    forbidden_actions = context_data.get("forbiddenActions")
-    if isinstance(forbidden_actions, list) and forbidden_actions:
-        lines.extend(["", "## FORBIDDEN ACTIONS"])
-        for action in forbidden_actions:
-            if isinstance(action, str) and action.strip():
-                lines.append(f"- {action.strip()}")
 
+def _append_worker_rules(lines: list[str], context: ExecutionContext) -> None:
     lines.extend(
         [
             "",
@@ -295,24 +378,31 @@ def build_worker_resume_text(
             "========================================",
         ]
     )
-    return "\n".join(lines)
 
 
-def build_subagent_resume_text(
+def build_worker_resume_text(
     context: ExecutionContext,
     repo_root: Path | None = None,
 ) -> str:
     if repo_root is None:
         repo_root = get_repo_root()
+
+    lines = _worker_resume_header(context)
     context_data = _load_context_file(context.context_file) if context.context_file else {}
-    allowed_context = context_data.get("allowedContext")
-    forbidden_actions = context_data.get("forbiddenActions")
-    status_file = context_data.get("statusFile")
-    events_file = context_data.get("eventsFile")
-    runtime_context_id = context_data.get("runtimeContextId") or context_data.get("runtime_context_id")
-    runtime_context_status = context_data.get("runtimeContextStatus")
-    agent_type = context_data.get("agentType")
-    dispatch_reliability = context_data.get("dispatchReliability")
+    _append_worker_read_first(lines, context, repo_root, context_data)
+    _append_string_list_section(
+        lines,
+        "## FORBIDDEN ACTIONS",
+        context_data.get("forbiddenActions"),
+    )
+    _append_worker_rules(lines, context)
+    return "\n".join(lines)
+
+
+def _subagent_resume_header(
+    context: ExecutionContext,
+    context_data: dict[str, object],
+) -> list[str]:
     lines = [
         "========================================",
         "COWORK-FLOW SUBAGENT RESUME",
@@ -326,50 +416,13 @@ def build_subagent_resume_text(
         f"Role: {context.role or 'unknown'}",
         f"Goal: {context.goal or 'unknown'}",
     ]
-    if isinstance(runtime_context_id, str) and runtime_context_id.strip():
-        lines.append(f"Runtime context: {runtime_context_id}")
-    if isinstance(runtime_context_status, str) and runtime_context_status.strip():
-        lines.append(f"Runtime context status: {runtime_context_status}")
-    if isinstance(agent_type, str) and agent_type.strip():
-        lines.append(f"Agent type: {agent_type}")
-    if isinstance(dispatch_reliability, str) and dispatch_reliability.strip():
-        lines.append(f"Dispatch reliability: {dispatch_reliability}")
+    _append_context_metadata(lines, context_data)
     if context.context_file:
         lines.append(f"Context file: {context.context_file}")
-    if isinstance(allowed_context, list) and allowed_context:
-        lines.extend(["", "## Allowed context"])
-        for item in allowed_context:
-            if isinstance(item, str) and item.strip():
-                lines.append(f"- {item.strip()}")
-            elif isinstance(item, dict):
-                file_value = item.get("file")
-                reason = item.get("reason")
-                if isinstance(file_value, str) and file_value.strip():
-                    suffix = f" - {reason}" if isinstance(reason, str) and reason.strip() else ""
-                    lines.append(f"- {file_value}{suffix}")
-    if isinstance(forbidden_actions, list) and forbidden_actions:
-        lines.extend(["", "## Forbidden actions"])
-        for action in forbidden_actions:
-            if isinstance(action, str) and action.strip():
-                lines.append(f"- {action.strip()}")
-    if isinstance(status_file, str) and status_file.strip():
-        status_path = repo_root / status_file
-        if status_path.is_file():
-            try:
-                status = json.loads(status_path.read_text(encoding="utf-8"))
-                lines.extend(["", "## Current status", f"Status: {status.get('status', 'unknown')}"])
-                note = status.get("note")
-                if isinstance(note, str) and note.strip():
-                    lines.append(f"Note: {note}")
-            except (json.JSONDecodeError, OSError):
-                lines.extend(["", "## Current status", f"Status file unreadable: {status_file}"])
-    if isinstance(events_file, str) and events_file.strip():
-        events_path = repo_root / events_file
-        if events_path.is_file():
-            events = events_path.read_text(encoding="utf-8").splitlines()[-5:]
-            if events:
-                lines.extend(["", "## Recent events"])
-                lines.extend(f"- {event}" for event in events)
+    return lines
+
+
+def _append_subagent_rules(lines: list[str]) -> None:
     lines.extend([
         "",
         "## RULES",
@@ -382,4 +435,27 @@ def build_subagent_resume_text(
         "",
         "========================================",
     ])
+
+
+def build_subagent_resume_text(
+    context: ExecutionContext,
+    repo_root: Path | None = None,
+) -> str:
+    if repo_root is None:
+        repo_root = get_repo_root()
+    context_data = _load_context_file(context.context_file) if context.context_file else {}
+    lines = _subagent_resume_header(context, context_data)
+    _append_allowed_context(
+        lines,
+        context_data.get("allowedContext"),
+        allow_string_items=True,
+    )
+    _append_string_list_section(
+        lines,
+        "## Forbidden actions",
+        context_data.get("forbiddenActions"),
+    )
+    _append_status_file(lines, repo_root, context_data.get("statusFile"))
+    _append_recent_events(lines, repo_root, context_data.get("eventsFile"))
+    _append_subagent_rules(lines)
     return "\n".join(lines)

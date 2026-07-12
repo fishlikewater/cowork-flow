@@ -483,6 +483,39 @@ def _append_paths(lines: list[str], developer: str) -> None:
     lines.append("")
 
 
+def _context_journal_json(repo_root: Path, developer: str | None) -> dict:
+    """Build journal context for JSON output."""
+    journal_file = get_active_journal_file(repo_root)
+    journal_lines = 0
+    journal_relative = ""
+    if journal_file and developer:
+        journal_lines = count_lines(journal_file)
+        journal_relative = (
+            f"{DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/{journal_file.name}"
+        )
+    return {
+        "file": journal_relative,
+        "lines": journal_lines,
+        "nearLimit": journal_lines > 1800,
+    }
+
+
+def _context_tasks_json(tasks_dir: Path) -> list[dict]:
+    """Build active task list for JSON output."""
+    tasks = []
+    for dir_name, data in _load_task_json_by_dir(tasks_dir, sort=False).items():
+        tasks.append(
+            {
+                "dir": dir_name,
+                "name": data.get("name") or data.get("id") or "unknown",
+                "status": data.get("status", "unknown"),
+                "children": data.get("children", []),
+                "parent": data.get("parent"),
+            }
+        )
+    return tasks
+
+
 # =============================================================================
 # JSON Output
 # =============================================================================
@@ -502,43 +535,17 @@ def get_context_json(repo_root: Path | None = None) -> dict:
 
     developer = get_developer(repo_root)
     tasks_dir = get_tasks_dir(repo_root)
-    journal_file = get_active_journal_file(repo_root)
     git_snapshot = _get_git_snapshot(repo_root)
     active_task_snapshot = _get_active_task_snapshot(repo_root)
-
-    journal_lines = 0
-    journal_relative = ""
-    if journal_file and developer:
-        journal_lines = count_lines(journal_file)
-        journal_relative = (
-            f"{DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/{journal_file.name}"
-        )
-
-    # Tasks
-    tasks = []
-    for dir_name, data in _load_task_json_by_dir(tasks_dir, sort=False).items():
-        tasks.append(
-            {
-                "dir": dir_name,
-                "name": data.get("name") or data.get("id") or "unknown",
-                "status": data.get("status", "unknown"),
-                "children": data.get("children", []),
-                "parent": data.get("parent"),
-            }
-        )
 
     return {
         "developer": developer or "",
         "git": _git_json(git_snapshot),
         "tasks": {
-            "active": tasks,
+            "active": _context_tasks_json(tasks_dir),
             "directory": f"{DIR_WORKFLOW}/{DIR_TASKS}",
         },
-        "journal": {
-            "file": journal_relative,
-            "lines": journal_lines,
-            "nearLimit": journal_lines > 1800,
-        },
+        "journal": _context_journal_json(repo_root, developer),
         "resumeChecklist": _build_resume_checklist(repo_root, active_task_snapshot),
     }
 
@@ -558,37 +565,32 @@ def output_json(repo_root: Path | None = None) -> None:
 # =============================================================================
 
 
-def get_context_text(repo_root: Path | None = None) -> str:
-    """Get context as formatted text.
+def _new_context_lines(title: str) -> list[str]:
+    return [
+        "========================================",
+        title,
+        "========================================",
+        "",
+    ]
 
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
 
-    Returns:
-        Formatted text output.
-    """
-    if repo_root is None:
-        repo_root = get_repo_root()
-
-    lines = []
-    lines.append("========================================")
-    lines.append("SESSION CONTEXT")
-    lines.append("========================================")
-    lines.append("")
-
-    developer = get_developer(repo_root)
-
-    # Developer section
+def _append_developer(lines: list[str], developer: str | None) -> bool:
     lines.append("## DEVELOPER")
     if not developer:
         lines.append(
             f"ERROR: Not initialized. Run: ./{DIR_WORKFLOW}/run init-developer <name>"
         )
-        return "\n".join(lines)
-
+        return False
     lines.append(f"Name: {developer}")
     lines.append("")
+    return True
 
+
+def _append_default_context_sections(
+    lines: list[str],
+    repo_root: Path,
+    developer: str,
+) -> None:
     git_snapshot = _get_git_snapshot(repo_root)
     _append_git_status(lines, git_snapshot, repo_root)
     _append_recent_commits(lines, git_snapshot)
@@ -608,6 +610,25 @@ def get_context_text(repo_root: Path | None = None) -> str:
     _append_journal_file(lines, repo_root, developer)
     _append_paths(lines, developer)
 
+
+def get_context_text(repo_root: Path | None = None) -> str:
+    """Get context as formatted text.
+
+    Args:
+        repo_root: Repository root path. Defaults to auto-detected.
+
+    Returns:
+        Formatted text output.
+    """
+    if repo_root is None:
+        repo_root = get_repo_root()
+
+    lines = _new_context_lines("SESSION CONTEXT")
+    developer = get_developer(repo_root)
+    if not _append_developer(lines, developer):
+        return "\n".join(lines)
+
+    _append_default_context_sections(lines, repo_root, developer)
     lines.append("========================================")
 
     return "\n".join(lines)
@@ -622,42 +643,79 @@ def get_context_record_json(repo_root: Path | None = None) -> dict:
         repo_root = get_repo_root()
 
     developer = get_developer(repo_root)
-    tasks_dir = get_tasks_dir(repo_root)
-
     git_snapshot = _get_git_snapshot(
         repo_root,
         include_empty_commit_message=False,
     )
-
-    # My tasks
-    my_tasks = []
-    task_data_by_dir = _load_task_json_by_dir(tasks_dir)
-    all_task_statuses = _task_statuses(task_data_by_dir)
-
-    for dir_name, data in task_data_by_dir.items():
-        if data.get("assignee") == developer:
-            children_list = data.get("children", [])
-            done = _children_done_count(children_list, all_task_statuses)
-            my_tasks.append({
-                "dir": dir_name,
-                "title": data.get("title") or data.get("name") or "unknown",
-                "status": data.get("status", "unknown"),
-                "priority": data.get("priority", "P2"),
-                "children": children_list,
-                "childrenDone": done,
-                "parent": data.get("parent"),
-                "meta": data.get("meta", {}),
-            })
 
     active_task_snapshot = _get_active_task_snapshot(repo_root)
 
     return {
         "developer": developer or "",
         "git": _git_json(git_snapshot),
-        "myTasks": my_tasks,
+        "myTasks": _record_my_tasks_json(get_tasks_dir(repo_root), developer),
         "activeTask": _active_task_json(active_task_snapshot),
         "resumeChecklist": _build_resume_checklist(repo_root, active_task_snapshot),
     }
+
+
+def _record_my_tasks_json(tasks_dir: Path, developer: str | None) -> list[dict]:
+    """Build record-mode task list for JSON output."""
+    my_tasks = []
+    task_data_by_dir = _load_task_json_by_dir(tasks_dir)
+    all_task_statuses = _task_statuses(task_data_by_dir)
+    for dir_name, data in task_data_by_dir.items():
+        if data.get("assignee") != developer:
+            continue
+        children_list = data.get("children", [])
+        my_tasks.append({
+            "dir": dir_name,
+            "title": data.get("title") or data.get("name") or "unknown",
+            "status": data.get("status", "unknown"),
+            "priority": data.get("priority", "P2"),
+            "children": children_list,
+            "childrenDone": _children_done_count(children_list, all_task_statuses),
+            "parent": data.get("parent"),
+            "meta": data.get("meta", {}),
+        })
+    return my_tasks
+
+
+def _append_record_my_tasks(
+    lines: list[str],
+    developer: str,
+    tasks_dir: Path,
+) -> None:
+    """Append prominent record-mode tasks assigned to the developer."""
+    lines.append(f"## [!!!] MY ACTIVE TASKS (Assigned to {developer})")
+    lines.append("[!] Review whether any should be archived before recording this session.")
+    lines.append("")
+
+    my_task_count = 0
+    task_data_by_dir = _load_task_json_by_dir(tasks_dir)
+    all_task_statuses = _task_statuses(task_data_by_dir)
+    for dir_name, data in task_data_by_dir.items():
+        if data.get("assignee", "") != developer:
+            continue
+        title = data.get("title") or data.get("name") or "unknown"
+        priority = data.get("priority", "P2")
+        status = data.get("status", "planning")
+        progress = _children_progress(data.get("children", []), all_task_statuses)
+        lines.append(f"- [{priority}] {title} ({status}){progress} - {dir_name}")
+        my_task_count += 1
+
+    if my_task_count == 0:
+        lines.append("(no active tasks assigned to you)")
+    lines.append("")
+
+
+def _append_record_context_sections(lines: list[str], repo_root: Path) -> None:
+    git_snapshot = _get_git_snapshot(repo_root)
+    _append_git_status(lines, git_snapshot, repo_root)
+    _append_recent_commits(lines, git_snapshot)
+    active_task_snapshot = _get_active_task_snapshot(repo_root)
+    _append_active_task(lines, active_task_snapshot)
+    _append_resume_checklist(lines, repo_root, active_task_snapshot)
 
 
 def get_context_text_record(repo_root: Path | None = None) -> str:
@@ -675,12 +733,7 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
     if repo_root is None:
         repo_root = get_repo_root()
 
-    lines: list[str] = []
-    lines.append("========================================")
-    lines.append("SESSION CONTEXT (RECORD MODE)")
-    lines.append("========================================")
-    lines.append("")
-
+    lines = _new_context_lines("SESSION CONTEXT (RECORD MODE)")
     developer = get_developer(repo_root)
     if not developer:
         lines.append(
@@ -688,41 +741,8 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
         )
         return "\n".join(lines)
 
-    # MY ACTIVE TASKS - first and prominent
-    lines.append(f"## [!!!] MY ACTIVE TASKS (Assigned to {developer})")
-    lines.append("[!] Review whether any should be archived before recording this session.")
-    lines.append("")
-
-    tasks_dir = get_tasks_dir(repo_root)
-    my_task_count = 0
-
-    # Collect task data for children progress
-    task_data_by_dir = _load_task_json_by_dir(tasks_dir)
-    all_task_statuses = _task_statuses(task_data_by_dir)
-
-    for dir_name, data in task_data_by_dir.items():
-        assignee = data.get("assignee", "")
-        status = data.get("status", "planning")
-
-        if assignee == developer:
-            title = data.get("title") or data.get("name") or "unknown"
-            priority = data.get("priority", "P2")
-            children_list = data.get("children", [])
-            progress = _children_progress(children_list, all_task_statuses)
-            lines.append(f"- [{priority}] {title} ({status}){progress} - {dir_name}")
-            my_task_count += 1
-
-    if my_task_count == 0:
-        lines.append("(no active tasks assigned to you)")
-    lines.append("")
-
-    git_snapshot = _get_git_snapshot(repo_root)
-    _append_git_status(lines, git_snapshot, repo_root)
-    _append_recent_commits(lines, git_snapshot)
-    active_task_snapshot = _get_active_task_snapshot(repo_root)
-    _append_active_task(lines, active_task_snapshot)
-    _append_resume_checklist(lines, repo_root, active_task_snapshot)
-
+    _append_record_my_tasks(lines, developer, get_tasks_dir(repo_root))
+    _append_record_context_sections(lines, repo_root)
     lines.append("========================================")
 
     return "\n".join(lines)
