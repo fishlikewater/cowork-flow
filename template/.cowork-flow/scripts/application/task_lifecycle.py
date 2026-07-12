@@ -124,11 +124,13 @@ class TaskLifecycleService:
         task: str | Path,
         *,
         completed_at: str | None = None,
+        allow_spec_file_modifications: bool = False,
     ) -> LifecycleResult:
         return self.execute(
             COMPLETE_STAGE,
             task,
             completed_at=completed_at,
+            allow_spec_file_modifications=allow_spec_file_modifications,
         )
 
     def execute(
@@ -308,7 +310,7 @@ class TaskLifecycleService:
         task_dir: Path,
         already_at_target: bool,
     ) -> LifecycleResult | None:
-        if not already_at_target or stage.name == REVIEW_STAGE.name:
+        if not already_at_target or stage.name != START_STAGE.name:
             return None
         return LifecycleResult(
             ok=True,

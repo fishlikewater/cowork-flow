@@ -216,7 +216,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
     - 所有声明通过的验证都有命令输出依据。
     - 规格已更新，或明确判断无需更新。
     - 计划状态、任务状态、`change` 元数据不冲突。
-    - 先归档，再记录会话，然后提交。
+    - 先归档并提交实现，再用真实实现提交哈希记录会话；会话元数据使用 follow-up metadata commit 提交。
     - 不纳入无关脏改。
 
 2. 顺序：
@@ -226,11 +226,15 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
     git diff --check
     npm run test:all
     ./.cowork-flow/run task archive <task-name>
-    ./.cowork-flow/run add-session --title "<title>" --commit "-" --summary "<summary>"
     git status --short
     git add <expected files>
     git commit -m "<message>"
+    implementation_commit="$(git rev-parse HEAD)"
+    ./.cowork-flow/run add-session --title "<title>" --commit "$implementation_commit" --summary "<summary>"
+    git add .cowork-flow/workspace/<developer>/
+    git commit -m "docs(session): record <title>"
     ```
+   第二个提交是明确的 follow-up metadata commit；session 中的 `commit` 始终指向前一个真实实现提交，不使用永久占位值。
    `task archive <task-name>` 会归档 task，并自动归档 `change.yaml.task`
    指向该 task 的 active change；无法通过 `change validate` 的 change 不会被自动归档。
 

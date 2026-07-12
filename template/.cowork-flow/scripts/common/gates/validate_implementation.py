@@ -18,6 +18,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from common.git.git_snapshot import collect_changed_paths
+
 try:
     from .validate_rules import (
         config_violation,
@@ -71,7 +73,15 @@ def validate_implementation(
         )
     )
     violations.extend(_check_premature_abstraction(repo_root, diff_output, rule_index))
-    violations.extend(_check_unrequested_features(repo_root, diff_output, task_dir, rule_index))
+    violations.extend(
+        _check_unrequested_features(
+            repo_root,
+            diff_output,
+            task_dir,
+            rule_index,
+            modified_files=modified_files,
+        )
+    )
 
     return violations
 
@@ -86,38 +96,44 @@ def _missing_rule(repo_root: Path, rule_id: str) -> dict:
 
 
 def _get_modified_files(repo_root: Path) -> list[str]:
-    """Get git-tracked modified files under repo_root."""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", "--", "."],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        if result.returncode == 0:
-            return [file_path for file_path in result.stdout.strip().split("\n") if file_path]
-        return []
-    except Exception:
-        return []
+    """Get staged, unstaged, and untracked files under repo_root."""
+    changed_files = collect_changed_paths(repo_root)
+    return [
+        file_path
+        for file_path in changed_files
+        if _is_implementation_relevant(file_path)
+    ]
+
+
+def _is_implementation_relevant(file_path: str) -> bool:
+    normalized = file_path.replace("\\", "/")
+    if not normalized.startswith(".cowork-flow/"):
+        return True
+    return (
+        normalized.startswith(".cowork-flow/spec/")
+        or normalized == ".cowork-flow/workflow.md"
+    )
 
 
 def _get_git_diff(repo_root: Path, files: list[str]) -> str:
-    """Get git diff output"""
+    """Get unstaged and staged diff output for changed files."""
     if not files:
         return ""
 
     try:
-        diff_result = subprocess.run(
-            ["git", "diff", "--", *files],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        return diff_result.stdout
+        outputs = []
+        for extra_args in ((), ("--cached",)):
+            diff_result = subprocess.run(
+                ["git", "diff", *extra_args, "--", *files],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            if diff_result.returncode == 0:
+                outputs.append(diff_result.stdout)
+        return "\n".join(outputs)
     except Exception:
         return ""
 
@@ -229,6 +245,8 @@ def _check_unrequested_features(
     diff_output: str,
     task_dir: Path,
     rule_index: dict[str, dict],
+    *,
+    modified_files: list[str] | None = None,
 ) -> list[dict]:
     """R-AG-005: Require modified files to be explicitly listed."""
     del diff_output
@@ -242,8 +260,12 @@ def _check_unrequested_features(
         return violations
 
     # Get modified project files (exclude .cowork-flow/ metadata)
-    modified_files = _get_modified_files(repo_root)
-    for file_path in modified_files:
+    changed_files = (
+        modified_files
+        if modified_files is not None
+        else _get_modified_files(repo_root)
+    )
+    for file_path in changed_files:
         # Skip .cowork-flow metadata files and template files
         if ".cowork-flow/" in file_path:
             continue

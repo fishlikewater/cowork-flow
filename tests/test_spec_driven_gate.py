@@ -388,6 +388,9 @@ class GatePipelineTest(unittest.TestCase):
                 )
 
     def test_review_complete_difference_lives_in_stage_configuration(self) -> None:
+        self.assertIn("implementation", self.gates.STAGE_GATES["task_review"])
+        self.assertIn("implementation", self.gates.STAGE_GATES["task_complete"])
+        self.assertEqual("implementation", self.gates.STAGE_GATES["task_complete"][0])
         self.assertEqual(
             {
                 "id",

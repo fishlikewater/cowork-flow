@@ -28,6 +28,7 @@ STAGE_GATES = {
         "complexity",
     ),
     "task_complete": (
+        "implementation",
         "tdd_evidence",
         "test_intent",
         "runtime_rules",
@@ -37,9 +38,8 @@ STAGE_GATES = {
 }
 
 
-def build_default_registry() -> GateRegistry:
-    registry = GateRegistry()
-    for binding in (
+def _validator_bindings() -> tuple[ValidatorBinding, ...]:
+    return (
         ValidatorBinding(
             key="runtime_rules",
             module="validate_rules",
@@ -79,10 +79,11 @@ def build_default_registry() -> GateRegistry:
             function="validate_complexity_signals",
             positional=("repo_root", "task_dir"),
         ),
-    ):
-        registry.register_validator(binding)
+    )
 
-    definitions = (
+
+def _gate_definitions() -> tuple[GateDefinition, ...]:
+    return (
         GateDefinition(
             id="runtime_rules",
             validator_key="runtime_rules",
@@ -94,7 +95,7 @@ def build_default_registry() -> GateRegistry:
             id="implementation",
             validator_key="implementation",
             required=True,
-            block_message="Implementation gate blocked task review",
+            block_message="Implementation gate blocked lifecycle transition",
             warning_message="Implementation violations detected",
         ),
         GateDefinition(
@@ -124,7 +125,13 @@ def build_default_registry() -> GateRegistry:
             warning_message="Complexity review warnings",
         ),
     )
-    for definition in definitions:
+
+
+def build_default_registry() -> GateRegistry:
+    registry = GateRegistry()
+    for binding in _validator_bindings():
+        registry.register_validator(binding)
+    for definition in _gate_definitions():
         registry.register_gate(definition)
     return registry
 
@@ -151,61 +158,57 @@ def _pipeline_violation(
     ).to_dict()
 
 
+def _normalize_violation(
+    raw_violation: object,
+    context: GateContext,
+    definition: GateDefinition,
+) -> dict:
+    if not isinstance(raw_violation, Mapping):
+        return _pipeline_violation(
+            rule_id="GATE-PROTOCOL-001",
+            context=context,
+            definition=definition,
+            message=f"Gate {definition.id} returned a non-object violation",
+            fix_hint="Return violation dictionaries with stable metadata.",
+        )
+    try:
+        return Violation.from_mapping(
+            raw_violation,
+            scope=context.scope,
+            gate_id=definition.id,
+        ).to_dict()
+    except ValueError as error:
+        return _pipeline_violation(
+            rule_id="GATE-PROTOCOL-001",
+            context=context,
+            definition=definition,
+            message=f"Gate {definition.id} returned invalid metadata: {error}",
+            fix_hint="Return violations with rule_id, severity, and message.",
+        )
+
+
 def _normalize_violations(
     raw_result: object,
     context: GateContext,
     definition: GateDefinition,
 ) -> list[dict]:
-    if not isinstance(raw_result, list):
+    if isinstance(raw_result, list):
         return [
-            _pipeline_violation(
-                rule_id="GATE-PROTOCOL-001",
-                context=context,
-                definition=definition,
-                message=(
-                    f"Gate {definition.id} returned "
-                    f"{type(raw_result).__name__}; expected a list of violations"
-                ),
-                fix_hint="Return list[dict] from the registered gate validator.",
-            )
+            _normalize_violation(item, context, definition)
+            for item in raw_result
         ]
-
-    normalized: list[dict] = []
-    for raw_violation in raw_result:
-        if not isinstance(raw_violation, Mapping):
-            normalized.append(
-                _pipeline_violation(
-                    rule_id="GATE-PROTOCOL-001",
-                    context=context,
-                    definition=definition,
-                    message=(
-                        f"Gate {definition.id} returned a non-object violation"
-                    ),
-                    fix_hint="Return violation dictionaries with stable metadata.",
-                )
-            )
-            continue
-        try:
-            normalized.append(
-                Violation.from_mapping(
-                    raw_violation,
-                    scope=context.scope,
-                    gate_id=definition.id,
-                ).to_dict()
-            )
-        except ValueError as error:
-            normalized.append(
-                _pipeline_violation(
-                    rule_id="GATE-PROTOCOL-001",
-                    context=context,
-                    definition=definition,
-                    message=f"Gate {definition.id} returned invalid metadata: {error}",
-                    fix_hint=(
-                        "Return violations with rule_id, severity, and message."
-                    ),
-                )
-            )
-    return normalized
+    return [
+        _pipeline_violation(
+            rule_id="GATE-PROTOCOL-001",
+            context=context,
+            definition=definition,
+            message=(
+                f"Gate {definition.id} returned "
+                f"{type(raw_result).__name__}; expected a list of violations"
+            ),
+            fix_hint="Return list[dict] from the registered gate validator.",
+        )
+    ]
 
 
 class GatePipeline:
@@ -214,62 +217,65 @@ class GatePipeline:
     def __init__(self, registry: GateRegistry | None = None) -> None:
         self.registry = registry or build_default_registry()
 
-    def run(self, context: GateContext) -> GateResult:
-        executions: list[GateExecution] = []
-        priority_violations: list[dict] = []
-        ordinary_violations: list[dict] = []
-
-        for gate_id in STAGE_GATES[context.scope]:
-            definition = self.registry.gate(gate_id)
-            try:
-                raw_result = self.registry.invoke(definition, context)
-            except GateLoadError as error:
-                violations = [
-                    _pipeline_violation(
-                        rule_id="GATE-LOAD-001",
-                        context=context,
-                        definition=definition,
-                        message=f"Gate {definition.id} could not load: {error}",
-                        fix_hint=(
-                            "Restore the required validator module and function."
-                        ),
-                    )
-                ]
-            except Exception as error:
-                violations = [
-                    _pipeline_violation(
-                        rule_id="GATE-EXEC-001",
-                        context=context,
-                        definition=definition,
-                        message=f"Gate {definition.id} failed during execution: {error}",
-                        fix_hint=(
-                            "Fix the validator exception; lifecycle gates fail closed."
-                        ),
-                    )
-                ]
-            else:
-                violations = _normalize_violations(
-                    raw_result,
-                    context,
-                    definition,
+    def _execute_gate(
+        self,
+        context: GateContext,
+        gate_id: str,
+    ) -> GateExecution:
+        definition = self.registry.gate(gate_id)
+        try:
+            raw_result = self.registry.invoke(definition, context)
+        except GateLoadError as error:
+            violations = [
+                _pipeline_violation(
+                    rule_id="GATE-LOAD-001",
+                    context=context,
+                    definition=definition,
+                    message=f"Gate {definition.id} could not load: {error}",
+                    fix_hint="Restore the required validator module and function.",
                 )
-
-            gate_result = GateResult.from_violations(
+            ]
+        except Exception as error:
+            violations = [
+                _pipeline_violation(
+                    rule_id="GATE-EXEC-001",
+                    context=context,
+                    definition=definition,
+                    message=f"Gate {definition.id} failed during execution: {error}",
+                    fix_hint="Fix the validator exception; lifecycle gates fail closed.",
+                )
+            ]
+        else:
+            violations = _normalize_violations(raw_result, context, definition)
+        return GateExecution(
+            definition=definition,
+            result=GateResult.from_violations(
                 context.scope,
                 violations,
                 context.task_dir,
-            )
-            executions.append(
-                GateExecution(
-                    definition=definition,
-                    result=gate_result,
-                )
-            )
-            for violation in gate_result.violations:
-                if str(violation.get("rule_id", "")).startswith("GATE-"):
-                    priority_violations.append(violation)
-                else:
-                    ordinary_violations.append(violation)
+            ),
+        )
+
+    def run(self, context: GateContext) -> GateResult:
+        executions = [
+            self._execute_gate(context, gate_id)
+            for gate_id in STAGE_GATES[context.scope]
+        ]
+        violations = [
+            violation
+            for execution in executions
+            for violation in execution.result.violations
+        ]
+        priority_violations = [
+            violation
+            for violation in violations
+            if str(violation.get("rule_id", "")).startswith("GATE-")
+        ]
+        ordinary_violations = [
+            violation
+            for violation in violations
+            if not str(violation.get("rule_id", "")).startswith("GATE-")
+        ]
 
         return GateResult(
             scope=context.scope,

@@ -30,6 +30,7 @@ USER_INTENTS = (
     "clarify",
     "plan",
     "implement",
+    "archive",
     "review",
     "debug",
     "discuss",
@@ -41,6 +42,7 @@ INTENT_REGISTRY_KEYS = {
     "clarify": "clarify_requirement",
     "plan": "write_plan",
     "implement": "route_workflow",
+    "archive": "route_workflow",
     "review": "route_workflow",
     "debug": "analyze_repeated_failure",
     "discuss": "discuss_options",
@@ -169,6 +171,25 @@ class SkillRoutingTest(unittest.TestCase):
             )
             if status == "delegated_subtask":
                 self.assertIn("execute_delegated_work", route["allowedOperations"])
+
+    def test_implementation_intent_requires_active_implementation_state(self) -> None:
+        navigation = self._navigation()
+        registry = self._registry()
+
+        for status in ("no_task", "completed"):
+            route = navigation.route_request(
+                registry,
+                status=status,
+                intent="implement",
+                context="main",
+                blockers=(),
+                active_target=True,
+            )
+            self.assertIsNone(route["recommendedSkill"])
+            self.assertIn(
+                f"intent implement is not allowed while status is {status}",
+                route["blockers"],
+            )
 
     def test_removed_entry_skills_have_no_registry_or_source_presence(self) -> None:
         registry = self._registry()
