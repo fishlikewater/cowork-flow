@@ -3,6 +3,6 @@
 {"file": ".cowork-flow/spec/core/backend/index.md", "reason": "Backend development guide"}
 {"file": ".cowork-flow/spec/core/frontend/index.md", "reason": "Frontend development guide"}
 {"file": ".cowork-flow/plans/2026-07-11-workflow-optimization-roadmap.md", "reason": "Roadmap plan to execute"}
-{"file": ".cowork-flow/changes/07-11-2026-07-11-workflow-optimization-roadmap/design.md", "reason": "Optimization design contract"}
+{"file": ".cowork-flow/changes/archive/2026-07/07-11-2026-07-11-workflow-optimization-roadmap/design.md", "reason": "Optimization design contract"}
 {"file": ".cowork-flow/scripts/task.py", "reason": "Lifecycle complexity baseline"}
 {"file": ".cowork-flow/scripts/flow/store.py", "reason": "Store complexity baseline"}

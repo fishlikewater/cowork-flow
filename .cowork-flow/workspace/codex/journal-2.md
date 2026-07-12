@@ -517,3 +517,33 @@ Narrowed sync-gate legacy compatibility reasons to exact root compatibility copi
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 80: Baseline archive consistency
+
+**Date**: 2026-07-12
+**Task**: Baseline archive consistency
+
+### Summary
+
+Repaired the baseline task context pointer to the archived roadmap design, archived the final 07-11 completed task, and verified 07-11 status consistency plus empty active task after closeout.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

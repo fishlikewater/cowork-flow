@@ -1,0 +1,63 @@
+{
+  "status": "passed",
+  "checked_at": "2026-07-12",
+  "mode": "inline-main-session",
+  "reason": "User requested sequential activation and execution; this lifecycle consistency task was implemented and checked inline.",
+  "acceptance": [
+    {
+      "criterion": "Baseline task is archived when safe, or a written reason explains why it remains completed",
+      "status": "passed",
+      "note": "Repaired stale implement.jsonl pointer to the archived roadmap design, then archived 07-11-opt-baseline-risk-map."
+    },
+    {
+      "criterion": "Active task remains empty after the operation",
+      "status": "passed",
+      "note": "Verified after archiving this follow-up task: task current returned Active task: (none)."
+    },
+    {
+      "criterion": "07-11 task status display is consistent or intentionally documented",
+      "status": "passed",
+      "note": "task list shows all 07-11 optimization tasks archived after baseline archive."
+    },
+    {
+      "criterion": "git diff --check passes",
+      "status": "passed"
+    }
+  ],
+  "commands": [
+    {
+      "command": ".cowork-flow/run.cmd task next 07-11-opt-baseline-risk-map",
+      "status": "passed_after_repair",
+      "note": "Showed completed baseline task with archive action and no blockers before archive."
+    },
+    {
+      "command": ".cowork-flow/run.cmd task archive 07-11-opt-baseline-risk-map",
+      "status": "passed"
+    },
+    {
+      "command": ".cowork-flow/run.cmd task list",
+      "status": "passed",
+      "note": "07-11 optimization task set displays archived."
+    },
+    {
+      "command": ".cowork-flow/run.cmd task current",
+      "status": "passed",
+      "note": "Current task remains this follow-up task until it is archived."
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": ".cowork-flow/run.cmd task current",
+      "status": "passed",
+      "note": "After task3 archive: Active task: (none)."
+    },
+    {
+      "command": "repaired archived baseline check.jsonl pointer to archived prd.md, then validated archived task path",
+      "status": "passed",
+      "note": "Archived baseline task context now points to existing archived artifacts."
+    }
+  ],
+  "spec_update": "Not needed; this is lifecycle artifact consistency and archive cleanup only."
+}

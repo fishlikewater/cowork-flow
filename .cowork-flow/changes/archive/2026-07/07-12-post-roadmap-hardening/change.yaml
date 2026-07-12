@@ -1,14 +1,15 @@
 schema_version: 1
 slug: 07-12-post-roadmap-hardening
-status: draft
+status: archived
 level: L2
 created_at: 2026-07-12T14:53:34+08:00
 documentation_only: false
 owner: codex
 title: Post-roadmap hardening follow-up
 plan: .cowork-flow/plans/2026-07-12-post-roadmap-hardening.md
-task: .cowork-flow/tasks/07-12-followup-baseline-archive-consistency
+task: archive/2026-07/07-12-followup-baseline-archive-consistency
 goal: >-
 user_value: >-
-key_assumptions:
+key_assumptions: 
 summary: >-
+archived_at: 2026-07-12T15:21:05+08:00
