@@ -487,3 +487,33 @@ Marked FLOW-UPGRADE-DESIGN as historical migration design, named current runtime
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 79: Sync gate legacy allowlist hardening
+
+**Date**: 2026-07-12
+**Task**: Sync gate legacy allowlist hardening
+
+### Summary
+
+Narrowed sync-gate legacy compatibility reasons to exact root compatibility copies, added file-scoped regression coverage, and verified focused sync tests plus pack check.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

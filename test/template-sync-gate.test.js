@@ -38,6 +38,36 @@ test('template sync gate exposes documented allowed differences', () => {
   );
 });
 
+
+
+test('template sync gate keeps legacy compatibility allowlist file-scoped', () => {
+  const legacyEntries = TEMPLATE_SYNC_ALLOWED_DIFFERENCES.filter((entry) =>
+    entry.reason.includes('legacy compatibility')
+  );
+
+  assert.deepEqual(
+    legacyEntries.map((entry) => entry.pattern).sort(),
+    [
+      '.cowork-flow/spec/contracts/capabilities.md',
+      '.cowork-flow/spec/contracts/party-mode-v2-board.md',
+      '.cowork-flow/spec/contracts/subagent-dispatch.md',
+      '.cowork-flow/spec/contracts/workflow-state-templates.md',
+      '.cowork-flow/spec/runtime/contract-registry.json',
+      '.cowork-flow/spec/schemas/adapter.schema.json',
+      '.cowork-flow/spec/schemas/party-mode-v2-actions.schema.json'
+    ].sort()
+  );
+
+  for (const entry of legacyEntries) {
+    assert.doesNotMatch(entry.pattern, /\*|\/\*\*/);
+    assert.match(entry.reason, /^root retains the legacy compatibility (copy|registry copy|schema copy); template authority is /);
+  }
+
+  assert.equal(explainAllowedDifference('.cowork-flow/spec/contracts/index.md'), '');
+  assert.equal(explainAllowedDifference('.cowork-flow/spec/runtime/rules.json'), '');
+  assert.equal(explainAllowedDifference('.cowork-flow/spec/schemas/rules.schema.json'), '');
+});
+
 test('template sync gate ignores local runtime archive cache and generated files', async (t) => {
   const root = await createTempDir(t);
   await mkdir(join(root, '.cowork-flow', '.runtime'), { recursive: true });

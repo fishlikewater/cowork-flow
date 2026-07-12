@@ -77,31 +77,31 @@ export const TEMPLATE_SYNC_ALLOWED_DIFFERENCES = [
   },
   {
     pattern: '.cowork-flow/spec/contracts/capabilities.md',
-    reason: 'legacy flattened spec path is retained in root history; template uses reference/adapters/capabilities.md'
+    reason: 'root retains the legacy compatibility copy; template authority is reference/adapters/capabilities.md'
   },
   {
     pattern: '.cowork-flow/spec/contracts/party-mode-v2-board.md',
-    reason: 'legacy flattened spec path is retained in root history; template uses reference/party-mode-v2-board.md'
+    reason: 'root retains the legacy compatibility copy; template authority is reference/party-mode-v2-board.md'
   },
   {
     pattern: '.cowork-flow/spec/contracts/subagent-dispatch.md',
-    reason: 'legacy flattened spec path is retained in root history; template uses core/dispatch.md'
+    reason: 'root retains the legacy compatibility copy; template authority is core/dispatch.md'
   },
   {
     pattern: '.cowork-flow/spec/contracts/workflow-state-templates.md',
-    reason: 'legacy flattened spec path is retained in root history; template uses core/state-templates.md'
+    reason: 'root retains the legacy compatibility copy; template authority is core/state-templates.md'
   },
   {
     pattern: '.cowork-flow/spec/runtime/contract-registry.json',
-    reason: 'legacy flattened registry path is retained in root history; template uses spec/registry.json'
+    reason: 'root retains the legacy compatibility registry copy; template authority is spec/registry.json'
   },
   {
     pattern: '.cowork-flow/spec/schemas/adapter.schema.json',
-    reason: 'legacy flattened schema path is retained in root history; template uses reference/adapters/adapter.schema.json'
+    reason: 'root retains the legacy compatibility schema copy; template authority is reference/adapters/adapter.schema.json'
   },
   {
     pattern: '.cowork-flow/spec/schemas/party-mode-v2-actions.schema.json',
-    reason: 'legacy flattened schema path is retained in root history; template uses reference/party-mode-v2-actions.schema.json'
+    reason: 'root retains the legacy compatibility schema copy; template authority is reference/party-mode-v2-actions.schema.json'
   }
 ];
 

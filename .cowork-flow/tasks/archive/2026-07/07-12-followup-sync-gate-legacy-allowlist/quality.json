@@ -1,0 +1,41 @@
+{
+  "status": "passed",
+  "checked_at": "2026-07-12",
+  "mode": "inline-main-session",
+  "reason": "User requested sequential activation and execution; this focused sync-gate hardening task was implemented and checked inline.",
+  "acceptance": [
+    {
+      "criterion": "Every retained legacy flattened-path allowlist entry has a precise reason",
+      "status": "passed"
+    },
+    {
+      "criterion": "Obsolete allowlist entries are removed when tests show they are unnecessary",
+      "status": "passed",
+      "note": "Existing retained entries are file-scoped because matching root compatibility files still exist; no wildcard legacy entries remain."
+    },
+    {
+      "criterion": "Focused sync-gate tests pass",
+      "status": "passed"
+    },
+    {
+      "criterion": "pack check and git diff check pass",
+      "status": "passed"
+    }
+  ],
+  "commands": [
+    {
+      "command": "npm test -- test/template-sync-gate.test.js test/sync.test.js",
+      "status": "passed",
+      "note": "16 tests passed"
+    },
+    {
+      "command": "npm run pack:check",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "spec_update": "Not needed; implementation narrows existing sync-gate exception documentation and adds regression coverage."
+}
