@@ -154,7 +154,7 @@
       "displayName": "Game Design",
       "aliases": [],
       "kind": "domain",
-      "visibility": "internal",
+      "visibility": "public",
       "status": "active",
       "statuses": [
         "planning",
