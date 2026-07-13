@@ -370,12 +370,28 @@ class SkillRegistryTest(unittest.TestCase):
             self.assertEqual((), entry.managed_paths)
             self.assertNotIn(protocol_id, registry.public_skill_ids)
 
-        for legacy_id in ("tdd", "check", "doubt-review", "update-spec"):
+        for legacy_id in ("tdd", "check", "update-spec"):
             self.assertNotIn(legacy_id, entries)
             self.assertFalse(
                 (TEMPLATE / "skills" / legacy_id / "SKILL.md").exists(),
                 legacy_id,
             )
+
+    def test_doubt_review_is_public_advisory_protocol(self) -> None:
+        registry = self._module().load_skill_registry(TEMPLATE)
+        entry = registry.entry("doubt-review")
+
+        self.assertEqual("protocol", entry.kind)
+        self.assertEqual("public", entry.visibility)
+        self.assertEqual("advisory", entry.enforcement)
+        self.assertEqual("skills/doubt-review/SKILL.md", entry.source)
+        self.assertTrue(
+            (TEMPLATE / "skills" / "doubt-review" / "SKILL.md").exists()
+        )
+        self.assertEqual(
+            True,
+            "doubt-review" in registry.public_skill_ids,
+        )
 
     def test_doctor_loads_registry_and_rejects_invalid_contract(self) -> None:
         doctor = importlib.import_module("commands.doctor")

@@ -77,13 +77,14 @@ class SkillRoutingTest(unittest.TestCase):
     def test_active_public_skill_set_is_consolidated(self) -> None:
         public_ids = set(self._registry().public_skill_ids)
 
-        self.assertLessEqual(public_ids.__len__(), 7)
+        self.assertLessEqual(public_ids.__len__(), 8)
         self.assertEqual(
             {
                 "batch-mode",
                 "brainstorming",
                 "break-loop",
                 "cowork-flow",
+                "doubt-review",
                 "game-design",
                 "party-mode",
                 "writing-plans",
