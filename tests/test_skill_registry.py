@@ -393,6 +393,27 @@ class SkillRegistryTest(unittest.TestCase):
             "doubt-review" in registry.public_skill_ids,
         )
 
+    def test_doubt_review_preserves_public_guardrails(self) -> None:
+        text = (
+            TEMPLATE / "skills" / "doubt-review" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        required_markers = (
+            "Common Rationalizations",
+            "Spawning a reviewer is expensive",
+            "cannot spawn a fresh-context reviewer from within a subagent context",
+            "surface back to the main session",
+            "Verification",
+            "Every non-trivial decision has a CLAIM record",
+            "Reviewer receives ARTIFACT + CONTRACT (not CLAIM)",
+            "decision-review",
+            "review-protocol",
+        )
+
+        self.assertEqual(
+            [],
+            [marker for marker in required_markers if marker not in text],
+        )
+
     def test_doctor_loads_registry_and_rejects_invalid_contract(self) -> None:
         doctor = importlib.import_module("commands.doctor")
         errors: list[str] = []
