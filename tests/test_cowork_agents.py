@@ -328,6 +328,7 @@ class CoworkAgentsTest(unittest.TestCase):
             [sys.executable, str(doctor), "--host-adapters"],
             cwd=cwd,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             timeout=30,
         )
@@ -342,14 +343,16 @@ class CoworkAgentsTest(unittest.TestCase):
             / "doctor.py"
         )
 
-        result = subprocess.run(
-            [sys.executable, str(doctor), "--subagent-safety"],
-            cwd=ROOT,
-            text=True,
-            encoding="utf-8",
-            capture_output=True,
-            timeout=30,
-        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = self._build_deployed_workspace(temp_dir)
+            result = subprocess.run(
+                [sys.executable, str(doctor), "--subagent-safety"],
+                cwd=workspace,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                timeout=30,
+            )
 
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 

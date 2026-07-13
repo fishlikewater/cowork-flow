@@ -302,6 +302,16 @@ class TaskContextServiceTest(unittest.TestCase):
             "commands/task_context_commands.py",
             "commands/task_parser.py",
         )
+        missing_files = [
+            relative_file
+            for relative_file in relative_files
+            if not (ROOT / ".cowork-flow" / "scripts" / relative_file).is_file()
+        ]
+        if missing_files:
+            self.skipTest(
+                "local bootstrap .cowork-flow script files are absent: "
+                + ", ".join(missing_files)
+            )
 
         for relative_file in relative_files:
             with self.subTest(file=relative_file):
