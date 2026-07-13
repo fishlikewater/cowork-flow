@@ -175,6 +175,31 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
         self.assertNotIn("doubt-review.md", definition_of_done)
         self.assertNotIn("update-spec", definition_of_done)
 
+    def test_protocol_preserves_adversarial_doubt_cycle(self) -> None:
+        protocol = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "spec"
+            / "protocols"
+            / "decision-review.md"
+        ).read_text(encoding="utf-8")
+
+        markers = (
+            "CLAIM",
+            "EXTRACT",
+            "DOUBT",
+            "RECONCILE",
+            "STOP",
+            "ARTIFACT + CONTRACT",
+            "not CLAIM",
+            "reviewerContext",
+            "decision-review.jsonl",
+        )
+        missing = [marker for marker in markers if marker not in protocol]
+
+        self.assertEqual([], missing)
+
 
 if __name__ == "__main__":
     import unittest

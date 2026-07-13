@@ -150,6 +150,34 @@
       "managedPaths": []
     },
     {
+      "id": "doubt-review",
+      "displayName": "Doubt Review",
+      "aliases": [
+        "adversarial-review"
+      ],
+      "kind": "protocol",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "planning",
+        "in_progress",
+        "review",
+        "delegated_subtask"
+      ],
+      "intents": [
+        "doubt_review"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": "decision-review.jsonl",
+      "source": "skills/doubt-review/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/doubt-review/",
+        ".claude/skills/doubt-review/"
+      ]
+    },
+    {
       "id": "game-design",
       "displayName": "Game Design",
       "aliases": [],
