@@ -322,6 +322,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "whyThisTestMatters",
             "ClassName.test_method",
             "exemption",
+            "Anti-Rationalization",
+            "I'll add tests after implementation",
+            "Other tests already cover this",
+            "Red first, then green",
         )
         tdd_text = (
             ROOT
@@ -331,8 +335,36 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             / "protocols"
             / "tdd.md"
         ).read_text(encoding="utf-8")
-        for marker in required_markers:
-            self.assertIn(marker, tdd_text)
+        self.assertEqual(
+            [],
+            [marker for marker in required_markers if marker not in tdd_text],
+        )
+
+    def test_spec_maintenance_protocol_preserves_update_checklist(self) -> None:
+        required_markers = (
+            "Choose Location",
+            "`backend/` or `frontend/`",
+            "`guides/`",
+            "State the trigger and scope",
+            "Show the contract or command shape",
+            "Include good/bad cases when useful",
+            "State tests or checks that protect the behavior",
+            "Update the matching `index.md`",
+            "duplicate guidance",
+            "stale wording",
+        )
+        spec_text = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "spec"
+            / "protocols"
+            / "spec-maintenance.md"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(
+            [],
+            [marker for marker in required_markers if marker not in spec_text],
+        )
 
     def test_review_protocol_and_agent_require_test_intent_review(self) -> None:
         required_markers = (
