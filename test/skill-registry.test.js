@@ -100,6 +100,7 @@ test('canonical skill registry and schema load', async () => {
     [...registry.publicSkillIds].sort()
   );
   assert.equal(registry.publicSkillIds.includes('batch-mode'), true);
+  assert.equal(registry.publicSkillIds.includes('game-design'), true);
   for (const removedSkillId of [
     'before-dev',
     'start',
