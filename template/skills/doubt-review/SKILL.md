@@ -62,6 +62,8 @@ CONTRACT: <paste constraints>
 
 Pass only ARTIFACT + CONTRACT, not CLAIM. Including CLAIM biases the reviewer toward agreement.
 
+You cannot spawn a fresh-context reviewer from within a subagent context. If doubt is required while inside a subagent, surface back to the main session so the review can run from a genuinely fresh context.
+
 ### 4. RECONCILE
 
 Classify every finding in this order:
@@ -85,6 +87,24 @@ Substantive findings after three cycles mean the artifact is too large or immatu
 
 For L2 readiness, record accepted decisions in `<task>/decision-review.jsonl` using the internal `decision-review` protocol. At minimum, evidence must include `acceptanceId`, `claim`, `contract`, `reviewerContext`, `findings`, and `resolution`.
 
+## Common Rationalizations
+
+| Excuse | Why It Fails | Better Approach |
+|---|---|---|
+| "I'm confident, skip doubt" | Confidence is where blind spots hide. | Write a 2-line CLAIM and pass the artifact to fresh-context review. |
+| "Spawning a reviewer is expensive" | Debugging a bad decision after implementation costs more. | Run one bounded doubt cycle now. |
+| "Review will catch it later" | Final review catches completed artifacts; doubt catches direction errors while they are cheap. | Run doubt before committing to the direction. |
+| "Doubting every step causes delay" | Doubt only applies to non-trivial decisions. | Use the Apply When / Skip When sections to decide. |
+| "Reviewer disagrees, so I am wrong" | Reviewer output is information, not authority. | Classify each finding through RECONCILE. |
+
+## Relationship to Current Workflow
+
+- `decision-review`: internal mandatory L2 gate; write accepted evidence to `decision-review.jsonl`.
+- `review-protocol`: final implementation review; it does not replace in-flight doubt.
+- `cowork-flow`: public router; it decides whether to load this Skill or the internal protocol.
+- `TDD`: a failing test is doubt made concrete when the risk is executable behavior.
+- `break-loop`: use when doubt exposes a real failure mode but the fix path keeps looping.
+
 ## Red Flags
 
 - Skipping doubt because you feel confident.
@@ -92,3 +112,14 @@ For L2 readiness, record accepted decisions in `<task>/decision-review.jsonl` us
 - Treating reviewer output as authoritative instead of reconciling it.
 - Looping past three cycles.
 - Calling the review adversarial while asking whether the artifact "looks good".
+- Running another cycle against an unchanged artifact.
+- Getting substantive findings twice but classifying none as actionable.
+- Treating this Skill as a replacement for `decision-review.jsonl` or final review.
+
+## Verification
+
+- Every non-trivial decision has a CLAIM record.
+- Every non-trivial artifact receives at least one fresh-context review.
+- Reviewer receives ARTIFACT + CONTRACT (not CLAIM).
+- Findings are classified instead of rubber-stamped.
+- Stop conditions are satisfied before proceeding.
