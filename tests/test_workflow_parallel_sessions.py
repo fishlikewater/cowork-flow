@@ -118,22 +118,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("review", text)
         self.assertNotIn("before-dev", text)
 
-    def test_zcode_scaffold_party_mode_contract_matches_formal_entrypoint(self) -> None:
-        text = (
-            ROOT
-            / "template"
-            / ".zcode"
-            / "scaffold"
-            / ".cowork-flow"
-            / "spec"
-            / "contracts"
-            / "subagent-dispatch.md"
-        ).read_text(encoding="utf-8")
+    def test_zcode_scaffold_does_not_vendor_spec_contracts(self) -> None:
+        spec_dir = ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "spec"
 
-        self.assertIn("communicate through the `party-v2` runtime board", text)
-        self.assertIn("The public `party-mode` skill delegates discussion state", text)
-        self.assertIn("host-neutral next actions", text)
-        self.assertNotIn("party-mode-v2` entrypoint", text)
+        self.assertFalse(spec_dir.exists())
 
     def test_workflow_limits_generic_worker_to_advisory_work(self) -> None:
         required_markers = (
@@ -290,7 +278,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             ).read_text(encoding="utf-8")
             self.assertEqual(template_text, local_text, str(relative_path))
 
-    def test_runtime_rule_metadata_is_synced_to_zcode_scaffold(self) -> None:
+    def test_runtime_rule_metadata_stays_in_canonical_template_spec(self) -> None:
         template_spec = ROOT / "template" / ".cowork-flow" / "spec"
         zcode_spec = (
             ROOT
@@ -300,6 +288,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             / ".cowork-flow"
             / "spec"
         )
+        self.assertFalse(zcode_spec.exists())
         for relative_path in (
             Path("runtime") / "rules.json",
             Path("schemas") / "rules.schema.json",
@@ -307,10 +296,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             template_data = json.loads(
                 (template_spec / relative_path).read_text(encoding="utf-8")
             )
-            zcode_data = json.loads(
-                (zcode_spec / relative_path).read_text(encoding="utf-8")
-            )
-            self.assertEqual(template_data, zcode_data, str(relative_path))
+            self.assertIsInstance(template_data, dict, str(relative_path))
 
     def test_tdd_internal_protocol_preserves_evidence_contract(self) -> None:
         required_markers = (

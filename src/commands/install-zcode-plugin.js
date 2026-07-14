@@ -72,6 +72,7 @@ export async function runInstallZCodePlugin(args = []) {
   const { dryRun, force } = parseArgs(args);
   const pluginSrc = join(templateRoot, ".zcode");
   const skillsSrc = join(templateRoot, "skills");
+  const specSrc = join(templateRoot, ".cowork-flow", "spec");
   const { version } = await readPackageInfo();
 
   if (!(await pathExists(pluginSrc))) {
@@ -79,6 +80,9 @@ export async function runInstallZCodePlugin(args = []) {
   }
   if (!(await pathExists(skillsSrc))) {
     throw new Error(`Skills source missing at ${skillsSrc}. Reinstall cowork-flow.`);
+  }
+  if (!(await pathExists(specSrc))) {
+    throw new Error(`Spec source missing at ${specSrc}. Reinstall cowork-flow.`);
   }
 
   const cacheRoot = await getZCodeCacheDir();
@@ -94,6 +98,7 @@ export async function runInstallZCodePlugin(args = []) {
     console.log(`[dry-run] Would install ZCode plugin:`);
     console.log(`  Plugin: ${pluginSrc} -> ${destDir}`);
     console.log(`  Skills: ${skillsSrc} -> ${join(destDir, 'skills')}`);
+    console.log(`  Spec: ${specSrc} -> ${join(destDir, 'scaffold', '.cowork-flow', 'spec')}`);
     return;
   }
 
@@ -109,6 +114,12 @@ export async function runInstallZCodePlugin(args = []) {
   // can resolve the correct versioned plugin cache path at runtime.
   const scaffoldVersionPath = join(destDir, "scaffold", ".cowork-flow", ".version");
   await writeFile(scaffoldVersionPath, `${version}\n`, "utf8");
+
+  // Materialize scaffold specs from the main template instead of maintaining
+  // a second static copy under template/.zcode/scaffold/.
+  const scaffoldSpecDest = join(destDir, "scaffold", ".cowork-flow", "spec");
+  await rm(scaffoldSpecDest, { recursive: true, force: true });
+  await cp(specSrc, scaffoldSpecDest, { recursive: true, force: true });
 
   // Sync canonical scripts from main template (single source of truth).
   // The .zcode/hooks/runtime/scripts/ copy is stale; overwrite with the
