@@ -167,6 +167,43 @@ class TaskArchiveServiceTest(unittest.TestCase):
             )
             self.assertEqual("src/example.py", archived_entries[2]["file"])
 
+    def test_archive_preserves_quality_review_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {"status": "completed"},
+            )
+            evidence = {
+                "id": "QR-DOD-001",
+                "source": ".cowork-flow/spec/references/definition-of-done.md",
+                "type": "dod",
+                "status": "pass",
+                "files": ["src/example.py"],
+                "evidence": "Archived quality review evidence remains traceable.",
+                "verification": ["python -m unittest tests.test_task_archive -v"],
+            }
+            (task_dir / "quality-review.jsonl").write_text(
+                json.dumps(evidence, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.TaskArchiveService(root).archive(
+                task_dir,
+                archived_at="2026-07-10",
+            )
+
+            archived_evidence = json.loads(
+                (result.destination / "quality-review.jsonl").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("QR-DOD-001", archived_evidence["id"])
+            self.assertEqual("dod", archived_evidence["type"])
+
     def test_archive_rollback_restores_original_context_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

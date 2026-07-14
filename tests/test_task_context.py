@@ -19,6 +19,7 @@ class TaskContextServiceTest(unittest.TestCase):
         context_module = importlib.import_module("application.task_context")
         self.TaskContextService = context_module.TaskContextService
         self.TaskContextError = context_module.TaskContextError
+        self.get_check_context = context_module.get_check_context
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
@@ -27,6 +28,7 @@ class TaskContextServiceTest(unittest.TestCase):
             "application.task_context",
             "application",
             "common.core.files",
+            "common.core.quality_sources",
             "common.core.paths",
             "common",
         ):
@@ -294,6 +296,82 @@ class TaskContextServiceTest(unittest.TestCase):
             self.assertEqual((".cowork-flow/tasks/07-10-demo/notes/audit.md",), first)
             self.assertEqual((), second)
             self.assertTrue(report.is_file())
+
+    def test_initialize_creates_quality_review_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            service = self.TaskContextService(root)
+
+            service.initialize(task_dir, "backend")
+
+            entries = service.entries(task_dir, "implement")
+            quality_path = ".cowork-flow/tasks/07-10-demo/quality-review.jsonl"
+            self.assertEqual(
+                {quality_path},
+                {entry.get("file") for entry in entries} & {quality_path},
+            )
+            self.assertEqual("", (task_dir / "quality-review.jsonl").read_text(encoding="utf-8"))
+
+    def test_check_context_uses_quality_sources_from_domain_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            del task_dir
+            backend_dir = root / ".cowork-flow" / "spec" / "backend"
+            references_dir = root / ".cowork-flow" / "spec" / "references"
+            references_dir.mkdir(parents=True)
+            (backend_dir / "index.md").write_text(
+                "# Backend\n\n"
+                "| 文档 | 用途 |\n"
+                "|---|---|\n"
+                "| [目录结构](./directory-structure.md) | structure |\n"
+                "| [质量规范](./quality-guidelines.md) | quality |\n",
+                encoding="utf-8",
+            )
+            (backend_dir / "directory-structure.md").write_text("# Structure\n", encoding="utf-8")
+            (backend_dir / "quality-guidelines.md").write_text("# Quality\n", encoding="utf-8")
+            (backend_dir / "unlinked.md").write_text("# Should not load\n", encoding="utf-8")
+            (references_dir / "definition-of-done.md").write_text("# DoD\n", encoding="utf-8")
+            (references_dir / "testing-checklist.md").write_text("# Testing\n", encoding="utf-8")
+
+            files = {entry["file"] for entry in self.get_check_context(root, "backend")}
+            expected = {
+                ".cowork-flow/spec/backend/index.md",
+                ".cowork-flow/spec/backend/directory-structure.md",
+                ".cowork-flow/spec/backend/quality-guidelines.md",
+                ".cowork-flow/spec/references/definition-of-done.md",
+                ".cowork-flow/spec/references/testing-checklist.md",
+            }
+            forbidden = {
+                ".cowork-flow/spec/backend/unlinked.md",
+                ".cowork-flow/spec/",
+            }
+
+            self.assertEqual(expected, files & expected)
+            self.assertEqual(set(), files & forbidden)
+
+    def test_quality_sources_include_security_reference_for_sensitive_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            references_dir = root / ".cowork-flow" / "spec" / "references"
+            references_dir.mkdir(parents=True)
+            (references_dir / "definition-of-done.md").write_text("# DoD\n", encoding="utf-8")
+            (references_dir / "testing-checklist.md").write_text("# Testing\n", encoding="utf-8")
+            (references_dir / "security-checklist.md").write_text("# Security\n", encoding="utf-8")
+            quality_sources = importlib.import_module("common.core.quality_sources")
+
+            entries = quality_sources.quality_source_entries(
+                root,
+                "backend",
+                paths=("src/auth/session.py",),
+            )
+
+            expected = {".cowork-flow/spec/references/security-checklist.md"}
+            self.assertEqual(
+                expected,
+                {entry["file"] for entry in entries} & expected,
+            )
 
     def test_live_and_template_context_implementations_match(self) -> None:
         relative_files = (
