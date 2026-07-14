@@ -49,6 +49,12 @@ Rules:
 - Read the task directory from the bound runtime context.
 - Read `<task>/decision-anchor.md`, the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/`), `<task>/check.jsonl`, each JSONL `file` entry, and
   current `git diff`.
+- Read `<task>/quality-review.jsonl` if present and verify checklist, machine
+  warning, and Definition of Done evidence.
+- Treat backend/frontend natural-language specs as review checklist context,
+  not dynamic hard validators.
+- Fix machine warning findings or require acknowledged warning evidence in
+  `<task>/quality-review.jsonl`.
 - Check behavior, tests, spec sync, and scope.
 - Fix only in-scope issues.
 - Report changed files and exact verification commands.

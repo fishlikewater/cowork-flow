@@ -9,6 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from common.core.files import read_text_utf8
+from common.core.quality_sources import (
+    quality_review_artifact_entry,
+    quality_source_entries,
+)
 from common.core.skill_registry import SkillRegistryError, load_skill_registry
 from common.core.paths import (
     DIR_AGENTS,
@@ -457,13 +461,15 @@ def get_check_context(repo_root: Path, dev_type: str) -> list[dict]:
             "reason": "Workflow review, completion, and archive routing",
         },
     ]
-    entries.extend(
-        {
-            "file": spec_file,
-            "reason": f"Verify {Path(spec_file).name} compliance",
-        }
-        for spec_file in discover_spec_files(repo_root, dev_type)
-    )
+    if dev_type == "spec":
+        entries.extend(
+            {
+                "file": spec_file,
+                "reason": f"Verify {Path(spec_file).name} compliance",
+            }
+            for spec_file in discover_spec_files(repo_root, dev_type)
+        )
+    entries.extend(quality_source_entries(repo_root, dev_type))
     return entries
 
 
@@ -519,8 +525,12 @@ class TaskContextService:
                 "task directory does not exist",
             )
 
+        implement_entries = self._implement_entries(dev_type)
+        implement_entries.append(
+            quality_review_artifact_entry(task_dir, self.repo_root)
+        )
         entries_by_file = {
-            "implement.jsonl": self._implement_entries(dev_type),
+            "implement.jsonl": implement_entries,
             "check.jsonl": get_check_context(self.repo_root, dev_type),
             "debug.jsonl": get_debug_context(dev_type, self.repo_root),
         }

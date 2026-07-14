@@ -14,7 +14,7 @@ Only machine-decidable checks run here as hard blocks:
 A separate ``collect_machine_checks`` helper is exposed for callers that want
 additional regex-style warnings (hardcoded secrets, debug prints, silent
 excepts, trailing comments...) WITHOUT hard-blocking the workflow. These are
-emitted at severity=advisory so they can be rendered for the LLM without being a
+emitted at severity=warn so they can be rendered for the LLM without being a
 wall the user must satisfy.
 """
 
@@ -163,7 +163,7 @@ def validate_coding_standards(
     Approach A keeps only the UTF-8 / IO-encoding check here. All natural
     language rules authored in the spec tree are surfaced to the LLM via the
     checklist in ``get_coding_standards_summary``; they do not block the
-    workflow from this function. Optional advisory warnings live in
+    workflow from this function. Optional machine warnings live in
     ``collect_machine_checks``.
     """
     return list(validate_changed_files(repo_root, collect_changed_files(repo_root)))
@@ -173,7 +173,7 @@ def collect_machine_checks(
     repo_root: Path,
     task_dir: Path | None = None,
 ) -> list[dict]:
-    """Emit regex-style advisory signals (severity=advisory).
+    """Emit regex-style machine warning signals (severity=warn).
 
     The LLM decides how to act on them; the workflow never blocks on a hit.
     Kept separate from ``validate_coding_standards`` so callers can choose
@@ -183,6 +183,14 @@ def collect_machine_checks(
     for changed_file in _changed_machine_check_files(repo_root):
         violations.extend(_machine_check_violations_for_file(repo_root, changed_file))
     return violations
+
+
+def validate_machine_checks(
+    repo_root: Path,
+    task_dir: Path | None = None,
+) -> list[dict]:
+    """Gate binding for optional quality machine-check warnings."""
+    return collect_machine_checks(repo_root, task_dir)
 
 
 def _changed_machine_check_files(repo_root: Path) -> Sequence[object]:
@@ -289,7 +297,7 @@ def _adv(
     return {
         "rule_id": rule_id,
         "type": "machine_check",
-        "severity": "advisory",
+        "severity": "warn",
         "passed": False,
         "message": message,
         "file": file_path,
@@ -357,7 +365,7 @@ def main() -> None:
     parser.add_argument("--list", action="store_true", help="List parsed spec rules")
     parser.add_argument("--validate", action="store_true")
     parser.add_argument("--machine-checks", action="store_true",
-                        help="Also emit advisory machine-check warnings")
+                        help="Also emit machine-check warnings")
 
     args = parser.parse_args()
     repo_root = Path(args.repo_root).resolve()

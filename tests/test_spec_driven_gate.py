@@ -3,7 +3,7 @@
 User-edited spec files surface rules to the LLM via a checklist. The
 workflow no longer uses a hardwired ``_NL_VALIDATORS`` registry to block the
 gate on natural-language matches — only UTF-8 / IO-encoding remains a hard
-block, and ``collect_machine_checks`` emits advisory (non-blocking) hints the
+block, and ``collect_machine_checks`` emits warn-level non-blocking hints the
 LLM may choose to follow.
 """
 from __future__ import annotations
@@ -152,9 +152,9 @@ class SpecDrivenGateTests(unittest.TestCase):
             f"found {[v['rule_id'] for v in block_severity]}",
         )
 
-    # ---- test_03: collect_machine_checks emits advisory hints ----
+    # ---- test_03: collect_machine_checks emits warning hints ----
 
-    def test_03_collect_machine_checks_emits_advisories(self) -> None:
+    def test_03_collect_machine_checks_emits_warnings(self) -> None:
         # Seed a clean commit, then stage a violating change.
         self._seed_service("def work():\n    return 1\n")
         self._write("src/service.py",
@@ -167,13 +167,13 @@ class SpecDrivenGateTests(unittest.TestCase):
                     "        pass\n")
         self._stage("src/service.py")
 
-        advisories = self.vc.collect_machine_checks(self.tmp)
-        self.assertGreater(len(advisories), 0)
+        warnings = self.vc.collect_machine_checks(self.tmp)
+        self.assertGreater(len(warnings), 0)
         self.assertTrue(
-            all(a["severity"] == "advisory" for a in advisories),
-            "Every machine-check emission must be severity=advisory (non-blocking).",
+            all(warning["severity"] == "warn" for warning in warnings),
+            "Every machine-check emission must be severity=warn (non-blocking).",
         )
-        fired = {a["rule_id"] for a in advisories}
+        fired = {warning["rule_id"] for warning in warnings}
         # At least the print + empty-except pattern triggers when present.
         self.assertIn("MACHINE-DEBUG-PRINT-001", fired)
         self.assertIn("MACHINE-SILENT-EXCEPT-001", fired)

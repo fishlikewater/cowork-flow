@@ -322,6 +322,42 @@ class CoworkAgentsTest(unittest.TestCase):
                     f"{role} protocol contract drift in {path}: {missing}",
                 )
 
+    def test_fixed_agents_require_quality_review_evidence_without_dynamic_validator_claims(self) -> None:
+        role_paths = (
+            ROOT / "template" / ".codex" / "agents" / "cowork-implement.toml",
+            ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
+            ROOT / "template" / ".claude" / "agents" / "cowork-implement.md",
+            ROOT / "template" / ".claude" / "agents" / "cowork-check.md",
+            ROOT / "template" / ".opencode" / "agents" / "cowork-implement.md",
+            ROOT / "template" / ".opencode" / "agents" / "cowork-check.md",
+        )
+        required_markers = (
+            "quality-review.jsonl",
+            "machine warning",
+            "Definition of Done",
+            "natural-language",
+            "not dynamic hard validators",
+            "each JSONL `file` entry",
+        )
+        forbidden_markers = (
+            "activate validators dynamically",
+            "active validators",
+            "not just documentation but active validators",
+            "Read .",
+        )
+        review_protocol = (
+            ROOT / "template" / ".cowork-flow" / "spec" / "protocols" / "review.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("quality-review.jsonl", review_protocol)
+        self.assertIn("not dynamic hard validators", review_protocol)
+
+        for path in role_paths:
+            text = path.read_text(encoding="utf-8")
+            missing = [marker for marker in required_markers if marker not in text]
+            self.assertEqual([], missing, f"quality prompt drift in {path}: {missing}")
+            for marker in forbidden_markers:
+                self.assertNotIn(marker, text, f"{marker} should stay out of {path}")
+
     def _run_doctor(self, cwd: Path) -> subprocess.CompletedProcess[str]:
         doctor = ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "doctor.py"
         return subprocess.run(

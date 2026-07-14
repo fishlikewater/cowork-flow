@@ -78,6 +78,7 @@ class GatePipelineTest(FlowScriptTestCase):
                 json.dumps({"file": "src/allowed.py", "reason": "fixture"}) + "\n",
                 encoding="utf-8",
             )
+        self._write_quality_review_evidence(task_dir, files=("src/allowed.py",))
         self._write_rules_file(
             root,
             [
@@ -203,6 +204,7 @@ class GatePipelineTest(FlowScriptTestCase):
                 '{"status": "in_progress", "completedAt": null}\n',
                 encoding="utf-8",
             )
+            self._write_quality_review_evidence(task_dir)
             self._write_session_task(root)
 
             previous_cwd = Path.cwd()
@@ -223,6 +225,36 @@ class GatePipelineTest(FlowScriptTestCase):
             self.assertEqual(0, complete_result)
             self.assertEqual("completed", data["status"])
             self.assertEqual(datetime.now().strftime("%Y-%m-%d"), data["completedAt"])
+
+    def test_cmd_complete_blocks_missing_quality_review_without_status_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "review", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_complete(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result, stderr.getvalue())
+            self.assertEqual("review", data["status"])
+            self.assertIsNone(data["completedAt"])
+            self.assertIn("Quality review gate blocked lifecycle transition", stderr.getvalue())
+            self.assertIn("QUALITY-REVIEW-MISSING-001", stderr.getvalue())
 
     def test_cmd_review_blocks_spec_changes_for_bound_subagent_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -287,6 +319,7 @@ class GatePipelineTest(FlowScriptTestCase):
                 '{"status": "in_progress", "completedAt": null}\n',
                 encoding="utf-8",
             )
+            self._write_quality_review_evidence(task_dir)
             self._write_session_task(root)
             self._write_rules_file(
                 root,

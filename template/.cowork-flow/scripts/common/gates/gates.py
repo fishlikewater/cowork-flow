@@ -25,6 +25,7 @@ STAGE_GATES = {
         "test_intent",
         "runtime_rules",
         "coding_standards",
+        "quality_machine_checks",
         "complexity",
     ),
     "task_complete": (
@@ -33,12 +34,14 @@ STAGE_GATES = {
         "test_intent",
         "runtime_rules",
         "coding_standards",
+        "quality_machine_checks",
+        "quality_review",
         "complexity",
     ),
 }
 
 
-def _validator_bindings() -> tuple[ValidatorBinding, ...]:
+def _core_validator_bindings() -> tuple[ValidatorBinding, ...]:
     return (
         ValidatorBinding(
             key="runtime_rules",
@@ -73,6 +76,30 @@ def _validator_bindings() -> tuple[ValidatorBinding, ...]:
             function="validate_coding_standards",
             positional=("repo_root", "task_dir"),
         ),
+    )
+
+
+def _quality_validator_bindings() -> tuple[ValidatorBinding, ...]:
+    return (
+        ValidatorBinding(
+            key="quality_machine_checks",
+            module="validate_coding_standards",
+            function="validate_machine_checks",
+            positional=("repo_root", "task_dir"),
+        ),
+        ValidatorBinding(
+            key="quality_review",
+            module="quality_review",
+            function="validate_quality_review",
+            positional=("repo_root", "task_dir"),
+        ),
+    )
+
+
+def _validator_bindings() -> tuple[ValidatorBinding, ...]:
+    return (
+        *_core_validator_bindings(),
+        *_quality_validator_bindings(),
         ValidatorBinding(
             key="complexity",
             module="validate_coding_standards",
@@ -82,7 +109,7 @@ def _validator_bindings() -> tuple[ValidatorBinding, ...]:
     )
 
 
-def _gate_definitions() -> tuple[GateDefinition, ...]:
+def _core_gate_definitions() -> tuple[GateDefinition, ...]:
     return (
         GateDefinition(
             id="runtime_rules",
@@ -117,6 +144,31 @@ def _gate_definitions() -> tuple[GateDefinition, ...]:
             required=True,
             block_message="Coding standards gate blocked lifecycle transition",
         ),
+    )
+
+
+def _quality_gate_definitions() -> tuple[GateDefinition, ...]:
+    return (
+        GateDefinition(
+            id="quality_machine_checks",
+            validator_key="quality_machine_checks",
+            required=False,
+            block_message="",
+            warning_message="Quality machine-check warnings",
+        ),
+        GateDefinition(
+            id="quality_review",
+            validator_key="quality_review",
+            required=True,
+            block_message="Quality review gate blocked lifecycle transition",
+        ),
+    )
+
+
+def _gate_definitions() -> tuple[GateDefinition, ...]:
+    return (
+        *_core_gate_definitions(),
+        *_quality_gate_definitions(),
         GateDefinition(
             id="complexity",
             validator_key="complexity",
