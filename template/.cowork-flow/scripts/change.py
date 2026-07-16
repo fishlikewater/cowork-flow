@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from datetime import datetime
@@ -25,6 +26,11 @@ from common.yaml_utils import format_scalar, read_flat_metadata, write_flat_meta
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 VALID_LEVELS = {"L1", "L2"}
 VALID_STATUSES = {"draft", "active", "archived"}
+FINISHED_TASK_STATUSES = {"completed", "archived"}
+PLAN_TASK_REF_PATTERN = re.compile(
+    r"\.cowork-flow/tasks/(?:archive/\d{4}-\d{2}/)?"
+    r"\d{2}-\d{2}-[a-z0-9][a-z0-9-]*"
+)
 
 
 def _now_iso() -> str:
@@ -147,6 +153,57 @@ def _task_link_matches(
     if resolved is None:
         return False
     return any(_same_path(resolved, task_path) for task_path in task_paths)
+
+
+def _plan_task_refs(repo_root: Path, metadata: dict[str, object]) -> list[str]:
+    plan_path = _resolve_link(repo_root, "plans", metadata.get("plan"))
+    if plan_path is None or not plan_path.is_file():
+        return []
+
+    try:
+        content = plan_path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+
+    refs: list[str] = []
+    seen: set[str] = set()
+    for match in PLAN_TASK_REF_PATTERN.findall(content):
+        if match not in seen:
+            refs.append(match)
+            seen.add(match)
+    return refs
+
+
+def _task_status(task_dir: Path) -> str | None:
+    task_json = task_dir / "task.json"
+    if not task_json.is_file():
+        return None
+
+    try:
+        data = json.loads(task_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    status = data.get("status")
+    return status if isinstance(status, str) else None
+
+
+def unfinished_plan_task_refs_for_change(
+    repo_root: Path, slug: str, current_task_dir: Path
+) -> list[str]:
+    """Return active plan tasks that should block linked change auto-archive."""
+    metadata = _read_metadata(_change_dir(repo_root, slug))
+    unfinished: list[str] = []
+
+    for task_ref in _plan_task_refs(repo_root, metadata):
+        target = _resolve_link(repo_root, "tasks", task_ref)
+        if target is None or not target.is_dir():
+            continue
+        if _same_path(target, current_task_dir):
+            continue
+        if _task_status(target) not in FINISHED_TASK_STATUSES:
+            unfinished.append(_display_path(repo_root, target))
+    return unfinished
 
 
 def linked_active_changes_for_task(

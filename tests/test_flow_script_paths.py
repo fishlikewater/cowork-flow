@@ -1215,6 +1215,75 @@ class FlowScriptPathsTest(unittest.TestCase):
             )
             self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
 
+    def test_task_archive_keeps_multitask_linked_change_active_until_final_task(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            tasks_dir = workflow_dir / "tasks"
+            task_dir = tasks_dir / "05-19-demo"
+            next_task_dir = tasks_dir / "05-19-next"
+            task_dir.mkdir(parents=True)
+            next_task_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "completed", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            (next_task_dir / "task.json").write_text(
+                '{"name": "next", "status": "planning", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            self._create_flow_task(root, "demo", "completed")
+            self._create_flow_task(root, "next", "planning")
+            change_dir = self._write_l2_change_fixture(
+                root,
+                level="L1",
+                task_link=".cowork-flow/tasks/05-19-demo",
+            )
+            plan_path = root / ".cowork-flow" / "plans" / "2026-05-19-demo.md"
+            plan_path.write_text(
+                "# Demo plan\n\n"
+                "## Task 1\n\n"
+                "- `.cowork-flow/tasks/05-19-demo`\n"
+                "## Task 2\n\n"
+                "- `.cowork-flow/tasks/05-19-next`\n",
+                encoding="utf-8",
+            )
+            month = datetime.now().strftime("%Y-%m")
+            task_archive_dest = tasks_dir / "archive" / month / "05-19-demo"
+            change_archive_dest = (
+                workflow_dir / "changes" / "archive" / month / change_dir.name
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_archive(
+                        argparse.Namespace(
+                            name="05-19-demo", commit=False, no_commit=True
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertFalse(task_dir.exists())
+            self.assertTrue((task_archive_dest / "task.json").is_file())
+            self.assertTrue(change_dir.exists())
+            self.assertFalse(change_archive_dest.exists())
+            self.assertIn("05-19-demo-change", stderr.getvalue())
+            self.assertIn("Skipped linked change archive", stderr.getvalue())
+            self.assertNotIn(
+                "Archived linked change: 05-19-demo-change", stderr.getvalue()
+            )
+            self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
+
     def test_task_archive_does_not_commit_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

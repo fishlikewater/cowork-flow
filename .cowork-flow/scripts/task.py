@@ -1438,6 +1438,34 @@ def _linked_changes_ready_for_archive(repo_root: Path, slugs: list[str]) -> bool
     return ready
 
 
+def _linked_changes_auto_archiveable(
+    repo_root: Path,
+    slugs: list[str],
+    task_dir: Path,
+    *,
+    quiet: bool = False,
+) -> list[str]:
+    from change import unfinished_plan_task_refs_for_change
+
+    ready: list[str] = []
+    for slug in slugs:
+        unfinished = unfinished_plan_task_refs_for_change(repo_root, slug, task_dir)
+        if unfinished:
+            if not quiet:
+                joined = ", ".join(unfinished)
+                print(
+                    colored(
+                        "Skipped linked change archive: "
+                        f"{slug} still has unfinished task work: {joined}",
+                        Colors.YELLOW,
+                    ),
+                    file=sys.stderr,
+                )
+            continue
+        ready.append(slug)
+    return ready
+
+
 def _archive_linked_changes(repo_root: Path, slugs: list[str]) -> bool:
     from change import archive_change_by_slug
 
@@ -1550,11 +1578,16 @@ def cmd_next(args: argparse.Namespace) -> int:
         print("Next action: finalize, commit, archive, and record session")
         print("Command: git status --short")
         linked_changes = _linked_active_changes_for_task(repo_root, task_dir)
+        auto_archive_changes = _linked_changes_auto_archiveable(
+            repo_root, linked_changes, task_dir, quiet=True
+        )
         print(f"Then: ./.cowork-flow/run task archive {Path(task_path).name}")
-        for slug in linked_changes:
+        for slug in auto_archive_changes:
             print(
                 f"Then: ./.cowork-flow/run change archive {slug} (handled by task archive)"
             )
+        for slug in sorted(set(linked_changes) - set(auto_archive_changes)):
+            print(f"Then: leave linked change active until final task: {slug}")
         _print_blockers(blockers)
         return 0
 
@@ -1636,6 +1669,9 @@ def cmd_archive(args: argparse.Namespace) -> int:
         repo_root, linked_changes
     ):
         return 1
+    auto_archive_changes = _linked_changes_auto_archiveable(
+        repo_root, linked_changes, task_dir
+    )
 
     # Archive
     result = archive_task_complete(task_dir, repo_root)
@@ -1683,7 +1719,9 @@ def cmd_archive(args: argparse.Namespace) -> int:
         file=sys.stderr,
     )
 
-    if linked_changes and not _archive_linked_changes(repo_root, linked_changes):
+    if auto_archive_changes and not _archive_linked_changes(
+        repo_root, auto_archive_changes
+    ):
         return 1
 
     # Auto-commit only when explicitly requested.

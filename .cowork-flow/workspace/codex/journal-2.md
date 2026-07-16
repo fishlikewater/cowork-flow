@@ -547,3 +547,33 @@ Repaired the baseline task context pointer to the archived roadmap design, archi
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 81: Harden linked change final archive gate
+
+**Date**: 2026-07-16
+**Task**: Harden linked change final archive gate
+
+### Summary
+
+Task 1 implemented a final auto-archive gate for linked multi-task changes, preserved single-task auto archive, added red/green lifecycle coverage, and archived the task while leaving the parent change active for remaining tasks.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

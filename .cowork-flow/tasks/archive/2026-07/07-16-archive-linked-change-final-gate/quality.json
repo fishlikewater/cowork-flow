@@ -1,0 +1,47 @@
+{
+  "workType": "behavior_change",
+  "mode": "inline-main-session",
+  "reason": "用户要求按计划顺序激活并执行任务，且当前系统约束要求无明确请求不派生子代理；主会话完成等价实现、检查和证据记录。",
+  "testPlan": [
+    {
+      "acceptancePoint": "A multi-task linked change is not auto-archived when archiving a non-final completed task.",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_task_archive_keeps_multitask_linked_change_active_until_final_task -v",
+      "breaksWhen": "task archive moves the active change into changes/archive while another plan-referenced task is still planning or in progress."
+    },
+    {
+      "acceptancePoint": "The existing single-task linked-change auto archive path still passes.",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_task_archive_archives_linked_active_change -v",
+      "breaksWhen": "single-task archive no longer moves the linked active change or no longer normalizes the archived task link."
+    },
+    {
+      "acceptancePoint": "Root and template runtime scripts remain aligned for the changed helpers.",
+      "testCommand": "git diff --no-index -- .cowork-flow\\scripts\\task.py template\\.cowork-flow\\scripts\\task.py; git diff --no-index -- .cowork-flow\\scripts\\change.py template\\.cowork-flow\\scripts\\change.py",
+      "breaksWhen": "root and template runtime copies diverge after helper changes."
+    },
+    {
+      "acceptancePoint": "Focused lifecycle tests and git diff check pass.",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths tests.test_change_script -v; git diff --check",
+      "breaksWhen": "archive lifecycle or change validation regressions fail the focused suite, or whitespace errors remain."
+    }
+  ],
+  "red": {
+    "command": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_task_archive_keeps_multitask_linked_change_active_until_final_task -v",
+    "exitCode": 1,
+    "failingTests": [
+      "test_task_archive_keeps_multitask_linked_change_active_until_final_task"
+    ],
+    "outputExcerpt": "AssertionError: False is not true at self.assertTrue(change_dir.exists())"
+  },
+  "green": {
+    "command": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths tests.test_change_script -v; git diff --check; git diff --no-index -- .cowork-flow\\scripts\\task.py template\\.cowork-flow\\scripts\\task.py; git diff --no-index -- .cowork-flow\\scripts\\change.py template\\.cowork-flow\\scripts\\change.py",
+    "exitCode": 0,
+    "passingTests": [
+      "66 focused lifecycle/change tests",
+      "git diff --check",
+      "root/template task.py parity",
+      "root/template change.py parity"
+    ],
+    "outputExcerpt": "Ran 66 tests in 75.698s OK; git diff --check passed; root/template no-index diffs returned 0."
+  },
+  "spec_update": "No additional spec file required; current change spec already states multi-task linked changes must not auto-archive while known unfinished task work remains."
+}
