@@ -1284,6 +1284,91 @@ class FlowScriptPathsTest(unittest.TestCase):
             )
             self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
 
+    def test_task_archive_rewrites_archived_context_references_to_moved_paths(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            tasks_dir = workflow_dir / "tasks"
+            task_dir = tasks_dir / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"name": "demo", "status": "completed", "assignee": "codex"}',
+                encoding="utf-8",
+            )
+            (task_dir / "prd.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": ".cowork-flow/tasks/05-19-demo/prd.md", "reason": "self"}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "check.jsonl").write_text(
+                '{"file": ".cowork-flow/changes/05-19-demo-change/design.md", "reason": "change"}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "debug.jsonl").write_text(
+                '{"file": ".cowork-flow/changes/05-19-demo-change/spec.md", "reason": "change spec"}\n',
+                encoding="utf-8",
+            )
+            self._create_flow_task(root, "demo", "completed")
+            change_dir = self._write_l2_change_fixture(
+                root,
+                task_link=".cowork-flow/tasks/05-19-demo",
+            )
+            month = datetime.now().strftime("%Y-%m")
+            task_archive_dest = tasks_dir / "archive" / month / "05-19-demo"
+            change_archive_dest = (
+                workflow_dir / "changes" / "archive" / month / change_dir.name
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    archive_result = self.task.cmd_archive(
+                        argparse.Namespace(
+                            name="05-19-demo", commit=False, no_commit=True
+                        )
+                    )
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as validate_stdout,
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    validate_result = self.task.cmd_validate(
+                        argparse.Namespace(dir=str(task_archive_dest))
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, archive_result, stderr.getvalue())
+            self.assertEqual(0, validate_result, validate_stdout.getvalue())
+            implement_context = (task_archive_dest / "implement.jsonl").read_text(
+                encoding="utf-8"
+            )
+            check_context = (task_archive_dest / "check.jsonl").read_text(
+                encoding="utf-8"
+            )
+            debug_context = (task_archive_dest / "debug.jsonl").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn(
+                f".cowork-flow/tasks/archive/{month}/05-19-demo/prd.md",
+                implement_context,
+            )
+            self.assertIn(
+                f".cowork-flow/changes/archive/{month}/{change_dir.name}/design.md",
+                check_context,
+            )
+            self.assertIn(
+                f".cowork-flow/changes/archive/{month}/{change_dir.name}/spec.md",
+                debug_context,
+            )
+            self.assertTrue((change_archive_dest / "change.yaml").is_file())
+
     def test_task_archive_does_not_commit_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

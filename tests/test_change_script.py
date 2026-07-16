@@ -318,6 +318,44 @@ class ChangeScriptTest(unittest.TestCase):
         metadata = self.read_metadata(self.change_name_for("replace-auth"))
         self.assertEqual("archive/2026-05/05-18-active", metadata["task"])
 
+    def test_archive_rewrites_archived_task_context_refs_to_moved_change(
+        self,
+    ) -> None:
+        self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
+        change_dir = self.change_dir_for("replace-auth")
+        spec = change_dir / "spec.md"
+        spec.write_text("# Backend behavior\n\n- The API returns 200.\n", encoding="utf-8")
+        design = change_dir / "design.md"
+        design.write_text("# Design\n\nUse the archived change path.\n", encoding="utf-8")
+        archived_task = (
+            self.repo
+            / ".cowork-flow"
+            / "tasks"
+            / "archive"
+            / "2026-05"
+            / "05-18-active"
+        )
+        archived_task.mkdir(parents=True)
+        context_file = archived_task / "check.jsonl"
+        context_file.write_text(
+            f'{{"file": ".cowork-flow/changes/{change_dir.name}/design.md", "reason": "design"}}\n',
+            encoding="utf-8",
+        )
+        month = datetime.now().astimezone().strftime("%Y-%m")
+
+        archived = self.run_change("archive", self.change_name_for("replace-auth"))
+
+        self.assertEqual(0, archived.returncode, archived.stderr)
+        rewritten = context_file.read_text(encoding="utf-8")
+        self.assertIn(
+            f".cowork-flow/changes/archive/{month}/{change_dir.name}/design.md",
+            rewritten,
+        )
+        self.assertNotIn(
+            f".cowork-flow/changes/{change_dir.name}/design.md",
+            rewritten,
+        )
+
     def test_list_prints_active_and_archived_changes(self) -> None:
         self.assertEqual(0, self.run_change("create", "replace-auth").returncode)
         spec = self.change_dir_for("replace-auth") / "spec.md"

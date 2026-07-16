@@ -1,0 +1,48 @@
+{
+  "workType": "behavior_change",
+  "mode": "inline-main-session",
+  "reason": "用户要求按计划顺序激活并执行任务，且当前系统约束要求无明确请求不派生子代理；主会话完成等价实现、检查和证据记录。",
+  "testPlan": [
+    {
+      "acceptancePoint": "Archived task context JSONL entries pointing to moved tasks are rewritten to archived task paths.",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_task_archive_rewrites_archived_context_references_to_moved_paths -v",
+      "breaksWhen": "archived task implement/check/debug JSONL file fields still point at removed active task paths after task archive."
+    },
+    {
+      "acceptancePoint": "Archived task context JSONL entries pointing to moved changes are rewritten to archived change paths.",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_change_script.ChangeScriptTest.test_archive_rewrites_archived_task_context_refs_to_moved_change -v",
+      "breaksWhen": "archived task JSONL file fields still point at removed active change paths after change archive."
+    },
+    {
+      "acceptancePoint": "Task validate passes on archived task fixtures immediately after archive.",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_task_archive_rewrites_archived_context_references_to_moved_paths -v",
+      "breaksWhen": "task validate fails against the just-archived task due stale active task/change references."
+    },
+    {
+      "acceptancePoint": "Focused lifecycle tests and git diff check pass.",
+      "testCommand": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths tests.test_change_script -v; git diff --check",
+      "breaksWhen": "archive lifecycle or change archive regressions fail the focused suite, or whitespace errors remain."
+    }
+  ],
+  "red": {
+    "command": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_task_archive_rewrites_archived_context_references_to_moved_paths tests.test_change_script.ChangeScriptTest.test_archive_rewrites_archived_task_context_refs_to_moved_change -v",
+    "exitCode": 1,
+    "failingTests": [
+      "test_task_archive_rewrites_archived_context_references_to_moved_paths",
+      "test_archive_rewrites_archived_task_context_refs_to_moved_change"
+    ],
+    "outputExcerpt": "task validate reported File not found for active task/change paths; change archive left .cowork-flow/changes/<slug>/design.md in archived task context."
+  },
+  "green": {
+    "command": ".\\.cowork-flow\\run.cmd python -m unittest tests.test_flow_script_paths tests.test_change_script -v; git diff --check; root/template no-index parity checks",
+    "exitCode": 0,
+    "passingTests": [
+      "68 focused lifecycle/change tests",
+      "git diff --check",
+      "root/template task.py parity",
+      "root/template change.py parity"
+    ],
+    "outputExcerpt": "Ran 68 tests in 46.947s OK; git diff --check passed; root/template no-index diffs returned 0."
+  },
+  "spec_update": "No additional spec file required; current change spec already states archived task context JSONL files should validate without manual path repair."
+}

@@ -577,3 +577,33 @@ Task 1 implemented a final auto-archive gate for linked multi-task changes, pres
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 82: Rewrite archived context references
+
+**Date**: 2026-07-16
+**Task**: Rewrite archived context references
+
+### Summary
+
+Task 2 rewrote archived task JSONL file references after task/change archive moves, added regression coverage for moved task and change paths, verified archived task validate passes, and left the multi-task change active for remaining tasks.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

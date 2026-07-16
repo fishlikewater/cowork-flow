@@ -27,6 +27,7 @@ SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 VALID_LEVELS = {"L1", "L2"}
 VALID_STATUSES = {"draft", "active", "archived"}
 FINISHED_TASK_STATUSES = {"completed", "archived"}
+CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
 PLAN_TASK_REF_PATTERN = re.compile(
     r"\.cowork-flow/tasks/(?:archive/\d{4}-\d{2}/)?"
     r"\d{2}-\d{2}-[a-z0-9][a-z0-9-]*"
@@ -248,6 +249,7 @@ def archive_change_by_slug(repo_root: Path, slug: str) -> Path | None:
     metadata["archived_at"] = _now_iso()
     metadata["task"] = _normalize_task_link(repo_root, metadata.get("task"))
     _write_metadata(destination, metadata)
+    rewrite_archived_task_context_refs(repo_root, ((source, destination),))
     return destination
 
 
@@ -256,6 +258,101 @@ def _display_path(repo_root: Path, path: Path) -> str:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
     except ValueError:
         return str(path)
+
+
+def _repo_relative_path(repo_root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return str(path).replace("\\", "/")
+
+
+def _context_replacement_pairs(
+    repo_root: Path, moved_paths: Iterable[tuple[Path, Path]]
+) -> list[tuple[str, str]]:
+    pairs = [
+        (_repo_relative_path(repo_root, source), _repo_relative_path(repo_root, dest))
+        for source, dest in moved_paths
+    ]
+    return sorted(pairs, key=lambda pair: len(pair[0]), reverse=True)
+
+
+def _rewrite_context_file_ref(
+    file_path: str, replacements: Iterable[tuple[str, str]]
+) -> str:
+    normalized = file_path.replace("\\", "/")
+    for source, dest in replacements:
+        if normalized == source:
+            return dest
+        if normalized.startswith(f"{source}/"):
+            return f"{dest}{normalized[len(source):]}"
+    return file_path
+
+
+def _rewrite_jsonl_context_refs(
+    jsonl_file: Path, replacements: Iterable[tuple[str, str]]
+) -> bool:
+    if not jsonl_file.is_file():
+        return False
+
+    try:
+        lines = jsonl_file.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+
+    changed = False
+    rewritten_lines: list[str] = []
+    for line in lines:
+        if not line.strip():
+            rewritten_lines.append(line)
+            continue
+
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            rewritten_lines.append(line)
+            continue
+
+        file_path = data.get("file")
+        if isinstance(file_path, str):
+            rewritten = _rewrite_context_file_ref(file_path, replacements)
+            if rewritten != file_path:
+                data["file"] = rewritten
+                line = json.dumps(data, ensure_ascii=False)
+                changed = True
+        rewritten_lines.append(line)
+
+    if changed:
+        jsonl_file.write_text("\n".join(rewritten_lines) + "\n", encoding="utf-8")
+    return changed
+
+
+def rewrite_archived_task_context_refs(
+    repo_root: Path,
+    moved_paths: Iterable[tuple[Path, Path]],
+    task_dirs: Iterable[Path] | None = None,
+) -> int:
+    """Rewrite archived task JSONL ``file`` fields for just-moved artifacts."""
+    replacements = _context_replacement_pairs(repo_root, moved_paths)
+    if not replacements:
+        return 0
+
+    if task_dirs is None:
+        archive_root = repo_root / DIR_WORKFLOW / "tasks" / DIR_ARCHIVE
+        if not archive_root.is_dir():
+            return 0
+        candidate_dirs = [
+            path for path in sorted(archive_root.glob("*/*")) if path.is_dir()
+        ]
+    else:
+        candidate_dirs = [path for path in task_dirs if path.is_dir()]
+
+    changed = 0
+    for task_dir in candidate_dirs:
+        for jsonl_name in CONTEXT_JSONL_FILES:
+            if _rewrite_jsonl_context_refs(task_dir / jsonl_name, replacements):
+                changed += 1
+    return changed
 
 
 def _validate_link(

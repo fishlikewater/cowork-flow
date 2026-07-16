@@ -1466,18 +1466,22 @@ def _linked_changes_auto_archiveable(
     return ready
 
 
-def _archive_linked_changes(repo_root: Path, slugs: list[str]) -> bool:
+def _archive_linked_changes(repo_root: Path, slugs: list[str]) -> list[tuple[Path, Path]] | None:
     from change import archive_change_by_slug
 
+    moved_paths: list[tuple[Path, Path]] = []
     for slug in slugs:
-        if archive_change_by_slug(repo_root, slug) is None:
+        source = repo_root / DIR_WORKFLOW / DIR_CHANGES / slug
+        destination = archive_change_by_slug(repo_root, slug)
+        if destination is None:
             print(
                 colored(f"Error: Failed to archive linked change: {slug}", Colors.RED),
                 file=sys.stderr,
             )
-            return False
+            return None
+        moved_paths.append((source, destination))
         print(colored(f"Archived linked change: {slug}", Colors.GREEN), file=sys.stderr)
-    return True
+    return moved_paths
 
 
 def cmd_next(args: argparse.Namespace) -> int:
@@ -1719,10 +1723,20 @@ def cmd_archive(args: argparse.Namespace) -> int:
         file=sys.stderr,
     )
 
-    if auto_archive_changes and not _archive_linked_changes(
-        repo_root, auto_archive_changes
-    ):
-        return 1
+    moved_paths: list[tuple[Path, Path]] = [(task_dir, archive_dest)]
+    if auto_archive_changes:
+        linked_change_moves = _archive_linked_changes(repo_root, auto_archive_changes)
+        if linked_change_moves is None:
+            return 1
+        moved_paths.extend(linked_change_moves)
+
+    from change import rewrite_archived_task_context_refs
+
+    rewrite_archived_task_context_refs(
+        repo_root,
+        moved_paths,
+        task_dirs=(archive_dest,),
+    )
 
     # Auto-commit only when explicitly requested.
     if getattr(args, "commit", False) and not getattr(args, "no_commit", False):
