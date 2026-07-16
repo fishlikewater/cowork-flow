@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Current file**: `journal-2.md`
-- **Total Sessions**: 83
+- **Total Sessions**: 84
 - **Last Active**: 2026-07-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|------|------|
-| `journal-2.md` | ~639 | Current |
+| `journal-2.md` | ~669 | Current |
 | `journal-1.md` | ~1992 | Archived |
 <!-- @@@/auto:active-documents -->
 
@@ -30,6 +30,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commit |
 |---|------|------|------|
+| 84 | 2026-07-16 | Audit legacy completed tasks | - |
 | 83 | 2026-07-16 | Remove Windows npm shell warning | - |
 | 82 | 2026-07-16 | Rewrite archived context references | - |
 | 81 | 2026-07-16 | Harden linked change final archive gate | - |

@@ -637,3 +637,33 @@ Task 3 replaced Windows npm shell:true execution with a shellless node npm-cli.j
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 84: Audit legacy completed tasks
+
+**Date**: 2026-07-16
+**Task**: Audit legacy completed tasks
+
+### Summary
+
+Task 4 audited 19 DB-only 06-25 completed task records, marked them archived through FlowStore.archive_task, recorded the rationale in audit.md, archived the final task and linked change, and verified task current is empty plus task list/change list consistency.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete
