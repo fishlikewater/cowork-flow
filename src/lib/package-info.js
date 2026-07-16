@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { packageRoot } from './paths.js';
@@ -32,11 +32,27 @@ export function compareVersions(left, right) {
 }
 
 export function npmCommandOptions(platform = process.platform) {
-  return platform === 'win32' ? { shell: true } : {};
+  return {};
+}
+
+function windowsNpmCli(env = process.env) {
+  if (typeof env.npm_execpath === 'string' && env.npm_execpath.trim()) {
+    return env.npm_execpath;
+  }
+  return join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+}
+
+export function npmCommand(platform = process.platform) {
+  return platform === 'win32' ? process.execPath : 'npm';
+}
+
+export function npmCommandArgs(args, platform = process.platform, env = process.env) {
+  return platform === 'win32' ? [windowsNpmCli(env), ...args] : args;
 }
 
 export async function fetchLatestVersion(packageName = 'cowork-flow') {
-  const result = await execFileAsync('npm', ['view', packageName, 'version'], {
+  const args = ['view', packageName, 'version'];
+  const result = await execFileAsync(npmCommand(), npmCommandArgs(args), {
     encoding: 'utf8',
     ...npmCommandOptions()
   });
@@ -45,7 +61,8 @@ export async function fetchLatestVersion(packageName = 'cowork-flow') {
 
 export async function runGlobalInstall(packageSpec = 'cowork-flow@latest') {
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn('npm', ['install', '-g', packageSpec], {
+    const args = ['install', '-g', packageSpec];
+    const child = spawn(npmCommand(), npmCommandArgs(args), {
       stdio: 'inherit',
       ...npmCommandOptions()
     });

@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { runUpdate } from '../src/commands/update.js';
-import { compareVersions, npmCommandOptions } from '../src/lib/package-info.js';
+import {
+  compareVersions,
+  npmCommand,
+  npmCommandArgs,
+  npmCommandOptions
+} from '../src/lib/package-info.js';
 
 function createIo() {
   return {
@@ -23,11 +28,27 @@ test('compareVersions compares dotted numeric versions', () => {
   assert.equal(compareVersions('0.4.0', '0.3.10'), 1);
 });
 
-test('npmCommandOptions enables shell execution on Windows', () => {
-  assert.deepEqual(npmCommandOptions('win32'), { shell: true });
+test('npmCommand resolves Windows npm through npm cli without shell execution', () => {
+  const env = { npm_execpath: 'C:\\node\\node_modules\\npm\\bin\\npm-cli.js' };
+  assert.equal(npmCommand('win32'), process.execPath);
+  assert.deepEqual(npmCommandArgs(['view', 'cowork-flow', 'version'], 'win32', env), [
+    env.npm_execpath,
+    'view',
+    'cowork-flow',
+    'version'
+  ]);
+  assert.deepEqual(npmCommandOptions('win32'), {});
+  assert.equal(Object.hasOwn(npmCommandOptions('win32'), 'shell'), false);
 });
 
 test('npmCommandOptions keeps direct execution on non-Windows platforms', () => {
+  assert.equal(npmCommand('linux'), 'npm');
+  assert.equal(npmCommand('darwin'), 'npm');
+  assert.deepEqual(npmCommandArgs(['view', 'cowork-flow', 'version'], 'linux'), [
+    'view',
+    'cowork-flow',
+    'version'
+  ]);
   assert.deepEqual(npmCommandOptions('linux'), {});
   assert.deepEqual(npmCommandOptions('darwin'), {});
 });

@@ -607,3 +607,33 @@ Task 2 rewrote archived task JSONL file references after task/change archive mov
 ### Follow-up Actions
 
 - None, active task is complete
+
+
+## Session 83: Remove Windows npm shell warning
+
+**Date**: 2026-07-16
+**Task**: Remove Windows npm shell warning
+
+### Summary
+
+Task 3 replaced Windows npm shell:true execution with a shellless node npm-cli.js command strategy, updated focused Node tests and pack-check call sites, verified npm tests and pack-check pass without DEP0190, and archived the task while leaving the audit task active.
+
+### Main Changes
+
+(add details)
+
+### Git Commit
+
+(no code commit; planning or sync session)
+
+### Verification
+
+- [OK] (add verification results)
+
+### Status
+
+[OK] **Completed**
+
+### Follow-up Actions
+
+- None, active task is complete

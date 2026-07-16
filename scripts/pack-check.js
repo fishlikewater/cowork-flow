@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { npmCommandOptions } from '../src/lib/package-info.js';
+import {
+  npmCommand,
+  npmCommandArgs,
+  npmCommandOptions
+} from '../src/lib/package-info.js';
 import { packageRoot } from '../src/lib/paths.js';
 import { checkTemplateSync } from '../src/lib/template-sync-gate.js';
 
@@ -31,7 +35,8 @@ function forbiddenPackFiles(files) {
 const npmCache = await mkdtemp(join(tmpdir(), 'cowork-flow-npm-cache-'));
 
 try {
-  const result = await execFileAsync('npm', ['pack', '--dry-run', '--json'], {
+  const npmArgs = ['pack', '--dry-run', '--json'];
+  const result = await execFileAsync(npmCommand(), npmCommandArgs(npmArgs), {
     cwd: packageRoot,
     encoding: 'utf8',
     ...npmCommandOptions(),

@@ -7,7 +7,7 @@ documentation_only: false
 owner: codex
 title: Post-closeout workflow hardening
 plan: .cowork-flow/plans/2026-07-16-post-closeout-hardening.md
-task: .cowork-flow/tasks/07-16-archive-context-reference-rewrite
+task: .cowork-flow/tasks/07-16-npm-command-shellless-windows
 goal: >-
   Harden the closeout path after the 07-12 follow-up run exposed premature linked-change archival, stale archived context references, and a Node Windows command warning.
 user_value: >-

@@ -1,0 +1,46 @@
+{
+  "workType": "behavior_change",
+  "mode": "inline-main-session",
+  "reason": "用户要求按计划顺序激活并执行任务，且当前系统约束要求无明确请求不派生子代理；主会话完成等价实现、检查和证据记录。",
+  "testPlan": [
+    {
+      "acceptancePoint": "Windows npm helper no longer returns shell:true.",
+      "testCommand": "npm test -- test/update.test.js test/package.test.js",
+      "breaksWhen": "npmCommandOptions(\"win32\") includes shell:true or the Windows command helper does not prepend npm-cli.js."
+    },
+    {
+      "acceptancePoint": "fetchLatestVersion and runGlobalInstall still use npm-compatible commands on Windows and non-Windows.",
+      "testCommand": "npm test -- test/update.test.js test/package.test.js",
+      "breaksWhen": "npm command helpers fail to produce npm-compatible command/args for Windows or direct npm args for Linux/macOS."
+    },
+    {
+      "acceptancePoint": "Focused Node tests pass.",
+      "testCommand": "npm test -- test/update.test.js test/package.test.js",
+      "breaksWhen": "update/package tests fail after shellless npm command changes."
+    },
+    {
+      "acceptancePoint": "pack check passes without cowork-flow-caused DEP0190 warning.",
+      "testCommand": "npm run pack:check",
+      "breaksWhen": "pack-check fails or emits DEP0190 from cowork-flow npm command options."
+    }
+  ],
+  "red": {
+    "command": "npm test -- test/update.test.js test/package.test.js",
+    "exitCode": 1,
+    "failingTests": [
+      "test/update.test.js"
+    ],
+    "outputExcerpt": "SyntaxError: package-info.js does not provide an export named npmCommand; prior pack path emitted [DEP0190] because npmCommandOptions(\"win32\") returned shell:true."
+  },
+  "green": {
+    "command": "npm test -- test/update.test.js test/package.test.js; npm run pack:check; git diff --check",
+    "exitCode": 0,
+    "passingTests": [
+      "10 focused Node tests",
+      "npm run pack:check",
+      "git diff --check"
+    ],
+    "outputExcerpt": "10 tests passed; pack-check ok inspected 274 files; no DEP0190 warning in green output; git diff --check passed."
+  },
+  "spec_update": "No spec update required; this is an implementation-level Windows command strategy under the existing npm command execution requirement."
+}
