@@ -1,0 +1,2 @@
+{"file": "tests/test_flow_script_paths.py", "reason": "validate archived task context rewrite"}
+{"file": "tests/test_change_script.py", "reason": "validate change archive context normalization"}

@@ -1,0 +1,3 @@
+{"file": "src/lib/package-info.js", "reason": "npm command execution helper"}
+{"file": "test/update.test.js", "reason": "helper contract tests"}
+{"file": "test/package.test.js", "reason": "package command verification"}
