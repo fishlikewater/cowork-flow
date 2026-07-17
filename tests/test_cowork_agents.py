@@ -215,7 +215,7 @@ class CoworkAgentsTest(unittest.TestCase):
     def test_cowork_implement_requires_tdd_evidence(self) -> None:
         required_markers = (
             "red-green-refactor",
-            "tdd.jsonl",
+            "check.jsonl",
             "redCommand",
             "redExitCode",
             "greenCommand",

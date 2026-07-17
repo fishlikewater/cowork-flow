@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import subprocess
@@ -214,7 +214,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "gates/registry.py": ("class GateRegistry", "duplicate validator key", "GateLoadError"),
             "git/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
             "task/state_machine.py": ("transition_blockers", "task review", "completed"),
-            "gates/tdd_evidence.py": ("validate_tdd_evidence", "tdd.jsonl", "redExitCode"),
+            "gates/tdd_evidence.py": ("validate_tdd_evidence", "check.jsonl", "redExitCode"),
             "gates/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
             "gates/validate_coding_standards.py": ("validate_coding_standards", "collect_changed_files", "--validate"),
         }
@@ -301,7 +301,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_tdd_internal_protocol_preserves_evidence_contract(self) -> None:
         required_markers = (
             "red-green-refactor",
-            "tdd.jsonl",
+            "check.jsonl",
             "acceptanceId",
             "redExitCode",
             "greenExitCode",

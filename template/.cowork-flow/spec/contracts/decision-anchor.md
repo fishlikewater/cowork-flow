@@ -50,9 +50,9 @@
 
 ## 产物压缩
 
-合并前（6个文件）：`prd.md` + `implement.jsonl` + `check.jsonl` + `debug.jsonl` + `tdd.jsonl` + `task.json`
+合并前（6个文件）：`prd.md` + `implement.jsonl` + `check.jsonl` + `debug.jsonl` + `task.json`
 
-合并后（5个文件）：`decision-anchor.md` + `implement.jsonl` + `check.jsonl` + `debug.jsonl` + `tdd.jsonl` + `task.json`
+合并后（5个文件）：`decision-anchor.md` + `implement.jsonl` + `check.jsonl` + `debug.jsonl` + `task.json`
 
 **净减 1 个文件类型。相关文件追踪现在由 implement.jsonl 统一负责。**
 

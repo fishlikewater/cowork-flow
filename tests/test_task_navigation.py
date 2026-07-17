@@ -239,7 +239,7 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertIn("Status: in_progress", output)
             self.assertIn("Next action: execute implementation plan", output)
             self.assertIn("TDD reminder:", output)
-            self.assertIn("/tdd.jsonl before modifying code", output)
+            self.assertIn("/check.jsonl", output)
             self.assertIn("cowork-implement", output)
             self.assertIn("./.cowork-flow/run subagent init", output)
             self.assertNotIn("TDD red evidence is missing", output)
@@ -257,9 +257,10 @@ class TaskNavigationTest(FlowScriptTestCase):
             )
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(
                     {
+                        "type": "tdd",
                         "acceptanceId": "AC-001",
                         "testFile": "tests/test_flow_script_paths.py",
                         "testName": "FlowScriptPathsTest.test_cmd_next_prints_tdd_reminder_without_blocking_dispatch",

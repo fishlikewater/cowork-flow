@@ -335,7 +335,7 @@ class SkillRegistryTest(unittest.TestCase):
                 ".cowork-flow/spec/protocols/tdd.md",
                 "mandatory",
                 "tdd-evidence",
-                "tdd.jsonl",
+                "check.jsonl",
             ),
             "review-protocol": (
                 ".cowork-flow/spec/protocols/review.md",
@@ -370,13 +370,25 @@ class SkillRegistryTest(unittest.TestCase):
             self.assertEqual((), entry.managed_paths)
             self.assertNotIn(protocol_id, registry.public_skill_ids)
 
-        for legacy_id in ("tdd", "check", "update-spec"):
+        for legacy_id in ("check", "update-spec"):
             self.assertNotIn(legacy_id, entries)
             self.assertFalse(
                 (TEMPLATE / "skills" / legacy_id / "SKILL.md").exists(),
                 legacy_id,
             )
 
+
+    def test_tdd_is_public_advisory_practice_skill(self) -> None:
+        registry = self._module().load_skill_registry(TEMPLATE)
+        entry = registry.entry("tdd")
+
+        self.assertEqual("protocol", entry.kind)
+        self.assertEqual("public", entry.visibility)
+        self.assertEqual("advisory", entry.enforcement)
+        self.assertEqual("check.jsonl", entry.evidence_artifact)
+        self.assertEqual("skills/tdd/SKILL.md", entry.source)
+        self.assertIn("tdd", registry.public_skill_ids)
+        self.assertTrue((TEMPLATE / "skills" / "tdd" / "SKILL.md").exists())
     def test_doubt_review_is_public_advisory_protocol(self) -> None:
         registry = self._module().load_skill_registry(TEMPLATE)
         entry = registry.entry("doubt-review")

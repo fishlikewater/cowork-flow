@@ -20,7 +20,7 @@ This section is the authoritative red-green-refactor contract.
 
 ## Output
 
-Write one JSON object per line to `<task>/tdd.jsonl` with:
+When red/green evidence is useful or required, write one JSON object per line to `<task>/check.jsonl` with `type: "tdd"` and:
 
 - `acceptanceId`, `testFile`, `testName`
 - `redCommand`, `redExitCode`, `redOutputExcerpt`, `failureReason`
@@ -31,12 +31,12 @@ Only docs/comment/format-only work may use a documented `exemption`.
 
 ## Anti-Rationalization
 
-The following excuses do not exempt the TDD evidence requirement:
+The following excuses do not exempt meaningful behavior testing or required high-risk TDD evidence:
 
 | Excuse | Why It Fails | Required Alternative |
 |---|---|---|
 | "This logic is simple, no test needed" | Simple logic still breaks on edge cases and later edits. | Write the smallest behavior test for the acceptance ID. |
-| "Other tests already cover this" | Invisible coverage is not red-green evidence. | Point to the exact redCommand and acceptanceId in `tdd.jsonl`. |
+| "Other tests already cover this" | Invisible coverage is not red-green evidence. | Point to the exact redCommand and acceptanceId in `check.jsonl`. |
 | "I'll add tests after implementation" | Post-implementation tests are not a red-green cycle. | Red first, then green; record both commands. |
 | "It looks correct" | Visual inspection misses scenarios that tests can pin down. | Turn the expected behavior and edge case into assertions. |
 | "I've written similar tests" | Similar structure is not the same behavior. | Re-run the redCommand for this acceptanceId. |

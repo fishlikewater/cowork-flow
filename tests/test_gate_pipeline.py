@@ -59,10 +59,10 @@ class GatePipelineTest(FlowScriptTestCase):
             + "\n",
             encoding="utf-8",
         )
-        (task_dir / "tdd.jsonl").write_text(
+        (task_dir / "check.jsonl").write_text(
             json.dumps(
                 {
-                    "type": "exemption",
+                    "type": "tdd_exemption",
                     "acceptanceId": "AC-001",
                     "exemptionType": "test-only",
                     "reason": "Fixture covers implementation gate file scope only.",
@@ -516,7 +516,7 @@ class GatePipelineTest(FlowScriptTestCase):
             self.assertEqual(0, result, stderr.getvalue())
             self.assertEqual("review", data["status"])
 
-    def test_cmd_review_blocks_behavior_change_without_tdd_evidence(self) -> None:
+    def test_cmd_review_allows_behavior_change_without_legacy_tdd_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
@@ -541,11 +541,11 @@ class GatePipelineTest(FlowScriptTestCase):
                 os.chdir(previous_cwd)
 
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
-            self.assertEqual(1, result)
-            self.assertEqual("in_progress", data["status"])
-            self.assertIn("TDD evidence", stderr.getvalue())
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual("review", data["status"])
+            self.assertIn("Warning: TDD evidence advisories", stderr.getvalue())
 
-    def test_cmd_review_accepts_valid_tdd_evidence(self) -> None:
+    def test_cmd_review_accepts_check_jsonl_tdd_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
@@ -573,6 +573,71 @@ class GatePipelineTest(FlowScriptTestCase):
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
             self.assertEqual(0, result, stderr.getvalue())
             self.assertEqual("review", data["status"])
+
+    def test_cmd_review_accepts_legacy_tdd_jsonl_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_behavior_prd(task_dir)
+            self._write_valid_legacy_tdd_evidence(task_dir)
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual("review", data["status"])
+
+    def test_cmd_review_blocks_high_risk_behavior_without_tdd_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                "# Protocol task\n\n"
+                "## 目标\n\n"
+                "修改协议和状态机行为。\n\n"
+                "## 验收标准\n\n"
+                "- AC-001: 协议状态机变更必须有 red-green evidence。\n",
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result)
+            self.assertEqual("in_progress", data["status"])
+            self.assertIn("high-risk behavior-change task", stderr.getvalue())
 
     def test_cmd_review_blocks_coding_standards_violations_across_git_statuses(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -691,10 +756,10 @@ class GatePipelineTest(FlowScriptTestCase):
                 "# Docs task\n\n## 验收标准\n\n- AC-001: 文档措辞更新。\n",
                 encoding="utf-8",
             )
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(
                     {
-                        "type": "exemption",
+                        "type": "tdd_exemption",
                         "acceptanceId": "AC-001",
                         "exemptionType": "docs-only",
                         "reason": "Only documentation wording changes; no runtime behavior changes.",
