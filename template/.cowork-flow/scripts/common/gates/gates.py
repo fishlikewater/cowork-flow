@@ -130,6 +130,7 @@ def _core_gate_definitions() -> tuple[GateDefinition, ...]:
             validator_key="tdd_evidence",
             required=True,
             block_message="TDD evidence gate blocked lifecycle transition",
+            warning_message="TDD evidence advisories",
         ),
         GateDefinition(
             id="test_intent",

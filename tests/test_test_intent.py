@@ -53,7 +53,7 @@ class TestIntentTest(FlowScriptTestCase):
                 "greenExitCode": 0,
                 "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
             }
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
@@ -109,7 +109,7 @@ class TestIntentTest(FlowScriptTestCase):
                 "greenExitCode": 0,
                 "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
             }
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
@@ -162,7 +162,7 @@ class TestIntentTest(FlowScriptTestCase):
                 "greenExitCode": 0,
                 "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
             }
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
@@ -199,7 +199,7 @@ class TestIntentTest(FlowScriptTestCase):
                 "greenExitCode": 0,
                 "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
             }
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
@@ -236,7 +236,7 @@ class TestIntentTest(FlowScriptTestCase):
                 "greenExitCode": 0,
                 "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
             }
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
@@ -273,7 +273,7 @@ class TestIntentTest(FlowScriptTestCase):
                 "greenExitCode": 0,
                 "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
             }
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
@@ -310,7 +310,7 @@ class TestIntentTest(FlowScriptTestCase):
                 "greenExitCode": 0,
                 "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
             }
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
@@ -346,7 +346,7 @@ class TestIntentTest(FlowScriptTestCase):
                 "greenExitCode": 0,
                 "broaderVerification": "python -m unittest tests.test_real -v",
             }
-            (task_dir / "tdd.jsonl").write_text(
+            (task_dir / "check.jsonl").write_text(
                 json.dumps(evidence, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )

@@ -96,7 +96,7 @@ def _print_blockers(blockers: list[str]) -> None:
 
 def _implementation(task_path: str) -> None:
     print("Next action: execute implementation plan")
-    print(f"TDD reminder: for behavior changes, write a failing test and record red evidence in {task_path}/tdd.jsonl before modifying code.")
+    print(f"TDD reminder: for behavior changes, write the failing test first and record any red/green evidence in {task_path}/check.jsonl.")
     print(
         f"Command: ./.cowork-flow/run subagent init --role implement "
         f"--agent-type cowork-implement --execution-task-dir {task_path} "

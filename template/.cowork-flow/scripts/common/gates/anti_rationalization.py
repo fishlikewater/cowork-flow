@@ -43,7 +43,7 @@ def validate_exemption_rationalization(reason: str) -> list[dict]:
                     f"'{pattern}'. Replace with a concrete behavior test or "
                     f"specific verification command."
                 ),
-                "file": "<task>/tdd.jsonl",
+                "file": "<task>/check.jsonl",
                 "fix_hint": (
                     "Remove rationalization from exemption reason. "
                     "Either write a failing behavior test for this AC "

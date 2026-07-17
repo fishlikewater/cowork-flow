@@ -194,7 +194,6 @@
       ".agents/skills/finish-work",
       ".agents/skills/party-mode-v2",
       ".agents/skills/start",
-      ".agents/skills/tdd",
       ".agents/skills/update-spec",
       ".agents/skills/using-cowork-flow",
       ".claude/skills/before-dev",
@@ -204,7 +203,6 @@
       ".claude/skills/finish-work",
       ".claude/skills/party-mode-v2",
       ".claude/skills/start",
-      ".claude/skills/tdd",
       ".claude/skills/update-spec",
       ".claude/skills/using-cowork-flow"
     ]

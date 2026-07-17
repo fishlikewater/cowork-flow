@@ -325,6 +325,29 @@
       "managedPaths": []
     },
     {
+      "id": "tdd",
+      "displayName": "TDD",
+      "aliases": [],
+      "kind": "protocol",
+      "visibility": "public",
+      "status": "active",
+      "statuses": [
+        "in_progress"
+      ],
+      "intents": [
+        "apply_tdd"
+      ],
+      "enforcement": "advisory",
+      "runtimeGate": null,
+      "runtimeCommand": null,
+      "evidenceArtifact": "check.jsonl",
+      "source": "skills/tdd/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/tdd/",
+        ".claude/skills/tdd/"
+      ]
+    },
+    {
       "id": "tdd-protocol",
       "displayName": "TDD Protocol",
       "aliases": [],
@@ -340,7 +363,7 @@
       "enforcement": "mandatory",
       "runtimeGate": "tdd-evidence",
       "runtimeCommand": null,
-      "evidenceArtifact": "tdd.jsonl",
+      "evidenceArtifact": "check.jsonl",
       "source": ".cowork-flow/spec/protocols/tdd.md",
       "managedPaths": []
     },
@@ -356,7 +379,7 @@
       "enforcement": "runtime",
       "runtimeGate": null,
       "runtimeCommand": "task review",
-      "evidenceArtifact": "tdd.jsonl",
+      "evidenceArtifact": "check.jsonl",
       "source": ".cowork-flow/scripts/common/gates/tdd_evidence.py",
       "managedPaths": []
     },

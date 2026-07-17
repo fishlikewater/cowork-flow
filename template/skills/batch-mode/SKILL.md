@@ -10,7 +10,7 @@ description: 用户批准完整计划并要求按任务图连续执行时使用�
 Batch Scheduler 是持久化状态机，不在 CLI 内模拟实现或检查完成。
 
 - 任务顺序只来自 change/task graph 的叶子任务拓扑序。
-- `implement.jsonl`、`check.jsonl` 和 `tdd.jsonl` 只作为当前任务上下文与 Gate 证据，
+- `implement.jsonl` 和 `check.jsonl` 只作为当前任务上下文与 Gate 证据，
   不能作为 Batch 任务列表。
 - 每次只发布一个 host-neutral `next_action`。
 - Host 执行真实动作后，必须回写结果；状态机验证仓库状态后才推进。

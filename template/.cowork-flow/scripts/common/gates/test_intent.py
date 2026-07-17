@@ -5,11 +5,10 @@ from __future__ import annotations
 
 import ast
 import io
-import json
 import tokenize
 from pathlib import Path
 
-from .tdd_evidence import EVIDENCE_FILE
+from .tdd_evidence import is_tdd_exemption, tdd_evidence_records
 
 REPORT_FIELD = "test_intent_review"
 
@@ -47,15 +46,14 @@ BLOCK_MARKERS = (
 
 
 def validate_test_intent(repo_root: Path, task_dir: Path) -> list[dict]:
-    """Return test intent warnings or blocks for the task's TDD evidence."""
-    evidence_path = Path(task_dir) / EVIDENCE_FILE
-    entries = _read_tdd_entries(evidence_path)
-    if not entries:
+    """Return test intent warnings or blocks for TDD evidence records."""
+    records = tdd_evidence_records(Path(task_dir))
+    if not records:
         return []
 
     violations: list[dict] = []
-    for index, entry in enumerate(entries, start=1):
-        if entry.get("type") == "exemption":
+    for index, (evidence_path, _line_number, entry) in enumerate(records, start=1):
+        if is_tdd_exemption(entry):
             continue
 
         test_file = entry.get("testFile")
@@ -119,28 +117,6 @@ def validate_test_intent(repo_root: Path, task_dir: Path) -> list[dict]:
             )
 
     return violations
-
-
-def _read_tdd_entries(path: Path) -> list[dict]:
-    if not path.is_file():
-        return []
-
-    entries: list[dict] = []
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError):
-        return []
-
-    for line in lines:
-        if not line.strip():
-            continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, dict):
-            entries.append(data)
-    return entries
 
 
 from common.core.files import read_text_utf8 as _read_text

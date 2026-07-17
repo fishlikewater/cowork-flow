@@ -42,8 +42,7 @@ Load context before editing:
 6. Read the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/` for a plan file referencing this task directory). Follow the plan steps in order — each step has Files, Action, Verify, and Expected fields.
 7. Read quality source entries from context; backend/frontend natural-language
    specs are review checklists, not dynamic hard validators.
-8. For behavior-change tasks, create or verify `<task>/tdd.jsonl` before
-   implementation or record a documented exemption.
+8. For behavior-change tasks, write the failing test before implementation and record any red/green evidence in `<task>/check.jsonl`, or record a documented exemption there.
 9. Before reporting completion, write `<task>/quality-review.jsonl` with
    checklist, machine warning, and Definition of Done evidence.
 
@@ -52,7 +51,7 @@ Authoritative internal protocols:
 - `.cowork-flow/spec/protocols/decision-review.md`
 - `.cowork-flow/spec/protocols/spec-maintenance.md`
 
-Apply their output contracts exactly. Implementation reports and `tdd.jsonl`
+Apply their output contracts exactly. Implementation reports and TDD entries in `check.jsonl`
 must preserve `acceptanceId`, `redCommand`, `redExitCode`, `greenCommand`,
 `greenExitCode`, and `specUpdates`.
 
