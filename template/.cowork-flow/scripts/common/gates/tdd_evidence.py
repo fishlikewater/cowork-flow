@@ -181,6 +181,63 @@ def tdd_evidence_records(task_dir: Path) -> list[tuple[Path, int, dict]]:
     return records
 
 
+def migrate_legacy_tdd_records(task_dir: Path) -> dict:
+    """Migrate legacy tdd.jsonl records to check.jsonl and remove the legacy file.
+
+    Returns a summary dict with:
+      - migrated: number of records moved
+      - skipped: number of duplicate acceptanceIds already in check.jsonl
+      - legacy_removed: whether the legacy file was deleted
+    """
+    task_dir = Path(task_dir)
+    legacy_path = task_dir / LEGACY_EVIDENCE_FILE
+    check_path = task_dir / CHECK_EVIDENCE_FILE
+
+    if not legacy_path.is_file():
+        return {"migrated": 0, "skipped": 0, "legacy_removed": False}
+
+    migrated = 0
+    skipped = 0
+
+    # Load existing check.jsonl acceptanceIds for dedup
+    existing_ids: set[str] = set()
+    if check_path.is_file():
+        check_entries, _ = _read_jsonl(check_path, report_invalid=False)
+        for _, entry in check_entries:
+            aid = str(entry.get("acceptanceId", "")).strip()
+            if aid:
+                existing_ids.add(aid)
+
+    # Read legacy records
+    legacy_entries, _ = _read_jsonl(legacy_path, report_invalid=True)
+    new_records: list[dict] = []
+
+    for _, entry in legacy_entries:
+        aid = str(entry.get("acceptanceId", "")).strip()
+        if aid and aid in existing_ids:
+            skipped += 1
+            continue
+        new_records.append(entry)
+        if aid:
+            existing_ids.add(aid)
+        migrated += 1
+
+    # Append to check.jsonl
+    if new_records:
+        with check_path.open("a", encoding="utf-8") as stream:
+            for record in new_records:
+                stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    # Remove legacy file
+    legacy_path.unlink()
+
+    return {
+        "migrated": migrated,
+        "skipped": skipped,
+        "legacy_removed": True,
+    }
+
+
 def is_tdd_exemption(entry: dict) -> bool:
     entry_type = str(entry.get("type") or "").strip()
     return entry_type in TDD_EXEMPTION_TYPES and _has_value(entry, "exemptionType")
@@ -216,6 +273,23 @@ def _load_tdd_records(task_dir: Path) -> tuple[list[tuple[Path, int, dict]], lis
         violations.extend(legacy_violations)
         legacy_entry_count = len(legacy_entries)
         records.extend((legacy_path, line_number, entry) for line_number, entry in legacy_entries)
+        violations.append(
+            {
+                "rule_id": "TDD-LEGACY-001",
+                "type": "tdd_legacy_detection",
+                "severity": "warn",
+                "passed": False,
+                "message": (
+                    "Legacy tdd.jsonl detected. Migrate evidence to check.jsonl "
+                    "using migrate_legacy_tdd_records(task_dir)."
+                ),
+                "file": str(legacy_path),
+                "fix_hint": (
+                    "Run migrate_legacy_tdd_records(task_dir) to move records "
+                    "to check.jsonl and remove the legacy file."
+                ),
+            }
+        )
 
     check_path = task_dir / CHECK_EVIDENCE_FILE
     if check_path.is_file():

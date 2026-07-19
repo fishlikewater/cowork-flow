@@ -144,6 +144,22 @@ class BatchRecoveryTest(FlowScriptTestCase):
         )
         return next_state, runtime_id, host_key
 
+    def _record_runtime_result(
+        self,
+        service,
+        root: Path,
+        state: dict,
+    ) -> dict:
+        action = state["next_action"]
+        return service.record_result(
+            state["operation_id"],
+            self._payload(
+                state,
+                runtime_context_id=action["runtime_context_id"],
+                host_context_key=action["host_context_key"],
+            ),
+        )
+
     def _complete_current_task(
         self,
         service,
@@ -205,6 +221,16 @@ class BatchRecoveryTest(FlowScriptTestCase):
                     root,
                     state,
                     "completed",
+                )
+            elif action_type == "archive_task":
+                state = service.record_result(
+                    state["operation_id"],
+                    self._payload(
+                        state,
+                        archive_destination=(
+                            f".cowork-flow/tasks/archive/2026-07/{task_name}"
+                        ),
+                    ),
                 )
             elif action_type == "commit_task":
                 state = service.record_result(
@@ -451,6 +477,118 @@ class BatchRecoveryTest(FlowScriptTestCase):
             resumed["next_action"]["type"],
         )
 
+
+    def test_archive_task_runs_between_complete_and_commit(self) -> None:
+        """Verify archive_task appears as next_action after complete_task succeeds."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._graph(root)
+            service = self.module.BatchExecutionService(
+                root,
+                commit_verifier=lambda _: True,
+            )
+            state = service.start("parent")
+
+            # Walk through steps until we hit complete_task
+            while state["next_action"]["type"] != "complete_task":
+                action_type = state["next_action"]["type"]
+                if action_type == "start_task":
+                    state = self._record_lifecycle(service, root, state, "in_progress")
+                elif action_type in ("review_task",):
+                    state = self._record_lifecycle(service, root, state, "review")
+                elif action_type.startswith("init_"):
+                    state, _, _ = self._record_runtime_init(service, root, state)
+                elif action_type.startswith("await_"):
+                    state = self._record_runtime_result(service, root, state)
+                elif action_type == "archive_task":
+                    state = service.record_result(
+                        state["operation_id"],
+                        self._payload(
+                            state,
+                            archive_destination=".cowork-flow/tasks/archive/2026-07/dummy",
+                        ),
+                    )
+                else:
+                    self.fail(f"unexpected action: {action_type}")
+
+            # Complete the task
+            state = self._record_lifecycle(service, root, state, "completed")
+            # Next action should be archive_task
+            self.assertEqual("archive_task", state["next_action"]["type"])
+
+    def test_archive_failure_pauses_batch(self) -> None:
+        """Verify archive failure transitions state to paused."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._graph(root)
+            service = self.module.BatchExecutionService(
+                root,
+                commit_verifier=lambda _: True,
+            )
+            state = service.start("parent")
+
+            # Walk to archive_task
+            while state["next_action"]["type"] != "archive_task":
+                action_type = state["next_action"]["type"]
+                if action_type == "start_task":
+                    state = self._record_lifecycle(service, root, state, "in_progress")
+                elif action_type == "review_task":
+                    state = self._record_lifecycle(service, root, state, "review")
+                elif action_type == "complete_task":
+                    state = self._record_lifecycle(service, root, state, "completed")
+                elif action_type.startswith("init_"):
+                    state, _, _ = self._record_runtime_init(service, root, state)
+                elif action_type.startswith("await_"):
+                    state = self._record_runtime_result(service, root, state)
+                else:
+                    self.fail(f"unexpected action: {action_type}")
+
+            # Record archive failure
+            state = service.record_result(
+                state["operation_id"],
+                self._payload(state, outcome="failure", detail="archive failed"),
+            )
+            self.assertEqual("paused", state["phase"])
+            self.assertIn("archive", state.get("pause_reason", ""))
+
+    def test_archive_success_advances_to_commit(self) -> None:
+        """Verify archive success leads to commit_task as next action."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._graph(root)
+            service = self.module.BatchExecutionService(
+                root,
+                commit_verifier=lambda _: True,
+            )
+            state = service.start("parent")
+
+            # Walk to archive_task
+            while state["next_action"]["type"] != "archive_task":
+                action_type = state["next_action"]["type"]
+                if action_type == "start_task":
+                    state = self._record_lifecycle(service, root, state, "in_progress")
+                elif action_type == "review_task":
+                    state = self._record_lifecycle(service, root, state, "review")
+                elif action_type == "complete_task":
+                    state = self._record_lifecycle(service, root, state, "completed")
+                elif action_type.startswith("init_"):
+                    state, _, _ = self._record_runtime_init(service, root, state)
+                elif action_type.startswith("await_"):
+                    state = self._record_runtime_result(service, root, state)
+                else:
+                    self.fail(f"unexpected action: {action_type}")
+
+            # Record archive success with destination
+            state = service.record_result(
+                state["operation_id"],
+                self._payload(
+                    state,
+                    archive_destination=".cowork-flow/tasks/archive/2026-07/parent",
+                ),
+            )
+            # Next action should be commit_task
+            self.assertEqual("commit_task", state["next_action"]["type"])
+
     def test_commit_verification_failure_pauses_without_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -473,6 +611,16 @@ class BatchRecoveryTest(FlowScriptTestCase):
                         root,
                         state,
                         status,
+                    )
+                elif action_type == "archive_task":
+                    state = service.record_result(
+                        state["operation_id"],
+                        self._payload(
+                            state,
+                            archive_destination=(
+                                f".cowork-flow/tasks/archive/2026-07/{state['next_action']['task']}"
+                            ),
+                        ),
                     )
                 elif action_type.startswith("init_"):
                     state, _, _ = self._record_runtime_init(

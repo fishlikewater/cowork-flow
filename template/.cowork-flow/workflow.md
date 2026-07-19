@@ -237,6 +237,7 @@ L2 任务在 `task start` 前必须通过 readiness gate；同一 blocker 列表
    第二个提交是明确的 follow-up metadata commit；session 中的 `commit` 始终指向前一个真实实现提交，不使用永久占位值。
    `task archive <task-name>` 会归档 task，并自动归档 `change.yaml.task`
    指向该 task 的 active change；无法通过 `change validate` 的 change 不会被自动归档。
+   注：batch 模式（`task start <parent> --auto --approved`）已在 `complete_task` 与 `commit_task` 之间自动执行 `archive_task`，无需手动归档。
 
 ## 9. 恢复规则
 
