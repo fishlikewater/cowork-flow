@@ -574,6 +574,7 @@ class GatePipelineTest(FlowScriptTestCase):
             self.assertEqual(0, result, stderr.getvalue())
             self.assertEqual("review", data["status"])
 
+    # legacy-compat: remove in 0.1.0 when tdd.jsonl support is dropped
     def test_cmd_review_accepts_legacy_tdd_jsonl_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -602,6 +603,65 @@ class GatePipelineTest(FlowScriptTestCase):
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
             self.assertEqual(0, result, stderr.getvalue())
             self.assertEqual("review", data["status"])
+
+    def test_legacy_tdd_jsonl_emits_warning(self) -> None:
+        """Verify that a task with tdd.jsonl produces a TDD-LEGACY-001 warning."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress", "completedAt": null}\n',
+                encoding="utf-8",
+            )
+            self._write_behavior_prd(task_dir)
+            self._write_valid_legacy_tdd_evidence(task_dir)
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_review(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertIn("TDD-LEGACY-001", stderr.getvalue())
+
+    def test_migrate_legacy_tdd_records(self) -> None:
+        """Verify migration moves records to check.jsonl and removes tdd.jsonl."""
+        import sys
+        from pathlib import Path as _Path
+        # Use the template scripts path from the test class's flow root
+        template_scripts = _Path(__file__).resolve().parents[1] / "template" / ".cowork-flow" / "scripts"
+        sys.path.insert(0, str(template_scripts))
+        from common.gates.tdd_evidence import migrate_legacy_tdd_records
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = Path(temp_dir)
+            records = [
+                {"acceptanceId": "AC-001", "testFile": "test_a.py", "testName": "test_a", "type": "tdd"},
+                {"acceptanceId": "AC-002", "testFile": "test_b.py", "testName": "test_b", "type": "tdd"},
+            ]
+            (task_dir / "tdd.jsonl").write_text(
+                "\n".join(json.dumps(r) for r in records) + "\n",
+                encoding="utf-8",
+            )
+
+            result = migrate_legacy_tdd_records(task_dir)
+            self.assertEqual(2, result["migrated"])
+            self.assertTrue(result["legacy_removed"])
+            self.assertFalse((task_dir / "tdd.jsonl").exists())
+            self.assertTrue((task_dir / "check.jsonl").exists())
+
+            # Idempotency
+            result2 = migrate_legacy_tdd_records(task_dir)
+            self.assertEqual(0, result2["migrated"])
 
     def test_cmd_review_blocks_high_risk_behavior_without_tdd_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

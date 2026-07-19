@@ -25,6 +25,7 @@ BATCH_STEPS = (
     "init_check_context",
     "await_check_result",
     "complete_task",
+    "archive_task",
     "commit_task",
 )
 STEP_PHASES = {
@@ -33,12 +34,14 @@ STEP_PHASES = {
     "review_task": "review",
     "await_check_result": "check",
     "complete_task": "complete",
+    "archive_task": "archive",
     "commit_task": "commit",
 }
 LIFECYCLE_STATUSES = {
     "start_task": "in_progress",
     "review_task": "review",
     "complete_task": "completed",
+    "archive_task": "completed",
 }
 RUNTIME_ROLES = {
     "init_implement_context": "implement",
@@ -322,6 +325,9 @@ class BatchExecutionService:
                     f"commit could not be verified: {commit_id}",
                 )
             return
+        if action_type == "archive_task":
+            self._verify_archive_result(task_name, result)
+            return
         raise BatchExecutionError(
             "BATCH-ACTION-UNKNOWN-001",
             f"unsupported Batch action: {action_type}",
@@ -362,6 +368,21 @@ class BatchExecutionService:
                 "BATCH-TASK-STATUS-001",
                 f"task status for {task_name} is {actual}; "
                 f"expected {expected_status}",
+            )
+
+    def _verify_archive_result(
+        self,
+        task_name: str,
+        result: dict,
+    ) -> None:
+        destination = self._optional_text(result, "archive_destination")
+        if destination is None:
+            return
+        archive_path = self.repo_root / destination
+        if not archive_path.exists():
+            raise BatchExecutionError(
+                "BATCH-ARCHIVE-VERIFY-001",
+                f"archive destination does not exist: {destination}",
             )
 
     def _verify_runtime_initialized(
