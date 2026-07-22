@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import {
@@ -7,6 +7,7 @@ import {
   summarizePlan
 } from '../lib/copy-template.js';
 import { readPackageInfo } from '../lib/package-info.js';
+import { pathExists } from '../lib/fs-utils.js';
 import {
   SUPPORTED_PLATFORMS,
   formatPlatformList,
@@ -54,18 +55,6 @@ function parseInitArgs(args) {
     }
   }
   return options;
-}
-
-async function pathExists(path) {
-  try {
-    await access(path);
-    return true;
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      return false;
-    }
-    throw error;
-  }
 }
 
 function normalizeDeveloperName(value) {

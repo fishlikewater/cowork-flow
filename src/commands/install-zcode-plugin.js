@@ -1,9 +1,10 @@
-import { cp, mkdir, readFile, writeFile, access, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { cp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { join, resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
 
 import { readPackageInfo } from '../lib/package-info.js';
 import { templateRoot } from '../lib/paths.js';
+import { pathExists } from '../lib/fs-utils.js';
 
 const ZCODE_MARKETPLACE = 'zcode-plugins-official';
 const PLUGIN_NAME = 'cowork-flow';
@@ -13,15 +14,6 @@ function parseArgs(args) {
     dryRun: args.includes('--dry-run'),
     force: args.includes('--force'),
   };
-}
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function getZCodeCacheDir() {
@@ -39,11 +31,6 @@ async function readJsonSafe(path) {
 
 async function writeJsonAtomic(path, data) {
   await writeFile(path, JSON.stringify(data, null, 2) + '\n', 'utf8');
-}
-
-function dirname(path) {
-  const idx = path.replace(/\\/g, '/').lastIndexOf('/');
-  return idx >= 0 ? path.slice(0, idx) : path;
 }
 
 async function updateMarketplace(cacheRoot, version) {

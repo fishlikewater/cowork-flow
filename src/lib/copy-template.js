@@ -1,25 +1,9 @@
-import { constants } from 'node:fs';
-import { access, chmod, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { chmod, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 import { templateRoot } from './paths.js';
+import { pathExists, toTemplatePath, listFiles } from './fs-utils.js';
 import { shouldIncludeForPlatforms, skillDestinationForPlatform } from './platforms.js';
-
-async function pathExists(path) {
-  try {
-    await access(path, constants.F_OK);
-    return true;
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      return false;
-    }
-    throw error;
-  }
-}
-
-function toTemplatePath(relativePath) {
-  return relativePath.replaceAll('\\', '/');
-}
 
 function shouldSkipTemplatePath(relativePath) {
   const templatePath = toTemplatePath(relativePath);
@@ -31,28 +15,10 @@ function shouldSkipTemplatePath(relativePath) {
   );
 }
 
-async function listFiles(root, current = root) {
-  const entries = await readdir(current, { withFileTypes: true });
-  const files = [];
-
-  for (const entry of entries) {
-    const absolute = join(current, entry.name);
-    const relativePath = relative(root, absolute);
-    if (shouldSkipTemplatePath(relativePath)) {
-      continue;
-    }
-    if (entry.isDirectory()) {
-      files.push(...await listFiles(root, absolute));
-    } else if (entry.isFile()) {
-      files.push(relativePath);
-    }
-  }
-
-  return files.sort();
-}
-
 export async function buildInitPlan(targetDir, options = {}) {
-  const files = await listFiles(templateRoot);
+  const files = await listFiles(templateRoot, templateRoot, {
+    skipPath: shouldSkipTemplatePath
+  });
   const actions = [];
   const platforms = options.platforms ?? [];
 
@@ -179,7 +145,9 @@ export async function buildSyncPlan(targetDir, options = {}) {
     throw new Error(`Target is not initialized: ${targetDir}`);
   }
 
-  const files = await listFiles(templateRoot);
+  const files = await listFiles(templateRoot, templateRoot, {
+    skipPath: shouldSkipTemplatePath
+  });
   const actions = [];
   const platforms = options.platforms ?? await detectInstalledPlatforms(targetDir);
 

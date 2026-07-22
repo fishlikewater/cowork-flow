@@ -295,7 +295,7 @@ function flowStoreEval(root, code, payload = {}) {
     ...code.map((line) => `    ${line}`),
   ].join("\n")
   try {
-    const output = execFileSync(process.env.PYTHON || "python", ["-c", script, root], {
+    const output = execFileSync(process.env.PYTHON || "python3", ["-c", script, root], {
       encoding: "utf8",
       input: JSON.stringify(payload),
       env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },

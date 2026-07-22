@@ -11,9 +11,11 @@
  *   template/skills/* -> template/.agents/skills/* (codex, opencode)
  */
 
-import { cp, mkdir, readdir, readFile, rm, writeFile, access } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { pathExists } from '../src/lib/fs-utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -24,15 +26,6 @@ const DESTINATIONS = [
 ];
 
 const CHECK_ONLY = process.argv.includes('--check');
-
-async function pathExists(p) {
-  try {
-    await access(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 async function main() {
   const skills = (await readdir(CANONICAL, { withFileTypes: true }))

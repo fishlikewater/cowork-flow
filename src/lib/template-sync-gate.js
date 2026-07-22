@@ -1,7 +1,8 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 
 import { packageRoot as defaultPackageRoot } from './paths.js';
+import { toTemplatePath, listFiles } from './fs-utils.js';
 
 const MIRROR_ENTRIES = [
   '.cowork-flow/scripts',
@@ -105,10 +106,6 @@ export const TEMPLATE_SYNC_ALLOWED_DIFFERENCES = [
   }
 ];
 
-function toTemplatePath(path) {
-  return path.replaceAll('\\', '/');
-}
-
 function hasGeneratedSegment(path) {
   const normalized = `/${toTemplatePath(path)}/`;
   return GENERATED_SEGMENTS.some((segment) => normalized.includes(segment));
@@ -152,33 +149,6 @@ function shouldSkipMirrorPath(path) {
   return isGeneratedPath(path) || Boolean(allowedDifferenceFor(path));
 }
 
-async function listFiles(root, current = root) {
-  let entries;
-  try {
-    entries = await readdir(current, { withFileTypes: true });
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
-
-  const files = [];
-  for (const entry of entries) {
-    const absolute = join(current, entry.name);
-    const relativePath = toTemplatePath(relative(root, absolute));
-    if (shouldSkipMirrorPath(relativePath)) {
-      continue;
-    }
-    if (entry.isDirectory()) {
-      files.push(...await listFiles(root, absolute));
-    } else if (entry.isFile()) {
-      files.push(relativePath);
-    }
-  }
-  return files.sort();
-}
-
 async function listMirrorEntry(root, entry) {
   const absolute = join(root, entry);
   let info;
@@ -195,7 +165,9 @@ async function listMirrorEntry(root, entry) {
     return [toTemplatePath(entry)];
   }
   if (info.isDirectory()) {
-    const files = await listFiles(absolute);
+    const files = await listFiles(absolute, absolute, {
+      skipPath: shouldSkipMirrorPath
+    });
     return files.map((file) => toTemplatePath(join(entry, file)));
   }
   return [];

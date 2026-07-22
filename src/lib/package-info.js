@@ -31,10 +31,6 @@ export function compareVersions(left, right) {
   return 0;
 }
 
-export function npmCommandOptions(platform = process.platform) {
-  return {};
-}
-
 function windowsNpmCli(env = process.env) {
   if (typeof env.npm_execpath === 'string' && env.npm_execpath.trim()) {
     return env.npm_execpath;
@@ -53,8 +49,7 @@ export function npmCommandArgs(args, platform = process.platform, env = process.
 export async function fetchLatestVersion(packageName = 'cowork-flow') {
   const args = ['view', packageName, 'version'];
   const result = await execFileAsync(npmCommand(), npmCommandArgs(args), {
-    encoding: 'utf8',
-    ...npmCommandOptions()
+    encoding: 'utf8'
   });
   return result.stdout.trim();
 }
@@ -63,8 +58,7 @@ export async function runGlobalInstall(packageSpec = 'cowork-flow@latest') {
   return new Promise((resolvePromise, rejectPromise) => {
     const args = ['install', '-g', packageSpec];
     const child = spawn(npmCommand(), npmCommandArgs(args), {
-      stdio: 'inherit',
-      ...npmCommandOptions()
+      stdio: 'inherit'
     });
     child.on('error', rejectPromise);
     child.on('close', (code) => resolvePromise(code ?? 1));

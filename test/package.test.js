@@ -8,8 +8,7 @@ import { promisify } from 'node:util';
 
 import {
   npmCommand,
-  npmCommandArgs,
-  npmCommandOptions
+  npmCommandArgs
 } from '../src/lib/package-info.js';
 import { packageRoot } from '../src/lib/paths.js';
 
@@ -25,7 +24,6 @@ test('npm package includes cli source and template assets', async (t) => {
   const result = await execFileAsync(npmCommand(), npmCommandArgs(npmArgs), {
     cwd: packageRoot,
     encoding: 'utf8',
-    ...npmCommandOptions(),
     env: {
       ...process.env,
       npm_config_cache: npmCache

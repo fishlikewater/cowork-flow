@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { execFileSync } from "node:child_process"
 import { test } from "node:test"
 
-import { CoworkFlowPlugin } from "../.opencode/plugins/cowork-flow.js"
+import { CoworkFlowPlugin } from "../template/.opencode/plugins/cowork-flow.js"
 
 async function createRegistryRepo(t) {
   const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-plugin-"))
@@ -83,7 +83,7 @@ async function createRuntimeRepo(t) {
 
 function flowStoreEval(root, code) {
   return execFileSync(
-    process.env.PYTHON || "python",
+    process.env.PYTHON || "python3",
     [
       "-c",
       [
@@ -253,7 +253,6 @@ test("opencode plugin exposes main session env to shell commands", async (t) => 
 
 test("opencode party mode v2 command points to runtime board", async () => {
   for (const path of [
-    new URL("../.opencode/commands/party-mode-v2.md", import.meta.url),
     new URL("../template/.opencode/commands/party-mode-v2.md", import.meta.url),
   ]) {
     const text = await readFile(path, "utf8")

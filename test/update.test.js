@@ -5,8 +5,7 @@ import { runUpdate } from '../src/commands/update.js';
 import {
   compareVersions,
   npmCommand,
-  npmCommandArgs,
-  npmCommandOptions
+  npmCommandArgs
 } from '../src/lib/package-info.js';
 
 function createIo() {
@@ -37,11 +36,9 @@ test('npmCommand resolves Windows npm through npm cli without shell execution', 
     'cowork-flow',
     'version'
   ]);
-  assert.deepEqual(npmCommandOptions('win32'), {});
-  assert.equal(Object.hasOwn(npmCommandOptions('win32'), 'shell'), false);
 });
 
-test('npmCommandOptions keeps direct execution on non-Windows platforms', () => {
+test('npmCommandArgs keeps direct execution on non-Windows platforms', () => {
   assert.equal(npmCommand('linux'), 'npm');
   assert.equal(npmCommand('darwin'), 'npm');
   assert.deepEqual(npmCommandArgs(['view', 'cowork-flow', 'version'], 'linux'), [
@@ -49,8 +46,6 @@ test('npmCommandOptions keeps direct execution on non-Windows platforms', () => 
     'cowork-flow',
     'version'
   ]);
-  assert.deepEqual(npmCommandOptions('linux'), {});
-  assert.deepEqual(npmCommandOptions('darwin'), {});
 });
 
 test('update reports current status when already latest', async () => {
