@@ -1,70 +1,33 @@
 ---
 name: writing-plans
-description: Use when requirements are clear enough to turn into an executable multi-step cowork-flow implementation plan.
+description: Use when requirements are clear enough to turn into an executable multi-step implementation plan.
 ---
 
 # Writing Plans
 
-Create a plan that another agent can execute without guessing.
+创建另一个代理可以执行而无需猜测的计划。
 
-## Inputs
+## 输入
 
-Before writing a plan, confirm the request has an executable scope, acceptance criteria, and intended behavior. If those are missing, ask for clarification.
+编写计划前，确认请求具有可执行的范围、验收标准和预期行为。如果这些缺失，请询问。
 
-Read:
+阅读：
+- 活跃任务 PRD
+- 相关变更规格/设计文件
+- 相关 `.cowork-flow/spec/` 索引和目标规格
+- 定义正在更改的契约的文件
 
-- Active task PRD.
-- Relevant change spec/design files.
-- Relevant `.cowork-flow/spec/` indexes and target specs.
-- Files that define the contracts being changed.
+## 输出
 
-## Plan Shape
+计划应包含：
+1. **目标** — 要交付什么
+2. **验收标准** — 如何验证完成
+3. **步骤** — 按执行顺序，每步有明确的输入/输出
+4. **文件** — 要修改的文件列表
+5. **验证** — 每步的验证命令
 
-Save plans to `.cowork-flow/plans/YYYY-MM-DD-<slug>.md` unless the user asks for another path.
+## 原则
 
-Start with:
-
-```markdown
-# <Feature> Implementation Plan
-
-> For formal fixed-agent work: create a runtime context with `.cowork-flow/run subagent init`, pass `cowork_runtime_context_id: <runtime_context_id>` through the active Host Adapter, then dispatch `cowork-implement` or `cowork-check`. Close the runtime context after verification.
-
-**Goal:** <one sentence>
-**Architecture:** <2-3 sentences>
-**Verification:** <commands or checks>
-```
-
-## Task Rules
-
-- Each task names exact files to create, modify, or test.
-- Each step is small enough to execute and verify independently.
-- Include commands and expected results.
-- Include a failing test before implementation when behavior can be tested.
-- Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mocks without behavior, or snapshot empty structure.
-- For complex problems, test depth first: cover invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.
-- Avoid placeholders such as TODO, TBD, "handle edge cases", or "write tests".
-- Keep root/template parity explicit when both copies exist.
-
-## Parallel Work
-
-Execution strategy guide:
-
-- Use serial work when slices share files, shared helpers, tests, or one behavior chain.
-- Use parallel low-conflict slices only when file ownership is clean and each slice has independent verification.
-- Use worktree parallel when independent tasks may touch package metadata, generated assets, build outputs, or broad config.
-
-- Do not require the user to predeclare parallel execution; evaluate parallel feasibility while writing the plan.
-- Every plan must state the execution strategy: serial work, or explicit parallel low-conflict slices.
-- Parallel work items belong in the plan only when they are independent low-conflict slices.
-- Each parallel item must name file ownership, dependencies, expected outputs, and verification commands.
-- Use separate sessions, and use a separate `git worktree` when independent tasks may write overlapping project areas.
-- After parallel items finish, include one final integrated verification step before Check/Finish.
-
-## Self-Review
-
-Before handoff:
-
-1. Confirm every PRD acceptance criterion maps to a plan step.
-2. Search the plan for placeholders.
-3. Check names, paths, command syntax, and expected outputs.
-4. Record remaining risks or blockers.
+- 步骤应足够小，每步可独立验证
+- 避免模糊的描述，使用具体的文件路径和命令
+- 考虑回滚策略
