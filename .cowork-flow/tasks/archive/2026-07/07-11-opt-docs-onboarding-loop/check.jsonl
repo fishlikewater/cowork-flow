@@ -1,4 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "test/sync.test.js", "reason": "Template doc sync check"}
-{"file": "test/package.test.js", "reason": "Package docs boundary"}

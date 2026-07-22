@@ -1,5 +1,0 @@
-{"file": ".cowork-flow/scripts/task.py", "reason": "task archive context rewrite"}
-{"file": ".cowork-flow/scripts/change.py", "reason": "change archive path normalization support"}
-{"file": "template/.cowork-flow/scripts/task.py", "reason": "template runtime parity"}
-{"file": "template/.cowork-flow/scripts/change.py", "reason": "template runtime parity"}
-{"file": "tests/test_flow_script_paths.py", "reason": "archived task validation regression tests"}

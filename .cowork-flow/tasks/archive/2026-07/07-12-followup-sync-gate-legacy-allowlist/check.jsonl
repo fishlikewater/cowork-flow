@@ -1,3 +1,0 @@
-
-{"file": "src/lib/template-sync-gate.js", "reason": "Verify remaining exceptions are narrow and intentional"}
-{"file": "test/template-sync-gate.test.js", "reason": "Verify allowlist behavior is tested"}

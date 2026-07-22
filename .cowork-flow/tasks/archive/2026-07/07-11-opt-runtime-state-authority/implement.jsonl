@@ -1,8 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/core/backend/index.md", "reason": "Backend development guide"}
-{"file": ".cowork-flow/spec/core/frontend/index.md", "reason": "Frontend development guide"}
-{"file": ".cowork-flow/scripts/common/active_task.py", "reason": "Active task state resolution"}
-{"file": ".cowork-flow/scripts/common/execution_context.py", "reason": "Execution context state"}
-{"file": ".cowork-flow/scripts/subagent.py", "reason": "Runtime context binding"}
-{"file": ".cowork-flow/scripts/flow/store.py", "reason": "DB authority APIs"}

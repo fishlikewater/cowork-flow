@@ -1,7 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/core/backend/index.md", "reason": "Backend development guide"}
-{"file": ".cowork-flow/spec/core/frontend/index.md", "reason": "Frontend development guide"}
-{"file": ".cowork-flow/scripts/doctor.py", "reason": "Doctor implementation"}
-{"file": "template/.cowork-flow/scripts/doctor.py", "reason": "Template doctor mirror"}
-{"file": "scripts/pack-check.js", "reason": "Release package checks"}

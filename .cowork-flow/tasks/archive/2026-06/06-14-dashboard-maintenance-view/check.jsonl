@@ -1,4 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests/test_dashboard.py", "reason": "dashboard UX regression tests"}
-{"file": "template/.cowork-flow/scripts/dashboard/static/app.js", "reason": "root/template parity target"}

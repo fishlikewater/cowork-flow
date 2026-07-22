@@ -1,8 +1,0 @@
-{"file": ".cowork-flow/spec/adapter.schema.json", "reason": "Capability schema update"}
-{"file": ".cowork-flow/spec/capabilities.md", "reason": "Capability contract update"}
-{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Family command protocol documentation"}
-{"file": ".cowork-flow/spec/registry.json", "reason": "Contract registry update"}
-{"file": ".cowork-flow/adapters/codex/adapter.yaml", "reason": "Codex capability declaration"}
-{"file": ".cowork-flow/adapters/claude-code/adapter.yaml", "reason": "Claude capability declaration"}
-{"file": ".cowork-flow/adapters/opencode/adapter.yaml", "reason": "OpenCode capability declaration"}
-{"file": "template/.cowork-flow/workflow.md", "reason": "Template workflow parity"}

@@ -1,4 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": ".agents/skills/party-mode/SKILL.md", "reason": "Review round intent clarity"}
-{"file": "tests/test_cowork_agents.py", "reason": "Verify text contract"}

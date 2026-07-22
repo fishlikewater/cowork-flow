@@ -1,8 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests/test_flow_migrate.py", "reason": "Check migration acceptance"}
-{"file": ".cowork-flow/plans/2026-06-13-flow-phase4-release-validation.md", "reason": "Check plan acceptance mapping"}
-{"file": "test/init.test.js", "reason": "Check fresh install acceptance"}
-{"file": "test/package.test.js", "reason": "Check package artifacts"}
-{"file": "CHANGELOG.md", "reason": "Check release changelog"}
-{"file": "tests/test_phase4_acceptance.py", "reason": "Check Phase 4 acceptance"}

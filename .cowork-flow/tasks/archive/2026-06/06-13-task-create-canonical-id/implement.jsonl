@@ -1,9 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
-{"file": ".cowork-flow/plans/2026-06-13-task-create-canonical-id.md", "reason": "Implementation plan"}
-{"file": ".cowork-flow/spec/patterns/index.md", "reason": "Lifecycle pattern contract"}
-{"file": "template/.cowork-flow/scripts/task.py", "reason": "Template task create implementation"}
-{"file": ".cowork-flow/scripts/task.py", "reason": "Root task create implementation"}
-{"file": "tests/test_flow_script_paths.py", "reason": "Regression tests"}

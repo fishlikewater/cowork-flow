@@ -1,3 +1,0 @@
-{"file": "tests/test_host_adapters.py", "reason": "Adapter schema/capability verification"}
-{"file": "tests/test_no_legacy_template_paths.py", "reason": "Template path verification"}
-{"file": ".cowork-flow/spec/registry.json", "reason": "Registry completeness check"}

@@ -1,5 +1,0 @@
-{"file": ".cowork-flow/scripts/run.py", "reason": "Dashboard command registration"}
-{"file": ".cowork-flow/scripts/flow/store.py", "reason": "Dashboard read helpers"}
-{"file": ".cowork-flow/scripts/flow/schema.sql", "reason": "agent_run fields used by dashboard detail"}
-{"file": "FLOW-UPGRADE-DESIGN.md", "reason": "Dashboard endpoint and UI contract"}
-{"file": "template/.cowork-flow/scripts/run.py", "reason": "Template command parity"}

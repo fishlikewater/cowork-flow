@@ -1,3 +1,0 @@
-{"file": ".cowork-flow/workflow.md", "reason": "Task lifecycle and completion-state policy"}
-{"file": ".cowork-flow/scripts/task.py", "reason": "Task list/current/archive commands for audit"}
-{"file": ".cowork-flow/workspace/codex/index.md", "reason": "Session index if audit records a closeout"}

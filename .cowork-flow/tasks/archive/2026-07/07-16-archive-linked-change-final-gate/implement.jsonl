@@ -1,5 +1,0 @@
-{"file": ".cowork-flow/scripts/task.py", "reason": "task archive linked change gate"}
-{"file": ".cowork-flow/scripts/change.py", "reason": "change metadata and linked-task helpers"}
-{"file": "template/.cowork-flow/scripts/task.py", "reason": "template runtime parity"}
-{"file": "template/.cowork-flow/scripts/change.py", "reason": "template runtime parity"}
-{"file": "tests/test_flow_script_paths.py", "reason": "archive behavior regression tests"}

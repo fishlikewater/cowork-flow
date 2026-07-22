@@ -1,7 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/guides/index.md", "reason": "Pre-implementation thinking guides"}
-{"file": ".cowork-flow/spec/guides/pre-implementation-checklist.md", "reason": "Mandatory pre-coding checklist"}
-{"file": ".cowork-flow/spec/backend/index.md", "reason": "Backend development guide"}
-{"file": ".cowork-flow/plans/2026-06-11-flow-pattern-engine.md", "reason": "Implementation plan - Task 1.4"}
-{"file": ".cowork-flow/scripts/task.py", "reason": "Task management script"}

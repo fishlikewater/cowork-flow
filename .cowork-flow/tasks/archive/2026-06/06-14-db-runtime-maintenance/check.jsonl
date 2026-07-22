@@ -1,5 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests/test_active_task_runtime.py", "reason": "DB-backed active task and runtime binding regressions"}
-{"file": "tests/test_subagent_dispatch.py", "reason": "subagent runtime DB lifecycle regressions"}
-{"file": "tests/test_dashboard.py", "reason": "dashboard maintenance and process state regressions"}

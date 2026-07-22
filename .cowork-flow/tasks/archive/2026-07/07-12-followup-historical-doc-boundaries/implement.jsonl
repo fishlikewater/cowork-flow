@@ -1,4 +1,0 @@
-
-{"file": "FLOW-UPGRADE-DESIGN.md", "reason": "Historical design doc needing explicit non-authoritative boundary"}
-{"file": "README.md", "reason": "Current runtime authority entry docs for comparison"}
-{"file": ".cowork-flow/spec/core/dispatch.md", "reason": "Current runtime context authority contract"}

@@ -1,9 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/registry.json", "reason": "downgrade party mode contract"}
-{"file": "template/.cowork-flow/workflow.md", "reason": "template mirror"}
-{"file": "template/.cowork-flow/spec/registry.json", "reason": "template mirror"}
-{"file": ".claude/skills/party-mode/SKILL.md", "reason": "add experimental prefix"}
-{"file": ".claude/skills/party-mode-v2/SKILL.md", "reason": "add experimental prefix"}
-{"file": "template/.claude/skills/party-mode/SKILL.md", "reason": "template mirror"}
-{"file": "template/.claude/skills/party-mode-v2/SKILL.md", "reason": "template mirror"}

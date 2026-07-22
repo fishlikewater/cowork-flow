@@ -1,6 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/core/backend/index.md", "reason": "Backend development guide"}
-{"file": ".cowork-flow/plans/2026-06-23-lifecycle-tdd-quality-gates.md", "reason": "Implementation plan for lifecycle TDD quality gates"}
-{"file": ".cowork-flow/spec/core/backend/encoding-guidelines.md", "reason": "Encoding and no-BOM contract"}
-{"file": ".cowork-flow/scripts/common/__init__.py", "reason": "Runtime UTF-8 setup"}

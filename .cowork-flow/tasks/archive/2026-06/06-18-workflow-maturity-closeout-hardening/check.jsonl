@@ -1,8 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests/test_codex_hooks.py", "reason": "Hook and state-injection regression coverage"}
-{"file": "tests/test_claude_hooks.py", "reason": "Cross-host state-injection regression coverage"}
-{"file": "test/opencode-plugin.test.js", "reason": "OpenCode plugin structured-signal verification"}
-{"file": "tests/test_host_adapters.py", "reason": "Adapter contract parity and Party Mode contract coverage"}
-{"file": "tests/test_flow_script_paths.py", "reason": "Task context path and readiness coverage"}
-{"file": "test/package.test.js", "reason": "Package contents regression coverage"}

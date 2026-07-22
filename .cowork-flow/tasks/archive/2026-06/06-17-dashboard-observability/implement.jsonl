@@ -1,6 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/scripts/flow/store.py", "reason": "add query methods"}
-{"file": ".cowork-flow/scripts/dashboard/server.py", "reason": "add API endpoints"}
-{"file": "template/.cowork-flow/scripts/flow/store.py", "reason": "template mirror"}
-{"file": "template/.cowork-flow/scripts/dashboard/server.py", "reason": "template mirror"}

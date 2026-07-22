@@ -1,7 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": ".cowork-flow/plans/2026-06-13-flow-phase3-subagent-dashboard.md", "reason": "Plan acceptance mapping for final check"}
-{"file": "tests/test_subagent_dispatch.py", "reason": "Subagent runtime and family command regression tests"}
-{"file": "tests/test_flow_store.py", "reason": "FlowStore agent_run and board read tests"}
-{"file": "tests/test_host_adapters.py", "reason": "Adapter capability schema tests"}
-{"file": "tests/test_no_legacy_template_paths.py", "reason": "Template/runtime path parity checks"}

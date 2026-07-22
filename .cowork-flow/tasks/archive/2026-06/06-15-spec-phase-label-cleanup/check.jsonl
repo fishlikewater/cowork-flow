@@ -1,4 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Final verification gate"}
-{"file": ".cowork-flow/spec/patterns/index.md", "reason": "Root pattern contract verification"}
-{"file": "template/.cowork-flow/spec/patterns/index.md", "reason": "Template pattern contract verification"}
-{"file": "tests/test_no_legacy_template_paths.py", "reason": "Regression test coverage"}

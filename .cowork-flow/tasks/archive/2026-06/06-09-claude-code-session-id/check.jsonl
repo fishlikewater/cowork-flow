@@ -1,4 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests/test_active_task_runtime.py", "reason": "Regression coverage for CLAUDE_CODE_SESSION_ID"}
-{"file": "tests/test_claude_hooks.py", "reason": "Claude hook session id compatibility"}

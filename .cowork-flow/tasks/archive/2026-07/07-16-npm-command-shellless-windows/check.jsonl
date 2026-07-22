@@ -1,3 +1,0 @@
-{"file": "test/update.test.js", "reason": "focused update tests"}
-{"file": "test/package.test.js", "reason": "package tests"}
-{"file": "scripts/pack-check.js", "reason": "pack check call site if helper usage changes"}

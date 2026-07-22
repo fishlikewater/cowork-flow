@@ -1,7 +1,0 @@
-{"file": "AGENTS.md", "reason": "Project collaboration rules and workflow gates"}
-{"file": ".cowork-flow/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".cowork-flow/spec/core/backend/index.md", "reason": "Backend development guide"}
-{"file": ".cowork-flow/spec/core/frontend/index.md", "reason": "Frontend development guide"}
-{"file": ".cowork-flow/scripts/flow/store.py", "reason": "FlowStore implementation"}
-{"file": ".cowork-flow/scripts/flow/migrate.py", "reason": "Migration CLI"}
-{"file": ".cowork-flow/scripts/flow/migrations/0001_initial.sql", "reason": "Migration baseline"}

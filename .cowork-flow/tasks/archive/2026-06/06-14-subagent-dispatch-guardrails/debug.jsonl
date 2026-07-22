@@ -1,3 +1,0 @@
-{"file": ".agents/skills/break-loop/SKILL.md", "reason": "Use if formal dispatch misuse recurs"}
-{"file": ".cowork-flow/spec/subagent-dispatch.md", "reason": "Dispatch root-cause contract"}
-{"file": ".codex/agents/cowork-check.toml", "reason": "Fail-closed fixed agent behavior"}
