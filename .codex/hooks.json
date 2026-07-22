@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

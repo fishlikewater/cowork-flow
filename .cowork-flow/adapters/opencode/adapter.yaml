@@ -1,0 +1,38 @@
+schemaVersion: 1
+host: opencode
+displayName: OpenCode
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: shim
+  waitChild: native
+  listChildren: native
+  cancelChild: native
+  stateInjection: plugin
+  backgroundChild: experimental
+  runtimeContextDispatch: native
+  runtimeContextBinding: shim
+  runtimeContextCleanup: native
+  spawnMultipleSubagents: native
+  waitMultipleChildren: native
+dispatch:
+  primitive: task
+  agentsPath: .opencode/agents
+  commandsPath: .opencode/commands
+  pluginsPath: .opencode/plugins
+  backgroundRequiresEnv: OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+runtimeContext:
+  transport: prompt
+  promptKey: cowork_runtime_context_id
+  envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
+  metadataKey: cowork_runtime_context_id
+entrySignals:
+  sessionRole: sessionRole
+  invocationKind: invocationKind
+contracts:
+  entry: COWORK_ENTRY_CONTRACT_V2
+  dispatch: RUNTIME_CONTEXT_DISPATCH_V2
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual
+  whenRuntimeContextMissing: fail_closed

@@ -1,0 +1,76 @@
+# cowork-flow Configuration
+# Project-level settings for the cowork-flow workflow system
+#
+# All values have sensible defaults. Only override what you need.
+
+#-------------------------------------------------------------------------------
+# Session Recording
+#-------------------------------------------------------------------------------
+
+# Commit message used when auto-committing journal/index changes
+# after running add_session.py
+session_commit_message: "chore: record journal"
+
+# Maximum lines per journal file before rotating to a new one
+max_journal_lines: 2000
+
+#-------------------------------------------------------------------------------
+# Codex Runtime
+#-------------------------------------------------------------------------------
+
+# This controls only the injected workflow dispatch hint (<codex-dispatch-mode>...).
+# It does not force dispatch or disable tools at runtime.
+# sub-agent: hint that main session should dispatch cowork-* fixed agents.
+# inline: hint that main session should perform implementation/check directly.
+codex:
+  dispatch_mode: "sub-agent"
+  # Formal subagent identity is runtime-context based. The main session creates
+  # a DB runtime_context row with the subagent helper, then passes
+  # cowork_runtime_context_id through the active host adapter transport.
+
+#-------------------------------------------------------------------------------
+# Entry Classification
+#-------------------------------------------------------------------------------
+
+# Legacy text-based entry classifier fallback. Keep this off by default so
+# structured signals remain authoritative and missing signals fail closed.
+# Enable it only as a temporary compatibility escape hatch.
+entry:
+  legacy_text_fallback:
+    enabled: false
+
+#-------------------------------------------------------------------------------
+# Party Mode V2 Runtime Board
+#-------------------------------------------------------------------------------
+
+# Party Mode V2 is an advisory, runtime-controlled board discussion mode.
+# The Python runtime owns board state and emits host-neutral next actions; the
+# active host adapter still performs dispatch/wait/close.
+party_mode_v2:
+  min_agents: 3
+  max_agents: 5
+  max_rounds: 5
+  max_rebuttal_targets_per_agent: 2
+  max_drift_warnings: 2
+  fresh_context_per_round: "true"
+  require_current_round_only: "true"
+
+#-------------------------------------------------------------------------------
+# Task Lifecycle Hooks
+#-------------------------------------------------------------------------------
+
+# Commands to run after task lifecycle events.
+# Each hook receives TASK_JSON_PATH environment variable pointing to task.json.
+# Commands use simple executable plus arguments and run without a shell.
+# No shell pipes, redirects, or command chaining (|, >, &&).
+# Hook failures print a warning but do not block the main operation.
+#
+# hooks:
+#   after_create:
+#     - "python scripts/on_task_event.py after_create"
+#   after_start:
+#     - "python scripts/on_task_event.py after_start"
+#   after_finish:
+#     - "python scripts/on_task_event.py after_finish"
+#   after_archive:
+#     - "python scripts/on_task_event.py after_archive"
