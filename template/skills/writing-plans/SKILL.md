@@ -11,9 +11,9 @@ description: Use when requirements are clear enough to turn into an executable m
 
 编写计划前，确认请求具有可执行的范围、验收标准和预期行为。缺失则询问。
 
-阅读：活跃任务 PRD、相关变更规格、`.cowork-flow/spec/` 索引、定义契约的文件
+阅读：活跃任务 decision-anchor.md、相关变更规格、`.cowork-flow/spec/` 索引、定义契约的文件
 
-## 输出
+## 计划模板
 
 保存到 `.cowork-flow/plans/YYYY-MM-DD-<slug>.md`
 
@@ -22,17 +22,57 @@ description: Use when requirements are clear enough to turn into an executable m
 
 > 正式固定代理工作：创建 runtime context，传递 `cowork_runtime_context_id`，派发 `cowork-implement`/`cowork-check`，验证后关闭。
 
-**目标：** <一句话>
-**架构：** <2-3 句>
-**验证：** <命令或检查>
+| 项 | 内容 |
+|----|------|
+| **目标** | <一句话> |
+| **架构** | <2-3 句> |
+| **验证** | `<命令>` → exit 0；`<命令>` → exit 0 |
+| **策略** | 串行 / 并行（文件所有权：A 组 / B 组） |
+| **范围** | N 步 / N 文件 / N AC |
+| **风险** | 无显著风险 / 见尾部风险表 §高-N |
+
+## 概览
+
+| Step | AC | 标题 | 状态 |
+|------|----|------|------|
+| 1.1 | AC-001 | <标题> | ⬜ |
+| 1.2 | AC-002 | <标题> | ⬜ |
+| 2.1 | — | <标题> | ⬜ |
 ```
 
-## 规则
+然后列出验收标准，然后步骤。
+
+## 步骤规则
 
 - 每个任务指定要创建/修改/测试的确切文件
 - 每个步骤足够小，可独立执行和验证
-- 包含命令和预期结果
-- 行为可测试时，实现前先写失败测试
+- **每个步骤必须遵循以下可执行格式**，子代理不会猜测：
+
+  ```markdown
+  ### Step N.M [AC-XXX] ⬜: <一句话描述>
+
+  - **改动**: `path/a.py`, `path/b.py`（×2 = template + root 两份）
+  - **做了什么**: <一句话具体变更>
+  - **验证**: `<命令>` → exit 0（实现前 exit 1 → 实现后 exit 0 | AC-XXX）
+  - **回滚**: <一句话或"仅增测试，无回滚成本">
+  ```
+
+  覆盖多个 AC 的步骤：
+
+  ```markdown
+  - **同时覆盖**: AC-002
+  ```
+
+  无 AC 的步骤（如集成验证）：
+
+  ```markdown
+  ### Step N.M — ⬜: <一句话描述>
+  ```
+
+  概览表格中无 AC 步骤的 AC 列填 `—`。
+
+## 质量规则
+
 - 禁止浅层测试（仅断言存在、镜像实现、空快照）
 - 复杂问题先深度测试：不变量、跨层契约、状态转换、错误边界
 - 避免占位符：TODO、TBD、"处理边缘情况"、"编写测试"
@@ -48,7 +88,7 @@ description: Use when requirements are clear enough to turn into an executable m
 
 ## 自检
 
-1. 确认每个 PRD 验收标准映射到计划步骤
+1. 确认每个决策锚验收标准映射到计划步骤
 2. 搜索计划中的占位符
 3. 检查名称、路径、命令语法、预期输出
 4. 记录剩余风险或阻塞

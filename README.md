@@ -4,6 +4,8 @@
 
 cowork-flow 是一套可复制的协作流程模板，帮助你在项目中建立 AI 友好的工作闭环。它不涉及具体技术栈，只关注：需求澄清 → 计划 → 实现 → 验证 → 交付。
 
+分发动作：`batch-mode`、`brainstorming`、`break-loop`、`cowork-flow`、`doubt-review`、`game-design`、`party-mode`、`tdd`、`writing-plans`
+
 ## 快速开始
 
 ```bash
