@@ -5,74 +5,47 @@ description: Use when starting or resuming main-session work in a cowork-flow pr
 
 # Start
 
-This skill is for the main session only. Formal subagents are accepted only after runtime context binding is recorded and must not load this startup flow.
-Main repository changes follow `Plan -> Implement -> Check -> Finish`.
-Before loading state, classify only whether the current request is a
-main-session request, read-only question, command-only wrapper, or unclear
-input. Do not infer subagent identity from prompt shape. If a child has
-`cowork_runtime_context_id`, hook/plugin binding may run early; otherwise the
-child must run the explicit shim bind before formal work.
+主会话启动入口。子代理在 runtime context 绑定后才进入正式执行，不得加载此启动流。
 
-## Load State
+## 加载状态
 
-1. Read `AGENTS.md`.
-2. Read `.cowork-flow/workflow.md`.
-3. Read `.cowork-flow/config.yaml` for Codex dispatch hints and lifecycle hooks.
-4. Run `.cowork-flow/run resume` or `.\.cowork-flow\run.cmd resume` on Windows.
-5. Read the active task PRD and JSONL indexes only when a task is active.
-6. Read relevant `.cowork-flow/spec/*/index.md` files before code changes.
+1. 读取 `AGENTS.md`
+2. 读取 `.cowork-flow/workflow.md`
+3. 运行 `./.cowork-flow/run resume` 获取当前任务状态
+4. 如有活跃任务，读取任务 PRD 和 JSONL 索引
 
-Report active task, workflow state, blockers, and the next phase.
+报告：当前任务、工作流阶段、阻塞项、下一步。
 
-## Route
+## 路由
 
-Route in stages. Before state is loaded, true question-only requests may bypass
-Load State. Repository-changing main-session requests load state first. After
-state is loaded, apply the requirement clarification gate from
-`.cowork-flow/workflow.md`, then route to the next workflow phase; clear
-multi-step implementation uses `writing-plans` before fixed-agent dispatch.
+根据请求类型路由：
 
-New requirements that are unclear, boundary-unclear, multi-approach, behavior-changing, or missing acceptance criteria use `brainstorming` before PRD, planning, or fixed-agent dispatch. Small repository changes proceed directly only when the goal, scope boundary, and acceptance criteria are already clear.
+| 请求类型 | 路由 |
+|----------|------|
+| 只读问题 | 直接回答 |
+| 小改动（目标/范围/验收清晰） | 创建/启动任务 → 直接执行 |
+| 需求不清晰、多方案、行为变更 | `brainstorming` |
+| 多步骤实现 | `writing-plans` → 派发固定代理 |
+| 编码前 | `before-dev` |
+| 实现完成后 | `check` → `finish-work` |
 
-- Question-only work: answer directly.
-- Small repository change with clear goal/scope/acceptance: classify by `.cowork-flow/workflow.md`, create/start a task if required, then proceed.
-- Unclear, boundary-unclear, behavior-changing, or multi-approach work: use `brainstorming`.
-- Multi-step implementation: use `writing-plans`, then dispatch fixed agents where appropriate.
-- Before coding: use `before-dev`.
-- After implementation: use `check`, then `finish-work`.
+## 固定代理
 
-## Parallel Route
+主会话负责协调：
 
-- Use parallel sessions for independent tasks.
-- Use a separate `git worktree` when independent sessions may write files.
-- Inside one task, dispatch parallel agents only for low-conflict slices with clear ownership.
-- After parallel slices finish, run final integrated verification before Check/Finish.
+- **调研**: 派发 `cowork-research`
+- **实现**: 派发 `cowork-implement`
+- **验证**: 派发 `cowork-check`
 
-## Fixed Agents
-
-The main session owns coordination:
-
-- Research: dispatch `cowork-research` through the active Host Adapter.
-- Implementation: dispatch `cowork-implement` through the active Host Adapter.
-- Verification: dispatch `cowork-check` through the active Host Adapter.
-
-Every formal dispatch uses runtime-context dispatch:
+每次正式派发使用 runtime-context 协议：
 
 ```text
 cowork_runtime_context_id: <runtime_context_id>
 cowork_host_context_key: <host_context_key>
 ```
 
-Before spawning a formal child, create a runtime context with
-`.cowork-flow/run subagent init` and pass the returned prompt transport through
-the active Host Adapter. The child's first step is
-`.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>`; if a
-hook/plugin already bound the same key, this command is idempotent. The parent
-must verify `status=bound` and `bound_context_key=<host_context_key>` before
-accepting output. If binding is missing, closed, invalid, or mismatched, the
-child fails closed and must not run start/resume/task activation/archive/commit
-or coordinate other agents.
+派发前创建 runtime context：`./.cowork-flow/run subagent init`
 
-After dispatch, use adapter wait/list/cancel primitives, review the output,
-verify deliverables, and close the runtime context with
-`.cowork-flow/run subagent close <runtime_context_id>`.
+子代理第一步绑定：`./.cowork-flow/run subagent bind <id> <key>`
+
+父会话验证 `status=bound` 后才接受输出。
