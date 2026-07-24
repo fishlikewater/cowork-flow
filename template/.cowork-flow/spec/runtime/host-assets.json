@@ -179,7 +179,6 @@
       ".cowork-flow/scripts/common/readiness.py",
       ".cowork-flow/scripts/common/state_machine.py",
       ".cowork-flow/scripts/common/task_utils.py",
-      ".cowork-flow/scripts/common/tdd_evidence.py",
       ".cowork-flow/scripts/common/test_intent.py",
       ".cowork-flow/scripts/common/validate_coding_standards.py",
       ".cowork-flow/scripts/common/validate_implementation.py",

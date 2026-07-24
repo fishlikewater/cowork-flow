@@ -78,7 +78,7 @@ Then list acceptance criteria, then steps.
 
   In the overview table, fill AC column with `—` for no-AC steps.
 
-- TDD evidence is inlined in Verify parentheses: `实现前 exit 1 → 实现后 exit 0`. When red and green commands differ, use two-line form:
+- For behavior changes, include concrete verification in Verify parentheses, such as `reproduces before change -> passes after change`. When setup and final verification differ, use two-line form:
   ```
   - **验证**: `red command` → exit 1 | `green command` → exit 0 | AC-XXX
   ```
@@ -91,7 +91,7 @@ Then list acceptance criteria, then steps.
 - Include a failing test before implementation when behavior can be tested.
 - Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mocks without behavior, or snapshot empty structure.
 - For complex problems, test depth first: cover invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.
-- Map each behavior-changing test to a stable decision-anchor.md acceptance ID and note where `tdd.jsonl` will record the red-green evidence.
+- Map each behavior-changing test to a stable decision-anchor.md acceptance ID when useful; do not create `tdd.jsonl` or TDD evidence records in `check.jsonl`.
 - Avoid placeholders such as TODO, TBD, "handle edge cases", or "write tests".
 - Keep root/template parity explicit when both copies exist.
 

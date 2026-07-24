@@ -52,7 +52,7 @@ Each cycle processes in this order:
 
 ### `start_task`
 
-Run the real task startup command and pass through the readiness/spec/TDD Gate:
+Run the real task startup command and pass through the readiness/spec gates:
 
 ```bash
 ./.cowork-flow/run task start <task_dir>

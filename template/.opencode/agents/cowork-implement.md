@@ -39,14 +39,13 @@ signal.
 
 Read and apply:
 
-- `.cowork-flow/spec/protocols/tdd.md`
 - `.cowork-flow/spec/protocols/decision-review.md`
 - `.cowork-flow/spec/protocols/spec-maintenance.md`
 
-Their contracts are Host-neutral. Implementation reports and TDD entries in `check.jsonl` must
-preserve `acceptanceId`, `redCommand`, `redExitCode`, `greenCommand`,
-`greenExitCode`, and `specUpdates`. A behavior change requires
-red-green-refactor evidence or a valid documented exemption.
+Their contracts are Host-neutral. Implementation reports must preserve
+`acceptanceId`, verification commands, and `specUpdates` when relevant. A
+behavior change should be backed by a meaningful test or explicit verification,
+without writing TDD evidence records to `check.jsonl` or creating `tdd.jsonl`.
 
 ---
 

@@ -212,22 +212,26 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
 
-    def test_cowork_implement_requires_tdd_evidence(self) -> None:
+    def test_cowork_implement_forbids_tdd_evidence_artifacts(self) -> None:
         required_markers = (
-            "red-green-refactor",
-            "check.jsonl",
-            "redCommand",
+            "Do not write TDD evidence",
+            "do not create `tdd.jsonl`",
+            "verification commands",
+        )
+        forbidden_markers = (
             "redExitCode",
-            "greenCommand",
             "greenExitCode",
-            "exemption",
+            ".cowork-flow/spec/protocols/tdd.md",
+            "tdd_exemption",
         )
         for path in (
             ROOT / "template" / ".codex" / "agents" / "cowork-implement.toml",
         ):
-            text = path.read_text(encoding="utf-8")
+            prompt = path.read_text(encoding="utf-8")
             for marker in required_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
+                self.assertIn(marker, prompt, f"{marker} missing from {path}")
+            for marker in forbidden_markers:
+                self.assertNotIn(marker, prompt, f"{marker} should stay out of {path}")
 
     def test_cowork_check_requires_test_intent_review(self) -> None:
         required_markers = (
@@ -282,13 +286,9 @@ class CoworkAgentsTest(unittest.TestCase):
     def test_fixed_agents_share_internal_protocol_contracts(self) -> None:
         role_contracts = {
             "cowork-implement": (
-                ".cowork-flow/spec/protocols/tdd.md",
                 ".cowork-flow/spec/protocols/decision-review.md",
                 ".cowork-flow/spec/protocols/spec-maintenance.md",
-                "redCommand",
-                "redExitCode",
-                "greenCommand",
-                "greenExitCode",
+                "verification commands",
                 "acceptanceId",
             ),
             "cowork-check": (

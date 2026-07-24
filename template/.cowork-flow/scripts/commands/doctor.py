@@ -144,12 +144,6 @@ REQUIRED_CLAUDE_SKILL_SNIPPETS = [
 ]
 
 REQUIRED_PROTOCOL_SNIPPETS = {
-    "template/.cowork-flow/spec/protocols/tdd.md": [
-        "# TDD Protocol",
-        "redCommand",
-        "greenCommand",
-        "acceptanceId",
-    ],
     "template/.cowork-flow/spec/protocols/review.md": [
         "# Review Protocol",
         "test_intent_review",

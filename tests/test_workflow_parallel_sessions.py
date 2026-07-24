@@ -214,7 +214,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "gates/registry.py": ("class GateRegistry", "duplicate validator key", "GateLoadError"),
             "git/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
             "task/state_machine.py": ("transition_blockers", "task review", "completed"),
-            "gates/tdd_evidence.py": ("validate_tdd_evidence", "check.jsonl", "redExitCode"),
             "gates/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
             "gates/validate_coding_standards.py": ("validate_coding_standards", "collect_changed_files", "--validate"),
         }
@@ -258,7 +257,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             Path("spec/runtime/contract-registry.json"),
             Path("spec/references/definition-of-done.md"),
             Path("spec/contracts/workflow-state-templates.md"),
-            Path("scripts/common/gates/tdd_evidence.py"),
         )
         missing_files = [
             str(relative_path)
@@ -298,33 +296,25 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             )
             self.assertIsInstance(template_data, dict, str(relative_path))
 
-    def test_tdd_internal_protocol_preserves_evidence_contract(self) -> None:
-        required_markers = (
-            "red-green-refactor",
-            "check.jsonl",
-            "acceptanceId",
-            "redExitCode",
-            "greenExitCode",
-            "whyThisTestMatters",
-            "ClassName.test_method",
-            "exemption",
-            "Anti-Rationalization",
-            "I'll add tests after implementation",
-            "Other tests already cover this",
-            "Red first, then green",
-        )
+    def test_public_tdd_skill_has_no_evidence_artifact_contract(self) -> None:
         tdd_text = (
             ROOT
             / "template"
-            / ".cowork-flow"
-            / "spec"
-            / "protocols"
-            / "tdd.md"
+            / "skills"
+            / "tdd"
+            / "SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertEqual(
-            [],
-            [marker for marker in required_markers if marker not in tdd_text],
-        )
+
+        self.assertIn("red-green-refactor", tdd_text)
+        self.assertIn("Do not write TDD evidence objects", tdd_text)
+        for forbidden in (
+            "redExitCode",
+            "greenExitCode",
+            'type: "tdd"',
+            "tdd_exemption",
+            "TDD Evidence Runtime",
+        ):
+            self.assertNotIn(forbidden, tdd_text)
 
     def test_spec_maintenance_protocol_preserves_update_checklist(self) -> None:
         required_markers = (

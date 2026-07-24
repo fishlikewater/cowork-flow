@@ -118,11 +118,11 @@
     {
       "id": "REF-TESTING-CHECKLIST",
       "path": ".cowork-flow/spec/references/testing-checklist.md",
-      "summary": "Test structure/depth/antipattern reference, as supplement to tdd skill",
+      "summary": "Test structure/depth/antipattern reference for reviewing and writing test files",
       "loadWhen": [
-        "when validating tdd evidence",
         "when reviewing test files",
-        "when writing test cases"
+        "when writing test cases",
+        "when checking behavior coverage"
       ]
     },
     {
