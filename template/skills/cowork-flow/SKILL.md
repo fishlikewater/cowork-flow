@@ -25,6 +25,7 @@ Classify the request into exactly one intent:
 - `plan`: create or revise an executable plan.
 - `implement`: change code or task artifacts.
 - `review`: verify implementation or complete review gates.
+- `doubt_review`: run standalone advisory doubt review without lifecycle check dispatch.
 - `debug`: diagnose a failure or repeated unsuccessful attempt.
 - `discuss`: compare options without advancing task state.
 - `batch`: request automated execution of a task graph.

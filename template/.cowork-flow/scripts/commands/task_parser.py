@@ -247,6 +247,7 @@ def _add_next_command(subparsers: argparse._SubParsersAction) -> None:
             "implement",
             "archive",
             "review",
+            "doubt_review",
             "debug",
             "discuss",
             "batch",

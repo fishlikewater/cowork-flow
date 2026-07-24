@@ -64,6 +64,8 @@ Pass only ARTIFACT + CONTRACT, not CLAIM. Including CLAIM biases the reviewer to
 
 You cannot spawn a fresh-context reviewer from within a subagent context. If doubt is required while inside a subagent, surface back to the main session so the review can run from a genuinely fresh context.
 
+Do not dispatch `cowork-check` for standalone doubt review. `cowork-check` is a runtime-context-bound fixed agent and requires `cowork_runtime_context_id` plus `cowork_host_context_key`; without those fields it must report `needs_context`. When no bound workflow check context exists, use a regular reviewer or generic worker for the advisory skeptical pass.
+
 ### 4. RECONCILE
 
 Classify every finding in this order:

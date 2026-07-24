@@ -27,6 +27,7 @@ USER_INTENTS = (
     "implement",
     "archive",
     "review",
+    "doubt_review",
     "debug",
     "discuss",
     "batch",
@@ -38,6 +39,7 @@ INTENT_REGISTRY_KEYS = {
     "implement": "route_workflow",
     "archive": "route_workflow",
     "review": "route_workflow",
+    "doubt_review": "doubt_review",
     "debug": "analyze_repeated_failure",
     "discuss": "discuss_options",
     "batch": "batch_execute_plan",
@@ -52,6 +54,7 @@ INTENT_OPERATIONS = {
     },
     "archive": {"archive_task"},
     "review": {"request_review", "verify_change", "complete_task"},
+    "doubt_review": {"request_review", "verify_change", "discuss_options"},
     "debug": {"debug_failure"},
     "discuss": {"discuss_options"},
     "batch": {"batch_execute"},
@@ -96,7 +99,6 @@ def _print_blockers(blockers: list[str]) -> None:
 
 def _implementation(task_path: str) -> None:
     print("Next action: execute implementation plan")
-    print(f"TDD reminder: for behavior changes, write the failing test first and record any red/green evidence in {task_path}/check.jsonl.")
     print(
         f"Command: ./.cowork-flow/run subagent init --role implement "
         f"--agent-type cowork-implement --execution-task-dir {task_path} "
@@ -269,11 +271,6 @@ def _route_protocols(
     intent: str,
     intent_allowed: bool,
 ) -> list[str]:
-    if intent_allowed and intent == "implement" and status in {
-        "in_progress",
-        "delegated_subtask",
-    }:
-        return ["tdd"]
     if intent_allowed and intent == "review" and status in CHECK_STATUSES:
         return ["check"]
     return []
@@ -389,6 +386,7 @@ def _print_text_route(
     source: str,
     blockers: list[str],
     active_target: bool,
+    intent: str | None = None,
 ) -> None:
     print(f"Status: {status}")
     print(f"Source: {source}")
@@ -405,7 +403,10 @@ def _print_text_route(
     elif status == "in_progress":
         _implementation(task_path)
     elif status in CHECK_STATUSES:
-        _print_check_route(task_path)
+        if intent == "doubt_review":
+            _print_doubt_review_route(task_path)
+        else:
+            _print_check_route(task_path)
     elif status in DONE_STATUSES:
         _print_archive_route(repo_root, task_path, task_dir)
     else:
@@ -421,6 +422,13 @@ def _print_check_route(task_path: str) -> None:
     print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
     print("Then: verify status=bound and bound_context_key before accepting output")
     print(f"Then: ./.cowork-flow/run task complete {task_path}")
+
+
+def _print_doubt_review_route(task_path: str) -> None:
+    print("Next action: run standalone doubt review")
+    print("Skill: doubt-review")
+    print(f"Target: {task_path}")
+    print("Do not dispatch the lifecycle check agent unless this becomes review/complete work.")
 
 
 def _print_archive_route(repo_root: Path, task_path: str, task_dir: Path) -> None:
@@ -467,5 +475,6 @@ def cmd_next(args) -> int:
         source,
         blockers,
         active_target,
+        getattr(args, "intent", None),
     )
     return 0
