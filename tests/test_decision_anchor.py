@@ -27,14 +27,12 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.task = importlib.import_module("commands.task")
-        self.tdd = importlib.import_module("common.gates.tdd_evidence")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
             "commands.task",
-            "common.gates.tdd_evidence",
             "common.task.readiness",
         ):
             if module_name in sys.modules:
@@ -66,20 +64,6 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
             blockers = self.task._task_start_blockers(task_dir)
             self.assertIn("decision-anchor.md is missing or empty", blockers)
 
-    def test_ac_accepts_various_formats(self) -> None:
-        """_acceptance_ids 支持 AC-001、AC-1、验收标准：1 等格式。"""
-        text = "## 验收标准\n- [ ] AC-001: 基础功能\n- [ ] AC-2: 进阶功能\n- [ ] 验收标准：3 手动"
-        ids = self.tdd._acceptance_ids(text)
-        self.assertIn("AC-001", ids)
-        self.assertIn("AC-2", ids)
-        self.assertIn("AC-3", ids)
-
-    def test_ac_case_insensitive(self) -> None:
-        """AC 标识符大小写不敏感。"""
-        text = "ac-001 and Ac-002"
-        ids = self.tdd._acceptance_ids(text)
-        self.assertIn("AC-001", ids)
-        self.assertIn("AC-002", ids)
 
 
 if __name__ == "__main__":

@@ -322,10 +322,6 @@ def get_implement_base() -> list[dict]:
             "reason": "Mandatory pre-coding checklist",
         },
         {
-            "file": protocol_path("tdd"),
-            "reason": "Behavior-change red-green evidence protocol",
-        },
-        {
             "file": protocol_path("decision-review"),
             "reason": "Structured decision review evidence contract",
         },

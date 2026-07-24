@@ -21,8 +21,6 @@ STAGE_GATES = {
     "task_start": ("runtime_rules",),
     "task_review": (
         "implementation",
-        "tdd_evidence",
-        "test_intent",
         "runtime_rules",
         "coding_standards",
         "quality_machine_checks",
@@ -30,8 +28,6 @@ STAGE_GATES = {
     ),
     "task_complete": (
         "implementation",
-        "tdd_evidence",
-        "test_intent",
         "runtime_rules",
         "coding_standards",
         "quality_machine_checks",
@@ -57,18 +53,6 @@ def _core_validator_bindings() -> tuple[ValidatorBinding, ...]:
             keyword={
                 "allow_spec_file_modifications": "allow_spec_file_modifications",
             },
-        ),
-        ValidatorBinding(
-            key="tdd_evidence",
-            module="tdd_evidence",
-            function="validate_tdd_evidence",
-            positional=("task_dir",),
-        ),
-        ValidatorBinding(
-            key="test_intent",
-            module="test_intent",
-            function="validate_test_intent",
-            positional=("repo_root", "task_dir"),
         ),
         ValidatorBinding(
             key="coding_standards",
@@ -124,20 +108,6 @@ def _core_gate_definitions() -> tuple[GateDefinition, ...]:
             required=True,
             block_message="Implementation gate blocked lifecycle transition",
             warning_message="Implementation violations detected",
-        ),
-        GateDefinition(
-            id="tdd_evidence",
-            validator_key="tdd_evidence",
-            required=True,
-            block_message="TDD evidence gate blocked lifecycle transition",
-            warning_message="TDD evidence advisories",
-        ),
-        GateDefinition(
-            id="test_intent",
-            validator_key="test_intent",
-            required=True,
-            block_message="Test intent gate blocked lifecycle transition",
-            warning_message="Test intent review warnings",
         ),
         GateDefinition(
             id="coding_standards",

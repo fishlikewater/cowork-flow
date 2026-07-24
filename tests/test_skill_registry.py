@@ -331,12 +331,6 @@ class SkillRegistryTest(unittest.TestCase):
     def test_internal_protocols_use_spec_sources_and_are_not_distributed(self) -> None:
         registry = self._module().load_skill_registry(TEMPLATE)
         expected = {
-            "tdd-protocol": (
-                ".cowork-flow/spec/protocols/tdd.md",
-                "mandatory",
-                "tdd-evidence",
-                "check.jsonl",
-            ),
             "review-protocol": (
                 ".cowork-flow/spec/protocols/review.md",
                 "mandatory",
@@ -385,7 +379,7 @@ class SkillRegistryTest(unittest.TestCase):
         self.assertEqual("protocol", entry.kind)
         self.assertEqual("public", entry.visibility)
         self.assertEqual("advisory", entry.enforcement)
-        self.assertEqual("check.jsonl", entry.evidence_artifact)
+        self.assertIsNone(entry.evidence_artifact)
         self.assertEqual("skills/tdd/SKILL.md", entry.source)
         self.assertIn("tdd", registry.public_skill_ids)
         self.assertTrue((TEMPLATE / "skills" / "tdd" / "SKILL.md").exists())
@@ -414,6 +408,8 @@ class SkillRegistryTest(unittest.TestCase):
             "Spawning a reviewer is expensive",
             "cannot spawn a fresh-context reviewer from within a subagent context",
             "surface back to the main session",
+            "Do not dispatch `cowork-check` for standalone doubt review",
+            "use a regular reviewer or generic worker",
             "Verification",
             "Every non-trivial decision has a CLAIM record",
             "Reviewer receives ARTIFACT + CONTRACT (not CLAIM)",

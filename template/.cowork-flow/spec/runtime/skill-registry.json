@@ -340,48 +340,12 @@
       "enforcement": "advisory",
       "runtimeGate": null,
       "runtimeCommand": null,
-      "evidenceArtifact": "check.jsonl",
+      "evidenceArtifact": null,
       "source": "skills/tdd/SKILL.md",
       "managedPaths": [
         ".agents/skills/tdd/",
         ".claude/skills/tdd/"
       ]
-    },
-    {
-      "id": "tdd-protocol",
-      "displayName": "TDD Protocol",
-      "aliases": [],
-      "kind": "protocol",
-      "visibility": "internal",
-      "status": "active",
-      "statuses": [
-        "in_progress"
-      ],
-      "intents": [
-        "apply_tdd"
-      ],
-      "enforcement": "mandatory",
-      "runtimeGate": "tdd-evidence",
-      "runtimeCommand": null,
-      "evidenceArtifact": "check.jsonl",
-      "source": ".cowork-flow/spec/protocols/tdd.md",
-      "managedPaths": []
-    },
-    {
-      "id": "tdd-evidence",
-      "displayName": "TDD Evidence Runtime",
-      "aliases": [],
-      "kind": "runtime",
-      "visibility": "internal",
-      "status": "active",
-      "statuses": [],
-      "intents": [],
-      "enforcement": "runtime",
-      "runtimeGate": null,
-      "runtimeCommand": "task review",
-      "evidenceArtifact": "check.jsonl",
-      "source": ".cowork-flow/scripts/common/gates/tdd_evidence.py",
-      "managedPaths": []
     },
     {
       "id": "spec-maintenance",

@@ -42,7 +42,7 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/scripts/common/gates/gates.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/git/git_snapshot.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/task/state_machine.py'), true);
-  assert.equal(files.has('template/.cowork-flow/scripts/common/gates/tdd_evidence.py'), true);
+  assert.equal(files.has('template/.cowork-flow/scripts/common/gates/tdd_evidence.py'), false);
   assert.equal(files.has('template/.cowork-flow/scripts/common/gates/test_intent.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/gates/spec_validator.py'), false);
   assert.equal(files.has('template/.cowork-flow/scripts/common/gates/validate_jsonl.py'), false);
@@ -72,7 +72,7 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/skills/doubt-review/SKILL.md'), true);
   assert.equal(files.has('template/skills/party-mode/SKILL.md'), true);
   assert.equal(files.has('template/skills/party-mode-v2/SKILL.md'), false);
-  assert.equal(files.has('template/.cowork-flow/spec/protocols/tdd.md'), true);
+  assert.equal(files.has('template/.cowork-flow/spec/protocols/tdd.md'), false);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/review.md'), true);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/decision-review.md'), true);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/spec-maintenance.md'), true);

@@ -59,7 +59,6 @@ class FlowScriptTestCase(unittest.TestCase):
             "common.task.state_machine",
             "common.task.task_repository",
             "common.task.task_utils",
-            "common.gates.tdd_evidence",
             "common.gates.test_intent",
             "common.gates.validate_coding_standards",
             "common.gates.validate_implementation",
@@ -247,49 +246,6 @@ class FlowScriptTestCase(unittest.TestCase):
             "实现会改变用户可观察行为。\n\n"
             "## 验收标准\n\n"
             "- AC-001: 行为变更有对应测试和验证记录。\n",
-            encoding="utf-8",
-        )
-
-    def _valid_tdd_evidence(self, task_dir: Path) -> dict:
-        root = task_dir.parents[2]
-        test_file = root / "tests" / "test_flow_script_paths.py"
-        test_file.parent.mkdir(parents=True, exist_ok=True)
-        test_file.write_text(
-            "import unittest\n\n"
-            "class FlowScriptPathsTest(unittest.TestCase):\n"
-            "    def test_behavior_change_has_verification(self):\n"
-            "        result = {'status': 'review', 'verified': True}\n"
-            "        self.assertEqual('review', result['status'])\n"
-            "        self.assertEqual(True, result['verified'])\n",
-            encoding="utf-8",
-        )
-        return {
-            "type": "tdd",
-            "acceptanceId": "AC-001",
-            "testFile": "tests/test_flow_script_paths.py",
-            "testName": "test_behavior_change_has_verification",
-            "redCommand": "python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_behavior_change_has_verification -v",
-            "redExitCode": 1,
-            "redOutputExcerpt": "expected review status before implementation",
-            "failureReason": "behavior verification did not yet produce review status",
-            "whyThisTestMatters": "It proves behavior-change work has a meaningful verification path.",
-            "greenCommand": "python -m unittest tests.test_flow_script_paths.FlowScriptPathsTest.test_behavior_change_has_verification -v",
-            "greenExitCode": 0,
-            "broaderVerification": "python -m unittest tests.test_flow_script_paths -v",
-        }
-
-    def _write_valid_tdd_evidence(self, task_dir: Path) -> None:
-        evidence = self._valid_tdd_evidence(task_dir)
-        (task_dir / "check.jsonl").write_text(
-            json.dumps(evidence, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-
-    def _write_valid_legacy_tdd_evidence(self, task_dir: Path) -> None:
-        evidence = self._valid_tdd_evidence(task_dir)
-        evidence.pop("type", None)
-        (task_dir / "tdd.jsonl").write_text(
-            json.dumps(evidence, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
 

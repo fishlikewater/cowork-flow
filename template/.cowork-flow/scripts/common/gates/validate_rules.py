@@ -37,7 +37,6 @@ ENUM_RULE_FIELDS = {
     "enforcement": {
         "validate_rules",
         "validate_implementation",
-        "tdd_evidence",
         "host_contract",
         "metadata_only",
     },

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Test intent validation for cowork-flow review gates."""
+"""Test intent helpers for cowork-flow review guidance.
+
+The lifecycle gate no longer reads TDD evidence from task JSONL files. These
+helpers remain available to review code or prompts that need a lightweight
+classifier for a concrete test body.
+"""
 
 from __future__ import annotations
 
 import ast
 import io
 import tokenize
-from pathlib import Path
-
-from .tdd_evidence import is_tdd_exemption, tdd_evidence_records
 
 REPORT_FIELD = "test_intent_review"
 
@@ -45,81 +47,18 @@ BLOCK_MARKERS = (
 )
 
 
-def validate_test_intent(repo_root: Path, task_dir: Path) -> list[dict]:
-    """Return test intent warnings or blocks for TDD evidence records."""
-    records = tdd_evidence_records(Path(task_dir))
-    if not records:
-        return []
+def validate_test_intent(*_args, **_kwargs) -> list[dict]:
+    """Return no lifecycle violations.
 
-    violations: list[dict] = []
-    for index, (evidence_path, _line_number, entry) in enumerate(records, start=1):
-        if is_tdd_exemption(entry):
-            continue
-
-        test_file = entry.get("testFile")
-        test_name = str(entry.get("testName", "")).strip()
-        if not isinstance(test_file, str) or not test_file.strip():
-            violations.append(
-                _violation(
-                    "TEST-INTENT-001",
-                    f"TDD evidence record {index} is missing testFile",
-                    evidence_path,
-                    "Point the evidence to a concrete test file.",
-                    severity="block",
-                )
-            )
-            continue
-
-        test_path = Path(repo_root) / test_file
-        content = _read_text(test_path)
-        if not content:
-            violations.append(
-                _violation(
-                    "TEST-INTENT-002",
-                    f"TDD evidence record {index} references missing test file: {test_file}",
-                    evidence_path,
-                    "Point the evidence at an actual test file that exercises behavior.",
-                    severity="block",
-                )
-            )
-            continue
-
-        classification = _classify_test_content(content, test_name)
-        if classification == "missing":
-            violations.append(
-                _violation(
-                    "TEST-INTENT-005",
-                    f"TDD evidence record {index} testName does not resolve to a test function: {test_name}",
-                    test_path,
-                    "Use test_method, ClassName.test_method, or module.ClassName.test_method for the behavior test.",
-                    severity="block",
-                )
-            )
-        elif classification == "block":
-            violations.append(
-                _violation(
-                    "TEST-INTENT-003",
-                    f"TDD evidence record {index} points to a shallow test such as assert True, import-only, mock-only, or function-existence checks",
-                    test_path,
-                    "Write a test that fails when the target behavior breaks.",
-                    severity="block",
-                )
-            )
-        elif classification == "warn":
-            violations.append(
-                _violation(
-                    "TEST-INTENT-004",
-                    f"TDD evidence record {index} looks weak (assertIsNotNone/assertIsInstance/assertIn) and should be reviewed carefully",
-                    test_path,
-                    "Prefer tests that assert meaningful behavior or state transitions.",
-                    severity="warn",
-                )
-            )
-
-    return violations
+    Test quality is now reviewed from changed test files and verification output,
+    not from TDD evidence records in check.jsonl or tdd.jsonl.
+    """
+    return []
 
 
-from common.core.files import read_text_utf8 as _read_text
+def classify_test_content(content: str, test_name: str) -> str:
+    """Classify one concrete test body as pass, warn, block, or missing."""
+    return _classify_test_content(content, test_name)
 
 
 def _classify_test_content(content: str, test_name: str) -> str:
@@ -224,15 +163,3 @@ def _looks_ambiguous(lower: str) -> bool:
         )
         return not any(marker in lower for marker in strong_markers)
     return False
-
-
-def _violation(rule_id: str, message: str, file_path: Path, fix_hint: str, *, severity: str) -> dict:
-    return {
-        "rule_id": rule_id,
-        "type": "test_intent",
-        "severity": severity,
-        "passed": False,
-        "message": message,
-        "file": str(file_path),
-        "fix_hint": fix_hint,
-    }

@@ -7,7 +7,7 @@
 | # | 检查项 | 验证 |
 |---|---|---|
 | G1 | 代码实现符合 decision-anchor acceptance criteria | AC 全部为 verified |
-| G2 | 行为变更有对应测试；高风险任务在 check.jsonl 有 red-green evidence | ./cowork-flow/run task validate |
+| G2 | 行为变更有对应测试或明确验证命令；高风险任务覆盖失败、边界或回归路径 | ./cowork-flow/run task validate |
 | G3 | check phase 完成，无 unresolved blocker | check.jsonl status=pass |
 | G4 | 无新引入 lint/type/build 警告 | lint / build 命令通过 |
 | G5 | Git status snapshot 仅含任务相关变更，包括 staged、unstaged、untracked | git status --porcelain=v1 -uall |

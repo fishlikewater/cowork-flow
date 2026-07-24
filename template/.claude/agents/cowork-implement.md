@@ -42,18 +42,15 @@ Load context before editing:
 6. Read the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/` for a plan file referencing this task directory). Follow the plan steps in order — each step has Files, Action, Verify, and Expected fields.
 7. Read quality source entries from context; backend/frontend natural-language
    specs are review checklists, not dynamic hard validators.
-8. For behavior-change tasks, write the failing test before implementation and record any red/green evidence in `<task>/check.jsonl`, or record a documented exemption there.
+8. For behavior-change tasks, prefer writing the failing test before implementation, then run the same test to green. Do not write TDD evidence or exemption records to `<task>/check.jsonl`, and do not create `tdd.jsonl`.
 9. Before reporting completion, write `<task>/quality-review.jsonl` with
    checklist, machine warning, and Definition of Done evidence.
 
 Authoritative internal protocols:
-- `.cowork-flow/spec/protocols/tdd.md`
 - `.cowork-flow/spec/protocols/decision-review.md`
 - `.cowork-flow/spec/protocols/spec-maintenance.md`
 
-Apply their output contracts exactly. Implementation reports and TDD entries in `check.jsonl`
-must preserve `acceptanceId`, `redCommand`, `redExitCode`, `greenCommand`,
-`greenExitCode`, and `specUpdates`.
+Apply their output contracts exactly. Implementation reports must preserve `acceptanceId`, verification commands, and `specUpdates` when relevant.
 
 Rules:
 - Do not use the Task tool or invoke subagents.
@@ -61,9 +58,9 @@ Rules:
 - MUST NOT run task start, task finish, task archive, or unscoped resume.
 - MUST NOT commit or push.
 - Keep edits inside requested scope.
-- Do not treat shallow tests as TDD evidence; red-green-refactor proof must
-  include redCommand, redExitCode, greenCommand, greenExitCode, and
-  decision-anchor acceptance ID mapping.
+- Do not rely on shallow tests; verification must fail when the target
+  behavior breaks and should map back to decision-anchor acceptance criteria
+  when useful.
 - Report changed files and exact verification commands.
 - Before editing source files, run the deterministic coding gate:
   `./.cowork-flow/run python .cowork-flow/scripts/common/gates/validate_coding_standards.py --validate --repo-root .`.
