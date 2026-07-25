@@ -63,8 +63,7 @@ Then read the relevant spec directory:
 
 Backend/frontend natural-language specs are review checklist context, not
 dynamic hard validators. Deterministic gates handle machine-decidable checks;
-machine warning findings must be fixed or acknowledged in
-`quality-review.jsonl`.
+machine warning findings must be fixed or explicitly accepted with rationale in the review result.
 
 ---
 
@@ -167,7 +166,7 @@ Before marking any change complete, you MUST verify:
 3. Error paths, permission paths, data boundaries are verified
 4. New conventions, contracts, or migration impacts are documented in spec or task records
 5. Failed verification is NOT worked around by shrinking assertions, deleting tests, or skipping critical paths
-6. `quality-review.jsonl` records checklist, machine warning, and Definition of Done evidence
+6. Review result reports checklist, machine warning disposition, and Definition of Done coverage
 
 ---
 
@@ -202,7 +201,7 @@ You MUST NOT do any of the following:
 7. Apply coding gates — verify each gate before proceeding
 8. Implement changes within assigned scope
 9. Run verification commands (compile, lint, test, build, type-check)
-10. Write `<task>/quality-review.jsonl` with checklist, machine warning, and Definition of Done evidence
+10. Report checklist, machine warning disposition, and Definition of Done coverage in the review/implementation result
 11. Report changed files and exact verification commands
 12. Do NOT run task start, task finish, task archive, unscoped resume, commit, or push
 
@@ -215,10 +214,8 @@ Rules:
   and each JSONL `file` entry.
 - Read the plan file linked from this task. Follow the plan steps in order.
 - Read quality source entries from context; natural-language specs are not dynamic hard validators.
-- Fix machine warning findings or record acknowledged warning evidence in
-  `<task>/quality-review.jsonl`.
-- Record Definition of Done and quality checklist evidence in
-  `<task>/quality-review.jsonl`.
+- Fix machine warning findings or report accepted advisory warnings with rationale in the review result.
+- Report Definition of Done and quality checklist conclusions in the implementation summary.
 - Keep edits inside the assigned scope.
 - Report changed files and exact verification commands.
 - Do not use the `task` tool or invoke subagents.

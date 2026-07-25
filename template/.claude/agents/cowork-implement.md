@@ -43,8 +43,7 @@ Load context before editing:
 7. Read quality source entries from context; backend/frontend natural-language
    specs are review checklists, not dynamic hard validators.
 8. For behavior-change tasks, prefer writing the failing test before implementation, then run the same test to green. Do not write TDD evidence or exemption records to `<task>/check.jsonl`, and do not create `tdd.jsonl`.
-9. Before reporting completion, write `<task>/quality-review.jsonl` with
-   checklist, machine warning, and Definition of Done evidence.
+9. Before reporting completion, run the planned verification commands and report current review/gate output. Do not create task-local review artifact files.
 
 Authoritative internal protocols:
 - `.cowork-flow/spec/protocols/decision-review.md`
@@ -66,7 +65,5 @@ Rules:
   `./.cowork-flow/run python .cowork-flow/scripts/common/gates/validate_coding_standards.py --validate --repo-root .`.
   This gate enforces machine-decidable UTF-8/IO checks; backend/frontend
   natural-language markdown remains checklist context, not dynamic hard validators.
-- Fix machine warning findings or record acknowledged warning evidence in
-  `<task>/quality-review.jsonl`.
-- Record Definition of Done and quality checklist evidence in
-  `<task>/quality-review.jsonl`.
+- Fix machine warning findings or report accepted advisory warnings with rationale in the review result.
+- Report Definition of Done and quality checklist conclusions in the implementation summary.

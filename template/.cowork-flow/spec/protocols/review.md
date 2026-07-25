@@ -1,14 +1,15 @@
 # Review Protocol
 
-> Internal protocol loaded by `cowork-check`; it is not a public Skill.
+> Internal protocol loaded by `cowork-check`; public guidance is mirrored in the `review` Skill.
 
 ## Contract
 
 1. Read the task decision anchor, plan, `check.jsonl`, registered context, and current diff.
 2. Review behavior, caller/callee contracts, persisted state, templates, specs, and scope.
-3. Review test intent, reject shallow tests, run focused tests that fail for meaningful behavior breaks, then broader validation for shared runtime changes.
-4. Verify `quality-review.jsonl` covers quality checklist, machine warning, and Definition of Done evidence.
-5. Reject shallow tests and unresolved blockers; fix only in-scope issues.
+3. Review test intent: reject shallow tests, prefer checks that fail for meaningful behavior breaks, then run focused and broader validation as risk requires.
+4. Run or inspect deterministic gates for machine-decidable checks; treat blocking gate failures as unresolved findings.
+5. Review machine warning output as advisory signal: fix real issues or explicitly report an accepted warning with rationale in the review result.
+6. Reject unresolved blockers; fix only in-scope issues.
 
 ## Output
 
@@ -19,27 +20,22 @@ Report the same core fields on every Host:
 - `findings`
 - `test_intent_review`
 - `verification`
-- `quality_review`
+- `machine_gate_review`
 - `resolution`
 
-Do not claim completion from intent or unexecuted commands.
+Do not claim completion from intent, memory, or unexecuted commands. Completion requires fresh verification output from the current diff.
 
-## Quality Evidence
+## Review Evidence
 
-`quality-review.jsonl` is the task-local audit trail for quality review. Each
-record must include `id`, `source`, `type`, `status`, `files`, `evidence`, and
-`verification`.
+Review evidence lives in the checker response and command output, not in a task-local evidence file. Keep it concrete:
 
-- `source`: a spec/checklist path or machine warning rule ID.
-- `type`: `checklist`, `machine_warning`, or `dod`.
-- `status`: `pass`, `fail`, `not_applicable`, or `acknowledged_warning`.
-- `evidence`: concrete file/rule reasoning, not generic "checked" claims.
-- `verification`: exact commands run or an explicit reason a command was not applicable.
+- cite exact changed files, affected contracts, and acceptance criteria;
+- include exact commands run and whether they passed, failed, or were not applicable with reason;
+- classify findings as `critical`, `important`, or `minor`;
+- distinguish blocking failures from advisory machine warnings;
+- state whether specs were updated or explicitly not needed.
 
-Backend/frontend natural-language markdown supplies review checklist context,
-not dynamic hard validators. Deterministic hard gates cover machine-decidable
-checks; machine warning output must be fixed or acknowledged in
-`quality-review.jsonl` before completion.
+Backend/frontend natural-language markdown supplies review checklist context, not dynamic hard validators. Deterministic hard gates cover machine-decidable checks.
 
 ## Simplification Review
 

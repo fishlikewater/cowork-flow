@@ -78,11 +78,11 @@
       ]
     },
     {
-      "id": "review-protocol",
-      "displayName": "Review Protocol",
+      "id": "review",
+      "displayName": "Review",
       "aliases": [],
       "kind": "protocol",
-      "visibility": "internal",
+      "visibility": "public",
       "status": "active",
       "statuses": [
         "review"
@@ -94,8 +94,11 @@
       "runtimeGate": "review-gates",
       "runtimeCommand": null,
       "evidenceArtifact": "check.jsonl",
-      "source": ".cowork-flow/spec/protocols/review.md",
-      "managedPaths": []
+      "source": "skills/review/SKILL.md",
+      "managedPaths": [
+        ".agents/skills/review/",
+        ".claude/skills/review/"
+      ]
     },
     {
       "id": "cowork-flow",

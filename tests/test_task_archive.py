@@ -167,7 +167,7 @@ class TaskArchiveServiceTest(unittest.TestCase):
             )
             self.assertEqual("src/example.py", archived_entries[2]["file"])
 
-    def test_archive_preserves_quality_review_jsonl(self) -> None:
+    def test_archive_preserves_task_local_review_notes_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             tasks_dir = root / ".cowork-flow" / "tasks"
@@ -177,17 +177,14 @@ class TaskArchiveServiceTest(unittest.TestCase):
                 "07-10-demo",
                 {"status": "completed"},
             )
-            evidence = {
-                "id": "QR-DOD-001",
-                "source": ".cowork-flow/spec/references/definition-of-done.md",
-                "type": "dod",
-                "status": "pass",
+            note = {
+                "id": "REVIEW-NOTE-001",
+                "type": "review-note",
                 "files": ["src/example.py"],
-                "evidence": "Archived quality review evidence remains traceable.",
-                "verification": ["python -m unittest tests.test_task_archive -v"],
+                "summary": "Archived task-local review notes remain traceable.",
             }
-            (task_dir / "quality-review.jsonl").write_text(
-                json.dumps(evidence, ensure_ascii=False) + "\n",
+            (task_dir / "review-notes.jsonl").write_text(
+                json.dumps(note, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
 
@@ -196,13 +193,13 @@ class TaskArchiveServiceTest(unittest.TestCase):
                 archived_at="2026-07-10",
             )
 
-            archived_evidence = json.loads(
-                (result.destination / "quality-review.jsonl").read_text(
+            archived_note = json.loads(
+                (result.destination / "review-notes.jsonl").read_text(
                     encoding="utf-8"
                 )
             )
-            self.assertEqual("QR-DOD-001", archived_evidence["id"])
-            self.assertEqual("dod", archived_evidence["type"])
+            self.assertEqual("REVIEW-NOTE-001", archived_note["id"])
+            self.assertEqual("review-note", archived_note["type"])
 
     def test_archive_rollback_restores_original_context_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

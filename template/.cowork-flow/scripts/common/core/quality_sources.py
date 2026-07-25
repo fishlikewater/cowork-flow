@@ -7,7 +7,6 @@ import re
 from pathlib import Path
 
 
-QUALITY_REVIEW_FILE = "quality-review.jsonl"
 SPEC_ROOT = ".cowork-flow/spec"
 REFERENCE_DOD = f"{SPEC_ROOT}/references/definition-of-done.md"
 REFERENCE_TESTING = f"{SPEC_ROOT}/references/testing-checklist.md"
@@ -59,15 +58,6 @@ def quality_source_paths(
     if _security_relevant(paths):
         sources.extend(_existing_paths(root, (REFERENCE_SECURITY,)))
     return sources
-
-
-def quality_review_artifact_entry(task_dir: Path, repo_root: Path) -> dict:
-    """Return the task-local quality-review artifact context entry."""
-    task_path = _repo_relative_task_path(task_dir, repo_root)
-    return {
-        "file": f"{task_path}/{QUALITY_REVIEW_FILE}",
-        "reason": "Task-local quality review evidence required before complete",
-    }
 
 
 def _categories_for(dev_type: str) -> tuple[str, ...]:
@@ -131,10 +121,3 @@ def _quality_source_reason(source: str) -> str:
     if source == REFERENCE_SECURITY:
         return "Verify security-sensitive changes"
     return f"Verify {Path(source).name} quality rules"
-
-
-def _repo_relative_task_path(task_dir: Path, repo_root: Path) -> str:
-    try:
-        return Path(task_dir).resolve().relative_to(Path(repo_root).resolve()).as_posix()
-    except ValueError:
-        return Path(task_dir).as_posix()

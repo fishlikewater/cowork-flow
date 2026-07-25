@@ -51,7 +51,6 @@ class FlowScriptTestCase(unittest.TestCase):
             "common.core.developer",
             "common.core.quality_sources",
             "common.gates.gates",
-            "common.gates.quality_review",
             "common.git.git_context",
             "common.git.git_snapshot",
             "common.core.paths",
@@ -249,48 +248,6 @@ class FlowScriptTestCase(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def _write_quality_review_evidence(
-        self,
-        task_dir: Path,
-        *,
-        files: tuple[str, ...] = ("AGENTS.md",),
-    ) -> None:
-        entries = [
-            {
-                "id": "QR-DOD-001",
-                "source": ".cowork-flow/spec/references/definition-of-done.md",
-                "type": "dod",
-                "status": "pass",
-                "files": list(files),
-                "evidence": (
-                    "Verified acceptance coverage, scoped git status, and "
-                    "required validation commands for this task fixture."
-                ),
-                "verification": [
-                    "git status --porcelain=v1 -uall",
-                    "python -m unittest tests.test_gate_pipeline -v",
-                ],
-            },
-            {
-                "id": "QR-001",
-                "source": ".cowork-flow/spec/protocols/review.md",
-                "type": "checklist",
-                "status": "pass",
-                "files": list(files),
-                "evidence": (
-                    "Reviewed changed files against the review protocol and "
-                    "found no unresolved quality blocker."
-                ),
-                "verification": [
-                    "python -m unittest tests.test_gate_pipeline -v",
-                ],
-            },
-        ]
-        (task_dir / "quality-review.jsonl").write_text(
-            "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in entries),
-            encoding="utf-8",
-        )
-
     def _write_non_behavior_review_task(
         self,
         root: Path,
@@ -314,7 +271,6 @@ class FlowScriptTestCase(unittest.TestCase):
         )
         for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
             (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-        self._write_quality_review_evidence(task_dir)
         # 确保 .cowork-flow/spec/runtime/rules.json 存在
         rules_path = root / ".cowork-flow" / "spec" / "runtime" / "rules.json"
         if not rules_path.exists():
