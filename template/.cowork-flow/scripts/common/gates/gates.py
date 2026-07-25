@@ -31,7 +31,6 @@ STAGE_GATES = {
         "runtime_rules",
         "coding_standards",
         "quality_machine_checks",
-        "quality_review",
         "complexity",
     ),
 }
@@ -69,12 +68,6 @@ def _quality_validator_bindings() -> tuple[ValidatorBinding, ...]:
             key="quality_machine_checks",
             module="validate_coding_standards",
             function="validate_machine_checks",
-            positional=("repo_root", "task_dir"),
-        ),
-        ValidatorBinding(
-            key="quality_review",
-            module="quality_review",
-            function="validate_quality_review",
             positional=("repo_root", "task_dir"),
         ),
     )
@@ -126,12 +119,6 @@ def _quality_gate_definitions() -> tuple[GateDefinition, ...]:
             required=False,
             block_message="",
             warning_message="Quality machine-check warnings",
-        ),
-        GateDefinition(
-            id="quality_review",
-            validator_key="quality_review",
-            required=True,
-            block_message="Quality review gate blocked lifecycle transition",
         ),
     )
 

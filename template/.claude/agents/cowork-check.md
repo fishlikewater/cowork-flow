@@ -39,8 +39,7 @@ Load context before checking:
 3. Read the plan file linked from this task (check `<task>/task.json` `relatedFiles` for a plan path, or search `.cowork-flow/plans/` for a plan file referencing this task directory). Use the plan's Verify commands and Expected results as the checklist for each step.
 4. Read `<task>/check.jsonl`.
 5. Read each JSONL `file` entry from `<task>/check.jsonl`.
-6. Read `<task>/quality-review.jsonl` if present and verify machine warning,
-   checklist, and Definition of Done evidence.
+6. Apply the Review Skill / review protocol and verify machine gates, checklist sources, and Definition of Done coverage through the review result.
 7. Read `git diff`.
 8. Include `test_intent_review` in the review output for meaningful behavior
    breaks coverage and shallow tests rejection.
@@ -66,7 +65,5 @@ Rules:
   `./.cowork-flow/run python .cowork-flow/scripts/common/gates/validate_coding_standards.py --validate --repo-root .`.
   This gate enforces machine-decidable UTF-8/IO checks; backend/frontend
   natural-language markdown remains checklist context, not dynamic hard validators.
-- Treat machine warning output as review evidence: fix real issues or require
-  acknowledged warning records in `<task>/quality-review.jsonl`.
-- Verify `<task>/quality-review.jsonl` covers Definition of Done, checklist
-  sources, affected files, and exact verification commands before acceptance.
+- Treat machine warning output as review evidence: fix real issues or explicitly report accepted advisory warnings with rationale.
+- Verify Definition of Done coverage, checklist sources, affected files, and exact verification commands in the review result before acceptance.

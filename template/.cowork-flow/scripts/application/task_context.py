@@ -9,10 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from common.core.files import read_text_utf8
-from common.core.quality_sources import (
-    quality_review_artifact_entry,
-    quality_source_entries,
-)
+from common.core.quality_sources import quality_source_entries
 from common.core.skill_registry import SkillRegistryError, load_skill_registry
 from common.core.paths import (
     DIR_AGENTS,
@@ -522,9 +519,6 @@ class TaskContextService:
             )
 
         implement_entries = self._implement_entries(dev_type)
-        implement_entries.append(
-            quality_review_artifact_entry(task_dir, self.repo_root)
-        )
         entries_by_file = {
             "implement.jsonl": implement_entries,
             "check.jsonl": get_check_context(self.repo_root, dev_type),

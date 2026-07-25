@@ -297,7 +297,7 @@ class TaskContextServiceTest(unittest.TestCase):
             self.assertEqual((), second)
             self.assertTrue(report.is_file())
 
-    def test_initialize_creates_quality_review_placeholder(self) -> None:
+    def test_initialize_does_not_create_task_local_review_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = self._prepare_root(root)
@@ -306,12 +306,19 @@ class TaskContextServiceTest(unittest.TestCase):
             service.initialize(task_dir, "backend")
 
             entries = service.entries(task_dir, "implement")
-            quality_path = ".cowork-flow/tasks/07-10-demo/quality-review.jsonl"
-            self.assertEqual(
-                {quality_path},
-                {entry.get("file") for entry in entries} & {quality_path},
+            files = {entry.get("file") for entry in entries}
+            self.assertFalse(
+                any(
+                    str(file or "").startswith(
+                        ".cowork-flow/tasks/07-10-demo/"
+                    )
+                    for file in files
+                )
             )
-            self.assertEqual("", (task_dir / "quality-review.jsonl").read_text(encoding="utf-8"))
+            self.assertEqual(
+                {"implement.jsonl", "check.jsonl", "debug.jsonl"},
+                {path.name for path in task_dir.iterdir() if path.is_file()},
+            )
 
     def test_check_context_uses_quality_sources_from_domain_index(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

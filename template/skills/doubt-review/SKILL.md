@@ -102,7 +102,7 @@ For L2 readiness, record accepted decisions in `<task>/decision-review.jsonl` us
 ## Relationship to Current Workflow
 
 - `decision-review`: internal mandatory L2 gate; write accepted evidence to `decision-review.jsonl`.
-- `review-protocol`: final implementation review; it does not replace in-flight doubt.
+- `review`: final implementation review; it does not replace in-flight doubt.
 - `cowork-flow`: public router; it decides whether to load this Skill or the internal protocol.
 - `TDD`: a failing test is doubt made concrete when the risk is executable behavior.
 - `break-loop`: use when doubt exposes a real failure mode but the fix path keeps looping.

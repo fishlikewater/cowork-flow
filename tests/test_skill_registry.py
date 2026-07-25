@@ -331,12 +331,6 @@ class SkillRegistryTest(unittest.TestCase):
     def test_internal_protocols_use_spec_sources_and_are_not_distributed(self) -> None:
         registry = self._module().load_skill_registry(TEMPLATE)
         expected = {
-            "review-protocol": (
-                ".cowork-flow/spec/protocols/review.md",
-                "mandatory",
-                "review-gates",
-                "check.jsonl",
-            ),
             "decision-review": (
                 ".cowork-flow/spec/protocols/decision-review.md",
                 "mandatory",
@@ -363,6 +357,17 @@ class SkillRegistryTest(unittest.TestCase):
             self.assertEqual(evidence_artifact, entry.evidence_artifact)
             self.assertEqual((), entry.managed_paths)
             self.assertNotIn(protocol_id, registry.public_skill_ids)
+
+        review = entries["review"]
+        self.assertEqual("protocol", review.kind)
+        self.assertEqual("public", review.visibility)
+        self.assertEqual("mandatory", review.enforcement)
+        self.assertEqual("review-gates", review.runtime_gate)
+        self.assertEqual("check.jsonl", review.evidence_artifact)
+        self.assertEqual("skills/review/SKILL.md", review.source)
+        self.assertEqual((".agents/skills/review/", ".claude/skills/review/"), review.managed_paths)
+        self.assertIn("review", registry.public_skill_ids)
+        self.assertTrue((TEMPLATE / "skills" / "review" / "SKILL.md").exists())
 
         for legacy_id in ("check", "update-spec"):
             self.assertNotIn(legacy_id, entries)
@@ -414,7 +419,7 @@ class SkillRegistryTest(unittest.TestCase):
             "Every non-trivial decision has a CLAIM record",
             "Reviewer receives ARTIFACT + CONTRACT (not CLAIM)",
             "decision-review",
-            "review-protocol",
+            "review",
         )
 
         self.assertEqual(
