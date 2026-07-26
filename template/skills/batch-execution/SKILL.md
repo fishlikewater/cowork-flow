@@ -1,9 +1,9 @@
 ---
-name: batch-mode
+name: batch-execution
 description: Use when the user approves a full plan and asks for continuous execution across the task graph; each task still goes through Gate, implementation, check, completion, and commit independently.
 ---
 
-# Batch Mode
+# Batch Execution
 
 ## Core Contract
 
@@ -28,10 +28,10 @@ Start only when **all** conditions are met:
 Startup command:
 
 ```bash
-./.cowork-flow/run task start <parent-task> --auto --approved
+./.cowork-flow/run task next <parent-task> --run --intent batch --auto --approved
 ```
 
-The command returns the full Batch state, where `next_action` is the **only** allowed next step.
+The command routes through `task next`, runs the runtime-gated Batch action, and returns the full Batch state, where `next_action` is the **only** allowed next step.
 
 ## Host Action Loop
 
@@ -40,22 +40,17 @@ Each cycle processes in this order:
 1. Read `next_action`; verify `action_id`, `type`, `task`, and `task_dir`.
 2. Execute **only** that action — do not advance to later phases prematurely.
 3. Write the result to a UTF-8 JSON file.
-4. Write back the result:
-
-```bash
-./.cowork-flow/run task batch-record-result <batch-id> --file <result.json>
-```
-
+4. Write back the result through the Batch action script packaged with this Skill; do not call removed task subcommands directly.
 5. Read the new state. If `awaiting_host`, continue with the new `next_action`. If `paused`, halt all subsequent tasks.
 
 ## Action Types
 
 ### `start_task`
 
-Run the real task startup command and pass through the readiness/spec gates:
+Run the real task startup action through `task next` and pass through the readiness/spec gates:
 
 ```bash
-./.cowork-flow/run task start <task_dir>
+./.cowork-flow/run task next <task_dir> --run --intent implement
 ```
 
 A successful result must contain:
@@ -107,30 +102,30 @@ A successful result must contain the same `runtime_context_id` and `host_context
 
 ### `review_task`
 
-Run:
+Run the review action through `task next`:
 
 ```bash
-./.cowork-flow/run task review <task_dir>
+./.cowork-flow/run task next <task_dir> --run --intent review
 ```
 
 The successful result's `task_status` must be `review`; the state machine also reads the genuine `task.json`.
 
 ### `complete_task`
 
-Run:
+Run the completion action through `task next`:
 
 ```bash
-./.cowork-flow/run task complete <task_dir>
+./.cowork-flow/run task next <task_dir> --run --intent review
 ```
 
 The successful result's `task_status` must be `completed`; the state machine also reads the genuine `task.json`.
 
 ### `archive_task`
 
-Run the real task archive command to move the completed task to `archive/<year-month>/`:
+Run the real archive action through `task next` to move the completed task to `archive/<year-month>/`:
 
 ```bash
-./.cowork-flow/run task archive <task_name>
+./.cowork-flow/run task next <task_dir> --run --intent archive
 ```
 
 The host must verify the task directory has been moved to the archive location. A successful result must contain:
@@ -176,13 +171,13 @@ When the host is unavailable or any action fails, write back a non-success resul
 
 The state becomes `paused`. The failed task and all subsequent tasks are **not** marked completed.
 
-After fixing the cause, run:
+After fixing the cause, rerun the Batch action through `task next` for the parent task:
 
 ```bash
-./.cowork-flow/run task batch-resume <batch-id>
+./.cowork-flow/run task next <parent-task> --run --intent batch --auto --approved
 ```
 
-Resume generates a new `action_id` but preserves completed tasks, phases, runtime evidence, and commits. Do **not** skip the failed task. Do **not** manually edit the Batch state file.
+The recovered run generates a new `action_id` but preserves completed tasks, phases, runtime evidence, and commits. Do **not** skip the failed task. Do **not** manually edit the Batch state file.
 
 ## Completion Verification
 

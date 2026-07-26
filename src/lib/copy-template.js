@@ -7,7 +7,6 @@ import { hostRegistry } from './host-assets.js';
 import { applyAssetPlan } from './plan-applier.js';
 import { templateRoot } from './paths.js';
 import { shouldIncludeForPlatforms, skillDestinationForPlatform } from './platforms.js';
-import { skillRegistry } from './skill-registry.js';
 
 async function pathExists(path) {
   try {
@@ -41,6 +40,62 @@ function toTemplatePath(relativePath) {
   return relativePath.replaceAll('\\', '/');
 }
 
+async function listSkillDirs() {
+  const skillsRoot = join(templateRoot, 'skills');
+  const entries = await readdir(skillsRoot, { withFileTypes: true });
+  const skills = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const skillRoot = join(skillsRoot, entry.name);
+    if (await pathExists(join(skillRoot, 'SKILL.md'))) {
+      skills.push({ id: entry.name, sourceRoot: skillRoot });
+    }
+  }
+  return skills.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+async function listSkillFiles(skill) {
+  const sourceRoot = skill.sourceRoot;
+  return (await listFiles(sourceRoot)).map((file) => ({
+    source: join(sourceRoot, file),
+    skillRelativePath: file
+  }));
+}
+
+async function appendSkillFileActions(actions, {
+  targetDir,
+  platforms,
+  seen,
+  sync = false
+}) {
+  for (const skill of await listSkillDirs()) {
+    const skillFiles = await listSkillFiles(skill);
+    for (const platform of platforms) {
+      const destBase = skillDestinationForPlatform(platform);
+      if (!destBase) continue;
+      for (const skillFile of skillFiles) {
+        const destination = join(
+          targetDir,
+          destBase,
+          skill.id,
+          skillFile.skillRelativePath
+        );
+        if (seen.has(destination)) continue;
+        seen.add(destination);
+        const exists = await pathExists(destination);
+        actions.push({
+          action: exists ? (sync ? 'update' : 'skip') : 'create',
+          source: skillFile.source,
+          destination,
+          relativePath: join(destBase, skill.id, skillFile.skillRelativePath)
+        });
+      }
+    }
+  }
+}
+
 export async function buildInitPlan(targetDir, options = {}) {
   const files = await listFiles(templateRoot);
   const actions = [];
@@ -67,21 +122,7 @@ export async function buildInitPlan(targetDir, options = {}) {
     actions.push({ action, source, destination, relativePath: file });
   }
 
-  for (const entry of skillRegistry.publicEntries) {
-    for (const platform of platforms) {
-      const destBase = skillDestinationForPlatform(platform);
-      if (!destBase) continue;
-      const dest = join(targetDir, destBase, entry.id, 'SKILL.md');
-      if (seen.has(dest)) continue;
-      seen.add(dest);
-      actions.push({
-        action: (await pathExists(dest)) ? 'skip' : 'create',
-        source: join(templateRoot, entry.source),
-        destination: dest,
-        relativePath: join(destBase, entry.id, 'SKILL.md')
-      });
-    }
-  }
+  await appendSkillFileActions(actions, { targetDir, platforms, seen });
 
   const versionDestination = join(targetDir, '.cowork-flow', '.version');
   const versionExists = await pathExists(versionDestination);
@@ -229,52 +270,7 @@ export async function buildSyncPlan(targetDir, options = {}) {
     }
   }
 
-  for (const entry of skillRegistry.publicEntries) {
-    for (const platform of platforms) {
-      const destBase = skillDestinationForPlatform(platform);
-      if (!destBase) continue;
-      const dest = join(targetDir, destBase, entry.id, 'SKILL.md');
-      if (seen.has(dest)) continue;
-      seen.add(dest);
-      const destExists = await pathExists(dest);
-      const safe = hostRegistry.skillTargets.some(
-        (target) => dest.startsWith(join(targetDir, target))
-      );
-      if (destExists && (safe || options.force)) {
-        actions.push({
-          action: 'update',
-          source: join(templateRoot, entry.source),
-          destination: dest,
-          relativePath: join(destBase, entry.id, 'SKILL.md')
-        });
-      } else if (!destExists) {
-        actions.push({
-          action: 'create',
-          source: join(templateRoot, entry.source),
-          destination: dest,
-          relativePath: join(destBase, entry.id, 'SKILL.md')
-        });
-      }
-    }
-  }
-
-  for (const entry of skillRegistry.entries) {
-    if (entry.status === 'active') {
-      continue;
-    }
-    for (const managedPath of entry.managedPaths) {
-      const relativePath = managedPath.slice(0, -1);
-      const destination = join(targetDir, relativePath);
-      if (await pathExists(destination)) {
-        actions.push({
-          action: 'delete',
-          source: null,
-          destination,
-          relativePath
-        });
-      }
-    }
-  }
+  await appendSkillFileActions(actions, { targetDir, platforms, seen, sync: true });
 
   for (const file of OBSOLETE_SYNC_FILES) {
     const destination = join(targetDir, file);

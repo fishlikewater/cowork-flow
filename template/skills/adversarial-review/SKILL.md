@@ -1,11 +1,11 @@
 ---
-name: doubt-review
+name: adversarial-review
 description: Use when the user asks for adversarial review, doubt review, or a fresh skeptical pass on a non-trivial implementation decision, design direction, or correctness claim. Use when correctness matters more than speed, the code is unfamiliar, or hidden assumptions could break the work.
 ---
 
-# Doubt Review
+# Adversarial Review
 
-Use this Skill to stress-test a decision while course correction is still cheap. It is the public, user-callable companion to the internal `decision-review` protocol; it does not replace runtime gates or final implementation review.
+Use this Skill to stress-test a decision while course correction is still cheap. It is the advisory companion to the mandatory `decision-audit` Skill; it does not replace runtime gates or final implementation review.
 
 ## Apply When
 
@@ -87,7 +87,7 @@ Substantive findings after three cycles mean the artifact is too large or immatu
 
 ## Evidence
 
-For L2 readiness, record accepted decisions in `<task>/decision-review.jsonl` using the internal `decision-review` protocol. At minimum, evidence must include `acceptanceId`, `claim`, `contract`, `reviewerContext`, `findings`, and `resolution`.
+For L2 readiness, record accepted decisions in `<task>/decision-review.jsonl` using the `decision-audit` Skill contract. At minimum, evidence must include `acceptanceId`, `claim`, `contract`, `reviewerContext`, `findings`, and `resolution`.
 
 ## Common Rationalizations
 
@@ -101,11 +101,11 @@ For L2 readiness, record accepted decisions in `<task>/decision-review.jsonl` us
 
 ## Relationship to Current Workflow
 
-- `decision-review`: internal mandatory L2 gate; write accepted evidence to `decision-review.jsonl`.
-- `review`: final implementation review; it does not replace in-flight doubt.
-- `cowork-flow`: public router; it decides whether to load this Skill or the internal protocol.
+- `decision-audit`: mandatory L2 evidence Skill; write accepted evidence to `decision-review.jsonl`.
+- `task-review`: final implementation review; it does not replace in-flight doubt.
+- `cowork-flow`: public router; it decides whether this advisory Skill is the active route.
 - `TDD`: a failing test is doubt made concrete when the risk is executable behavior.
-- `break-loop`: use when doubt exposes a real failure mode but the fix path keeps looping.
+- `failure-analysis`: use when doubt exposes a real failure mode but the fix path keeps looping.
 
 ## Red Flags
 

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "skill": "party-mode",
+  "commands": [
+    {
+      "name": "party-v2",
+      "aliases": [
+        "party_v2"
+      ],
+      "script": "scripts/party_mode_v2.py"
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 ---
-name: meta
+name: cowork-flow-maintenance
 description: Use when modifying cowork-flow itself .cowork-flow runtime, template files, .codex hooks/agents, .agents skills, workflow docs, or generated project structure.
 ---
 
-# Meta
+# Cowork Flow Maintenance
 
 Use this for changes to the cowork-flow operating model.
 
@@ -22,7 +22,7 @@ Keep those copies aligned unless there is a documented reason not to.
 - Do not add compatibility fallback paths for removed workflow models unless the user explicitly asks.
 - Delete stale skills, prompts, tests, and docs when their behavior is no longer valid.
 - Update tests that guard template contents, packaging, hooks, and task context generation.
-- Keep reusable skills generic; put project-specific lessons in `.cowork-flow/spec/`, `workflow.md`, or `AGENTS.md`.
+- Keep reusable skills generic; put project-specific lessons in `.cowork-flow/spec/`, `AGENTS.md`, or a project-owned Skill. Do not restore a second process-authority document.
 - Check Windows command paths and UTF-8 behavior when editing runtime scripts.
 
 ## Verification

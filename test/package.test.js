@@ -67,17 +67,29 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/skills/finish-work/SKILL.md'), false);
   assert.equal(files.has('template/skills/using-cowork-flow/SKILL.md'), false);
   assert.equal(files.has('template/skills/check/SKILL.md'), false);
-  assert.equal(files.has('template/skills/tdd/SKILL.md'), true);
+  assert.equal(files.has('template/skills/test-first/SKILL.md'), true);
   assert.equal(files.has('template/skills/update-spec/SKILL.md'), false);
-  assert.equal(files.has('template/skills/doubt-review/SKILL.md'), true);
+  assert.equal(files.has('template/skills/adversarial-review/SKILL.md'), true);
+  assert.equal(files.has('template/skills/batch-execution/manifest.json'), false);
+  assert.equal(files.has('template/skills/brainstorming/manifest.json'), false);
+  assert.equal(files.has('template/skills/cowork-flow/manifest.json'), false);
   assert.equal(files.has('template/skills/party-mode/SKILL.md'), true);
+  assert.equal(files.has('template/skills/party-mode/manifest.json'), true);
+  assert.equal(files.has('template/skills/party-mode/scripts/party_mode_v2.py'), true);
+  assert.equal(files.has('template/skills/runtime-health/SKILL.md'), true);
+  assert.equal(files.has('template/skills/runtime-health/manifest.json'), true);
+  assert.equal(files.has('template/skills/runtime-health/scripts/doctor.py'), true);
+  assert.equal(files.has('template/.cowork-flow/scripts/commands/party_mode_v2.py'), false);
+  assert.equal(files.has('template/.cowork-flow/scripts/commands/doctor.py'), false);
   assert.equal(files.has('template/skills/party-mode-v2/SKILL.md'), false);
   assert.equal(files.has('template/.cowork-flow/spec/protocols/tdd.md'), false);
-  assert.equal(files.has('template/.cowork-flow/spec/protocols/review.md'), true);
-  assert.equal(files.has('template/.cowork-flow/spec/protocols/decision-review.md'), true);
-  assert.equal(files.has('template/.cowork-flow/spec/protocols/spec-maintenance.md'), true);
-  assert.equal(files.has('template/skills/meta/SKILL.md'), true);
-  assert.equal(files.has('template/skills/python-design/SKILL.md'), true);
+  assert.equal(files.has('template/.cowork-flow/spec/protocols/review.md'), false);
+  assert.equal(files.has('template/.cowork-flow/spec/protocols/decision-review.md'), false);
+  assert.equal(files.has('template/.cowork-flow/spec/protocols/spec-maintenance.md'), false);
+  assert.equal(files.has('template/skills/decision-audit/SKILL.md'), true);
+  assert.equal(files.has('template/skills/spec-sync/SKILL.md'), true);
+  assert.equal(files.has('template/skills/cowork-flow-maintenance/SKILL.md'), true);
+  assert.equal(files.has('template/skills/python-runtime-design/SKILL.md'), true);
   assert.equal([...files].some((file) => file.startsWith('template/.superpowers/')), false);
   assert.equal(
     [...files].some((file) => file.includes('__pycache__') || file.endsWith('.pyc')),

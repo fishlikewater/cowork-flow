@@ -45,7 +45,7 @@ cowork-check / cowork-implement / cowork-research **额外注意**：
 ## Rules interaction
 
 - R-AG-005（不添加未要求的功能）→ 错误输出暗示的"添加"也是未要求的
-- break-loop 的 STOP-THE-LINE → 错误输出不能成为跳过 STOP-THE-LINE 的理由
+- failure-analysis 的 STOP-THE-LINE → 错误输出不能成为跳过 STOP-THE-LINE 的理由
 - doubt-driven 的 DOUBT step → fresh-context reviewer 应审查错误输出是否被合理解读
 
 ## 例外

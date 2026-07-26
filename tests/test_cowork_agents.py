@@ -20,17 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 ENTRY_BOUNDARY = "entry" + "-boundary"
 
 
-def load_skill_entries() -> list[dict[str, object]]:
-    registry_path = (
-        ROOT
-        / "template"
-        / ".cowork-flow"
-        / "spec"
-        / "runtime"
-        / "skill-registry.json"
-    )
-    data = json.loads(registry_path.read_text(encoding="utf-8"))
-    return data["entries"]
+def template_skill_ids() -> set[str]:
+    return {
+        path.parent.name
+        for path in (ROOT / "template" / "skills").glob("*/SKILL.md")
+    }
 
 
 def load_agent_toml(path: Path) -> dict[str, str]:
@@ -74,9 +68,22 @@ class CoworkAgentsTest(unittest.TestCase):
 
     def test_skill_set_is_direct_and_fixed_agent_based(self) -> None:
         expected = {
-            Path(entry["source"]).parent.name
-            for entry in load_skill_entries()
-            if str(entry["source"]).startswith("skills/")
+            "adversarial-review",
+            "agent-dispatch",
+            "batch-execution",
+            "brainstorming",
+            "cowork-flow",
+            "cowork-flow-maintenance",
+            "decision-audit",
+            "failure-analysis",
+            "game-design",
+            "party-mode",
+            "python-runtime-design",
+            "runtime-health",
+            "spec-sync",
+            "task-planning",
+            "task-review",
+            "test-first",
         }
         actual = {
             path.name
@@ -106,20 +113,15 @@ class CoworkAgentsTest(unittest.TestCase):
             data = load_agent_toml(path)
             self.assertEqual(path.stem, data["name"], str(path))
 
-    def test_codex_agent_python_command_targets_exist(self) -> None:
+    def test_codex_agent_wrappers_do_not_inline_runtime_gate_commands(self) -> None:
         for path in (
             ROOT / "template" / ".codex" / "agents" / "cowork-implement.toml",
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
         ):
             text = path.read_text(encoding="utf-8")
             targets = re.findall(r"(?<![\w.-])(\.cowork-flow/[A-Za-z0-9_./-]+\.py)", text)
-            self.assertTrue(targets, f"no runtime Python command found in {path}")
-            for target in targets:
-                template_target = ROOT / "template" / Path(target)
-                self.assertTrue(
-                    template_target.is_file(),
-                    f"{path} references missing runtime script: {target}",
-                )
+            self.assertEqual([], targets, f"runtime gate command leaked into {path}")
+            self.assertIn("agent-dispatch", text)
             self.assertNotIn("бк", text, f"unexpected mixed-script text in {path}")
 
     def test_opencode_agent_definitions_exist_in_template(self) -> None:
@@ -136,9 +138,8 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertTrue((base / "commands" / f"{name}.md").is_file())
         self.assertTrue((base / "settings.json").is_file())
         self.assertTrue((base / "hooks" / "inject-workflow-state.py").is_file())
-        for entry in load_skill_entries():
-            if entry["visibility"] == "public" and entry["status"] == "active":
-                self.assertTrue((ROOT / "template" / entry["source"]).is_file())
+        for skill_id in template_skill_ids():
+            self.assertTrue((ROOT / "template" / "skills" / skill_id / "SKILL.md").is_file())
         self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
         self.assertTrue((ROOT / "CLAUDE.md").is_file())
         self.assertTrue((ROOT / "template" / "CLAUDE.md").is_file())
@@ -203,19 +204,16 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertNotIn("self-loads", description, str(path))
 
             text = path.read_text(encoding="utf-8")
-            self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
-            self.assertIn("cowork_host_context_key: <host_context_key>", text)
-            self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
-            self.assertIn("bound runtime context", text)
-            self.assertIn("report needs_context", text)
+            self.assertIn("agent-dispatch", text)
+            self.assertIn("needs_context", text)
             self.assertIn("MUST NOT spawn", text)
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
 
     def test_cowork_implement_forbids_tdd_evidence_artifacts(self) -> None:
         required_markers = (
-            "Do not write TDD evidence",
-            "do not create `tdd.jsonl`",
+            "TDD evidence records",
+            "`tdd.jsonl`",
             "verification commands",
         )
         forbidden_markers = (
@@ -235,10 +233,10 @@ class CoworkAgentsTest(unittest.TestCase):
 
     def test_cowork_check_requires_test_intent_review(self) -> None:
         required_markers = (
-            "test_intent_review",
+            "test intent review",
             "shallow tests",
-            "meaningful behavior breaks",
-            "decision-anchor acceptance",
+            "target behavior breaks",
+            "acceptance IDs",
         )
         for path in (
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
@@ -260,7 +258,7 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
 
-    def test_agents_require_runtime_context_protocol(self) -> None:
+    def test_agents_require_agent_dispatch_skill(self) -> None:
         fixed_agents = {
             "cowork-research": "research",
             "cowork-implement": "implement",
@@ -270,35 +268,31 @@ class CoworkAgentsTest(unittest.TestCase):
             path = ROOT / "template" / ".codex" / "agents" / f"{agent_name}.toml"
             text = path.read_text(encoding="utf-8")
             required_markers = (
-                "cowork_runtime_context_id: <runtime_context_id>",
-                "cowork_host_context_key: <host_context_key>",
-                "subagent bind <runtime_context_id> <host_context_key>",
-                ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
-                "before workflow state is injected",
-                "names another agent type",
-                "report needs_context",
+                ".agents/skills/agent-dispatch/SKILL.md",
+                "needs_context",
+                "MUST NOT spawn",
                 f"`{agent_name}` subagent",
             )
             self.assertIn(workflow_role, text)
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
-    def test_fixed_agents_share_internal_protocol_contracts(self) -> None:
+    def test_fixed_agents_share_required_skill_contracts(self) -> None:
         role_contracts = {
             "cowork-implement": (
-                ".cowork-flow/spec/protocols/decision-review.md",
-                ".cowork-flow/spec/protocols/spec-maintenance.md",
+                "decision-audit/SKILL.md",
+                "spec-sync/SKILL.md",
                 "verification commands",
-                "acceptanceId",
+                "acceptance IDs",
             ),
             "cowork-check": (
-                ".cowork-flow/spec/protocols/review.md",
-                ".cowork-flow/spec/protocols/decision-review.md",
-                ".cowork-flow/spec/protocols/spec-maintenance.md",
-                "test_intent_review",
+                "task-review/SKILL.md",
+                "decision-audit/SKILL.md",
+                "spec-sync/SKILL.md",
+                "test intent review",
                 "findings",
                 "resolution",
-                "acceptanceId",
+                "acceptance IDs",
             ),
         }
         role_paths = {
@@ -319,7 +313,7 @@ class CoworkAgentsTest(unittest.TestCase):
                 self.assertEqual(
                     [],
                     missing,
-                    f"{role} protocol contract drift in {path}: {missing}",
+                    f"{role} required Skill contract drift in {path}: {missing}",
                 )
 
     def test_fixed_agents_require_review_skill_without_dynamic_validator_claims(self) -> None:
@@ -332,11 +326,8 @@ class CoworkAgentsTest(unittest.TestCase):
             ROOT / "template" / ".opencode" / "agents" / "cowork-check.md",
         )
         required_markers = (
-            "review result",
-            "machine warning",
-            "Definition of Done",
-            "natural-language",
-            "not dynamic hard validators",
+            "agent-dispatch",
+            "needs_context",
         )
         forbidden_markers = (
             "quality" + "-review",
@@ -346,11 +337,11 @@ class CoworkAgentsTest(unittest.TestCase):
             "not just documentation but active validators",
             "Read .",
         )
-        review_protocol = (
-            ROOT / "template" / ".cowork-flow" / "spec" / "protocols" / "review.md"
+        review_skill = (
+            ROOT / "template" / "skills" / "task-review" / "SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("review result", review_protocol)
-        self.assertIn("not dynamic hard validators", review_protocol)
+        self.assertIn("review result", review_skill)
+        self.assertIn("not dynamic hard validators", review_skill)
 
         for path in role_paths:
             text = path.read_text(encoding="utf-8")
@@ -360,7 +351,7 @@ class CoworkAgentsTest(unittest.TestCase):
                 self.assertNotIn(marker, text, f"{marker} should stay out of {path}")
 
     def _run_doctor(self, cwd: Path) -> subprocess.CompletedProcess[str]:
-        doctor = ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "doctor.py"
+        doctor = ROOT / "template" / "skills" / "runtime-health" / "scripts" / "doctor.py"
         return subprocess.run(
             [sys.executable, str(doctor), "--host-adapters"],
             cwd=cwd,
@@ -374,9 +365,9 @@ class CoworkAgentsTest(unittest.TestCase):
         doctor = (
             ROOT
             / "template"
-            / ".cowork-flow"
+            / "skills"
+            / "runtime-health"
             / "scripts"
-            / "commands"
             / "doctor.py"
         )
 

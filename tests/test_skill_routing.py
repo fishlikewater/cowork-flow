@@ -16,7 +16,36 @@ REMOVED_ENTRY_SKILLS = (
     "before-dev",
     "continue",
     "finish-work",
+    "batch-mode",
+    "break-loop",
+    "decision-review",
+    "doubt-review",
+    "meta",
+    "python-design",
+    "review",
+    "runtime-diagnostics",
+    "spec-maintenance",
+    "tdd",
+    "writing-plans",
 )
+EXPECTED_SKILLS = {
+    "adversarial-review",
+    "agent-dispatch",
+    "batch-execution",
+    "brainstorming",
+    "cowork-flow",
+    "cowork-flow-maintenance",
+    "decision-audit",
+    "failure-analysis",
+    "game-design",
+    "party-mode",
+    "python-runtime-design",
+    "runtime-health",
+    "spec-sync",
+    "task-planning",
+    "task-review",
+    "test-first",
+}
 WORKFLOW_STATUSES = (
     "no_task",
     "planning",
@@ -38,18 +67,13 @@ USER_INTENTS = (
     "batch",
 )
 EXECUTION_CONTEXTS = ("main", "delegated")
-INTENT_REGISTRY_KEYS = {
-    "question": None,
-    "clarify": "clarify_requirement",
-    "plan": "write_plan",
-    "implement": "route_workflow",
-    "archive": "route_workflow",
-    "review": "route_workflow",
-    "doubt_review": "doubt_review",
-    "debug": "analyze_repeated_failure",
-    "discuss": "discuss_options",
-    "batch": "batch_execute_plan",
-}
+
+
+def template_skill_ids() -> set[str]:
+    return {
+        path.parent.name
+        for path in (TEMPLATE / "skills").glob("*/SKILL.md")
+    }
 
 
 class SkillRoutingTest(unittest.TestCase):
@@ -63,7 +87,6 @@ class SkillRoutingTest(unittest.TestCase):
         for module_name in (
             "commands.task_navigation",
             "commands",
-            "common.core.skill_registry",
             "common.core",
             "common",
         ):
@@ -72,33 +95,20 @@ class SkillRoutingTest(unittest.TestCase):
     def _navigation(self):
         return importlib.import_module("commands.task_navigation")
 
-    def _registry(self):
-        module = importlib.import_module("common.core.skill_registry")
-        return module.load_skill_registry(TEMPLATE)
-
-    def test_active_public_skill_set_is_consolidated(self) -> None:
-        public_ids = set(self._registry().public_skill_ids)
-
-        self.assertLessEqual(public_ids.__len__(), 10)
-        self.assertEqual(
-            {
-                "batch-mode",
-                "brainstorming",
-                "break-loop",
-                "cowork-flow",
-                "doubt-review",
-                "game-design",
-                "party-mode",
-                "review",
-                "tdd",
-                "writing-plans",
-            },
-            public_ids,
+    def test_skill_directory_set_is_filesystem_authority(self) -> None:
+        self.assertEqual(EXPECTED_SKILLS, template_skill_ids())
+        for skill_id in REMOVED_ENTRY_SKILLS:
+            with self.subTest(skill_id=skill_id):
+                self.assertFalse((TEMPLATE / "skills" / skill_id).exists())
+        self.assertFalse(
+            (TEMPLATE / ".cowork-flow/spec/runtime/skill-registry.json").exists()
+        )
+        self.assertFalse(
+            (TEMPLATE / ".cowork-flow/spec/schemas/skill-registry.schema.json").exists()
         )
 
-    def test_state_intent_context_matrix_has_at_most_one_public_skill(self) -> None:
+    def test_state_intent_context_matrix_has_one_action_skill(self) -> None:
         navigation = self._navigation()
-        registry = self._registry()
 
         for status, intent, context in itertools.product(
             WORKFLOW_STATUSES,
@@ -107,7 +117,6 @@ class SkillRoutingTest(unittest.TestCase):
         ):
             with self.subTest(status=status, intent=intent, context=context):
                 route = navigation.route_request(
-                    registry,
                     status=status,
                     intent=intent,
                     context=context,
@@ -120,25 +129,27 @@ class SkillRoutingTest(unittest.TestCase):
                         "allowedOperations",
                         "requiredArtifacts",
                         "recommendedSkill",
-                        "internalProtocols",
                         "blockers",
+                        "nextAction",
+                        "activatedSkill",
+                        "actionCommand",
+                        "mutatesState",
+                        "runtimeGate",
+                        "action",
                     },
                     set(route),
                 )
-                registry_intent = INTENT_REGISTRY_KEYS[intent]
-                matches = [
-                    entry.id
-                    for entry in registry.public_entries
-                    if registry_intent in entry.intents
-                    and status in entry.statuses
-                ] if registry_intent is not None else []
-                self.assertLessEqual(len(matches), 1)
+                self.assertEqual(route["nextAction"], route["action"]["id"])
+                self.assertEqual(route["activatedSkill"], route["action"]["activatedSkill"])
+                self.assertEqual(route["actionCommand"], route["action"]["command"])
+                self.assertEqual(route["mutatesState"], route["action"]["mutatesState"])
+                self.assertEqual(route["runtimeGate"], route["action"]["runtimeGate"])
                 if route["recommendedSkill"] is not None:
-                    self.assertIn(route["recommendedSkill"], matches)
+                    self.assertEqual(route["recommendedSkill"], route["activatedSkill"])
+                    self.assertIn(route["recommendedSkill"], EXPECTED_SKILLS)
 
-    def test_read_only_question_never_loads_implementation_protocols(self) -> None:
+    def test_read_only_question_never_loads_implementation_skills(self) -> None:
         navigation = self._navigation()
-        registry = self._registry()
 
         for status, context in itertools.product(
             WORKFLOW_STATUSES,
@@ -146,25 +157,22 @@ class SkillRoutingTest(unittest.TestCase):
         ):
             with self.subTest(status=status, context=context):
                 route = navigation.route_request(
-                    registry,
                     status=status,
                     intent="question",
                     context=context,
                     blockers=(),
                     active_target=False,
                 )
-                self.assertEqual([], route["internalProtocols"])
+                self.assertNotIn("internalProtocols", route)
                 self.assertIsNone(route["recommendedSkill"])
                 self.assertIn("answer_questions", route["allowedOperations"])
 
     def test_delegated_context_cannot_mutate_main_lifecycle(self) -> None:
         navigation = self._navigation()
-        registry = self._registry()
         forbidden = {"create_task", "start_task", "complete_task", "archive_task"}
 
         for status in WORKFLOW_STATUSES:
             route = navigation.route_request(
-                registry,
                 status=status,
                 intent="implement",
                 context="delegated",
@@ -180,11 +188,9 @@ class SkillRoutingTest(unittest.TestCase):
 
     def test_implementation_intent_requires_active_implementation_state(self) -> None:
         navigation = self._navigation()
-        registry = self._registry()
 
         for status in ("no_task", "completed"):
             route = navigation.route_request(
-                registry,
                 status=status,
                 intent="implement",
                 context="main",
@@ -197,21 +203,6 @@ class SkillRoutingTest(unittest.TestCase):
                 route["blockers"],
             )
 
-    def test_removed_entry_skills_have_no_registry_or_source_presence(self) -> None:
-        registry = self._registry()
-
-        for skill_id in REMOVED_ENTRY_SKILLS:
-            with self.subTest(skill_id=skill_id):
-                with self.assertRaisesRegex(
-                    ValueError,
-                    f"unknown Skill Registry entry: {skill_id}",
-                ):
-                    registry.entry(skill_id)
-                self.assertFalse(
-                    (TEMPLATE / "skills" / skill_id).exists(),
-                    skill_id,
-                )
-
     def test_cowork_flow_skill_owns_the_single_read_only_fallback(self) -> None:
         path = TEMPLATE / "skills" / "cowork-flow" / "SKILL.md"
         self.assertTrue(path.is_file())
@@ -222,6 +213,7 @@ class SkillRoutingTest(unittest.TestCase):
             text.count("./.cowork-flow/run task next --json"),
         )
         self.assertNotIn("deprecated alias", text.lower())
+        self.assertNotIn("Registry", text)
         for marker in (
             "<workflow-state>",
             "question",
@@ -235,7 +227,7 @@ class SkillRoutingTest(unittest.TestCase):
             "batch",
             "allowedOperations",
             "recommendedSkill",
-            "internalProtocols",
+            "Runtime Gates carry hard enforcement",
         ):
             self.assertIn(marker, text)
 

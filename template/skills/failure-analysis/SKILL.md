@@ -1,13 +1,13 @@
 ---
-name: break-loop
+name: failure-analysis
 description: Use after fixing a bug or repeated failed attempts to identify the root cause, prevention mechanism, and durable knowledge capture.
 ---
 
-# Break Loop
+# Failure Analysis
 
 Use this after the immediate fix is understood. The goal is to prevent the same class of bug from returning.
 
-## Pre-Bug Debug Protocol (run on first failure; full break-loop only after the same root cause recurs a 2nd time)
+## Pre-Bug Debug Protocol (run on first failure; full failure analysis only after the same root cause recurs a 2nd time)
 
 ### Step 1: STOP-THE-LINE
 
@@ -32,7 +32,7 @@ For regression isolation use `git bisect`:
 git bisect start
 git bisect bad
 git bisect good <known-good-sha>
-git bisect run python -m pytest --grep "failing test"
+./.cowork-flow/run python -m pytest --grep "failing test"
 ```
 
 ### Step 4: REDUCE (minimal failing case)

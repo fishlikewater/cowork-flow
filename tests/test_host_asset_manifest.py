@@ -55,16 +55,24 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual([], errors)
 
-    def test_sync_policy_includes_skill_registry_contracts(self) -> None:
+    def test_sync_policy_obsoletes_removed_skill_registry_contracts(self) -> None:
         manifest = self.host_manifest.load_host_manifest(TEMPLATE)
 
-        self.assertIn(
+        self.assertNotIn(
             ".cowork-flow/spec/runtime/skill-registry.json",
             manifest.sync_policy.safe_files,
         )
-        self.assertIn(
+        self.assertNotIn(
             ".cowork-flow/spec/schemas/skill-registry.schema.json",
             manifest.sync_policy.safe_files,
+        )
+        self.assertIn(
+            ".cowork-flow/spec/runtime/skill-registry.json",
+            manifest.sync_policy.obsolete_files,
+        )
+        self.assertIn(
+            ".agents/skills/decision-review",
+            manifest.sync_policy.obsolete_files,
         )
 
     def test_semantic_validation_rejects_missing_command_target(self) -> None:

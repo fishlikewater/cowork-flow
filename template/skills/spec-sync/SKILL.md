@@ -1,12 +1,21 @@
-# Spec Maintenance Protocol
+---
+name: spec-sync
+description: Use when cowork-flow changes introduce or modify reusable commands, APIs, file formats, state transitions, validation rules, error contracts, conventions, repeated failure lessons, or any .cowork-flow/spec content that must stay synchronized with implementation.
+---
 
-> Internal protocol loaded by implement/check agents; it is not a public Skill.
+# Spec Sync
+
+Use this Skill when implementation changes need reusable project knowledge to
+stay aligned with runtime behavior.
 
 ## Decision
 
-Update `.cowork-flow/spec/` when a change introduces or changes a reusable command, API, file format, state transition, validation rule, error contract, convention, or repeated failure mode.
+Update `.cowork-flow/spec/` when a change introduces or changes a reusable
+command, API, file format, state transition, validation rule, error contract,
+convention, or repeated failure mode.
 
-Do not add one-off implementation narration. Prefer the narrowest existing spec and update its index when a new topic is introduced.
+Do not add one-off implementation narration. Prefer the narrowest existing spec
+and update its index when a new topic is introduced.
 
 ## Choose Location
 
@@ -14,7 +23,7 @@ Do not add one-off implementation narration. Prefer the narrowest existing spec 
 - `guides/`: short thinking checklists and pointers to deeper specs.
 - `contracts/`: cross-agent, runtime, host-adapter, or persisted-state contracts.
 - `runtime/` or `schemas/`: machine-readable rules, registries, and schema-owned metadata.
-- `workflow.md` or `AGENTS.md`: process rules, phase gates, collaboration rules, or task routing behavior.
+- `AGENTS.md`, Skill command manifests, or `contracts/`: process rules, phase gates, collaboration rules, or task routing behavior.
 
 ## Write
 

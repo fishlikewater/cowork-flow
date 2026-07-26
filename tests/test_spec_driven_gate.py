@@ -178,6 +178,73 @@ class SpecDrivenGateTests(unittest.TestCase):
         self.assertIn("MACHINE-DEBUG-PRINT-001", fired)
         self.assertIn("MACHINE-SILENT-EXCEPT-001", fired)
 
+    def test_machine_checks_ignore_unchanged_historical_prints(self) -> None:
+        self._seed_service(
+            "def work():\n"
+            "    print('historical cli output')\n"
+            "    return 1\n"
+        )
+        self._write(
+            "src/service.py",
+            "def work():\n"
+            "    print('historical cli output')\n"
+            "    return 2\n",
+        )
+
+        warnings = self.vc.collect_machine_checks(self.tmp)
+
+        self.assertNotIn(
+            "MACHINE-DEBUG-PRINT-001",
+            {warning["rule_id"] for warning in warnings},
+        )
+
+    def test_machine_checks_scan_untracked_files_as_new_content(self) -> None:
+        self._seed_service("def work():\n    return 1\n")
+        self._write(
+            "src/new_service.py",
+            "def work():\n"
+            "    print('new debug output')\n"
+            "    return 2\n",
+        )
+
+        warnings = self.vc.collect_machine_checks(self.tmp)
+
+        self.assertIn(
+            "MACHINE-DEBUG-PRINT-001",
+            {warning["rule_id"] for warning in warnings},
+        )
+
+    def test_machine_checks_allow_cli_output_prints(self) -> None:
+        self._seed_service("def work():\n    return 1\n")
+        self._write(
+            "template/.cowork-flow/scripts/commands/demo.py",
+            "def main():\n"
+            "    print('user-visible command output')\n",
+        )
+        self._stage("template/.cowork-flow/scripts/commands/demo.py")
+
+        warnings = self.vc.collect_machine_checks(self.tmp)
+
+        self.assertNotIn(
+            "MACHINE-DEBUG-PRINT-001",
+            {warning["rule_id"] for warning in warnings},
+        )
+
+    def test_machine_checks_ignore_print_inside_string_fixture(self) -> None:
+        self._seed_service("def work():\n    return 1\n")
+        self._write(
+            "tests/test_demo.py",
+            "FIXTURE = \"    print('fixture text')\\n\"\n",
+        )
+        self._stage("tests/test_demo.py")
+
+        warnings = self.vc.collect_machine_checks(self.tmp)
+
+        self.assertNotIn(
+            "MACHINE-DEBUG-PRINT-001",
+            {warning["rule_id"] for warning in warnings},
+        )
+
     # ---- test_04: summary still renders checklist for LLM review ----
 
     def test_04_summary_renders_user_rules_for_llm_review(self) -> None:

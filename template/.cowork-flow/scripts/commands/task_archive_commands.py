@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Delivery adapter for task archive commands."""
+"""Delivery adapter for archive_task actions."""
 
 from __future__ import annotations
 
@@ -208,7 +208,7 @@ def _archive_error_message(task_name: str, error: TaskArchiveError) -> str:
         status = error.detail.removeprefix("task status is ")
         return (
             f"Task '{task_name}' is in status '{status}', not in "
-            f"{DONE_STATUSES}. Run `task complete` first, then retry archive."
+            f"{DONE_STATUSES}. Run `task next <task-dir> --run --intent review` first, then retry archive."
         )
     return f"Failed to archive task: {error.detail}"
 

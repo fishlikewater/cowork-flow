@@ -9,13 +9,13 @@ Use this skill as the active clarification gate for new requirements. Turn an id
 
 ## Flow
 
-1. Read only the context needed to understand the project area: `AGENTS.md`, `.cowork-flow/workflow.md`, and relevant spec indexes.
+1. Read only the context needed to understand the project area: `AGENTS.md`, `task next --json`, Skill command manifests, and relevant spec indexes.
 2. State the goal, non-goals, assumptions, scope boundary, success criteria, and the smallest useful scope.
 3. Ask one high-value question only when the answer cannot be inferred safely; otherwise proceed with explicit assumptions.
 4. Present 2-3 viable approaches when trade-offs matter, with a concrete recommended direction.
 5. Do not write decision-anchor, planning, or fixed-agent dispatch input until the direction and acceptance criteria are clear.
-6. For L1/L2 work, create or update the change/task artifacts required by `.cowork-flow/workflow.md` after the clarification output is stable.
-7. Hand off to `writing-plans` when the requested behavior and acceptance criteria are clear.
+6. For L1/L2 work, create or update change/task artifacts required by runtime gates and `.cowork-flow/spec/` after the clarification output is stable.
+7. Hand off to `task-planning` when the requested behavior and acceptance criteria are clear.
 
 ## Output
 

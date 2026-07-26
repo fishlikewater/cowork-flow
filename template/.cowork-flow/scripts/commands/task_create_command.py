@@ -20,6 +20,7 @@ from common.core.paths import (
     get_developer,
     get_repo_root,
 )
+from common.task.active_task import set_active_task
 
 
 def cmd_create(args: argparse.Namespace) -> int:
@@ -33,6 +34,7 @@ def cmd_create(args: argparse.Namespace) -> int:
     if result is None:
         return 1
 
+    _activate_created_task(repo_root, result)
     _print_create_result(result)
     run_hooks(
         "after_create",
@@ -54,8 +56,8 @@ def _build_create_request(
     if not assignee:
         print(
             colored(
-                "Error: No developer set. Run init_developer.py first "
-                "or use --assignee",
+                "Error: No developer set. Use --assignee <name> for "
+                "this task, or initialize a developer profile separately.",
                 Colors.RED,
             ),
             file=sys.stderr,
@@ -98,6 +100,14 @@ def _create_task(repo_root, request: TaskCreationRequest):
             file=sys.stderr,
         )
         return None
+
+
+def _activate_created_task(repo_root, result) -> None:
+    try:
+        relative = result.task_dir.resolve().relative_to(repo_root.resolve())
+    except ValueError:
+        return
+    set_active_task(repo_root, relative.as_posix())
 
 
 def _print_create_result(result) -> None:
@@ -149,16 +159,24 @@ def _print_next_steps() -> None:
         file=sys.stderr,
     )
     print(
-        "  2. Run: ./.cowork-flow/run task init-context <dir> <dev_type>",
+        "  2. Write required context JSONL files or use the planning Skill action",
         file=sys.stderr,
     )
     print(
-        "  3. Run: ./.cowork-flow/run task start <dir>",
+        "  3. Run: ./.cowork-flow/run task next <dir> --run",
         file=sys.stderr,
     )
     print(
-        "  Planned new files: ./.cowork-flow/run task add-planned-file "
+        "  Validate first: ./.cowork-flow/run task next <dir> --validate",
+        file=sys.stderr,
+    )
+    print(
+        "  Planned new files: write a planned-file entry to the task JSONL: "
         "<dir> implement <path> \"reason\"",
+        file=sys.stderr,
+    )
+    print(
+        "  Deleted files: write a deleted-file entry to the task JSONL.",
         file=sys.stderr,
     )
     print("", file=sys.stderr)

@@ -52,7 +52,7 @@
 ## 模式 3：顺序 skill 链（已实现，用户驱动）
 
 ```
-用户执行: /start -> brainstorming -> writing-plans -> task start -> implement -> check -> finish
+用户执行: /start -> brainstorming -> task-planning -> task start -> implement -> check -> finish
 ```
 
 **使用场景**: 阶段之间有依赖关系，用户在阶段间判断有价值。

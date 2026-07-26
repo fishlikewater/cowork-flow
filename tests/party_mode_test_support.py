@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import json
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
+PARTY_MODE_SCRIPT = ROOT / "template" / "skills" / "party-mode" / "scripts" / "party_mode_v2.py"
 
 
 class PartyModeTestCase(unittest.TestCase):
@@ -20,13 +22,18 @@ class PartyModeTestCase(unittest.TestCase):
         sys.path.insert(0, str(TEMPLATE_SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.config = importlib.import_module("common.core.config")
-        self.party_mode_v2 = importlib.import_module("commands.party_mode_v2")
+        spec = importlib.util.spec_from_file_location("party_mode_v2", PARTY_MODE_SCRIPT)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"unable to load {PARTY_MODE_SCRIPT}")
+        self.party_mode_v2 = importlib.util.module_from_spec(spec)
+        sys.modules["party_mode_v2"] = self.party_mode_v2
+        spec.loader.exec_module(self.party_mode_v2)
 
     def _cleanup_imports(self) -> None:
         if str(TEMPLATE_SCRIPTS) in sys.path:
             sys.path.remove(str(TEMPLATE_SCRIPTS))
         for module_name in (
-            "commands.party_mode_v2",
+            "party_mode_v2",
             "common.core.config",
             "common.core.paths",
             "common",

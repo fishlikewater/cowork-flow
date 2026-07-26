@@ -29,8 +29,8 @@ def cmd_init_context(args: argparse.Namespace) -> int:
     if not dev_type:
         print(colored("Error: Missing arguments", Colors.RED))
         print(
-            "Usage: ./.cowork-flow/run task init-context "
-            "<task-dir> <dev_type>"
+            "Internal context adapter; public workflow uses `task next` actions "
+            "and direct task JSONL files."
         )
         print(
             "  dev_type: backend | frontend | fullstack | "

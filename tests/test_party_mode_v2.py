@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-from tests.party_mode_test_support import PartyModeTestCase, ROOT, TEMPLATE_SCRIPTS
+from tests.party_mode_test_support import PARTY_MODE_SCRIPT, PartyModeTestCase, ROOT, TEMPLATE_SCRIPTS
 
 
 class PartyModeV2IntegrationTest(PartyModeTestCase):
@@ -64,14 +64,24 @@ party_mode_v2:
 
     def test_template_runtime_assets_are_valid(self) -> None:
         # Verify template scripts exist and are valid
-        self.assertTrue((TEMPLATE_SCRIPTS / "commands" / "party_mode_v2.py").is_file())
+        self.assertTrue(PARTY_MODE_SCRIPT.is_file())
         self.assertTrue((TEMPLATE_SCRIPTS / "run.py").is_file())
         self.assertTrue((TEMPLATE_SCRIPTS / "common" / "core" / "config.py").is_file())
 
     def test_party_v2_command_is_registered(self) -> None:
-        text = (TEMPLATE_SCRIPTS / "run.py").read_text(encoding="utf-8")
-        self.assertIn('"party-v2": "commands/party_mode_v2.py"', text)
-        self.assertIn('"party_v2": "commands/party_mode_v2.py"', text)
+        manifest = json.loads(
+            (ROOT / "template" / "skills" / "party-mode" / "manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertNotIn("actions", manifest)
+        command = manifest["commands"][0]
+        self.assertEqual("party-v2", command["name"])
+        self.assertIn("party_v2", command["aliases"])
+        self.assertEqual("scripts/party_mode_v2.py", command["script"])
+        runner = (TEMPLATE_SCRIPTS / "run.py").read_text(encoding="utf-8")
+        self.assertIn("skill_command_scripts", runner)
+        self.assertNotIn("SKILL_COMMAND_SCRIPTS", runner)
 
     def test_runner_dispatches_party_v2_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

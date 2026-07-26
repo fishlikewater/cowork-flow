@@ -41,10 +41,6 @@ class TaskContextServiceTest(unittest.TestCase):
         spec_dir = root / ".cowork-flow" / "spec" / "backend"
         spec_dir.mkdir(parents=True)
         (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-        (root / ".cowork-flow" / "workflow.md").write_text(
-            "# Workflow\n",
-            encoding="utf-8",
-        )
         (spec_dir / "index.md").write_text("# Backend\n", encoding="utf-8")
         return task_dir
 
@@ -220,6 +216,56 @@ class TaskContextServiceTest(unittest.TestCase):
             self.assertEqual(["invalid_entry_type"], [issue.code for issue in issues])
             self.assertEqual([2], [issue.line for issue in issues])
 
+    def test_validate_accepts_deleted_file_context_for_missing_or_existing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            existing = root / "obsolete.py"
+            existing.write_text("VALUE = 1\n", encoding="utf-8")
+            entries = [
+                {
+                    "file": "obsolete.py",
+                    "reason": "Delete obsolete file",
+                    "type": "deleted-file",
+                },
+                {
+                    "file": "src/already_deleted.py",
+                    "reason": "Already deleted in working tree",
+                    "type": "deleted-file",
+                },
+            ]
+            (task_dir / "implement.jsonl").write_text(
+                "\n".join(json.dumps(entry, ensure_ascii=False) for entry in entries) + "\n",
+                encoding="utf-8",
+            )
+
+            issues = self.TaskContextService(root).validate(task_dir)
+
+            self.assertEqual([], list(issues))
+
+    def test_deleted_file_context_rejects_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (root / "src").mkdir(exist_ok=True)
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps(
+                    {
+                        "file": "src",
+                        "reason": "Directory is not a deleted file",
+                        "type": "deleted-file",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            issues = self.TaskContextService(root).validate(task_dir)
+
+            self.assertEqual(["invalid_path"], [issue.code for issue in issues])
+            self.assertIn("Deleted file is a directory", issues[0].message)
+
     def test_missing_file_issue_includes_planned_file_hint(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -236,8 +282,9 @@ class TaskContextServiceTest(unittest.TestCase):
             issues = self.TaskContextService(root).validate(task_dir)
 
             self.assertEqual(["file_not_found"], [issue.code for issue in issues])
-            self.assertIn("add-planned-file", issues[0].message)
+            self.assertIn("planned-file", issues[0].message)
             self.assertIn('"type": "planned-file"', issues[0].message)
+            self.assertIn("deleted-file", issues[0].message)
 
     def test_initialize_creates_task_local_placeholder_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

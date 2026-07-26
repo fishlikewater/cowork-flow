@@ -1,9 +1,9 @@
 ---
-name: python-design
+name: python-runtime-design
 description: Use when writing, reviewing, or refactoring Python CLI/runtime scripts in cowork-flow.
 ---
 
-# Python Design
+# Python Runtime Design
 
 Use this for `.cowork-flow/scripts/**/*.py` and other Python utilities.
 

@@ -197,11 +197,11 @@ class PythonRunnerTest(unittest.TestCase):
             fake_bin.mkdir()
             python3 = self.make_fake_python(fake_bin, "python3")
 
-            result = self.run_with_fake_path(temp_dir, ["task", "list"])
+            result = self.run_with_fake_path(temp_dir, ["task", "next"])
 
             self.assertEqual(0, result.returncode, result.stderr)
             expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
-            self.assertEqual(f"{python3} {expected_script} task list", self.read_log(temp_dir)[-1])
+            self.assertEqual(f"{python3} {expected_script} task next", self.read_log(temp_dir)[-1])
 
 if __name__ == "__main__":
     unittest.main()

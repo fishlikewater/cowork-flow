@@ -18,10 +18,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-if __package__:
-    from . import _bootstrap as _bootstrap  # noqa: F401
-else:
-    import _bootstrap  # noqa: F401
+def _add_runtime_scripts_path() -> None:
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / ".cowork-flow" / "scripts"
+        if candidate.is_dir():
+            candidate_text = str(candidate)
+            if candidate_text not in sys.path:
+                sys.path.insert(0, candidate_text)
+            return
+
+
+_add_runtime_scripts_path()
 from common.core.config import get_party_mode_v2_config
 from common.core.paths import DIR_WORKFLOW, get_repo_root
 

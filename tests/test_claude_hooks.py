@@ -30,7 +30,6 @@ class ClaudeHooksTest(unittest.TestCase):
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "run.cmd", root / ".cowork-flow" / "run.cmd")
         (root / ".cowork-flow" / "run").chmod(0o755)
         shutil.copytree(TEMPLATE / ".claude", root / ".claude")
-        shutil.copyfile(TEMPLATE / ".cowork-flow" / "workflow.md", root / ".cowork-flow" / "workflow.md")
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "config.yaml", root / ".cowork-flow" / "config.yaml")
         shutil.copytree(TEMPLATE / ".cowork-flow" / "spec", root / ".cowork-flow" / "spec")
 
@@ -340,14 +339,10 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertNotIn("Status: delegated_subtask", context)
         self.assertNotIn("Source: unclassified", context)
 
-    def test_hook_reads_workflow_state_templates_instead_of_workflow_md(self) -> None:
+    def test_hook_reads_workflow_state_templates_as_single_prompt_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
-            (root / ".cowork-flow" / "workflow.md").write_text(
-                "[workflow-state:no_task]\nwrong source\n[/workflow-state:no_task]\n",
-                encoding="utf-8",
-            )
             template_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
             template_file.write_text(
                 template_file.read_text(encoding="utf-8").replace(

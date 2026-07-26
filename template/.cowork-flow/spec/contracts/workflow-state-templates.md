@@ -27,12 +27,12 @@ subtask.
 - MUST NOT 隐式创建任务——必须用 task create/task start 显式建立上下文。
 
 需要写代码时，路由用户到正确路径：
-1. 需求不明确 → brainstorming → writing-plans → task create → task start → 实现
-2. 需求明确 → writing-plans → task create → task start → 实现
+1. 需求不明确 → brainstorming → task-planning → task create → task start → 实现
+2. 需求明确 → task-planning → task create → task start → 实现
 3. 恢复已有任务 → continue
 
 如果被要求写代码，回复:
-"当前没有活动任务。需要先 brainstorming 明确方向，还是直接走 writing-plans → task start？"
+"当前没有活动任务。需要先 brainstorming 明确方向，还是直接走 task-planning → task start？"
 [/workflow-state:no_task]
 
 ## delegated_subtask

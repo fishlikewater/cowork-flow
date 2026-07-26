@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cowork-flow.dev/schemas/rules.schema.json",
   "title": "Cowork Flow Rules Schema",
-  "description": "Schema for machine-readable rule set extracted from workflow.md and AGENTS.md",
+  "description": "Schema for machine-readable rules sourced from AGENTS.md and .cowork-flow/spec contracts",
   "type": "object",
   "properties": {
     "schemaVersion": {
@@ -15,10 +15,30 @@
       "description": "Array of rules",
       "items": {
         "type": "object",
-        "required": ["id", "type", "severity", "scope", "condition", "message", "fix_hint", "source_file", "enforcement", "validator", "parameters"],
+        "required": [
+          "id",
+          "type",
+          "severity",
+          "scope",
+          "condition",
+          "message",
+          "fix_hint",
+          "source_file",
+          "enforcement",
+          "validator",
+          "parameters"
+        ],
         "anyOf": [
-          {"required": ["source_anchor"]},
-          {"required": ["source_excerpt"]}
+          {
+            "required": [
+              "source_anchor"
+            ]
+          },
+          {
+            "required": [
+              "source_excerpt"
+            ]
+          }
         ],
         "properties": {
           "id": {
@@ -28,17 +48,31 @@
           },
           "type": {
             "type": "string",
-            "enum": ["phase_gate", "forbidden_action"],
+            "enum": [
+              "phase_gate",
+              "forbidden_action"
+            ],
             "description": "Rule type: phase_gate for workflow constraints, forbidden_action for prohibited behaviors"
           },
           "severity": {
             "type": "string",
-            "enum": ["block", "warn"],
+            "enum": [
+              "block",
+              "warn"
+            ],
             "description": "Severity level: block stops execution, warn only logs"
           },
           "scope": {
             "type": "string",
-            "enum": ["task_start", "task_review", "task_complete", "check", "implement", "task_archive", "all"],
+            "enum": [
+              "task_start",
+              "task_review",
+              "task_complete",
+              "check",
+              "implement",
+              "task_archive",
+              "all"
+            ],
             "description": "Scope where rule applies"
           },
           "condition": {
@@ -67,7 +101,10 @@
           },
           "enforcement": {
             "type": "string",
-            "enum": ["validate_rules", "validate_implementation"],
+            "enum": [
+              "validate_rules",
+              "validate_implementation"
+            ],
             "description": "Runtime surface responsible for enforcing this rule. Must have a corresponding validator module."
           },
           "validator": {
@@ -84,6 +121,9 @@
       }
     }
   },
-  "required": ["schemaVersion", "rules"],
+  "required": [
+    "schemaVersion",
+    "rules"
+  ],
   "additionalProperties": false
 }

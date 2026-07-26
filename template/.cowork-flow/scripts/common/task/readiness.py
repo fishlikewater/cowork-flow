@@ -22,7 +22,7 @@ REQUIRED_L2_MARKERS = {
 }
 
 VERIFICATION_COMMAND_MARKERS = (
-    "python -m unittest",
+    "./.cowork-flow/run python -m unittest",
     "npm test",
     "npm run",
     "git diff --check",

@@ -55,35 +55,13 @@ class TaskCommandsTest(FlowScriptTestCase):
 
             self.assertEqual(0, result)
 
-    def test_add_context_parser_accepts_explicit_planned_file_type(self) -> None:
-        args = self.task.build_parser().parse_args(
-            [
-                "add-context",
-                ".cowork-flow/tasks/07-10-demo",
-                "implement",
-                "src/new_module.py",
-                "Planned source",
-                "--type",
-                "planned-file",
-            ]
-        )
-
-        self.assertEqual("planned-file", args.entry_type)
-
-    def test_add_planned_file_parser_sets_command(self) -> None:
-        args = self.task.build_parser().parse_args(
-            [
-                "add-planned-file",
-                ".cowork-flow/tasks/07-10-demo",
-                "implement",
-                "src/new_module.py",
-                "Planned source",
-            ]
-        )
-
-        self.assertEqual("add-planned-file", args.command)
-        self.assertEqual("implement", args.file)
-        self.assertEqual("src/new_module.py", args.path)
+    def test_context_commands_are_not_public_parser_commands(self) -> None:
+        parser = self.task.build_parser()
+        for command in ("add-context", "add-planned-file"):
+            with self.subTest(command=command):
+                with self.assertRaises(SystemExit) as raised:
+                    parser.parse_args([command])
+                self.assertEqual(2, raised.exception.code)
 
     def test_cmd_add_context_writes_explicit_planned_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -186,7 +164,7 @@ class TaskCommandsTest(FlowScriptTestCase):
             output = stdout.getvalue()
             self.assertEqual(1, result)
             self.assertIn("File not found: src/new_module.py", output)
-            self.assertIn("add-planned-file", output)
+            self.assertIn("planned-file", output)
             self.assertIn('"type": "planned-file"', output)
 
     def test_cmd_create_adds_date_prefix_to_plain_slug(self) -> None:
@@ -219,7 +197,7 @@ class TaskCommandsTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertTrue((root / ".cowork-flow" / "tasks" / dir_name / "task.json").is_file())
             self.assertIn(dir_name, stdout.getvalue())
-            self.assertIn("add-planned-file", stderr.getvalue())
+            self.assertIn("planned-file", stderr.getvalue())
 
     def test_cmd_create_keeps_existing_date_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -254,6 +232,78 @@ class TaskCommandsTest(FlowScriptTestCase):
             self.assertTrue((task_dir / "task.json").is_file())
             self.assertFalse(doubled.exists())
             self.assertIn(slug, stdout.getvalue())
+
+    def test_cmd_create_sets_active_task_for_current_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            date_prefix = datetime.now().strftime("%m-%d")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_create(
+                        argparse.Namespace(
+                            title="Demo task",
+                            slug="demo-task",
+                            assignee="codex",
+                            priority="P2",
+                            description=None,
+                            parent=None,
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            session = json.loads(
+                (
+                    root
+                    / ".cowork-flow"
+                    / ".runtime"
+                    / "sessions"
+                    / "main.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(0, result)
+            self.assertEqual(
+                f".cowork-flow/tasks/{date_prefix}-demo-task",
+                session["active_task_path"],
+            )
+
+    def test_cmd_create_without_developer_prefers_assignee_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.dict(os.environ, {}, clear=True),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_create(
+                        argparse.Namespace(
+                            title="Demo task",
+                            slug="demo-task",
+                            assignee=None,
+                            priority="P2",
+                            description=None,
+                            parent=None,
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertIn("--assignee <name>", stderr.getvalue())
+            self.assertNotIn("Run init_developer.py first", stderr.getvalue())
 
     def test_task_start_blockers_require_decision_anchor_and_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -291,12 +341,32 @@ class TaskCommandsTest(FlowScriptTestCase):
 
             self.assertEqual([], blockers)
 
+    def test_l2_readiness_rejects_bare_python_verification_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            child_dir = self._write_l2_task_tree(root)
+            self._write_l2_change_fixture(root)
+            plan_path = root / ".cowork-flow" / "plans" / "2026-05-19-demo.md"
+            plan_path.write_text(
+                "# Demo plan\n\n"
+                "## Verification\n\n"
+                "- `python -m unittest discover -s tests`\n",
+                encoding="utf-8",
+            )
+
+            blockers = self.task._optional_readiness_blockers(root, child_dir)
+
+            self.assertIn(
+                "linked plan is missing verification commands",
+                "\n".join(blockers),
+            )
+
     def test_task_state_machine_requires_review_before_complete(self) -> None:
         state_machine = importlib.import_module("common.task.state_machine")
 
         self.assertEqual([], state_machine.transition_blockers("review", "completed"))
         self.assertIn(
-            "task review",
+            "task next <task-dir> --run --intent review",
             "\n".join(state_machine.transition_blockers("in_progress", "completed")),
         )
 
@@ -499,7 +569,9 @@ class TaskCommandsTest(FlowScriptTestCase):
             self.assertEqual(1, result)
             self.assertFalse((root / "src" / "new_module.py").exists())
             self.assertIn("Task context validation failed", stderr.getvalue())
-            self.assertIn("add-planned-file", stderr.getvalue())
+            self.assertIn("planned-file", stderr.getvalue())
+            self.assertIn("task next <dir> --validate", stderr.getvalue())
+            self.assertNotIn("task validate", stderr.getvalue())
 
     def test_cmd_start_requires_session_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
