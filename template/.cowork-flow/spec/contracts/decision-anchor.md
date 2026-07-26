@@ -56,9 +56,9 @@
 
 **净减 1 个文件类型。相关文件追踪现在由 implement.jsonl 统一负责。**
 
-## Gate 联动
+## Lifecycle Check 联动
 
-- `R-WF-008`: task_start 阶段阻断，检查 `## 目标` 和 `## 验收标准` 章节存在
+- `task start` preflight 检查 `decision-anchor.md` 非空，并要求 `## 目标` 和 `## 验收标准` 章节存在。
 - `cowork-implement` 读取：见 .cowork-flow/spec/contracts/subagent-dispatch.md
 - `cowork-check` 读取：同上
 - `debug.jsonl` 引用：可选，偏差诊断时写入 anchor 锚点差异

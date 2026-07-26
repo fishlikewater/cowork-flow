@@ -216,22 +216,18 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("Formal subagent identity is runtime-context based", text)
             self.assertNotIn(LEGACY_POST_ACK, text)
 
-    def test_gate_runtime_common_modules_exist_in_template(self) -> None:
+    def test_lifecycle_runtime_common_modules_exist_in_template(self) -> None:
         required_markers = {
-            "gates/coding_standards.py": ("validate_changed_files", "encoding=\"utf-8\"", "CS-UTF8"),
-            "gates/gates.py": ("GateResult", "GateRunner", "GatePipeline"),
-            "gates/models.py": ("class GateResult", "exit_code", "class Violation"),
-            "gates/registry.py": ("class GateRegistry", "duplicate validator key", "GateLoadError"),
+            "task/lifecycle_checks.py": ("LifecycleCheckRunner", "Modified file not listed in implement.jsonl", "collect_changed_paths"),
             "git/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
             "task/state_machine.py": ("transition_blockers", "task next <task-dir> --run --intent review", "completed"),
-            "gates/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
-            "gates/validate_coding_standards.py": ("validate_coding_standards", "collect_changed_files", "--validate"),
+            "review/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
         }
 
+        common_root = ROOT / "template" / ".cowork-flow" / "scripts" / "common"
+        self.assertFalse((common_root / "gates").exists())
         for file_name, markers in required_markers.items():
-            template_text = (
-                ROOT / "template" / ".cowork-flow" / "scripts" / "common" / Path(file_name)
-            ).read_text(encoding="utf-8")
+            template_text = (common_root / Path(file_name)).read_text(encoding="utf-8")
 
             for marker in markers:
                 self.assertIn(marker, template_text)
@@ -284,7 +280,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             ).read_text(encoding="utf-8")
             self.assertEqual(template_text, local_text, str(relative_path))
 
-    def test_runtime_rule_metadata_stays_in_canonical_template_spec(self) -> None:
+    def test_runtime_rule_registry_assets_are_removed_from_template_spec(self) -> None:
         template_spec = ROOT / "template" / ".cowork-flow" / "spec"
         zcode_spec = (
             ROOT
@@ -299,10 +295,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             Path("runtime") / "rules.json",
             Path("schemas") / "rules.schema.json",
         ):
-            template_data = json.loads(
-                (template_spec / relative_path).read_text(encoding="utf-8")
-            )
-            self.assertIsInstance(template_data, dict, str(relative_path))
+            self.assertFalse((template_spec / relative_path).exists(), str(relative_path))
 
     def test_public_tdd_skill_has_no_evidence_artifact_contract(self) -> None:
         tdd_text = (

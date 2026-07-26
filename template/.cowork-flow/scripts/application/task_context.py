@@ -346,7 +346,7 @@ def get_implement_base() -> list[dict]:
     return [
         {
             "file": "AGENTS.md",
-            "reason": "Project collaboration rules and workflow gates",
+            "reason": "Project collaboration rules and workflow checks",
         },
         {
             "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/index.md",

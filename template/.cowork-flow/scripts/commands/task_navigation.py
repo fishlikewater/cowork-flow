@@ -11,7 +11,6 @@ from commands.task_archive_commands import linked_active_changes_for_task
 from commands.task_support import resolve_task_dir
 from common.core.execution_context import execution_context_from_namespace
 from common.core.paths import get_repo_root
-from common.gates.gates import GateRunner
 from common.task.active_task import get_active_task
 from common.task.readiness import task_readiness_blockers
 from common.task.task_repository import TaskRepository, TaskRepositoryError
@@ -161,11 +160,6 @@ def _status(repo_root: Path, task_dir: Path) -> str:
 def _blockers(repo_root: Path, task_dir: Path) -> list[str]:
     blockers = list(TaskContextService(repo_root).start_blockers(task_dir))
     blockers.extend(task_readiness_blockers(repo_root, task_dir))
-    result = GateRunner(repo_root).run("task_start", task_dir)
-    blockers.extend(
-        f"{item.get('rule_id') or item.get('id')}: {item.get('message') or 'Gate blocked'}"
-        for item in result.blockers
-    )
     return blockers
 
 
@@ -593,7 +587,7 @@ def _print_check_route(task_path: str) -> None:
     print(f"Next action: {action['label']}")
     print(f"Skill: {action['activatedSkill']}")
     print(f"Command: {action['command']}")
-    print("Then: complete only after the activated review Skill has checked the current diff and gates")
+    print("Then: complete only after the activated review Skill has checked the current diff and user specs")
 
 def _print_doubt_review_route(task_path: str) -> None:
     print("Next action: run standalone doubt review")

@@ -10,13 +10,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from common.gates.gates import GateRunner
 from common.storage.unit_of_work import (
     FaultInjector,
     UnitOfWork,
     UnitOfWorkError,
 )
 from common.task.active_task import build_active_task_session
+from common.task.lifecycle_checks import LifecycleCheckRunner
 from common.task.state_machine import transition_blockers
 from common.task.task_repository import TaskRepository, TaskRepositoryError
 
@@ -27,28 +27,26 @@ class LifecycleStage:
 
     name: str
     target_status: str
-    gate_scope: str
+    check_scope: str
     activates_session: bool = False
     records_completion_date: bool = False
-    includes_coding_summary: bool = False
 
 
 START_STAGE = LifecycleStage(
     name="start",
     target_status="in_progress",
-    gate_scope="task_start",
+    check_scope="task_start",
     activates_session=True,
 )
 REVIEW_STAGE = LifecycleStage(
     name="review",
     target_status="review",
-    gate_scope="task_review",
-    includes_coding_summary=True,
+    check_scope="task_review",
 )
 COMPLETE_STAGE = LifecycleStage(
     name="complete",
     target_status="completed",
-    gate_scope="task_complete",
+    check_scope="task_complete",
     records_completion_date=True,
 )
 
@@ -74,8 +72,7 @@ class LifecycleResult:
     blockers: tuple[str, ...] = ()
     title: str = ""
     hint: str = ""
-    gate_result: object | None = None
-    summary: str = ""
+    check_result: object | None = None
     active_task_path: str | None = None
     repository_error: TaskRepositoryError | None = None
 
@@ -91,12 +88,12 @@ class TaskLifecycleService:
         repo_root: Path,
         *,
         repository: TaskRepository | None = None,
-        gate_runner: GateRunner | None = None,
+        check_runner: LifecycleCheckRunner | None = None,
         fault_injector: FaultInjector | None = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.repository = repository or TaskRepository(self.repo_root)
-        self.gate_runner = gate_runner or GateRunner(self.repo_root)
+        self.check_runner = check_runner or LifecycleCheckRunner(self.repo_root)
         self.fault_injector = fault_injector
 
     def start(
@@ -142,36 +139,34 @@ class TaskLifecycleService:
         allow_spec_file_modifications: bool = False,
         completed_at: str | None = None,
     ) -> LifecycleResult:
-        """Resolve, preflight, validate, gate, and persist one transition."""
+        """Resolve, preflight, validate, check, and persist one transition."""
         task_dir = self.repository.resolve(task)
         prepared = self._prepare_transition(stage, task_dir, preflight)
         if isinstance(prepared, LifecycleResult):
             return prepared
         task_data, already_at_target = prepared
 
-        gated = self._run_validated_gate(
+        checked = self._run_validated_checks(
             stage,
             task_dir,
             allow_spec_file_modifications=allow_spec_file_modifications,
         )
-        if isinstance(gated, LifecycleResult):
-            return gated
-        gate_result, summary = gated
+        if isinstance(checked, LifecycleResult):
+            return checked
+        check_result = checked
 
         if already_at_target:
             return self._validated_idempotent_result(
                 stage,
                 task_dir,
-                gate_result,
-                summary,
+                check_result,
             )
 
         return self._persist_transition_result(
             stage,
             task_dir,
             task_data,
-            gate_result,
-            summary,
+            check_result,
             completed_at,
         )
 
@@ -204,37 +199,34 @@ class TaskLifecycleService:
             return transition_failure
         return task_data, already_at_target
 
-    def _run_validated_gate(
+    def _run_validated_checks(
         self,
         stage: LifecycleStage,
         task_dir: Path,
         *,
         allow_spec_file_modifications: bool,
-    ) -> tuple[object, str] | LifecycleResult:
-        gate_result_or_failure = self._run_stage_gate(
+    ) -> object | LifecycleResult:
+        check_result_or_failure = self._run_stage_checks(
             stage,
             task_dir,
             allow_spec_file_modifications=allow_spec_file_modifications,
         )
-        if isinstance(gate_result_or_failure, LifecycleResult):
-            return gate_result_or_failure
-        gate_result = gate_result_or_failure
-        return gate_result, self._stage_summary(stage, task_dir)
+        if isinstance(check_result_or_failure, LifecycleResult):
+            return check_result_or_failure
+        return check_result_or_failure
 
     def _validated_idempotent_result(
         self,
         stage: LifecycleStage,
         task_dir: Path,
-        gate_result: object,
-        summary: str,
+        check_result: object,
     ) -> LifecycleResult:
         return LifecycleResult(
             ok=True,
             code="LIFECYCLE-IDEMPOTENT-VALIDATED",
             stage=stage,
             task_dir=task_dir,
-            gate_result=gate_result,
-            summary=summary,
+            check_result=check_result,
         )
 
     def _persist_transition_result(
@@ -242,15 +234,13 @@ class TaskLifecycleService:
         stage: LifecycleStage,
         task_dir: Path,
         task_data: dict,
-        gate_result: object,
-        summary: str,
+        check_result: object,
         completed_at: str | None,
     ) -> LifecycleResult:
         session_state_or_failure = self._build_session_state(
             stage,
             task_dir,
-            gate_result,
-            summary,
+            check_result,
         )
         if isinstance(session_state_or_failure, LifecycleResult):
             return session_state_or_failure
@@ -262,8 +252,7 @@ class TaskLifecycleService:
             task_data,
             self._persisted_task_data(stage, task_data, completed_at),
             session_state,
-            gate_result,
-            summary,
+            check_result,
         )
         if commit_failure is not None:
             return commit_failure
@@ -273,8 +262,7 @@ class TaskLifecycleService:
             code="LIFECYCLE-OK",
             stage=stage,
             task_dir=task_dir,
-            gate_result=gate_result,
-            summary=summary,
+            check_result=check_result,
             active_task_path=active_task_path,
         )
 
@@ -363,38 +351,33 @@ class TaskLifecycleService:
             blockers=tuple(blockers),
         )
 
-    def _run_stage_gate(
+    def _run_stage_checks(
         self,
         stage: LifecycleStage,
         task_dir: Path,
         *,
         allow_spec_file_modifications: bool,
     ) -> object | LifecycleResult:
-        gate_result = self.gate_runner.run(
-            stage.gate_scope,
+        check_result = self.check_runner.run(
+            stage.check_scope,
             task_dir,
             allow_spec_file_modifications=allow_spec_file_modifications,
         )
-        if not gate_result.blocked:
-            return gate_result
+        if not check_result.blocked:
+            return check_result
         return self._failure(
             stage,
             task_dir,
-            "LIFECYCLE-GATE-001",
-            gate_result=gate_result,
+            "LIFECYCLE-CHECK-001",
+            blockers=tuple(check_result.blockers),
+            check_result=check_result,
         )
-
-    def _stage_summary(self, stage: LifecycleStage, task_dir: Path) -> str:
-        if not stage.includes_coding_summary:
-            return ""
-        return self.gate_runner.coding_standards_summary(task_dir)
 
     def _build_session_state(
         self,
         stage: LifecycleStage,
         task_dir: Path,
-        gate_result: object,
-        summary: str,
+        check_result: object,
     ) -> tuple[object | None, str | None] | LifecycleResult:
         if not stage.activates_session:
             return None, None
@@ -408,8 +391,7 @@ class TaskLifecycleService:
                 stage,
                 task_dir,
                 "LIFECYCLE-CONTEXT-001",
-                gate_result=gate_result,
-                summary=summary,
+                check_result=check_result,
             )
         return session_state, session_state[2].task_path
 
@@ -434,8 +416,7 @@ class TaskLifecycleService:
         task_data: dict,
         persisted: dict,
         session_state: object | None,
-        gate_result: object,
-        summary: str,
+        check_result: object,
     ) -> LifecycleResult | None:
         operation_id = self._operation_id(stage, task_dir, task_data)
         unit = UnitOfWork(
@@ -458,8 +439,7 @@ class TaskLifecycleService:
                 task_dir,
                 "LIFECYCLE-UOW-001",
                 title=error.detail,
-                gate_result=gate_result,
-                summary=summary,
+                check_result=check_result,
             )
         return None
 
@@ -499,8 +479,7 @@ class TaskLifecycleService:
         blockers: tuple[str, ...] = (),
         title: str = "",
         hint: str = "",
-        gate_result: object | None = None,
-        summary: str = "",
+        check_result: object | None = None,
     ) -> LifecycleResult:
         return LifecycleResult(
             ok=False,
@@ -510,8 +489,7 @@ class TaskLifecycleService:
             blockers=blockers,
             title=title,
             hint=hint,
-            gate_result=gate_result,
-            summary=summary,
+            check_result=check_result,
         )
 
     @staticmethod
@@ -520,15 +498,13 @@ class TaskLifecycleService:
         task_dir: Path,
         error: TaskRepositoryError,
         *,
-        gate_result: object | None = None,
-        summary: str = "",
+        check_result: object | None = None,
     ) -> LifecycleResult:
         return LifecycleResult(
             ok=False,
             code=error.code,
             stage=stage,
             task_dir=task_dir,
-            gate_result=gate_result,
-            summary=summary,
+            check_result=check_result,
             repository_error=error,
         )

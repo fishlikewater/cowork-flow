@@ -11,12 +11,12 @@ class TestIntentTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.test_intent = importlib.import_module("common.gates.test_intent")
+        self.test_intent = importlib.import_module("common.review.test_intent")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
-        sys.modules.pop("common.gates.test_intent", None)
+        sys.modules.pop("common.review.test_intent", None)
 
     def test_validate_test_intent_no_longer_reads_task_evidence(self) -> None:
         self.assertEqual([], self.test_intent.validate_test_intent(object(), object()))

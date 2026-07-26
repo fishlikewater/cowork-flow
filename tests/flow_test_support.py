@@ -6,12 +6,10 @@ import importlib
 import io
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -47,10 +45,8 @@ class FlowScriptTestCase(unittest.TestCase):
             "application",
             "common.task.active_task",
             "common.core.config",
-            "common.gates.coding_standards",
             "common.core.developer",
             "common.core.quality_sources",
-            "common.gates.gates",
             "common.git.git_context",
             "common.git.git_snapshot",
             "common.core.paths",
@@ -58,10 +54,7 @@ class FlowScriptTestCase(unittest.TestCase):
             "common.task.state_machine",
             "common.task.task_repository",
             "common.task.task_utils",
-            "common.gates.test_intent",
-            "common.gates.validate_coding_standards",
-            "common.gates.validate_implementation",
-            "common.gates.validate_rules",
+            "common.review.test_intent",
             "common",
         ):
             sys.modules.pop(module_name, None)
@@ -86,9 +79,6 @@ class FlowScriptTestCase(unittest.TestCase):
             json.dumps(session_data) + "\n",
             encoding="utf-8",
         )
-        rules_path = root / ".cowork-flow" / "spec" / "runtime" / "rules.json"
-        if not rules_path.exists():
-            self._write_rules_file(root, [])
 
     def _run_git(self, root: Path, *args: str) -> str:
         result = subprocess.run(
@@ -196,48 +186,6 @@ class FlowScriptTestCase(unittest.TestCase):
             )
         return change_dir
 
-    def _write_rules_file(self, root: Path, rules: list[dict]) -> None:
-        rules_path = root / ".cowork-flow" / "spec" / "runtime" / "rules.json"
-        rules_path.parent.mkdir(parents=True, exist_ok=True)
-        rules_path.write_text(
-            json.dumps({"schemaVersion": 1, "rules": rules}, ensure_ascii=False),
-            encoding="utf-8",
-        )
-
-    def _workflow_rule(self, rule_id: str, scope: str) -> dict:
-        validator, parameters = {
-            "R-WF-001": ("runtime.l2_required_file", {"filename": "proposal.md"}),
-            "R-WF-002": ("runtime.l2_required_file", {"filename": "spec.md"}),
-            "R-WF-003": ("runtime.l2_required_file", {"filename": "design.md"}),
-            "R-WF-004": ("runtime.l2_plan_link", {}),
-            "R-WF-005": ("runtime.l2_task_link", {}),
-            "R-WF-007": (
-                "runtime.task_status",
-                {"allowed_statuses": ["review"]},
-            ),
-            "R-WF-008": (
-                "runtime.decision_anchor",
-                {"required_sections": ["目标", "验收标准"]},
-            ),
-            "R-AG-002": ("implementation.spec_files", {}),
-            "R-AG-005": ("implementation.allowed_files", {}),
-            "R-AG-006": ("implementation.premature_abstraction", {}),
-        }.get(rule_id, ("runtime.unknown", {}))
-        return {
-            "id": rule_id,
-            "type": "phase_gate",
-            "severity": "block",
-            "scope": scope,
-            "condition": f"{rule_id} condition",
-            "message": f"{rule_id} blocked",
-            "fix_hint": f"Fix {rule_id}",
-            "source_file": "AGENTS.md",
-            "source_anchor": f"{rule_id}-anchor",
-            "enforcement": "validate_rules",
-            "validator": validator,
-            "parameters": parameters,
-        }
-
     def _write_behavior_prd(self, task_dir: Path) -> None:
         (task_dir / "decision-anchor.md").write_text(
             "# Behavior task\n\n"
@@ -271,14 +219,6 @@ class FlowScriptTestCase(unittest.TestCase):
         )
         for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
             (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-        # 确保 .cowork-flow/spec/runtime/rules.json 存在
-        rules_path = root / ".cowork-flow" / "spec" / "runtime" / "rules.json"
-        if not rules_path.exists():
-            rules_path.parent.mkdir(parents=True, exist_ok=True)
-            template_rules = ROOT / "template" / ".cowork-flow" / "spec" / "runtime" / "rules.json"
-            if template_rules.exists():
-                import shutil
-                shutil.copy(template_rules, rules_path)
         self._write_session_task(root)
 
     def _write_encoding_violation_changes(self, root: Path) -> None:

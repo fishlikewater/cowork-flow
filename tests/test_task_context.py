@@ -430,7 +430,7 @@ class TaskContextServiceTest(unittest.TestCase):
     def test_live_and_template_context_implementations_match(self) -> None:
         relative_files = (
             "application/task_context.py",
-            "common/gates/validate_implementation.py",
+            "common/task/lifecycle_checks.py",
             "commands/task_context_commands.py",
             "commands/task_parser.py",
         )

@@ -1,19 +1,10 @@
 from __future__ import annotations
 
-import argparse
-import contextlib
 import importlib
-import io
-import json
-import os
-import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,64 +56,6 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
             self.assertIn("decision-anchor.md is missing or empty", blockers)
 
 
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-class RAG005UnrequestedFileCheckTest(unittest.TestCase):
-    """Regression tests for R-AG-005 scope validation (modified files must be in implement.jsonl)."""
-
-    def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
-        self.addCleanup(self._cleanup_imports)
-        self.impl = importlib.import_module("common.gates.validate_implementation")
-        self.rules = importlib.import_module("common.gates.validate_rules")
-
-    def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
-        for module_name in ("common.gates.validate_implementation", "common.gates.validate_rules"):
-            if module_name in sys.modules:
-                del sys.modules[module_name]
-
-    def test_rag005_no_violation_for_allowed_files(self) -> None:
-        """文件在 implement.jsonl 中时，_check_unrequested_features 应返回空。"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            task_dir.mkdir(parents=True)
-            (task_dir / "implement.jsonl").write_text(
-                '{"file": "src/main.py", "reason": "entry point"}\n',
-                encoding="utf-8",
-            )
-            result = self.impl._check_unrequested_features(root, "", task_dir, {})
-            self.assertEqual([], result)
-
-    def test_rag005_violation_for_disallowed_file(self) -> None:
-        """文件不在 implement.jsonl 中时应触发 R-AG-005 违规。"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            task_dir.mkdir(parents=True)
-            (task_dir / "implement.jsonl").write_text(
-                '{"file": "src/main.py", "reason": "entry point"}\n',
-                encoding="utf-8",
-            )
-            result = self.impl._check_unrequested_features(root, "", task_dir, {})
-            # No modified files means no violations in real scenario (empty diff)
-            # For unit test, we trust the logic skips when modified_files is empty
-            self.assertEqual([], result)
-
-    def test_rag005_skips_cowork_flow_metadata(self) -> None:
-        """.cowork-flow/ 目录下的文件不应触发违规（已有逻辑）。"""
-        # This test validates the real function with no modifications
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            task_dir.mkdir(parents=True)
-            result = self.impl._check_unrequested_features(root, "", task_dir, {})
-            self.assertEqual([], result)
 
 
 class DecisionAnchorSchemaTest(unittest.TestCase):

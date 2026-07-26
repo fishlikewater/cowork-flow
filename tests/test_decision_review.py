@@ -123,17 +123,16 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
 
             self.assertEqual([], blockers)
 
-    def test_rule_skill_and_definition_of_done_are_consistent(self) -> None:
-        rules = json.loads(
-            (
-                ROOT
-                / "template"
-                / ".cowork-flow"
-                / "spec"
-                / "runtime"
-                / "rules.json"
-            ).read_text(encoding="utf-8")
-        )
+    def test_readiness_skill_and_definition_of_done_are_consistent(self) -> None:
+        readiness_source = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "scripts"
+            / "common"
+            / "task"
+            / "readiness.py"
+        ).read_text(encoding="utf-8")
         definition_of_done = (
             ROOT
             / "template"
@@ -143,21 +142,9 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
             / "definition-of-done.md"
         ).read_text(encoding="utf-8")
 
-        decision_rule = next(
-            rule for rule in rules["rules"] if rule["id"] == "R-WF-006"
-        )
-
         self.assertTrue((ROOT / "template" / "skills" / "decision-audit" / "SKILL.md").is_file())
-        self.assertEqual("block", decision_rule["severity"])
-        self.assertEqual("task_start", decision_rule["scope"])
-        self.assertEqual(
-            ".agents/skills/decision-audit/SKILL.md",
-            decision_rule["source_file"],
-        )
-        self.assertEqual(
-            "decision-review.jsonl",
-            decision_rule["parameters"]["filename"],
-        )
+        self.assertIn("DECISION_REVIEW_FILE", readiness_source)
+        self.assertIn("validate_decision_review_file", readiness_source)
         self.assertIn("decision-review.jsonl", definition_of_done)
         self.assertNotIn("doubt-review.md", definition_of_done)
         self.assertNotIn("update-spec", definition_of_done)

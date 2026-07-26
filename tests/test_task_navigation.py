@@ -178,7 +178,6 @@ class TaskNavigationTest(FlowScriptTestCase):
                     '{"file": "AGENTS.md"}\n',
                     encoding="utf-8",
                 )
-            self._write_rules_file(root, [])
 
             previous_cwd = Path.cwd()
             try:
@@ -704,7 +703,6 @@ class TaskNavigationTest(FlowScriptTestCase):
             (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-            self._write_rules_file(root, [])
 
             previous_cwd = Path.cwd()
             try:

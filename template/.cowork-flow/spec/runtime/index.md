@@ -1,14 +1,15 @@
 # Runtime Specs
 
-本目录存放 workflow runtime 直接读取的机器规范。
+本目录存放 workflow runtime 直接读取的机器配置。
 
-- `rules.json`: workflow rule 元数据单源。执行器可以按 rule id 做事实判断，
-  但 violation 的 `message`、`severity`、`fix_hint` 和来源信息必须来自这里。
 - `contract-registry.json`: hook/plugin 注入 contract digest 的注册表。
 - `host-assets.json`: 宿主平台、资产归属、技能目标、同步保护策略和旧资产迁移清单的单源；结构由 `../schemas/host-assets.schema.json` 约束。
 
-缺少或损坏的 runtime 文件不能静默放行关键门禁。宿主插件可使用最小 fallback
+缺少或损坏的 runtime 文件不能静默放行关键流程能力。宿主插件可使用最小 fallback
 避免崩溃，但必须在 digest 中暴露 warning；doctor/tests 负责发现缺失。
+
+用户自然语言规范不在本目录注册；`task-review` skill 直接读取
+`spec/backend/`、`spec/frontend/`、`spec/guides/` 并输出审查结论。
 
 运行时写入边界：
 
