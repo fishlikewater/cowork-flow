@@ -263,12 +263,12 @@ def _build_resume_checklist(
     notes: list[str] = []
 
     if not snapshot.path:
-        notes.append("No active task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
+        notes.append("No active task for this session. Use `task next --run --title <title>` or `task next <task-dir> --run` with COWORK_FLOW_CONTEXT_ID.")
         notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; read details only after a task is selected.")
         return {"commands": commands, "readFiles": read_files, "notes": notes}
 
     active_task = snapshot.path
-    commands.append(f"./{DIR_WORKFLOW}/run task list-context {active_task}")
+    commands.append(f"Read task context JSONL files under {active_task} directly")
 
     if snapshot.has_decision_anchor:
         read_files.append(f"{active_task}/decision-anchor.md")
@@ -308,7 +308,7 @@ def _append_resume_checklist(
     lines.append(f"- Recovery entrypoint (rerun only if context is stale): {commands[0]}")
 
     if not snapshot.path:
-        lines.append("- No active task for this session. Create a task or run task start with COWORK_FLOW_CONTEXT_ID.")
+        lines.append("- No active task for this session. Use `task next --run --title <title>` or `task next <task-dir> --run` with COWORK_FLOW_CONTEXT_ID.")
         lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; choose a task first.")
         lines.append("")
         return

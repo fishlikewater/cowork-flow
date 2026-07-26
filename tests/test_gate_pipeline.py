@@ -139,6 +139,43 @@ class GatePipelineTest(FlowScriptTestCase):
                 violation_paths,
             )
 
+    def test_r_ag_005_authorizes_deleted_file_context_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps(
+                    {
+                        "file": "src/obsolete.py",
+                        "reason": "Delete obsolete file",
+                        "type": "deleted-file",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            implementation = importlib.import_module(
+                "common.gates.validate_implementation"
+            )
+            rule_index = {"R-AG-005": self._workflow_rule("R-AG-005", "all")}
+
+            with patch.object(
+                implementation,
+                "_get_modified_files",
+                return_value=["src/obsolete.py", "src/unplanned.py"],
+            ):
+                violations = implementation._check_unrequested_features(
+                    root,
+                    "",
+                    task_dir,
+                    rule_index,
+                )
+
+            violation_paths = {violation.get("file") for violation in violations}
+            self.assertNotIn("src/obsolete.py", violation_paths)
+            self.assertEqual({"src/unplanned.py"}, violation_paths)
+
     def test_r_ag_005_checks_unstaged_staged_and_untracked_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -190,7 +227,7 @@ class GatePipelineTest(FlowScriptTestCase):
                 "Implementation gate blocked lifecycle transition",
                 stderr.getvalue(),
             )
-            self.assertNotIn("blocked task review", stderr.getvalue())
+            self.assertNotIn("blocked task_review", stderr.getvalue())
             self.assertIn("R-AG-005", stderr.getvalue())
 
     def test_cmd_review_and_complete_update_active_task_status(self) -> None:
@@ -707,4 +744,4 @@ class GatePipelineTest(FlowScriptTestCase):
             self.assertEqual(1, result)
             self.assertEqual("in_progress", data["status"])
             self.assertIsNone(data["completedAt"])
-            self.assertIn("task review", stderr.getvalue())
+            self.assertIn("task next <task-dir> --run --intent review", stderr.getvalue())

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import importlib
-import shutil
+import json
 import tempfile
 from pathlib import Path
 
@@ -18,70 +18,65 @@ TEMPLATE = ROOT / "template"
 class DomainSkillRoutingTest(FlowScriptTestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.registry_module = importlib.import_module(
-            "common.core.skill_registry"
-        )
         self.context_module = importlib.import_module(
             "application.task_context"
         )
 
     def test_party_has_one_public_facade_and_defaults_to_v2(self) -> None:
-        registry = self.registry_module.load_skill_registry(TEMPLATE)
-        public_party_ids = [
-            entry.id
-            for entry in registry.public_entries
-            if entry.id.startswith("party-mode")
-        ]
-
-        self.assertEqual(["party-mode"], public_party_ids)
-        self.assertEqual(
-            "party-v2 init",
-            registry.entry("party-mode").runtime_command,
+        party_skill = TEMPLATE / "skills/party-mode/SKILL.md"
+        party_manifest = json.loads(
+            (TEMPLATE / "skills/party-mode/manifest.json").read_text(
+                encoding="utf-8"
+            )
         )
 
-        facade = (TEMPLATE / "skills/party-mode/SKILL.md").read_text(
-            encoding="utf-8"
-        )
+        self.assertTrue(party_skill.is_file())
+        self.assertEqual("party-mode", party_manifest["skill"])
+        self.assertEqual("party-v2", party_manifest["commands"][0]["name"])
+
+        facade = party_skill.read_text(encoding="utf-8")
         self.assertIn(".cowork-flow/run party-v2 init", facade)
         self.assertIn("single public Party Mode entrypoint", facade)
         self.assertNotIn("manual fallback", facade.lower())
 
-    def test_registry_routes_domain_guides_by_dev_type_and_path(self) -> None:
-        registry = self.registry_module.load_skill_registry(TEMPLATE)
+    def test_static_domain_guides_route_by_dev_type_and_path(self) -> None:
+        context = self.context_module
 
         self.assertEqual(
-            ("python-design",),
-            tuple(
-                entry.id
-                for entry in registry.domain_entries_for(
+            [".agents/skills/python-runtime-design/SKILL.md"],
+            [
+                entry["file"]
+                for entry in context.get_domain_skill_context(
+                    ROOT,
                     dev_type="backend",
                     paths=(),
                 )
-            ),
+            ],
         )
         self.assertEqual(
-            ("game-design",),
-            tuple(
-                entry.id
-                for entry in registry.domain_entries_for(
-                    dev_type=None,
+            [".agents/skills/game-design/SKILL.md"],
+            [
+                entry["file"]
+                for entry in context.get_domain_skill_context(
+                    ROOT,
                     paths=("games/demo/scene.tscn",),
                 )
-            ),
+            ],
         )
         self.assertEqual(
-            ("meta",),
-            tuple(
-                entry.id
-                for entry in registry.domain_entries_for(
-                    dev_type=None,
+            [".agents/skills/cowork-flow-maintenance/SKILL.md"],
+            [
+                entry["file"]
+                for entry in context.get_domain_skill_context(
+                    ROOT,
                     paths=(".cowork-flow/spec/runtime/rules.json",),
                 )
-            ),
+            ],
         )
         self.assertEqual(
-            (),
-            registry.domain_entries_for(
+            [],
+            context.get_domain_skill_context(
+                ROOT,
                 dev_type="frontend",
                 paths=("src/components/button.tsx",),
             ),
@@ -90,17 +85,12 @@ class DomainSkillRoutingTest(FlowScriptTestCase):
     def test_task_context_injects_unique_domain_guides(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            registry_dir = root / ".cowork-flow/spec/runtime"
-            registry_dir.mkdir(parents=True)
-            shutil.copyfile(
-                TEMPLATE / ".cowork-flow/spec/runtime/skill-registry.json",
-                registry_dir / "skill-registry.json",
-            )
             (root / "src").mkdir()
             (root / "src/example.py").write_text(
                 "value = 1\n",
                 encoding="utf-8",
             )
+            (root / ".cowork-flow").mkdir()
             (root / ".cowork-flow/config.yaml").write_text(
                 "version: 1\n",
                 encoding="utf-8",
@@ -129,11 +119,11 @@ class DomainSkillRoutingTest(FlowScriptTestCase):
             ]
             self.assertEqual(
                 1,
-                files.count(".agents/skills/python-design/SKILL.md"),
+                files.count(".agents/skills/python-runtime-design/SKILL.md"),
             )
             self.assertEqual(
                 1,
-                files.count(".agents/skills/meta/SKILL.md"),
+                files.count(".agents/skills/cowork-flow-maintenance/SKILL.md"),
             )
 
 

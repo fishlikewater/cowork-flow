@@ -1,11 +1,24 @@
 import assert from 'node:assert/strict';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
   createHostRegistry,
   loadHostAssetManifest
 } from '../src/lib/host-assets.js';
-import { skillRegistry } from '../src/lib/skill-registry.js';
+
+
+const TEMPLATE_SKILLS_DIR = new URL('../template/skills/', import.meta.url);
+
+
+function templateSkillIds() {
+  return readdirSync(TEMPLATE_SKILLS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => existsSync(join(TEMPLATE_SKILLS_DIR.pathname, name, 'SKILL.md')))
+    .sort();
+}
 
 
 test('default host registry exposes manifest platform behavior', () => {
@@ -71,17 +84,17 @@ test('active public skills are not obsolete sync targets', () => {
   const registry = createHostRegistry(manifest);
   const obsoleteFiles = new Set(registry.syncPolicy.obsoleteFiles);
 
-  for (const entry of skillRegistry.publicEntries) {
+  for (const skillId of templateSkillIds()) {
     for (const target of registry.skillTargets) {
       assert.equal(
-        obsoleteFiles.has(`${target}/${entry.id}`),
+        obsoleteFiles.has(`${target}/${skillId}`),
         false,
-        entry.id
+        skillId
       );
       assert.equal(
-        obsoleteFiles.has(`${target}/${entry.id}/SKILL.md`),
+        obsoleteFiles.has(`${target}/${skillId}/SKILL.md`),
         false,
-        entry.id
+        skillId
       );
     }
   }

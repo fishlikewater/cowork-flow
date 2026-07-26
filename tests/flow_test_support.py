@@ -190,7 +190,7 @@ class FlowScriptTestCase(unittest.TestCase):
                 "| Task |\n| --- |\n"
                 "| `.cowork-flow/tasks/05-19-child` |\n\n"
                 "## Verification\n\n"
-                "- `python -m unittest discover -s tests`\n"
+                "- `./.cowork-flow/run python -m unittest discover -s tests`\n"
                 "- `git diff --check`\n",
                 encoding="utf-8",
             )
@@ -231,7 +231,7 @@ class FlowScriptTestCase(unittest.TestCase):
             "condition": f"{rule_id} condition",
             "message": f"{rule_id} blocked",
             "fix_hint": f"Fix {rule_id}",
-            "source_file": ".cowork-flow/workflow.md",
+            "source_file": "AGENTS.md",
             "source_anchor": f"{rule_id}-anchor",
             "enforcement": "validate_rules",
             "validator": validator,

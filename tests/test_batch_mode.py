@@ -167,24 +167,15 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
                 (root / ".cowork-flow" / "runtime" / "batches").exists()
             )
 
-    def test_batch_parser_exposes_resume_and_result_commands(self) -> None:
+    def test_batch_internal_commands_are_not_public_parser_commands(self) -> None:
         parser_module = importlib.import_module("commands.task_parser")
         parser = parser_module.build_parser()
 
-        resume = parser.parse_args(["batch-resume", "batch-demo"])
-        record = parser.parse_args(
-            [
-                "batch-record-result",
-                "batch-demo",
-                "--file",
-                "result.json",
-            ]
-        )
-
-        self.assertEqual("batch-resume", resume.command)
-        self.assertEqual("batch-demo", resume.operation_id)
-        self.assertEqual("batch-record-result", record.command)
-        self.assertEqual(Path("result.json"), record.file)
+        for command in ("batch-resume", "batch-record-result"):
+            with self.subTest(command=command):
+                with self.assertRaises(SystemExit) as raised:
+                    parser.parse_args([command])
+                self.assertEqual(2, raised.exception.code)
 
     def test_batch_record_result_command_advances_verified_action(self) -> None:
         batch_execution = importlib.import_module(

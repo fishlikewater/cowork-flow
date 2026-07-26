@@ -21,7 +21,7 @@ ArchiveFinalizer = Callable[[], bool]
 
 
 class TaskArchiveError(RuntimeError):
-    """Raised when a task archive cannot complete safely."""
+    """Raised when an archive_task action cannot complete safely."""
 
     def __init__(self, code: str, path: Path, detail: str) -> None:
         self.code = code

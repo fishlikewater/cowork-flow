@@ -36,7 +36,7 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(code, 0);
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'doubt-review', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'adversarial-review', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'game-design', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
@@ -149,6 +149,8 @@ test('init copies all selected host platforms', async (t) => {
   assert.equal(await exists(join(target, '.opencode', 'plugins', 'cowork-flow.js')), true);
   assert.equal(await exists(join(target, '.claude', 'agents', 'cowork-check.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'party-mode', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'party-mode', 'scripts', 'party_mode_v2.py')), true);
+  assert.equal(await exists(join(target, '.claude', 'skills', 'party-mode', 'scripts', 'party_mode_v2.py')), true);
   assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
   assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
@@ -174,14 +176,23 @@ test('init installs clean-room cowork-flow skills directly', async (t) => {
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.superpowers')), false);
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'batch-mode', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'batch-execution', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'brainstorming', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'doubt-review', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'decision-audit', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'adversarial-review', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'agent-dispatch', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow-maintenance', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'spec-sync', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'batch-execution', 'manifest.json')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'brainstorming', 'manifest.json')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'manifest.json')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'runtime-health', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'runtime-health', 'manifest.json')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'runtime-health', 'scripts', 'doctor.py')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'before-dev', 'SKILL.md')), false);
   assert.equal(await exists(join(target, '.agents', 'skills', 'check', 'SKILL.md')), false);
   assert.equal(await exists(join(target, '.agents', 'skills', 'continue', 'SKILL.md')), false);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'meta', 'SKILL.md')), false);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'python-design', 'SKILL.md')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'python-runtime-design', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'using-superpowers', 'SKILL.md')), false);
 });
 

@@ -430,7 +430,7 @@ def _append_subagent_rules(lines: list[str]) -> None:
         "- If runtime context is missing, closed, invalid, or mismatched, report needs_context and do not execute it.",
         "- Generic worker dispatch is advisory only and cannot complete formal Implement or Check.",
         "- Read only prompt-named files and allowed context unless you ask for more context.",
-        "- Do not run task start, task finish, task archive, or unscoped resume.",
+        "- Do not run standalone lifecycle commands, unscoped resume, archive, or commit actions.",
         "- Stop only with success, needs_context, or blocked status evidence.",
         "",
         "========================================",

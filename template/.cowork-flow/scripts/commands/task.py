@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Compatibility entry point and lifecycle adapters for task commands."""
+"""Task workflow entry point and lifecycle adapters."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ from commands.task_context_commands import (
     cmd_validate,
 )
 from commands.task_create_command import cmd_create, ensure_tasks_dir
-from commands.task_navigation import cmd_next
+from commands import task_navigation
 from commands.task_parser import build_parser, show_usage
 from commands.task_support import (
     Colors,
@@ -228,7 +228,7 @@ def _optional_readiness_blockers(
         blockers = task_readiness_blockers(repo_root, task_dir)
     except Exception:
         return [
-            "readiness check failed; run task validate and inspect "
+            "readiness check failed; run task next <dir> --validate and inspect "
             "linked change"
         ]
     return [str(blocker) for blocker in blockers if str(blocker).strip()]
@@ -245,8 +245,8 @@ def _start_preflight(
             title="Task is not ready to start yet",
             blockers=tuple(blockers),
             hint=(
-                "write decision-anchor.md, run ./.cowork-flow/run task "
-                "init-context <dir> <dev_type>, then retry"
+                "write decision-anchor.md and required context JSONL files, "
+                "then retry `task next <dir> --run`"
             ),
         )
 
@@ -262,7 +262,7 @@ def _start_preflight(
             title="Task context validation failed",
             blockers=tuple(validation_issues),
             hint=(
-                "run ./.cowork-flow/run task validate <dir> and fix the "
+                "run ./.cowork-flow/run task next <dir> --validate and fix the "
                 f"reported issues. {PLANNED_FILE_HINT}"
             ),
         )
@@ -359,7 +359,7 @@ def _report_start_failure(
         return 1
     if result.code == "LIFECYCLE-GATE-001":
         return _report_gate_block(
-            "Spec enforcement blocked task start",
+            "Spec enforcement blocked start_task action",
             result.gate_result,
             service.gate_runner,
         )
@@ -567,8 +567,8 @@ def cmd_complete(args: argparse.Namespace) -> int:
         if result.code == "LIFECYCLE-TRANSITION-001":
             _print_transition_blockers(list(result.blockers))
             print(
-                "Hint: run ./.cowork-flow/run task review <task-dir> "
-                "to mark the task ready for check",
+                "Hint: run ./.cowork-flow/run task next <task-dir> "
+                "--run --intent review to mark the task ready for check",
                 file=sys.stderr,
             )
             return 1
@@ -643,42 +643,228 @@ def cmd_current(args: argparse.Namespace) -> int:
     return 0
 
 
-WORKER_BLOCKED_COMMANDS = frozenset((
-    "create",
-    "init-context",
-    "add-context",
-    "add-planned-file",
-    "start",
-    "batch-resume",
-    "batch-record-result",
-    "review",
-    "complete",
-    "finish",
-    "archive",
-    "add-subtask",
-    "remove-subtask",
-))
+def _next_target_for_run(args: argparse.Namespace, repo_root: Path):
+    target_input = getattr(args, "dir", None)
+    if target_input:
+        task_dir = _resolve_task_dir(target_input, repo_root)
+        return task_dir, _display_task_path(repo_root, task_dir), False
+
+    active = get_active_task(repo_root)
+    if active.task_path:
+        task_dir = repo_root / active.task_path
+        return task_dir, active.task_path, True
+    return None, None, False
+
+
+def _next_payload_for_run(args: argparse.Namespace, repo_root: Path) -> dict[str, object]:
+    task_dir, task_path, active_target = _next_target_for_run(args, repo_root)
+    if task_dir is None or task_path is None:
+        return task_navigation.build_navigation_payload(
+            args=args,
+            status="no_task",
+            blockers=[],
+            active_target=False,
+            task_path=None,
+        )
+    if not task_dir.is_dir():
+        return task_navigation.build_navigation_payload(
+            args=args,
+            status="stale",
+            blockers=[f"task directory not found: {task_path}"],
+            active_target=active_target,
+            task_path=task_path,
+        )
+    status = task_navigation._status(repo_root, task_dir)
+    blockers = task_navigation._blockers(repo_root, task_dir) if status == "planning" else []
+    return task_navigation.build_navigation_payload(
+        args=args,
+        status=status,
+        blockers=blockers,
+        active_target=active_target,
+        task_path=task_path,
+    )
+
+
+def _args_with(args: argparse.Namespace, **overrides) -> argparse.Namespace:
+    values = vars(args).copy()
+    values.update(overrides)
+    return argparse.Namespace(**values)
+
+
+def _run_create_action(args: argparse.Namespace, action: dict[str, object]) -> int:
+    if not getattr(args, "title", None):
+        print(
+            colored("Error: create_task requires --title", Colors.RED),
+            file=sys.stderr,
+        )
+        print(f"Command: {action.get('command')}", file=sys.stderr)
+        return 1
+    return cmd_create(
+        _args_with(
+            args,
+            title=args.title,
+            slug=getattr(args, "slug", None),
+            assignee=getattr(args, "assignee", None),
+            priority=getattr(args, "priority", "P2"),
+            description=getattr(args, "description", None),
+            parent=getattr(args, "parent", None),
+            from_plan=getattr(args, "from_plan", None),
+        )
+    )
+
+
+def _create_input_names(args: argparse.Namespace) -> list[str]:
+    names = (
+        "title",
+        "slug",
+        "assignee",
+        "description",
+        "parent",
+        "from_plan",
+    )
+    return [name for name in names if getattr(args, name, None)]
+
+
+def _validated_next_action(args: argparse.Namespace) -> tuple[dict[str, object] | None, int]:
+    payload = _next_payload_for_run(args, get_repo_root())
+    action = payload.get("action")
+    if not isinstance(action, dict):
+        print(
+            colored("Error: task next did not return an action", Colors.RED),
+            file=sys.stderr,
+        )
+        return None, 1
+    create_inputs = _create_input_names(args)
+    action_id = action.get("id")
+    if create_inputs and action_id != "create_task":
+        print(
+            colored(
+                f"Error: create_task inputs cannot run {action_id}",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        print(
+            "Hint: archive or finish the current task first, then rerun "
+            "`task next --run --title ... --slug ... --assignee <name>`.",
+            file=sys.stderr,
+        )
+        return None, 1
+    if payload.get("blockers") or action.get("blockers"):
+        print(colored("Error: next action is blocked", Colors.RED), file=sys.stderr)
+        for blocker in payload.get("blockers", []) or action.get("blockers", []):
+            print(f"  - {blocker}", file=sys.stderr)
+        return None, 1
+    if not action.get("runnable"):
+        action_id = action.get("id")
+        print(
+            colored(f"Error: next action is not executable: {action_id}", Colors.RED),
+            file=sys.stderr,
+        )
+        if action.get("command"):
+            print(f"Command: {action['command']}", file=sys.stderr)
+        return None, 1
+    return action, 0
+
+
+def _resolved_next_action_task(args: argparse.Namespace, action_id: object) -> str | None:
+    if action_id == "create_task":
+        return None
+    _, task_path_value, _ = _next_target_for_run(args, get_repo_root())
+    if task_path_value is None:
+        print(colored("Error: no task target for action", Colors.RED), file=sys.stderr)
+        return None
+    return task_path_value
+
+
+def _dispatch_next_lifecycle_action(
+    args: argparse.Namespace,
+    action_id: object,
+    task_path: str | None,
+    action: dict[str, object],
+) -> int:
+    if action_id == "create_task":
+        return _run_create_action(args, action)
+    if task_path is None:
+        return 1
+    if action_id == "start_task":
+        return cmd_start(_args_with(
+            args,
+            dir=task_path,
+            auto=bool(getattr(args, "auto", False)),
+            approved=bool(getattr(args, "approved", False)),
+        ))
+    if action_id == "request_review":
+        return cmd_review(_args_with(args, dir=task_path))
+    if action_id == "complete_task":
+        return cmd_complete(_args_with(args, dir=task_path))
+    if action_id == "archive_task":
+        return cmd_archive(_args_with(
+            args,
+            name=Path(str(task_path)).name,
+            commit=bool(getattr(args, "commit", False)),
+        ))
+    if action_id == "batch_execute":
+        return cmd_start(_args_with(
+            args,
+            dir=task_path,
+            auto=True,
+            approved=bool(getattr(args, "approved", False)),
+        ))
+    print(
+        colored(f"Error: unsupported next action: {action_id}", Colors.RED),
+        file=sys.stderr,
+    )
+    return 1
+
+
+def _run_next_action(args: argparse.Namespace) -> int:
+    action, error_code = _validated_next_action(args)
+    if action is None:
+        return error_code
+    action_id = action.get("id")
+    task_path = _resolved_next_action_task(args, action_id)
+    return _dispatch_next_lifecycle_action(args, action_id, task_path, action)
+
+def cmd_next(args: argparse.Namespace) -> int:
+    """Show or run the next workflow action."""
+    if getattr(args, "list_tasks", False):
+        if getattr(args, "run", False):
+            print(
+                colored("Error: --list is read-only; remove --run", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        return cmd_list(
+            _args_with(
+                args,
+                mine=bool(getattr(args, "mine", False)),
+                status=getattr(args, "status", None),
+            )
+        )
+    if getattr(args, "validate", False):
+        if getattr(args, "run", False):
+            print(
+                colored("Error: --validate is read-only; remove --run", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        if not getattr(args, "dir", None):
+            print(
+                colored("Error: --validate requires a task dir", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        return cmd_validate(_args_with(args, dir=args.dir))
+    if getattr(args, "run", False):
+        return _run_next_action(args)
+    return task_navigation.cmd_next(args)
+
+
+WORKER_BLOCKED_COMMANDS = frozenset()
 
 COMMANDS = {
-    "create": cmd_create,
-    "init-context": cmd_init_context,
-    "add-context": cmd_add_context,
-    "add-planned-file": cmd_add_planned_file,
-    "validate": cmd_validate,
-    "list-context": cmd_list_context,
-    "start": cmd_start,
-    "batch-resume": cmd_batch_resume,
-    "batch-record-result": cmd_batch_record_result,
-    "current": cmd_current,
-    "review": cmd_review,
-    "complete": cmd_complete,
     "next": cmd_next,
-    "finish": cmd_finish,
-    "archive": cmd_archive,
-    "add-subtask": cmd_add_subtask,
-    "remove-subtask": cmd_remove_subtask,
-    "list": cmd_list,
-    "list-archive": cmd_list_archive,
 }
 
 

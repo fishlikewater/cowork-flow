@@ -21,12 +21,15 @@ wall the user must satisfy.
 from __future__ import annotations
 
 import json
+import io
 import re
 import sys
+import tokenize
 from pathlib import Path
 from typing import Sequence
 
 from common.gates.coding_standards import validate_changed_files
+from common.git.git_context import _run_git_command
 from common.git.git_snapshot import collect_changed_files, collect_changed_paths
 
 # Source files our spec validators inspect.
@@ -48,6 +51,7 @@ _SECRET_RE = re.compile(
 _SILENT_EXCEPT_RE = re.compile(r"^\s*except\b\s*.*:\s*(#.*)?$")
 _BARE_PRINT_RE = re.compile(r"(?<!\w)print\s*\(")
 _CONSOLE_RE = re.compile(r"\bconsole\.(log|info|debug)\s*\(")
+_DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 _JS_SUFFIXES = {".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"}
 
 
@@ -211,16 +215,86 @@ def _machine_check_violations_for_file(repo_root: Path, changed_file: object) ->
         content = file_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
-    return _machine_check_violations_for_lines(changed_file.path, suffix, content.splitlines())
+    lines = content.splitlines()
+    line_numbers = _changed_line_numbers(repo_root, changed_file, len(lines))
+    if not line_numbers:
+        return []
+    return _machine_check_violations_for_lines(
+        changed_file.path,
+        suffix,
+        lines,
+        line_numbers,
+    )
+
+
+def _changed_line_numbers(
+    repo_root: Path,
+    changed_file: object,
+    total_lines: int,
+) -> set[int]:
+    statuses = set(getattr(changed_file, "statuses", ()) or ())
+    if "untracked" in statuses:
+        return set(range(1, total_lines + 1))
+
+    line_numbers: set[int] = set()
+    if "staged" in statuses:
+        line_numbers.update(
+            _diff_added_line_numbers(repo_root, changed_file.path, cached=True)
+        )
+    if "modified" in statuses:
+        line_numbers.update(
+            _diff_added_line_numbers(repo_root, changed_file.path, cached=False)
+        )
+    return line_numbers
+
+
+def _diff_added_line_numbers(
+    repo_root: Path,
+    rel_path: str,
+    *,
+    cached: bool,
+) -> set[int]:
+    args = ["diff", "--unified=0"]
+    if cached:
+        args.append("--cached")
+    args.extend(("--", rel_path))
+    returncode, stdout, _ = _run_git_command(args, cwd=repo_root)
+    if returncode != 0:
+        return set()
+    return _parse_diff_added_line_numbers(stdout)
+
+
+def _parse_diff_added_line_numbers(diff_output: str) -> set[int]:
+    line_numbers: set[int] = set()
+    new_lineno: int | None = None
+    for raw in diff_output.splitlines():
+        hunk = _DIFF_HUNK_RE.match(raw)
+        if hunk:
+            new_lineno = int(hunk.group(1))
+            continue
+        if new_lineno is None or raw.startswith("\\"):
+            continue
+        if raw.startswith("+") and not raw.startswith("+++"):
+            line_numbers.add(new_lineno)
+            new_lineno += 1
+        elif raw.startswith("-") and not raw.startswith("---"):
+            continue
+        else:
+            new_lineno += 1
+    return line_numbers
 
 
 def _machine_check_violations_for_lines(
     rel_path: str,
     suffix: str,
     lines: list[str],
+    line_numbers: set[int],
 ) -> list[dict]:
     violations: list[dict] = []
-    for lineno, raw in enumerate(lines, start=1):
+    for lineno in sorted(line_numbers):
+        if lineno < 1 or lineno > len(lines):
+            continue
+        raw = lines[lineno - 1]
         violations.extend(_machine_check_violations_for_line(rel_path, suffix, lines, lineno, raw))
     return violations
 
@@ -240,7 +314,7 @@ def _machine_check_violations_for_line(
             rel_path, lineno,
             "Read the value from configuration or environment variables.",
         ))
-    if suffix == ".py" and _BARE_PRINT_RE.search(raw):
+    if suffix == ".py" and _looks_like_debug_print(rel_path, raw):
         violations.append(_adv(
             "MACHINE-DEBUG-PRINT-001",
             "Debug print on changed line",
@@ -270,6 +344,37 @@ def _looks_like_hardcoded_secret(raw: str) -> bool:
         _SECRET_RE.search(raw) is not None
         and "process.env" not in raw
         and "os.environ" not in raw
+    )
+
+
+def _looks_like_debug_print(rel_path: str, raw: str) -> bool:
+    return (
+        _python_line_has_print_call(raw)
+        and not _is_cli_output_path(rel_path)
+    )
+
+
+def _python_line_has_print_call(raw: str) -> bool:
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(raw).readline))
+    except tokenize.TokenError:
+        return _BARE_PRINT_RE.search(raw) is not None
+    for index, token in enumerate(tokens[:-1]):
+        if token.type != tokenize.NAME or token.string != "print":
+            continue
+        following = tokens[index + 1]
+        if following.type == tokenize.OP and following.string == "(":
+            return True
+    return False
+
+
+def _is_cli_output_path(rel_path: str) -> bool:
+    normalized = rel_path.replace("\\", "/")
+    return (
+        "/.cowork-flow/scripts/commands/" in normalized
+        or normalized.endswith("/.cowork-flow/scripts/run.py")
+        or normalized.endswith("/skills/party-mode/scripts/party_mode_v2.py")
+        or normalized.endswith("/skills/runtime-health/scripts/doctor.py")
     )
 
 

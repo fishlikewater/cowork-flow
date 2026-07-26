@@ -41,5 +41,5 @@
 ## 参见
 
 - `spec/backend/quality-guidelines.md` — 后端测试规范
-- `skills/tdd/SKILL.md` — 完整的 TDD 流程
+- `skills/test-first/SKILL.md` — 完整的 TDD 流程
 - `references/security-checklist.md` — 测试中的安全边界检查

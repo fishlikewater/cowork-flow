@@ -4,10 +4,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from common.core.execution_context import (
     ExecutionContextError,
@@ -28,9 +30,6 @@ COMMAND_SCRIPTS = {
     "add-session": "commands/add_session.py",
     "add_session": "commands/add_session.py",
     "subagent": "commands/subagent.py",
-    "doctor": "commands/doctor.py",
-    "party-v2": "commands/party_mode_v2.py",
-    "party_v2": "commands/party_mode_v2.py",
 }
 
 CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}
@@ -63,15 +62,86 @@ def scripts_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def project_root() -> Path:
+    return scripts_dir().parents[1].resolve()
+
+
+def skill_roots() -> tuple[Path, ...]:
+    root = project_root()
+    return (
+        root / ".agents" / "skills",
+        root / ".claude" / "skills",
+        root / "skills",
+        root / "template" / "skills",
+    )
+
+
+def _load_manifest(path: Path) -> dict[str, Any] | None:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _command_names(raw_command: object) -> tuple[str, ...]:
+    if not isinstance(raw_command, dict):
+        return ()
+    name = raw_command.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return ()
+    aliases = raw_command.get("aliases")
+    values = [name.strip()]
+    if isinstance(aliases, list):
+        values.extend(alias.strip() for alias in aliases if isinstance(alias, str) and alias.strip())
+    return tuple(dict.fromkeys(values))
+
+
+def _resolve_manifest_script(manifest_path: Path, raw_command: object) -> Path | None:
+    if not isinstance(raw_command, dict):
+        return None
+    script = raw_command.get("script")
+    if not isinstance(script, str) or not script.strip():
+        return None
+    skill_dir = manifest_path.parent.resolve()
+    script_path = (skill_dir / script).resolve()
+    try:
+        script_path.relative_to(skill_dir)
+    except ValueError:
+        return None
+    return script_path if script_path.is_file() else None
+
+
+def skill_command_scripts() -> dict[str, Path]:
+    commands: dict[str, Path] = {}
+    for root in skill_roots():
+        if not root.is_dir():
+            continue
+        for manifest_path in sorted(root.glob("*/manifest.json")):
+            manifest = _load_manifest(manifest_path)
+            if manifest is None:
+                continue
+            raw_commands = manifest.get("commands", [])
+            if not isinstance(raw_commands, list):
+                continue
+            for raw_command in raw_commands:
+                script_path = _resolve_manifest_script(manifest_path, raw_command)
+                if script_path is None:
+                    continue
+                for command_name in _command_names(raw_command):
+                    commands.setdefault(command_name, script_path)
+    return commands
+
+
 def resolve_project_python_script(command: str) -> Path | None:
     candidate = Path(command)
     if candidate.is_absolute() or candidate.suffix.lower() != ".py":
         return None
 
-    project_root = scripts_dir().parents[1].resolve()
-    script_path = (project_root / candidate).resolve()
+    root = project_root()
+    script_path = (root / candidate).resolve()
     try:
-        script_path.relative_to(project_root)
+        script_path.relative_to(root)
     except ValueError:
         return None
     return script_path if script_path.is_file() else None
@@ -99,6 +169,26 @@ def run_script(script_name: str, args: list[str]) -> int:
     return run_python([str(script_path), *args], pythonpath=scripts_dir())
 
 
+def run_skill_script(script_path: Path, args: list[str]) -> int:
+    return run_python([str(script_path), *args], pythonpath=scripts_dir())
+
+
+def reject_context_flags_for(command_label: str) -> int:
+    print(
+        f"Error: execution context flags are not supported with {command_label}.",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def reject_non_context_aware_command() -> int:
+    print(
+        f"Error: execution context flags are only supported for: {', '.join(sorted(CONTEXT_AWARE_COMMANDS))}",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     raw_args = list(sys.argv[1:] if argv is None else argv)
     if not raw_args:
@@ -121,39 +211,29 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if command == "python":
         if not context.is_default:
-            print(
-                "Error: execution context flags are not supported with the `python` passthrough command.",
-                file=sys.stderr,
-            )
-            return 2
+            return reject_context_flags_for("the `python` passthrough command")
         return run_python(rest, pythonpath=scripts_dir())
 
     project_script = resolve_project_python_script(command)
     if project_script is not None:
         if not context.is_default:
-            print(
-                "Error: execution context flags are not supported with project Python scripts.",
-                file=sys.stderr,
-            )
-            return 2
+            return reject_context_flags_for("project Python scripts")
         return run_python([str(project_script), *rest], pythonpath=scripts_dir())
+
+    skill_script = skill_command_scripts().get(command)
+    if skill_script is not None:
+        if not context.is_default:
+            return reject_non_context_aware_command()
+        return run_skill_script(skill_script, rest)
 
     script_name = COMMAND_SCRIPTS.get(command)
     if script_name is None:
-        candidate = scripts_dir() / "commands" / f"{command}.py"
-        if candidate.is_file():
-            script_name = f"commands/{candidate.name}"
-        else:
-            print(f"Error: unknown cowork-flow command: {command}", file=sys.stderr)
-            print_usage()
-            return 2
+        print(f"Error: unknown cowork-flow command: {command}", file=sys.stderr)
+        print_usage()
+        return 2
 
     if not context.is_default and command not in CONTEXT_AWARE_COMMANDS:
-        print(
-            f"Error: execution context flags are only supported for: {', '.join(sorted(CONTEXT_AWARE_COMMANDS))}",
-            file=sys.stderr,
-        )
-        return 2
+        return reject_non_context_aware_command()
 
     return run_script(script_name, [*context_to_internal_cli_args(context), *rest])
 

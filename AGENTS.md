@@ -32,7 +32,7 @@
 
 状态路由：
 
-- `no_task` → **阻断**。拒绝写代码；引导 brainstorming → plan → task create → task start。
+- `no_task` → **阻断**。拒绝写代码；引导 brainstorming → plan → `task next --run --title ...` 创建任务，再对目标任务执行 `task next <dir> --run`。
 - `delegated_subtask` → 按子代理规则执行，派发方核验绑定。
 - `planning` → **阻断**。decision-anchor.md 和 implement.jsonl 就绪前不允许实现或派发 cowork-implement。
 - `in_progress` / `review` → 放行；按当前阶段推进。
@@ -43,7 +43,7 @@
 - 只读问答。
 - 纯查询命令（`git status`、`task next`、`task current`）。
 - 用户明确说"跳过流程"。
-- `task next` / `task validate` 本身。
+- `task next` / `task next --validate` 本身。
 
 不确定是否需要写代码时，先运行 `task next`。
 
@@ -151,5 +151,5 @@
 - 跟丢上下文时停下来重新整理
 
 <!-- COWORK-FLOW:START -->
-项目流程以 `.cowork-flow/workflow.md` 为准；规范从 `.cowork-flow/spec/` 读取。
+项目流程以 `task next`、runtime gate、Skill command manifests 和 `.cowork-flow/spec/` 硬契约为准；不要维护第二套流程文档或 Skill 注册控制面。
 <!-- COWORK-FLOW:END -->

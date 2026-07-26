@@ -6,14 +6,16 @@ description: Route cowork-flow work through one authoritative workflow entry. Us
 # Cowork Flow
 
 Use this Skill as the only public workflow router. Do not reproduce lifecycle
-rules from other Skills.
+rules from other Skills. Do not read or recreate a standalone process-authority document;
+`task next`, runtime action specs, Skill command manifests, and `.cowork-flow/spec/` are the
+authoritative flow surfaces.
 
 ## Resolve State
 
 1. Use the injected `<workflow-state>` when present.
 2. If state is absent, run `./.cowork-flow/run task next --json` exactly once.
 3. Treat `status`, `allowedOperations`, `requiredArtifacts`,
-   `recommendedSkill`, `internalProtocols`, and `blockers` as authoritative.
+   `recommendedSkill`, and `blockers` as authoritative.
 4. Stop repository mutations when blockers exclude the requested operation.
 
 ## Classify Intent
@@ -31,13 +33,13 @@ Classify the request into exactly one intent:
 - `batch`: request automated execution of a task graph.
 
 For `question`, answer directly when `answer_questions` is allowed. Do not load
-implementation or review protocols.
+implementation or review Skills.
 
 ## Route
 
-Use the active public Registry entry whose status and intent match the request.
-Select at most one public Skill. If there is no match, follow the allowed
+Use the `task next` route payload and its `activatedSkill`/`recommendedSkill` fields.
+Select at most one public Skill. If the payload has no Skill, follow the allowed
 operation directly or report the blocker; never guess a second workflow entry.
 
-Load only the protocols listed in `internalProtocols`. These protocols refine
-execution but are not public alternatives and cannot override Runtime Gates.
+Public Skills carry workflow guidance. Runtime Gates carry hard enforcement.
+Do not recreate an internal protocol layer or another process authority.

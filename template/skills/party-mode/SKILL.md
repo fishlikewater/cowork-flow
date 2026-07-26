@@ -8,8 +8,9 @@ description: Use when the user manually requests Party Mode or a runtime-control
 Use this skill as the single public Party Mode entrypoint.
 
 The Python runtime is the source of truth for discussion state, board
-visibility, validation, round limits, and final reports. The runtime board owns
-child-visible discussion state.
+visibility, validation, round limits, and final reports. Its controller lives at
+`scripts/party_mode_v2.py`. The runtime board owns child-visible discussion
+state.
 
 ## Boundaries
 

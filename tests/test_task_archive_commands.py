@@ -297,7 +297,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
                     self.task.main()
 
         self.assertEqual(2, raised.exception.code)
-        self.assertIn("unrecognized arguments: --no-commit", stderr.getvalue())
+        self.assertIn("invalid choice: 'archive'", stderr.getvalue())
 
     def test_add_session_rejects_removed_no_commit_flag(self) -> None:
         with patch.object(
@@ -533,7 +533,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
                 output,
             )
             self.assertIn("Read active task decision-anchor: .cowork-flow/tasks/05-19-demo/decision-anchor.md", output)
-            self.assertIn("List task context before reading details: ./.cowork-flow/run task list-context .cowork-flow/tasks/05-19-demo", output)
+            self.assertIn("Read task context JSONL files under .cowork-flow/tasks/05-19-demo directly", output)
             self.assertIn("Read current plan status: .cowork-flow/plans/2026-05-19-demo.md", output)
             self.assertIn("Do not bulk-read .cowork-flow/spec/ or workspace journals", output)
 

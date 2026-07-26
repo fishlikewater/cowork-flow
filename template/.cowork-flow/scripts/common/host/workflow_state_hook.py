@@ -91,7 +91,7 @@ def build_hook_context(
             "Scope: subagent",
             (
                 "Runtime context is missing, closed, or invalid. "
-                "Do not run start/resume/task start/archive/commit/spawn."
+                "Do not run standalone lifecycle commands, resume, archive, commit, or spawn."
             ),
         ]
     else:
@@ -99,7 +99,7 @@ def build_hook_context(
 
     body = (
         breadcrumbs.get(status)
-        or "Refer to .cowork-flow/workflow.md for the current step."
+        or "Run ./.cowork-flow/run task next --json for the current workflow route."
     )
     if extra_lines:
         body = "\n".join([body, *extra_lines])
@@ -280,7 +280,7 @@ def _subagent_runtime_lines(context: dict[str, Any]) -> list[str]:
         f"Runtime context: {context.get('runtime_context_id')}",
         f"Agent: {context.get('agent_type') or 'unknown'}",
         "Scope: subagent",
-        "Do not run start/resume/task start/archive/commit/spawn.",
+        "Do not run standalone lifecycle commands, resume, archive, commit, or spawn.",
     ]
     goal = assignment.get("goal")
     if isinstance(goal, str) and goal.strip():

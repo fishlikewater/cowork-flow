@@ -6,11 +6,11 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from common.core.files import read_text_utf8
 from common.core.quality_sources import quality_source_entries
-from common.core.skill_registry import SkillRegistryError, load_skill_registry
 from common.core.paths import (
     DIR_AGENTS,
     DIR_SPEC,
@@ -21,11 +21,37 @@ from common.core.paths import (
 
 
 CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
-CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file"))
+CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file", "deleted-file"))
+DOMAIN_SKILL_RULES = (
+    {
+        "name": "game-design",
+        "label": "Game Design",
+        "dev_types": (),
+        "path_patterns": ("**/*.godot", "**/*.tscn", "**/game/**", "**/games/**"),
+    },
+    {
+        "name": "cowork-flow-maintenance",
+        "label": "Cowork Flow Maintenance",
+        "dev_types": ("spec",),
+        "path_patterns": (".cowork-flow/**", "template/.cowork-flow/**", "template/skills/**"),
+    },
+    {
+        "name": "python-runtime-design",
+        "label": "Python Runtime Design",
+        "dev_types": ("backend", "test"),
+        "path_patterns": ("**/*.py",),
+    },
+    {
+        "name": "test-first",
+        "label": "Test First",
+        "dev_types": ("test",),
+        "path_patterns": ("test/**", "tests/**", "**/*.test.js", "**/*_test.py"),
+    },
+)
 PLANNED_FILE_HINT = (
-    "If this is a planned new file, run "
-    "./.cowork-flow/run task add-planned-file <dir> <jsonl> <path> "
-    '"reason" or add "type": "planned-file" to the JSONL entry.'
+    "If this is a planned new file, add "
+    '"type": "planned-file"; if this is an already-deleted file in scope, add '
+    '"type": "deleted-file" before running `task next --run`.'
 )
 
 
@@ -99,7 +125,7 @@ def _is_valid_context_path(
         or re.match(r"^[A-Za-z]:", normalized) is not None
         or any(segment in ("", ".", "..") for segment in segments)
         or any(character in normalized for character in "*?[]")
-        or (entry_type == "planned-file" and str(path).endswith(("/", "\\")))
+        or (entry_type in {"planned-file", "deleted-file"} and str(path).endswith(("/", "\\")))
     )
 
 
@@ -151,6 +177,7 @@ def prepare_context_entry(
     valid_target = {
         "directory": full_path.is_dir(),
         "planned-file": not full_path.is_dir(),
+        "deleted-file": not full_path.is_dir(),
         "file": full_path.is_file(),
     }[entry_type]
     if not valid_target:
@@ -233,6 +260,8 @@ def _validate_context_entry_target(
 ) -> ContextValidationIssue | None:
     if entry_type == "planned-file":
         return _planned_file_issue(context_file, line, normalized_path, full_path)
+    if entry_type == "deleted-file":
+        return _deleted_file_issue(context_file, line, normalized_path, full_path)
     if entry_type == "directory" and not full_path.is_dir():
         return _context_issue(
             context_file,
@@ -263,6 +292,22 @@ def _planned_file_issue(
         line,
         "invalid_path",
         f"Planned file is a directory: {normalized_path}",
+    )
+
+
+def _deleted_file_issue(
+    context_file: str,
+    line: int,
+    normalized_path: str,
+    full_path: Path,
+) -> ContextValidationIssue | None:
+    if not full_path.is_dir():
+        return None
+    return _context_issue(
+        context_file,
+        line,
+        "invalid_path",
+        f"Deleted file is a directory: {normalized_path}",
     )
 
 
@@ -304,10 +349,6 @@ def get_implement_base() -> list[dict]:
             "reason": "Project collaboration rules and workflow gates",
         },
         {
-            "file": f"{DIR_WORKFLOW}/workflow.md",
-            "reason": "Project workflow and conventions",
-        },
-        {
             "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/index.md",
             "reason": "Pre-implementation thinking guides",
         },
@@ -319,12 +360,12 @@ def get_implement_base() -> list[dict]:
             "reason": "Mandatory pre-coding checklist",
         },
         {
-            "file": protocol_path("decision-review"),
-            "reason": "Structured decision review evidence contract",
+            "file": skill_path("decision-audit"),
+            "reason": "Structured decision review evidence Skill",
         },
         {
-            "file": protocol_path("spec-maintenance"),
-            "reason": "Specification maintenance decision protocol",
+            "file": skill_path("spec-sync"),
+            "reason": "Specification maintenance Skill",
         },
     ]
 
@@ -392,24 +433,24 @@ def get_domain_skill_context(
     dev_type: str | None = None,
     paths: tuple[str, ...] = (),
 ) -> list[dict]:
-    try:
-        registry = load_skill_registry(repo_root, validate_sources=False)
-    except SkillRegistryError:
-        return []
+    normalized_dev_type = (dev_type or "").strip()
+    normalized_paths = tuple(
+        str(path).replace("\\", "/").removeprefix("./")
+        for path in paths
+    )
     return [
         {
-            "file": skill_path(entry.id, repo_root),
-            "reason": f"Auto-routed {entry.display_name} domain guide",
+            "file": skill_path(str(rule["name"]), repo_root),
+            "reason": f"Auto-routed {rule['label']} domain guide",
         }
-        for entry in registry.domain_entries_for(
-            dev_type=dev_type,
-            paths=paths,
+        for rule in DOMAIN_SKILL_RULES
+        if normalized_dev_type in rule["dev_types"]
+        or any(
+            fnmatchcase(path, pattern)
+            for path in normalized_paths
+            for pattern in rule["path_patterns"]
         )
     ]
-
-
-def protocol_path(name: str) -> str:
-    return f"{DIR_WORKFLOW}/{DIR_SPEC}/protocols/{name}.md"
 
 
 def is_skill_path(file_path: str) -> bool:
@@ -438,16 +479,16 @@ def discover_spec_files(repo_root: Path, dev_type: str) -> list[str]:
 def get_check_context(repo_root: Path, dev_type: str) -> list[dict]:
     entries = [
         {
-            "file": protocol_path("review"),
-            "reason": "Quality, contract, and template consistency check",
+            "file": skill_path("task-review", repo_root),
+            "reason": "Quality, contract, and template consistency review Skill",
         },
         {
-            "file": protocol_path("decision-review"),
-            "reason": "Verify structured decision review evidence",
+            "file": skill_path("decision-audit", repo_root),
+            "reason": "Verify structured decision review evidence Skill",
         },
         {
-            "file": protocol_path("spec-maintenance"),
-            "reason": "Verify specification maintenance decisions",
+            "file": skill_path("spec-sync", repo_root),
+            "reason": "Verify specification maintenance Skill",
         },
         {
             "file": skill_path("cowork-flow", repo_root),
@@ -474,15 +515,15 @@ def get_debug_context(
     del dev_type
     return [
         {
-            "file": skill_path("break-loop", root),
+            "file": skill_path("failure-analysis", root),
             "reason": "Deep bug analysis workflow",
         },
         {
-            "file": protocol_path("spec-maintenance"),
+            "file": skill_path("spec-sync", root),
             "reason": "Capture implementation lessons and contracts",
         },
         {
-            "file": protocol_path("review"),
+            "file": skill_path("task-review", root),
             "reason": "Verify the fix and related contracts",
         },
     ]
@@ -575,7 +616,10 @@ class TaskContextService:
         if not already_exists:
             with context_file.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        if self._context_file_name(context_name) == "implement.jsonl":
+        if (
+            entry_type != "planned-file"
+            and self._context_file_name(context_name) == "implement.jsonl"
+        ):
             self._append_domain_guides(
                 context_file,
                 paths=(normalized_path,),

@@ -75,12 +75,10 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             TEMPLATE / ".codex" / "agents",
             TEMPLATE / ".claude" / "agents",
             TEMPLATE / ".opencode" / "agents",
-            TEMPLATE / ".cowork-flow" / "workflow.md",
             TEMPLATE / ".cowork-flow" / "scripts",
             TEMPLATE / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",
             TEMPLATE / ".cowork-flow" / "spec" / "references" / "definition-of-done.md",
             TEMPLATE / ".zcode" / "scaffold" / "AGENTS.md",
-            TEMPLATE / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md",
         )
         suffixes = {".md", ".py", ".toml"}
         offenders: list[str] = []
@@ -110,6 +108,13 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
     def test_template_does_not_ship_superpowers_seed(self) -> None:
         self.assertFalse((TEMPLATE / ".superpowers").exists())
+
+    def test_internal_protocol_files_are_not_shipped(self) -> None:
+        for name in ("review.md", "decision-review.md", "spec-maintenance.md"):
+            self.assertFalse(
+                (TEMPLATE / ".cowork-flow" / "spec" / "protocols" / name).exists(),
+                name,
+            )
 
     def test_change_directories_do_not_define_tasks_md(self) -> None:
         tasks_files = sorted(

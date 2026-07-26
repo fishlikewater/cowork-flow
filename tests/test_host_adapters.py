@@ -187,21 +187,23 @@ class HostAdaptersTest(unittest.TestCase):
             ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "party-mode-v2-board.md",
             ROOT / "template" / ".opencode" / "commands" / "party-mode-v2.md",
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / "skills" / "party-mode" / "SKILL.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         )
         for path in paths:
             self.assertTrue(path.is_file(), f"missing: {path}")
 
-    def test_workflow_is_host_neutral(self) -> None:
+    def test_flow_surfaces_are_host_neutral(self) -> None:
         banned = ("spawn_agent", "fork_turns", "wait_agent", "list_agents", "close_agent", "codex exec")
         for path in (
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
+            ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md",
+            ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         ):
             text = path.read_text(encoding="utf-8")
-            self.assertIn("宿主适配器契约", text)
-            self.assertIn("subagent-dispatch.md", text)
-            self.assertIn("runtime context", text)
+            if path.name == "subagent-dispatch.md":
+                self.assertIn("runtime context", text)
+            else:
+                self.assertIn("only public workflow router", text)
             self.assertNotIn(LEGACY_DISPATCH, text)
             self.assertNotIn(LEGACY_ACK, text)
             for marker in banned:
@@ -214,12 +216,9 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("mode: subagent", text)
                 self.assertIn("task: deny", text)
                 self.assertNotIn("COWORK_ENTRY_CONTRACT_V1", text)
-                self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
-                self.assertIn("cowork_host_context_key: <host_context_key>", text)
-                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
-                self.assertIn("bound runtime context", text)
+                self.assertIn("agent-dispatch", text)
                 self.assertIn("needs_context", text)
-                self.assertIn("leaf", text)
+                self.assertIn("invoke subagents", text)
 
             for name in ("cowork-research", "cowork-implement", "cowork-check"):
                 text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")
@@ -252,12 +251,8 @@ class HostAdaptersTest(unittest.TestCase):
                 text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn(f"name: {name}", text)
                 self.assertNotIn("COWORK_ENTRY_CONTRACT_V1", text)
-                self.assertIn("cowork_runtime_context_id: <runtime_context_id>", text)
-                self.assertIn("cowork_host_context_key: <host_context_key>", text)
-                self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
-                self.assertIn("bound runtime context", text)
+                self.assertIn("agent-dispatch", text)
                 self.assertIn("needs_context", text)
-                self.assertIn("leaf", text)
                 self.assertTrue(
                     "Do not use the" in text and "tool or invoke subagents" in text,
                     f"Missing subagent restriction in {name}.md"
@@ -277,11 +272,11 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("description:", text)
                 self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
 
-            review_protocol = (
-                ROOT / "template" / ".cowork-flow" / "spec" / "protocols" / "review.md"
+            review_skill = (
+                ROOT / "template" / "skills" / "task-review" / "SKILL.md"
             ).read_text(encoding="utf-8")
-            self.assertIn("# Review Protocol", review_protocol)
-            self.assertIn("test_intent_review", review_protocol)
+            self.assertIn("# Task Review", review_skill)
+            self.assertIn("test_intent_review", review_skill)
 
             settings = json.loads((base / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(
@@ -327,6 +322,7 @@ class HostAdaptersTest(unittest.TestCase):
             "build_hook_context",
         ):
             self.assertIn(marker, core)
+        self.assertNotIn("workflow.md", core)
 
         for hook_path in (
             ROOT / "template" / ".codex" / "hooks" / "inject-workflow-state.py",

@@ -1,9 +1,9 @@
 ---
-name: tdd
+name: test-first
 description: Use when implementing behavior changes with red-green-refactor discipline. Guides test-first development without creating workflow evidence artifacts or lifecycle gates.
 ---
 
-# TDD
+# Test First
 
 Use this Skill to practice test-first implementation inside the active cowork-flow task. This Skill does not start, review, complete, archive, dispatch, route tasks, or require JSONL evidence records; use `cowork-flow` for lifecycle state.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only task workflow navigation command."""
+"""Task workflow navigation and deterministic action contract."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from commands.task_archive_commands import linked_active_changes_for_task
 from commands.task_support import resolve_task_dir
 from common.core.execution_context import execution_context_from_namespace
 from common.core.paths import get_repo_root
-from common.core.skill_registry import SkillRegistry, load_skill_registry
 from common.gates.gates import GateRunner
 from common.task.active_task import get_active_task
 from common.task.readiness import task_readiness_blockers
@@ -32,18 +31,6 @@ USER_INTENTS = (
     "discuss",
     "batch",
 )
-INTENT_REGISTRY_KEYS = {
-    "question": None,
-    "clarify": "clarify_requirement",
-    "plan": "write_plan",
-    "implement": "route_workflow",
-    "archive": "route_workflow",
-    "review": "route_workflow",
-    "doubt_review": "doubt_review",
-    "debug": "analyze_repeated_failure",
-    "discuss": "discuss_options",
-    "batch": "batch_execute_plan",
-}
 INTENT_OPERATIONS = {
     "question": {"answer_questions"},
     "clarify": {"edit_planning_artifacts"},
@@ -51,6 +38,7 @@ INTENT_OPERATIONS = {
     "implement": {
         "implement_change",
         "execute_delegated_work",
+        "start_task",
     },
     "archive": {"archive_task"},
     "review": {"request_review", "verify_change", "complete_task"},
@@ -58,6 +46,99 @@ INTENT_OPERATIONS = {
     "debug": {"debug_failure"},
     "discuss": {"discuss_options"},
     "batch": {"batch_execute"},
+}
+
+
+ACTION_SPECS = {
+    "answer_questions": {
+        "label": "answer the workflow question",
+        "activatedSkill": None,
+        "runtimeGate": None,
+        "mutatesState": False,
+    },
+    "debug_failure": {
+        "label": "diagnose the failure",
+        "activatedSkill": "failure-analysis",
+        "runtimeGate": None,
+        "mutatesState": False,
+    },
+    "discuss_options": {
+        "label": "discuss workflow options",
+        "activatedSkill": "party-mode",
+        "runtimeGate": None,
+        "mutatesState": False,
+    },
+    "batch_execute": {
+        "label": "execute approved batch plan",
+        "activatedSkill": "batch-execution",
+        "runtimeGate": "task_start",
+        "mutatesState": True,
+    },
+    "create_task": {
+        "label": "create a planned task",
+        "activatedSkill": "brainstorming",
+        "runtimeGate": None,
+        "mutatesState": True,
+    },
+    "edit_planning_artifacts": {
+        "label": "finish planning prerequisites",
+        "activatedSkill": "task-planning",
+        "runtimeGate": "task_start",
+        "mutatesState": False,
+    },
+    "start_task": {
+        "label": "start task",
+        "activatedSkill": "cowork-flow",
+        "runtimeGate": "task_start",
+        "mutatesState": True,
+    },
+    "implement_change": {
+        "label": "execute implementation plan",
+        "activatedSkill": "cowork-flow",
+        "runtimeGate": None,
+        "mutatesState": False,
+    },
+    "request_review": {
+        "label": "mark task ready for review",
+        "activatedSkill": "task-review",
+        "runtimeGate": "task_review",
+        "mutatesState": True,
+    },
+    "complete_task": {
+        "label": "complete reviewed task",
+        "activatedSkill": "task-review",
+        "runtimeGate": "task_complete",
+        "mutatesState": True,
+    },
+    "archive_task": {
+        "label": "archive completed task",
+        "activatedSkill": "cowork-flow",
+        "runtimeGate": "task_archive",
+        "mutatesState": True,
+    },
+    "doubt_review": {
+        "label": "run standalone doubt review",
+        "activatedSkill": "adversarial-review",
+        "runtimeGate": None,
+        "mutatesState": False,
+    },
+    "execute_delegated_work": {
+        "label": "execute delegated work",
+        "activatedSkill": "cowork-flow",
+        "runtimeGate": None,
+        "mutatesState": False,
+    },
+    "repair_workflow_state": {
+        "label": "inspect and repair workflow state",
+        "activatedSkill": "cowork-flow",
+        "runtimeGate": None,
+        "mutatesState": False,
+    },
+}
+RUNNABLE_ACTIONS = {
+    action_id
+    for action_id, spec in ACTION_SPECS.items()
+    if spec["mutatesState"]
 }
 
 
@@ -97,18 +178,109 @@ def _print_blockers(blockers: list[str]) -> None:
         print(f"  - {blocker}")
 
 
-def _implementation(task_path: str) -> None:
-    print("Next action: execute implementation plan")
-    print(
-        f"Command: ./.cowork-flow/run subagent init --role implement "
-        f"--agent-type cowork-implement --execution-task-dir {task_path} "
-        f"--title \"Implement {Path(task_path).name}\""
-    )
-    print("Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter")
-    print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
-    print("Then: verify status=bound and bound_context_key before accepting output")
-    print(f"Then: wait, verify output, close runtime context, then ./.cowork-flow/run task review {task_path}")
+def _run_command(
+    task_path: str | None,
+    *,
+    intent: str | None = None,
+    create: bool = False,
+    commit: bool = False,
+) -> str:
+    parts = ["./.cowork-flow/run", "task", "next"]
+    if task_path:
+        parts.append(task_path)
+    parts.append("--run")
+    if intent:
+        parts.extend(["--intent", intent])
+    if create:
+        parts.extend([
+            "--title",
+            '"<title>"',
+            "--slug",
+            "<task-name>",
+            "--assignee",
+            "<name>",
+        ])
+    if commit:
+        parts.append("--commit")
+    return " ".join(parts)
 
+
+def _action_command(action_id: str, task_path: str | None) -> str | None:
+    if action_id == "create_task":
+        return _run_command(None, create=True)
+    if action_id == "start_task":
+        return _run_command(task_path)
+    if action_id == "request_review":
+        return _run_command(task_path, intent="review")
+    if action_id == "complete_task":
+        return _run_command(task_path, intent="review")
+    if action_id == "archive_task":
+        return _run_command(task_path, intent="archive")
+    if action_id == "batch_execute":
+        return f"{_run_command(task_path, intent='batch')} --auto --approved"
+    return None
+
+
+def _action_contract(
+    *,
+    status: str,
+    task_path: str | None,
+    blockers: tuple[str, ...] | list[str],
+    active_target: bool,
+    intent: str,
+) -> dict[str, object]:
+    del active_target
+    action_blockers = [str(blocker) for blocker in blockers]
+    if intent == "question":
+        action_id = "answer_questions"
+    elif intent == "debug":
+        action_id = "debug_failure"
+    elif intent == "discuss":
+        action_id = "discuss_options"
+    elif intent == "batch":
+        action_id = "batch_execute"
+    elif status == "no_task":
+        action_id = "create_task"
+    elif status == "planning":
+        action_id = "edit_planning_artifacts" if action_blockers else "start_task"
+    elif status == "in_progress":
+        action_id = "request_review" if intent == "review" else "implement_change"
+    elif status in CHECK_STATUSES:
+        action_id = "doubt_review" if intent == "doubt_review" else "complete_task"
+    elif status in DONE_STATUSES:
+        action_id = "archive_task"
+    elif status == "delegated_subtask":
+        action_id = "execute_delegated_work"
+    else:
+        action_id = "repair_workflow_state"
+
+    command = _action_command(action_id, task_path)
+    runnable = action_id in RUNNABLE_ACTIONS and not action_blockers
+    spec = ACTION_SPECS[action_id]
+    return {
+        "id": action_id,
+        "label": spec["label"],
+        "activatedSkill": spec["activatedSkill"],
+        "command": command,
+        "mutatesState": spec["mutatesState"],
+        "runtimeGate": spec["runtimeGate"],
+        "runnable": runnable,
+        "blockers": action_blockers,
+    }
+
+
+def _implementation(task_path: str) -> None:
+    action = _action_contract(
+        status="in_progress",
+        task_path=task_path,
+        blockers=[],
+        active_target=True,
+        intent="implement",
+    )
+    print(f"Next action: {action['label']}")
+    print(f"Skill: {action['activatedSkill']}")
+    print("Command: none — implement the plan guided by the activated Skill")
+    print(f"Then: {_run_command(task_path, intent='review')}")
 
 def _main_operations(
     status: str,
@@ -121,10 +293,7 @@ def _main_operations(
     elif status == "planning":
         operations.append("edit_planning_artifacts")
         if not blockers:
-            if active_target:
-                operations.extend(["implement_change", "request_review"])
-            else:
-                operations.append("start_task")
+            operations.append("start_task")
             operations.append("batch_execute")
     elif status == "in_progress":
         operations.extend(
@@ -177,64 +346,57 @@ def _intent_is_allowed(intent: str, operations: list[str]) -> bool:
     return bool(INTENT_OPERATIONS[intent].intersection(operations))
 
 
-def _matching_public_skills(
-    registry: SkillRegistry,
-    status: str,
-    intent: str,
-) -> list[str]:
-    registry_intent = INTENT_REGISTRY_KEYS[intent]
-    if registry_intent is None:
-        return []
-    return [
-        entry.id
-        for entry in registry.public_entries
-        if status in entry.statuses and registry_intent in entry.intents
-    ]
-
-
 def route_request(
-    registry: SkillRegistry,
-    *,
     status: str,
     intent: str,
     context: str,
     blockers: tuple[str, ...] | list[str],
     active_target: bool,
+    task_path: str | None = None,
 ) -> dict[str, object]:
-    """Return the stable state, intent, and execution-context route."""
+    """Return the stable state, intent, action, and execution-context route."""
     if intent not in USER_INTENTS:
         raise ValueError(f"unsupported workflow intent: {intent}")
     if context not in {"main", "delegated"}:
         raise ValueError(f"unsupported workflow context: {context}")
 
-    route_blockers, operations, intent_allowed, matches = _resolve_route(
-        registry,
+    route_blockers, operations, intent_allowed = _resolve_route(
         status=status,
         intent=intent,
         context=context,
         blockers=blockers,
         active_target=active_target,
     )
-    protocols = _route_protocols(status, intent, intent_allowed)
+    action = _action_contract(
+        status=status,
+        task_path=task_path,
+        blockers=route_blockers,
+        active_target=active_target,
+        intent=intent,
+    )
+    recommended = action["activatedSkill"] if intent_allowed else None
     return {
         "status": status,
         "allowedOperations": operations,
         "requiredArtifacts": _required_artifacts(status),
-        "recommendedSkill": matches[0] if len(matches) == 1 else None,
-        "internalProtocols": protocols,
+        "recommendedSkill": recommended,
         "blockers": route_blockers,
+        "nextAction": action["id"],
+        "activatedSkill": action["activatedSkill"],
+        "actionCommand": action["command"],
+        "mutatesState": action["mutatesState"],
+        "runtimeGate": action["runtimeGate"],
+        "action": action,
     }
 
 
 def _resolve_route(
-    registry: SkillRegistry,
-    *,
     status: str,
     intent: str,
     context: str,
     blockers: tuple[str, ...] | list[str],
     active_target: bool,
-) -> tuple[list[str], list[str], bool, list[str]]:
+) -> tuple[list[str], list[str], bool]:
     route_blockers = [str(blocker) for blocker in blockers]
     operations = _allowed_operations(
         status,
@@ -243,11 +405,6 @@ def _resolve_route(
         active_target,
     )
     intent_allowed = _intent_is_allowed(intent, operations)
-    matches = (
-        _matching_public_skills(registry, status, intent)
-        if intent_allowed
-        else []
-    )
 
     if context == "delegated" and status != "delegated_subtask":
         route_blockers.append(
@@ -257,23 +414,7 @@ def _resolve_route(
         route_blockers.append(
             f"intent {intent} is not allowed while status is {status}"
         )
-    if len(matches) > 1:
-        route_blockers.append(
-            "multiple active public Skills match the same routing cell"
-        )
-    if intent == "batch" and not matches:
-        route_blockers.append("batch-mode is disabled")
-    return route_blockers, operations, intent_allowed, matches
-
-
-def _route_protocols(
-    status: str,
-    intent: str,
-    intent_allowed: bool,
-) -> list[str]:
-    if intent_allowed and intent == "review" and status in CHECK_STATUSES:
-        return ["check"]
-    return []
+    return route_blockers, operations, intent_allowed
 
 
 def _default_intent(
@@ -305,9 +446,27 @@ def _routing_context(args) -> str:
     return "main"
 
 
-def _load_navigation_registry() -> SkillRegistry:
-    runtime_root = Path(__file__).resolve().parents[3]
-    return load_skill_registry(runtime_root, validate_sources=False)
+def build_navigation_payload(
+    *,
+    args,
+    status: str,
+    blockers: list[str],
+    active_target: bool,
+    task_path: str | None = None,
+) -> dict[str, object]:
+    intent = getattr(args, "intent", None) or _default_intent(
+        status,
+        blockers,
+        active_target,
+    )
+    return route_request(
+        status=status,
+        intent=intent,
+        context=_routing_context(args),
+        blockers=blockers,
+        active_target=active_target,
+        task_path=task_path,
+    )
 
 
 def _print_json_route(
@@ -316,19 +475,14 @@ def _print_json_route(
     status: str,
     blockers: list[str],
     active_target: bool,
+    task_path: str | None = None,
 ) -> None:
-    intent = getattr(args, "intent", None) or _default_intent(
-        status,
-        blockers,
-        active_target,
-    )
-    payload = route_request(
-        _load_navigation_registry(),
+    payload = build_navigation_payload(
+        args=args,
         status=status,
-        intent=intent,
-        context=_routing_context(args),
         blockers=blockers,
         active_target=active_target,
+        task_path=task_path,
     )
     print(json.dumps(payload, ensure_ascii=False, sort_keys=False))
 
@@ -350,14 +504,22 @@ def _navigation_target(args, repo_root: Path, structured: bool):
             status="no_task",
             blockers=[],
             active_target=False,
+            task_path=None,
         )
     else:
         print("Status: no_task")
         print(f"Source: {source}")
-        print("Next action: create or start a task before repository changes")
-        print('Command: ./.cowork-flow/run task create "<title>" --slug <task-name>')
-        print("Then: ./.cowork-flow/run task start <task-dir>")
-        print("Runtime-context subagent state is injected by hook/plugin; do not infer it from prompt text.")
+        action = _action_contract(
+            status="no_task",
+            task_path=None,
+            blockers=[],
+            active_target=False,
+            intent="clarify",
+        )
+        print(f"Next action: {action['label']}")
+        print(f"Skill: {action['activatedSkill']}")
+        print(f"Command: {action['command']}")
+        print("Runtime-context state is injected by hook/plugin; do not infer it from prompt text.")
     return None
 
 
@@ -368,12 +530,13 @@ def _print_stale_route(args, task_path: str, source: str, active_target: bool) -
             status="stale",
             blockers=[f"task directory not found: {task_path}"],
             active_target=active_target,
+            task_path=task_path,
         )
         return
     print("Status: stale")
     print(f"Source: {source}")
-    print("Next action: clear or replace the missing active task")
-    print("Command: ./.cowork-flow/run task list")
+    print("Next action: inspect and repair workflow state")
+    print("Command: none — inspect task state before mutating")
     print("Blockers:")
     print(f"  - task directory not found: {task_path}")
 
@@ -391,15 +554,19 @@ def _print_text_route(
     print(f"Status: {status}")
     print(f"Source: {source}")
     if status == "planning":
-        if blockers:
-            print("Next action: finish planning prerequisites before starting task")
-            print(f"Command: ./.cowork-flow/run task init-context {task_path} <dev_type>")
-            print(f"Then: ./.cowork-flow/run task start {task_path}")
-        elif active_target:
-            _implementation(task_path)
+        action = _action_contract(
+            status=status,
+            task_path=task_path,
+            blockers=blockers,
+            active_target=active_target,
+            intent=intent or _default_intent(status, blockers, active_target),
+        )
+        print(f"Next action: {action['label']}")
+        print(f"Skill: {action['activatedSkill']}")
+        if action["command"]:
+            print(f"Command: {action['command']}")
         else:
-            print("Next action: start task")
-            print(f"Command: ./.cowork-flow/run task start {task_path}")
+            print("Command: none — edit the required planning artifacts")
     elif status == "in_progress":
         _implementation(task_path)
     elif status in CHECK_STATUSES:
@@ -411,33 +578,45 @@ def _print_text_route(
         _print_archive_route(repo_root, task_path, task_dir)
     else:
         print("Next action: inspect task status and repair workflow state")
-        print(f"Command: ./.cowork-flow/run task validate {task_path}")
+        print("Command: none — inspect task state before mutating")
     _print_blockers(blockers)
 
 
 def _print_check_route(task_path: str) -> None:
-    print("Next action: verify implementation")
-    print(f"Command: ./.cowork-flow/run subagent init --role check --agent-type cowork-check --execution-task-dir {task_path} --title \"Check {Path(task_path).name}\"")
-    print("Then: pass cowork_runtime_context_id and cowork_host_context_key through the active Host Adapter or run equivalent inline check")
-    print("Then: child first step runs ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>")
-    print("Then: verify status=bound and bound_context_key before accepting output")
-    print(f"Then: ./.cowork-flow/run task complete {task_path}")
-
+    action = _action_contract(
+        status="review",
+        task_path=task_path,
+        blockers=[],
+        active_target=True,
+        intent="review",
+    )
+    print(f"Next action: {action['label']}")
+    print(f"Skill: {action['activatedSkill']}")
+    print(f"Command: {action['command']}")
+    print("Then: complete only after the activated review Skill has checked the current diff and gates")
 
 def _print_doubt_review_route(task_path: str) -> None:
     print("Next action: run standalone doubt review")
-    print("Skill: doubt-review")
+    print("Skill: adversarial-review")
     print(f"Target: {task_path}")
     print("Do not dispatch the lifecycle check agent unless this becomes review/complete work.")
 
 
 def _print_archive_route(repo_root: Path, task_path: str, task_dir: Path) -> None:
-    print("Next action: finalize, archive, commit, and record session")
+    action = _action_contract(
+        status="completed",
+        task_path=task_path,
+        blockers=[],
+        active_target=True,
+        intent="archive",
+    )
+    print(f"Next action: {action['label']}")
+    print(f"Skill: {action['activatedSkill']}")
     print("Command: git status --short")
+    print(f"Then: {action['command']}")
     changes = linked_active_changes_for_task(repo_root, task_dir)
-    print(f"Then: ./.cowork-flow/run task archive {Path(task_path).name}")
     for slug in changes:
-        print(f"Then: ./.cowork-flow/run change archive {slug} (handled by task archive)")
+        print(f"Then: ./.cowork-flow/run change archive {slug} (handled by archive_task)")
 
 
 def cmd_next(args) -> int:
@@ -464,6 +643,7 @@ def cmd_next(args) -> int:
             status=status,
             blockers=blockers,
             active_target=active_target,
+            task_path=task_path,
         )
         return 0
 

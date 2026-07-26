@@ -109,7 +109,7 @@ class FlowScriptPathsTest(FlowScriptTestCase):
                 for line in (task_dir / "check.jsonl").read_text(encoding="utf-8").splitlines()
             ]
             self.assertEqual(
-                ".cowork-flow/spec/protocols/review.md",
+                ".claude/skills/task-review/SKILL.md",
                 check_entries[0]["file"],
             )
             check_files = [entry["file"] for entry in check_entries]
@@ -126,6 +126,5 @@ class FlowScriptPathsTest(FlowScriptTestCase):
         files = [entry["file"] for entry in self.task.get_implement_base()]
 
         self.assertIn("AGENTS.md", files)
-        self.assertIn(".cowork-flow/workflow.md", files)
         self.assertIn(".cowork-flow/spec/guides/index.md", files)
         self.assertIn(".cowork-flow/spec/guides/pre-implementation-checklist.md", files)

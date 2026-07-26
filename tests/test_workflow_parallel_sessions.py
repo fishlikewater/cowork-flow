@@ -17,44 +17,73 @@ ENTRY_BOUNDARY = "entry" + "-boundary"
 
 
 class WorkflowParallelSessionsTest(unittest.TestCase):
-    def test_workflow_uses_fixed_agent_mainline(self) -> None:
-        text = (ROOT / "template" / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
-        self.assertIn("cowork-research", text)
-        self.assertIn("cowork-implement", text)
-        self.assertIn("cowork-check", text)
-        self.assertIn("宿主适配器", text)
-        self.assertIn("新鲜子上下文", text)
-        self.assertIn("workflow-state-templates.md", text)
-        self.assertIn("subagent-dispatch.md", text)
-        self.assertIn("runtime context", text)
-        self.assertNotIn("[workflow-state:", text)
-        self.assertIn("适配器等待原语", text)
-        self.assertIn("适配器列表原语", text)
-        self.assertIn("适配器取消/关闭原语", text)
-        self.assertNotIn(LEGACY_DISPATCH, text)
-        self.assertNotIn(LEGACY_ACK, text)
-        self.assertNotIn(LEGACY_POST_ACK, text)
-        self.assertNotIn("spawn_agent", text)
-        self.assertNotIn("fork_turns=\"none\"", text)
-        self.assertNotIn("agent run cowork-implement", text)
-        self.assertNotIn("codex exec", text)
-        self.assertNotIn("agent" + "-team prepare", text)
-        self.assertNotIn("agent" + "-team next", text)
+    def test_flow_authority_is_task_next_actions_skills_and_specs(self) -> None:
+        self.assertFalse((ROOT / "template" / ".cowork-flow" / "workflow.md").exists())
+        self.assertFalse((ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md").exists())
 
-    def test_workflow_names_obsolete_cleanup_without_compatibility_period(self) -> None:
-        for path in (
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
-            ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            self.assertIn("旧资产清理", text, str(path))
-            self.assertIn("obsolete cleanup", text, str(path))
-            self.assertIn("读取边界保留", text, str(path))
-            self.assertNotIn("兼容迁移", text, str(path))
+        self.assertFalse((ROOT / "template" / ".cowork-flow" / "spec" / "runtime" / "skill-registry.json").exists())
+        skill_ids = {
+            path.parent.name
+            for path in (ROOT / "template" / "skills").glob("*/SKILL.md")
+        }
+        for skill_id in ("brainstorming", "task-planning", "cowork-flow", "task-review", "batch-execution"):
+            self.assertIn(skill_id, skill_ids)
+        self.assertTrue((ROOT / "template" / "skills" / "party-mode" / "manifest.json").is_file())
+        self.assertTrue((ROOT / "template" / "skills" / "runtime-health" / "manifest.json").is_file())
 
+        cowork_skill = (ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("only public workflow router", cowork_skill)
+        self.assertIn("Skill command manifests", cowork_skill)
+        self.assertIn("authoritative flow surfaces", cowork_skill)
+        self.assertNotIn("Registry", cowork_skill)
+        self.assertNotIn("spawn_agent", cowork_skill)
+        self.assertNotIn("fork_turns=\"none\"", cowork_skill)
+
+        dispatch = (ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md").read_text(encoding="utf-8")
+        for marker in ("cowork-research", "cowork-implement", "cowork-check", "runtime context"):
+            self.assertIn(marker, dispatch)
+        self.assertNotIn(LEGACY_DISPATCH, dispatch)
+        self.assertNotIn(LEGACY_ACK, dispatch)
+        self.assertNotIn(LEGACY_POST_ACK, dispatch)
+
+    def test_obsolete_cleanup_without_compatibility_period(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        host_assets = json.loads((ROOT / "template" / ".cowork-flow" / "spec" / "runtime" / "host-assets.json").read_text(encoding="utf-8"))
+
         self.assertIn("正式版旧资产清理", readme)
+        self.assertIn("obsoleteFiles", json.dumps(host_assets, ensure_ascii=False))
         self.assertNotIn("兼容升级", readme)
+        self.assertNotIn("兼容迁移", json.dumps(host_assets, ensure_ascii=False))
+
+
+    def test_public_docs_do_not_teach_removed_task_subcommands(self) -> None:
+        docs = [
+            ROOT / "AGENTS.md",
+            ROOT / "README.md",
+            ROOT / "template" / "AGENTS.md",
+        ]
+        docs.extend((ROOT / "template" / "skills").glob("*/SKILL.md"))
+        live_skills = ROOT / ".agents" / "skills"
+        if live_skills.is_dir():
+            docs.extend(live_skills.glob("*/SKILL.md"))
+
+        removed_command_snippets = (
+            "./.cowork-flow/run task create",
+            "./.cowork-flow/run task start",
+            "./.cowork-flow/run task review",
+            "./.cowork-flow/run task complete",
+            "./.cowork-flow/run task archive",
+            "./.cowork-flow/run task init-context",
+            "./.cowork-flow/run task add-context",
+            "./.cowork-flow/run task add-planned-file",
+            "./.cowork-flow/run task list",
+            "./.cowork-flow/run task batch-",
+        )
+        for path in docs:
+            with self.subTest(path=str(path.relative_to(ROOT))):
+                text = path.read_text(encoding="utf-8")
+                for snippet in removed_command_snippets:
+                    self.assertNotIn(snippet, text)
 
     def test_workflow_state_templates_are_externalized(self) -> None:
         for path in (
@@ -72,22 +101,19 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertNotIn(LEGACY_HARD, text)
             self.assertNotIn(LEGACY_SOFT, text)
 
-    def test_workflow_requires_brainstorming_clarification_gate(self) -> None:
+    def test_brainstorming_skill_owns_clarification_gate(self) -> None:
         required_markers = (
-            "需求澄清与头脑风暴门禁",
-            "新需求先判断清晰度",
-            "范围边界",
-            "验收标准",
-            "推荐方向",
-            "开放问题/阻塞",
-            "进入决策锚点、计划或固定代理派发",
+            "active clarification gate",
+            "goal, non-goals, assumptions, scope boundary, success criteria",
+            "Acceptance criteria",
+            "Open questions, risks, or blockers",
+            "Hand off to `task-planning`",
         )
-        for path in (
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in required_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
+        path = ROOT / "template" / "skills" / "brainstorming" / "SKILL.md"
+        skill_text = path.read_text(encoding="utf-8")
+        for marker in required_markers:
+            self.assertIn(marker, skill_text, f"{marker} missing from {path}")
+        self.assertNotIn("workflow.md", skill_text)
 
     def test_workflow_requires_runtime_context_dispatch_gate(self) -> None:
         required_markers = (
@@ -137,25 +163,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
     def test_party_mode_is_single_runtime_board_advisory_workflow(self) -> None:
-        workflow_markers = (
-            "Party Mode 是用户手动触发的 runtime board advisory workflow",
-            "通过 `party-mode` 入口启动 `party-v2` runtime",
-            "Python runtime 控制看板",
-            "当前轮视图",
-            "子代理通过 board API 交流",
-            "主持人只监控 runtime status",
-            "Party Mode runtime 只输出 host-neutral next actions",
-            "不能推进任务状态",
-            "不能满足正式实现或检查完成条件",
-            "宿主专属原语仍只在 `.cowork-flow/adapters/<host>/adapter.yaml` 和宿主资产中声明",
-        )
-        for path in (
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            for marker in workflow_markers:
-                self.assertIn(marker, text, f"{marker} missing from {path}")
-            self.assertNotIn("手动 Party Mode V2", text)
+        skill_text = (ROOT / "template" / "skills" / "party-mode" / "SKILL.md").read_text(encoding="utf-8")
+        for marker in ("Party Mode", "runtime-controlled", "board APIs", "moderator"):
+            self.assertIn(marker, skill_text)
 
         spec_markers = (
             "Party Mode discussion children are advisory leaf executors.",
@@ -213,7 +223,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "gates/models.py": ("class GateResult", "exit_code", "class Violation"),
             "gates/registry.py": ("class GateRegistry", "duplicate validator key", "GateLoadError"),
             "git/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
-            "task/state_machine.py": ("transition_blockers", "task review", "completed"),
+            "task/state_machine.py": ("transition_blockers", "task next <task-dir> --run --intent review", "completed"),
             "gates/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
             "gates/validate_coding_standards.py": ("validate_coding_standards", "collect_changed_files", "--validate"),
         }
@@ -226,14 +236,13 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in markers:
                 self.assertIn(marker, template_text)
 
-    def test_workflow_closeout_records_real_implementation_commit(self) -> None:
-        text = (
-            ROOT / "template" / ".cowork-flow" / "workflow.md"
-        ).read_text(encoding="utf-8")
+    def test_closeout_contract_avoids_placeholder_commits(self) -> None:
+        text = (ROOT / "template" / ".cowork-flow" / "spec" / "references" / "definition-of-done.md").read_text(encoding="utf-8")
+        add_session = (ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "add_session.py").read_text(encoding="utf-8")
 
-        self.assertIn('implementation_commit="$(git rev-parse HEAD)"', text)
-        self.assertIn("follow-up metadata commit", text)
-        self.assertIn('--commit "$implementation_commit"', text)
+        self.assertIn("git status --porcelain=v1 -uall", text)
+        self.assertIn("commit", add_session)
+        self.assertNotIn('commit "-"', text)
         self.assertNotIn('add-session --title "<title>" --commit "-"', text)
 
     def test_definition_of_done_uses_complete_git_status_snapshot(self) -> None:
@@ -253,7 +262,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_local_bootstrap_files_match_template_when_present(self) -> None:
         local_root = ROOT / ".cowork-flow"
         mirrored_files = (
-            Path("workflow.md"),
             Path("spec/runtime/contract-registry.json"),
             Path("spec/references/definition-of-done.md"),
             Path("spec/contracts/workflow-state-templates.md"),
@@ -301,7 +309,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             ROOT
             / "template"
             / "skills"
-            / "tdd"
+            / "test-first"
             / "SKILL.md"
         ).read_text(encoding="utf-8")
 
@@ -316,7 +324,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, tdd_text)
 
-    def test_spec_maintenance_protocol_preserves_update_checklist(self) -> None:
+    def test_spec_maintenance_skill_preserves_update_checklist(self) -> None:
         required_markers = (
             "Choose Location",
             "`backend/` or `frontend/`",
@@ -329,27 +337,26 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "duplicate guidance",
             "stale wording",
         )
-        spec_text = (
+        skill_text = (
             ROOT
             / "template"
-            / ".cowork-flow"
-            / "spec"
-            / "protocols"
-            / "spec-maintenance.md"
+            / "skills"
+            / "spec-sync"
+            / "SKILL.md"
         ).read_text(encoding="utf-8")
         self.assertEqual(
             [],
-            [marker for marker in required_markers if marker not in spec_text],
+            [marker for marker in required_markers if marker not in skill_text],
         )
 
-    def test_review_protocol_and_agent_require_test_intent_review(self) -> None:
+    def test_review_skill_and_agent_require_test_intent_review(self) -> None:
         required_markers = (
             "test intent",
             "shallow tests",
             "test_intent_review",
         )
         for path in (
-            ROOT / "template" / ".cowork-flow" / "spec" / "protocols" / "review.md",
+            ROOT / "template" / "skills" / "task-review" / "SKILL.md",
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",
         ):
             text = path.read_text(encoding="utf-8")
@@ -364,7 +371,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("./.cowork-flow/run task next --json", text)
         self.assertIn("allowedOperations", text)
         self.assertIn("recommendedSkill", text)
-        self.assertIn("internalProtocols", text)
+        self.assertIn("Runtime Gates carry hard enforcement", text)
         self.assertNotIn(".cowork-flow/run subagent init", text)
         self.assertNotIn("cowork_host_context_key", text)
         self.assertNotIn("adapter wait/list/cancel primitives", text)
@@ -399,7 +406,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
 
     def test_doctor_subagent_safety_matches_runtime_context_model(self) -> None:
-        doctor = ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "doctor.py"
+        doctor = ROOT / "template" / "skills" / "runtime-health" / "scripts" / "doctor.py"
         text = doctor.read_text(encoding="utf-8")
         # Verify doctor.py contains the expected safety checks
         self.assertIn("REQUIRED_ROUTER_SNIPPETS", text)
@@ -409,8 +416,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("template/.codex/agents/cowork-implement.toml", text)
         self.assertIn("template/.codex/agents/cowork-check.toml", text)
 
-    def test_writing_plans_routes_to_fixed_agents(self) -> None:
-        text = (ROOT / "template" / "skills" / "writing-plans" / "SKILL.md").read_text(encoding="utf-8")
+    def test_task_planning_routes_to_fixed_agents(self) -> None:
+        text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("cowork-implement", text)
         self.assertIn("cowork-check", text)
         self.assertIn("Host Adapter", text)
@@ -420,40 +427,23 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("fork_turns=\"none\"", text)
         self.assertNotIn("subagent-driven-development", text)
 
-    def test_template_workflow_matches_new_terms(self) -> None:
-        text = (ROOT / "template" / ".cowork-flow" / "workflow.md").read_text(encoding="utf-8")
-        self.assertIn("cowork-implement", text)
-        self.assertIn("runtime context", text)
-        self.assertNotIn("agent" + "-team prepare", text)
+    def test_template_does_not_ship_standalone_workflow_authority(self) -> None:
+        self.assertFalse((ROOT / "template" / ".cowork-flow" / "workflow.md").exists())
+        self.assertFalse((ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md").exists())
 
-    def test_zcode_scaffold_workflow_matches_template_workflow(self) -> None:
-        template_workflow = (
-            ROOT / "template" / ".cowork-flow" / "workflow.md"
-        ).read_text(encoding="utf-8")
-        scaffold_workflow = (
-            ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md"
-        ).read_text(encoding="utf-8")
+    def test_task_planning_skill_documents_parallel_operations(self) -> None:
+        text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Do not require the user to predeclare parallel execution", text)
+        self.assertIn("Every plan must state the execution strategy", text)
+        self.assertIn("git worktree", text)
+        self.assertIn("low-conflict slices", text)
+        self.assertIn("file ownership", text)
+        self.assertIn("dependencies", text)
+        self.assertIn("expected outputs", text)
+        self.assertIn("final integrated verification", text)
 
-        self.assertEqual(template_workflow, scaffold_workflow)
-
-    def test_workflow_documents_parallel_operations(self) -> None:
-        for path in (
-            ROOT / "template" / ".cowork-flow" / "workflow.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            self.assertIn("并行会话", text)
-            self.assertIn("用户无需在需求输入时声明是否并行", text)
-            self.assertIn("计划阶段由主会话评估并行可行性", text)
-            self.assertIn("开发计划必须明确执行策略", text)
-            self.assertIn("git worktree", text)
-            self.assertIn("低冲突切片", text)
-            self.assertIn("文件归属", text)
-            self.assertIn("依赖关系", text)
-            self.assertIn("预期产物", text)
-            self.assertIn("最终集成验证", text)
-
-    def test_writing_plan_skills_require_parallel_scope_fields(self) -> None:
-        text = (ROOT / "template" / "skills" / "writing-plans" / "SKILL.md").read_text(encoding="utf-8")
+    def test_task_planning_skills_require_parallel_scope_fields(self) -> None:
+        text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("executable scope", text)
         self.assertIn("acceptance criteria", text)
         self.assertIn("Execution strategy guide", text)

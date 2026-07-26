@@ -1,12 +1,18 @@
-# Decision Review Protocol
+---
+name: decision-audit
+description: Use when an L2 cowork-flow task needs mandatory structured decision evidence, when recording accepted adversarial review outcomes in decision-review.jsonl, or when validating that a non-trivial architecture or workflow decision has fresh reviewer context before task start.
+---
 
-> Internal protocol enforced by workflow readiness; it is not a public Skill.
+# Decision Audit
+
+Use this Skill for mandatory L2 decision audit evidence. Runtime Gates enforce the
+presence and structure of `decision-review.jsonl`; this Skill defines how to
+produce evidence that is worth enforcing.
 
 ## Purpose
 
-`decision-review` is the mandatory L2 evidence gate for non-trivial decisions.
-It preserves the adversarial doubt cycle from `doubt-review` while keeping the
-runtime authority in `decision-review.jsonl`.
+`decision-audit` preserves the adversarial doubt cycle from `adversarial-review`
+while keeping runtime authority in `<task>/decision-review.jsonl`.
 
 ## Enforcement
 
@@ -16,7 +22,7 @@ runtime authority in `decision-review.jsonl`.
 
 ## Doubt Cycle
 
-Every accepted L2 decision review must be derived from this bounded cycle:
+Every accepted L2 decision review must come from this bounded cycle:
 
 1. CLAIM: state the decision and why being wrong would be costly.
 2. EXTRACT: isolate the minimal reviewable artifact or design statement.

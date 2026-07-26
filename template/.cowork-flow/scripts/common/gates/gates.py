@@ -17,22 +17,18 @@ from .models import (
 from .registry import GateLoadError, GateRegistry
 
 
+REVIEW_GATE_SEQUENCE = (
+    "implementation",
+    "runtime_rules",
+    "coding_standards",
+    "quality_machine_checks",
+    "complexity",
+)
+
 STAGE_GATES = {
     "task_start": ("runtime_rules",),
-    "task_review": (
-        "implementation",
-        "runtime_rules",
-        "coding_standards",
-        "quality_machine_checks",
-        "complexity",
-    ),
-    "task_complete": (
-        "implementation",
-        "runtime_rules",
-        "coding_standards",
-        "quality_machine_checks",
-        "complexity",
-    ),
+    "task_review": REVIEW_GATE_SEQUENCE,
+    "task_complete": REVIEW_GATE_SEQUENCE,
 }
 
 

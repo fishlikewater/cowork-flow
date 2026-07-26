@@ -13,13 +13,19 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
     tomllib = None  # type: ignore[assignment]
 
-if __package__:
-    from . import _bootstrap as _bootstrap  # noqa: F401
-else:
-    import _bootstrap  # noqa: F401
+def _add_runtime_scripts_path() -> None:
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / ".cowork-flow" / "scripts"
+        if candidate.is_dir():
+            candidate_text = str(candidate)
+            if candidate_text not in sys.path:
+                sys.path.insert(0, candidate_text)
+            return
+
+
+_add_runtime_scripts_path()
 from common.core.paths import get_repo_root
 from common.core.host_manifest import validate_host_assets
-from common.core.skill_registry import SkillRegistryError, load_skill_registry
 
 
 ENTRY_BOUNDARY_DIR = "entry" + "-boundary"
@@ -30,13 +36,11 @@ REQUIRED_ROUTER_SNIPPETS = [
     "./.cowork-flow/run task next --json",
     "allowedOperations",
     "recommendedSkill",
-    "internalProtocols",
 ]
 
 REQUIRED_FIXED_AGENT_SNIPPETS = [
-    "cowork_runtime_context_id: <runtime_context_id>",
-    "bound runtime context",
-    "report needs_context",
+    "agent-dispatch",
+    "needs_context",
     "MUST NOT spawn",
     "multi_agent = false",
     "enabled = false",
@@ -54,17 +58,6 @@ FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS = [
 FORBIDDEN_README_DISPATCH_SNIPPETS = [
     'message="Active task: <task-dir>\\n\\n<assignment>"',
     "提示词首行使用 `Active task: <task-dir>`",
-]
-
-REQUIRED_WORKFLOW_DISPATCH_SNIPPETS = [
-    "宿主适配器契约",
-    ".cowork-flow/spec/contracts/subagent-dispatch.md",
-    "新鲜子上下文",
-    "runtime context",
-    "适配器等待原语",
-    "适配器列表原语",
-    "适配器取消/关闭原语",
-    "advisory work",
 ]
 
 REQUIRED_SUBAGENT_DISPATCH_SNIPPETS = [
@@ -109,26 +102,48 @@ REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
     '"HOST_ADAPTER_CAPABILITIES_V1"',
     '"HOST_ADAPTER_SCHEMA_V1"',
     '"PARTY_MODE_V2_BOARD_V1"',
-    '"SKILL_REGISTRY_V1"',
-    '"readWhen"',
     '".cowork-flow/spec/contracts/subagent-dispatch.md"',
     '".cowork-flow/spec/contracts/capabilities.md"',
     '".cowork-flow/spec/schemas/adapter.schema.json"',
 ]
 
+REQUIRED_FLOW_ROUTING_SNIPPETS = [
+    '"activatedSkill": "cowork-flow"',
+    '"activatedSkill": "task-review"',
+    '"activatedSkill": "task-planning"',
+    '"activatedSkill": "adversarial-review"',
+    '"activatedSkill": "batch-execution"',
+    '"runtimeGate": "task_start"',
+    '"runtimeGate": "task_review"',
+    '"runtimeGate": "task_complete"',
+]
+
+REQUIRED_PARTY_MODE_COMMAND_MANIFEST_SNIPPETS = [
+    '"skill": "party-mode"',
+    '"commands"',
+    '"name": "party-v2"',
+    '"script": "scripts/party_mode_v2.py"',
+]
+
+REQUIRED_DIAGNOSTICS_COMMAND_MANIFEST_SNIPPETS = [
+    '"skill": "runtime-health"',
+    '"commands"',
+    '"name": "doctor"',
+    '"script": "scripts/doctor.py"',
+]
+
 REQUIRED_OPENCODE_AGENT_SNIPPETS = [
     "mode: subagent",
     "task: deny",
-    "cowork_runtime_context_id: <runtime_context_id>",
-    "bound runtime context",
-    "leaf executor",
+    "agent-dispatch",
+    "needs_context",
+    "invoke subagents",
 ]
 
 REQUIRED_CLAUDE_AGENT_SNIPPETS = [
     "name:",
-    "cowork_runtime_context_id: <runtime_context_id>",
-    "bound runtime context",
-    "leaf executor",
+    "agent-dispatch",
+    "needs_context",
     "Do not use the Task tool or invoke subagents",
 ]
 
@@ -143,21 +158,21 @@ REQUIRED_CLAUDE_SKILL_SNIPPETS = [
     "description:",
 ]
 
-REQUIRED_PROTOCOL_SNIPPETS = {
-    "template/.cowork-flow/spec/protocols/review.md": [
-        "# Review Protocol",
+REQUIRED_WORKFLOW_SKILL_SNIPPETS = {
+    "template/skills/task-review/SKILL.md": [
+        "# Task Review",
         "test_intent_review",
         "findings",
         "resolution",
     ],
-    "template/.cowork-flow/spec/protocols/decision-review.md": [
-        "# Decision Review Protocol",
+    "template/skills/decision-audit/SKILL.md": [
+        "# Decision Audit",
         "decision-review.jsonl",
         "reviewerContext",
         "accepted",
     ],
-    "template/.cowork-flow/spec/protocols/spec-maintenance.md": [
-        "# Spec Maintenance Protocol",
+    "template/skills/spec-sync/SKILL.md": [
+        "# Spec Sync",
         "specUpdates",
     ],
 }
@@ -226,15 +241,7 @@ def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
     ):
         _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
 
-def _check_skill_registry(repo_root: Path, errors: list[str]) -> None:
-    try:
-        load_skill_registry(repo_root / "template")
-    except SkillRegistryError as exc:
-        errors.append(f"Skill Registry: {exc}")
-
-
 def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
-    _check_skill_registry(repo_root, errors)
     errors.extend(validate_host_assets(repo_root / "template"))
     for rel in (
         ".cowork-flow/spec/schemas/adapter.schema.json",
@@ -276,7 +283,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
     for rel in ("template/skills/cowork-flow/SKILL.md",):
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_SKILL_SNIPPETS, errors)
-    for rel, snippets in REQUIRED_PROTOCOL_SNIPPETS.items():
+    for rel, snippets in REQUIRED_WORKFLOW_SKILL_SNIPPETS.items():
         _check_file_contains(repo_root / rel, snippets, errors)
     for rel in (
         f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
@@ -384,10 +391,26 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         if data is not None and data.get("name") != Path(rel).stem:
             errors.append(f"{rel} name must match filename")
     for rel in (
-        ".cowork-flow/workflow.md",
-        "template/.cowork-flow/workflow.md",
+        "template/.cowork-flow/scripts/commands/task_navigation.py",
     ):
-        _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_DISPATCH_SNIPPETS, errors)
+        _check_file_contains(repo_root / rel, REQUIRED_FLOW_ROUTING_SNIPPETS, errors)
+    for rel in (
+        ".cowork-flow/spec/runtime/skill-registry.json",
+        "template/.cowork-flow/spec/runtime/skill-registry.json",
+        ".cowork-flow/spec/schemas/skill-registry.schema.json",
+        "template/.cowork-flow/spec/schemas/skill-registry.schema.json",
+    ):
+        _check_file_absent(repo_root / rel, errors)
+    _check_file_contains(
+        repo_root / "template/skills/party-mode/manifest.json",
+        REQUIRED_PARTY_MODE_COMMAND_MANIFEST_SNIPPETS,
+        errors,
+    )
+    _check_file_contains(
+        repo_root / "template/skills/runtime-health/manifest.json",
+        REQUIRED_DIAGNOSTICS_COMMAND_MANIFEST_SNIPPETS,
+        errors,
+    )
     _check_common_contracts(repo_root, errors)
     _check_host_adapters(repo_root, errors)
     for rel in (

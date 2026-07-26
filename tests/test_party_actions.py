@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-from tests.party_mode_test_support import PartyModeTestCase, ROOT, TEMPLATE_SCRIPTS
+from tests.party_mode_test_support import PARTY_MODE_SCRIPT, PartyModeTestCase, ROOT, TEMPLATE_SCRIPTS
 
 
 class PartyActionsTest(PartyModeTestCase):
@@ -65,7 +65,7 @@ class PartyActionsTest(PartyModeTestCase):
             process = subprocess.Popen(
                 [
                     sys.executable,
-                    str(TEMPLATE_SCRIPTS / "commands" / "party_mode_v2.py"),
+                    str(PARTY_MODE_SCRIPT),
                     "--repo-root",
                     str(root),
                     "post",

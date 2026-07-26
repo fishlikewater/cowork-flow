@@ -1,9 +1,9 @@
 ---
-name: writing-plans
+name: task-planning
 description: Use when requirements are clear enough to turn into an executable multi-step cowork-flow implementation plan.
 ---
 
-# Writing Plans
+# Task Planning
 
 Create a plan that another agent can execute without guessing.
 
@@ -113,8 +113,8 @@ A plan can be marked as approved only when all conditions hold:
 
 ## Post-Approval Options
 
-- **Step-by-task progression** (default path): user calls `task start` on one task, completes it, then `task start` the next.
-- **Batch mode**: triggered when the user explicitly says "auto" or "batch" (see skills/batch-mode/SKILL.md). Each task is still verified independently.
+- **Step-by-task progression** (default path): user runs `task next <task-dir> --run` for the current safe action, completes the task, then runs `task next <next-task-dir> --run` for the next task.
+- **Batch mode**: triggered when the user explicitly says "auto" or "batch" (see skills/batch-execution/SKILL.md). Each task is still verified independently.
 
 > **Default is step-by-task progression.** Do not enter batch mode unless the user explicitly says "auto".
 

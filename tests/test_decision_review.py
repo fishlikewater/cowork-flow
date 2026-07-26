@@ -34,7 +34,7 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
         evidence = record if record is not None else {
             "acceptanceId": "AC-007A",
             "claim": "L2 work requires structured decision review evidence.",
-            "contract": "Missing or invalid evidence blocks task start.",
+            "contract": "Missing or invalid evidence blocks start_task action.",
             "reviewerContext": "fresh",
             "findings": [],
             "resolution": resolution,
@@ -123,17 +123,7 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
 
             self.assertEqual([], blockers)
 
-    def test_registry_rule_and_definition_of_done_are_consistent(self) -> None:
-        registry = json.loads(
-            (
-                ROOT
-                / "template"
-                / ".cowork-flow"
-                / "spec"
-                / "runtime"
-                / "skill-registry.json"
-            ).read_text(encoding="utf-8")
-        )
+    def test_rule_skill_and_definition_of_done_are_consistent(self) -> None:
         rules = json.loads(
             (
                 ROOT
@@ -153,20 +143,17 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
             / "definition-of-done.md"
         ).read_text(encoding="utf-8")
 
-        decision_protocol = next(
-            entry
-            for entry in registry["entries"]
-            if entry["id"] == "decision-review"
-        )
         decision_rule = next(
             rule for rule in rules["rules"] if rule["id"] == "R-WF-006"
         )
 
-        self.assertEqual("mandatory", decision_protocol["enforcement"])
-        self.assertEqual("workflow-readiness", decision_protocol["runtimeGate"])
-        self.assertEqual("decision-review.jsonl", decision_protocol["evidenceArtifact"])
+        self.assertTrue((ROOT / "template" / "skills" / "decision-audit" / "SKILL.md").is_file())
         self.assertEqual("block", decision_rule["severity"])
         self.assertEqual("task_start", decision_rule["scope"])
+        self.assertEqual(
+            ".agents/skills/decision-audit/SKILL.md",
+            decision_rule["source_file"],
+        )
         self.assertEqual(
             "decision-review.jsonl",
             decision_rule["parameters"]["filename"],
@@ -175,14 +162,13 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
         self.assertNotIn("doubt-review.md", definition_of_done)
         self.assertNotIn("update-spec", definition_of_done)
 
-    def test_protocol_preserves_adversarial_doubt_cycle(self) -> None:
-        protocol = (
+    def test_decision_review_skill_preserves_adversarial_doubt_cycle(self) -> None:
+        skill = (
             ROOT
             / "template"
-            / ".cowork-flow"
-            / "spec"
-            / "protocols"
-            / "decision-review.md"
+            / "skills"
+            / "decision-audit"
+            / "SKILL.md"
         ).read_text(encoding="utf-8")
 
         markers = (
@@ -196,7 +182,7 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
             "reviewerContext",
             "decision-review.jsonl",
         )
-        missing = [marker for marker in markers if marker not in protocol]
+        missing = [marker for marker in markers if marker not in skill]
 
         self.assertEqual([], missing)
 

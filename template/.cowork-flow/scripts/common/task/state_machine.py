@@ -33,13 +33,13 @@ def transition_blockers(current_status: str | None, target_status: str) -> list[
     if target == "completed":
         return [
             f"Task cannot be completed from status '{current}'. "
-            "Run `task review` first to enter check phase."
+            "Run `task next <task-dir> --run --intent review` first to enter check phase."
         ]
 
     if target == "review":
         return [
             f"Task cannot enter review from status '{current}'. "
-            "Run `task start` and finish implementation first."
+            "Run `task next <task-dir> --run` and finish implementation first."
         ]
 
     if target == "in_progress" and current in (*CHECK_STATUSES, *DONE_STATUSES):

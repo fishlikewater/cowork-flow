@@ -204,7 +204,7 @@ def _check_premature_abstraction(
 def _normalize_allowed_context_file(entry: dict) -> str | None:
     entry_type = entry.get("type", "file")
     file_path = entry.get("file")
-    if entry_type not in ("file", "planned-file"):
+    if entry_type not in ("file", "planned-file", "deleted-file"):
         return None
     if not isinstance(file_path, str) or not file_path:
         return None

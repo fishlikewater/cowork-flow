@@ -42,7 +42,6 @@ template/
 ├── .zcode/                    # ⭐ ZCode 插件（hooks + runtime + scaffold）
 └── .cowork-flow/
     ├── config.yaml            # 项目配置
-    ├── workflow.md            # 主流程定义
     ├── scripts/               # Python 运行时
     ├── spec/                  # 规范文档（contracts / schemas / guides）
     ├── changes/               # 行为变更管理
@@ -58,17 +57,19 @@ template/
 - **Host Asset Manifest**：`spec/runtime/host-assets.json` 是宿主资产、平台识别、同步策略和 obsolete 迁移清单的权威来源。新增平台或资产时更新 Manifest 与 schema，不在 CLI 中新增硬编码集合。
 - **事务式 init/sync**：CLI 先构建不可变 Asset Plan，在同文件系统 staging 中校验 hash/权限，再按备份清单提交；失败时逆序回滚，`.cowork-flow/.version` 最后更新。
 - **共享 Hook 核心**：Codex 与 Claude Code Hook 只做宿主输入适配，工作流状态解析由 `scripts/common/host/workflow_state_hook.py` 统一实现。
+- **流程内核**：公开任务入口只有 `task next`；阶段动作由内核动作表推荐对应 Skill，硬门禁由 runtime gate 执行，不再分发独立流程中枢文件或 Skill 注册控制面。
+- **Skill 自带脚本**：只服务单个 Skill 的控制器或辅助脚本放在 `template/skills/<skill-id>/scripts/`，由 `.cowork-flow/run` 薄分发；`scripts/` 内核只保留任务导航、生命周期、gate、host/runtime、存储和分发所需代码。
 
 ## Skills 分发机制
 
-Skills 维护在 `template/skills/` 唯一源码，`init` 时按平台分发到对应目录：
+Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录分发到对应平台；`SKILL.md`、可选的 command `manifest.json` 和 `scripts/` 一起归属该 Skill：
 
 | 平台 | 目标目录 |
 |---|---|
 | `codex` / `opencode` | `.agents/skills/` |
 | `claude-code` | `.claude/skills/` |
 
-分发动作：`batch-mode`、`brainstorming`、`break-loop`、`cowork-flow`、`doubt-review`、`game-design`、`party-mode`、`review`、`tdd`、`writing-plans`
+分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
 
 ## CLI 命令
 
@@ -92,7 +93,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` 时按平台分发到�
 
 - **自动识别**已安装 host 目录，只同步对应平台资产
 - **Skills** 从 `template/skills/` 按平台分发
-- **保护文件**：`config.yaml`、`workflow.md`、`spec/`（除 `workflow-state-templates.md`）、任务、计划、变更、workspace
+- **保护文件**：`config.yaml`、`spec/`（除 `workflow-state-templates.md`）、任务、计划、变更、workspace
 - **正式版旧资产清理**：旧脚本位置、旧 adapter 资产和已废弃文件按 Host Asset Manifest 的 `obsoleteFiles` 清理；用户保护文件保持不变
 - **事务恢复**：上次未完成事务会在新一轮 sync 前恢复；事务元数据缺失或损坏时 fail-closed，不在未知状态上继续写入
 - `--force` 整文件覆盖保护文件
@@ -117,19 +118,17 @@ cowork-flow install-zcode-plugin --force  # 覆盖已安装
 changes → brainstorming → read spec → plan → tasks → implement → check → complete
 ```
 
-| 阶段 | 命令 | status |
-|---|---|---|
-| 创建/计划 | `task create` | `planning` |
-| 开始执行 | `task start <dir>` | `in_progress` |
-| 进入检查 | `task review [dir]` | `review` |
-| 检查完成 | `task complete [dir]` | `completed` |
-| 归档 | `task archive <name>` | `completed`（归档副本） |
-| 清会话指针 | `task finish` | 不变 |
+`./.cowork-flow/run task next` 是唯一公开任务流程入口。它读取当前状态，输出下一步 action、激活 Skill、runtime gate、blocker，以及可执行时的 `task next --run` 命令。
 
-> Batch 使用任务图和持久化 Host action：运行
-> `task start <parent-task> --auto --approved` 获取 `next_action`，
-> Host 完成真实生命周期动作后用 `task batch-record-result <batch-id> --file <result.json>`
-> 回写结果；失败会暂停，可用 `task batch-resume <batch-id>` 生成新的重试动作。
+| action | 入口 | status 结果 |
+|---|---|---|
+| `create_task` | `task next --run --title "<title>" --slug <name> --assignee <name>` | `planning` |
+| `start_task` | `task next <dir> --run` | `in_progress` |
+| `request_review` | `task next <dir> --run --intent review` | `review` |
+| `complete_task` | `task next <dir> --run --intent review` | `completed` |
+| `archive_task` | `task next <dir> --run --intent archive` | 归档副本保持 `completed` |
+
+Batch 使用任务图和持久化 Host action：运行 `task next <parent-task> --run --intent batch --auto --approved` 获取 `next_action`；Host 完成真实生命周期动作后继续通过 `task next` 导航，不暴露独立 batch 子命令。
 
 ## 常用命令
 
@@ -140,16 +139,20 @@ changes → brainstorming → read spec → plan → tasks → implement → che
 
 # 上下文
 ./.cowork-flow/run get-context
-./.cowork-flow/run task list
 ./.cowork-flow/run task next
+./.cowork-flow/run task next --json
+./.cowork-flow/run task next --list
+./.cowork-flow/run task next <dir> --validate
 
 # 变更
 ./.cowork-flow/run change create <slug>
 ./.cowork-flow/run change validate <slug>
 
 # 任务
-./.cowork-flow/run task create "<title>" --slug <name>
-./.cowork-flow/run task start <dir>
+./.cowork-flow/run task next --run --title "<title>" --slug <name> --assignee <name>
+./.cowork-flow/run task next <dir> --run
+./.cowork-flow/run task next <dir> --run --intent review
+./.cowork-flow/run task next <dir> --run --intent archive
 
 # 子代理
 ./.cowork-flow/run subagent init --role implement --agent-type cowork-implement --execution-task-dir <dir> --title "<title>"
@@ -191,5 +194,5 @@ Windows 上发布前使用 `run.cmd` 入口验证；POSIX shell 专属 release �
 
 - 以目标项目事实为准，不把模板内容当成项目事实
 - 保留有价值的流程骨架，删除不存在的场景
-- 项目差异写入 `AGENTS.md`、`workflow.md`、`config.yaml`、`spec/`
+- 项目差异写入 `AGENTS.md`、`config.yaml`、`spec/` 或项目自有 Skill；不要恢复第二套流程中枢文档
 - 不为了替换项目命令而改写通用 skill

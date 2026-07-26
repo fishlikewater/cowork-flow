@@ -48,4 +48,4 @@
 ## 参见
 
 - `spec/contracts/error-output-as-data.md` — 防御 prompt injection
-- `skills/tdd/SKILL.md` — 安全回归测试证据
+- `skills/test-first/SKILL.md` — 安全回归测试证据
