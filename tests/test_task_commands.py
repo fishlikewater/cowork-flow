@@ -21,7 +21,7 @@ from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 
 
 class TaskCommandsTest(FlowScriptTestCase):
-    def test_cmd_review_handles_idempotent_result_without_gate_output(self) -> None:
+    def test_cmd_review_handles_idempotent_result_without_protocol_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
@@ -33,12 +33,10 @@ class TaskCommandsTest(FlowScriptTestCase):
             lifecycle_result = SimpleNamespace(
                 ok=True,
                 code="LIFECYCLE-IDEMPOTENT",
-                gate_result=None,
-                summary="",
+                check_result=None,
             )
             service = SimpleNamespace(
                 review=lambda *args, **kwargs: lifecycle_result,
-                gate_runner=None,
             )
 
             previous_cwd = Path.cwd()
@@ -515,7 +513,6 @@ class TaskCommandsTest(FlowScriptTestCase):
             )
             for name in ("check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-            self._write_rules_file(root, [])
 
             previous_cwd = Path.cwd()
             try:
@@ -583,7 +580,6 @@ class TaskCommandsTest(FlowScriptTestCase):
             (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-            self._write_rules_file(root, [])
 
             previous_cwd = Path.cwd()
             try:
@@ -610,7 +606,6 @@ class TaskCommandsTest(FlowScriptTestCase):
             (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-            self._write_rules_file(root, [])
 
             previous_cwd = Path.cwd()
             try:

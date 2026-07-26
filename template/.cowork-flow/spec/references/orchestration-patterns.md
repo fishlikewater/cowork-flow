@@ -135,5 +135,5 @@ cowork-check("看到安全相关代码") -> cowork-security-audit
 
 - `spec/contracts/subagent-dispatch.md` — formal dispatch 协议权威定义
 - `spec/contracts/party-mode-v2-board.md` — Party Mode V2 权威定义
-- `spec/runtime/rules.json` — R-AG-001..007 执行层约束
+- `spec/backend/`、`spec/frontend/`、`spec/guides/` — 用户定义规范，由 review skill 按需逐条审查
 - `skills/cowork-flow/SKILL.md` — workflow state 路由

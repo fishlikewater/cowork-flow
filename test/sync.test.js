@@ -49,6 +49,16 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'common', 'gates.py'), 'old gates script\n', 'utf8');
+  await writeFile(
+    join(target, '.cowork-flow', 'scripts', 'common', 'task', 'lifecycle_checks.py'),
+    'old lifecycle checks\n',
+    'utf8'
+  );
+  await writeFile(
+    join(target, '.cowork-flow', 'scripts', 'common', 'review', 'test_intent.py'),
+    'old test intent helper\n',
+    'utf8'
+  );
   await writeFile(join(target, '.cowork-flow', 'scripts', 'project_context.py'), 'old project context script\n', 'utf8');
   await mkdir(join(target, '.cowork-flow', 'scripts', 'commands'), { recursive: true });
   await writeFile(join(target, '.cowork-flow', 'scripts', 'commands', 'party_mode_v2.py'), 'old party command script\n', 'utf8');
@@ -89,9 +99,14 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(templateRoot, '.cowork-flow', 'scripts', 'commands', 'task.py'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'gates.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'common', 'gates', 'gates.py'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'common', 'task', 'lifecycle_checks.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'common', 'task', 'lifecycle_checks.py'))
   );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'scripts', 'common', 'review', 'test_intent.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'common', 'review', 'test_intent.py'))
+  );
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'gates')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'project_context.py')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'commands', 'party_mode_v2.py')), false);
   assert.equal(
@@ -127,31 +142,24 @@ test('sync updates safe template files and preserves protected files', async (t)
   assert.match(io.stdout, /protected=/);
 });
 
-test('sync upgrades framework-owned runtime rules metadata without overwriting local specs', async (t) => {
+test('sync removes obsolete runtime rules metadata without overwriting local specs', async (t) => {
   const target = await createTempDir(t);
   assert.equal(
     await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
     0
   );
   const rulesPath = join(target, '.cowork-flow', 'spec', 'runtime', 'rules.json');
-  const templateRules = await readText(
-    join(templateRoot, '.cowork-flow', 'spec', 'runtime', 'rules.json')
-  );
-  const legacyRules = JSON.parse(templateRules);
-  for (const rule of legacyRules.rules) {
-    delete rule.validator;
-    delete rule.parameters;
-  }
-  await writeFile(
-    rulesPath,
-    `${JSON.stringify(legacyRules, null, 2)}\n`,
-    'utf8'
-  );
+  const rulesSchemaPath = join(target, '.cowork-flow', 'spec', 'schemas', 'rules.schema.json');
+  const removedGatePath = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'gates.py');
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'gates'), { recursive: true });
+  await writeFile(rulesPath, '{"schemaVersion":1,"rules":[]}\n', 'utf8');
+  await writeFile(rulesSchemaPath, '{"type":"object"}\n', 'utf8');
+  await writeFile(removedGatePath, 'old gate registry\n', 'utf8');
   const localSpecPath = join(
     target,
     '.cowork-flow',
     'spec',
-    'contracts',
+    'backend',
     'local-extension.md'
   );
   await writeFile(localSpecPath, '# Local extension\n', 'utf8');
@@ -159,7 +167,9 @@ test('sync upgrades framework-owned runtime rules metadata without overwriting l
   const code = await main(['sync', target], { io: createIo() });
 
   assert.equal(code, 0);
-  assert.equal(await readText(rulesPath), templateRules);
+  assert.equal(await exists(rulesPath), false);
+  assert.equal(await exists(rulesSchemaPath), false);
+  assert.equal(await exists(removedGatePath), false);
   assert.equal(await readText(localSpecPath), '# Local extension\n');
 });
 

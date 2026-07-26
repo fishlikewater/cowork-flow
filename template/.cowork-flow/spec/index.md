@@ -1,19 +1,20 @@
 # Cowork Flow Spec Index
 
-本目录只存放项目规范、运行时规则定义和规范校验 schema。按职责分层：
+本目录只存放项目规范、运行时合同和运行时配置 schema。按职责分层：
 
 | 目录 | 作用 |
 | --- | --- |
 | `contracts/` | 人读的 workflow、宿主适配器和子代理协议合同。 |
-| `runtime/` | runtime 读取的机器配置，包括规则元数据和 contract registry。 |
+| `runtime/` | runtime 读取的机器配置，包括 contract registry 和 host asset manifest。 |
 | `schemas/` | runtime 配置和宿主合同的 JSON Schema。 |
-| `backend/` | Python/runtime 后端实现规范。 |
+| `backend/` | 后端实现规范；由 review skill 按需读取并逐条审查。 |
 | `frontend/` | 前端实现规范。 |
 | `guides/` | 编码前思考、跨层设计和复用判断指引。 |
 | `references/` | 按需参考材料（DoD、测试清单、安全清单、协作模式）；不自动加载。加载条件见 contract-registry.json 的 references 数组。 |
 
-规则执行器只负责事实判断；规则的 `id`、`message`、`severity`、`fix_hint`
-和来源元数据必须来自 `runtime/rules.json`。
+流程内核只负责任务状态、文件范围、runtime context、归档一致性等可机器判断的事实。
+`backend/`、`frontend/`、`guides/` 中的自然语言规范不注册为 runtime gate；
+`task-review` skill 根据当前 diff 和任务范围读取并逐条审查。
 
 ## references/
 

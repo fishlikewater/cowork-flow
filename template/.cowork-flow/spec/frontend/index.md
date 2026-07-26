@@ -17,7 +17,7 @@
 | [组件规范](./component-guidelines.md) | 说明组件职责、组合与交互边界 |
 | [Hook 规范](./hook-guidelines.md) | 说明复用逻辑与副作用边界 |
 | [状态管理](./state-management.md) | 说明服务端状态、客户端状态和权限状态 |
-| [质量规范](./quality-guidelines.md) | 说明前端门禁 |
+| [质量规范](./quality-guidelines.md) | 说明前端验证 |
 | [类型安全](./type-safety.md) | 说明共享类型与契约同步原则 |
 
 ---

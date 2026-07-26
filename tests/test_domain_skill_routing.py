@@ -69,7 +69,7 @@ class DomainSkillRoutingTest(FlowScriptTestCase):
                 entry["file"]
                 for entry in context.get_domain_skill_context(
                     ROOT,
-                    paths=(".cowork-flow/spec/runtime/rules.json",),
+                    paths=(".cowork-flow/spec/backend/quality-guidelines.md",),
                 )
             ],
         )

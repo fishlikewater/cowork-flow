@@ -148,8 +148,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             "common.task.state_machine",
             "common.task.task_repository",
             "common.task.task_utils",
-            "common.gates.gates",
-            "common.gates.models",
+            "common.task.lifecycle_checks",
             "common.core.files",
             "common.core.paths",
             "common",
@@ -177,24 +176,17 @@ class TaskLifecycleServiceTest(unittest.TestCase):
         )["status"]
 
     @staticmethod
-    def _gate_runner(*, blocked: bool = False):
-        class FakeGateRunner:
+    def _check_runner(*, blocked: bool = False):
+        class FakeCheckRunner:
             def __init__(self) -> None:
                 self.calls: list[tuple[str, Path, dict]] = []
 
             def run(self, scope: str, task_dir: Path, **kwargs):
                 self.calls.append((scope, task_dir, kwargs))
-                violations = (
-                    [{"rule_id": "TEST-GATE-001", "severity": "block"}]
-                    if blocked
-                    else []
-                )
-                return SimpleNamespace(blocked=blocked, violations=violations)
+                blockers = ("TEST-CHECK-001 blocked",) if blocked else ()
+                return SimpleNamespace(blocked=blocked, blockers=blockers)
 
-            def coding_standards_summary(self, task_dir: Path) -> str:
-                return f"summary:{task_dir.name}"
-
-        return FakeGateRunner()
+        return FakeCheckRunner()
 
     def test_task_lifecycle_imports_on_supported_python_runtime(self) -> None:
         lifecycle_module = importlib.import_module("application.task_lifecycle")
@@ -208,13 +200,13 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             lifecycle_module.LifecyclePreflightFailure.__name__,
         )
 
-    def test_preflight_failure_stops_before_gate_and_persistence(self) -> None:
+    def test_preflight_failure_stops_before_check_and_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "planning")
-            gate_runner = self._gate_runner()
-            service = self.TaskLifecycleService(root, gate_runner=gate_runner)
+            check_runner = self._check_runner()
+            service = self.TaskLifecycleService(root, check_runner=check_runner)
             failure = self.LifecyclePreflightFailure(
                 code="TASK-CONTEXT-001",
                 title="Task context validation failed",
@@ -227,60 +219,59 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual("TASK-CONTEXT-001", result.code)
             self.assertEqual(("missing implement context",), result.blockers)
-            self.assertEqual([], gate_runner.calls)
+            self.assertEqual([], check_runner.calls)
             self.assertEqual("planning", self._status(task_dir))
 
-    def test_gate_failure_leaves_task_metadata_unchanged(self) -> None:
+    def test_check_failure_leaves_task_metadata_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "in_progress")
-            gate_runner = self._gate_runner(blocked=True)
-            service = self.TaskLifecycleService(root, gate_runner=gate_runner)
+            check_runner = self._check_runner(blocked=True)
+            service = self.TaskLifecycleService(root, check_runner=check_runner)
 
             result = service.review(task_dir)
 
             self.assertFalse(result.ok)
-            self.assertEqual("LIFECYCLE-GATE-001", result.code)
+            self.assertEqual("LIFECYCLE-CHECK-001", result.code)
             self.assertEqual("in_progress", self._status(task_dir))
-            self.assertEqual("task_review", gate_runner.calls[0][0])
+            self.assertEqual("task_review", check_runner.calls[0][0])
 
-    def test_repeated_review_reruns_gates_without_persisting_task(self) -> None:
+    def test_repeated_review_reruns_checks_without_persisting_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "review")
             before = (task_dir / "task.json").read_text(encoding="utf-8")
-            gate_runner = self._gate_runner()
-            service = self.TaskLifecycleService(root, gate_runner=gate_runner)
+            check_runner = self._check_runner()
+            service = self.TaskLifecycleService(root, check_runner=check_runner)
 
             result = service.review(task_dir)
 
             self.assertTrue(result.ok)
             self.assertEqual("LIFECYCLE-IDEMPOTENT-VALIDATED", result.code)
-            self.assertIsNotNone(result.gate_result)
-            self.assertEqual("summary:07-10-demo", result.summary)
-            self.assertEqual("task_review", gate_runner.calls[0][0])
+            self.assertIsNotNone(result.check_result)
+            self.assertEqual("task_review", check_runner.calls[0][0])
             self.assertEqual(
                 before,
                 (task_dir / "task.json").read_text(encoding="utf-8"),
             )
 
-    def test_repeated_complete_reruns_gates_without_persisting_task(self) -> None:
+    def test_repeated_complete_reruns_checks_without_persisting_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "completed")
             before = (task_dir / "task.json").read_text(encoding="utf-8")
-            gate_runner = self._gate_runner()
-            service = self.TaskLifecycleService(root, gate_runner=gate_runner)
+            check_runner = self._check_runner()
+            service = self.TaskLifecycleService(root, check_runner=check_runner)
 
             result = service.complete(task_dir, completed_at="2026-07-10")
 
             self.assertTrue(result.ok)
             self.assertEqual("LIFECYCLE-IDEMPOTENT-VALIDATED", result.code)
-            self.assertIsNotNone(result.gate_result)
-            self.assertEqual("task_complete", gate_runner.calls[0][0])
+            self.assertIsNotNone(result.check_result)
+            self.assertEqual("task_complete", check_runner.calls[0][0])
             self.assertEqual(
                 before,
                 (task_dir / "task.json").read_text(encoding="utf-8"),
@@ -291,8 +282,8 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "in_progress")
-            gate_runner = self._gate_runner()
-            service = self.TaskLifecycleService(root, gate_runner=gate_runner)
+            check_runner = self._check_runner()
+            service = self.TaskLifecycleService(root, check_runner=check_runner)
 
             review = service.review(
                 task_dir,
@@ -304,7 +295,6 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             )
 
             self.assertTrue(review.ok)
-            self.assertEqual("summary:07-10-demo", review.summary)
             self.assertTrue(complete.ok)
             persisted = json.loads(
                 (task_dir / "task.json").read_text(encoding="utf-8")
@@ -314,10 +304,10 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self.assertEqual({"keep": True}, persisted["customMetadata"])
             self.assertEqual(
                 ["task_review", "task_complete"],
-                [call[0] for call in gate_runner.calls],
+                [call[0] for call in check_runner.calls],
             )
             self.assertTrue(
-                gate_runner.calls[0][2]["allow_spec_file_modifications"]
+                check_runner.calls[0][2]["allow_spec_file_modifications"]
             )
 
     def test_start_without_session_context_does_not_change_status(self) -> None:
@@ -325,8 +315,8 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "planning")
-            gate_runner = self._gate_runner()
-            service = self.TaskLifecycleService(root, gate_runner=gate_runner)
+            check_runner = self._check_runner()
+            service = self.TaskLifecycleService(root, check_runner=check_runner)
 
             with patch.dict(os.environ, {}, clear=True):
                 result = service.start(task_dir)
@@ -342,7 +332,7 @@ class TaskLifecycleTransactionTest(TaskLifecycleServiceTest):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "planning")
-            gate_runner = self._gate_runner()
+            check_runner = self._check_runner()
 
             def interrupt_after_session(
                 index: int,
@@ -358,7 +348,7 @@ class TaskLifecycleTransactionTest(TaskLifecycleServiceTest):
             ):
                 service = self.TaskLifecycleService(
                     root,
-                    gate_runner=gate_runner,
+                    check_runner=check_runner,
                     fault_injector=interrupt_after_session,
                 )
                 with self.assertRaises(RuntimeError):
@@ -376,7 +366,7 @@ class TaskLifecycleTransactionTest(TaskLifecycleServiceTest):
 
                 recovered = self.TaskLifecycleService(
                     root,
-                    gate_runner=self._gate_runner(),
+                    check_runner=self._check_runner(),
                 ).start(task_dir)
 
             session = json.loads(

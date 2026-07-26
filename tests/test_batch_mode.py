@@ -43,7 +43,6 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
                 '{"file":"AGENTS.md","reason":"rules"}\n',
                 encoding="utf-8",
             )
-        self._write_rules_file(root, [])
         return task_dir
 
     @staticmethod

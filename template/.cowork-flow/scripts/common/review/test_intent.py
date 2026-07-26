@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Test intent helpers for cowork-flow review guidance.
 
-The lifecycle gate no longer reads TDD evidence from task JSONL files. These
-helpers remain available to review code or prompts that need a lightweight
-classifier for a concrete test body.
+The lifecycle kernel does not run test-quality gates. These helpers remain
+available to review code or prompts that need a lightweight classifier for a
+concrete test body.
 """
 
 from __future__ import annotations
@@ -50,8 +50,8 @@ BLOCK_MARKERS = (
 def validate_test_intent(*_args, **_kwargs) -> list[dict]:
     """Return no lifecycle violations.
 
-    Test quality is now reviewed from changed test files and verification output,
-    not from TDD evidence records in check.jsonl or tdd.jsonl.
+    Test quality is reviewed from changed test files and verification output,
+    not from lifecycle gates or task-local evidence files.
     """
     return []
 
@@ -142,7 +142,14 @@ def _looks_mock_only(lower: str) -> bool:
     mock_markers = ("assert_called", "call_count", "assert_not_called", "mock(", "Mock(")
     return any(marker in lower for marker in mock_markers) and not any(
         marker in lower
-        for marker in ("assertequal(", "assertequals(", "assertraises(", "assertin(", "asserttrue(", "assertfalse(")
+        for marker in (
+            "assertequal(",
+            "assertequals(",
+            "assertraises(",
+            "assertin(",
+            "asserttrue(",
+            "assertfalse(",
+        )
     )
 
 

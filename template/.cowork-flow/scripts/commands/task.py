@@ -73,7 +73,6 @@ from common.core.paths import (
     FILE_TASK_JSON,
     get_repo_root,
 )
-from common.gates.gates import GateResult, GateRunner
 from common.task.active_task import clear_active_task, get_active_task, is_main_session
 
 
@@ -82,45 +81,12 @@ def _allow_spec_file_modifications(repo_root: Path, execution_context) -> bool:
         return False
     return is_main_session(repo_root)
 
-def _report_gate_block(
-    title: str,
-    result: GateResult,
-    runner: GateRunner | None = None,
-) -> int:
+
+def _report_check_block(title: str, blockers: tuple[str, ...]) -> int:
     print(colored(f"Error: {title}", Colors.RED), file=sys.stderr)
-    for violation in result.violations:
-        print(json.dumps(violation, ensure_ascii=False), file=sys.stderr)
-    if runner is not None:
-        runner.log(result)
-    return result.exit_code
-
-
-def _report_gate_warnings(title: str, result: GateResult) -> None:
-    if not result.violations:
-        return
-    print(colored(f"Warning: {title}", Colors.YELLOW), file=sys.stderr)
-    for violation in result.violations:
-        print(json.dumps(violation, ensure_ascii=False), file=sys.stderr)
-
-
-def _report_pipeline_outcomes(
-    result: GateResult,
-    runner: GateRunner,
-) -> int | None:
-    for execution in result.executions:
-        definition = execution.definition
-        if execution.blocked:
-            return _report_gate_block(
-                definition.block_message,
-                execution.result,
-                runner if definition.log_violations else None,
-            )
-        if definition.warning_message and execution.result.violations:
-            _report_gate_warnings(
-                definition.warning_message,
-                execution.result,
-            )
-    return None
+    for blocker in blockers:
+        print(f"  - {blocker}", file=sys.stderr)
+    return 1
 
 
 def _print_transition_blockers(blockers: list[str]) -> None:
@@ -352,16 +318,16 @@ def _report_start_failure(
     result: LifecycleResult,
     service: TaskLifecycleService,
 ) -> int:
+    del service
     if result.title:
         return _report_lifecycle_preflight(result)
     if result.code == "LIFECYCLE-TRANSITION-001":
         _print_transition_blockers(list(result.blockers))
         return 1
-    if result.code == "LIFECYCLE-GATE-001":
-        return _report_gate_block(
-            "Spec enforcement blocked start_task action",
-            result.gate_result,
-            service.gate_runner,
+    if result.code == "LIFECYCLE-CHECK-001":
+        return _report_check_block(
+            "Lifecycle checks blocked start_task action",
+            result.blockers,
         )
     if result.code == "LIFECYCLE-CONTEXT-001":
         return _report_missing_session_context()
@@ -523,21 +489,14 @@ def cmd_review(args: argparse.Namespace) -> int:
         if result.code == "LIFECYCLE-TRANSITION-001":
             _print_transition_blockers(list(result.blockers))
             return 1
-        if result.code == "LIFECYCLE-GATE-001":
-            gate_exit = _report_pipeline_outcomes(
-                result.gate_result,
-                service.gate_runner,
+        if result.code == "LIFECYCLE-CHECK-001":
+            return _report_check_block(
+                "Lifecycle checks blocked review",
+                result.blockers,
             )
-            return gate_exit if gate_exit is not None else 1
         if result.repository_error is not None:
             return _report_lifecycle_repository_error(result)
         return 1
-
-    if result.gate_result is not None:
-        _report_pipeline_outcomes(result.gate_result, service.gate_runner)
-    if result.summary:
-        print(colored("Coding Standards to Verify:", Colors.CYAN))
-        print(result.summary)
 
     task_path = _display_task_path(repo_root, task_dir)
     print(
@@ -572,17 +531,15 @@ def cmd_complete(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 1
-        if result.code == "LIFECYCLE-GATE-001":
-            gate_exit = _report_pipeline_outcomes(
-                result.gate_result,
-                service.gate_runner,
+        if result.code == "LIFECYCLE-CHECK-001":
+            return _report_check_block(
+                "Lifecycle checks blocked completion",
+                result.blockers,
             )
-            return gate_exit if gate_exit is not None else 1
         if result.repository_error is not None:
             return _report_lifecycle_repository_error(result)
         return 1
 
-    _report_pipeline_outcomes(result.gate_result, service.gate_runner)
     task_path = _display_task_path(repo_root, task_dir)
     print(
         colored(

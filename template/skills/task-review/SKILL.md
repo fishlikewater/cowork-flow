@@ -1,6 +1,6 @@
 ---
 name: task-review
-description: Use before completing a cowork-flow task to review code, tests, specs, gate output, and completion readiness.
+description: Use before completing a cowork-flow task to review code, tests, user-defined specs, lifecycle blockers, and completion readiness.
 ---
 
 # Task Review
@@ -11,8 +11,8 @@ Use this Skill during the check phase, before the `task next --run` completion a
 
 - Review early enough that fixes are cheap; do not wait until archive/commit to discover blockers.
 - Review the current diff and exact task context, not broad conversation memory.
-- Separate machine-decidable gates from human judgment: hard gates block; review judgment explains risk and fixes.
-- Treat backend/frontend natural-language markdown as checklist context, not dynamic hard validators.
+- Separate machine-decidable lifecycle facts from human judgment: runtime blockers cover state/scope facts; review judgment explains spec, quality, and risk findings.
+- Treat backend/frontend/guides natural-language markdown as user-defined review requirements, not dynamic hard validators.
 - Prefer fresh verification from the current checkout over stale prior output.
 - Do not create task-local review artifact files. The review result and command output are the evidence.
 
@@ -24,17 +24,18 @@ Read only what is needed for the current task:
 2. The linked implementation plan, if present.
 3. `<task>/check.jsonl` and each referenced file.
 4. Current `git diff` / `git status --short`.
-5. Relevant `.cowork-flow/spec/` files and backend/frontend quality rules for changed paths.
-6. Gate output from coding standards, implementation scope, runtime rules, machine warnings, and complexity signals.
+5. Relevant `.cowork-flow/spec/backend/`, `.cowork-flow/spec/frontend/`, and `.cowork-flow/spec/guides/` files selected by changed paths and task scope.
+6. Lifecycle blocker output, if any, from `task next`, `task review`, or `task complete`.
 
 ## Task Review Checklist
 
 - **Scope**: every changed file is planned or justified; no unrelated cleanup sneaks in.
 - **Behavior**: acceptance criteria are satisfied through observable behavior, not implementation-shaped assertions.
 - **Tests**: test intent is explicit; tests fail for meaningful regressions, reject shallow tests such as existence/mock/snapshot-only checks, and cover boundary/error paths when relevant.
-- **Specs**: specs are updated when behavior/contracts changed, or the review states why no spec update is needed.
-- **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against project specs.
-- **Machine gates**: blocking gate failures are fixed before acceptance; advisory warnings are fixed or explicitly accepted with rationale.
+- **User specs**: every applicable backend/frontend/guides requirement is marked `pass`, `finding`, `not_applicable`, or `needs_user_judgment`.
+- **Specs**: project specs are updated when behavior/contracts changed, or the review states why no spec update is needed.
+- **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against applicable user specs.
+- **Lifecycle blockers**: state/scope blockers are fixed before acceptance; review does not invent hard blockers for natural-language specs.
 
 ## Severity
 
@@ -50,7 +51,8 @@ Return a concise review result with:
 - `status`: `pass`, `needs_fix`, or `blocked`.
 - `findings`: severity, file, line/scope, impact, and fix.
 - `test_intent_review`: why tests prove the intended behavior or what is missing.
-- `machine_gate_review`: commands/gates run, pass/fail/warn status, and warning disposition.
+- `user_spec_review`: applicable spec files, per-requirement result, and findings.
+- `lifecycle_check_review`: lifecycle commands run, blocker status, and resolution.
 - `verification`: exact commands run from this checkout.
 - `specUpdates`: files updated or reason no update was needed.
 - `resolution`: what was fixed and what remains.

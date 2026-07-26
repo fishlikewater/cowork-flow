@@ -122,7 +122,7 @@ class FlowScriptPathsTest(FlowScriptTestCase):
                 check_files,
             )
 
-    def test_default_implement_context_includes_workflow_gates(self) -> None:
+    def test_default_implement_context_includes_workflow_checks(self) -> None:
         files = [entry["file"] for entry in self.task.get_implement_base()]
 
         self.assertIn("AGENTS.md", files)
