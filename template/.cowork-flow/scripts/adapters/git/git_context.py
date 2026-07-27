@@ -15,9 +15,9 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from kernel.session_state import get_active_task
-from kernel.files import read_json_file as _read_json_file
-from kernel.paths import (
+from runtime.session_state import get_active_task
+from infra.files import read_json_file as _read_json_file
+from infra.paths import (
     DIR_SCRIPTS,
     DIR_SPEC,
     DIR_TASKS,

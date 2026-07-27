@@ -100,7 +100,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_context_scope_fixture(task_dir)
-            checks = importlib.import_module("kernel.lifecycle_checks")
+            checks = importlib.import_module("services.lifecycle_checks")
 
             blockers = checks._allowed_file_scope_blockers(
                 task_dir,
@@ -128,7 +128,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
                 "{\"file\": \"src/allowed.py\"}\nnot-json\n",
                 encoding="utf-8",
             )
-            checks = importlib.import_module("kernel.lifecycle_checks")
+            checks = importlib.import_module("services.lifecycle_checks")
 
             blockers = checks._allowed_file_scope_blockers(task_dir, ["src/allowed.py"])
 
@@ -142,7 +142,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
                 json.dumps({"file": "src/", "reason": "directory context", "type": "directory"}) + "\n",
                 encoding="utf-8",
             )
-            checks = importlib.import_module("kernel.lifecycle_checks")
+            checks = importlib.import_module("services.lifecycle_checks")
 
             blockers = checks._allowed_file_scope_blockers(task_dir, ["src/allowed.py"])
 
@@ -155,7 +155,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "07-12-demo"
             self._write_allowed_file_task(root, task_dir, "in_progress")
             self._write_mixed_git_status_fixture(root)
-            checks = importlib.import_module("kernel.lifecycle_checks")
+            checks = importlib.import_module("services.lifecycle_checks")
 
             result = checks.LifecycleCheckRunner(root).review(
                 task_dir,
@@ -323,7 +323,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
             nested = outer / "nested-project"
             task_dir = nested / ".cowork-flow" / "tasks" / "05-19-demo"
             self._write_allowed_file_task(nested, task_dir, "in_progress")
-            checks = importlib.import_module("kernel.lifecycle_checks")
+            checks = importlib.import_module("services.lifecycle_checks")
 
             result = checks.LifecycleCheckRunner(nested).review(task_dir)
 

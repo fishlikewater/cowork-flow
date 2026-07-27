@@ -10,10 +10,10 @@ from services.task_context import TaskContextService
 from adapters.cli.task_archive_commands import linked_active_changes_for_task
 from adapters.cli.task_support import resolve_task_dir
 from adapters.cli.execution_context_args import execution_context_from_namespace
-from kernel.paths import get_repo_root
-from kernel.session_state import get_active_task
+from infra.paths import get_repo_root
+from runtime.session_state import get_active_task
 from services.readiness import task_readiness_blockers
-from kernel.task_repository import TaskRepository, TaskRepositoryError
+from services.task_repository import TaskRepository, TaskRepositoryError
 
 
 from services.task_routing import (

@@ -27,9 +27,9 @@ class TaskContextServiceTest(unittest.TestCase):
         for module_name in (
             "services.task_context",
             "application",
-            "kernel.files",
-            "kernel.quality_sources",
-            "kernel.paths",
+            "infra.files",
+            "infra.quality_sources",
+            "infra.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)
@@ -434,7 +434,7 @@ class TaskContextServiceTest(unittest.TestCase):
             (references_dir / "definition-of-done.md").write_text("# DoD\n", encoding="utf-8")
             (references_dir / "testing-checklist.md").write_text("# Testing\n", encoding="utf-8")
             (references_dir / "security-checklist.md").write_text("# Security\n", encoding="utf-8")
-            quality_sources = importlib.import_module("kernel.quality_sources")
+            quality_sources = importlib.import_module("infra.quality_sources")
 
             entries = quality_sources.quality_source_entries(
                 root,
@@ -451,7 +451,7 @@ class TaskContextServiceTest(unittest.TestCase):
     def test_live_and_template_context_implementations_match(self) -> None:
         relative_files = (
             "services/task_context.py",
-            "kernel/lifecycle_checks.py",
+            "services/lifecycle_checks.py",
             "adapters/cli/task_context_commands.py",
             "adapters/cli/task_parser.py",
         )

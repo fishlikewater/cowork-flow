@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from kernel.git_snapshot import collect_changed_paths
+from infra.git_snapshot import collect_changed_paths
 
 
 PROTECTED_WORKFLOW_PATTERNS = (

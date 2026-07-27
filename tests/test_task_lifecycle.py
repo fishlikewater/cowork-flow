@@ -21,7 +21,7 @@ class TaskRepositoryTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        repository_module = importlib.import_module("kernel.task_repository")
+        repository_module = importlib.import_module("services.task_repository")
         self.TaskRepository = repository_module.TaskRepository
         self.TaskRepositoryError = repository_module.TaskRepositoryError
 
@@ -29,10 +29,10 @@ class TaskRepositoryTest(unittest.TestCase):
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "kernel.task_repository",
-            "kernel.task_utils",
-            "kernel.files",
-            "kernel.paths",
+            "services.task_repository",
+            "services.task_utils",
+            "infra.files",
+            "infra.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)
@@ -144,13 +144,13 @@ class TaskLifecycleServiceTest(unittest.TestCase):
         for module_name in (
             "services.task_lifecycle",
             "application",
-            "kernel.session_state",
+            "runtime.session_state",
             "kernel.task_state",
-            "kernel.task_repository",
-            "kernel.task_utils",
-            "kernel.lifecycle_checks",
-            "kernel.files",
-            "kernel.paths",
+            "services.task_repository",
+            "services.task_utils",
+            "services.lifecycle_checks",
+            "infra.files",
+            "infra.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)

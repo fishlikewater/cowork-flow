@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from kernel.storage.operation_log import OperationLog
-from kernel.storage.state_store import StateStore, StateStoreError
+from infra.storage.operation_log import OperationLog
+from infra.storage.state_store import StateStore, StateStoreError
 
 
 class UnitOfWorkError(RuntimeError):

@@ -16,7 +16,7 @@ class BatchRecoveryTest(FlowScriptTestCase):
         super().setUp()
         self.module = importlib.import_module("services.batch_execution")
         self.runtime_module = importlib.import_module(
-            "services.runtime_context"
+            "services.workflow_runtime"
         )
 
     def _task(

@@ -26,12 +26,12 @@ class TaskArchiveServiceTest(unittest.TestCase):
         for module_name in (
             "services.task_archive",
             "application",
-            "kernel.session_state",
-            "kernel.archive_utils",
-            "kernel.task_repository",
-            "kernel.task_utils",
-            "kernel.files",
-            "kernel.paths",
+            "runtime.session_state",
+            "infra.archive_utils",
+            "services.task_repository",
+            "services.task_utils",
+            "infra.files",
+            "infra.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)

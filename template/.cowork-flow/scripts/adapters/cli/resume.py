@@ -9,7 +9,7 @@ if __package__:
     from . import _bootstrap as _bootstrap  # noqa: F401
 else:
     import _bootstrap  # noqa: F401
-from kernel.execution_context import (
+from adapters.cli.execution_resume import (
     build_subagent_resume_text,
     build_worker_resume_text,
 )

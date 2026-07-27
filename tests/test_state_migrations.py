@@ -19,12 +19,12 @@ class StateMigrationTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.active_task = importlib.import_module("kernel.session_state")
+        self.active_task = importlib.import_module("runtime.session_state")
         runtime_module = importlib.import_module(
-            "services.runtime_context"
+            "services.workflow_runtime"
         )
         repository_module = importlib.import_module(
-            "kernel.task_repository"
+            "services.task_repository"
         )
         self.RuntimeContextService = runtime_module.RuntimeContextService
         self.TaskRepository = repository_module.TaskRepository

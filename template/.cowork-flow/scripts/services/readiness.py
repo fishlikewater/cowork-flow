@@ -6,9 +6,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from kernel.paths import DIR_ARCHIVE, DIR_CHANGES, DIR_TASKS, DIR_WORKFLOW, FILE_TASK_JSON, get_tasks_dir
-from kernel.decision_review import DECISION_REVIEW_FILE, validate_decision_review_file
-from kernel.task_utils import find_task_by_name
+from infra.paths import DIR_ARCHIVE, DIR_CHANGES, DIR_TASKS, DIR_WORKFLOW, FILE_TASK_JSON, get_tasks_dir
+from services.decision_review import DECISION_REVIEW_FILE, validate_decision_review_file
+from services.task_utils import find_task_by_name
 
 REQUIRED_L2_MARKERS = {
     "goal and user value": (
@@ -29,7 +29,7 @@ VERIFICATION_COMMAND_MARKERS = (
 )
 
 
-from kernel.files import read_text_utf8
+from infra.files import read_text_utf8
 
 
 def _read_text(path: Path) -> str:

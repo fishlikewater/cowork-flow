@@ -9,14 +9,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from kernel.paths import DIR_ARCHIVE, get_tasks_dir
-from kernel.session_state import clear_task_from_sessions
-from kernel.archive_utils import archive_directory_resumable
-from kernel.task_repository import TaskRepository, TaskRepositoryError
-from kernel.task_utils import find_task_by_name
+from infra.paths import DIR_ARCHIVE, get_tasks_dir
+from runtime.session_state import clear_task_from_sessions
+from infra.archive_utils import archive_directory_resumable
+from services.task_repository import TaskRepository, TaskRepositoryError
+from services.task_utils import find_task_by_name
 
 
-DONE_STATUSES = ("completed", "done")
+from kernel.task_state import DONE_STATUSES  # noqa: F401
 ArchiveFinalizer = Callable[[], bool]
 
 

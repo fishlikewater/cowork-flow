@@ -7,13 +7,13 @@ import sys
 
 from services.task_tree import TaskTreeError, TaskTreeService
 from adapters.cli.task_support import Colors, colored, resolve_task_dir
-from kernel.paths import (
+from infra.paths import (
     DIR_TASKS,
     DIR_WORKFLOW,
     get_developer,
     get_repo_root,
 )
-from kernel.session_state import get_active_task
+from runtime.session_state import get_active_task
 
 
 def cmd_add_subtask(args) -> int:

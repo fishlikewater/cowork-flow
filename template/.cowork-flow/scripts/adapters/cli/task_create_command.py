@@ -13,14 +13,14 @@ from services.task_creation import (
     ensure_tasks_dir,
 )
 from adapters.cli.task_support import Colors, colored, run_hooks, slugify
-from kernel.paths import (
+from infra.paths import (
     DIR_TASKS,
     DIR_WORKFLOW,
     FILE_TASK_JSON,
     get_developer,
     get_repo_root,
 )
-from kernel.session_state import set_active_task
+from runtime.session_state import set_active_task
 
 
 def cmd_create(args: argparse.Namespace) -> int:

@@ -14,7 +14,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from .paths import (
+from infra.paths import (
     DIR_WORKFLOW,
     DIR_WORKSPACE,
     DIR_TASKS,

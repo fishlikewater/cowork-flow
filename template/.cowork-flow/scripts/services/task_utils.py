@@ -14,8 +14,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from .archive_utils import archive_directory_resumable
-from kernel.paths import get_repo_root
+from infra.archive_utils import archive_directory_resumable
+from infra.paths import get_repo_root
 
 PATH_TRAVERSAL_PREFIXES = ("./", "../")
 PATH_TRAVERSAL_PART = ".."
@@ -177,7 +177,7 @@ def archive_task_complete(
 # =============================================================================
 
 if __name__ == "__main__":
-    from kernel.paths import get_tasks_dir
+    from infra.paths import get_tasks_dir
 
     repo = get_repo_root()
     tasks = get_tasks_dir(repo)

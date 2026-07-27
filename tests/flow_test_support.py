@@ -22,10 +22,10 @@ class FlowScriptTestCase(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.paths = importlib.import_module("kernel.paths")
+        self.paths = importlib.import_module("infra.paths")
         self.task = importlib.import_module("adapters.cli.task")
         self.add_session = importlib.import_module("adapters.cli.add_session")
-        self.developer = importlib.import_module("kernel.developer")
+        self.developer = importlib.import_module("infra.developer_profile")
         self.git_context = importlib.import_module("adapters.git.git_context")
 
     def _cleanup_imports(self) -> None:
@@ -43,17 +43,17 @@ class FlowScriptTestCase(unittest.TestCase):
             "services.task_lifecycle",
             "services.task_tree",
             "application",
-            "kernel.session_state",
-            "kernel.config",
-            "kernel.developer",
-            "kernel.quality_sources",
+            "runtime.session_state",
+            "infra.config",
+            "infra.developer_profile",
+            "infra.quality_sources",
             "adapters.git.git_context",
-            "kernel.git_snapshot",
-            "kernel.paths",
+            "infra.git_snapshot",
+            "infra.paths",
             "services.readiness",
             "kernel.task_state",
-            "kernel.task_repository",
-            "kernel.task_utils",
+            "services.task_repository",
+            "services.task_utils",
             "adapters.review.test_intent",
             "common",
         ):

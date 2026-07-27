@@ -6,11 +6,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from kernel.paths import DIR_ARCHIVE, get_tasks_dir
-from kernel.task_repository import TaskRepository, TaskRepositoryError
+from infra.paths import DIR_ARCHIVE, get_tasks_dir
+from services.task_repository import TaskRepository, TaskRepositoryError
 
 
-DONE_STATUSES = ("completed", "done")
+from kernel.task_state import DONE_STATUSES  # noqa: F401
 
 
 class TaskTreeError(RuntimeError):

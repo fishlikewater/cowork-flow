@@ -11,11 +11,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from adapters.cli.encoding import configure_cli_encoding
 from adapters.cli.execution_context_args import (
     context_to_internal_cli_args,
     parse_public_execution_context_args,
 )
-from kernel.execution_context import ExecutionContextError
+from runtime.execution_context import ExecutionContextError
+
+configure_cli_encoding()
 
 COMMAND_SCRIPTS = {
     "resume": "adapters/cli/resume.py",
