@@ -26,7 +26,7 @@ from services.runtime_context import (
     RuntimeContextError,
     RuntimeContextService,
 )
-from kernel.execution_context import build_internal_execution_context_parser
+from adapters.cli.execution_context_args import build_internal_execution_context_parser
 from kernel.paths import get_repo_root
 
 VALID_STATUSES = {"pending", "bound", "active", "success", "needs_context", "blocked", "closed"}

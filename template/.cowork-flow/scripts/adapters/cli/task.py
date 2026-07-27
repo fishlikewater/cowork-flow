@@ -64,10 +64,8 @@ from adapters.cli.task_tree_commands import (
     cmd_list_archive,
     cmd_remove_subtask,
 )
-from kernel.execution_context import (
-    execution_context_from_namespace,
-    worker_command_block_message,
-)
+from adapters.cli.execution_context_args import execution_context_from_namespace
+from kernel.execution_context import worker_command_block_message
 from kernel.paths import (
     DIR_WORKFLOW,
     FILE_TASK_JSON,
