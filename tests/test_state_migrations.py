@@ -19,12 +19,12 @@ class StateMigrationTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.active_task = importlib.import_module("common.task.active_task")
+        self.active_task = importlib.import_module("kernel.session_state")
         runtime_module = importlib.import_module(
-            "application.runtime_context_service"
+            "services.runtime_context"
         )
         repository_module = importlib.import_module(
-            "common.task.task_repository"
+            "kernel.task_repository"
         )
         self.RuntimeContextService = runtime_module.RuntimeContextService
         self.TaskRepository = repository_module.TaskRepository
@@ -33,8 +33,8 @@ class StateMigrationTest(unittest.TestCase):
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in tuple(sys.modules):
-            if module_name == "application" or module_name.startswith(
-                ("application.", "common.")
+            if module_name in {"services", "kernel", "adapters"} or module_name.startswith(
+                ("services.", "kernel.", "adapters.")
             ):
                 sys.modules.pop(module_name, None)
 

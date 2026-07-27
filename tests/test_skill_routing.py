@@ -85,15 +85,15 @@ class SkillRoutingTest(unittest.TestCase):
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "commands.task_navigation",
-            "commands",
-            "common.core",
-            "common",
+            "adapters.cli.task_navigation",
+            "adapters.cli",
+            "kernel",
+            "adapters.host",
         ):
             sys.modules.pop(module_name, None)
 
     def _navigation(self):
-        return importlib.import_module("commands.task_navigation")
+        return importlib.import_module("adapters.cli.task_navigation")
 
     def test_skill_directory_set_is_filesystem_authority(self) -> None:
         self.assertEqual(EXPECTED_SKILLS, template_skill_ids())
@@ -236,8 +236,8 @@ class SkillRoutingTest(unittest.TestCase):
 
     def test_root_and_template_navigation_runtime_match_when_present(self) -> None:
         relative_paths = (
-            Path("scripts/commands/task_navigation.py"),
-            Path("scripts/commands/task_parser.py"),
+            Path("scripts/adapters/cli/task_navigation.py"),
+            Path("scripts/adapters/cli/task_parser.py"),
         )
         missing_paths = [
             str(relative_path)

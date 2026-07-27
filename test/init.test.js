@@ -42,10 +42,10 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'run.py')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'task.py')), false);
-  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'commands', 'change.py')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'core', 'paths.py')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'task', 'lifecycle_checks.py')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'review', 'test_intent.py')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'adapters', 'cli', 'change.py')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'kernel', 'paths.py')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'kernel', 'lifecycle_checks.py')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'adapters', 'review', 'test_intent.py')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'gates')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'project_context.py')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'entry_classifier.py')), false);

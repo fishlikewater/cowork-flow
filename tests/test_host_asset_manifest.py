@@ -18,16 +18,16 @@ class HostAssetManifestTest(unittest.TestCase):
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.host_manifest = importlib.import_module(
-            "common.core.host_manifest"
+            "adapters.host.host_manifest"
         )
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "common.core.host_manifest",
-            "common.core",
-            "common",
+            "adapters.host.host_manifest",
+            "kernel",
+            "adapters.host",
         ):
             sys.modules.pop(module_name, None)
 

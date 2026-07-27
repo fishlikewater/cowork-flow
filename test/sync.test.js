@@ -48,12 +48,17 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'application'), { recursive: true });
+  await writeFile(join(target, '.cowork-flow', 'scripts', 'application', 'task_context.py'), 'old task context service\n', 'utf8');
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common'), { recursive: true });
   await writeFile(join(target, '.cowork-flow', 'scripts', 'common', 'gates.py'), 'old gates script\n', 'utf8');
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'task'), { recursive: true });
   await writeFile(
     join(target, '.cowork-flow', 'scripts', 'common', 'task', 'lifecycle_checks.py'),
     'old lifecycle checks\n',
     'utf8'
   );
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'review'), { recursive: true });
   await writeFile(
     join(target, '.cowork-flow', 'scripts', 'common', 'review', 'test_intent.py'),
     'old test intent helper\n',
@@ -93,22 +98,22 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(templateRoot, '.cowork-flow', 'run.cmd'))
   );
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'task.py')), false);
-  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'gates.py')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'application')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'commands')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common')), false);
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'commands', 'task.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'commands', 'task.py'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'adapters', 'cli', 'task.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'adapters', 'cli', 'task.py'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'common', 'task', 'lifecycle_checks.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'common', 'task', 'lifecycle_checks.py'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'kernel', 'lifecycle_checks.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'kernel', 'lifecycle_checks.py'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'common', 'review', 'test_intent.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'common', 'review', 'test_intent.py'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'adapters', 'review', 'test_intent.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'adapters', 'review', 'test_intent.py'))
   );
-  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common', 'gates')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'project_context.py')), false);
-  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'commands', 'party_mode_v2.py')), false);
   assert.equal(
     await readText(join(target, '.agents', 'skills', 'party-mode', 'scripts', 'party_mode_v2.py')),
     await readText(join(templateRoot, 'skills', 'party-mode', 'scripts', 'party_mode_v2.py'))

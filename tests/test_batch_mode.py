@@ -86,7 +86,7 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
         return payload_path
 
     def test_batch_runtime_emits_first_host_action_without_completion(self) -> None:
-        batch_mode = importlib.import_module("common.task.batch_mode")
+        batch_mode = importlib.import_module("adapters.cli.batch_mode")
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = self._task(root)
@@ -144,7 +144,7 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
             )
 
     def test_batch_requires_explicit_approval_without_mutation(self) -> None:
-        batch_mode = importlib.import_module("common.task.batch_mode")
+        batch_mode = importlib.import_module("adapters.cli.batch_mode")
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = self._task(root)
@@ -167,7 +167,7 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
             )
 
     def test_batch_internal_commands_are_not_public_parser_commands(self) -> None:
-        parser_module = importlib.import_module("commands.task_parser")
+        parser_module = importlib.import_module("adapters.cli.task_parser")
         parser = parser_module.build_parser()
 
         for command in ("batch-resume", "batch-record-result"):
@@ -178,7 +178,7 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
 
     def test_batch_record_result_command_advances_verified_action(self) -> None:
         batch_execution = importlib.import_module(
-            "application.batch_execution"
+            "services.batch_execution"
         )
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

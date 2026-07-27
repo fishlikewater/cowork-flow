@@ -55,7 +55,7 @@ def main() -> int:
         return 0
     scripts_dir = root / ".cowork-flow" / "scripts"
     sys.path.insert(0, str(scripts_dir))
-    from common.host.workflow_state_hook import build_hook_context
+    from adapters.host.workflow_state_hook import build_hook_context
 
     context = build_hook_context(
         root,

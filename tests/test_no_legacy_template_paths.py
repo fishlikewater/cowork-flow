@@ -96,7 +96,7 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         self.assertEqual([], offenders)
 
     def test_git_context_uses_decision_anchor_internal_names(self) -> None:
-        path = TEMPLATE / ".cowork-flow" / "scripts" / "common" / "git" / "git_context.py"
+        path = TEMPLATE / ".cowork-flow" / "scripts" / "adapters" / "git" / "git_context.py"
         text = path.read_text(encoding="utf-8")
 
         self.assertIn("has_decision_anchor", text)

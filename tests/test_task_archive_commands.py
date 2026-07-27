@@ -22,7 +22,7 @@ from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 class TaskArchiveCommandsTest(FlowScriptTestCase):
     def test_is_git_dirty_checks_porcelain_output(self) -> None:
         archive_commands = importlib.import_module(
-            "commands.task_archive_commands"
+            "adapters.cli.task_archive_commands"
         )
 
         for status, expected in (("", False), (" M src/example.py\n", True)):
@@ -135,7 +135,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             month = datetime.now().strftime("%Y-%m")
             task_archive_dest = tasks_dir / "archive" / month / "05-19-demo"
 
-            change_module = importlib.import_module("commands.change")
+            change_module = importlib.import_module("adapters.cli.change")
             previous_cwd = Path.cwd()
             try:
                 os.chdir(root)
@@ -198,7 +198,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
         root: Path,
         second_change: Path,
     ):
-        change_module = importlib.import_module("commands.change")
+        change_module = importlib.import_module("adapters.cli.change")
         archive_change = change_module.archive_change_by_slug
 
         def fail_second_change(repo_root, slug):
@@ -399,7 +399,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
                 "name=<your-developer-name>\ninitialized_at=<YYYY-MM-DD>\n",
                 encoding="utf-8",
             )
-            init_developer = importlib.import_module("commands.init_developer")
+            init_developer = importlib.import_module("adapters.cli.init_developer")
 
             previous_cwd = Path.cwd()
             try:
@@ -413,7 +413,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
                         init_developer.main()
             finally:
                 os.chdir(previous_cwd)
-                sys.modules.pop("commands.init_developer", None)
+                sys.modules.pop("adapters.cli.init_developer", None)
 
             self.assertEqual(0, raised.exception.code)
             self.assertEqual("codex", self.paths.get_developer(root))
@@ -592,7 +592,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             env = os.environ.copy()
             env["COWORK_FLOW_CONTEXT_ID"] = "main"
             result = subprocess.run(
-                [sys.executable, str(SCRIPTS / "commands" / "resume.py")],
+                [sys.executable, str(SCRIPTS / "adapters" / "cli" / "resume.py")],
                 cwd=root,
                 capture_output=True,
                 text=True,

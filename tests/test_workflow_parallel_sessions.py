@@ -218,14 +218,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_lifecycle_runtime_common_modules_exist_in_template(self) -> None:
         required_markers = {
-            "task/lifecycle_checks.py": ("LifecycleCheckRunner", "Modified file not listed in implement.jsonl", "collect_changed_paths"),
-            "git/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
-            "task/state_machine.py": ("transition_blockers", "task next <task-dir> --run --intent review", "completed"),
-            "review/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
+            "kernel/lifecycle_checks.py": ("LifecycleCheckRunner", "Modified file not listed in implement.jsonl", "collect_changed_paths"),
+            "kernel/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
+            "kernel/task_state.py": ("transition_blockers", "task next <task-dir> --run --intent review", "completed"),
+            "adapters/review/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
         }
 
-        common_root = ROOT / "template" / ".cowork-flow" / "scripts" / "common"
-        gates_dir = common_root / "gates"
+        common_root = ROOT / "template" / ".cowork-flow" / "scripts"
+        gates_dir = common_root / "common" / "gates"
         gate_sources = []
         if gates_dir.exists():
             gate_sources = [
@@ -242,7 +242,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_closeout_contract_avoids_placeholder_commits(self) -> None:
         text = (ROOT / "template" / ".cowork-flow" / "spec" / "references" / "definition-of-done.md").read_text(encoding="utf-8")
-        add_session = (ROOT / "template" / ".cowork-flow" / "scripts" / "commands" / "add_session.py").read_text(encoding="utf-8")
+        add_session = (ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" / "add_session.py").read_text(encoding="utf-8")
 
         self.assertIn("git status --porcelain=v1 -uall", text)
         self.assertIn("commit", add_session)

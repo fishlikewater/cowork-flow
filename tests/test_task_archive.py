@@ -16,7 +16,7 @@ class TaskArchiveServiceTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        archive_module = importlib.import_module("application.task_archive")
+        archive_module = importlib.import_module("services.task_archive")
         self.TaskArchiveError = archive_module.TaskArchiveError
         self.TaskArchiveService = archive_module.TaskArchiveService
 
@@ -24,14 +24,14 @@ class TaskArchiveServiceTest(unittest.TestCase):
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "application.task_archive",
+            "services.task_archive",
             "application",
-            "common.task.active_task",
-            "common.task.archive_utils",
-            "common.task.task_repository",
-            "common.task.task_utils",
-            "common.core.files",
-            "common.core.paths",
+            "kernel.session_state",
+            "kernel.archive_utils",
+            "kernel.task_repository",
+            "kernel.task_utils",
+            "kernel.files",
+            "kernel.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)

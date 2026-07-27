@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class DecisionReviewReadinessTest(FlowScriptTestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.readiness = importlib.import_module("common.task.readiness")
+        self.readiness = importlib.import_module("services.readiness")
 
     def _ready_task(self, root: Path) -> Path:
         task_dir = root / ".cowork-flow" / "tasks" / "05-19-parent"
@@ -129,8 +129,7 @@ class DecisionReviewReadinessTest(FlowScriptTestCase):
             / "template"
             / ".cowork-flow"
             / "scripts"
-            / "common"
-            / "task"
+            / "services"
             / "readiness.py"
         ).read_text(encoding="utf-8")
         definition_of_done = (

@@ -11,25 +11,25 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from common.core.execution_context import (
+from kernel.execution_context import (
     ExecutionContextError,
     context_to_internal_cli_args,
     parse_public_execution_context_args,
 )
 
 COMMAND_SCRIPTS = {
-    "resume": "commands/resume.py",
-    "task": "commands/task.py",
-    "change": "commands/change.py",
-    "get-context": "commands/get_context.py",
-    "get_context": "commands/get_context.py",
-    "get-developer": "commands/get_developer.py",
-    "get_developer": "commands/get_developer.py",
-    "init-developer": "commands/init_developer.py",
-    "init_developer": "commands/init_developer.py",
-    "add-session": "commands/add_session.py",
-    "add_session": "commands/add_session.py",
-    "subagent": "commands/subagent.py",
+    "resume": "adapters/cli/resume.py",
+    "task": "adapters/cli/task.py",
+    "change": "adapters/cli/change.py",
+    "get-context": "adapters/cli/get_context.py",
+    "get_context": "adapters/cli/get_context.py",
+    "get-developer": "adapters/cli/get_developer.py",
+    "get_developer": "adapters/cli/get_developer.py",
+    "init-developer": "adapters/cli/init_developer.py",
+    "init_developer": "adapters/cli/init_developer.py",
+    "add-session": "adapters/cli/add_session.py",
+    "add_session": "adapters/cli/add_session.py",
+    "subagent": "adapters/cli/subagent.py",
 }
 
 CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}

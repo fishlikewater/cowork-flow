@@ -16,7 +16,7 @@ class TaskContextServiceTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        context_module = importlib.import_module("application.task_context")
+        context_module = importlib.import_module("services.task_context")
         self.TaskContextService = context_module.TaskContextService
         self.TaskContextError = context_module.TaskContextError
         self.get_check_context = context_module.get_check_context
@@ -25,11 +25,11 @@ class TaskContextServiceTest(unittest.TestCase):
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "application.task_context",
+            "services.task_context",
             "application",
-            "common.core.files",
-            "common.core.quality_sources",
-            "common.core.paths",
+            "kernel.files",
+            "kernel.quality_sources",
+            "kernel.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)
@@ -344,6 +344,27 @@ class TaskContextServiceTest(unittest.TestCase):
             self.assertEqual((), second)
             self.assertTrue(report.is_file())
 
+    def test_start_blockers_do_not_require_review_or_debug_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                "## 目标\n\nDemo\n",
+                encoding="utf-8",
+            )
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md", "reason": "Demo"}\n',
+                encoding="utf-8",
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+            self.assertEqual((), blockers)
+
     def test_initialize_does_not_create_task_local_review_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -413,7 +434,7 @@ class TaskContextServiceTest(unittest.TestCase):
             (references_dir / "definition-of-done.md").write_text("# DoD\n", encoding="utf-8")
             (references_dir / "testing-checklist.md").write_text("# Testing\n", encoding="utf-8")
             (references_dir / "security-checklist.md").write_text("# Security\n", encoding="utf-8")
-            quality_sources = importlib.import_module("common.core.quality_sources")
+            quality_sources = importlib.import_module("kernel.quality_sources")
 
             entries = quality_sources.quality_source_entries(
                 root,
@@ -429,10 +450,10 @@ class TaskContextServiceTest(unittest.TestCase):
 
     def test_live_and_template_context_implementations_match(self) -> None:
         relative_files = (
-            "application/task_context.py",
-            "common/task/lifecycle_checks.py",
-            "commands/task_context_commands.py",
-            "commands/task_parser.py",
+            "services/task_context.py",
+            "kernel/lifecycle_checks.py",
+            "adapters/cli/task_context_commands.py",
+            "adapters/cli/task_parser.py",
         )
         missing_files = [
             relative_file

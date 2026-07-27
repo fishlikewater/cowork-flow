@@ -24,7 +24,7 @@ Use this Skill only inside fixed subagents such as `cowork-implement`,
 - Act as a leaf executor: do not spawn, wait for, list, or close other agents.
 - Do not start, finish, archive, resume, commit, or push workflow state.
 - Keep edits and reads inside the assigned runtime context and task scope.
-- Treat runtime gates as scripts/commands owned by the kernel; this Skill may
+- Treat runtime gates as CLI adapters backed by kernel services; this Skill may
   explain when to run or report them, but does not enforce them.
 
 ## Role Outputs
