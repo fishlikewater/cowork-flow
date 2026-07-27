@@ -6,9 +6,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from kernel.execution_context import (
-    build_internal_execution_context_parser,
-)
+from adapters.cli.execution_context_args import build_internal_execution_context_parser
 
 
 USAGE_TEXT = """Task workflow router for cowork-flow

@@ -11,11 +11,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from kernel.execution_context import (
-    ExecutionContextError,
+from adapters.cli.execution_context_args import (
     context_to_internal_cli_args,
     parse_public_execution_context_args,
 )
+from kernel.execution_context import ExecutionContextError
 
 COMMAND_SCRIPTS = {
     "resume": "adapters/cli/resume.py",

@@ -10,9 +10,11 @@ if __package__:
 else:
     import _bootstrap  # noqa: F401
 from kernel.execution_context import (
-    build_internal_execution_context_parser,
     build_subagent_resume_text,
     build_worker_resume_text,
+)
+from adapters.cli.execution_context_args import (
+    build_internal_execution_context_parser,
     execution_context_from_namespace,
 )
 from adapters.git.git_context import get_context_text

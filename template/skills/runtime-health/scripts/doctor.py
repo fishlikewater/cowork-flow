@@ -118,6 +118,22 @@ REQUIRED_FLOW_ROUTING_SNIPPETS = [
     '"lifecycleCheck": "task_complete"',
 ]
 
+REQUIRED_EXECUTION_CONTEXT_CLI_ADAPTER_SNIPPETS = [
+    "argparse.ArgumentParser",
+    "parse_public_execution_context_args",
+    "execution_context_from_namespace",
+    "context_to_internal_cli_args",
+    "execution_context_from_values",
+]
+
+FORBIDDEN_KERNEL_EXECUTION_CONTEXT_SNIPPETS = [
+    "import argparse",
+    "argparse.ArgumentParser",
+    "parse_public_execution_context_args",
+    "execution_context_from_namespace",
+    "context_to_internal_cli_args",
+]
+
 REQUIRED_PARTY_MODE_COMMAND_MANIFEST_SNIPPETS = [
     '"skill": "party-mode"',
     '"commands"',
@@ -391,9 +407,23 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         if data is not None and data.get("name") != Path(rel).stem:
             errors.append(f"{rel} name must match filename")
     for rel in (
-        "template/.cowork-flow/scripts/kernel/workflow_route.py",
+        "template/.cowork-flow/scripts/services/task_routing.py",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_FLOW_ROUTING_SNIPPETS, errors)
+    _check_file_absent(
+        repo_root / "template/.cowork-flow/scripts/kernel/workflow_route.py",
+        errors,
+    )
+    _check_file_contains(
+        repo_root / "template/.cowork-flow/scripts/adapters/cli/execution_context_args.py",
+        REQUIRED_EXECUTION_CONTEXT_CLI_ADAPTER_SNIPPETS,
+        errors,
+    )
+    _check_file_omits(
+        repo_root / "template/.cowork-flow/scripts/kernel/execution_context.py",
+        FORBIDDEN_KERNEL_EXECUTION_CONTEXT_SNIPPETS,
+        errors,
+    )
     for rel in (
         ".cowork-flow/spec/runtime/skill-registry.json",
         "template/.cowork-flow/spec/runtime/skill-registry.json",

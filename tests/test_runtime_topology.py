@@ -23,10 +23,25 @@ class RuntimeTopologyTest(unittest.TestCase):
             top_level,
         )
 
+    def test_workflow_routing_policy_lives_in_services(self) -> None:
+        self.assertTrue((SCRIPTS / "services" / "task_routing.py").is_file())
+        self.assertFalse((SCRIPTS / "kernel" / "workflow_route.py").exists())
+
+    def test_execution_context_cli_args_live_in_adapter(self) -> None:
+        self.assertTrue(
+            (SCRIPTS / "adapters" / "cli" / "execution_context_args.py").is_file()
+        )
+
     def test_kernel_does_not_import_services_or_adapters(self) -> None:
         self.assertEqual(
             [],
             self._imports_between("kernel", {"services", "adapters"}),
+        )
+
+    def test_kernel_does_not_own_cli_argparse_construction(self) -> None:
+        self.assertEqual(
+            [],
+            self._imports_between("kernel", {"argparse"}),
         )
 
     def test_services_do_not_import_adapters(self) -> None:
