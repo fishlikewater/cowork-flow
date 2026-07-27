@@ -18,7 +18,7 @@ class ChangeScriptTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.repo = Path(self.temp.name) / "repo"
         shutil.copytree(TEMPLATE, self.repo)
-        self.script = self.repo / ".cowork-flow" / "scripts" / "commands" / "change.py"
+        self.script = self.repo / ".cowork-flow" / "scripts" / "adapters" / "cli" / "change.py"
 
     def tearDown(self) -> None:
         self.temp.cleanup()

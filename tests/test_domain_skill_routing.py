@@ -19,7 +19,7 @@ class DomainSkillRoutingTest(FlowScriptTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.context_module = importlib.import_module(
-            "application.task_context"
+            "services.task_context"
         )
 
     def test_party_has_one_public_facade_and_defaults_to_v2(self) -> None:

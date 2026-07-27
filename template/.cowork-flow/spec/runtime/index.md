@@ -13,7 +13,7 @@
 
 运行时写入边界：
 
-- 命令层通过 `scripts/application/` 调用任务与 runtime context 用例。
-- JSON 状态通过 `scripts/common/storage/` 读写并显式使用 UTF-8。
+- CLI/宿主/Git 适配层位于 `scripts/adapters/`，用例服务位于 `scripts/services/`。
+- JSON 状态通过 `scripts/kernel/storage/` 读写并显式使用 UTF-8。
 - init/sync 通过 Asset Plan、staging、备份和 rollback 提交资产，版本文件最后更新。
 - 旧状态只允许在带迁移测试的读取边界兼容；新写入必须使用当前 schema 和权威路径。

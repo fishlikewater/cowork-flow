@@ -288,7 +288,7 @@ class HostAdaptersTest(unittest.TestCase):
                 settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
             )
             hook = (base / "hooks" / "inject-workflow-state.py").read_text(encoding="utf-8")
-            self.assertIn("common.host.workflow_state_hook import", hook)
+            self.assertIn("adapters.host.workflow_state_hook import", hook)
             self.assertIn("build_hook_context", hook)
             self.assertIn("hookSpecificOutput", hook)
             self.assertIn("additionalContext", hook)
@@ -308,7 +308,7 @@ class HostAdaptersTest(unittest.TestCase):
             / "template"
             / ".cowork-flow"
             / "scripts"
-            / "common"
+            / "adapters"
             / "host"
             / "workflow_state_hook.py"
         )
@@ -330,7 +330,7 @@ class HostAdaptersTest(unittest.TestCase):
         ):
             hook = hook_path.read_text(encoding="utf-8")
             self.assertIn(
-                "common.host.workflow_state_hook import",
+                "adapters.host.workflow_state_hook import",
                 hook,
             )
             self.assertIn("build_hook_context", hook)

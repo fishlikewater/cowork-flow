@@ -21,7 +21,7 @@ class TaskRepositoryTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        repository_module = importlib.import_module("common.task.task_repository")
+        repository_module = importlib.import_module("kernel.task_repository")
         self.TaskRepository = repository_module.TaskRepository
         self.TaskRepositoryError = repository_module.TaskRepositoryError
 
@@ -29,10 +29,10 @@ class TaskRepositoryTest(unittest.TestCase):
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "common.task.task_repository",
-            "common.task.task_utils",
-            "common.core.files",
-            "common.core.paths",
+            "kernel.task_repository",
+            "kernel.task_utils",
+            "kernel.files",
+            "kernel.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)
@@ -134,7 +134,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        lifecycle_module = importlib.import_module("application.task_lifecycle")
+        lifecycle_module = importlib.import_module("services.task_lifecycle")
         self.LifecyclePreflightFailure = lifecycle_module.LifecyclePreflightFailure
         self.TaskLifecycleService = lifecycle_module.TaskLifecycleService
 
@@ -142,15 +142,15 @@ class TaskLifecycleServiceTest(unittest.TestCase):
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "application.task_lifecycle",
+            "services.task_lifecycle",
             "application",
-            "common.task.active_task",
-            "common.task.state_machine",
-            "common.task.task_repository",
-            "common.task.task_utils",
-            "common.task.lifecycle_checks",
-            "common.core.files",
-            "common.core.paths",
+            "kernel.session_state",
+            "kernel.task_state",
+            "kernel.task_repository",
+            "kernel.task_utils",
+            "kernel.lifecycle_checks",
+            "kernel.files",
+            "kernel.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)
@@ -195,7 +195,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
         return FakeCheckRunner()
 
     def test_task_lifecycle_imports_on_supported_python_runtime(self) -> None:
-        lifecycle_module = importlib.import_module("application.task_lifecycle")
+        lifecycle_module = importlib.import_module("services.task_lifecycle")
 
         self.assertEqual(
             "TaskLifecycleService",

@@ -24,8 +24,8 @@ def _add_runtime_scripts_path() -> None:
 
 
 _add_runtime_scripts_path()
-from common.core.paths import get_repo_root
-from common.core.host_manifest import validate_host_assets
+from kernel.paths import get_repo_root
+from adapters.host.host_manifest import validate_host_assets
 
 
 ENTRY_BOUNDARY_DIR = "entry" + "-boundary"
@@ -295,7 +295,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
     _check_file_contains(
         repo_root
-        / "template/.cowork-flow/scripts/common/host/workflow_state_hook.py",
+        / "template/.cowork-flow/scripts/adapters/host/workflow_state_hook.py",
         REQUIRED_RUNTIME_HOOK_SNIPPETS,
         errors,
     )
@@ -306,7 +306,7 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
         _check_file_contains(
             repo_root / rel,
             [
-                "common.host.workflow_state_hook import",
+                "adapters.host.workflow_state_hook import",
                 "build_hook_context",
             ],
             errors,
@@ -391,7 +391,7 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         if data is not None and data.get("name") != Path(rel).stem:
             errors.append(f"{rel} name must match filename")
     for rel in (
-        "template/.cowork-flow/scripts/commands/task_navigation.py",
+        "template/.cowork-flow/scripts/kernel/workflow_route.py",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_FLOW_ROUTING_SNIPPETS, errors)
     for rel in (
@@ -419,7 +419,7 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         _check_file_contains(repo_root / rel, REQUIRED_HOOK_SNIPPETS, errors)
     _check_file_contains(
         repo_root
-        / "template/.cowork-flow/scripts/common/host/workflow_state_hook.py",
+        / "template/.cowork-flow/scripts/adapters/host/workflow_state_hook.py",
         REQUIRED_RUNTIME_HOOK_SNIPPETS,
         errors,
     )
@@ -430,15 +430,15 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         _check_file_contains(
             repo_root / rel,
             [
-                "common.host.workflow_state_hook import",
+                "adapters.host.workflow_state_hook import",
                 "build_hook_context",
             ],
             errors,
         )
     for rel in (
-        "template/.cowork-flow/scripts/commands/subagent.py",
-        "template/.cowork-flow/scripts/common/core/execution_context.py",
-        "template/.cowork-flow/scripts/common/task/active_task.py",
+        "template/.cowork-flow/scripts/adapters/cli/subagent.py",
+        "template/.cowork-flow/scripts/kernel/execution_context.py",
+        "template/.cowork-flow/scripts/kernel/session_state.py",
     ):
         if not (repo_root / rel).is_file():
             errors.append(f"missing file: {rel}")

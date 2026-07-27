@@ -18,12 +18,17 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.active_task = importlib.import_module("common.task.active_task")
+        self.active_task = importlib.import_module("kernel.session_state")
+        self.runtime_context = importlib.import_module("services.runtime_context")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
-        for module_name in ("common.task.active_task", "common.core.paths", "common"):
+        for module_name in (
+            "kernel.session_state",
+            "kernel.paths",
+            "services.runtime_context",
+        ):
             sys.modules.pop(module_name, None)
 
     def test_context_key_uses_cowork_env_first(self) -> None:
@@ -213,7 +218,7 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            bound = self.active_task.bind_runtime_context(
+            bound = self.runtime_context.bind_runtime_context(
                 root,
                 "rtx_demo",
                 "codex_child",
@@ -251,7 +256,7 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            bound = self.active_task.bind_runtime_context(
+            bound = self.runtime_context.bind_runtime_context(
                 root,
                 "rtx_demo",
                 values={
@@ -294,7 +299,7 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             (sessions / "codex_child.json").write_text("{}\n", encoding="utf-8")
             (sessions / "subagent_rtx_demo.json").write_text("{}\n", encoding="utf-8")
 
-            closed = self.active_task.close_runtime_context(root, "rtx_demo")
+            closed = self.runtime_context.close_runtime_context(root, "rtx_demo")
 
             self.assertTrue(closed)
             self.assertFalse((sessions / "codex_child.json").exists())
@@ -323,22 +328,22 @@ class RuntimeContextTransactionTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.active_task = importlib.import_module("common.task.active_task")
+        self.active_task = importlib.import_module("kernel.session_state")
         self.runtime_context = importlib.import_module(
-            "application.runtime_context_service"
+            "services.runtime_context"
         )
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "application.runtime_context_service",
+            "services.runtime_context",
             "application",
-            "common.task.active_task",
-            "common.storage.unit_of_work",
-            "common.storage.operation_log",
-            "common.storage.state_store",
-            "common.core.paths",
+            "kernel.session_state",
+            "kernel.storage.unit_of_work",
+            "kernel.storage.operation_log",
+            "kernel.storage.state_store",
+            "kernel.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)

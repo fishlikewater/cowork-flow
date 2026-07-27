@@ -25,7 +25,7 @@ class LifecycleRuleRemovalTest(FlowScriptTestCase):
         self.assertEqual([], [str(path) for path in removed_paths if path.exists()])
 
     def test_lifecycle_check_result_has_no_gate_pipeline_shape(self) -> None:
-        checks = importlib.import_module("common.task.lifecycle_checks")
+        checks = importlib.import_module("kernel.lifecycle_checks")
 
         result = checks.LifecycleCheckResult(stage="review")
 
@@ -48,7 +48,7 @@ class LifecycleRuleRemovalTest(FlowScriptTestCase):
             (root / "src" / "allowed.py").write_text("VALUE = 1\n", encoding="utf-8")
             self._commit_all(root, "baseline")
             (root / "src" / "allowed.py").write_text("VALUE = 2\n", encoding="utf-8")
-            checks = importlib.import_module("common.task.lifecycle_checks")
+            checks = importlib.import_module("kernel.lifecycle_checks")
 
             result = checks.LifecycleCheckRunner(root).review(
                 task_dir,

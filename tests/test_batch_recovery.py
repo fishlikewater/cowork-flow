@@ -14,9 +14,9 @@ from tests.flow_test_support import FlowScriptTestCase
 class BatchRecoveryTest(FlowScriptTestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.module = importlib.import_module("application.batch_execution")
+        self.module = importlib.import_module("services.batch_execution")
         self.runtime_module = importlib.import_module(
-            "application.runtime_context_service"
+            "services.runtime_context"
         )
 
     def _task(

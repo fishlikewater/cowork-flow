@@ -17,14 +17,14 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.task = importlib.import_module("commands.task")
+        self.task = importlib.import_module("adapters.cli.task")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "commands.task",
-            "common.task.readiness",
+            "adapters.cli.task",
+            "services.readiness",
         ):
             if module_name in sys.modules:
                 del sys.modules[module_name]

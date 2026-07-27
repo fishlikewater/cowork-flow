@@ -314,8 +314,8 @@ class TaskCommandsTest(FlowScriptTestCase):
 
         self.assertIn("decision-anchor.md is missing or empty", blockers)
         self.assertIn("implement.jsonl is missing or empty", blockers)
-        self.assertIn("check.jsonl is missing or empty", blockers)
-        self.assertIn("debug.jsonl is missing or empty", blockers)
+        self.assertNotIn("check.jsonl is missing or empty", blockers)
+        self.assertNotIn("debug.jsonl is missing or empty", blockers)
 
     def test_task_start_blockers_clear_when_decision_anchor_and_context_exist(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -324,8 +324,9 @@ class TaskCommandsTest(FlowScriptTestCase):
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
             (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
-            for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
-                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md"}\n', encoding="utf-8"
+            )
 
             self.assertEqual([], self.task._task_start_blockers(task_dir))
 
@@ -360,7 +361,7 @@ class TaskCommandsTest(FlowScriptTestCase):
             )
 
     def test_task_state_machine_requires_review_before_complete(self) -> None:
-        state_machine = importlib.import_module("common.task.state_machine")
+        state_machine = importlib.import_module("kernel.task_state")
 
         self.assertEqual([], state_machine.transition_blockers("review", "completed"))
         self.assertIn(

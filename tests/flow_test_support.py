@@ -22,39 +22,39 @@ class FlowScriptTestCase(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.paths = importlib.import_module("common.core.paths")
-        self.task = importlib.import_module("commands.task")
-        self.add_session = importlib.import_module("commands.add_session")
-        self.developer = importlib.import_module("common.core.developer")
-        self.git_context = importlib.import_module("common.git.git_context")
+        self.paths = importlib.import_module("kernel.paths")
+        self.task = importlib.import_module("adapters.cli.task")
+        self.add_session = importlib.import_module("adapters.cli.add_session")
+        self.developer = importlib.import_module("kernel.developer")
+        self.git_context = importlib.import_module("adapters.git.git_context")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "commands.task",
-            "commands.add_session",
-            "commands.task_archive_commands",
-            "commands.task_navigation",
-            "commands.task_support",
-            "commands.task_tree_commands",
-            "application.task_archive",
-            "application.task_context",
-            "application.task_lifecycle",
-            "application.task_tree",
+            "adapters.cli.task",
+            "adapters.cli.add_session",
+            "adapters.cli.task_archive_commands",
+            "adapters.cli.task_navigation",
+            "adapters.cli.task_support",
+            "adapters.cli.task_tree_commands",
+            "services.task_archive",
+            "services.task_context",
+            "services.task_lifecycle",
+            "services.task_tree",
             "application",
-            "common.task.active_task",
-            "common.core.config",
-            "common.core.developer",
-            "common.core.quality_sources",
-            "common.git.git_context",
-            "common.git.git_snapshot",
-            "common.core.paths",
-            "common.task.readiness",
-            "common.task.state_machine",
-            "common.task.task_repository",
-            "common.task.task_utils",
-            "common.review.test_intent",
+            "kernel.session_state",
+            "kernel.config",
+            "kernel.developer",
+            "kernel.quality_sources",
+            "adapters.git.git_context",
+            "kernel.git_snapshot",
+            "kernel.paths",
+            "services.readiness",
+            "kernel.task_state",
+            "kernel.task_repository",
+            "kernel.task_utils",
+            "adapters.review.test_intent",
             "common",
         ):
             sys.modules.pop(module_name, None)

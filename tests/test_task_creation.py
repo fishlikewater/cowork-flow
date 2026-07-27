@@ -21,7 +21,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 class TaskCreationServiceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        module = importlib.import_module("application.task_creation")
+        module = importlib.import_module("services.task_creation")
         cls.TaskCreationRequest = module.TaskCreationRequest
         cls.TaskCreationService = module.TaskCreationService
 

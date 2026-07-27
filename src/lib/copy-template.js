@@ -185,6 +185,10 @@ function isSafeSyncFile(relativePath) {
     || templatePath.endsWith('/.gitkeep');
 }
 
+function isCoveredByDeletedParent(relativePath, deletedParents) {
+  return deletedParents.some((parent) => relativePath.startsWith(`${parent}/`));
+}
+
 function replaceManagedBlock(targetContent, templateContent) {
   const targetStart = targetContent.indexOf(COWORK_FLOW_START);
   const targetEnd = targetContent.indexOf(COWORK_FLOW_END, targetStart + COWORK_FLOW_START.length);
@@ -272,9 +276,20 @@ export async function buildSyncPlan(targetDir, options = {}) {
 
   await appendSkillFileActions(actions, { targetDir, platforms, seen, sync: true });
 
-  for (const file of OBSOLETE_SYNC_FILES) {
+  const deletedObsoleteParents = [];
+  const obsoleteFiles = [...OBSOLETE_SYNC_FILES].sort((left, right) => {
+    if (left.length !== right.length) {
+      return left.length - right.length;
+    }
+    return left.localeCompare(right);
+  });
+  for (const file of obsoleteFiles) {
+    if (isCoveredByDeletedParent(file, deletedObsoleteParents)) {
+      continue;
+    }
     const destination = join(targetDir, file);
     if (await pathExists(destination)) {
+      deletedObsoleteParents.push(file);
       actions.push({ action: 'delete', source: null, destination, relativePath: file });
     }
   }

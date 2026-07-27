@@ -16,7 +16,7 @@ class TaskTreeServiceTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        tree_module = importlib.import_module("application.task_tree")
+        tree_module = importlib.import_module("services.task_tree")
         self.TaskTreeError = tree_module.TaskTreeError
         self.TaskTreeService = tree_module.TaskTreeService
 
@@ -24,12 +24,12 @@ class TaskTreeServiceTest(unittest.TestCase):
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "application.task_tree",
+            "services.task_tree",
             "application",
-            "common.task.task_repository",
-            "common.task.task_utils",
-            "common.core.files",
-            "common.core.paths",
+            "kernel.task_repository",
+            "kernel.task_utils",
+            "kernel.files",
+            "kernel.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)
