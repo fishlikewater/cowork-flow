@@ -134,6 +134,7 @@ class SkillRoutingTest(unittest.TestCase):
                         "activatedSkill",
                         "actionCommand",
                         "mutatesState",
+                        "lifecycleCheck",
                         "runtimeGate",
                         "action",
                     },
@@ -143,7 +144,9 @@ class SkillRoutingTest(unittest.TestCase):
                 self.assertEqual(route["activatedSkill"], route["action"]["activatedSkill"])
                 self.assertEqual(route["actionCommand"], route["action"]["command"])
                 self.assertEqual(route["mutatesState"], route["action"]["mutatesState"])
+                self.assertEqual(route["lifecycleCheck"], route["action"]["lifecycleCheck"])
                 self.assertEqual(route["runtimeGate"], route["action"]["runtimeGate"])
+                self.assertEqual(route["runtimeGate"], route["lifecycleCheck"])
                 if route["recommendedSkill"] is not None:
                     self.assertEqual(route["recommendedSkill"], route["activatedSkill"])
                     self.assertIn(route["recommendedSkill"], EXPECTED_SKILLS)

@@ -52,85 +52,85 @@ ACTION_SPECS = {
     "answer_questions": {
         "label": "answer the workflow question",
         "activatedSkill": None,
-        "runtimeGate": None,
+        "lifecycleCheck": None,
         "mutatesState": False,
     },
     "debug_failure": {
         "label": "diagnose the failure",
         "activatedSkill": "failure-analysis",
-        "runtimeGate": None,
+        "lifecycleCheck": None,
         "mutatesState": False,
     },
     "discuss_options": {
         "label": "discuss workflow options",
         "activatedSkill": "party-mode",
-        "runtimeGate": None,
+        "lifecycleCheck": None,
         "mutatesState": False,
     },
     "batch_execute": {
         "label": "execute approved batch plan",
         "activatedSkill": "batch-execution",
-        "runtimeGate": "task_start",
+        "lifecycleCheck": "task_start",
         "mutatesState": True,
     },
     "create_task": {
         "label": "create a planned task",
         "activatedSkill": "brainstorming",
-        "runtimeGate": None,
+        "lifecycleCheck": None,
         "mutatesState": True,
     },
     "edit_planning_artifacts": {
         "label": "finish planning prerequisites",
         "activatedSkill": "task-planning",
-        "runtimeGate": "task_start",
+        "lifecycleCheck": "task_start",
         "mutatesState": False,
     },
     "start_task": {
         "label": "start task",
         "activatedSkill": "cowork-flow",
-        "runtimeGate": "task_start",
+        "lifecycleCheck": "task_start",
         "mutatesState": True,
     },
     "implement_change": {
         "label": "execute implementation plan",
         "activatedSkill": "cowork-flow",
-        "runtimeGate": None,
+        "lifecycleCheck": None,
         "mutatesState": False,
     },
     "request_review": {
         "label": "mark task ready for review",
         "activatedSkill": "task-review",
-        "runtimeGate": "task_review",
+        "lifecycleCheck": "task_review",
         "mutatesState": True,
     },
     "complete_task": {
         "label": "complete reviewed task",
         "activatedSkill": "task-review",
-        "runtimeGate": "task_complete",
+        "lifecycleCheck": "task_complete",
         "mutatesState": True,
     },
     "archive_task": {
         "label": "archive completed task",
         "activatedSkill": "cowork-flow",
-        "runtimeGate": "task_archive",
+        "lifecycleCheck": "task_archive",
         "mutatesState": True,
     },
     "doubt_review": {
         "label": "run standalone doubt review",
         "activatedSkill": "adversarial-review",
-        "runtimeGate": None,
+        "lifecycleCheck": None,
         "mutatesState": False,
     },
     "execute_delegated_work": {
         "label": "execute delegated work",
         "activatedSkill": "cowork-flow",
-        "runtimeGate": None,
+        "lifecycleCheck": None,
         "mutatesState": False,
     },
     "repair_workflow_state": {
         "label": "inspect and repair workflow state",
         "activatedSkill": "cowork-flow",
-        "runtimeGate": None,
+        "lifecycleCheck": None,
         "mutatesState": False,
     },
 }
@@ -251,13 +251,15 @@ def _action_contract(
     command = _action_command(action_id, task_path)
     runnable = action_id in RUNNABLE_ACTIONS and not action_blockers
     spec = ACTION_SPECS[action_id]
+    lifecycle_check = spec["lifecycleCheck"]
     return {
         "id": action_id,
         "label": spec["label"],
         "activatedSkill": spec["activatedSkill"],
         "command": command,
         "mutatesState": spec["mutatesState"],
-        "runtimeGate": spec["runtimeGate"],
+        "lifecycleCheck": lifecycle_check,
+        "runtimeGate": lifecycle_check,
         "runnable": runnable,
         "blockers": action_blockers,
     }
@@ -379,6 +381,7 @@ def route_request(
         "activatedSkill": action["activatedSkill"],
         "actionCommand": action["command"],
         "mutatesState": action["mutatesState"],
+        "lifecycleCheck": action["lifecycleCheck"],
         "runtimeGate": action["runtimeGate"],
         "action": action,
     }

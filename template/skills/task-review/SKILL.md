@@ -11,7 +11,7 @@ Use this Skill during the check phase, before the `task next --run` completion a
 
 - Review early enough that fixes are cheap; do not wait until archive/commit to discover blockers.
 - Review the current diff and exact task context, not broad conversation memory.
-- Separate machine-decidable lifecycle facts from human judgment: runtime blockers cover state/scope facts; review judgment explains spec, quality, and risk findings.
+- Separate machine-decidable lifecycle facts from human judgment: lifecycle blockers cover state/scope facts; review judgment explains spec, quality, and risk findings.
 - Treat backend/frontend/guides natural-language markdown as user-defined review requirements, not dynamic hard validators.
 - Prefer fresh verification from the current checkout over stale prior output.
 - Do not create task-local review artifact files. The review result and command output are the evidence.

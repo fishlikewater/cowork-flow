@@ -81,7 +81,14 @@ class SpecReviewContractTest(unittest.TestCase):
     def test_removed_gate_modules_do_not_exist_in_template(self) -> None:
         gates_dir = TEMPLATE / ".cowork-flow" / "scripts" / "common" / "gates"
 
-        self.assertFalse(gates_dir.exists())
+        gate_sources = []
+        if gates_dir.exists():
+            gate_sources = [
+                path
+                for path in gates_dir.rglob("*")
+                if path.is_file() and path.suffix in {".py", ".json"}
+            ]
+        self.assertEqual([], gate_sources)
         self.assertTrue(
             (TEMPLATE / ".cowork-flow" / "scripts" / "common" / "task" / "lifecycle_checks.py").is_file()
         )

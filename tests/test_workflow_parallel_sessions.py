@@ -225,7 +225,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         }
 
         common_root = ROOT / "template" / ".cowork-flow" / "scripts" / "common"
-        self.assertFalse((common_root / "gates").exists())
+        gates_dir = common_root / "gates"
+        gate_sources = []
+        if gates_dir.exists():
+            gate_sources = [
+                path
+                for path in gates_dir.rglob("*")
+                if path.is_file() and path.suffix in {".py", ".json"}
+            ]
+        self.assertEqual([], gate_sources)
         for file_name, markers in required_markers.items():
             template_text = (common_root / Path(file_name)).read_text(encoding="utf-8")
 

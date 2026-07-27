@@ -120,6 +120,7 @@ class TaskNavigationTest(FlowScriptTestCase):
                     "activatedSkill",
                     "actionCommand",
                     "mutatesState",
+                    "lifecycleCheck",
                     "runtimeGate",
                     "action",
                 },
@@ -131,6 +132,8 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual("answer_questions", payload["nextAction"])
             self.assertFalse(payload["mutatesState"])
             self.assertIsNone(payload["actionCommand"])
+            self.assertIsNone(payload["lifecycleCheck"])
+            self.assertIsNone(payload["runtimeGate"])
 
     def test_cmd_next_json_blocks_implementation_without_active_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
