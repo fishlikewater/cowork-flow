@@ -10,15 +10,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from kernel.storage.unit_of_work import (
+from infra.storage.unit_of_work import (
     FaultInjector,
     UnitOfWork,
     UnitOfWorkError,
 )
-from kernel.session_state import build_active_task_session
-from kernel.lifecycle_checks import LifecycleCheckResult, LifecycleCheckRunner
+from runtime.session_state import build_active_task_session
+from services.lifecycle_checks import LifecycleCheckResult, LifecycleCheckRunner
 from kernel.task_state import transition_blockers
-from kernel.task_repository import TaskRepository, TaskRepositoryError
+from services.task_repository import TaskRepository, TaskRepositoryError
 
 
 @dataclass(frozen=True)

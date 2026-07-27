@@ -8,13 +8,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from kernel.storage.state_store import StateStore, StateStoreError
-from kernel.storage.unit_of_work import (
+from infra.storage.state_store import StateStore, StateStoreError
+from infra.storage.unit_of_work import (
     FaultInjector,
     UnitOfWork,
     UnitOfWorkError,
 )
-from kernel.session_state import (
+from runtime.session_state import (
     FIELD_ACTIVE_TASK_PATH,
     FIELD_RUNTIME_CONTEXT_ID,
     FIELD_SCOPE,

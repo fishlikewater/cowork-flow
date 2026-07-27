@@ -65,13 +65,13 @@ from adapters.cli.task_tree_commands import (
     cmd_remove_subtask,
 )
 from adapters.cli.execution_context_args import execution_context_from_namespace
-from kernel.execution_context import worker_command_block_message
-from kernel.paths import (
+from adapters.cli.execution_resume import worker_command_block_message
+from infra.paths import (
     DIR_WORKFLOW,
     FILE_TASK_JSON,
     get_repo_root,
 )
-from kernel.session_state import clear_active_task, get_active_task, is_main_session
+from runtime.session_state import clear_active_task, get_active_task, is_main_session
 
 
 def _allow_spec_file_modifications(repo_root: Path, execution_context) -> bool:

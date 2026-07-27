@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from collections.abc import Mapping
 from pathlib import Path
 
-from kernel.paths import DIR_WORKFLOW
+from infra.paths import DIR_WORKFLOW
 
 
 DIR_RUNTIME = ".runtime"

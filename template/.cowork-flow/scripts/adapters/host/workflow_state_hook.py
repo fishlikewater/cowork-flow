@@ -47,7 +47,7 @@ def find_repo_root(start: Path) -> Path | None:
 def codex_dispatch_mode(root: Path) -> str:
     _load_common(root)
     try:
-        from kernel.config import get_codex_dispatch_mode
+        from infra.config import get_codex_dispatch_mode
     except Exception:
         return "sub-agent"
     try:
@@ -222,7 +222,7 @@ def _get_active_task(
 ) -> tuple[str | None, str, str]:
     _load_common(root)
     try:
-        from kernel.session_state import get_active_task
+        from runtime.session_state import get_active_task
     except Exception:
         return None, "no_task", "unavailable"
     active = get_active_task(root, hook_input)
@@ -245,8 +245,8 @@ def _resolve_runtime_context(
 ) -> tuple[dict[str, Any] | None, str | None]:
     _load_common(root)
     try:
-        from kernel.session_state import resolve_runtime_context_id
-        from services.runtime_context import (
+        from runtime.session_state import resolve_runtime_context_id
+        from services.workflow_runtime import (
             bind_runtime_context,
             read_runtime_context,
         )

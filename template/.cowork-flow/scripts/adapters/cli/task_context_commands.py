@@ -13,7 +13,7 @@ from services.task_context import (
     TaskContextService,
 )
 from adapters.cli.task_support import Colors, colored, resolve_task_dir
-from kernel.paths import get_repo_root
+from infra.paths import get_repo_root
 
 
 def _report_jsonl_skip(path: Path, reason: str) -> None:

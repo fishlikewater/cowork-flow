@@ -21,7 +21,7 @@ class PartyModeTestCase(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(TEMPLATE_SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.config = importlib.import_module("kernel.config")
+        self.config = importlib.import_module("infra.config")
         spec = importlib.util.spec_from_file_location("party_mode_v2", PARTY_MODE_SCRIPT)
         if spec is None or spec.loader is None:
             raise RuntimeError(f"unable to load {PARTY_MODE_SCRIPT}")
@@ -34,8 +34,8 @@ class PartyModeTestCase(unittest.TestCase):
             sys.path.remove(str(TEMPLATE_SCRIPTS))
         for module_name in (
             "party_mode_v2",
-            "kernel.config",
-            "kernel.paths",
+            "infra.config",
+            "infra.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)

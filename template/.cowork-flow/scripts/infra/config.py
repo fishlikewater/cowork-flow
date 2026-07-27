@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .paths import DIR_WORKFLOW, get_repo_root
+from infra.paths import DIR_WORKFLOW, get_repo_root
 
 
 # Defaults

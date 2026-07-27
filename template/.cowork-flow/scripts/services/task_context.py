@@ -9,9 +9,9 @@ from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from kernel.files import read_text_utf8
-from kernel.quality_sources import quality_source_entries
-from kernel.paths import (
+from infra.files import read_text_utf8
+from infra.quality_sources import quality_source_entries
+from infra.paths import (
     DIR_AGENTS,
     DIR_SPEC,
     DIR_WORKFLOW,

@@ -23,14 +23,14 @@ class StateStoreTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         state_module = importlib.import_module(
-            "kernel.storage.state_store"
+            "infra.storage.state_store"
         )
         cls.state_module = state_module
         operation_module = importlib.import_module(
-            "kernel.storage.operation_log"
+            "infra.storage.operation_log"
         )
         unit_module = importlib.import_module(
-            "kernel.storage.unit_of_work"
+            "infra.storage.unit_of_work"
         )
         cls.StateStore = state_module.StateStore
         cls.StateStoreError = state_module.StateStoreError

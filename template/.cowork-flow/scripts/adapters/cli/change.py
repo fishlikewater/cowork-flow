@@ -15,8 +15,8 @@ if __package__:
     from . import _bootstrap as _bootstrap  # noqa: F401
 else:
     import _bootstrap  # noqa: F401
-from kernel.archive_utils import archive_directory_resumable
-from kernel.paths import (
+from infra.archive_utils import archive_directory_resumable
+from infra.paths import (
     DIR_ARCHIVE,
     DIR_CHANGES,
     DIR_WORKFLOW,

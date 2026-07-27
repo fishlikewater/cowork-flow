@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from kernel.execution_context import (
+from runtime.execution_context import (
     MODE_COORDINATOR,
     MODE_NONE,
     MODE_SUBAGENT,

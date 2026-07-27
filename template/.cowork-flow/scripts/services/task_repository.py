@@ -6,13 +6,13 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
-from kernel.paths import DIR_WORKFLOW, FILE_TASK_JSON, get_tasks_dir
-from kernel.storage.state_store import (
+from infra.paths import DIR_WORKFLOW, FILE_TASK_JSON, get_tasks_dir
+from infra.storage.state_store import (
     StateSnapshot,
     StateStore,
     StateStoreError,
 )
-from kernel.task_utils import find_task_by_name
+from services.task_utils import find_task_by_name
 
 
 class TaskRepositoryError(RuntimeError):

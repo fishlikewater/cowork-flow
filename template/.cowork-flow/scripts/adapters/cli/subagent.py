@@ -16,18 +16,18 @@ if __package__:
     from . import _bootstrap as _bootstrap  # noqa: F401
 else:
     import _bootstrap  # noqa: F401
-from kernel.session_state import (
+from runtime.session_state import (
     resolve_context_key,
     runtime_context_path,
     sessions_dir,
     subagent_contexts_dir,
 )
-from services.runtime_context import (
+from services.workflow_runtime import (
     RuntimeContextError,
     RuntimeContextService,
 )
 from adapters.cli.execution_context_args import build_internal_execution_context_parser
-from kernel.paths import get_repo_root
+from infra.paths import get_repo_root
 
 VALID_STATUSES = {"pending", "bound", "active", "success", "needs_context", "blocked", "closed"}
 FIXED_AGENT_TYPES = {"cowork-research", "cowork-implement", "cowork-check"}

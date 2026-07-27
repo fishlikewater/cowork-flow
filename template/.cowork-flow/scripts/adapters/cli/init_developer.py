@@ -18,12 +18,12 @@ if __package__:
     from . import _bootstrap as _bootstrap  # noqa: F401
 else:
     import _bootstrap  # noqa: F401
-from kernel.paths import (
+from infra.paths import (
     DIR_WORKFLOW,
     FILE_DEVELOPER,
     get_developer,
 )
-from kernel.developer import init_developer
+from infra.developer_profile import init_developer
 
 
 def main() -> None:

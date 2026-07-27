@@ -21,7 +21,7 @@ if __package__:
     from . import _bootstrap as _bootstrap  # noqa: F401
 else:
     import _bootstrap  # noqa: F401
-from kernel.paths import (
+from infra.paths import (
     DIR_TASKS,
     DIR_WORKFLOW,
     DIR_WORKSPACE,
@@ -31,8 +31,8 @@ from kernel.paths import (
     get_developer,
     get_workspace_dir,
 )
-from kernel.developer import ensure_developer
-from kernel.config import get_session_commit_message, get_max_journal_lines
+from infra.developer_profile import ensure_developer
+from infra.config import get_session_commit_message, get_max_journal_lines
 
 MARKER_CURRENT_STATUS_START = "@@@auto:current-status"
 MARKER_CURRENT_STATUS_END = "@@@/auto:current-status"

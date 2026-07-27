@@ -24,7 +24,7 @@ def _add_runtime_scripts_path() -> None:
 
 
 _add_runtime_scripts_path()
-from kernel.paths import get_repo_root
+from infra.paths import get_repo_root
 from adapters.host.host_manifest import validate_host_assets
 
 
@@ -407,20 +407,39 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         if data is not None and data.get("name") != Path(rel).stem:
             errors.append(f"{rel} name must match filename")
     for rel in (
-        "template/.cowork-flow/scripts/services/task_routing.py",
+        "template/.cowork-flow/scripts/kernel/workflow_route.py",
     ):
         _check_file_contains(repo_root / rel, REQUIRED_FLOW_ROUTING_SNIPPETS, errors)
-    _check_file_absent(
-        repo_root / "template/.cowork-flow/scripts/kernel/workflow_route.py",
+    _check_file_contains(
+        repo_root / "template/.cowork-flow/scripts/services/task_routing.py",
+        ["kernel.workflow_route", "route_request"],
         errors,
     )
+    kernel_dir = repo_root / "template/.cowork-flow/scripts/kernel"
+    kernel_files = sorted(
+        path.name
+        for path in kernel_dir.glob("*.py")
+        if path.name != "__pycache__"
+    )
+    if kernel_files != ["__init__.py", "task_state.py", "workflow_route.py"]:
+        errors.append(f"kernel must contain only pure workflow domain files: {kernel_files}")
     _check_file_contains(
         repo_root / "template/.cowork-flow/scripts/adapters/cli/execution_context_args.py",
         REQUIRED_EXECUTION_CONTEXT_CLI_ADAPTER_SNIPPETS,
         errors,
     )
+    _check_file_contains(
+        repo_root / "template/.cowork-flow/scripts/adapters/cli/execution_resume.py",
+        ["build_worker_resume_text", "build_subagent_resume_text", "worker_command_block_message"],
+        errors,
+    )
+    _check_file_contains(
+        repo_root / "template/.cowork-flow/scripts/runtime/execution_context.py",
+        ["ExecutionContext", "execution_context_from_values", "load_execution_context_file"],
+        errors,
+    )
     _check_file_omits(
-        repo_root / "template/.cowork-flow/scripts/kernel/execution_context.py",
+        repo_root / "template/.cowork-flow/scripts/kernel/__init__.py",
         FORBIDDEN_KERNEL_EXECUTION_CONTEXT_SNIPPETS,
         errors,
     )
@@ -431,6 +450,15 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         "template/.cowork-flow/spec/schemas/skill-registry.schema.json",
     ):
         _check_file_absent(repo_root / rel, errors)
+    for rel in (
+        "template/.cowork-flow/scripts/services/runtime_context.py",
+        "template/.cowork-flow/scripts/services/developer_profile.py",
+        "template/.cowork-flow/scripts/services/quality_sources.py",
+        "template/.cowork-flow/scripts/kernel/developer.py",
+        "template/.cowork-flow/scripts/kernel/quality_sources.py",
+    ):
+        if (repo_root / rel).exists():
+            errors.append(f"obsolete file removed from kernel/services: {rel}")
     _check_file_contains(
         repo_root / "template/skills/party-mode/manifest.json",
         REQUIRED_PARTY_MODE_COMMAND_MANIFEST_SNIPPETS,
@@ -467,8 +495,8 @@ def cmd_subagent_safety(_: argparse.Namespace) -> int:
         )
     for rel in (
         "template/.cowork-flow/scripts/adapters/cli/subagent.py",
-        "template/.cowork-flow/scripts/kernel/execution_context.py",
-        "template/.cowork-flow/scripts/kernel/session_state.py",
+        "template/.cowork-flow/scripts/runtime/execution_context.py",
+        "template/.cowork-flow/scripts/runtime/session_state.py",
     ):
         if not (repo_root / rel).is_file():
             errors.append(f"missing file: {rel}")

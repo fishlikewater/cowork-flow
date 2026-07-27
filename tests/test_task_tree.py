@@ -26,10 +26,10 @@ class TaskTreeServiceTest(unittest.TestCase):
         for module_name in (
             "services.task_tree",
             "application",
-            "kernel.task_repository",
-            "kernel.task_utils",
-            "kernel.files",
-            "kernel.paths",
+            "services.task_repository",
+            "services.task_utils",
+            "infra.files",
+            "infra.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)

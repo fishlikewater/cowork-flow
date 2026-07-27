@@ -18,16 +18,16 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.active_task = importlib.import_module("kernel.session_state")
-        self.runtime_context = importlib.import_module("services.runtime_context")
+        self.active_task = importlib.import_module("runtime.session_state")
+        self.runtime_context = importlib.import_module("services.workflow_runtime")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "kernel.session_state",
-            "kernel.paths",
-            "services.runtime_context",
+            "runtime.session_state",
+            "infra.paths",
+            "services.workflow_runtime",
         ):
             sys.modules.pop(module_name, None)
 
@@ -328,22 +328,22 @@ class RuntimeContextTransactionTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.active_task = importlib.import_module("kernel.session_state")
+        self.active_task = importlib.import_module("runtime.session_state")
         self.runtime_context = importlib.import_module(
-            "services.runtime_context"
+            "services.workflow_runtime"
         )
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "services.runtime_context",
+            "services.workflow_runtime",
             "application",
-            "kernel.session_state",
-            "kernel.storage.unit_of_work",
-            "kernel.storage.operation_log",
-            "kernel.storage.state_store",
-            "kernel.paths",
+            "runtime.session_state",
+            "infra.storage.unit_of_work",
+            "infra.storage.operation_log",
+            "infra.storage.state_store",
+            "infra.paths",
             "common",
         ):
             sys.modules.pop(module_name, None)

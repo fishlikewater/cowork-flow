@@ -13,7 +13,7 @@ if __package__:
     from . import _bootstrap as _bootstrap  # noqa: F401
 else:
     import _bootstrap  # noqa: F401
-from kernel.paths import get_developer
+from infra.paths import get_developer
 
 
 def main() -> None:

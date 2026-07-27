@@ -10,8 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from kernel.config import get_hooks
-from kernel.task_repository import TaskRepository
+from infra.config import get_hooks
+from services.task_repository import TaskRepository
 
 
 class Colors:

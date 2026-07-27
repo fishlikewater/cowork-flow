@@ -15,7 +15,7 @@ from adapters.cli.task_support import (
     run_hooks,
 )
 from adapters.cli.task_tree_commands import cmd_list
-from kernel.paths import (
+from infra.paths import (
     DIR_ARCHIVE,
     DIR_CHANGES,
     DIR_TASKS,
@@ -24,10 +24,10 @@ from kernel.paths import (
     get_repo_root,
 )
 from adapters.git.git_context import _run_git_command
-from kernel.archive_utils import archive_directory_resumable
+from infra.archive_utils import archive_directory_resumable
 
 
-DONE_STATUSES = ("completed", "done")
+from kernel.task_state import DONE_STATUSES  # noqa: F401
 
 
 def is_git_dirty(repo_root) -> bool:

@@ -9,12 +9,12 @@ from datetime import datetime
 from pathlib import Path
 
 from services.task_tree import TaskTreeError, TaskTreeService
-from kernel.paths import (
+from infra.paths import (
     FILE_TASK_JSON,
     ensure_task_date_prefix,
     get_tasks_dir,
 )
-from kernel.task_repository import TaskRepository, TaskRepositoryError
+from services.task_repository import TaskRepository, TaskRepositoryError
 
 
 class TaskCreationError(RuntimeError):

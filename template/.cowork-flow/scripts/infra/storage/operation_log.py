@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from kernel.storage.state_store import StateStore, StateStoreError
+from infra.storage.state_store import StateStore, StateStoreError
 
 
 FINAL_PHASES = ("committed", "conflicted")
