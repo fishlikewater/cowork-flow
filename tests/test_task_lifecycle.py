@@ -181,8 +181,14 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             def __init__(self) -> None:
                 self.calls: list[tuple[str, Path, dict]] = []
 
-            def run(self, scope: str, task_dir: Path, **kwargs):
-                self.calls.append((scope, task_dir, kwargs))
+            def review(self, task_dir: Path, **kwargs):
+                return self._record("task_review", task_dir, kwargs)
+
+            def complete(self, task_dir: Path, **kwargs):
+                return self._record("task_complete", task_dir, kwargs)
+
+            def _record(self, stage: str, task_dir: Path, kwargs: dict):
+                self.calls.append((stage, task_dir, kwargs))
                 blockers = ("TEST-CHECK-001 blocked",) if blocked else ()
                 return SimpleNamespace(blocked=blocked, blockers=blockers)
 

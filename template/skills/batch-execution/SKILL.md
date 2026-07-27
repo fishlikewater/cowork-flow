@@ -1,6 +1,6 @@
 ---
 name: batch-execution
-description: Use when the user approves a full plan and asks for continuous execution across the task graph; each task still goes through Gate, implementation, check, completion, and commit independently.
+description: Use when the user approves a full plan and asks for continuous execution across the task graph; each task still goes through lifecycle checks, implementation, check, completion, and commit independently.
 ---
 
 # Batch Execution
@@ -10,10 +10,10 @@ description: Use when the user approves a full plan and asks for continuous exec
 Batch Scheduler is a persistent state machine. Do **not** simulate or check completion inside the CLI.
 
 - Task ordering comes **only** from the topological order of leaf tasks in the change/task graph.
-- `implement.jsonl` and `check.jsonl` serve **only** as current-task context and Gate evidence; they must **not** be used as the Batch task list.
+- `implement.jsonl` and `check.jsonl` serve **only** as current-task context and review evidence; they must **not** be used as the Batch task list.
 - Only one host-neutral `next_action` is published at a time.
 - After the host executes a real action, results must be written back; the state machine validates repository state before advancing.
-- Any failure in Gate, binding, implementation, check, test, completion, or commit **pauses** the batch.
+- Any failure in lifecycle checks, binding, implementation, check, test, completion, or commit **pauses** the batch.
 - Completed tasks, phases, and commits are never re-executed on resume.
 
 ## Startup Conditions

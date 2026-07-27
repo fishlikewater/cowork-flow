@@ -16,7 +16,7 @@ from common.storage.unit_of_work import (
     UnitOfWorkError,
 )
 from common.task.active_task import build_active_task_session
-from common.task.lifecycle_checks import LifecycleCheckRunner
+from common.task.lifecycle_checks import LifecycleCheckResult, LifecycleCheckRunner
 from common.task.state_machine import transition_blockers
 from common.task.task_repository import TaskRepository, TaskRepositoryError
 
@@ -27,7 +27,6 @@ class LifecycleStage:
 
     name: str
     target_status: str
-    check_scope: str
     activates_session: bool = False
     records_completion_date: bool = False
 
@@ -35,18 +34,15 @@ class LifecycleStage:
 START_STAGE = LifecycleStage(
     name="start",
     target_status="in_progress",
-    check_scope="task_start",
     activates_session=True,
 )
 REVIEW_STAGE = LifecycleStage(
     name="review",
     target_status="review",
-    check_scope="task_review",
 )
 COMPLETE_STAGE = LifecycleStage(
     name="complete",
     target_status="completed",
-    check_scope="task_complete",
     records_completion_date=True,
 )
 
@@ -146,7 +142,7 @@ class TaskLifecycleService:
             return prepared
         task_data, already_at_target = prepared
 
-        checked = self._run_validated_checks(
+        checked = self._run_stage_checks(
             stage,
             task_dir,
             allow_spec_file_modifications=allow_spec_file_modifications,
@@ -198,22 +194,6 @@ class TaskLifecycleService:
         if transition_failure is not None:
             return transition_failure
         return task_data, already_at_target
-
-    def _run_validated_checks(
-        self,
-        stage: LifecycleStage,
-        task_dir: Path,
-        *,
-        allow_spec_file_modifications: bool,
-    ) -> object | LifecycleResult:
-        check_result_or_failure = self._run_stage_checks(
-            stage,
-            task_dir,
-            allow_spec_file_modifications=allow_spec_file_modifications,
-        )
-        if isinstance(check_result_or_failure, LifecycleResult):
-            return check_result_or_failure
-        return check_result_or_failure
 
     def _validated_idempotent_result(
         self,
@@ -358,11 +338,23 @@ class TaskLifecycleService:
         *,
         allow_spec_file_modifications: bool,
     ) -> object | LifecycleResult:
-        check_result = self.check_runner.run(
-            stage.check_scope,
-            task_dir,
-            allow_spec_file_modifications=allow_spec_file_modifications,
-        )
+        if stage.name == START_STAGE.name:
+            check_result = LifecycleCheckResult(stage=stage.name)
+        elif stage.name == REVIEW_STAGE.name:
+            check_result = self.check_runner.review(
+                task_dir,
+                allow_spec_file_modifications=allow_spec_file_modifications,
+            )
+        elif stage.name == COMPLETE_STAGE.name:
+            check_result = self.check_runner.complete(
+                task_dir,
+                allow_spec_file_modifications=allow_spec_file_modifications,
+            )
+        else:
+            check_result = LifecycleCheckResult(
+                stage=stage.name,
+                blockers=(f"unsupported lifecycle stage: {stage.name}",),
+            )
         if not check_result.blocked:
             return check_result
         return self._failure(

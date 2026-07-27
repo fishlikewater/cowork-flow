@@ -113,9 +113,9 @@ REQUIRED_FLOW_ROUTING_SNIPPETS = [
     '"activatedSkill": "task-planning"',
     '"activatedSkill": "adversarial-review"',
     '"activatedSkill": "batch-execution"',
-    '"runtimeGate": "task_start"',
-    '"runtimeGate": "task_review"',
-    '"runtimeGate": "task_complete"',
+    '"lifecycleCheck": "task_start"',
+    '"lifecycleCheck": "task_review"',
+    '"lifecycleCheck": "task_complete"',
 ]
 
 REQUIRED_PARTY_MODE_COMMAND_MANIFEST_SNIPPETS = [

@@ -21,7 +21,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
         entries = [
             {"file": "src/planned.py", "reason": "Planned source", "type": "planned-file"},
             {"file": "src/obsolete.py", "reason": "Deleted source", "type": "deleted-file"},
-            {"file": "src/ignored.py", "reason": "Unknown type", "type": "mystery"},
+            {"file": "src/", "reason": "Directory context", "type": "directory"},
         ]
         task_dir.mkdir(parents=True, exist_ok=True)
         (task_dir / "implement.jsonl").write_text(
@@ -120,6 +120,34 @@ class LifecycleChecksTest(FlowScriptTestCase):
             blockers,
         )
 
+    def test_allowed_file_scope_blocks_malformed_existing_implement_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = Path(temp_dir) / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "implement.jsonl").write_text(
+                "{\"file\": \"src/allowed.py\"}\nnot-json\n",
+                encoding="utf-8",
+            )
+            checks = importlib.import_module("common.task.lifecycle_checks")
+
+            blockers = checks._allowed_file_scope_blockers(task_dir, ["src/allowed.py"])
+
+        self.assertEqual(["Invalid implement.jsonl JSON at line 2"], blockers)
+
+    def test_allowed_file_scope_blocks_existing_implement_jsonl_without_file_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = Path(temp_dir) / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps({"file": "src/", "reason": "directory context", "type": "directory"}) + "\n",
+                encoding="utf-8",
+            )
+            checks = importlib.import_module("common.task.lifecycle_checks")
+
+            blockers = checks._allowed_file_scope_blockers(task_dir, ["src/allowed.py"])
+
+        self.assertEqual(["implement.jsonl contains no valid file-scope entries"], blockers)
+
     def test_lifecycle_checks_unstaged_staged_and_untracked_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -129,8 +157,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self._write_mixed_git_status_fixture(root)
             checks = importlib.import_module("common.task.lifecycle_checks")
 
-            result = checks.LifecycleCheckRunner(root).run(
-                "task_review",
+            result = checks.LifecycleCheckRunner(root).review(
                 task_dir,
                 allow_spec_file_modifications=True,
             )
@@ -298,7 +325,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self._write_allowed_file_task(nested, task_dir, "in_progress")
             checks = importlib.import_module("common.task.lifecycle_checks")
 
-            result = checks.LifecycleCheckRunner(nested).run("task_review", task_dir)
+            result = checks.LifecycleCheckRunner(nested).review(task_dir)
 
         self.assertFalse(result.blocked)
         self.assertEqual((), result.blockers)

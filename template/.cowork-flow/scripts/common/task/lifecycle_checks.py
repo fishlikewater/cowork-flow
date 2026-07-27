@@ -16,7 +16,6 @@ from pathlib import Path
 from common.git.git_snapshot import collect_changed_paths
 
 
-CHECK_SCOPES = frozenset({"task_start", "task_review", "task_complete"})
 PROTECTED_WORKFLOW_PATTERNS = (
     r"(^|/)\.cowork-flow/spec/",
     r"(^|/)\.cowork-flow/workflow\.md$",
@@ -29,7 +28,7 @@ PROTECTED_WORKFLOW_PATTERNS = (
 class LifecycleCheckResult:
     """Result of direct lifecycle fact checks."""
 
-    scope: str
+    stage: str
     blockers: tuple[str, ...] = ()
 
     @property
@@ -47,26 +46,53 @@ class LifecycleCheckRunner:
     def __init__(self, repo_root: Path) -> None:
         self.repo_root = Path(repo_root)
 
-    def run(
+    def review(
         self,
-        scope: str,
-        task_dir: Path | None = None,
+        task_dir: Path,
         *,
         allow_spec_file_modifications: bool = False,
     ) -> LifecycleCheckResult:
-        if scope not in CHECK_SCOPES:
-            return LifecycleCheckResult(
-                scope=scope,
-                blockers=(f"unsupported lifecycle check scope: {scope}",),
-            )
+        return LifecycleCheckResult(
+            stage="review",
+            blockers=tuple(
+                _review_completion_blockers(
+                    self.repo_root,
+                    task_dir,
+                    allow_spec_file_modifications=allow_spec_file_modifications,
+                )
+            ),
+        )
 
-        blockers: list[str] = []
-        if scope in {"task_review", "task_complete"} and task_dir is not None:
-            changed_files = collect_changed_paths(self.repo_root)
-            if not allow_spec_file_modifications:
-                blockers.extend(_protected_workflow_file_blockers(changed_files))
-            blockers.extend(_allowed_file_scope_blockers(task_dir, changed_files))
-        return LifecycleCheckResult(scope=scope, blockers=tuple(blockers))
+    def complete(
+        self,
+        task_dir: Path,
+        *,
+        allow_spec_file_modifications: bool = False,
+    ) -> LifecycleCheckResult:
+        return LifecycleCheckResult(
+            stage="complete",
+            blockers=tuple(
+                _review_completion_blockers(
+                    self.repo_root,
+                    task_dir,
+                    allow_spec_file_modifications=allow_spec_file_modifications,
+                )
+            ),
+        )
+
+
+def _review_completion_blockers(
+    repo_root: Path,
+    task_dir: Path,
+    *,
+    allow_spec_file_modifications: bool,
+) -> list[str]:
+    changed_files = collect_changed_paths(repo_root)
+    blockers: list[str] = []
+    if not allow_spec_file_modifications:
+        blockers.extend(_protected_workflow_file_blockers(changed_files))
+    blockers.extend(_allowed_file_scope_blockers(task_dir, changed_files))
+    return blockers
 
 
 def _protected_workflow_file_blockers(changed_files: list[str]) -> list[str]:
@@ -86,9 +112,9 @@ def _allowed_file_scope_blockers(task_dir: Path, changed_files: list[str]) -> li
     if not implement_jsonl.exists():
         return []
 
-    allowed_files = _load_allowed_context_files(implement_jsonl)
-    if not allowed_files:
-        return []
+    allowed_files, scope_blockers = _load_allowed_context_files(implement_jsonl)
+    if scope_blockers:
+        return scope_blockers
 
     blockers: list[str] = []
     for file_path in changed_files:
@@ -110,36 +136,46 @@ def _is_runtime_metadata_path(file_path: str) -> bool:
     )
 
 
-def _load_allowed_context_files(implement_jsonl: Path) -> set[str]:
+def _load_allowed_context_files(implement_jsonl: Path) -> tuple[set[str], list[str]]:
     allowed_files: set[str] = set()
+    blockers: list[str] = []
     try:
         lines = implement_jsonl.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError):
-        return allowed_files
+    except (OSError, UnicodeDecodeError) as error:
+        return allowed_files, [f"Cannot read implement.jsonl: {error}"]
 
-    for line in lines:
+    for line_number, line in enumerate(lines, start=1):
         line = line.strip()
         if not line:
             continue
         try:
             entry = json.loads(line)
         except json.JSONDecodeError:
+            blockers.append(f"Invalid implement.jsonl JSON at line {line_number}")
             continue
         if not isinstance(entry, dict):
+            blockers.append(f"Invalid implement.jsonl entry at line {line_number}: expected object")
             continue
-        normalized = _normalize_allowed_context_file(entry)
+        normalized, error = _normalize_allowed_context_file(entry)
+        if error is not None:
+            blockers.append(f"Invalid implement.jsonl file scope at line {line_number}: {error}")
+            continue
         if normalized is not None:
             allowed_files.add(normalized)
-    return allowed_files
+    if not allowed_files:
+        blockers.append("implement.jsonl contains no valid file-scope entries")
+    return allowed_files, blockers
 
 
-def _normalize_allowed_context_file(entry: dict) -> str | None:
+def _normalize_allowed_context_file(entry: dict) -> tuple[str | None, str | None]:
     entry_type = entry.get("type", "file")
     file_path = entry.get("file")
+    if entry_type == "directory":
+        return None, None
     if entry_type not in ("file", "planned-file", "deleted-file"):
-        return None
+        return None, f"unsupported type {entry_type!r}"
     if not isinstance(file_path, str) or not file_path:
-        return None
+        return None, "missing file path"
     normalized = _normalize_git_path(file_path)
     segments = normalized.split("/")
     invalid = (
@@ -148,7 +184,7 @@ def _normalize_allowed_context_file(entry: dict) -> str | None:
         or any(segment in ("", ".", "..") for segment in segments)
         or any(character in normalized for character in "*?[]")
     )
-    return None if invalid else normalized
+    return (None, f"non-canonical path {file_path!r}") if invalid else (normalized, None)
 
 
 def _normalize_git_path(file_path: str) -> str:

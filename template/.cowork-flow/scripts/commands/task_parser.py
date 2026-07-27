@@ -21,7 +21,7 @@ Usage:
 
 Public contract:
   `task next` is the only public task workflow command. It reports the next
-  safe action, the Skill to activate, the runtime gate, and the exact
+  safe action, the Skill to activate, the lifecycle check, and the exact
   `task next --run` form when an action is deterministic and executable.
 
 Action inputs for `next --run`:

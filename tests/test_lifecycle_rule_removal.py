@@ -24,14 +24,13 @@ class LifecycleRuleRemovalTest(FlowScriptTestCase):
 
         self.assertEqual([], [str(path) for path in removed_paths if path.exists()])
 
-    def test_lifecycle_check_runner_rejects_unknown_scope_without_protocol_schema(self) -> None:
+    def test_lifecycle_check_result_has_no_gate_pipeline_shape(self) -> None:
         checks = importlib.import_module("common.task.lifecycle_checks")
 
-        result = checks.LifecycleCheckRunner(ROOT).run("custom_scope", ROOT)
+        result = checks.LifecycleCheckResult(stage="review")
 
-        self.assertTrue(result.blocked)
-        self.assertEqual(1, result.exit_code)
-        self.assertEqual(("unsupported lifecycle check scope: custom_scope",), result.blockers)
+        self.assertFalse(result.blocked)
+        self.assertEqual(0, result.exit_code)
         self.assertFalse(hasattr(result, "violations"))
         self.assertFalse(hasattr(result, "executions"))
 
@@ -51,8 +50,7 @@ class LifecycleRuleRemovalTest(FlowScriptTestCase):
             (root / "src" / "allowed.py").write_text("VALUE = 2\n", encoding="utf-8")
             checks = importlib.import_module("common.task.lifecycle_checks")
 
-            result = checks.LifecycleCheckRunner(root).run(
-                "task_review",
+            result = checks.LifecycleCheckRunner(root).review(
                 task_dir,
                 allow_spec_file_modifications=True,
             )
