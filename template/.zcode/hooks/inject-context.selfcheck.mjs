@@ -3,7 +3,7 @@
  * Self-check for inject-context.js
  */
 
-import { readFileSync, existsSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from "fs";
+import { existsSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join, dirname } from "path";
 import { execSync } from "child_process";
 import assert from "assert/strict";
@@ -35,13 +35,52 @@ function runHook(env = {}, stdin) {
   });
 }
 
-function copyScaffoldTemplate(repoRoot) {
-  const src = join(import.meta.dirname, "..", "scaffold", ".cowork-flow", "spec", "contracts", "workflow-state-templates.md");
-  const dest = join(repoRoot, ".cowork-flow", "spec", "contracts", "workflow-state-templates.md");
-  if (existsSync(src)) {
-    mkdirSync(dirname(dest), { recursive: true });
-    copyFileSync(src, dest);
-  }
+function writeProjectFile(repoRoot, relativePath, content) {
+  const dest = join(repoRoot, relativePath);
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, content, "utf8");
+}
+
+function writeMinimalWorkflowSpec(repoRoot) {
+  writeProjectFile(repoRoot, "AGENTS.md", "# Test Project\n");
+  writeProjectFile(repoRoot, ".cowork-flow/config.yaml", "codex:\n  dispatch_mode: inline\n");
+  writeProjectFile(repoRoot, ".cowork-flow/run", "#!/usr/bin/env sh\n");
+  writeProjectFile(
+    repoRoot,
+    ".cowork-flow/spec/runtime/contract-registry.json",
+    JSON.stringify({
+      schemaVersion: 1,
+      contracts: [
+        {
+          id: "RUNTIME_CONTEXT_DISPATCH_V2",
+          path: ".cowork-flow/spec/contracts/subagent-dispatch.md",
+          digest: [
+            "Formal subagent work is keyed by cowork_runtime_context_id.",
+            "Explicit shim bind records bound_context_key before formal output is accepted.",
+          ],
+          readWhen: ["before formal subagent dispatch"],
+        },
+      ],
+    }, null, 2) + "\n"
+  );
+  writeProjectFile(
+    repoRoot,
+    ".cowork-flow/spec/contracts/subagent-dispatch.md",
+    "# Subagent Dispatch\n\nFormal subagent work is keyed by cowork_runtime_context_id.\n"
+  );
+  writeProjectFile(
+    repoRoot,
+    ".cowork-flow/spec/contracts/workflow-state-templates.md",
+    [
+      "[workflow-state:no_task]",
+      "STOP - no active task. Use task next --run to create or start a task.",
+      "[/workflow-state:no_task]",
+      "",
+      "[workflow-state:in_progress]",
+      "活动任务正在执行。",
+      "[/workflow-state:in_progress]",
+    ].join("\n")
+  );
 }
 
 function setupFakeProject() {
@@ -56,8 +95,8 @@ function setupFakeProject() {
   const taskData = JSON.stringify({ title: "Test Task", status: "in_progress" });
   writeFileSync(join(taskDir, "task.json"), taskData, "utf8");
 
-  // Install templates.md so breadcrumb parsing can be tested
-  copyScaffoldTemplate(tmpRoot);
+  // Install minimal project specs so breadcrumb parsing can be tested without plugin scaffold.
+  writeMinimalWorkflowSpec(tmpRoot);
 }
 
 function cleanup() {

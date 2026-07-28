@@ -106,8 +106,8 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(templateRoot, '.cowork-flow', 'scripts', 'adapters', 'cli', 'task.py'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'kernel', 'lifecycle_checks.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'kernel', 'lifecycle_checks.py'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'services', 'lifecycle_checks.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'services', 'lifecycle_checks.py'))
   );
   assert.equal(
     await readText(join(target, '.cowork-flow', 'scripts', 'adapters', 'review', 'test_intent.py')),

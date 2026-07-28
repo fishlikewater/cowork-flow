@@ -39,7 +39,7 @@ template/
 ├── .codex/                    # Codex agents / hooks / config
 ├── .claude/                   # Claude Code settings / agents / hooks
 ├── .opencode/                 # OpenCode agents / commands / plugins
-├── .zcode/                    # ⭐ ZCode 插件（hooks + runtime + scaffold）
+├── .zcode/                    # ⭐ ZCode 插件（hooks + skills + scaffold instructions）
 └── .cowork-flow/
     ├── config.yaml            # 项目配置
     ├── scripts/               # Python 运行时
@@ -106,6 +106,8 @@ cowork-flow install-zcode-plugin --force  # 覆盖已安装
 ```
 
 安装到 `~/.zcode/cli/plugins/cache/zcode-plugins-official/cowork-flow/<version>/`
+
+ZCode 插件只安装 hook、skills 和轻量说明文件；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
 
 **Hook 注入内容：**
 - `workflow-state` — 当前任务状态

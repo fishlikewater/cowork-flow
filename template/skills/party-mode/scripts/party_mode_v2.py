@@ -29,8 +29,8 @@ def _add_runtime_scripts_path() -> None:
 
 
 _add_runtime_scripts_path()
-from kernel.config import get_party_mode_v2_config
-from kernel.paths import DIR_WORKFLOW, get_repo_root
+from infra.config import get_party_mode_v2_config
+from infra.paths import DIR_WORKFLOW, get_repo_root
 
 RUNTIME_DIR = ".runtime"
 MODE_DIR = "party-mode-v2"

@@ -38,8 +38,8 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/scripts/run.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/adapters/cli/change.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/entry_classifier.py'), false);
-  assert.equal(files.has('template/.cowork-flow/scripts/kernel/git_snapshot.py'), true);
-  assert.equal(files.has('template/.cowork-flow/scripts/kernel/lifecycle_checks.py'), true);
+  assert.equal(files.has('template/.cowork-flow/scripts/infra/git_snapshot.py'), true);
+  assert.equal(files.has('template/.cowork-flow/scripts/services/lifecycle_checks.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/kernel/task_state.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/adapters/review/test_intent.py'), true);
   assert.equal(files.has('template/.cowork-flow/scripts/common/gates/coding_standards.py'), false);

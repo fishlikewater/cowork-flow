@@ -66,7 +66,7 @@ party_mode_v2:
         # Verify template scripts exist and are valid
         self.assertTrue(PARTY_MODE_SCRIPT.is_file())
         self.assertTrue((TEMPLATE_SCRIPTS / "run.py").is_file())
-        self.assertTrue((TEMPLATE_SCRIPTS / "kernel" / "config.py").is_file())
+        self.assertTrue((TEMPLATE_SCRIPTS / "infra" / "config.py").is_file())
 
     def test_party_v2_command_is_registered(self) -> None:
         manifest = json.loads(

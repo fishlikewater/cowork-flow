@@ -2,6 +2,7 @@
 /**
  * cowork-flow ZCode plugin hook.
  * Reads .cowork-flow/ state, parses workflow-state-templates.md, computes contract digest.
+ * Project files are installed by explicit cowork-flow init/sync, not by hook scaffolding.
  * Output: ZCode/Claude Code hook format (stdout JSON).
  */
 
@@ -188,9 +189,9 @@ function checkEssentialFiles(repoRoot) {
   const essentials = [
     ["AGENTS.md", "AGENTS.md"],
     [".cowork-flow/config.yaml", ".cowork-flow/config.yaml"],
-    [".cowork-flow/workflow.md", ".cowork-flow/workflow.md"],
-    [".cowork-flow/spec/runtime/contract-registry.json", ".cowork-flow/spec/"],
-    [".cowork-flow/spec/contracts/workflow-state-templates.md", ".cowork-flow/spec/contracts/"],
+    [".cowork-flow/run", ".cowork-flow/run"],
+    [".cowork-flow/spec/runtime/contract-registry.json", ".cowork-flow/spec/runtime/contract-registry.json"],
+    [".cowork-flow/spec/contracts/workflow-state-templates.md", ".cowork-flow/spec/contracts/workflow-state-templates.md"],
   ];
   for (const [relPath, label] of essentials) {
     if (!existsSync(join(repoRoot, relPath))) missing.push(label);
@@ -203,6 +204,7 @@ function checkEssentialFiles(repoRoot) {
 // ---------------------------------------------------------------------------
 function extractRuntimeContextId(promptText) {
   if (typeof promptText !== "string") return null;
+  RUNTIME_CONTEXT_PROMPT_RE.lastIndex = 0;
   const match = RUNTIME_CONTEXT_PROMPT_RE.exec(promptText);
   return match ? match[1] : null;
 }
@@ -228,13 +230,13 @@ function detectDelegatedSubtask(repoRoot, userPrompt) {
 // Build context blocks
 // ---------------------------------------------------------------------------
 function buildContext(repoRoot, activeTask, breadcrumbs) {
-  const fallback = "Refer to .cowork-flow/workflow.md for the current step.";
+  const fallback = "Run ./.cowork-flow/run task next for the current workflow step.";
 
   if (!activeTask) {
     const body = breadcrumbs.no_task || fallback;
     return `<workflow-state>
 Status: no_task
-Source: ${DIR_WORKFLOW}/workflow.md
+Source: task next / ${DIR_WORKFLOW}/spec
 ${body}
 </workflow-state>`;
   }
@@ -245,9 +247,9 @@ ${body}
   if (missing) {
     return `<workflow-state>
 Status: no_task
-Source: ${DIR_WORKFLOW}/workflow.md
+Source: runtime-session
 Session 指向的任务目录不存在（${activeTask.taskPath}）。
-当前项目无有效任务。请运行 ./.cowork-flow/run task create 创建新任务。
+当前项目无有效任务。请运行 ./.cowork-flow/run task next --run --title "<title>" --slug <task-name> --assignee <name> 创建新任务。
 </workflow-state>`;
   }
 
