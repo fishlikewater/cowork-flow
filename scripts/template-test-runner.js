@@ -19,6 +19,7 @@ export const CORE_TEMPLATE_TEST_MODULES = Object.freeze([
 const TEMPLATE_TEST_SUITES = new Set(['core', 'full']);
 
 export function createTemplateTestTempRoot() {
+  // Keep copied repositories away from workspace watchers and concurrent runs.
   return mkdtempSync(join(resolve(tmpdir()), 'cowork-flow-template-tests-'));
 }
 
