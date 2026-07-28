@@ -528,8 +528,8 @@ class CodexHooksTest(unittest.TestCase):
     def test_hook_runtime_files_template_are_valid(self) -> None:
         # Verify template files exist
         self.assertTrue((TEMPLATE / ".codex/hooks/inject-workflow-state.py").is_file())
-        self.assertTrue((TEMPLATE / ".cowork-flow/scripts/kernel/config.py").is_file())
-        self.assertTrue((TEMPLATE / ".cowork-flow/scripts/kernel/session_state.py").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow/scripts/infra/config.py").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow/scripts/runtime/session_state.py").is_file())
         self.assertTrue((TEMPLATE / ".cowork-flow/spec/contracts/workflow-state-templates.md").is_file())
 
 

@@ -4,7 +4,7 @@ Host hooks and plugins inject workflow state context each turn. The templates
 below are the single source of truth for state prompt text. Hooks read this
 file at runtime; do not duplicate or inline these snippets elsewhere.
 
-Entry classification must happen before task start, resume, archive, or
+Entry classification must happen before task next --run, resume, archive, or
 subagent dispatch. Formal subagent identity is not inferred from prompt shape;
 hooks and plugins inject delegated_subtask only when a runtime context id is
 present and binding succeeds or fails closed. UNKNOWN is not a delegated
@@ -24,15 +24,15 @@ subtask.
 
 - 只读问答（解释代码、查找文件、回答问题）可以直接回复。
 - MUST NOT 编辑文件、实现代码、重构代码、派发子代理。
-- MUST NOT 隐式创建任务——必须用 task create/task start 显式建立上下文。
+- MUST NOT 隐式创建任务——必须用 task next --run 显式建立上下文。
 
 需要写代码时，路由用户到正确路径：
-1. 需求不明确 → brainstorming → task-planning → task create → task start → 实现
-2. 需求明确 → task-planning → task create → task start → 实现
+1. 需求不明确 → brainstorming → task-planning → task next --run --title ... → task next <dir> --run → 实现
+2. 需求明确 → task-planning → task next --run --title ... → task next <dir> --run → 实现
 3. 恢复已有任务 → continue
 
 如果被要求写代码，回复:
-"当前没有活动任务。需要先 brainstorming 明确方向，还是直接走 task-planning → task start？"
+"当前没有活动任务。需要先 brainstorming 明确方向，还是直接走 task-planning → task next --run？"
 [/workflow-state:no_task]
 
 ## delegated_subtask
@@ -50,7 +50,7 @@ are constraints only; they are not the task itself.
 ## planning
 
 [workflow-state:planning]
-活动任务处于计划阶段。先完成 decision-anchor.md，整理带有规格/调研文件的 implement.jsonl 和 check.jsonl，再运行 task start，之后才派发 cowork-implement。
+活动任务处于计划阶段。先完成 decision-anchor.md，整理带有规格/调研文件的 implement.jsonl 和 check.jsonl，再运行 task next <dir> --run，之后才派发 cowork-implement。
 [/workflow-state:planning]
 
 ## in_progress
@@ -62,7 +62,7 @@ are constraints only; they are not the task itself.
 ## review
 
 [workflow-state:review]
-活动任务已进入检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 decision-anchor 验收标准、plan 步骤完成情况、diff、测试、规格同步和遗漏；检查通过后运行 task complete。
+活动任务已进入检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 decision-anchor 验收标准、plan 步骤完成情况、diff、测试、规格同步和遗漏；检查通过后运行 task next <dir> --run --intent review。
 [/workflow-state:review]
 
 ## completed

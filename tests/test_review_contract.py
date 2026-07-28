@@ -90,7 +90,7 @@ class SpecReviewContractTest(unittest.TestCase):
             ]
         self.assertEqual([], gate_sources)
         self.assertTrue(
-            (TEMPLATE / ".cowork-flow" / "scripts" / "kernel" / "lifecycle_checks.py").is_file()
+            (TEMPLATE / ".cowork-flow" / "scripts" / "services" / "lifecycle_checks.py").is_file()
         )
         self.assertTrue(
             (TEMPLATE / ".cowork-flow" / "scripts" / "adapters" / "review" / "test_intent.py").is_file()

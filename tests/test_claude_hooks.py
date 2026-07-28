@@ -477,7 +477,7 @@ class ClaudeHooksTest(unittest.TestCase):
         # Verify template files exist
         self.assertTrue((TEMPLATE / ".claude/settings.json").is_file())
         self.assertTrue((TEMPLATE / ".claude/hooks/inject-workflow-state.py").is_file())
-        self.assertTrue((TEMPLATE / ".cowork-flow/scripts/kernel/session_state.py").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow/scripts/runtime/session_state.py").is_file())
         self.assertTrue((TEMPLATE / ".cowork-flow/spec/contracts/workflow-state-templates.md").is_file())
 
 

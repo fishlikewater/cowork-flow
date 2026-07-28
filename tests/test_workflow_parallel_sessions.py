@@ -142,12 +142,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("task.json.status", text)
         self.assertIn("in_progress", text)
         self.assertIn("review", text)
+        self.assertIn("Skill command manifests", text)
+        self.assertNotIn(".cowork-flow/workflow.md", text)
         self.assertNotIn("before-dev", text)
 
-    def test_zcode_scaffold_does_not_vendor_spec_contracts(self) -> None:
-        spec_dir = ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "spec"
+    def test_zcode_scaffold_does_not_vendor_workflow_files(self) -> None:
+        workflow_dir = ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow"
 
-        self.assertFalse(spec_dir.exists())
+        self.assertFalse(workflow_dir.exists())
 
     def test_workflow_limits_generic_worker_to_advisory_work(self) -> None:
         required_markers = (
@@ -218,8 +220,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_lifecycle_runtime_common_modules_exist_in_template(self) -> None:
         required_markers = {
-            "kernel/lifecycle_checks.py": ("LifecycleCheckRunner", "Modified file not listed in implement.jsonl", "collect_changed_paths"),
-            "kernel/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
+            "services/lifecycle_checks.py": ("LifecycleCheckRunner", "Modified file not listed in implement.jsonl", "collect_changed_paths"),
+            "infra/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
             "kernel/task_state.py": ("transition_blockers", "task next <task-dir> --run --intent review", "completed"),
             "adapters/review/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
         }
