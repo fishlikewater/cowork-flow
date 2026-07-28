@@ -16,10 +16,14 @@
     "!template/**/*.pyc"
   ],
   "scripts": {
-    "test": "node --test",
-    "test:template": "node scripts/run-template-tests.js",
+    "test": "npm run test:fast",
+    "test:fast": "node --test test/asset-plan.test.js test/cli.test.js test/host-assets.test.js test/opencode-plugin.test.js test/template-runner.test.js test/update.test.js test/zcode-plugin.test.js",
+    "test:integration": "node --test --test-name-pattern=\"^(init copies the template into a new target directory|sync updates safe template files and preserves protected files)$\" test/init.test.js test/sync.test.js",
+    "test:node:full": "node --test",
+    "test:template": "node scripts/run-template-tests.js --suite core",
+    "test:template:full": "node scripts/run-template-tests.js --suite full",
     "pack:check": "node scripts/pack-check.js",
-    "test:all": "npm test && npm run test:template && npm run pack:check",
+    "test:all": "npm run test:node:full && npm run test:template:full && npm run pack:check",
     "release": "sh scripts/release.sh"
   },
   "engines": {

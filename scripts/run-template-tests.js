@@ -2,6 +2,7 @@
 import { resolve } from 'node:path';
 
 import {
+  createTemplateTestTempRoot,
   parseTemplateTestOptions,
   runTemplateTests
 } from './template-test-runner.js';
@@ -9,10 +10,10 @@ import {
 const runner = process.platform === 'win32'
   ? resolve('template', '.cowork-flow', 'run.cmd')
   : resolve('template', '.cowork-flow', 'run');
-const tempRoot = resolve('.tmp', 'template-tests');
+const tempRoot = createTemplateTestTempRoot();
 
 try {
-  const options = parseTemplateTestOptions();
+  const options = parseTemplateTestOptions(process.env, process.argv.slice(2));
   process.exitCode = await runTemplateTests({
     ...options,
     runner,
