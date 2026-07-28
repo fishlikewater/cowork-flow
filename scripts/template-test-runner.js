@@ -1,12 +1,51 @@
 import { spawn as defaultSpawn } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+export const CORE_TEMPLATE_TEST_MODULES = Object.freeze([
+  'tests.test_state_store',
+  'tests.test_state_migrations',
+  'tests.test_task_creation',
+  'tests.test_task_tree',
+  'tests.test_decision_anchor',
+  'tests.test_host_adapters',
+  'tests.test_host_asset_manifest',
+  'tests.test_skill_routing',
+  'tests.test_task_navigation',
+  'tests.test_workflow_parallel_sessions'
+]);
+
+const TEMPLATE_TEST_SUITES = new Set(['core', 'full']);
+
+export function createTemplateTestTempRoot() {
+  return mkdtempSync(join(resolve(tmpdir()), 'cowork-flow-template-tests-'));
+}
 
 function normalizedSeed(seed) {
   return String(seed).replaceAll(/[^A-Za-z0-9._-]/g, '_');
 }
 
-export function parseTemplateTestOptions(env = process.env) {
+function parseSuite(args) {
+  let suite = 'core';
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--suite') {
+      suite = args[index + 1];
+      index += 1;
+    } else if (arg.startsWith('--suite=')) {
+      suite = arg.slice('--suite='.length);
+    } else {
+      throw new Error(`Unknown template test option: ${arg}`);
+    }
+  }
+  if (!TEMPLATE_TEST_SUITES.has(suite)) {
+    throw new Error('Template test suite must be one of: core, full');
+  }
+  return suite;
+}
+
+export function parseTemplateTestOptions(env = process.env, args = []) {
   const rawRepeat = env.COWORK_TEMPLATE_TEST_REPEAT ?? '1';
   const repeat = Number.parseInt(rawRepeat, 10);
   if (!Number.isInteger(repeat) || repeat < 1 || String(repeat) !== rawRepeat.trim()) {
@@ -14,8 +53,16 @@ export function parseTemplateTestOptions(env = process.env) {
   }
   return {
     repeat,
-    seed: env.COWORK_TEMPLATE_TEST_SEED?.trim() || Date.now().toString(36)
+    seed: env.COWORK_TEMPLATE_TEST_SEED?.trim() || Date.now().toString(36),
+    suite: parseSuite(args)
   };
+}
+
+function unittestArgs(suite) {
+  if (suite === 'full') {
+    return ['python', '-m', 'unittest', 'discover', 'tests', '-v'];
+  }
+  return ['python', '-m', 'unittest', ...CORE_TEMPLATE_TEST_MODULES, '-v'];
 }
 
 function runIteration({
@@ -23,6 +70,7 @@ function runIteration({
   iteration,
   repeat,
   seed,
+  suite,
   tempDir,
   spawnImpl,
   platform,
@@ -39,7 +87,7 @@ function runIteration({
     };
     const child = spawnImpl(
       runner,
-      ['python', '-m', 'unittest', 'discover', 'tests', '-v'],
+      unittestArgs(suite),
       {
         stdio: 'inherit',
         shell: platform === 'win32',
@@ -51,7 +99,8 @@ function runIteration({
           TMPDIR: tempDir,
           COWORK_TEMPLATE_TEST_ITERATION: String(iteration),
           COWORK_TEMPLATE_TEST_REPEAT: String(repeat),
-          COWORK_TEMPLATE_TEST_SEED: seed
+          COWORK_TEMPLATE_TEST_SEED: seed,
+          COWORK_TEMPLATE_TEST_SUITE: suite
         }
       }
     );
@@ -66,6 +115,7 @@ function runIteration({
 export async function runTemplateTests({
   repeat,
   seed,
+  suite = 'core',
   runner,
   tempRoot,
   spawnImpl = defaultSpawn,
@@ -88,6 +138,7 @@ export async function runTemplateTests({
       iteration,
       repeat,
       seed,
+      suite,
       tempDir,
       spawnImpl,
       platform,
@@ -96,7 +147,7 @@ export async function runTemplateTests({
     });
     if (code !== 0) {
       stderr.write(
-        `[template-tests] iteration=${iteration}/${repeat} seed=${seed} `
+        `[template-tests] suite=${suite} iteration=${iteration}/${repeat} seed=${seed} `
         + `exit=${code} temp=${tempDir}\n`
       );
       return code;

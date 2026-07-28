@@ -175,14 +175,25 @@ runtime 发出的 host-neutral action、记录执行结果并纠偏漂移。
 
 ## 发布
 
+测试按反馈速度和覆盖范围分层：
+
+```bash
+npm run test:fast          # 快速 Node 测试，等价于 npm test
+npm run test:integration   # init/sync 关键集成路径
+npm run test:node:full     # 完整 Node 测试
+npm run test:template      # 核心模板集成测试
+npm run test:template:full # 完整模板 Python discovery
+npm run test:all           # 发布前全量测试与打包检查
+```
+
 ```bash
 npm run release          # patch
 npm run release -- minor # minor
 ```
 
 **发布流程：**
-1. `npm test`、`npm run test:template`、`npm run pack:check`、`git diff --check`
-2. 稳定性变更使用 `COWORK_TEMPLATE_TEST_REPEAT=3` 和固定 `COWORK_TEMPLATE_TEST_SEED` 重复运行模板测试
+1. `npm run test:all`、`git diff --check`
+2. 稳定性变更使用 `COWORK_TEMPLATE_TEST_REPEAT=3` 和固定 `COWORK_TEMPLATE_TEST_SEED` 重复运行 `npm run test:template:full`
 3. `npm version` 升级版本
 4. 同步版本到 `template/.cowork-flow/.version` 和 `template/.zcode/.zcode-plugin/plugin.json`
 5. `git commit` + `git tag`
