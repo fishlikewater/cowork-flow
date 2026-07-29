@@ -237,6 +237,10 @@ class CoworkAgentsTest(unittest.TestCase):
             "shallow tests",
             "target behavior breaks",
             "acceptance IDs",
+            "check.jsonl` context index",
+            "do not write review conclusions to JSONL",
+            "advisory facts",
+            "lifecycle facts",
         )
         for path in (
             ROOT / "template" / ".codex" / "agents" / "cowork-check.toml",

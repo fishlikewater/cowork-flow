@@ -106,9 +106,9 @@ def _required_artifacts(status: str) -> list[str]:
     if status in {"no_task", "planning", "in_progress"}:
         return ["decision-anchor.md", "implement.jsonl"]
     if status in CHECK_STATUSES:
-        return ["decision-anchor.md", "check.jsonl"]
+        return ["decision-anchor.md"]
     if status in DONE_STATUSES:
-        return ["check.jsonl"]
+        return []
     if status == "delegated_subtask":
         return ["runtime-context"]
     return []

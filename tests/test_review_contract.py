@@ -78,6 +78,34 @@ class SpecReviewContractTest(unittest.TestCase):
         missing = [marker for marker in required_markers if marker not in skill]
         self.assertEqual([], missing)
 
+    def test_task_review_skill_avoids_review_evidence_artifact_pressure(self) -> None:
+        skill = (TEMPLATE / "skills" / "task-review" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("check context index", skill)
+        self.assertIn("do not write review conclusions", skill)
+        self.assertIn("advisory helper output", skill)
+        for forbidden in (
+            "quality-review.jsonl",
+            "review.jsonl",
+            "coding-review.jsonl",
+            "evidenceArtifact",
+            "machine_gate_review",
+        ):
+            self.assertNotIn(forbidden, skill)
+
+    def test_review_helper_contract_stays_advisory_not_gate(self) -> None:
+        contract = (
+            SPEC / "contracts" / "skill-owned-actions.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("advisory facts", contract)
+        self.assertIn("read-only helpers", contract)
+        self.assertIn("no task-local review evidence file", contract)
+        self.assertIn("pass/fail completion verdict", contract)
+        self.assertIn("natural-language spec hard gate", contract)
+
     def test_removed_gate_modules_do_not_exist_in_template(self) -> None:
         gates_dir = TEMPLATE / ".cowork-flow" / "scripts" / "common" / "gates"
 
