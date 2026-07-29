@@ -431,7 +431,8 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertIn("Status: planning", output)
             self.assertIn("Blockers:", output)
             self.assertIn("decision-anchor.md is missing or empty", output)
-            self.assertIn("Command: none — edit the required planning artifacts", output)
+            self.assertIn("Command: none", output)
+            self.assertNotIn("edit the required planning artifacts", output.split("Command:", 1)[1])
             self.assertNotIn("./.cowork-flow/run task init-context", output)
             self.assertFalse((root / ".cowork-flow" / (".current" + "-task")).exists())
 
@@ -457,7 +458,9 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertIn("Status: in_progress", output)
             self.assertIn("Next action: execute implementation plan", output)
             self.assertIn("Skill: cowork-flow", output)
-            self.assertIn("task next .cowork-flow/tasks/05-19-demo --run --intent review", output)
+            self.assertIn("task next .cowork-flow/tasks/05-19-demo --run", output)
+            self.assertNotIn("Then:", output)
+            self.assertNotIn("--intent review", output)
             self.assertNotIn("./.cowork-flow/run subagent init", output)
 
     def test_cmd_next_does_not_prompt_for_tdd_evidence(self) -> None:
@@ -491,7 +494,8 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertNotIn("TDD reminder:", output)
             self.assertNotIn("/check.jsonl", output)
             self.assertIn("Skill: cowork-flow", output)
-            self.assertIn("task next .cowork-flow/tasks/05-19-demo --run --intent review", output)
+            self.assertIn("task next .cowork-flow/tasks/05-19-demo --run", output)
+            self.assertNotIn("Then:", output)
             self.assertNotIn("./.cowork-flow/run subagent init", output)
             self.assertNotIn("TDD red evidence is missing", output)
 
@@ -521,7 +525,7 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertNotIn("cowork-check", output)
             self.assertNotIn("./.cowork-flow/run task complete", output)
 
-    def test_cmd_next_completed_mentions_linked_change_archive(self) -> None:
+    def test_cmd_next_completed_renders_only_archive_action_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
@@ -546,7 +550,9 @@ class TaskNavigationTest(FlowScriptTestCase):
             output = stdout.getvalue()
             self.assertEqual(0, result)
             self.assertIn("task next .cowork-flow/tasks/05-19-demo --run --intent archive", output)
-            self.assertIn("change archive 05-19-demo-change", output)
+            self.assertNotIn("git status --short", output)
+            self.assertNotIn("change archive 05-19-demo-change", output)
+            self.assertNotIn("Then:", output)
             self.assertNotIn("task archive 05-19-demo", output)
 
     def test_cmd_next_json_defaults_completed_task_to_archive_route(self) -> None:
@@ -663,9 +669,34 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertIn("standalone doubt review", output)
             self.assertIn("adversarial-review", output)
+            self.assertIn("Command: none", output)
+            self.assertNotIn("Target:", output)
+            self.assertNotIn("Do not dispatch", output)
             self.assertNotIn("cowork-check", output)
             self.assertNotIn("subagent init --role check", output)
             self.assertNotIn("subagent bind", output)
+
+    def test_text_navigation_adapter_has_no_phase_specific_control_plane(self) -> None:
+        source = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "scripts"
+            / "adapters"
+            / "cli"
+            / "task_navigation.py"
+        ).read_text(encoding="utf-8")
+
+        for forbidden in (
+            "_run_command",
+            "_print_doubt_review_route",
+            "_print_check_route",
+            "_print_archive_route",
+            "git status --short",
+            "Then:",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
 
     def test_cmd_next_routes_active_ready_planning_task_to_implementation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

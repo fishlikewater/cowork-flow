@@ -6,12 +6,18 @@ import importlib
 import io
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from tests.flow_test_support import FlowScriptTestCase
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PYTHON_RUNNER = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
 
 
 class BatchModeFailClosedTest(FlowScriptTestCase):
@@ -84,6 +90,48 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
             encoding="utf-8",
         )
         return payload_path
+
+    @staticmethod
+    def _run_public_batch_action(
+        root: Path,
+        *args: str,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(PYTHON_RUNNER), "batch-action", *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+    def test_batch_adapter_dispatches_manifest_owned_start_action(self) -> None:
+        batch_mode = importlib.import_module("adapters.cli.batch_mode")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._task(root)
+            action = root / "batch-action.py"
+            action.write_text(
+                "import json, sys\n"
+                "print(json.dumps({'argv': sys.argv[1:]}))\n",
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with patch.object(
+                batch_mode,
+                "skill_command_scripts",
+                return_value={"batch-action": action},
+            ):
+                with contextlib.redirect_stdout(stdout):
+                    result = batch_mode.run_batch_entry(
+                        root,
+                        task_dir,
+                        argparse.Namespace(auto=True, approved=True),
+                    )
+
+        self.assertEqual(0, result)
+        self.assertEqual(["start", task_dir.name], json.loads(stdout.getvalue())["argv"])
 
     def test_batch_runtime_emits_first_host_action_without_completion(self) -> None:
         batch_mode = importlib.import_module("adapters.cli.batch_mode")
@@ -175,38 +223,71 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
                 with self.assertRaises(SystemExit) as raised:
                     parser.parse_args([command])
                 self.assertEqual(2, raised.exception.code)
+        self.assertFalse(hasattr(self.task, "cmd_batch_resume"))
+        self.assertFalse(hasattr(self.task, "cmd_batch_record_result"))
 
     def test_batch_record_result_command_advances_verified_action(self) -> None:
-        batch_execution = importlib.import_module(
-            "services.batch_execution"
-        )
+        batch_mode = importlib.import_module("adapters.cli.batch_mode")
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = self._task(root)
-            state = batch_execution.BatchExecutionService(
-                root,
-                commit_verifier=lambda _: True,
-            ).start(task_dir.name)
+            started = self._run_public_batch_action(root, "start", task_dir.name)
+            self.assertEqual(0, started.returncode, started.stderr)
+            state = json.loads(started.stdout)
             payload_path = self._write_start_result(
                 root,
                 task_dir,
                 state,
             )
-            result, output = self._run_in_repo(
+            recorded = self._run_public_batch_action(
                 root,
-                self.task.cmd_batch_record_result,
-                argparse.Namespace(
-                    operation_id=state["operation_id"],
-                    file=payload_path,
-                ),
+                "record-result",
+                state["operation_id"],
+                str(payload_path),
             )
 
-        advanced = json.loads(output)
-        self.assertEqual(0, result)
+        advanced = json.loads(recorded.stdout)
+        self.assertEqual(0, recorded.returncode, recorded.stderr)
         self.assertEqual(
             "init_implement_context",
             advanced["next_action"]["type"],
         )
+
+    def test_public_batch_resume_recovers_paused_operation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._task(root)
+            started = self._run_public_batch_action(root, "start", task_dir.name)
+            self.assertEqual(0, started.returncode, started.stderr)
+            state = json.loads(started.stdout)
+            invalid_result = root / "invalid-result.json"
+            invalid_result.write_text(
+                json.dumps(
+                    {
+                        "action_id": state["next_action"]["action_id"],
+                        "type": "start_task",
+                        "outcome": "success",
+                        "task_status": "in_progress",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            paused = self._run_public_batch_action(
+                root,
+                "record-result",
+                state["operation_id"],
+                str(invalid_result),
+            )
+            resumed = self._run_public_batch_action(
+                root,
+                "resume",
+                state["operation_id"],
+            )
+
+        self.assertEqual(2, paused.returncode)
+        self.assertEqual("paused", json.loads(paused.stdout)["phase"])
+        self.assertEqual(0, resumed.returncode, resumed.stderr)
+        self.assertEqual("start_task", json.loads(resumed.stdout)["next_action"]["type"])
 
 
 if __name__ == "__main__":

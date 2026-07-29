@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "skill": "task-review",
+  "actions": [
+    {
+      "id": "request_review",
+      "label": "mark task ready for review",
+      "lifecycleCheck": "task_review",
+      "mutatesState": true,
+      "command": "./.cowork-flow/run task next <task-dir> --run --intent review"
+    },
+    {
+      "id": "complete_task",
+      "label": "complete reviewed task",
+      "lifecycleCheck": "task_complete",
+      "mutatesState": true,
+      "command": "./.cowork-flow/run task next <task-dir> --run --intent review"
+    }
+  ],
+  "context": [
+    {
+      "contexts": ["check"],
+      "devTypes": ["*"],
+      "reason": "Quality, contract, and template consistency review Skill"
+    }
+  ]
+}

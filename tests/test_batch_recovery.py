@@ -6,15 +6,23 @@ from __future__ import annotations
 import importlib
 import json
 import tempfile
+import sys
 from pathlib import Path
 
 from tests.flow_test_support import FlowScriptTestCase
 
 
+ROOT = Path(__file__).resolve().parents[1]
+BATCH_SCRIPTS = ROOT / "template" / "skills" / "batch-execution" / "scripts"
+
+
 class BatchRecoveryTest(FlowScriptTestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.module = importlib.import_module("services.batch_execution")
+        if str(BATCH_SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(BATCH_SCRIPTS))
+            self.addCleanup(sys.path.remove, str(BATCH_SCRIPTS))
+        self.module = importlib.import_module("batch_execution")
         self.runtime_module = importlib.import_module(
             "services.workflow_runtime"
         )

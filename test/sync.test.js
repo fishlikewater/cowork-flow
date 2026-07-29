@@ -223,6 +223,19 @@ test('sync preserves direct skill layout without legacy seed material', async (t
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
 });
 
+test('sync is idempotent after the target matches the template', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
+    0
+  );
+
+  const io = createIo();
+  assert.equal(await main(['sync', target], { io }), 0);
+  assert.match(io.stdout, /updated=0/);
+  assert.match(io.stdout, /deleted=0/);
+});
+
 test('sync deletes removed official Skills and leaves custom Skills and task contexts untouched', async (t) => {
   const target = await createTempDir(t);
   assert.equal(

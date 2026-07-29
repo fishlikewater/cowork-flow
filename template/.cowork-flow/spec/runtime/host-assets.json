@@ -126,7 +126,8 @@
   ],
   "syncPolicy": {
     "protectedFiles": [
-      ".cowork-flow/config.yaml"
+      ".cowork-flow/config.yaml",
+      ".cowork-flow/.developer"
     ],
     "protectedPrefixes": [
       ".cowork-flow/spec/",
@@ -192,6 +193,8 @@
       ".claude/skills/writing-plans",
       ".cowork-flow/project-context.md",
       ".cowork-flow/scripts/application",
+      ".cowork-flow/scripts/services/batch_execution.py",
+      ".cowork-flow/scripts/services/decision_review.py",
       ".cowork-flow/scripts/commands",
       ".cowork-flow/scripts/common",
       ".cowork-flow/scripts/common/__init__.py",

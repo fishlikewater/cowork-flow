@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""cowork-flow diagnostics."""
+"""Structured cowork-flow distribution and runtime health checks."""
 
 from __future__ import annotations
 
@@ -8,354 +7,151 @@ import argparse
 import sys
 from pathlib import Path
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
-    tomllib = None  # type: ignore[assignment]
 
 def _add_runtime_scripts_path() -> None:
     for parent in Path(__file__).resolve().parents:
         candidate = parent / ".cowork-flow" / "scripts"
         if candidate.is_dir():
-            candidate_text = str(candidate)
-            if candidate_text not in sys.path:
-                sys.path.insert(0, candidate_text)
+            value = str(candidate)
+            if value not in sys.path:
+                sys.path.insert(0, value)
             return
 
 
 _add_runtime_scripts_path()
+
+from adapters.host.host_manifest import (
+    HostManifestError,
+    detect_installed_platforms,
+    load_host_manifest,
+    validate_host_assets,
+)
 from infra.paths import get_repo_root
-from adapters.host.host_manifest import validate_host_assets
+from infra.skill_manifest import SkillManifestError, action_owners, load_skill_manifests
 
 
-ENTRY_BOUNDARY_DIR = "entry" + "-boundary"
-
-REQUIRED_ROUTER_SNIPPETS = [
-    "only public workflow router",
-    "<workflow-state>",
-    "./.cowork-flow/run task next --json",
-    "allowedOperations",
-    "recommendedSkill",
-]
-
-REQUIRED_FIXED_AGENT_SNIPPETS = [
-    "agent-dispatch",
-    "needs_context",
-    "MUST NOT spawn",
-    "multi_agent = false",
-    "enabled = false",
-]
-
-REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET = "runtime-context"
-
-FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS = [
-    "Active task",
-    "active task",
-    "self-loads task context",
-    "self-loads",
-]
-
-FORBIDDEN_README_DISPATCH_SNIPPETS = [
-    'message="Active task: <task-dir>\\n\\n<assignment>"',
-    "提示词首行使用 `Active task: <task-dir>`",
-]
-
-REQUIRED_SUBAGENT_DISPATCH_SNIPPETS = [
-    "Runtime-context subagent dispatch",
-    "cowork_runtime_context_id",
-    "cowork_host_context_key",
-    ".cowork-flow/.runtime/subagents/<runtime_context_id>.json",
-    ".cowork-flow/.runtime/sessions/subagent_<runtime_context_id>.json",
-    "Verified binding is the formal dispatch acceptance event",
-    "subagent bind <runtime_context_id> <host_context_key>",
-    'bound_context_key: "<host_context_key>"',
-    "fail-closed subagent state",
-    "Generic `worker`, `default`, or `explorer` dispatch is advisory only",
-]
-
-REQUIRED_HOOK_SNIPPETS = [
-    '"command": ".codex/hooks/inject-workflow-state.py"',
-]
-
-REQUIRED_RUNTIME_HOOK_SNIPPETS = [
-    "resolve_runtime_context_id",
-    "bind_runtime_context",
-    "runtime-context-invalid",
-    'status = "delegated_subtask"',
-    "workflow-state-templates.md",
-]
-
-REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS = [
-    "[workflow-state:no_task]",
-    "[workflow-state:delegated_subtask]",
-    "[workflow-state:planning]",
-    "[workflow-state:in_progress]",
-    "[workflow-state:review]",
-    "[workflow-state:completed]",
-    "runtime context",
-    "UNKNOWN is not a delegated",
-]
-
-REQUIRED_CONTRACT_REGISTRY_SNIPPETS = [
-    '"schemaVersion": 1',
-    '"RUNTIME_CONTEXT_DISPATCH_V2"',
-    '"HOST_ADAPTER_CAPABILITIES_V1"',
-    '"HOST_ADAPTER_SCHEMA_V1"',
-    '"PARTY_MODE_V2_BOARD_V1"',
-    '".cowork-flow/spec/contracts/subagent-dispatch.md"',
-    '".cowork-flow/spec/contracts/capabilities.md"',
-    '".cowork-flow/spec/schemas/adapter.schema.json"',
-]
-
-REQUIRED_FLOW_ROUTING_SNIPPETS = [
-    '"activatedSkill": "cowork-flow"',
-    '"activatedSkill": "task-review"',
-    '"activatedSkill": "task-planning"',
-    '"activatedSkill": "adversarial-review"',
-    '"activatedSkill": "batch-execution"',
-    '"lifecycleCheck": "task_start"',
-    '"lifecycleCheck": "task_review"',
-    '"lifecycleCheck": "task_complete"',
-]
-
-REQUIRED_EXECUTION_CONTEXT_CLI_ADAPTER_SNIPPETS = [
-    "argparse.ArgumentParser",
-    "parse_public_execution_context_args",
-    "execution_context_from_namespace",
-    "context_to_internal_cli_args",
-    "execution_context_from_values",
-]
-
-FORBIDDEN_KERNEL_EXECUTION_CONTEXT_SNIPPETS = [
-    "import argparse",
-    "argparse.ArgumentParser",
-    "parse_public_execution_context_args",
-    "execution_context_from_namespace",
-    "context_to_internal_cli_args",
-]
-
-REQUIRED_PARTY_MODE_COMMAND_MANIFEST_SNIPPETS = [
-    '"skill": "party-mode"',
-    '"commands"',
-    '"name": "party-v2"',
-    '"script": "scripts/party_mode_v2.py"',
-]
-
-REQUIRED_DIAGNOSTICS_COMMAND_MANIFEST_SNIPPETS = [
-    '"skill": "runtime-health"',
-    '"commands"',
-    '"name": "doctor"',
-    '"script": "scripts/doctor.py"',
-]
-
-REQUIRED_OPENCODE_AGENT_SNIPPETS = [
-    "mode: subagent",
-    "task: deny",
-    "agent-dispatch",
-    "needs_context",
-    "invoke subagents",
-]
-
-REQUIRED_CLAUDE_AGENT_SNIPPETS = [
-    "name:",
-    "agent-dispatch",
-    "needs_context",
-    "Do not use the Task tool or invoke subagents",
-]
-
-REQUIRED_RUNTIME_COMMAND_SNIPPETS = [
-    ".cowork-flow/run subagent init",
-    "cowork_runtime_context_id: <runtime_context_id>",
-    "needs_context",
-]
-
-REQUIRED_CLAUDE_SKILL_SNIPPETS = [
-    "name:",
-    "description:",
-]
-
-REQUIRED_WORKFLOW_SKILL_SNIPPETS = {
-    "template/skills/task-review/SKILL.md": [
-        "# Task Review",
-        "test_intent_review",
-        "findings",
-        "resolution",
-    ],
-    "template/skills/decision-audit/SKILL.md": [
-        "# Decision Audit",
-        "decision-review.jsonl",
-        "reviewerContext",
-        "accepted",
-    ],
-    "template/skills/spec-sync/SKILL.md": [
-        "# Spec Sync",
-        "specUpdates",
-    ],
-}
-
-REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS = [
-    '${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run',
-    '${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/inject-workflow-state.py',
-    "UserPromptSubmit",
-    "SessionStart",
-]
-
-
-def _check_file_contains(path: Path, snippets: list[str], errors: list[str]) -> None:
-    if not path.is_file():
-        errors.append(f"missing file: {path}")
+def _same_file(left: Path, right: Path, errors: list[str]) -> None:
+    if not left.is_file():
+        errors.append(f"missing template asset: {left}")
         return
-    text = path.read_text(encoding="utf-8")
-    for snippet in snippets:
-        if snippet not in text:
-            errors.append(f"{path} missing snippet: {snippet}")
-
-
-def _check_file_omits(path: Path, snippets: list[str], errors: list[str]) -> None:
-    if not path.is_file():
-        errors.append(f"missing file: {path}")
+    if not right.is_file():
+        errors.append(f"missing installed asset: {right}")
         return
-    text = path.read_text(encoding="utf-8")
-    for snippet in snippets:
-        if snippet in text:
-            errors.append(f"{path} contains forbidden snippet: {snippet}")
+    if left.read_bytes() != right.read_bytes():
+        errors.append(f"distribution drift: {left} != {right}")
 
 
-def _check_file_absent(path: Path, errors: list[str]) -> None:
-    if path.exists():
-        errors.append(f"unexpected file: {path}")
+def _distribution_root(repo_root: Path) -> Path:
+    template = repo_root / "template"
+    if (
+        (template / ".cowork-flow/spec/runtime/host-assets.json").is_file()
+        and (template / ".cowork-flow/scripts/kernel/workflow_route.py").is_file()
+        and (template / "skills").is_dir()
+    ):
+        return template
+    return repo_root
 
 
-def _check_toml_parseable(path: Path, errors: list[str]) -> dict | None:
-    if not path.is_file():
-        errors.append(f"missing file: {path}")
-        return None
-    if tomllib is None:
-        return None
+def _host_errors(repo_root: Path) -> list[str]:
+    distribution_root = _distribution_root(repo_root)
+    if distribution_root != repo_root:
+        return validate_host_assets(distribution_root)
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        errors.append(f"{path} is not valid TOML: {exc}")
-        return None
-    return data if isinstance(data, dict) else None
+        platform_ids = detect_installed_platforms(distribution_root)
+    except HostManifestError as error:
+        return [str(error)]
+    if not platform_ids:
+        return ["no installed host platform detected"]
+    return validate_host_assets(distribution_root, platform_ids=platform_ids)
 
 
-def _check_common_contracts(repo_root: Path, errors: list[str]) -> None:
-    for rel in (
-        ".cowork-flow/spec/runtime/contract-registry.json",
-        "template/.cowork-flow/spec/runtime/contract-registry.json",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_CONTRACT_REGISTRY_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/spec/contracts/subagent-dispatch.md",
-        "template/.cowork-flow/spec/contracts/subagent-dispatch.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_SUBAGENT_DISPATCH_SNIPPETS, errors)
-    for rel in (
-        ".cowork-flow/spec/contracts/workflow-state-templates.md",
-        "template/.cowork-flow/spec/contracts/workflow-state-templates.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_WORKFLOW_STATE_TEMPLATE_SNIPPETS, errors)
-
-def _check_host_adapters(repo_root: Path, errors: list[str]) -> None:
-    errors.extend(validate_host_assets(repo_root / "template"))
-    for rel in (
-        ".cowork-flow/spec/schemas/adapter.schema.json",
-        "template/.cowork-flow/spec/schemas/adapter.schema.json",
-        ".cowork-flow/spec/contracts/capabilities.md",
-        "template/.cowork-flow/spec/contracts/capabilities.md",
-    ):
-        _check_file_contains(
-            repo_root / rel,
-            ["dispatchSubagent", "freshChildContext", "runtimeContextDispatch", "unsupported"],
-            errors,
-        )
+def _distribution_files(root: Path) -> tuple[Path, ...]:
+    files = [
+        path
+        for path in root.rglob("*")
+        if path.is_file()
+        and "__pycache__" not in path.parts
+        and path.suffix != ".pyc"
+    ]
+    return tuple(sorted(files))
 
 
-def cmd_host_adapters(_: argparse.Namespace) -> int:
-    repo_root = get_repo_root()
+def check_distribution(repo_root: Path) -> list[str]:
     errors: list[str] = []
-    _check_host_adapters(repo_root, errors)
-    for rel in (
-        "template/.opencode/agents/cowork-research.md",
-        "template/.opencode/agents/cowork-implement.md",
-        "template/.opencode/agents/cowork-check.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_OPENCODE_AGENT_SNIPPETS, errors)
-    for rel in (
-        "template/.claude/agents/cowork-research.md",
-        "template/.claude/agents/cowork-implement.md",
-        "template/.claude/agents/cowork-check.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_AGENT_SNIPPETS, errors)
-    for rel in (
-        "template/.claude/commands/cowork-research.md",
-        "template/.claude/commands/cowork-implement.md",
-        "template/.claude/commands/cowork-check.md",
-        "template/.opencode/commands/cowork-research.md",
-        "template/.opencode/commands/cowork-implement.md",
-        "template/.opencode/commands/cowork-check.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_RUNTIME_COMMAND_SNIPPETS, errors)
-    for rel in ("template/skills/cowork-flow/SKILL.md",):
-        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_SKILL_SNIPPETS, errors)
-    for rel, snippets in REQUIRED_WORKFLOW_SKILL_SNIPPETS.items():
-        _check_file_contains(repo_root / rel, snippets, errors)
-    for rel in (
-        f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-    ):
-        _check_file_absent(repo_root / rel, errors)
-    for rel in (
-        "template/.claude/settings.json",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_CLAUDE_HOOK_SETTINGS_SNIPPETS, errors)
-    _check_file_contains(
-        repo_root
-        / "template/.cowork-flow/scripts/adapters/host/workflow_state_hook.py",
-        REQUIRED_RUNTIME_HOOK_SNIPPETS,
-        errors,
-    )
-    for rel in (
-        "template/.claude/hooks/inject-workflow-state.py",
-        "template/.codex/hooks/inject-workflow-state.py",
-    ):
-        _check_file_contains(
-            repo_root / rel,
-            [
-                "adapters.host.workflow_state_hook import",
-                "build_hook_context",
-            ],
-            errors,
-        )
-    for rel in (
-        "CLAUDE.md",
-        "template/CLAUDE.md",
-    ):
-        _check_file_contains(
-            repo_root / rel,
-            [
-                "@AGENTS.md",
-                "<!-- COWORK-FLOW:START -->",
-            ],
-            errors,
-        )
-    for rel in (
-        "template/.opencode/plugins/cowork-flow.js",
-    ):
-        _check_file_contains(
-            repo_root / rel,
-            [
-                "experimental.chat.system.transform",
-                ".cowork-flow\", \"spec\", \"runtime\", \"contract-registry.json",
-                "<contract-digest fingerprint=",
-                "read_before",
-                "RUNTIME_CONTEXT_DISPATCH_V2",
-                "resolveRuntimeContextId",
-                "bindRuntimeContext",
-                "runtime-context-invalid",
-            ],
-            errors,
-        )
+    template = repo_root / "template"
+    if _distribution_root(repo_root) == repo_root:
+        return errors
+    runtime_root = template / ".cowork-flow" / "scripts"
+    for source in _distribution_files(runtime_root):
+        relative = source.relative_to(template)
+        _same_file(source, repo_root / relative, errors)
+    for relative in (Path(".cowork-flow/run"), Path(".cowork-flow/run.cmd")):
+        source = template / relative
+        if source.is_file():
+            _same_file(source, repo_root / relative, errors)
+    try:
+        host_manifest = load_host_manifest(template)
+        installed_platforms = detect_installed_platforms(repo_root)
+    except HostManifestError as error:
+        errors.append(str(error))
+        return errors
+    skill_targets = {
+        host_manifest.platform(platform_id).skill_target
+        for platform_id in installed_platforms
+        if host_manifest.platform(platform_id).skill_target
+    }
+    skill_root = template / "skills"
+    for source in _distribution_files(skill_root):
+        relative = source.relative_to(skill_root)
+        for skill_target in sorted(skill_targets):
+            _same_file(source, repo_root / skill_target / relative, errors)
+    return errors
+
+
+def check_runtime(repo_root: Path) -> list[str]:
+    errors: list[str] = []
+    try:
+        load_skill_manifests(repo_root)
+        action_owners(repo_root)
+    except SkillManifestError as error:
+        errors.append(f"Skill manifest error: {error}")
+
+    distribution_root = _distribution_root(repo_root)
+    kernel_path = distribution_root / ".cowork-flow/scripts/kernel/workflow_route.py"
+    if not kernel_path.is_file():
+        errors.append(f"missing kernel route: {kernel_path}")
+    else:
+        source = kernel_path.read_text(encoding="utf-8")
+        for forbidden in ("activatedSkill", "recommendedSkill", "./.cowork-flow/run", "label"):
+            if forbidden in source:
+                errors.append(f"kernel contains delivery concern: {forbidden}")
+
+    workflow_template = distribution_root / ".cowork-flow/spec/contracts/workflow-state-templates.md"
+    if not workflow_template.is_file():
+        errors.append(f"missing workflow-state contract: {workflow_template}")
+    else:
+        text = workflow_template.read_text(encoding="utf-8")
+        for status in ("no_task", "delegated_subtask", "planning", "in_progress", "review", "completed"):
+            if f"[workflow-state:{status}]" not in text:
+                errors.append(f"workflow-state contract missing status: {status}")
+    return errors
+
+
+def _run_checks(repo_root: Path) -> int:
+    errors = []
+    errors.extend(_host_errors(repo_root))
+    errors.extend(check_runtime(repo_root))
+    errors.extend(check_distribution(repo_root))
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    print("runtime health checks passed")
+    return 0
+
+
+def _run_host_checks(repo_root: Path) -> int:
+    errors = _host_errors(repo_root)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
@@ -364,165 +160,34 @@ def cmd_host_adapters(_: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_subagent_safety(_: argparse.Namespace) -> int:
-    repo_root = get_repo_root()
-    errors: list[str] = []
-    for rel in (
-        "template/skills/cowork-flow/SKILL.md",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_ROUTER_SNIPPETS, errors)
-    for rel in (
-        f"template/skills/{ENTRY_BOUNDARY_DIR}/SKILL.md",
-    ):
-        _check_file_absent(repo_root / rel, errors)
-    for rel in (
-        "template/.codex/agents/cowork-research.toml",
-        "template/.codex/agents/cowork-implement.toml",
-        "template/.codex/agents/cowork-check.toml",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_FIXED_AGENT_SNIPPETS, errors)
-        data = _check_toml_parseable(repo_root / rel, errors)
-        if data is not None and data.get("name") != Path(rel).stem:
-            errors.append(f"{rel} name must match filename")
-        description = data.get("description") if data is not None else None
-        if isinstance(description, str):
-            if REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET not in description:
-                errors.append(
-                    f"{rel} description must mention {REQUIRED_FIXED_AGENT_DESCRIPTION_SNIPPET}"
-                )
-            for snippet in FORBIDDEN_FIXED_AGENT_DESCRIPTION_SNIPPETS:
-                if snippet in description:
-                    errors.append(f"{rel} description contains stale dispatch marker: {snippet}")
-        elif data is not None:
-            errors.append(f"{rel} missing description")
-    if (repo_root / "README.md").is_file():
-        _check_file_omits(repo_root / "README.md", FORBIDDEN_README_DISPATCH_SNIPPETS, errors)
-    for rel in (
-        "template/.codex/agents/worker.toml",
-        "template/.codex/agents/default.toml",
-        "template/.codex/agents/explorer.toml",
-    ):
-        _check_file_contains(repo_root / rel, ["bootstrap", "start", "resume", "advisory"], errors)
-        data = _check_toml_parseable(repo_root / rel, errors)
-        if data is not None and data.get("name") != Path(rel).stem:
-            errors.append(f"{rel} name must match filename")
-    for rel in (
-        "template/.cowork-flow/scripts/kernel/workflow_route.py",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_FLOW_ROUTING_SNIPPETS, errors)
-    _check_file_contains(
-        repo_root / "template/.cowork-flow/scripts/services/task_routing.py",
-        ["kernel.workflow_route", "route_request"],
-        errors,
-    )
-    kernel_dir = repo_root / "template/.cowork-flow/scripts/kernel"
-    kernel_files = sorted(
-        path.name
-        for path in kernel_dir.glob("*.py")
-        if path.name != "__pycache__"
-    )
-    if kernel_files != ["__init__.py", "task_state.py", "workflow_route.py"]:
-        errors.append(f"kernel must contain only pure workflow domain files: {kernel_files}")
-    _check_file_contains(
-        repo_root / "template/.cowork-flow/scripts/adapters/cli/execution_context_args.py",
-        REQUIRED_EXECUTION_CONTEXT_CLI_ADAPTER_SNIPPETS,
-        errors,
-    )
-    _check_file_contains(
-        repo_root / "template/.cowork-flow/scripts/adapters/cli/execution_resume.py",
-        ["build_worker_resume_text", "build_subagent_resume_text", "worker_command_block_message"],
-        errors,
-    )
-    _check_file_contains(
-        repo_root / "template/.cowork-flow/scripts/runtime/execution_context.py",
-        ["ExecutionContext", "execution_context_from_values", "load_execution_context_file"],
-        errors,
-    )
-    _check_file_omits(
-        repo_root / "template/.cowork-flow/scripts/kernel/__init__.py",
-        FORBIDDEN_KERNEL_EXECUTION_CONTEXT_SNIPPETS,
-        errors,
-    )
-    for rel in (
-        ".cowork-flow/spec/runtime/skill-registry.json",
-        "template/.cowork-flow/spec/runtime/skill-registry.json",
-        ".cowork-flow/spec/schemas/skill-registry.schema.json",
-        "template/.cowork-flow/spec/schemas/skill-registry.schema.json",
-    ):
-        _check_file_absent(repo_root / rel, errors)
-    for rel in (
-        "template/.cowork-flow/scripts/services/runtime_context.py",
-        "template/.cowork-flow/scripts/services/developer_profile.py",
-        "template/.cowork-flow/scripts/services/quality_sources.py",
-        "template/.cowork-flow/scripts/kernel/developer.py",
-        "template/.cowork-flow/scripts/kernel/quality_sources.py",
-    ):
-        if (repo_root / rel).exists():
-            errors.append(f"obsolete file removed from kernel/services: {rel}")
-    _check_file_contains(
-        repo_root / "template/skills/party-mode/manifest.json",
-        REQUIRED_PARTY_MODE_COMMAND_MANIFEST_SNIPPETS,
-        errors,
-    )
-    _check_file_contains(
-        repo_root / "template/skills/runtime-health/manifest.json",
-        REQUIRED_DIAGNOSTICS_COMMAND_MANIFEST_SNIPPETS,
-        errors,
-    )
-    _check_common_contracts(repo_root, errors)
-    _check_host_adapters(repo_root, errors)
-    for rel in (
-        "template/.codex/hooks.json",
-    ):
-        _check_file_contains(repo_root / rel, REQUIRED_HOOK_SNIPPETS, errors)
-    _check_file_contains(
-        repo_root
-        / "template/.cowork-flow/scripts/adapters/host/workflow_state_hook.py",
-        REQUIRED_RUNTIME_HOOK_SNIPPETS,
-        errors,
-    )
-    for rel in (
-        "template/.codex/hooks/inject-workflow-state.py",
-        "template/.claude/hooks/inject-workflow-state.py",
-    ):
-        _check_file_contains(
-            repo_root / rel,
-            [
-                "adapters.host.workflow_state_hook import",
-                "build_hook_context",
-            ],
-            errors,
-        )
-    for rel in (
-        "template/.cowork-flow/scripts/adapters/cli/subagent.py",
-        "template/.cowork-flow/scripts/runtime/execution_context.py",
-        "template/.cowork-flow/scripts/runtime/session_state.py",
-    ):
-        if not (repo_root / rel).is_file():
-            errors.append(f"missing file: {rel}")
+def _run_runtime_checks(repo_root: Path) -> int:
+    errors = check_runtime(repo_root)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
-    print("subagent safety checks passed")
+    print("runtime safety checks passed")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="cowork-flow diagnostics")
-    parser.add_argument("--subagent-safety", action="store_true", help="Check subagent safety wiring")
-    parser.add_argument("--host-adapters", action="store_true", help="Check host adapter declarations")
+    parser.add_argument("--all", action="store_true", help="Run all structured health checks")
+    parser.add_argument("--subagent-safety", action="store_true", help="Run runtime safety checks")
+    parser.add_argument("--host-adapters", action="store_true", help="Run host asset checks")
     return parser
 
 
 def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
-    if args.subagent_safety:
-        return cmd_subagent_safety(args)
+    args = build_parser().parse_args()
+    repo_root = get_repo_root()
+    if args.all:
+        return _run_checks(repo_root)
     if args.host_adapters:
-        return cmd_host_adapters(args)
-    parser.print_help()
+        return _run_host_checks(repo_root)
+    if args.subagent_safety:
+        return _run_runtime_checks(repo_root)
+    build_parser().print_help()
     return 0
 
 

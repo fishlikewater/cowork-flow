@@ -122,21 +122,6 @@ class FlowScriptTestCase(unittest.TestCase):
         )
         for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
             (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
-        (task_dir / "decision-review.jsonl").write_text(
-            json.dumps(
-                {
-                    "acceptanceId": "AC-001",
-                    "claim": "The readiness gate blocks unready L2 tasks.",
-                    "contract": "Only accepted fresh-context evidence permits start.",
-                    "reviewerContext": "fresh",
-                    "findings": [],
-                    "resolution": "accepted",
-                },
-                ensure_ascii=False,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
 
     def _write_l2_change_fixture(
         self,

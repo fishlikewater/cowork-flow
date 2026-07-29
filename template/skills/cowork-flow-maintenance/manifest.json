@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "skill": "cowork-flow-maintenance",
+  "context": [
+    {
+      "contexts": ["implement", "check", "debug"],
+      "devTypes": ["spec"],
+      "pathPatterns": [".cowork-flow/**", "template/.cowork-flow/**", "template/skills/**"],
+      "reason": "Auto-routed Cowork Flow Maintenance domain guide"
+    }
+  ]
+}

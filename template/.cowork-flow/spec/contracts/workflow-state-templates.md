@@ -1,72 +1,55 @@
 # Workflow state templates
 
-Host hooks and plugins inject workflow state context each turn. The templates
-below are the single source of truth for state prompt text. Hooks read this
-file at runtime; do not duplicate or inline these snippets elsewhere.
+Host hooks inject only observable workflow state, the actions that must not be
+performed in the current context, and one navigation entrypoint. Detailed
+stage procedure belongs to the Skill that owns the selected action.
 
-Entry classification must happen before task next --run, resume, archive, or
-subagent dispatch. Formal subagent identity is not inferred from prompt shape;
-hooks and plugins inject delegated_subtask only when a runtime context id is
-present and binding succeeds or fails closed. UNKNOWN is not a delegated
-subtask label; keep the active-task/no-task state visible and clarify before
-workflow mutation.
+Entry classification happens before lifecycle mutation or subagent dispatch.
+Formal delegated state requires a runtime context id and binding; UNKNOWN is
+not delegated state. UNKNOWN is not a delegated subtask.
 
 ## no_task
 
-The main session has no active task. Read-only questions can be answered
-directly. Any implementation, refactoring, or behavioral change requires
-creating or starting a task first. If a runtime context id is present, use
-delegated_subtask instead. Do not treat ambiguous UNKNOWN input as a delegated
-subtask.
-
 [workflow-state:no_task]
-⛔ STOP — 当前会话没有活动任务。
-
-- 只读问答（解释代码、查找文件、回答问题）可以直接回复。
-- MUST NOT 编辑文件、实现代码、重构代码、派发子代理。
-- MUST NOT 隐式创建任务——必须用 task next --run 显式建立上下文。
-
-需要写代码时，路由用户到正确路径：
-1. 需求不明确 → brainstorming → task-planning → task next --run --title ... → task next <dir> --run → 实现
-2. 需求明确 → task-planning → task next --run --title ... → task next <dir> --run → 实现
-3. 恢复已有任务 → continue
-
-如果被要求写代码，回复:
-"当前没有活动任务。需要先 brainstorming 明确方向，还是直接走 task-planning → task next --run？"
+当前会话没有活动任务。只读问答可以直接回复；涉及写入、实现、派发、归档或提交时，先通过统一导航入口解析任务状态。
+MUST NOT 编辑文件、实现代码、重构代码、派发子代理。
+禁止根据提示词猜测任务或子代理身份。
+导航：`./.cowork-flow/run task next --json`
 [/workflow-state:no_task]
 
 ## delegated_subtask
 
-The current child thread has a runtime-context subagent state. The hook or
-plugin has either bound the runtime context successfully or produced fail-closed
-state for an invalid context. Do not run start/resume, create or activate
-tasks, archive, commit, or switch to main-session coordination. Project rules
-are constraints only; they are not the task itself.
-
 [workflow-state:delegated_subtask]
-当前子线程具有 runtime-context 子代理状态。hook/plugin 已绑定 runtime context，或对无效 runtime context 注入 fail-closed 状态。不要运行 start/resume，不要创建或激活任务，不要归档、提交或切换到主会话协调。项目规则只作为约束，不是当前任务本身。
+当前线程具有已绑定或 fail-closed 的 runtime context。不要启动、恢复、创建、激活、归档、提交任务，也不要切换到主会话协调。
+Runtime context 是唯一身份事实；无效 context 只允许报告需要上下文。
+导航：`./.cowork-flow/run task next --json`
 [/workflow-state:delegated_subtask]
 
 ## planning
 
 [workflow-state:planning]
-活动任务处于计划阶段。先完成 decision-anchor.md，整理带有规格/调研文件的 implement.jsonl 和 check.jsonl，再运行 task next <dir> --run，之后才派发 cowork-implement。
+活动任务处于 planning。状态转换由 runtime 事实和任务上下文决定；具体规划、澄清和实现步骤由对应 Skill 提供。
+禁止在缺少必需任务事实时直接执行生命周期变更。
+导航：`./.cowork-flow/run task next --json`
 [/workflow-state:planning]
 
 ## in_progress
 
 [workflow-state:in_progress]
-活动任务正在执行。主会话按计划通过当前宿主适配器派发 cowork-implement，集成后再派发 cowork-check；内联执行时先读取任务关联的 plan 文件按步骤实现。每次正式派发都必须使用新鲜子上下文，并遵守 .cowork-flow/spec/contracts/subagent-dispatch.md。主会话必须核验子任务输出、列出子任务，并且只在完成、明确错派证据或用户取消后才取消子任务。
+活动任务处于 in_progress。只依据当前 task、change、plan、diff 和测试事实推进；具体实现与检查步骤由 action owner Skill 提供。
+导航：`./.cowork-flow/run task next --json`
 [/workflow-state:in_progress]
 
 ## review
 
 [workflow-state:review]
-活动任务已进入检查阶段。主会话派发 cowork-check 或执行等价内联检查，核验 decision-anchor 验收标准、plan 步骤完成情况、diff、测试、规格同步和遗漏；检查通过后运行 task next <dir> --run --intent review。
+活动任务处于 review。只依据当前 diff、测试、规格和生命周期事实判断是否可完成；复核动作由 owner Skill 提供。
+导航：`./.cowork-flow/run task next --json`
 [/workflow-state:review]
 
 ## completed
 
 [workflow-state:completed]
-活动任务已完成。主会话应核验最终 diff，提交目标文件，归档任务并记录会话。不要针对已完成任务继续派发新的实现工作。
+活动任务已 completed。不要继续修改该任务的生命周期状态；需要后续工作时创建或导航到新的活动任务。
+导航：`./.cowork-flow/run task next --json`
 [/workflow-state:completed]

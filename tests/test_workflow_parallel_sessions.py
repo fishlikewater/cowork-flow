@@ -411,13 +411,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_doctor_subagent_safety_matches_runtime_context_model(self) -> None:
         doctor = ROOT / "template" / "skills" / "runtime-health" / "scripts" / "doctor.py"
         text = doctor.read_text(encoding="utf-8")
-        # Verify doctor.py contains the expected safety checks
-        self.assertIn("REQUIRED_ROUTER_SNIPPETS", text)
-        self.assertIn("cowork_runtime_context_id", text)
-        self.assertIn("template/skills/cowork-flow/SKILL.md", text)
-        self.assertIn("template/.codex/agents/cowork-research.toml", text)
-        self.assertIn("template/.codex/agents/cowork-implement.toml", text)
-        self.assertIn("template/.codex/agents/cowork-check.toml", text)
+        self.assertIn("check_distribution", text)
+        self.assertIn("action_owners", text)
+        self.assertIn("workflow-state-templates.md", text)
 
     def test_task_planning_routes_to_fixed_agents(self) -> None:
         text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")

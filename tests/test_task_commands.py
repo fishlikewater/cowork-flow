@@ -340,7 +340,7 @@ class TaskCommandsTest(FlowScriptTestCase):
 
             self.assertEqual([], blockers)
 
-    def test_l2_readiness_rejects_bare_python_verification_command(self) -> None:
+    def test_l2_readiness_does_not_parse_verification_prose(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             child_dir = self._write_l2_task_tree(root)
@@ -355,10 +355,7 @@ class TaskCommandsTest(FlowScriptTestCase):
 
             blockers = self.task._optional_readiness_blockers(root, child_dir)
 
-            self.assertIn(
-                "linked plan is missing verification commands",
-                "\n".join(blockers),
-            )
+            self.assertEqual([], blockers)
 
     def test_task_state_machine_requires_review_before_complete(self) -> None:
         state_machine = importlib.import_module("kernel.task_state")

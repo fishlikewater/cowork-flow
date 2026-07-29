@@ -7,8 +7,8 @@
 | # | 检查项 | 验证 |
 |---|---|---|
 | G1 | 代码实现符合 decision-anchor acceptance criteria | AC 全部为 verified |
-| G2 | 行为变更有对应测试或明确验证命令；高风险任务覆盖失败、边界或回归路径 | ./cowork-flow/run task validate |
-| G3 | check phase 完成，无 unresolved blocker | check.jsonl status=pass |
+| G2 | 行为变更有对应测试或明确验证命令；高风险任务覆盖失败、边界或回归路径 | `./.cowork-flow/run task next <dir> --validate` 与任务验证命令通过 |
+| G3 | check phase 完成，无 unresolved blocker | `task-review` 结论为 pass，completion lifecycle blocker 为 0 |
 | G4 | 无新引入 lint/type/build 警告 | lint / build 命令通过 |
 | G5 | Git status snapshot 仅含任务相关变更，包括 staged、unstaged、untracked | git status --porcelain=v1 -uall |
 
@@ -32,9 +32,9 @@
 | # | 检查项 |
 |---|---|
 | L2-1 | proposal.md / spec.md / design.md 齐全 |
-| L2-2 | decision-review.jsonl 至少包含一条 fresh reviewer 接受的有效结构化记录 |
+| L2-2 | 结构化决策审查已按 Skill 指导完成或明确记录不适用 |
 | L2-3 | readiness gate 全部通过（task start 无 blocker）|
-| L2-4 | spec-maintenance 协议已确认规格同步或明确记录无需更新 |
+| L2-4 | spec-sync Skill 已确认规格同步或明确记录无需更新 |
 
 ## DoD 与 per-task AC 的区别
 

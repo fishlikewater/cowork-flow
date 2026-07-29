@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "skill": "batch-execution",
+  "actions": [
+    {
+      "id": "batch_execute",
+      "label": "execute approved batch plan",
+      "lifecycleCheck": "task_start",
+      "mutatesState": true,
+      "command": "./.cowork-flow/run task next <task-dir> --run --intent batch --auto --approved"
+    }
+  ],
+  "commands": [
+    {
+      "name": "batch-action",
+      "aliases": ["batch_action"],
+      "script": "scripts/batch_action.py"
+    }
+  ]
+}

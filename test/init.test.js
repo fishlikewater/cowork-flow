@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 import { test } from 'node:test';
+import { promisify } from 'node:util';
 
 import { main } from '../src/cli.js';
 import { runInitWithOptions } from '../src/commands/init.js';
@@ -12,6 +14,8 @@ import {
   fileSystemWithRenameFailure,
   readText
 } from './helpers/fs.js';
+
+const execFileAsync = promisify(execFile);
 
 function createIo() {
   return {
@@ -158,6 +162,35 @@ test('init copies all selected host platforms', async (t) => {
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
 });
 
+test('installed Doctor passes for codex, claude-only, and multi-host projects', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('POSIX runner execution is covered on POSIX hosts');
+    return;
+  }
+
+  for (const platform of ['codex', 'claude-code', 'all']) {
+    const target = join(await createTempDir(t), `doctor-${platform}`);
+    const io = createIo();
+    const code = await main([
+      'init',
+      target,
+      '--developer',
+      `doctor-${platform}`,
+      '--platform',
+      platform
+    ], { io });
+
+    assert.equal(code, 0, io.stderr);
+    const result = await execFileAsync(
+      join(target, '.cowork-flow', 'run'),
+      ['doctor', '--all'],
+      { cwd: target, encoding: 'utf8' }
+    );
+    assert.match(result.stdout, /runtime health checks passed/);
+    assert.equal(result.stderr, '');
+  }
+});
+
 test('init rejects removed both platform alias', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();
@@ -185,9 +218,9 @@ test('init installs clean-room cowork-flow skills directly', async (t) => {
   assert.equal(await exists(join(target, '.agents', 'skills', 'agent-dispatch', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow-maintenance', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'spec-sync', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'batch-execution', 'manifest.json')), false);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'brainstorming', 'manifest.json')), false);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'manifest.json')), false);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'batch-execution', 'manifest.json')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'brainstorming', 'manifest.json')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'manifest.json')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'runtime-health', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'runtime-health', 'manifest.json')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'runtime-health', 'scripts', 'doctor.py')), true);

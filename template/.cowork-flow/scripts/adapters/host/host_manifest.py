@@ -94,7 +94,21 @@ def load_host_manifest(template_root: Path) -> HostManifest:
     return _build_manifest(raw)
 
 
-def validate_host_assets(template_root: Path) -> list[str]:
+def detect_installed_platforms(template_root: Path) -> tuple[str, ...]:
+    root = Path(template_root)
+    manifest = load_host_manifest(root)
+    return tuple(
+        platform.id
+        for platform in manifest.platforms
+        if any((root / marker).exists() for marker in platform.detect_any)
+    )
+
+
+def validate_host_assets(
+    template_root: Path,
+    *,
+    platform_ids: tuple[str, ...] | None = None,
+) -> list[str]:
     root = Path(template_root)
     errors: list[str] = []
     try:
@@ -104,6 +118,18 @@ def validate_host_assets(template_root: Path) -> list[str]:
 
     if not (root / SCHEMA_PATH).is_file():
         errors.append(f"missing host asset schema: {root / SCHEMA_PATH}")
+
+    selected_platforms: list[HostPlatform] = []
+    selected_ids = (
+        manifest.platform_ids
+        if platform_ids is None
+        else tuple(dict.fromkeys(platform_ids))
+    )
+    for platform_id in selected_ids:
+        try:
+            selected_platforms.append(manifest.platform(platform_id))
+        except HostManifestError as error:
+            errors.append(str(error))
 
     allowed = set(manifest.capability_values)
     aliases: dict[str, str] = {}
@@ -115,6 +141,7 @@ def validate_host_assets(template_root: Path) -> list[str]:
                     f"duplicate platform alias {alias}: {owner}, {platform.id}"
                 )
             aliases[alias] = platform.id
+    for platform in selected_platforms:
         _validate_platform(root, platform, allowed, errors)
     return errors
 

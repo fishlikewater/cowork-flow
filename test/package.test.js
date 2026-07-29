@@ -74,9 +74,9 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/skills/test-first/SKILL.md'), true);
   assert.equal(files.has('template/skills/update-spec/SKILL.md'), false);
   assert.equal(files.has('template/skills/adversarial-review/SKILL.md'), true);
-  assert.equal(files.has('template/skills/batch-execution/manifest.json'), false);
-  assert.equal(files.has('template/skills/brainstorming/manifest.json'), false);
-  assert.equal(files.has('template/skills/cowork-flow/manifest.json'), false);
+  assert.equal(files.has('template/skills/batch-execution/manifest.json'), true);
+  assert.equal(files.has('template/skills/brainstorming/manifest.json'), true);
+  assert.equal(files.has('template/skills/cowork-flow/manifest.json'), true);
   assert.equal(files.has('template/skills/party-mode/SKILL.md'), true);
   assert.equal(files.has('template/skills/party-mode/manifest.json'), true);
   assert.equal(files.has('template/skills/party-mode/scripts/party_mode_v2.py'), true);

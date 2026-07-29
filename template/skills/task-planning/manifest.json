@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "skill": "task-planning",
+  "actions": [
+    {
+      "id": "edit_planning_artifacts",
+      "label": "finish planning prerequisites",
+      "lifecycleCheck": "task_start",
+      "mutatesState": false
+    }
+  ]
+}

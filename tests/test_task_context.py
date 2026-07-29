@@ -426,6 +426,39 @@ class TaskContextServiceTest(unittest.TestCase):
             self.assertEqual(expected, files & expected)
             self.assertEqual(set(), files & forbidden)
 
+    def test_check_context_skill_order_is_manifest_agnostic_and_stable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            skill_dir = root / ".agents" / "skills" / "aaa-check"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("# AAA Check\n", encoding="utf-8")
+            (skill_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "skill": "aaa-check",
+                        "context": [
+                            {
+                                "contexts": ["check"],
+                                "devTypes": ["backend"],
+                                "reason": "Dynamic check Skill",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            entries = self.get_check_context(root, "backend")
+
+        skill_files = [
+            entry["file"]
+            for entry in entries
+            if "/skills/" in entry["file"]
+        ]
+        self.assertIn(".agents/skills/aaa-check/SKILL.md", skill_files)
+        self.assertEqual(sorted(skill_files), skill_files)
+
     def test_quality_sources_include_security_reference_for_sensitive_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -460,11 +493,11 @@ class TaskContextServiceTest(unittest.TestCase):
             for relative_file in relative_files
             if not (ROOT / ".cowork-flow" / "scripts" / relative_file).is_file()
         ]
-        if missing_files:
-            self.skipTest(
-                "local bootstrap .cowork-flow script files are absent: "
-                + ", ".join(missing_files)
-            )
+        self.assertEqual(
+            [],
+            missing_files,
+            "source checkout bootstrap runtime is incomplete; run formal sync",
+        )
 
         for relative_file in relative_files:
             with self.subTest(file=relative_file):

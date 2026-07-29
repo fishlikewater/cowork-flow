@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "skill": "cowork-flow",
+  "actions": [
+    {
+      "id": "start_task",
+      "label": "start task",
+      "lifecycleCheck": "task_start",
+      "mutatesState": true,
+      "command": "./.cowork-flow/run task next <task-dir> --run"
+    },
+    {
+      "id": "implement_change",
+      "label": "execute implementation plan",
+      "mutatesState": false,
+      "command": "./.cowork-flow/run task next <task-dir> --run"
+    },
+    {
+      "id": "archive_task",
+      "label": "archive completed task",
+      "lifecycleCheck": "task_archive",
+      "mutatesState": true,
+      "command": "./.cowork-flow/run task next <task-dir> --run --intent archive"
+    },
+    {
+      "id": "execute_delegated_work",
+      "label": "execute delegated work",
+      "mutatesState": false
+    },
+    {
+      "id": "repair_workflow_state",
+      "label": "inspect and repair workflow state",
+      "mutatesState": false
+    }
+  ],
+  "context": [
+    {
+      "contexts": ["implement", "check"],
+      "devTypes": ["*"],
+      "reason": "Workflow lifecycle and navigation guidance"
+    }
+  ]
+}

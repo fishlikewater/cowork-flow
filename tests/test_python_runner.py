@@ -108,6 +108,10 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertIn('"task": "adapters/cli/task.py"', content)
         self.assertNotIn('"agent' + '-team": "agent' + '_team.py"', content)
         self.assertIn('"get-context": "adapters/cli/get_context.py"', content)
+        self.assertIn("skill_command_scripts(", content)
+        self.assertIn("reserved_names=RESERVED_COMMAND_NAMES", content)
+        self.assertNotIn("_load_manifest", content)
+        self.assertNotIn("_resolve_manifest_script", content)
         self.assertNotIn("project-context", content)
         self.assertNotIn("project_context.py", content)
 
@@ -202,6 +206,20 @@ class PythonRunnerTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             expected_script = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
             self.assertEqual(f"{python3} {expected_script} task next", self.read_log(temp_dir)[-1])
+
+    def test_runner_accepts_identical_host_skill_command_replicas(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(PYTHON_RUNNER), "batch-action", "--help"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("batch-action", result.stdout)
 
 if __name__ == "__main__":
     unittest.main()
