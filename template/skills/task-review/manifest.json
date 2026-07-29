@@ -23,5 +23,12 @@
       "devTypes": ["*"],
       "reason": "Quality, contract, and template consistency review Skill"
     }
+  ],
+  "commands": [
+    {
+      "name": "review-check",
+      "aliases": ["review_check"],
+      "script": "scripts/review_check.py"
+    }
   ]
 }

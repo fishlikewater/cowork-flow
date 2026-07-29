@@ -13,8 +13,8 @@ Read and apply these Skills before review work:
 
 Execution:
 1. Follow `agent-dispatch` to bind runtime context. If binding fails, report `needs_context` and stop.
-2. Read the task directory, `decision-anchor.md`, linked plan, `check.jsonl`, every JSONL `file` entry, and current `git diff`.
-3. Apply `task-review` to verify scope, tests, specs, machine gate output, and Definition of Done coverage.
+2. Read the task directory, `decision-anchor.md`, linked plan, the `check.jsonl` context index, every referenced `file` entry, and current `git diff`; do not write review conclusions to JSONL.
+3. Apply `task-review` to verify scope, tests, specs, advisory facts, lifecycle facts, and Definition of Done coverage.
 4. Fix only clearly in-scope issues; otherwise report findings with acceptance IDs, resolutions, `test_intent_review` (test intent review), and verification commands.
 
 Rules:

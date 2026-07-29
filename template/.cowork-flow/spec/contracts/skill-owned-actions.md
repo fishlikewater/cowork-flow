@@ -27,6 +27,11 @@ approval, the adapter invokes the manifest-owned `batch-action start`; Batch
 resume and result recording are also Skill commands rather than task CLI
 handlers.
 
+Review-oriented Skill commands may provide advisory facts, such as changed-file
+coverage, applicable spec sources, and test-intent signals. They must remain
+read-only helpers: no task-local review evidence file, lifecycle state mutation,
+natural-language spec hard gate, or pass/fail completion verdict.
+
 Text and JSON task navigation render the same resolved action contract. Text
 adapters may show the action label, owner, command, and blockers, but must not
 add phase instructions, follow-up commands, or hard-coded Skill ids. The owner

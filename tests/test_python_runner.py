@@ -221,5 +221,19 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("batch-action", result.stdout)
 
+    def test_runner_accepts_task_review_advisory_command(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(PYTHON_RUNNER), "review-check", "--help"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("advisory review facts", result.stdout)
+
 if __name__ == "__main__":
     unittest.main()

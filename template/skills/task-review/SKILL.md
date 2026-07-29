@@ -15,6 +15,7 @@ Use this Skill during the check phase, before the `task next --run` completion a
 - Treat backend/frontend/guides natural-language markdown as user-defined review requirements, not dynamic hard validators.
 - Prefer fresh verification from the current checkout over stale prior output.
 - Do not create task-local review artifact files. The review result and command output are the evidence.
+- Use advisory helper output only as review input; it must not become a second lifecycle gate.
 
 ## Inputs
 
@@ -22,10 +23,11 @@ Read only what is needed for the current task:
 
 1. `<task>/decision-anchor.md` and acceptance criteria.
 2. The linked implementation plan, if present.
-3. `<task>/check.jsonl` and each referenced file.
+3. The check context index (`<task>/check.jsonl`) and each referenced file, if present. Treat it as context only; do not write review conclusions or readiness evidence to it.
 4. Current `git diff` / `git status --short`.
 5. Relevant `.cowork-flow/spec/backend/`, `.cowork-flow/spec/frontend/`, and `.cowork-flow/spec/guides/` files selected by changed paths and task scope.
-6. Lifecycle blocker output, if any, from `task next`, `task review`, or `task complete`.
+6. Advisory facts from `review-check <task-dir> --json`, when useful.
+7. Lifecycle blocker output, if any, from `task next`, `task review`, or `task complete`.
 
 ## Task Review Checklist
 
@@ -36,6 +38,7 @@ Read only what is needed for the current task:
 - **Specs**: project specs are updated when behavior/contracts changed, or the review states why no spec update is needed.
 - **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against applicable user specs.
 - **Lifecycle blockers**: state/scope blockers are fixed before acceptance; review does not invent hard blockers for natural-language specs.
+- **Advisory facts**: helper output is used to focus review, not to declare pass/fail or block completion.
 
 ## Severity
 
@@ -57,4 +60,4 @@ Return a concise review result with:
 - `specUpdates`: files updated or reason no update was needed.
 - `resolution`: what was fixed and what remains.
 
-Do not claim completion from checklist intent alone; completion requires current verification output.
+Do not claim completion from checklist intent or advisory helper output alone; completion requires current verification output.

@@ -525,6 +525,31 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertNotIn("cowork-check", output)
             self.assertNotIn("./.cowork-flow/run task complete", output)
 
+    def test_review_route_required_artifacts_do_not_pressure_check_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text('{"status": "review"}\n', encoding="utf-8")
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(dir=None, json=True, intent=None)
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual("review", payload["status"])
+            self.assertEqual(["decision-anchor.md"], payload["requiredArtifacts"])
+            self.assertNotIn("check.jsonl", payload["requiredArtifacts"])
+
     def test_cmd_next_completed_renders_only_archive_action_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
