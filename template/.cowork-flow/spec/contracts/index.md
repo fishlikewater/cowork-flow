@@ -7,5 +7,6 @@
 
 - `subagent-dispatch.md`: 固定子代理派发、绑定、等待和收口协议。
 - `workflow-state-templates.md`: hook/plugin 注入的 workflow state 文案。
+- `skill-owned-actions.md`: 分布式 Skill action/context/command ownership 合同。
 - `capabilities.md`: 宿主适配器能力模型。
 - `party-mode-v2-board.md`: Party Mode V2 board 协议。

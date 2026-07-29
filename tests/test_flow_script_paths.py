@@ -108,13 +108,19 @@ class FlowScriptPathsTest(FlowScriptTestCase):
                 json.loads(line)
                 for line in (task_dir / "check.jsonl").read_text(encoding="utf-8").splitlines()
             ]
-            self.assertEqual(
-                ".claude/skills/task-review/SKILL.md",
-                check_entries[0]["file"],
-            )
             check_files = [entry["file"] for entry in check_entries]
+            check_skill_files = [
+                file
+                for file in check_files
+                if file.startswith(".claude/skills/")
+            ]
+            self.assertEqual(sorted(check_skill_files), check_skill_files)
             self.assertIn(
                 ".claude/skills/cowork-flow/SKILL.md",
+                check_files,
+            )
+            self.assertIn(
+                ".claude/skills/task-review/SKILL.md",
                 check_files,
             )
             self.assertNotIn(

@@ -1,12 +1,14 @@
-"""Pure workflow route contract.
+"""Pure workflow state and transition facts.
 
-This module is part of the workflow kernel: it defines the stable workflow
-route facts and has no dependency on CLI/runtime/infra/services layers.
+The kernel deliberately knows nothing about Skills, CLI commands, prompt
+wording, or runtime script locations.  Those concerns are resolved by the
+service and adapter layers from distributed Skill manifests.
 """
 
 from __future__ import annotations
 
 from kernel.task_state import CHECK_STATUSES, DONE_STATUSES
+
 
 USER_INTENTS = (
     "question",
@@ -20,113 +22,40 @@ USER_INTENTS = (
     "discuss",
     "batch",
 )
+
 INTENT_OPERATIONS = {
     "question": {"answer_questions"},
     "clarify": {"edit_planning_artifacts"},
     "plan": {"edit_planning_artifacts"},
-    "implement": {
-        "implement_change",
-        "execute_delegated_work",
-        "start_task",
-    },
+    "implement": {"implement_change", "execute_delegated_work", "start_task"},
     "archive": {"archive_task"},
     "review": {"request_review", "verify_change", "complete_task"},
-    "doubt_review": {"request_review", "verify_change", "discuss_options"},
+    "doubt_review": {"doubt_review"},
     "debug": {"debug_failure"},
     "discuss": {"discuss_options"},
     "batch": {"batch_execute"},
 }
 
-
-ACTION_SPECS = {
-    "answer_questions": {
-        "label": "answer the workflow question",
-        "activatedSkill": None,
-        "lifecycleCheck": None,
-        "mutatesState": False,
-    },
-    "debug_failure": {
-        "label": "diagnose the failure",
-        "activatedSkill": "failure-analysis",
-        "lifecycleCheck": None,
-        "mutatesState": False,
-    },
-    "discuss_options": {
-        "label": "discuss workflow options",
-        "activatedSkill": "party-mode",
-        "lifecycleCheck": None,
-        "mutatesState": False,
-    },
-    "batch_execute": {
-        "label": "execute approved batch plan",
-        "activatedSkill": "batch-execution",
-        "lifecycleCheck": "task_start",
-        "mutatesState": True,
-    },
-    "create_task": {
-        "label": "create a planned task",
-        "activatedSkill": "brainstorming",
-        "lifecycleCheck": None,
-        "mutatesState": True,
-    },
-    "edit_planning_artifacts": {
-        "label": "finish planning prerequisites",
-        "activatedSkill": "task-planning",
-        "lifecycleCheck": "task_start",
-        "mutatesState": False,
-    },
-    "start_task": {
-        "label": "start task",
-        "activatedSkill": "cowork-flow",
-        "lifecycleCheck": "task_start",
-        "mutatesState": True,
-    },
-    "implement_change": {
-        "label": "execute implementation plan",
-        "activatedSkill": "cowork-flow",
-        "lifecycleCheck": None,
-        "mutatesState": False,
-    },
-    "request_review": {
-        "label": "mark task ready for review",
-        "activatedSkill": "task-review",
-        "lifecycleCheck": "task_review",
-        "mutatesState": True,
-    },
-    "complete_task": {
-        "label": "complete reviewed task",
-        "activatedSkill": "task-review",
-        "lifecycleCheck": "task_complete",
-        "mutatesState": True,
-    },
-    "archive_task": {
-        "label": "archive completed task",
-        "activatedSkill": "cowork-flow",
-        "lifecycleCheck": "task_archive",
-        "mutatesState": True,
-    },
-    "doubt_review": {
-        "label": "run standalone doubt review",
-        "activatedSkill": "adversarial-review",
-        "lifecycleCheck": None,
-        "mutatesState": False,
-    },
-    "execute_delegated_work": {
-        "label": "execute delegated work",
-        "activatedSkill": "cowork-flow",
-        "lifecycleCheck": None,
-        "mutatesState": False,
-    },
-    "repair_workflow_state": {
-        "label": "inspect and repair workflow state",
-        "activatedSkill": "cowork-flow",
-        "lifecycleCheck": None,
-        "mutatesState": False,
-    },
+# These are state-transition facts, not Skill metadata.
+ACTION_TRANSITIONS = {
+    "answer_questions": {"runtimeGate": None, "mutatesState": False},
+    "debug_failure": {"runtimeGate": None, "mutatesState": False},
+    "discuss_options": {"runtimeGate": None, "mutatesState": False},
+    "doubt_review": {"runtimeGate": None, "mutatesState": False},
+    "batch_execute": {"runtimeGate": "task_start", "mutatesState": True},
+    "create_task": {"runtimeGate": None, "mutatesState": True},
+    "edit_planning_artifacts": {"runtimeGate": "task_start", "mutatesState": False},
+    "start_task": {"runtimeGate": "task_start", "mutatesState": True},
+    "implement_change": {"runtimeGate": None, "mutatesState": False},
+    "request_review": {"runtimeGate": "task_review", "mutatesState": True},
+    "complete_task": {"runtimeGate": "task_complete", "mutatesState": True},
+    "archive_task": {"runtimeGate": "task_archive", "mutatesState": True},
+    "execute_delegated_work": {"runtimeGate": None, "mutatesState": False},
+    "repair_workflow_state": {"runtimeGate": None, "mutatesState": False},
 }
 RUNNABLE_ACTIONS = {
     action_id
-    for action_id, spec in ACTION_SPECS.items()
+    for action_id, spec in ACTION_TRANSITIONS.items()
     if spec["mutatesState"]
 }
 
@@ -137,22 +66,17 @@ def _main_operations(
     active_target: bool,
 ) -> list[str]:
     del active_target
-    operations = ["answer_questions", "debug_failure", "discuss_options"]
+    operations = ["answer_questions", "debug_failure", "discuss_options", "doubt_review"]
     if status == "no_task":
         operations.extend(["create_task", "edit_planning_artifacts"])
     elif status == "planning":
         operations.append("edit_planning_artifacts")
         if not blockers:
-            operations.append("start_task")
-            operations.append("batch_execute")
+            operations.extend(["start_task", "batch_execute"])
     elif status == "in_progress":
-        operations.extend(
-            ["implement_change", "request_review", "batch_execute"]
-        )
+        operations.extend(["implement_change", "request_review", "batch_execute"])
     elif status in CHECK_STATUSES:
-        operations.extend(
-            ["verify_change", "apply_review_fix", "complete_task"]
-        )
+        operations.extend(["verify_change", "apply_review_fix", "complete_task"])
     elif status in DONE_STATUSES:
         operations.extend(["archive_task", "create_task"])
     elif status == "delegated_subtask":
@@ -179,9 +103,7 @@ def _allowed_operations(
 
 
 def _required_artifacts(status: str) -> list[str]:
-    if status in {"no_task", "planning"}:
-        return ["decision-anchor.md", "implement.jsonl"]
-    if status == "in_progress":
+    if status in {"no_task", "planning", "in_progress"}:
         return ["decision-anchor.md", "implement.jsonl"]
     if status in CHECK_STATUSES:
         return ["decision-anchor.md", "check.jsonl"]
@@ -196,93 +118,47 @@ def _intent_is_allowed(intent: str, operations: list[str]) -> bool:
     return bool(INTENT_OPERATIONS[intent].intersection(operations))
 
 
-def _run_command(
-    task_path: str | None,
-    *,
-    intent: str | None = None,
-    create: bool = False,
-    commit: bool = False,
-) -> str:
-    parts = ["./.cowork-flow/run", "task", "next"]
-    if task_path:
-        parts.append(task_path)
-    parts.append("--run")
-    if intent:
-        parts.extend(["--intent", intent])
-    if create:
-        parts.extend([
-            "--title",
-            '"<title>"',
-            "--slug",
-            "<task-name>",
-            "--assignee",
-            "<name>",
-        ])
-    if commit:
-        parts.append("--commit")
-    return " ".join(parts)
-
-
-def _action_command(action_id: str, task_path: str | None) -> str | None:
-    if action_id == "create_task":
-        return _run_command(None, create=True)
-    if action_id in {"start_task", "implement_change"}:
-        return _run_command(task_path)
-    if action_id == "request_review":
-        return _run_command(task_path, intent="review")
-    if action_id == "complete_task":
-        return _run_command(task_path, intent="review")
-    if action_id == "archive_task":
-        return _run_command(task_path, intent="archive")
-    if action_id == "batch_execute":
-        return f"{_run_command(task_path, intent='batch')} --auto --approved"
-    return None
+def _action_id(status: str, intent: str, blockers: list[str]) -> str:
+    if intent == "question":
+        return "answer_questions"
+    if intent == "debug":
+        return "debug_failure"
+    if intent == "discuss":
+        return "discuss_options"
+    if intent == "doubt_review":
+        return "doubt_review"
+    if intent == "batch":
+        return "batch_execute"
+    if status == "no_task":
+        return "create_task"
+    if status == "planning":
+        return "edit_planning_artifacts" if blockers else "start_task"
+    if status == "in_progress":
+        return "request_review" if intent == "review" else "implement_change"
+    if status in CHECK_STATUSES:
+        return "complete_task"
+    if status in DONE_STATUSES:
+        return "archive_task"
+    if status == "delegated_subtask":
+        return "execute_delegated_work"
+    return "repair_workflow_state"
 
 
 def _action_contract(
     *,
     status: str,
-    task_path: str | None,
     blockers: tuple[str, ...] | list[str],
     active_target: bool,
     intent: str,
 ) -> dict[str, object]:
     del active_target
     action_blockers = [str(blocker) for blocker in blockers]
-    if intent == "question":
-        action_id = "answer_questions"
-    elif intent == "debug":
-        action_id = "debug_failure"
-    elif intent == "discuss":
-        action_id = "discuss_options"
-    elif intent == "batch":
-        action_id = "batch_execute"
-    elif status == "no_task":
-        action_id = "create_task"
-    elif status == "planning":
-        action_id = "edit_planning_artifacts" if action_blockers else "start_task"
-    elif status == "in_progress":
-        action_id = "request_review" if intent == "review" else "implement_change"
-    elif status in CHECK_STATUSES:
-        action_id = "doubt_review" if intent == "doubt_review" else "complete_task"
-    elif status in DONE_STATUSES:
-        action_id = "archive_task"
-    elif status == "delegated_subtask":
-        action_id = "execute_delegated_work"
-    else:
-        action_id = "repair_workflow_state"
-
-    command = _action_command(action_id, task_path)
-    spec = ACTION_SPECS[action_id]
-    lifecycle_check = spec["lifecycleCheck"]
+    action_id = _action_id(status, intent, action_blockers)
+    spec = ACTION_TRANSITIONS[action_id]
     return {
         "id": action_id,
-        "label": spec["label"],
-        "activatedSkill": spec["activatedSkill"],
-        "command": command,
         "mutatesState": spec["mutatesState"],
-        "lifecycleCheck": lifecycle_check,
-        "runtimeGate": lifecycle_check,
+        "runtimeGate": spec["runtimeGate"],
         "runnable": action_id in RUNNABLE_ACTIONS and not action_blockers,
         "blockers": action_blockers,
     }
@@ -296,30 +172,16 @@ def _resolve_route(
     active_target: bool,
 ) -> tuple[list[str], list[str], bool]:
     route_blockers = [str(blocker) for blocker in blockers]
-    operations = _allowed_operations(
-        status,
-        context,
-        tuple(route_blockers),
-        active_target,
-    )
+    operations = _allowed_operations(status, context, tuple(route_blockers), active_target)
     intent_allowed = _intent_is_allowed(intent, operations)
-
     if context == "delegated" and status != "delegated_subtask":
-        route_blockers.append(
-            "delegated context cannot operate main-session workflow state"
-        )
+        route_blockers.append("delegated context cannot operate main-session workflow state")
     if not intent_allowed:
-        route_blockers.append(
-            f"intent {intent} is not allowed while status is {status}"
-        )
+        route_blockers.append(f"intent {intent} is not allowed while status is {status}")
     return route_blockers, operations, intent_allowed
 
 
-def _default_intent(
-    status: str,
-    blockers: list[str],
-    active_target: bool,
-) -> str:
+def _default_intent(status: str, blockers: list[str], active_target: bool) -> str:
     if status == "no_task":
         return "clarify"
     if status == "planning":

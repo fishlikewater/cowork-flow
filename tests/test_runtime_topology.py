@@ -63,6 +63,20 @@ class RuntimeTopologyTest(unittest.TestCase):
             ),
         )
 
+    def test_kernel_does_not_own_skill_or_delivery_text(self) -> None:
+        source = (SCRIPTS / "kernel" / "workflow_route.py").read_text(
+            encoding="utf-8"
+        )
+
+        for forbidden in (
+            "activatedSkill",
+            "recommendedSkill",
+            "./.cowork-flow/run",
+            "label",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+
     def test_services_do_not_import_adapters(self) -> None:
         self.assertEqual(
             [],

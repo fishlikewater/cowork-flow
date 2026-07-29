@@ -37,10 +37,6 @@ from services.task_lifecycle import (
     LifecycleResult,
     TaskLifecycleService,
 )
-from services.batch_execution import (
-    BatchExecutionError,
-    BatchExecutionService,
-)
 from adapters.cli.task_archive_commands import cmd_archive
 from adapters.cli.task_context_commands import (
     cmd_add_planned_file,
@@ -408,63 +404,6 @@ def cmd_start(args: argparse.Namespace) -> int:
     _report_start_success(result, repo_root, full_path)
     _run_hooks("after_start", full_path / FILE_TASK_JSON, repo_root)
     return 0
-
-
-def _print_batch_state(state: dict) -> None:
-    print(json.dumps(state, ensure_ascii=False, indent=2))
-
-
-def _report_batch_error(error: BatchExecutionError) -> int:
-    print(
-        f"Error [{error.code}]: {error.detail}",
-        file=sys.stderr,
-    )
-    return 2
-
-
-def cmd_batch_resume(args: argparse.Namespace) -> int:
-    """Resume a paused Batch operation and publish its next action."""
-    try:
-        state = BatchExecutionService(get_repo_root()).resume(
-            args.operation_id
-        )
-    except BatchExecutionError as error:
-        return _report_batch_error(error)
-    _print_batch_state(state)
-    return 0
-
-
-def cmd_batch_record_result(args: argparse.Namespace) -> int:
-    """Record one UTF-8 Host action result and advance Batch."""
-    try:
-        payload = json.loads(args.file.read_text(encoding="utf-8"))
-    except OSError as error:
-        print(
-            f"Error: Failed to read Batch result file: {error}",
-            file=sys.stderr,
-        )
-        return 2
-    except json.JSONDecodeError as error:
-        print(
-            f"Error: Invalid Batch result JSON: {error}",
-            file=sys.stderr,
-        )
-        return 2
-    if not isinstance(payload, dict):
-        print(
-            "Error: Batch result JSON must be an object",
-            file=sys.stderr,
-        )
-        return 2
-    try:
-        state = BatchExecutionService(get_repo_root()).record_result(
-            args.operation_id,
-            payload,
-        )
-    except BatchExecutionError as error:
-        return _report_batch_error(error)
-    _print_batch_state(state)
-    return 2 if state.get("phase") == "paused" else 0
 
 
 def cmd_review(args: argparse.Namespace) -> int:

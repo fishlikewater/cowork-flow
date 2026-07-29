@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, readFile, readdir } from 'node:fs/promises';
+import { access, readFile, readdir, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 import { createAssetPlan, planActions } from './asset-plan.js';
@@ -64,6 +64,24 @@ async function listSkillFiles(skill) {
   }));
 }
 
+async function sourceMatchesDestination(source, destination) {
+  try {
+    const [sourceContent, targetContent, sourceStats, targetStats] = await Promise.all([
+      readFile(source),
+      readFile(destination),
+      stat(source),
+      stat(destination)
+    ]);
+    return sourceContent.equals(targetContent)
+      && (sourceStats.mode & 0o777) === (targetStats.mode & 0o777);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
+}
+
 async function appendSkillFileActions(actions, {
   targetDir,
   platforms,
@@ -85,8 +103,11 @@ async function appendSkillFileActions(actions, {
         if (seen.has(destination)) continue;
         seen.add(destination);
         const exists = await pathExists(destination);
+        const unchanged = sync && exists
+          ? await sourceMatchesDestination(skillFile.source, destination)
+          : false;
         actions.push({
-          action: exists ? (sync ? 'update' : 'skip') : 'create',
+          action: exists ? (sync ? (unchanged ? 'skip' : 'update') : 'skip') : 'create',
           source: skillFile.source,
           destination,
           relativePath: join(destBase, skill.id, skillFile.skillRelativePath)
@@ -228,7 +249,20 @@ async function buildManagedBlockSyncAction({ source, destination, exists, option
     return { action: 'protected', source, destination, relativePath };
   }
 
+  if (content === targetContent) {
+    return { action: 'skip', source, destination, relativePath };
+  }
+
   return { action: 'update', source, destination, relativePath, content };
+}
+
+async function buildFileSyncAction({ source, destination, relativePath }) {
+  return {
+    action: await sourceMatchesDestination(source, destination) ? 'skip' : 'update',
+    source,
+    destination,
+    relativePath
+  };
 }
 
 export async function buildSyncPlan(targetDir, options = {}) {
@@ -266,7 +300,11 @@ export async function buildSyncPlan(targetDir, options = {}) {
     if (protectedFile) {
       actions.push({ action: 'protected', source, destination, relativePath: file });
     } else if (exists && (safeFile || options.force)) {
-      actions.push({ action: 'update', source, destination, relativePath: file });
+      actions.push(await buildFileSyncAction({
+        source,
+        destination,
+        relativePath: file
+      }));
     } else if (!exists) {
       actions.push({ action: 'create', source, destination, relativePath: file });
     } else {
@@ -294,12 +332,16 @@ export async function buildSyncPlan(targetDir, options = {}) {
     }
   }
 
+  const versionDestination = join(targetDir, '.cowork-flow', '.version');
+  const versionContent = `${options.version}\n`;
+  const versionUnchanged = await pathExists(versionDestination)
+    && (await readFile(versionDestination, 'utf8')) === versionContent;
   actions.push({
-    action: 'update',
+    action: versionUnchanged ? 'skip' : 'update',
     source: null,
-    destination: join(targetDir, '.cowork-flow', '.version'),
+    destination: versionDestination,
     relativePath: '.cowork-flow/.version',
-    content: `${options.version}\n`
+    content: versionContent
   });
 
   return createAssetPlan({

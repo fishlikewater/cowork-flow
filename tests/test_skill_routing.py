@@ -151,6 +151,57 @@ class SkillRoutingTest(unittest.TestCase):
                     self.assertEqual(route["recommendedSkill"], route["activatedSkill"])
                     self.assertIn(route["recommendedSkill"], EXPECTED_SKILLS)
 
+    def test_standalone_doubt_review_is_status_independent_in_main_context(self) -> None:
+        navigation = self._navigation()
+
+        for status in WORKFLOW_STATUSES:
+            if status == "delegated_subtask":
+                continue
+            with self.subTest(status=status):
+                route = navigation.route_request(
+                    status=status,
+                    intent="doubt_review",
+                    context="main",
+                    blockers=(),
+                    active_target=status not in {"no_task", "planning"},
+                )
+
+                self.assertEqual("doubt_review", route["nextAction"])
+                self.assertEqual("adversarial-review", route["recommendedSkill"])
+                self.assertEqual([], route["blockers"])
+
+    def test_plain_discuss_does_not_activate_party_mode(self) -> None:
+        navigation = self._navigation()
+
+        route = navigation.route_request(
+            status="in_progress",
+            intent="discuss",
+            context="main",
+            blockers=(),
+            active_target=True,
+        )
+
+        self.assertEqual("discuss_options", route["nextAction"])
+        self.assertIsNone(route["activatedSkill"])
+        self.assertIsNone(route["recommendedSkill"])
+
+    def test_kernel_route_contains_no_skill_cli_or_prompt_ownership(self) -> None:
+        source = (
+            SCRIPTS / "kernel" / "workflow_route.py"
+        ).read_text(encoding="utf-8")
+
+        for forbidden in (
+            "activatedSkill",
+            "recommendedSkill",
+            "./.cowork-flow/run",
+            '"task-review"',
+            '"task-planning"',
+            '"adversarial-review"',
+            '"batch-execution"',
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+
     def test_read_only_question_never_loads_implementation_skills(self) -> None:
         navigation = self._navigation()
 
@@ -244,11 +295,11 @@ class SkillRoutingTest(unittest.TestCase):
             for relative_path in relative_paths
             if not (ROOT / ".cowork-flow" / relative_path).is_file()
         ]
-        if missing_paths:
-            self.skipTest(
-                "local bootstrap .cowork-flow script files are absent: "
-                + ", ".join(missing_paths)
-            )
+        self.assertEqual(
+            [],
+            missing_paths,
+            "source checkout bootstrap runtime is incomplete; run formal sync",
+        )
 
         for relative_path in relative_paths:
             root_path = ROOT / ".cowork-flow" / relative_path

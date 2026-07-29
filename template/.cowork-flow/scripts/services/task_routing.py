@@ -1,24 +1,22 @@
-"""Workflow route coordination layer.
-
-The pure workflow route contract lives in kernel.workflow_route; this module
-keeps CLI-facing coordination (route_request with action commands) and
-re-exports the stable contract for compatibility.
-"""
+"""Resolve kernel route facts through distributed Skill ownership metadata."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from infra.skill_manifest import SkillManifestError, action_metadata
+from infra.paths import get_repo_root
+from kernel.task_state import CHECK_STATUSES, DONE_STATUSES
 from kernel.workflow_route import (
-    ACTION_SPECS,
     INTENT_OPERATIONS,
     RUNNABLE_ACTIONS,
     USER_INTENTS,
-    _action_contract,
+    _action_contract as _kernel_action_contract,
     _default_intent,
     _intent_is_allowed,
     _required_artifacts,
     _resolve_route,
 )
-from kernel.task_state import CHECK_STATUSES, DONE_STATUSES
 
 
 def _run_command(
@@ -35,33 +33,69 @@ def _run_command(
     if intent:
         parts.extend(["--intent", intent])
     if create:
-        parts.extend([
-            "--title",
-            '"<title>"',
-            "--slug",
-            "<task-name>",
-            "--assignee",
-            "<name>",
-        ])
+        parts.extend(["--title", '"<title>"', "--slug", "<task-name>", "--assignee", "<name>"])
     if commit:
         parts.append("--commit")
     return " ".join(parts)
 
 
-def _action_command(action_id: str, task_path: str | None) -> str | None:
-    if action_id == "create_task":
-        return _run_command(None, create=True)
+def _action_command(action_id: str, task_path: str | None, template: str | None) -> str | None:
+    if template:
+        return template.replace("<task-dir>", task_path or "<task-dir>")
     if action_id in {"start_task", "implement_change"}:
         return _run_command(task_path)
-    if action_id == "request_review":
-        return _run_command(task_path, intent="review")
-    if action_id == "complete_task":
-        return _run_command(task_path, intent="review")
-    if action_id == "archive_task":
-        return _run_command(task_path, intent="archive")
-    if action_id == "batch_execute":
-        return f"{_run_command(task_path, intent='batch')} --auto --approved"
     return None
+
+
+def _action_contract(
+    *,
+    status: str,
+    task_path: str | None,
+    blockers: tuple[str, ...] | list[str],
+    active_target: bool,
+    intent: str,
+    repo_root: Path | None = None,
+) -> dict[str, object]:
+    action = _kernel_action_contract(
+        status=status,
+        blockers=blockers,
+        active_target=active_target,
+        intent=intent,
+    )
+    action_id = str(action["id"])
+    owner = None
+    owner_error: str | None = None
+    if repo_root is None:
+        repo_root = get_repo_root()
+    if repo_root is not None:
+        try:
+            owner = action_metadata(Path(repo_root), action_id)
+        except SkillManifestError as error:
+            owner_error = str(error)
+
+    action_blockers = [str(item) for item in action["blockers"]]
+    if owner_error:
+        action_blockers.append(f"Skill manifest invalid: {owner_error}")
+    if action_id not in {"answer_questions", "discuss_options"} and owner is None:
+        action_blockers.append(f"Skill owner missing for workflow action: {action_id}")
+    if owner is not None:
+        if owner.mutates_state != bool(action["mutatesState"]):
+            action_blockers.append(f"Skill owner transition mismatch: {action_id}")
+        if owner.lifecycle_check != action["runtimeGate"]:
+            action_blockers.append(f"Skill owner lifecycle mismatch: {action_id}")
+
+    lifecycle_check = owner.lifecycle_check if owner is not None else action["runtimeGate"]
+    return {
+        "id": action_id,
+        "label": owner.label if owner is not None else action_id,
+        "activatedSkill": owner.skill if owner is not None else None,
+        "command": _action_command(action_id, task_path, owner.command if owner else None),
+        "mutatesState": action["mutatesState"],
+        "lifecycleCheck": lifecycle_check,
+        "runtimeGate": lifecycle_check,
+        "runnable": bool(action["runnable"]) and not action_blockers,
+        "blockers": action_blockers,
+    }
 
 
 def route_request(
@@ -71,8 +105,11 @@ def route_request(
     blockers: tuple[str, ...] | list[str],
     active_target: bool,
     task_path: str | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, object]:
-    """Return the stable state, intent, action, and execution-context route."""
+    """Return state facts plus adapter-facing Skill/action metadata."""
+    if repo_root is None:
+        repo_root = get_repo_root()
     if intent not in USER_INTENTS:
         raise ValueError(f"unsupported workflow intent: {intent}")
     if context not in {"main", "delegated"}:
@@ -91,9 +128,10 @@ def route_request(
         blockers=route_blockers,
         active_target=active_target,
         intent=intent,
+        repo_root=repo_root,
     )
-    action["command"] = _action_command(action["id"], task_path)
-    recommended = action["activatedSkill"] if intent_allowed else None
+    route_blockers = list(action["blockers"])
+    recommended = action["activatedSkill"] if intent_allowed and not route_blockers else None
     return {
         "status": status,
         "allowedOperations": operations,

@@ -6,11 +6,11 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from fnmatch import fnmatchcase
 from pathlib import Path
 
 from infra.files import read_text_utf8
 from infra.quality_sources import quality_source_entries
+from infra.skill_manifest import context_entries
 from infra.paths import (
     DIR_AGENTS,
     DIR_SPEC,
@@ -22,32 +22,6 @@ from infra.paths import (
 
 CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
 CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file", "deleted-file"))
-DOMAIN_SKILL_RULES = (
-    {
-        "name": "game-design",
-        "label": "Game Design",
-        "dev_types": (),
-        "path_patterns": ("**/*.godot", "**/*.tscn", "**/game/**", "**/games/**"),
-    },
-    {
-        "name": "cowork-flow-maintenance",
-        "label": "Cowork Flow Maintenance",
-        "dev_types": ("spec",),
-        "path_patterns": (".cowork-flow/**", "template/.cowork-flow/**", "template/skills/**"),
-    },
-    {
-        "name": "python-runtime-design",
-        "label": "Python Runtime Design",
-        "dev_types": ("backend", "test"),
-        "path_patterns": ("**/*.py",),
-    },
-    {
-        "name": "test-first",
-        "label": "Test First",
-        "dev_types": ("test",),
-        "path_patterns": ("test/**", "tests/**", "**/*.test.js", "**/*_test.py"),
-    },
-)
 PLANNED_FILE_HINT = (
     "If this is a planned new file, add "
     '"type": "planned-file"; if this is an already-deleted file in scope, add '
@@ -342,8 +316,9 @@ class ContextFileValidation:
     issues: tuple[ContextValidationIssue, ...]
 
 
-def get_implement_base() -> list[dict]:
-    return [
+def get_implement_base(repo_root: Path | None = None) -> list[dict]:
+    root = Path(repo_root) if repo_root is not None else get_repo_root()
+    entries = [
         {
             "file": "AGENTS.md",
             "reason": "Project collaboration rules and workflow checks",
@@ -359,15 +334,9 @@ def get_implement_base() -> list[dict]:
             ),
             "reason": "Mandatory pre-coding checklist",
         },
-        {
-            "file": skill_path("decision-audit"),
-            "reason": "Structured decision review evidence Skill",
-        },
-        {
-            "file": skill_path("spec-sync"),
-            "reason": "Specification maintenance Skill",
-        },
     ]
+    entries.extend(context_entries(root, context="implement"))
+    return entries
 
 
 def get_implement_backend() -> list[dict]:
@@ -433,24 +402,13 @@ def get_domain_skill_context(
     dev_type: str | None = None,
     paths: tuple[str, ...] = (),
 ) -> list[dict]:
-    normalized_dev_type = (dev_type or "").strip()
-    normalized_paths = tuple(
-        str(path).replace("\\", "/").removeprefix("./")
-        for path in paths
+    return context_entries(
+        repo_root,
+        context="implement",
+        dev_type=dev_type,
+        paths=paths,
+        include_wildcard=False,
     )
-    return [
-        {
-            "file": skill_path(str(rule["name"]), repo_root),
-            "reason": f"Auto-routed {rule['label']} domain guide",
-        }
-        for rule in DOMAIN_SKILL_RULES
-        if normalized_dev_type in rule["dev_types"]
-        or any(
-            fnmatchcase(path, pattern)
-            for path in normalized_paths
-            for pattern in rule["path_patterns"]
-        )
-    ]
 
 
 def is_skill_path(file_path: str) -> bool:
@@ -477,24 +435,8 @@ def discover_spec_files(repo_root: Path, dev_type: str) -> list[str]:
 
 
 def get_check_context(repo_root: Path, dev_type: str) -> list[dict]:
-    entries = [
-        {
-            "file": skill_path("task-review", repo_root),
-            "reason": "Quality, contract, and template consistency review Skill",
-        },
-        {
-            "file": skill_path("decision-audit", repo_root),
-            "reason": "Verify structured decision review evidence Skill",
-        },
-        {
-            "file": skill_path("spec-sync", repo_root),
-            "reason": "Verify specification maintenance Skill",
-        },
-        {
-            "file": skill_path("cowork-flow", repo_root),
-            "reason": "Workflow review, completion, and archive routing",
-        },
-    ]
+    entries = context_entries(repo_root, context="check", dev_type=dev_type)
+    entries.sort(key=lambda entry: entry["file"])
     if dev_type == "spec":
         entries.extend(
             {
@@ -512,21 +454,7 @@ def get_debug_context(
     repo_root: Path | None = None,
 ) -> list[dict]:
     root = Path(repo_root) if repo_root is not None else get_repo_root()
-    del dev_type
-    return [
-        {
-            "file": skill_path("failure-analysis", root),
-            "reason": "Deep bug analysis workflow",
-        },
-        {
-            "file": skill_path("spec-sync", root),
-            "reason": "Capture implementation lessons and contracts",
-        },
-        {
-            "file": skill_path("task-review", root),
-            "reason": "Verify the fix and related contracts",
-        },
-    ]
+    return context_entries(root, context="debug", dev_type=dev_type)
 
 
 def write_jsonl(path: Path, entries: list[dict]) -> None:
@@ -753,7 +681,7 @@ class TaskContextService:
         return tuple(created)
 
     def _implement_entries(self, dev_type: str) -> list[dict]:
-        entries = get_implement_base()
+        entries = get_implement_base(self.repo_root)
         entries.extend(
             get_domain_skill_context(
                 self.repo_root,

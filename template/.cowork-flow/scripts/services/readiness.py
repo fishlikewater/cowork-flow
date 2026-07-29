@@ -7,27 +7,7 @@ import json
 from pathlib import Path
 
 from infra.paths import DIR_ARCHIVE, DIR_CHANGES, DIR_TASKS, DIR_WORKFLOW, FILE_TASK_JSON, get_tasks_dir
-from services.decision_review import DECISION_REVIEW_FILE, validate_decision_review_file
 from services.task_utils import find_task_by_name
-
-REQUIRED_L2_MARKERS = {
-    "goal and user value": (
-        ("## goal", "## problem", "## 目标", "目标"),
-        ("## benefits", "user value", "用户价值", "价值"),
-    ),
-    "non-goals": (("## non-goals", "non-goals", "## 非目标", "非目标"),),
-    "key assumptions": (("assumption", "assumptions", "## 关键假设", "关键假设"),),
-    "scope boundary": (("## scope", "scope boundary", "## 范围边界", "范围边界", "scope:"),),
-    "acceptance criteria": (("acceptance criteria", "## acceptance", "## 验收标准", "验收标准", "验收"),),
-}
-
-VERIFICATION_COMMAND_MARKERS = (
-    "./.cowork-flow/run python -m unittest",
-    "npm test",
-    "npm run",
-    "git diff --check",
-)
-
 
 from infra.files import read_text_utf8
 
@@ -119,21 +99,6 @@ def _task_ancestry(repo_root: Path, task_dir: Path) -> list[Path]:
     return ancestry
 
 
-def _task_tokens(repo_root: Path, ancestry: list[Path]) -> set[str]:
-    tokens: set[str] = set()
-    for path in ancestry:
-        tokens.add(path.name)
-        tokens.add(_display_path(repo_root, path))
-    return {token for token in tokens if token}
-
-
-def _plan_mentions_task(repo_root: Path, plan_path: Path | None, ancestry: list[Path]) -> bool:
-    if plan_path is None or not plan_path.is_file():
-        return False
-    text = _read_text(plan_path)
-    return any(token in text for token in _task_tokens(repo_root, ancestry))
-
-
 def _change_applies_to_task(
     repo_root: Path,
     metadata: dict[str, object],
@@ -144,37 +109,12 @@ def _change_applies_to_task(
     if linked_task is not None and any(_same_path(linked_task, item) for item in ancestry):
         return True, False
 
-    plan_path = _resolve_link(repo_root, "plans", metadata.get("plan"))
-    if _plan_mentions_task(repo_root, plan_path, ancestry):
-        return True, linked_task is None
+    if linked_task is None:
+        plan_path = _resolve_link(repo_root, "plans", metadata.get("plan"))
+        if plan_path is not None:
+            return True, True
 
     return False, False
-
-
-def _has_all_marker_groups(text: str, groups: tuple[tuple[str, ...], ...]) -> bool:
-    lower = text.lower()
-    return all(any(marker.lower() in lower for marker in group) for group in groups)
-
-
-def _has_verification_command(plan_text: str) -> bool:
-    lower = plan_text.lower()
-    if "verification" not in lower and "验证" not in lower:
-        return False
-    return any(marker in lower for marker in VERIFICATION_COMMAND_MARKERS)
-
-
-def _read_l2_context(repo_root: Path, change_dir: Path, plan_path: Path | None, task_dir: Path) -> str:
-    parts = [
-        _read_text(change_dir / "proposal.md"),
-        _read_text(change_dir / "spec.md"),
-        _read_text(change_dir / "design.md"),
-        _read_text(task_dir / "decision-anchor.md"),
-    ]
-    for ancestor in _task_ancestry(repo_root, task_dir)[1:]:
-        parts.append(_read_text(ancestor / "decision-anchor.md"))
-    if plan_path is not None:
-        parts.append(_read_text(plan_path))
-    return "\n\n".join(part for part in parts if part)
 
 
 def _append_missing_file_blocker(
@@ -222,15 +162,12 @@ def task_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
         plan_path = _resolve_link(repo_root, "plans", metadata.get("plan"))
         if plan_path is None:
             blockers.append(f"L2 readiness ({slug}): change.yaml plan link is missing")
-            plan_text = ""
         elif not plan_path.exists():
             blockers.append(
                 f"L2 readiness ({slug}): plan points to missing path: {_display_path(repo_root, plan_path)}"
             )
-            plan_text = ""
         else:
-            plan_text = _read_text(plan_path)
-            if not plan_text:
+            if not _read_text(plan_path):
                 blockers.append(f"L2 readiness ({slug}): linked plan is empty")
 
         linked_task = _resolve_link(repo_root, DIR_TASKS, metadata.get("task"))
@@ -239,23 +176,4 @@ def task_readiness_blockers(repo_root: Path, task_dir: Path) -> list[str]:
                 f"L2 readiness ({slug}): task points to missing path: {_display_path(repo_root, linked_task)}"
             )
 
-        context = _read_l2_context(repo_root, change_dir, plan_path, task_dir)
-        for label, marker_groups in REQUIRED_L2_MARKERS.items():
-            if not _has_all_marker_groups(context, marker_groups):
-                blockers.append(f"L2 readiness ({slug}): missing {label}")
-
-        if not _has_verification_command(plan_text):
-            blockers.append(f"L2 readiness ({slug}): linked plan is missing verification commands")
-
-        blockers.extend(_check_decision_review(task_dir))
-
     return blockers
-
-
-def _check_decision_review(task_dir: Path) -> list[str]:
-    """Require accepted structured decision evidence for L2 readiness."""
-    evidence_path = Path(task_dir) / DECISION_REVIEW_FILE
-    return [
-        f"L2 {issue}"
-        for issue in validate_decision_review_file(evidence_path)
-    ]

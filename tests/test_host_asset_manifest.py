@@ -55,6 +55,22 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual([], errors)
 
+    def test_semantic_validation_can_limit_checks_to_installed_platforms(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            installed = Path(temp_dir) / "installed"
+            shutil.copytree(TEMPLATE, installed)
+            shutil.rmtree(installed / ".claude")
+            shutil.rmtree(installed / ".opencode")
+            shutil.rmtree(installed / ".cowork-flow" / "adapters" / "claude-code")
+            shutil.rmtree(installed / ".cowork-flow" / "adapters" / "opencode")
+
+            errors = self.host_manifest.validate_host_assets(
+                installed,
+                platform_ids=("codex",),
+            )
+
+        self.assertEqual([], errors)
+
     def test_sync_policy_obsoletes_removed_skill_registry_contracts(self) -> None:
         manifest = self.host_manifest.load_host_manifest(TEMPLATE)
 

@@ -458,7 +458,7 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Task: .cowork-flow/tasks/05-29-demo", context)
         self.assertIn("Status: in_progress", context)
-        self.assertIn("派发 cowork-implement", context)
+        self.assertIn("action owner Skill", context)
 
     def test_hook_reads_codex_dispatch_mode_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

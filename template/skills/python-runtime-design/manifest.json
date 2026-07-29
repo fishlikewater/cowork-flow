@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "skill": "python-runtime-design",
+  "context": [
+    {
+      "contexts": ["implement", "check", "debug"],
+      "devTypes": ["backend", "test"],
+      "pathPatterns": ["**/*.py"],
+      "reason": "Auto-routed Python Runtime Design domain guide"
+    }
+  ]
+}

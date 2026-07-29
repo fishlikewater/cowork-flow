@@ -388,7 +388,7 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
         self.assertIn("Status: in_progress", context)
-        self.assertIn("派发 cowork-implement", context)
+        self.assertIn("action owner Skill", context)
 
     def test_hook_resolves_active_task_from_claude_code_session_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -409,7 +409,7 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
         self.assertIn("Status: in_progress", context)
-        self.assertIn("派发 cowork-implement", context)
+        self.assertIn("action owner Skill", context)
 
     def test_settings_config_uses_cowork_flow_python_runner_for_both_events(self) -> None:
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))

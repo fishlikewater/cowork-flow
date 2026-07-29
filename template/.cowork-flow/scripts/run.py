@@ -4,12 +4,10 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 from adapters.cli.encoding import configure_cli_encoding
 from adapters.cli.execution_context_args import (
@@ -17,6 +15,7 @@ from adapters.cli.execution_context_args import (
     parse_public_execution_context_args,
 )
 from runtime.execution_context import ExecutionContextError
+from infra.skill_manifest import SkillManifestError, skill_command_scripts
 
 configure_cli_encoding()
 
@@ -34,6 +33,7 @@ COMMAND_SCRIPTS = {
     "add_session": "adapters/cli/add_session.py",
     "subagent": "adapters/cli/subagent.py",
 }
+RESERVED_COMMAND_NAMES = (*COMMAND_SCRIPTS, "python", "help", "-h", "--help")
 
 CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}
 
@@ -67,73 +67,6 @@ def scripts_dir() -> Path:
 
 def project_root() -> Path:
     return scripts_dir().parents[1].resolve()
-
-
-def skill_roots() -> tuple[Path, ...]:
-    root = project_root()
-    return (
-        root / ".agents" / "skills",
-        root / ".claude" / "skills",
-        root / "skills",
-        root / "template" / "skills",
-    )
-
-
-def _load_manifest(path: Path) -> dict[str, Any] | None:
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return raw if isinstance(raw, dict) else None
-
-
-def _command_names(raw_command: object) -> tuple[str, ...]:
-    if not isinstance(raw_command, dict):
-        return ()
-    name = raw_command.get("name")
-    if not isinstance(name, str) or not name.strip():
-        return ()
-    aliases = raw_command.get("aliases")
-    values = [name.strip()]
-    if isinstance(aliases, list):
-        values.extend(alias.strip() for alias in aliases if isinstance(alias, str) and alias.strip())
-    return tuple(dict.fromkeys(values))
-
-
-def _resolve_manifest_script(manifest_path: Path, raw_command: object) -> Path | None:
-    if not isinstance(raw_command, dict):
-        return None
-    script = raw_command.get("script")
-    if not isinstance(script, str) or not script.strip():
-        return None
-    skill_dir = manifest_path.parent.resolve()
-    script_path = (skill_dir / script).resolve()
-    try:
-        script_path.relative_to(skill_dir)
-    except ValueError:
-        return None
-    return script_path if script_path.is_file() else None
-
-
-def skill_command_scripts() -> dict[str, Path]:
-    commands: dict[str, Path] = {}
-    for root in skill_roots():
-        if not root.is_dir():
-            continue
-        for manifest_path in sorted(root.glob("*/manifest.json")):
-            manifest = _load_manifest(manifest_path)
-            if manifest is None:
-                continue
-            raw_commands = manifest.get("commands", [])
-            if not isinstance(raw_commands, list):
-                continue
-            for raw_command in raw_commands:
-                script_path = _resolve_manifest_script(manifest_path, raw_command)
-                if script_path is None:
-                    continue
-                for command_name in _command_names(raw_command):
-                    commands.setdefault(command_name, script_path)
-    return commands
 
 
 def resolve_project_python_script(command: str) -> Path | None:
@@ -223,7 +156,14 @@ def main(argv: list[str] | None = None) -> int:
             return reject_context_flags_for("project Python scripts")
         return run_python([str(project_script), *rest], pythonpath=scripts_dir())
 
-    skill_script = skill_command_scripts().get(command)
+    try:
+        skill_script = skill_command_scripts(
+            project_root(),
+            reserved_names=RESERVED_COMMAND_NAMES,
+        ).get(command)
+    except SkillManifestError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 2
     if skill_script is not None:
         if not context.is_default:
             return reject_non_context_aware_command()
