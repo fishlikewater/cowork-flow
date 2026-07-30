@@ -5,9 +5,12 @@
         "matcher": "startup|clear|compact",
         "hooks": [
           {
-            "type": "command",
-            "command": "node ${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js",
-            "async": false
+            "type": "process",
+            "command": "node",
+            "args": [
+              "${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js"
+            ],
+            "timeoutMs": 5000
           }
         ]
       }
@@ -16,9 +19,12 @@
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "node ${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js",
-            "async": false
+            "type": "process",
+            "command": "node",
+            "args": [
+              "${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js"
+            ],
+            "timeoutMs": 5000
           }
         ]
       }

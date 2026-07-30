@@ -72,6 +72,8 @@ def _detect_host() -> str:
         return "claude-code"
     if env.get("CODEX_SESSION_ID") or env.get("CODEX_THREAD_ID"):
         return "codex"
+    if env.get("ZCODE_SESSION_ID"):
+        return "zcode"
     if env.get("OPENCODE_SESSION_ID"):
         return "opencode"
     return "codex"
@@ -82,6 +84,7 @@ def _detect_adapter(host: str) -> str:
         "claude-code": "claude-code.hooks",
         "codex": "codex.spawn_agent",
         "opencode": "opencode.task",
+        "zcode": "zcode.plugin",
     }
     return adapters.get(host, "codex.spawn_agent")
 

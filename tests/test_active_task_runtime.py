@@ -43,6 +43,10 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
         with patch.dict(os.environ, {"OPENCODE_SESSION_ID": "opc-123"}, clear=True):
             self.assertEqual("opencode_opc-123", self.active_task.resolve_context_key())
 
+    def test_context_key_uses_zcode_session_when_cowork_missing(self) -> None:
+        with patch.dict(os.environ, {"ZCODE_SESSION_ID": "zc-123"}, clear=True):
+            self.assertEqual("zcode_zc-123", self.active_task.resolve_context_key())
+
     def test_context_key_uses_claude_session_when_cowork_missing(self) -> None:
         with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-123"}, clear=True):
             self.assertEqual("claude_claude-123", self.active_task.resolve_context_key())
@@ -85,6 +89,13 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertEqual(
                 "opencode_opc-789",
                 self.active_task.resolve_context_key({"sessionID": "opc-789"}),
+            )
+
+    def test_context_key_can_use_zcode_hook_input(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                "zcode_zc-456",
+                self.active_task.resolve_context_key({"zcode_session_id": "zc-456"}),
             )
 
     def test_context_key_can_use_claude_hook_input(self) -> None:

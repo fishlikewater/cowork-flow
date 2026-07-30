@@ -48,12 +48,23 @@ function dirname(path) {
 
 async function updateMarketplace(cacheRoot, version) {
   const marketPath = resolve(cacheRoot, '..', '..', '..', 'marketplaces', ZCODE_MARKETPLACE, 'marketplace.json');
-  const market = (await readJsonSafe(marketPath)) || { name: ZCODE_MARKETPLACE, plugins: [], version: 1 };
+  const market = (await readJsonSafe(marketPath)) || {
+    name: ZCODE_MARKETPLACE,
+    description: 'Local cowork-flow ZCode plugin marketplace',
+    plugins: []
+  };
+  const pluginPath = join(cacheRoot, version).split('\\').join('/');
 
   const entry = {
-    cachePath: join(cacheRoot, version).split('\\').join('/'),
+    category: 'workflow',
+    description: 'cowork-flow task lifecycle, hooks, skills, and fixed subagents for ZCode.',
     name: PLUGIN_NAME,
-    source: 'filesystem',
+    source: {
+      source: 'directory',
+      path: pluginPath
+    },
+    strict: true,
+    tags: ['workflow', 'subagents', 'hooks'],
     version
   };
 

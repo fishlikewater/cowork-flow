@@ -5,7 +5,7 @@
 
 import { existsSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join, dirname } from "path";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import assert from "assert/strict";
 
 const tmpRoot = join(import.meta.dirname, ".selfcheck-tmp");
@@ -27,12 +27,18 @@ function test(name, fn) {
 }
 
 function runHook(env = {}, stdin) {
-  return execSync(`node ${hookScript}`, {
+  const result = spawnSync(process.execPath, [hookScript], {
     env: { ...process.env, ...env },
     encoding: "utf8",
     cwd: import.meta.dirname,
     input: stdin,
   });
+  if (result.status !== 0) {
+    const error = new Error(result.stderr || `hook exited with ${result.status}`);
+    error.status = result.status;
+    throw error;
+  }
+  return result.stdout;
 }
 
 function writeProjectFile(repoRoot, relativePath, content) {
