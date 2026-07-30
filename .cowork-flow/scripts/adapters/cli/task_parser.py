@@ -14,7 +14,7 @@ USAGE_TEXT = """Task workflow router for cowork-flow
 Usage:
   ./.cowork-flow/run task next [dir] [--json] [--intent I]
   ./.cowork-flow/run task next [dir] --validate
-  ./.cowork-flow/run task next --list [--mine] [--status S]
+  ./.cowork-flow/run task next --list [--json] [--mine] [--status S]
   ./.cowork-flow/run task next [dir] --run [--intent I]
 
 Public contract:

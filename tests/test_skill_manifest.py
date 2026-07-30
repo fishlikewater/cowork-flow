@@ -90,6 +90,31 @@ class SkillManifestTest(unittest.TestCase):
         self.assertEqual({"demo-command", "demo_alias"}, set(commands))
         self.assertEqual(commands["demo-command"], commands["demo_alias"])
 
+    def test_action_diagnostics_command_is_loaded_as_advisory_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            skills = Path(temp_dir) / "skills"
+            manifest_path = self._write_skill(skills, "demo")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["actions"] = [
+                {
+                    "id": "demo-action",
+                    "label": "Demo action",
+                    "lifecycleCheck": "demo_gate",
+                    "mutatesState": True,
+                    "command": "./.cowork-flow/run task next <task-dir> --run",
+                    "diagnosticsCommand": "./.cowork-flow/run demo-check <task-dir> --json",
+                }
+            ]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with patch.object(self.module, "skill_roots", return_value=(skills,)):
+                owner = self.module.action_metadata(Path("/unused"), "demo-action")
+
+        self.assertIsNotNone(owner)
+        self.assertEqual(
+            "./.cowork-flow/run demo-check <task-dir> --json",
+            owner.diagnostics_command,
+        )
+
     def test_schema_version_is_required_and_supported(self) -> None:
         for schema_version in (None, 2, "1", True):
             with self.subTest(schema_version=schema_version):

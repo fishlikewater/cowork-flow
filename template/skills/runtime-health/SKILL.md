@@ -16,12 +16,17 @@ Run diagnostics through the common runner:
 .cowork-flow/run doctor --all
 .cowork-flow/run doctor --host-adapters
 .cowork-flow/run doctor --subagent-safety
+.cowork-flow/run doctor --task-hygiene
+.cowork-flow/run doctor --task-hygiene --json
 ```
 
 ## Boundaries
 
 - Diagnostics may inspect runtime contracts, host assets, hooks, and template files.
 - Installed projects validate only detected host platforms and do not require a source `template/` tree.
-- Source checkouts also validate template-to-live runtime and Skill replica parity.
+- Source checkouts distinguish tracked source checkout bootstrap files, ignored local live runtime, and the template distribution source.
+- Source checkout health must not force-track the whole `.cowork-flow/` tree; ignored local live runtime files are checked only when present.
+- Source checkouts also validate Skill replica parity for detected installed host targets.
+- stale task hygiene reports completed-unarchived tasks, active-unbound tasks, and missing task context with command hints only.
 - Diagnostics must not mutate task lifecycle state.
 - Do not add lifecycle routing rules here; `task next` remains the workflow router.

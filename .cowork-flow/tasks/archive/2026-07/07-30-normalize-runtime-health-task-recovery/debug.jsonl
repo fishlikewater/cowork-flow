@@ -1,0 +1,11 @@
+{"file": "template/skills/runtime-health/scripts/doctor.py", "reason": "Debug source checkout health, distribution drift, and stale task diagnostics"}
+{"file": ".agents/skills/runtime-health/scripts/doctor.py", "reason": "Debug installed Codex runtime-health replica"}
+{"file": "template/.cowork-flow/scripts/adapters/cli/task_navigation.py", "reason": "Debug no_task route payload and repository recovery hints"}
+{"file": "template/.cowork-flow/scripts/adapters/cli/task.py", "reason": "Debug task next --run and task next --list delivery behavior"}
+{"file": "template/.cowork-flow/scripts/services/task_routing.py", "reason": "Debug action metadata and diagnostics command exposure"}
+{"file": "template/.cowork-flow/scripts/infra/skill_manifest.py", "reason": "Debug Skill manifest parsing and replica conflict handling"}
+{"file": "template/skills/task-review/scripts/review_check.py", "reason": "Debug advisory review fact output without gate semantics"}
+{"file": "template/skills/task-review/SKILL.md", "reason": "Debug task-review Skill guidance scope and no-gate semantics"}
+{"file": "template/skills/adversarial-review/SKILL.md", "reason": "Debug adversarial-review Skill guidance and superpowers-inspired patterns"}
+{"file": ".cowork-flow/tasks/07-09-fix-test-failures/task.json", "reason": "Observed stale in_progress task used as real-world recovery signal example"}
+{"file": ".cowork-flow/tasks/07-25-slim-kernel-stage-runtimes/task.json", "reason": "Observed completed unarchived task used as real-world recovery signal example"}

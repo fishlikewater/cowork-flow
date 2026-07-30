@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 
 from services.task_tree import TaskTreeError, TaskTreeService
@@ -137,6 +138,73 @@ def cmd_list(args) -> int:
         )
     print()
     print(f"Total: {count} task(s)")
+    return 0
+
+
+def _list_task_records(repo_root, *, mine: bool, status: str | None):
+    active_task = get_active_task(repo_root).task_path
+    developer = get_developer(repo_root)
+    if mine and not developer:
+        return None, "No developer set. Run init_developer.py first"
+
+    service = TaskTreeService(repo_root)
+    all_tasks = service.active_nodes()
+    records: list[dict[str, object]] = []
+
+    def append_task(dir_name: str, depth: int = 0) -> None:
+        info = all_tasks[dir_name]
+        if mine and info.assignee != developer:
+            return
+        if status and info.status != status:
+            return
+        relative_path = f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}"
+        done, total = service.children_progress(info.children, all_tasks)
+        records.append(
+            {
+                "name": dir_name,
+                "path": relative_path,
+                "status": info.status,
+                "assignee": info.assignee,
+                "parent": info.parent,
+                "children": list(info.children),
+                "childrenDone": done,
+                "childrenTotal": total,
+                "depth": depth,
+                "active": relative_path == active_task,
+            }
+        )
+        for child_name in info.children:
+            if child_name in all_tasks:
+                append_task(child_name, depth + 1)
+
+    for dir_name in service.root_names(all_tasks):
+        append_task(dir_name)
+    return records, None
+
+
+def cmd_list_json(args) -> int:
+    repo_root = get_repo_root()
+    records, error = _list_task_records(
+        repo_root,
+        mine=bool(getattr(args, "mine", False)),
+        status=getattr(args, "status", None),
+    )
+    if error:
+        print(colored(f"Error: {error}", Colors.RED), file=sys.stderr)
+        return 1
+    print(
+        json.dumps(
+            {
+                "tasks": records or [],
+                "count": len(records or []),
+                "filters": {
+                    "mine": bool(getattr(args, "mine", False)),
+                    "status": getattr(args, "status", None),
+                },
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 
