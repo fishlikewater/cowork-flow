@@ -133,6 +133,7 @@ class SkillRoutingTest(unittest.TestCase):
                         "nextAction",
                         "activatedSkill",
                         "actionCommand",
+                        "diagnosticsCommand",
                         "mutatesState",
                         "lifecycleCheck",
                         "runtimeGate",
@@ -143,6 +144,7 @@ class SkillRoutingTest(unittest.TestCase):
                 self.assertEqual(route["nextAction"], route["action"]["id"])
                 self.assertEqual(route["activatedSkill"], route["action"]["activatedSkill"])
                 self.assertEqual(route["actionCommand"], route["action"]["command"])
+                self.assertEqual(route["diagnosticsCommand"], route["action"]["diagnosticsCommand"])
                 self.assertEqual(route["mutatesState"], route["action"]["mutatesState"])
                 self.assertEqual(route["lifecycleCheck"], route["action"]["lifecycleCheck"])
                 self.assertEqual(route["runtimeGate"], route["action"]["runtimeGate"])
@@ -184,6 +186,28 @@ class SkillRoutingTest(unittest.TestCase):
         self.assertEqual("discuss_options", route["nextAction"])
         self.assertIsNone(route["activatedSkill"])
         self.assertIsNone(route["recommendedSkill"])
+        self.assertIsNone(route["diagnosticsCommand"])
+
+    def test_review_actions_expose_advisory_diagnostics_command(self) -> None:
+        navigation = self._navigation()
+
+        for status in ("in_progress", "review"):
+            with self.subTest(status=status):
+                route = navigation.route_request(
+                    status=status,
+                    intent="review",
+                    context="main",
+                    blockers=(),
+                    active_target=True,
+                    task_path=".cowork-flow/tasks/05-19-demo",
+                )
+
+                self.assertEqual("task-review", route["activatedSkill"])
+                self.assertEqual(
+                    "./.cowork-flow/run review-check .cowork-flow/tasks/05-19-demo --json",
+                    route["diagnosticsCommand"],
+                )
+                self.assertTrue(route["action"]["runnable"])
 
     def test_kernel_route_contains_no_skill_cli_or_prompt_ownership(self) -> None:
         source = (

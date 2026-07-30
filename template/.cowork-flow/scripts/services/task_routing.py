@@ -47,6 +47,12 @@ def _action_command(action_id: str, task_path: str | None, template: str | None)
     return None
 
 
+def _diagnostics_command(task_path: str | None, template: str | None) -> str | None:
+    if template:
+        return template.replace("<task-dir>", task_path or "<task-dir>")
+    return None
+
+
 def _action_contract(
     *,
     status: str,
@@ -90,6 +96,10 @@ def _action_contract(
         "label": owner.label if owner is not None else action_id,
         "activatedSkill": owner.skill if owner is not None else None,
         "command": _action_command(action_id, task_path, owner.command if owner else None),
+        "diagnosticsCommand": _diagnostics_command(
+            task_path,
+            owner.diagnostics_command if owner else None,
+        ),
         "mutatesState": action["mutatesState"],
         "lifecycleCheck": lifecycle_check,
         "runtimeGate": lifecycle_check,
@@ -141,6 +151,7 @@ def route_request(
         "nextAction": action["id"],
         "activatedSkill": action["activatedSkill"],
         "actionCommand": action["command"],
+        "diagnosticsCommand": action["diagnosticsCommand"],
         "mutatesState": action["mutatesState"],
         "lifecycleCheck": action["lifecycleCheck"],
         "runtimeGate": action["runtimeGate"],

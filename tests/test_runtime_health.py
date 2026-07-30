@@ -70,6 +70,19 @@ class RuntimeHealthTest(unittest.TestCase):
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(source, target)
 
+    def _source_checkout_fixture(self, root: Path) -> None:
+        shutil.copytree(TEMPLATE / ".cowork-flow" / "scripts", root / "template" / ".cowork-flow" / "scripts")
+        shutil.copytree(TEMPLATE / "skills", root / "template" / "skills")
+        source_contract = TEMPLATE / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+        target_contract = root / "template" / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+        target_contract.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_contract, target_contract)
+        for relative in self.doctor.SOURCE_CHECKOUT_BOOTSTRAP_FILES:
+            source = root / "template" / relative
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+
     def test_installed_codex_project_does_not_require_source_template(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -80,6 +93,46 @@ class RuntimeHealthTest(unittest.TestCase):
                 result = self.doctor._run_checks(root)
 
         self.assertEqual(0, result)
+
+    def test_source_checkout_does_not_require_full_ignored_live_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._source_checkout_fixture(root)
+
+            errors = self.doctor.check_distribution(root)
+
+        self.assertEqual([], errors)
+
+    def test_source_checkout_detects_tracked_bootstrap_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._source_checkout_fixture(root)
+            bootstrap = root / ".cowork-flow" / "scripts" / "adapters" / "cli" / "task_navigation.py"
+            bootstrap.write_text(
+                bootstrap.read_text(encoding="utf-8") + "\n# tracked drift\n",
+                encoding="utf-8",
+            )
+
+            errors = self.doctor.check_distribution(root)
+
+        self.assertTrue(any("source bootstrap drift" in error for error in errors), errors)
+
+    def test_source_checkout_detects_present_local_live_runtime_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._source_checkout_fixture(root)
+            source = root / "template" / ".cowork-flow" / "scripts" / "runtime" / "session_state.py"
+            live = root / ".cowork-flow" / "scripts" / "runtime" / "session_state.py"
+            live.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, live)
+            live.write_text(
+                live.read_text(encoding="utf-8") + "\n# local drift\n",
+                encoding="utf-8",
+            )
+
+            errors = self.doctor.check_distribution(root)
+
+        self.assertTrue(any("local live runtime drift" in error for error in errors), errors)
 
     def test_distribution_detects_claude_skill_replica_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -122,6 +175,38 @@ class RuntimeHealthTest(unittest.TestCase):
             errors = self.doctor.check_distribution(root)
 
         self.assertTrue(any("scripts/run.py" in error for error in errors), errors)
+
+    def test_task_hygiene_reports_stale_tasks_without_failing_health(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks = root / ".cowork-flow" / "tasks"
+            completed = tasks / "05-19-completed"
+            in_progress = tasks / "05-20-in-progress"
+            missing_context = tasks / "05-21-missing-context"
+            for task_dir, status in (
+                (completed, "completed"),
+                (in_progress, "in_progress"),
+                (missing_context, "planning"),
+            ):
+                task_dir.mkdir(parents=True)
+                (task_dir / "task.json").write_text(
+                    f'{{"status": "{status}", "assignee": "codex"}}\n',
+                    encoding="utf-8",
+                )
+            (missing_context / "implement.jsonl").write_text('{"file": "README.md"}\n', encoding="utf-8")
+
+            issues = self.doctor.check_task_hygiene(root)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+                io.StringIO()
+            ):
+                result = self.doctor._run_task_hygiene_checks(root)
+
+        kinds = {issue["kind"] for issue in issues}
+        self.assertEqual(0, result)
+        self.assertIn("completed_unarchived", kinds)
+        self.assertIn("in_progress_unbound", kinds)
+        self.assertIn("missing_task_context", kinds)
+        self.assertTrue(all(issue["hint"].startswith("./.cowork-flow/run ") for issue in issues))
 
 
 if __name__ == "__main__":

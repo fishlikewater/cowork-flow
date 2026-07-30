@@ -27,6 +27,7 @@ class SkillAction:
     lifecycle_check: str | None
     mutates_state: bool
     command: str | None
+    diagnostics_command: str | None
 
 
 @dataclass(frozen=True)
@@ -142,7 +143,14 @@ def _parse_manifest(path: Path, raw: dict[str, Any]) -> SkillManifest:
         _reject_unknown_fields(
             item,
             allowed=frozenset(
-                {"id", "label", "lifecycleCheck", "mutatesState", "command"}
+                {
+                    "id",
+                    "label",
+                    "lifecycleCheck",
+                    "mutatesState",
+                    "command",
+                    "diagnosticsCommand",
+                }
             ),
             scope="manifest action",
             path=path,
@@ -162,6 +170,9 @@ def _parse_manifest(path: Path, raw: dict[str, Any]) -> SkillManifest:
         command = item.get("command")
         if command is not None and not isinstance(command, str):
             raise SkillManifestError(f"manifest command is invalid: {path}")
+        diagnostics_command = item.get("diagnosticsCommand")
+        if diagnostics_command is not None and not isinstance(diagnostics_command, str):
+            raise SkillManifestError(f"manifest diagnosticsCommand is invalid: {path}")
         actions.append(
             SkillAction(
                 skill=skill,
@@ -170,6 +181,11 @@ def _parse_manifest(path: Path, raw: dict[str, Any]) -> SkillManifest:
                 lifecycle_check=lifecycle_check.strip() if isinstance(lifecycle_check, str) else None,
                 mutates_state=mutates_state,
                 command=command.strip() if isinstance(command, str) else None,
+                diagnostics_command=(
+                    diagnostics_command.strip()
+                    if isinstance(diagnostics_command, str)
+                    else None
+                ),
             )
         )
 
@@ -333,7 +349,14 @@ def load_skill_manifests(repo_root: Path) -> tuple[SkillManifest, ...]:
 def _manifest_signature(manifest: SkillManifest) -> tuple[object, ...]:
     return (
         tuple(
-            (item.action_id, item.label, item.lifecycle_check, item.mutates_state, item.command)
+            (
+                item.action_id,
+                item.label,
+                item.lifecycle_check,
+                item.mutates_state,
+                item.command,
+                item.diagnostics_command,
+            )
             for item in manifest.actions
         ),
         tuple(

@@ -74,6 +74,27 @@ class SpecReviewContractTest(unittest.TestCase):
             "needs_user_judgment",
             "user_spec_review",
             "lifecycle_check_review",
+            "anti-self-proof",
+            "anti-rationalization",
+            "verification-before-completion",
+        )
+        missing = [marker for marker in required_markers if marker not in skill]
+        self.assertEqual([], missing)
+
+    def test_adversarial_review_skill_uses_severity_and_contract_first_review(self) -> None:
+        skill = (TEMPLATE / "skills" / "adversarial-review" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        required_markers = (
+            "precise context",
+            "severity",
+            "critical",
+            "important",
+            "minor",
+            "verification-before-completion",
+            "anti-rationalization",
+            "Pass only ARTIFACT + CONTRACT",
         )
         missing = [marker for marker in required_markers if marker not in skill]
         self.assertEqual([], missing)
@@ -102,9 +123,28 @@ class SpecReviewContractTest(unittest.TestCase):
 
         self.assertIn("advisory facts", contract)
         self.assertIn("read-only helpers", contract)
+        self.assertIn("diagnosticsCommand", contract)
         self.assertIn("no task-local review evidence file", contract)
         self.assertIn("pass/fail completion verdict", contract)
         self.assertIn("natural-language spec hard gate", contract)
+
+    def test_runtime_health_contract_distinguishes_source_bootstrap_from_local_runtime(self) -> None:
+        contract = (
+            SPEC / "contracts" / "skill-owned-actions.md"
+        ).read_text(encoding="utf-8")
+        skill = (TEMPLATE / "skills" / "runtime-health" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        for marker in (
+            "tracked source checkout bootstrap files",
+            "ignored local live runtime",
+            "template distribution source",
+            "must not force-track the whole `.cowork-flow/` tree",
+            "stale task hygiene",
+        ):
+            self.assertIn(marker, contract)
+            self.assertIn(marker, skill)
 
     def test_removed_gate_modules_do_not_exist_in_template(self) -> None:
         gates_dir = TEMPLATE / ".cowork-flow" / "scripts" / "common" / "gates"

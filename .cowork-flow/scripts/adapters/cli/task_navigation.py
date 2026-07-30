@@ -18,6 +18,13 @@ from services.task_repository import TaskRepository, TaskRepositoryError
 from services.task_routing import _default_intent, route_request
 
 
+RECOVERABLE_TASK_STATUSES = {
+    "in_progress": "active_unbound",
+    "review": "active_unbound",
+    "completed": "completed_unarchived",
+}
+
+
 
 def _display(repo_root: Path, task_dir: Path) -> str:
     try:
@@ -39,6 +46,61 @@ def _blockers(repo_root: Path, task_dir: Path) -> list[str]:
     blockers = list(TaskContextService(repo_root).start_blockers(task_dir))
     blockers.extend(task_readiness_blockers(repo_root, task_dir))
     return blockers
+
+
+def repository_recovery_signals(repo_root: Path) -> list[dict[str, str]]:
+    tasks_dir = repo_root / ".cowork-flow" / "tasks"
+    if not tasks_dir.is_dir():
+        return []
+    signals: list[dict[str, str]] = []
+    for task_dir in sorted(tasks_dir.iterdir()):
+        if not task_dir.is_dir() or task_dir.name == "archive":
+            continue
+        status = _status(repo_root, task_dir)
+        kind = RECOVERABLE_TASK_STATUSES.get(status)
+        if kind is None:
+            continue
+        task = _display(repo_root, task_dir)
+        hint = f"./.cowork-flow/run task next {task} --run"
+        if kind == "completed_unarchived":
+            hint = f"{hint} --intent archive"
+        signals.append(
+            {
+                "kind": kind,
+                "task": task,
+                "status": status,
+                "hint": hint,
+            }
+        )
+    return signals
+
+
+def _attach_recovery(payload: dict[str, object], repo_root: Path) -> dict[str, object]:
+    signals = repository_recovery_signals(repo_root)
+    if signals:
+        payload["recovery"] = {
+            "signals": signals,
+            "listCommand": "./.cowork-flow/run task next --list --json",
+        }
+    return payload
+
+
+def _print_recovery(payload: dict[str, object]) -> None:
+    recovery = payload.get("recovery")
+    if not isinstance(recovery, dict):
+        return
+    signals = recovery.get("signals")
+    if not isinstance(signals, list) or not signals:
+        return
+    print("Recovery:")
+    for signal in signals:
+        if isinstance(signal, dict):
+            print(
+                f"  - {signal.get('kind')}: {signal.get('task')} "
+                f"({signal.get('status')})"
+            )
+            print(f"    Hint: {signal.get('hint')}")
+    print(f"List: {recovery.get('listCommand')}")
 
 
 def _print_blockers(blockers: list[str]) -> None:
@@ -105,6 +167,9 @@ def _print_text_payload(payload: dict[str, object]) -> None:
     print(f"Next action: {action['label']}")
     print(f"Skill: {action['activatedSkill'] or 'none'}")
     print(f"Command: {action['command'] or 'none'}")
+    diagnostics_command = action.get("diagnosticsCommand")
+    if diagnostics_command:
+        print(f"Diagnostics: {diagnostics_command}")
     blockers = payload["blockers"]
     if not isinstance(blockers, list):
         raise TypeError("navigation payload blockers must be a list")
@@ -123,13 +188,15 @@ def _navigation_target(args, repo_root: Path, structured: bool):
     if active.task_path:
         return repo_root / active.task_path, active.task_path, source, True
     if structured:
-        _print_json_route(
+        payload = build_navigation_payload(
             args=args,
             status="no_task",
             blockers=[],
             active_target=False,
             task_path=None,
         )
+        _attach_recovery(payload, repo_root)
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=False))
     else:
         print("Status: no_task")
         print(f"Source: {source}")
@@ -140,7 +207,9 @@ def _navigation_target(args, repo_root: Path, structured: bool):
             blockers=[],
             active_target=False,
         )
+        _attach_recovery(payload, repo_root)
         _print_text_payload(payload)
+        _print_recovery(payload)
     return None
 
 

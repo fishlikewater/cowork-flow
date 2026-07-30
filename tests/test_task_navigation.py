@@ -119,6 +119,7 @@ class TaskNavigationTest(FlowScriptTestCase):
                     "nextAction",
                     "activatedSkill",
                     "actionCommand",
+                    "diagnosticsCommand",
                     "mutatesState",
                     "lifecycleCheck",
                     "runtimeGate",
@@ -132,6 +133,7 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual("answer_questions", payload["nextAction"])
             self.assertFalse(payload["mutatesState"])
             self.assertIsNone(payload["actionCommand"])
+            self.assertIsNone(payload["diagnosticsCommand"])
             self.assertIsNone(payload["lifecycleCheck"])
             self.assertIsNone(payload["runtimeGate"])
 
@@ -350,6 +352,49 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertIn("05-19-demo/", stdout.getvalue())
 
+    def test_task_next_list_json_outputs_machine_readable_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {
+                        "status": "planning",
+                        "assignee": "codex",
+                        "title": "Demo",
+                        "children": [],
+                        "parent": None,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                    result = self.task.cmd_next(
+                        argparse.Namespace(
+                            dir=None,
+                            json=True,
+                            run=False,
+                            intent=None,
+                            validate=False,
+                            list_tasks=True,
+                            mine=False,
+                            status=None,
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual(1, payload["count"])
+            self.assertEqual(".cowork-flow/tasks/05-19-demo", payload["tasks"][0]["path"])
+            self.assertEqual("planning", payload["tasks"][0]["status"])
+
     def test_cmd_current_prints_session_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -407,6 +452,45 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertNotIn("./.cowork-flow/run task create", output)
             self.assertNotIn("delegated prompt", output)
             self.assertFalse((root / ".cowork-flow" / "tasks").exists())
+
+    def test_cmd_next_json_reports_repository_recovery_when_session_has_no_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            completed_dir = root / ".cowork-flow" / "tasks" / "05-20-completed"
+            for path, status in ((task_dir, "in_progress"), (completed_dir, "completed")):
+                path.mkdir(parents=True)
+                (path / "task.json").write_text(
+                    json.dumps({"status": status, "assignee": "codex"}),
+                    encoding="utf-8",
+                )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(dir=None, json=True, intent="implement")
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual("no_task", payload["status"])
+            recovery = payload["recovery"]
+            self.assertEqual(
+                "./.cowork-flow/run task next --list --json",
+                recovery["listCommand"],
+            )
+            self.assertEqual(
+                {
+                    ("active_unbound", ".cowork-flow/tasks/05-19-demo"),
+                    ("completed_unarchived", ".cowork-flow/tasks/05-20-completed"),
+                },
+                {(signal["kind"], signal["task"]) for signal in recovery["signals"]},
+            )
 
     def test_cmd_next_reports_planning_blockers_without_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -521,6 +605,7 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertIn("Status: review", output)
             self.assertIn("Next action: complete reviewed task", output)
             self.assertIn("Skill: task-review", output)
+            self.assertIn("Diagnostics: ./.cowork-flow/run review-check .cowork-flow/tasks/05-19-demo --json", output)
             self.assertIn("./.cowork-flow/run task next .cowork-flow/tasks/05-19-demo --run --intent review", output)
             self.assertNotIn("cowork-check", output)
             self.assertNotIn("./.cowork-flow/run task complete", output)
@@ -548,6 +633,10 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertEqual("review", payload["status"])
             self.assertEqual(["decision-anchor.md"], payload["requiredArtifacts"])
+            self.assertEqual(
+                "./.cowork-flow/run review-check .cowork-flow/tasks/05-19-demo --json",
+                payload["diagnosticsCommand"],
+            )
             self.assertNotIn("check.jsonl", payload["requiredArtifacts"])
 
     def test_cmd_next_completed_renders_only_archive_action_contract(self) -> None:
@@ -722,6 +811,26 @@ class TaskNavigationTest(FlowScriptTestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+
+    def test_task_next_run_dispatch_lives_in_runner_module(self) -> None:
+        task_source = (
+            ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" / "task.py"
+        ).read_text(encoding="utf-8")
+        runner_source = (
+            ROOT
+            / "template"
+            / ".cowork-flow"
+            / "scripts"
+            / "adapters"
+            / "cli"
+            / "task_next_runner.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("run_next_action", task_source)
+        self.assertIn("NextActionHandlers", task_source)
+        self.assertIn("def run_next_action", runner_source)
+        self.assertNotIn("def _dispatch_next_lifecycle_action", task_source)
+        self.assertNotIn("def _validated_next_action", task_source)
 
     def test_cmd_next_routes_active_ready_planning_task_to_implementation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

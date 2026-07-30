@@ -16,6 +16,9 @@ Use this Skill during the check phase, before the `task next --run` completion a
 - Prefer fresh verification from the current checkout over stale prior output.
 - Do not create task-local review artifact files. The review result and command output are the evidence.
 - Use advisory helper output only as review input; it must not become a second lifecycle gate.
+- Use anti-self-proof discipline: do not accept the agent's own summary, checklist, or intended test coverage as proof without exact diff, command output, or source evidence.
+- Use anti-rationalization discipline: treat convenient explanations for missing tests, missing specs, or unchecked lifecycle blockers as findings until verified.
+- Keep verification-before-completion explicit: completion requires current commands from this checkout, not stale logs or advisory helper confidence.
 
 ## Inputs
 
@@ -39,6 +42,8 @@ Read only what is needed for the current task:
 - **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against applicable user specs.
 - **Lifecycle blockers**: state/scope blockers are fixed before acceptance; review does not invent hard blockers for natural-language specs.
 - **Advisory facts**: helper output is used to focus review, not to declare pass/fail or block completion.
+- **Anti-self-proof**: every claimed pass maps to source, diff, test output, or lifecycle output.
+- **Anti-rationalization**: every accepted gap has an explicit user decision or narrow technical reason.
 
 ## Severity
 
