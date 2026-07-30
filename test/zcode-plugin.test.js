@@ -9,6 +9,9 @@ import { runInstallZCodePlugin } from '../src/commands/install-zcode-plugin.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { templateRoot } from '../src/lib/paths.js';
 
+const LOCAL_MARKETPLACE = 'cowork-flow-local';
+const OFFICIAL_MARKETPLACE = 'zcode-plugins-official';
+
 async function listRelativeFiles(root) {
   const { readdir } = await import('node:fs/promises');
   const result = [];
@@ -36,10 +39,22 @@ async function installedPluginRoot(zcodeHome) {
     'cli',
     'plugins',
     'cache',
-    'zcode-plugins-official',
+    LOCAL_MARKETPLACE,
     'cowork-flow',
     version
   );
+}
+
+function localMarketplaceDir(zcodeHome) {
+  return join(zcodeHome, 'cli', 'plugins', 'marketplaces', LOCAL_MARKETPLACE);
+}
+
+function localMarketplaceSourceDir(zcodeHome) {
+  return join(zcodeHome, 'cli', 'plugins', 'cache', 'marketplaces', LOCAL_MARKETPLACE);
+}
+
+function localCacheRoot(zcodeHome) {
+  return join(zcodeHome, 'cli', 'plugins', 'cache', LOCAL_MARKETPLACE, 'cowork-flow');
 }
 
 async function readJson(path) {
@@ -181,7 +196,71 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   assert.doesNotMatch(implementAgent, /\.agents\/skills/);
 });
 
-test('install-zcode-plugin writes documented marketplace source entry', async (t) => {
+test('install-zcode-plugin writes local marketplace and known marketplace entry', async (t) => {
+  const zcodeHome = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-home-'));
+  const originalZCodeHome = process.env.ZCODE_HOME;
+  process.env.ZCODE_HOME = zcodeHome;
+  t.after(async () => {
+    if (originalZCodeHome === undefined) {
+      delete process.env.ZCODE_HOME;
+    } else {
+      process.env.ZCODE_HOME = originalZCodeHome;
+    }
+    await rm(zcodeHome, { recursive: true, force: true });
+  });
+
+  const knownPath = join(zcodeHome, 'cli', 'plugins', 'known_marketplaces.json');
+  await mkdir(join(knownPath, '..'), { recursive: true });
+  await writeFile(
+    knownPath,
+    JSON.stringify({
+      version: 1,
+      marketplaces: [
+        {
+          id: OFFICIAL_MARKETPLACE,
+          source: { source: 'url', url: 'https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json' },
+          name: OFFICIAL_MARKETPLACE
+        }
+      ]
+    }, null, 2),
+    'utf8'
+  );
+
+  await runInstallZCodePlugin(['--force']);
+
+  const pluginRoot = await installedPluginRoot(zcodeHome);
+  const marketplacePath = join(localMarketplaceDir(zcodeHome), 'marketplace.json');
+  const marketplaceSourcePath = join(localMarketplaceSourceDir(zcodeHome), 'marketplace.json');
+  const marketplace = await readJson(marketplacePath);
+  const sourceMarketplace = await readJson(marketplaceSourcePath);
+  const entry = marketplace.plugins.find((plugin) => plugin.name === 'cowork-flow');
+
+  assert.deepEqual(sourceMarketplace, marketplace);
+
+  assert.equal(marketplace.name, LOCAL_MARKETPLACE);
+  assert.equal(marketplace.version, 1);
+  assert.ok(entry);
+  assert.equal(entry.cachePath, undefined);
+  assert.equal(entry.category, 'developer-tools');
+  assert.deepEqual(entry.source, {
+    source: 'directory',
+    path: pluginRoot.replaceAll('\\', '/')
+  });
+
+  const known = await readJson(knownPath);
+  const knownEntry = known.marketplaces.find((marketplaceEntry) => marketplaceEntry.id === LOCAL_MARKETPLACE);
+  assert.equal(known.version, 1);
+  assert.ok(knownEntry);
+  assert.ok(known.marketplaces.find((marketplaceEntry) => marketplaceEntry.id === OFFICIAL_MARKETPLACE));
+  assert.deepEqual(knownEntry.source, {
+    source: 'directory',
+    path: localMarketplaceSourceDir(zcodeHome).replaceAll('\\', '/')
+  });
+  assert.notEqual(knownEntry.source.path, localMarketplaceDir(zcodeHome).replaceAll('\\', '/'));
+  assert.equal(knownEntry.pluginCount, 1);
+});
+
+test('install-zcode-plugin restores active marketplace from stable source after refresh deletion', async (t) => {
   const zcodeHome = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-home-'));
   const originalZCodeHome = process.env.ZCODE_HOME;
   process.env.ZCODE_HOME = zcodeHome;
@@ -196,23 +275,143 @@ test('install-zcode-plugin writes documented marketplace source entry', async (t
 
   await runInstallZCodePlugin(['--force']);
 
-  const pluginRoot = await installedPluginRoot(zcodeHome);
-  const marketplace = await readJson(join(
+  const activeMarketplaceDir = localMarketplaceDir(zcodeHome);
+  const sourceMarketplacePath = join(localMarketplaceSourceDir(zcodeHome), 'marketplace.json');
+  await access(sourceMarketplacePath);
+
+  await rm(activeMarketplaceDir, { recursive: true, force: true });
+  await assert.rejects(access(join(activeMarketplaceDir, 'marketplace.json')));
+  await access(sourceMarketplacePath);
+
+  await runInstallZCodePlugin([]);
+
+  assert.deepEqual(
+    await readJson(join(activeMarketplaceDir, 'marketplace.json')),
+    await readJson(sourceMarketplacePath)
+  );
+});
+
+test('install-zcode-plugin dry-run does not update marketplace metadata', async (t) => {
+  const zcodeHome = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-home-'));
+  const originalZCodeHome = process.env.ZCODE_HOME;
+  process.env.ZCODE_HOME = zcodeHome;
+  t.after(async () => {
+    if (originalZCodeHome === undefined) {
+      delete process.env.ZCODE_HOME;
+    } else {
+      process.env.ZCODE_HOME = originalZCodeHome;
+    }
+    await rm(zcodeHome, { recursive: true, force: true });
+  });
+
+  await mkdir(await installedPluginRoot(zcodeHome), { recursive: true });
+  const knownPath = join(zcodeHome, 'cli', 'plugins', 'known_marketplaces.json');
+  await mkdir(join(knownPath, '..'), { recursive: true });
+  await writeFile(knownPath, JSON.stringify({ version: 1, marketplaces: [] }, null, 2), 'utf8');
+
+  const officialMarketplacePath = join(
     zcodeHome,
     'cli',
     'plugins',
     'marketplaces',
-    'zcode-plugins-official',
+    OFFICIAL_MARKETPLACE,
     'marketplace.json'
-  ));
-  const entry = marketplace.plugins.find((plugin) => plugin.name === 'cowork-flow');
+  );
+  await mkdir(join(officialMarketplacePath, '..'), { recursive: true });
+  await writeFile(
+    officialMarketplacePath,
+    JSON.stringify({
+      name: OFFICIAL_MARKETPLACE,
+      plugins: [{ name: 'cowork-flow', version: '0.0.44', source: { source: 'directory', path: 'legacy' } }],
+      version: 1
+    }, null, 2),
+    'utf8'
+  );
 
-  assert.ok(entry);
-  assert.equal(entry.cachePath, undefined);
-  assert.deepEqual(entry.source, {
-    source: 'directory',
-    path: pluginRoot.replaceAll('\\', '/')
+  await runInstallZCodePlugin(['--dry-run']);
+
+  await assert.rejects(access(join(localMarketplaceDir(zcodeHome), 'marketplace.json')));
+  assert.deepEqual(await readJson(knownPath), { version: 1, marketplaces: [] });
+  const officialMarketplace = await readJson(officialMarketplacePath);
+  assert.equal(officialMarketplace.plugins.length, 1);
+  assert.equal(officialMarketplace.plugins[0].name, 'cowork-flow');
+});
+
+test('install-zcode-plugin preserves old versions by default and prunes on request', async (t) => {
+  const zcodeHome = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-home-'));
+  const originalZCodeHome = process.env.ZCODE_HOME;
+  process.env.ZCODE_HOME = zcodeHome;
+  t.after(async () => {
+    if (originalZCodeHome === undefined) {
+      delete process.env.ZCODE_HOME;
+    } else {
+      process.env.ZCODE_HOME = originalZCodeHome;
+    }
+    await rm(zcodeHome, { recursive: true, force: true });
   });
+
+  const oldVersionDir = join(localCacheRoot(zcodeHome), '0.0.1');
+  await mkdir(oldVersionDir, { recursive: true });
+  await writeFile(join(oldVersionDir, 'marker.txt'), 'old version', 'utf8');
+
+  await runInstallZCodePlugin(['--force']);
+
+  const currentRoot = await installedPluginRoot(zcodeHome);
+  await access(currentRoot);
+  await access(join(oldVersionDir, 'marker.txt'));
+
+  await runInstallZCodePlugin(['--force', '--prune-old']);
+
+  await access(currentRoot);
+  await assert.rejects(access(oldVersionDir));
+});
+
+test('install-zcode-plugin removes legacy official marketplace entry', async (t) => {
+  const zcodeHome = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-home-'));
+  const originalZCodeHome = process.env.ZCODE_HOME;
+  process.env.ZCODE_HOME = zcodeHome;
+  t.after(async () => {
+    if (originalZCodeHome === undefined) {
+      delete process.env.ZCODE_HOME;
+    } else {
+      process.env.ZCODE_HOME = originalZCodeHome;
+    }
+    await rm(zcodeHome, { recursive: true, force: true });
+  });
+
+  const officialMarketplacePath = join(
+    zcodeHome,
+    'cli',
+    'plugins',
+    'marketplaces',
+    OFFICIAL_MARKETPLACE,
+    'marketplace.json'
+  );
+  await mkdir(join(officialMarketplacePath, '..'), { recursive: true });
+  await writeFile(
+    officialMarketplacePath,
+    JSON.stringify({
+      name: OFFICIAL_MARKETPLACE,
+      plugins: [
+        { name: 'cowork-flow', version: '0.0.44', source: { source: 'directory', path: 'legacy' } },
+        { name: 'zcode-guide', version: '0.1.0', source: 'filesystem' }
+      ],
+      version: 1
+    }, null, 2),
+    'utf8'
+  );
+
+  await runInstallZCodePlugin(['--force']);
+
+  const officialMarketplace = await readJson(officialMarketplacePath);
+  assert.equal(
+    officialMarketplace.plugins.some((plugin) => plugin.name === 'cowork-flow'),
+    false
+  );
+  assert.equal(
+    officialMarketplace.plugins.some((plugin) => plugin.name === 'zcode-guide'),
+    true
+  );
 });
 
 test('zcode scaffold cannot create workflow files in module directories', async (t) => {

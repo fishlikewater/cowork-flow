@@ -12,7 +12,7 @@ const HELP = `cowork-flow
 
 Usage:
   cowork-flow init [target] --platform <codex|opencode|claude-code|all> [--developer <name>] [--dry-run] [--force]
-  cowork-flow install-zcode-plugin [--force]
+  cowork-flow install-zcode-plugin [--dry-run] [--force] [--prune-old]
   cowork-flow update
   cowork-flow sync [target] [--dry-run] [--force]
   cowork-flow --version
