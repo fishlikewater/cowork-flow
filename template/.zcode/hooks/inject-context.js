@@ -29,7 +29,22 @@ const DEFAULT_CONTRACT_REGISTRY = {
   ],
 };
 
-function detectEventName() {
+function readHookInput() {
+  if (process.stdin.isTTY) return {};
+  try {
+    const raw = readFileSync(0, "utf8").trim();
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function detectEventName(input) {
+  if (typeof input?.hook_event_name === "string" && input.hook_event_name.trim()) {
+    return input.hook_event_name.trim();
+  }
   if (process.env.CURSOR_PLUGIN_ROOT) return "SessionStart";
   return "UserPromptSubmit";
 }
@@ -43,18 +58,29 @@ function outputFormat() {
 // ---------------------------------------------------------------------------
 // Find project root
 // ---------------------------------------------------------------------------
-function findProjectRoot() {
-  const envDir = process.env.ZCODE_PROJECT_DIR;
-  if (envDir) {
-    return existsSync(join(envDir, DIR_WORKFLOW)) ? envDir : null;
-  }
-  let current = process.cwd();
+function findWorkflowRoot(startDir) {
+  if (typeof startDir !== "string" || !startDir.trim()) return null;
+  let current = startDir;
   const root = dirname(current);
   while (current !== root) {
     if (existsSync(join(current, DIR_WORKFLOW))) return current;
     current = dirname(current);
   }
   return existsSync(join(current, DIR_WORKFLOW)) ? current : null;
+}
+
+function findProjectRoot(input) {
+  const candidates = [
+    input?.cwd,
+    process.env.ZCODE_PROJECT_DIR,
+    process.env.CLAUDE_PROJECT_DIR,
+    process.cwd(),
+  ];
+  for (const candidate of candidates) {
+    const root = findWorkflowRoot(candidate);
+    if (root) return root;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -289,14 +315,15 @@ function main() {
     process.exit(0);
   }
 
-  const event = detectEventName();
+  const input = readHookInput();
+  const event = detectEventName(input);
   const format = outputFormat();
-  const repoRoot = findProjectRoot();
+  const repoRoot = findProjectRoot(input);
 
   let context;
 
-  const envDir = process.env.ZCODE_PROJECT_DIR;
-  const effectiveRoot = repoRoot || (envDir && existsSync(join(envDir, DIR_WORKFLOW)) ? envDir : null);
+  const envDir = process.env.ZCODE_PROJECT_DIR || process.env.CLAUDE_PROJECT_DIR;
+  const effectiveRoot = repoRoot || findWorkflowRoot(envDir);
 
   if (!effectiveRoot) {
     context = `<workflow-state>
@@ -308,7 +335,7 @@ Source: cowork-flow-plugin
 </workflow-state>`;
   } else {
     // PRIORITY 1: Detect delegated_subtask from runtime context
-    const userPrompt = "";
+    const userPrompt = typeof input.prompt === "string" ? input.prompt : "";
     const delegated = detectDelegatedSubtask(effectiveRoot, userPrompt);
     if (delegated) {
       context = buildDelegatedSubtask(delegated.contextId, delegated.ctx);
@@ -321,7 +348,7 @@ Source: cowork-flow-plugin
   }
 
   // Inject contract digest
-  const rootForDigest = effectiveRoot || envDir;
+  const rootForDigest = effectiveRoot || envDir || input.cwd;
   if (rootForDigest) {
     const contractDigest = buildContractDigest(rootForDigest);
     context = `${contractDigest}\n\n${context}`;

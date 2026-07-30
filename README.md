@@ -39,7 +39,7 @@ template/
 ├── .codex/                    # Codex agents / hooks / config
 ├── .claude/                   # Claude Code settings / agents / hooks
 ├── .opencode/                 # OpenCode agents / commands / plugins
-├── .zcode/                    # ⭐ ZCode 插件（hooks + skills + scaffold instructions）
+├── .zcode/                    # ⭐ ZCode 插件（hooks + skills + agents + scaffold instructions）
 └── .cowork-flow/
     ├── config.yaml            # 项目配置
     ├── scripts/               # Python 运行时
@@ -105,14 +105,19 @@ cowork-flow install-zcode-plugin     # 安装
 cowork-flow install-zcode-plugin --force  # 覆盖已安装
 ```
 
-安装到 `~/.zcode/cli/plugins/cache/zcode-plugins-official/cowork-flow/<version>/`
+安装到 `~/.zcode/cli/plugins/cache/zcode-plugins-official/cowork-flow/<version>/`，并在本地 ZCode marketplace 中登记为 directory source。
 
-ZCode 插件只安装 hook、skills 和轻量说明文件；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
+ZCode 插件只安装 hook、skills、agents 和轻量说明文件；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
 
 **Hook 注入内容：**
 - `workflow-state` — 当前任务状态
 - `contract-digest` — 合同摘要（SHA256 fingerprint）
 - `delegated_subtask` — 子代理运行时上下文
+
+**插件子代理：**
+- `cowork-implement` — 绑定 runtime context 后执行计划内实现
+- `cowork-check` — 绑定 runtime context 后做独立检查
+- `cowork-research` — 绑定 runtime context 后做只读调研
 
 ## 任务流程
 

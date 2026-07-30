@@ -6,5 +6,7 @@
     "name": "fisklikewater"
   },
   "license": "MIT",
+  "hooks": "hooks/hooks.json",
+  "agents": "agents",
   "skills": "skills"
 }

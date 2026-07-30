@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -115,6 +116,54 @@ class SubagentDispatchTest(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(".cowork-flow/tasks/05-29-demo", payload["taskDir"])
             self.assertEqual("formal", payload["dispatchKind"])
+
+    def test_init_detects_zcode_host_and_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            env = {
+                **os.environ,
+                "ZCODE_SESSION_ID": "zc-main",
+            }
+            for name in (
+                "CLAUDE_CODE_SESSION_ID",
+                "CLAUDE_SESSION_ID",
+                "CODEX_SESSION_ID",
+                "CODEX_THREAD_ID",
+                "OPENCODE_SESSION_ID",
+            ):
+                env.pop(name, None)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "init",
+                    "--title",
+                    "ZCode check",
+                    "--role",
+                    "check",
+                    "--agent-type",
+                    "cowork-check",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["hostContextKey"].startswith("zcode_"))
+
+            context = json.loads((root / payload["runtimeContextFile"]).read_text(encoding="utf-8"))
+            self.assertEqual("zcode", context["host"])
+            self.assertEqual("zcode.plugin", context["adapter"])
+            self.assertEqual("cowork-check", context["agent_type"])
 
     def test_init_rejects_fixed_agent_role_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

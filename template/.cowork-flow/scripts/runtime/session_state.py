@@ -69,6 +69,7 @@ def _resolve_env_context_key() -> str | None:
         return _sanitize(explicit)
 
     for prefix, env_name in (
+        ("zcode", "ZCODE_SESSION_ID"),
         ("opencode", "OPENCODE_SESSION_ID"),
         ("claude", "CLAUDE_SESSION_ID"),
         ("claude", "CLAUDE_CODE_SESSION_ID"),
@@ -90,6 +91,7 @@ def _resolve_input_context_key(values: Mapping[str, object] | None) -> str | Non
         return _sanitize(explicit)
 
     for prefix, names in (
+        ("zcode", ("ZCODE_SESSION_ID", "zcode_session_id")),
         ("opencode", ("OPENCODE_SESSION_ID", "opencode_session_id", "sessionID", "sessionId")),
         ("claude", ("CLAUDE_SESSION_ID", "claude_session_id", "CLAUDE_CODE_SESSION_ID", "claude_code_session_id")),
         ("codex", ("CODEX_SESSION_ID", "codex_session_id", "session_id")),
