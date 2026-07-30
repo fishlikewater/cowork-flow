@@ -103,9 +103,12 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 ```bash
 cowork-flow install-zcode-plugin     # 安装
 cowork-flow install-zcode-plugin --force  # 覆盖已安装
+cowork-flow install-zcode-plugin --force --prune-old  # 覆盖并清理旧版本缓存
 ```
 
-安装到 `~/.zcode/cli/plugins/cache/zcode-plugins-official/cowork-flow/<version>/`，并在本地 ZCode marketplace 中登记为 directory source。
+安装到 `~/.zcode/cli/plugins/cache/cowork-flow-local/cowork-flow/<version>/`。安装器会同时写入稳定 marketplace source：`~/.zcode/cli/plugins/cache/marketplaces/cowork-flow-local/marketplace.json`，以及 ZCode 当前使用的活动副本：`~/.zcode/cli/plugins/marketplaces/cowork-flow-local/marketplace.json`。`known_marketplaces.json` 指向稳定 source 目录，避免 ZCode 刷新活动副本时删除自己的 source。
+
+安装新版本时，marketplace 中只保留一个 `cowork-flow` entry 并指向最新版本目录；旧版本缓存默认保留，避免正在运行的 ZCode session 仍引用旧插件根目录。需要清理旧版本时显式传 `--prune-old`。
 
 ZCode 插件只安装 hook、skills、agents 和轻量说明文件；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
 
