@@ -128,7 +128,7 @@ class SpecReviewContractTest(unittest.TestCase):
         self.assertIn("pass/fail completion verdict", contract)
         self.assertIn("natural-language spec hard gate", contract)
 
-    def test_runtime_health_contract_distinguishes_source_bootstrap_from_local_runtime(self) -> None:
+    def test_runtime_health_contract_distinguishes_template_source_from_optional_local_runtime(self) -> None:
         contract = (
             SPEC / "contracts" / "skill-owned-actions.md"
         ).read_text(encoding="utf-8")
@@ -137,10 +137,9 @@ class SpecReviewContractTest(unittest.TestCase):
         )
 
         for marker in (
-            "tracked source checkout bootstrap files",
             "ignored local live runtime",
             "template distribution source",
-            "must not force-track the whole `.cowork-flow/` tree",
+            "must not force-track `.cowork-flow/` runtime files",
             "stale task hygiene",
         ):
             self.assertIn(marker, contract)

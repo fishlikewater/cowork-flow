@@ -77,11 +77,6 @@ class RuntimeHealthTest(unittest.TestCase):
         target_contract = root / "template" / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
         target_contract.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_contract, target_contract)
-        for relative in self.doctor.SOURCE_CHECKOUT_BOOTSTRAP_FILES:
-            source = root / "template" / relative
-            target = root / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
 
     def test_installed_codex_project_does_not_require_source_template(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -103,19 +98,22 @@ class RuntimeHealthTest(unittest.TestCase):
 
         self.assertEqual([], errors)
 
-    def test_source_checkout_detects_tracked_bootstrap_drift(self) -> None:
+    def test_source_checkout_detects_present_navigation_runtime_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._source_checkout_fixture(root)
+            source = root / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" / "task_navigation.py"
             bootstrap = root / ".cowork-flow" / "scripts" / "adapters" / "cli" / "task_navigation.py"
+            bootstrap.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, bootstrap)
             bootstrap.write_text(
-                bootstrap.read_text(encoding="utf-8") + "\n# tracked drift\n",
+                bootstrap.read_text(encoding="utf-8") + "\n# local drift\n",
                 encoding="utf-8",
             )
 
             errors = self.doctor.check_distribution(root)
 
-        self.assertTrue(any("source bootstrap drift" in error for error in errors), errors)
+        self.assertTrue(any("local live runtime drift" in error for error in errors), errors)
 
     def test_source_checkout_detects_present_local_live_runtime_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -174,7 +172,10 @@ class RuntimeHealthTest(unittest.TestCase):
 
             errors = self.doctor.check_distribution(root)
 
-        self.assertTrue(any("scripts/run.py" in error for error in errors), errors)
+        self.assertTrue(
+            any("scripts/run.py" in error.replace("\\", "/") for error in errors),
+            errors,
+        )
 
     def test_task_hygiene_reports_stale_tasks_without_failing_health(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

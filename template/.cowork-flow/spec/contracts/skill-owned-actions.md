@@ -44,10 +44,10 @@ Skill-id priority tables.
 Runtime Health has two scopes. An installed project validates its installed
 runtime, detected host platforms, and installed Skill manifests without
 requiring a `template/` directory. A cowork-flow source checkout distinguishes
-tracked source checkout bootstrap files, ignored local live runtime, and the
-template distribution source. Source checkout health must not force-track the whole `.cowork-flow/` tree: tracked bootstrap files must match the template,
-ignored local live runtime is compared only when present, and Skill replica
-parity is checked for every detected installed Skill target.
+ignored local live runtime from the template distribution source. Source
+checkout health must not force-track `.cowork-flow/` runtime files: local live
+runtime is compared only when present, and Skill replica parity is checked for
+every detected installed Skill target.
 
 Runtime Health also reports stale task hygiene read-only. It may warn about
 completed-unarchived tasks, active-unbound tasks, and missing task context, and
