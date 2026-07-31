@@ -31,12 +31,6 @@ from infra.paths import get_repo_root
 from infra.skill_manifest import SkillManifestError, action_owners, load_skill_manifests
 
 
-SOURCE_CHECKOUT_BOOTSTRAP_FILES = (
-    Path(".cowork-flow/scripts/adapters/cli/task_navigation.py"),
-    Path(".cowork-flow/scripts/adapters/cli/task_parser.py"),
-)
-
-
 def _compare_file(
     left: Path,
     right: Path,
@@ -101,20 +95,8 @@ def check_distribution(repo_root: Path) -> list[str]:
     if _distribution_root(repo_root) == repo_root:
         return errors
     runtime_root = template / ".cowork-flow" / "scripts"
-    bootstrap = set(SOURCE_CHECKOUT_BOOTSTRAP_FILES)
-    for relative in SOURCE_CHECKOUT_BOOTSTRAP_FILES:
-        _compare_file(
-            template / relative,
-            repo_root / relative,
-            errors,
-            missing_left="missing template bootstrap asset",
-            missing_right="missing source bootstrap asset",
-            drift="source bootstrap drift",
-        )
     for source in _distribution_files(runtime_root):
         relative = source.relative_to(template)
-        if relative in bootstrap:
-            continue
         target = repo_root / relative
         if target.is_file():
             _compare_file(

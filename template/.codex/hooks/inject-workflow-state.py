@@ -10,6 +10,12 @@ from pathlib import Path
 from typing import Any
 
 
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def _read_input() -> dict[str, Any]:
     raw = sys.stdin.buffer.read()
     if not raw.strip():
@@ -87,4 +93,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    _configure_stdio()
     raise SystemExit(main())
