@@ -38,12 +38,19 @@ class TaskCommandsTest(FlowScriptTestCase):
             service = SimpleNamespace(
                 review=lambda *args, **kwargs: lifecycle_result,
             )
+            lifecycle_commands = importlib.import_module(
+                "adapters.cli.task_lifecycle_commands"
+            )
 
             previous_cwd = Path.cwd()
             try:
                 os.chdir(root)
                 with (
-                    patch.object(self.task, "TaskLifecycleService", return_value=service),
+                    patch.object(
+                        lifecycle_commands,
+                        "TaskLifecycleService",
+                        return_value=service,
+                    ),
                     contextlib.redirect_stdout(io.StringIO()),
                     contextlib.redirect_stderr(io.StringIO()),
                 ):

@@ -48,6 +48,30 @@ class RuntimeTopologyTest(unittest.TestCase):
         )
         self.assertTrue((SCRIPTS / "runtime" / "execution_context.py").is_file())
 
+    def test_task_cli_lifecycle_commands_live_in_dedicated_adapter(self) -> None:
+        task_source = (
+            SCRIPTS / "adapters" / "cli" / "task.py"
+        ).read_text(encoding="utf-8")
+        lifecycle_commands = (
+            SCRIPTS / "adapters" / "cli" / "task_lifecycle_commands.py"
+        )
+
+        self.assertTrue(lifecycle_commands.is_file())
+        for forbidden in (
+            "def cmd_start(",
+            "def cmd_review(",
+            "def cmd_complete(",
+            "def cmd_finish(",
+            "def cmd_current(",
+            "TaskLifecycleService",
+            "TaskContextService",
+            "from datetime import datetime",
+            "get_active_task",
+            "clear_active_task",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, task_source)
+
     def test_kernel_does_not_import_outer_layers_or_infra(self) -> None:
         self.assertEqual(
             [],
