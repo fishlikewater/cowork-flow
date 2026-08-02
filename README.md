@@ -52,12 +52,12 @@ template/
 
 ## 架构与扩展点
 
-- **应用服务层**：任务创建、生命周期、归档、上下文、任务树和 runtime context 编排位于 `scripts/application/`；命令层只负责参数和输出适配。
-- **状态存储层**：`scripts/common/storage/` 提供显式 UTF-8、修订检查、操作日志和可恢复 Unit of Work；任务与会话写入不再直接散落在命令函数中。
+- **服务层**：任务创建、生命周期、归档、上下文、任务树和 runtime context 编排位于 `scripts/services/`；命令层只负责参数和输出适配。
+- **状态存储层**：`scripts/infra/storage/` 提供显式 UTF-8、修订检查、操作日志和可恢复 Unit of Work；任务与会话写入不再直接散落在命令函数中。
 - **Host Asset Manifest**：`spec/runtime/host-assets.json` 是宿主资产、平台识别、同步策略和 obsolete 迁移清单的权威来源。新增平台或资产时更新 Manifest 与 schema，不在 CLI 中新增硬编码集合。
 - **事务式 init/sync**：CLI 先构建不可变 Asset Plan，在同文件系统 staging 中校验 hash/权限，再按备份清单提交；失败时逆序回滚，`.cowork-flow/.version` 最后更新。
-- **共享 Hook 核心**：Codex 与 Claude Code Hook 只做宿主输入适配，工作流状态解析由 `scripts/common/host/workflow_state_hook.py` 统一实现。
-- **流程内核**：公开任务入口只有 `task next`；阶段动作由内核动作表推荐对应 Skill，硬门禁由 runtime gate 执行，不再分发独立流程中枢文件或 Skill 注册控制面。
+- **共享 Hook 核心**：Codex 与 Claude Code Hook 只做宿主输入适配，工作流状态解析由 `scripts/adapters/host/workflow_state_hook.py` 统一实现。
+- **流程内核**：公开任务入口只有 `task next`；kernel 只解析状态事实和 action，Skill 所有权由 manifest loader 注入，硬门禁由 runtime gate 执行，不再分发独立流程中枢文件或 Skill 注册控制面。
 - **Skill 自带脚本**：只服务单个 Skill 的控制器或辅助脚本放在 `template/skills/<skill-id>/scripts/`，由 `.cowork-flow/run` 薄分发；`scripts/` 内核只保留任务导航、生命周期、gate、host/runtime、存储和分发所需代码。
 
 ## Skills 分发机制

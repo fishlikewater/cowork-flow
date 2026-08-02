@@ -22,11 +22,6 @@ from infra.paths import (
 
 CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
 CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file", "deleted-file"))
-PLANNED_FILE_HINT = (
-    "If this is a planned new file, add "
-    '"type": "planned-file"; if this is an already-deleted file in scope, add '
-    '"type": "deleted-file" before running `task next --run`.'
-)
 
 
 class TaskContextError(RuntimeError):
@@ -248,7 +243,7 @@ def _validate_context_entry_target(
             context_file,
             line,
             "file_not_found",
-            f"File not found: {normalized_path}. {PLANNED_FILE_HINT}",
+            f"File not found: {normalized_path}",
         )
     return None
 

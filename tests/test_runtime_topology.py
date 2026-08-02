@@ -107,6 +107,19 @@ class RuntimeTopologyTest(unittest.TestCase):
             self._imports_between("services", {"adapters"}),
         )
 
+    def test_services_do_not_emit_cli_output(self) -> None:
+        self.assertEqual([], self._imports_between("services", {"sys"}))
+        self.assertEqual([], self._calls_named("services", {"print"}))
+
+    def test_services_do_not_own_cli_command_text(self) -> None:
+        self.assertEqual(
+            [],
+            self._text_markers_in(
+                "services",
+                {"./.cowork-flow/run", "task next --run", "--intent"},
+            ),
+        )
+
     def test_services_do_not_own_infra_concerns(self) -> None:
         self.assertFalse((SCRIPTS / "services" / "developer_profile.py").exists())
         self.assertFalse((SCRIPTS / "services" / "quality_sources.py").exists())
@@ -132,12 +145,50 @@ class RuntimeTopologyTest(unittest.TestCase):
                     issues.append(f"{rel}: imports {module}")
         return sorted(issues)
 
+    def _text_markers_in(
+        self,
+        source_package: str,
+        blocked_markers: set[str],
+    ) -> list[str]:
+        issues: list[str] = []
+        for path in (SCRIPTS / source_package).rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            for marker in blocked_markers:
+                if marker in text:
+                    rel = path.relative_to(SCRIPTS).as_posix()
+                    issues.append(f"{rel}: contains {marker}")
+        return sorted(issues)
+
+    def _calls_named(
+        self,
+        source_package: str,
+        blocked_names: set[str],
+    ) -> list[str]:
+        issues: list[str] = []
+        for path in (SCRIPTS / source_package).rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    name = self._call_name(node)
+                    if name in blocked_names:
+                        rel = path.relative_to(SCRIPTS).as_posix()
+                        issues.append(f"{rel}: calls {name}")
+        return sorted(issues)
+
     @staticmethod
     def _import_module(node: ast.AST) -> str | None:
         if isinstance(node, ast.ImportFrom):
             return node.module
         if isinstance(node, ast.Import) and node.names:
             return node.names[0].name
+        return None
+
+    @staticmethod
+    def _call_name(node: ast.Call) -> str | None:
+        if isinstance(node.func, ast.Name):
+            return node.func.id
+        if isinstance(node.func, ast.Attribute):
+            return node.func.attr
         return None
 
 

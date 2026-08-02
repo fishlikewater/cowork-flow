@@ -33,7 +33,7 @@
 |---|---|
 | L2-1 | proposal.md / spec.md / design.md 齐全 |
 | L2-2 | 结构化决策审查已按 Skill 指导完成或明确记录不适用 |
-| L2-3 | readiness gate 全部通过（task start 无 blocker）|
+| L2-3 | readiness gate 全部通过（`task next <dir> --run` 无 blocker）|
 | L2-4 | spec-sync Skill 已确认规格同步或明确记录无需更新 |
 
 ## DoD 与 per-task AC 的区别

@@ -266,7 +266,7 @@ class TaskContextServiceTest(unittest.TestCase):
             self.assertEqual(["invalid_path"], [issue.code for issue in issues])
             self.assertIn("Deleted file is a directory", issues[0].message)
 
-    def test_missing_file_issue_includes_planned_file_hint(self) -> None:
+    def test_missing_file_issue_reports_fact_without_cli_hint(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = self._prepare_root(root)
@@ -282,9 +282,7 @@ class TaskContextServiceTest(unittest.TestCase):
             issues = self.TaskContextService(root).validate(task_dir)
 
             self.assertEqual(["file_not_found"], [issue.code for issue in issues])
-            self.assertIn("planned-file", issues[0].message)
-            self.assertIn('"type": "planned-file"', issues[0].message)
-            self.assertIn("deleted-file", issues[0].message)
+            self.assertEqual("File not found: src/future.py", issues[0].message)
 
     def test_initialize_creates_task_local_placeholder_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
