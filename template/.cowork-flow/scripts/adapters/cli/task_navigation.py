@@ -15,7 +15,8 @@ from services.readiness import task_readiness_blockers
 from services.task_repository import TaskRepository, TaskRepositoryError
 
 
-from services.task_routing import _default_intent, route_request
+from services.task_routing import _default_intent
+from services.task_routing import route_request as _route_request
 
 
 RECOVERABLE_TASK_STATUSES = {
@@ -23,6 +24,76 @@ RECOVERABLE_TASK_STATUSES = {
     "review": "active_unbound",
     "completed": "completed_unarchived",
 }
+
+
+def _default_action_command(
+    task_path: str | None,
+    *,
+    create: bool = False,
+) -> str:
+    parts = ["./.cowork-flow/run", "task", "next"]
+    if task_path:
+        parts.append(task_path)
+    parts.append("--run")
+    if create:
+        parts.extend([
+            "--title",
+            '"<title>"',
+            "--slug",
+            "<task-name>",
+            "--assignee",
+            "<name>",
+        ])
+    return " ".join(parts)
+
+
+def _render_command(action_id: str, task_path: str | None, template: object) -> str | None:
+    if isinstance(template, str) and template.strip():
+        return template.replace("<task-dir>", task_path or "<task-dir>")
+    if action_id in {"start_task", "implement_change"}:
+        return _default_action_command(task_path)
+    return None
+
+
+def _render_diagnostics(task_path: str | None, template: object) -> str | None:
+    if isinstance(template, str) and template.strip():
+        return template.replace("<task-dir>", task_path or "<task-dir>")
+    return None
+
+
+def _render_adapter_commands(payload: dict[str, object], task_path: str | None) -> dict[str, object]:
+    action = payload.get("action")
+    if not isinstance(action, dict):
+        return payload
+    action_id = str(action.get("id"))
+    command = _render_command(action_id, task_path, action.get("command"))
+    diagnostics = _render_diagnostics(task_path, action.get("diagnosticsCommand"))
+    action["command"] = command
+    action["diagnosticsCommand"] = diagnostics
+    payload["actionCommand"] = command
+    payload["diagnosticsCommand"] = diagnostics
+    return payload
+
+
+def route_request(
+    status: str,
+    intent: str,
+    context: str,
+    blockers: tuple[str, ...] | list[str],
+    active_target: bool,
+    task_path: str | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, object]:
+    payload = _route_request(
+        status=status,
+        intent=intent,
+        context=context,
+        blockers=blockers,
+        active_target=active_target,
+        task_path=task_path,
+        repo_root=repo_root,
+    )
+    return _render_adapter_commands(payload, task_path)
 
 
 

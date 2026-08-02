@@ -30,7 +30,7 @@ Read only what is needed for the current task:
 4. Current `git diff` / `git status --short`.
 5. Relevant `.cowork-flow/spec/backend/`, `.cowork-flow/spec/frontend/`, and `.cowork-flow/spec/guides/` files selected by changed paths and task scope.
 6. Advisory facts from `review-check <task-dir> --json`, when useful.
-7. Lifecycle blocker output, if any, from `task next`, `task review`, or `task complete`.
+7. Lifecycle blocker output, if any, from `task next --json`, `task next <dir> --validate`, or `task next <dir> --run --intent review`.
 
 ## Task Review Checklist
 

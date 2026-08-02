@@ -58,7 +58,7 @@
 
 ## Lifecycle Check 联动
 
-- `task start` preflight 检查 `decision-anchor.md` 非空，并要求 `## 目标` 和 `## 验收标准` 章节存在。
+- `task next <dir> --run` 启动任务时的 preflight 检查 `decision-anchor.md` 非空，并要求 `## 目标` 和 `## 验收标准` 章节存在。
 - `cowork-implement` 读取：见 .cowork-flow/spec/contracts/subagent-dispatch.md
 - `cowork-check` 读取：同上
 - `debug.jsonl` 引用：可选，偏差诊断时写入 anchor 锚点差异
@@ -67,7 +67,7 @@
 
 正式版不自动迁移旧 `prd.md`。任务启动时只认可 `decision-anchor.md`
 作为权威决策来源；如果任务目录只有 `prd.md` 而缺少
-`decision-anchor.md`，`task start` 必须 fail-closed 并报告
+`decision-anchor.md`，`task next <dir> --run` 必须 fail-closed 并报告
 `decision-anchor.md is missing or empty`。
 
 已有旧任务需要人工把 `prd.md` 内容转换为 `decision-anchor.md`，并补齐

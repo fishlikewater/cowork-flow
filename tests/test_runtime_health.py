@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import json
 import shutil
 import tempfile
 import unittest
@@ -33,6 +34,12 @@ class RuntimeHealthTest(unittest.TestCase):
         shutil.copytree(TEMPLATE / ".codex", root / ".codex")
         shutil.copytree(TEMPLATE / "skills", root / ".agents" / "skills")
         shutil.copy2(TEMPLATE / "AGENTS.md", root / "AGENTS.md")
+
+    def _run_doctor(self, root: Path) -> tuple[int, str]:
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+            result = self.doctor._run_checks(root)
+        return result, stderr.getvalue()
 
     def _distribution_fixture(self, root: Path) -> None:
         for relative in (
@@ -82,12 +89,81 @@ class RuntimeHealthTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._install_codex_project(root)
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
-            ):
-                result = self.doctor._run_checks(root)
+            result, stderr = self._run_doctor(root)
 
         self.assertEqual(0, result)
+        self.assertEqual("", stderr)
+
+    def test_installed_project_reports_corrupt_skill_manifest_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._install_codex_project(root)
+            manifest = root / ".agents" / "skills" / "runtime-health" / "manifest.json"
+            manifest.write_text("{not-json}\n", encoding="utf-8")
+
+            result, stderr = self._run_doctor(root)
+
+        self.assertEqual(1, result)
+        self.assertIn("Skill manifest error", stderr)
+        self.assertIn("invalid Skill manifest", stderr)
+        self.assertIn("runtime-health/manifest.json", stderr.replace("\\", "/"))
+
+    def test_installed_project_reports_missing_skill_command_script_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._install_codex_project(root)
+            script = root / ".agents" / "skills" / "runtime-health" / "scripts" / "doctor.py"
+            script.unlink()
+
+            result, stderr = self._run_doctor(root)
+
+        self.assertEqual(1, result)
+        self.assertIn("Skill manifest error", stderr)
+        self.assertIn("manifest command script is missing", stderr)
+        self.assertIn("runtime-health/scripts/doctor.py", stderr.replace("\\", "/"))
+
+    def test_installed_project_reports_skill_command_conflict_owner_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._install_codex_project(root)
+            skill_dir = root / ".agents" / "skills" / "demo-conflict"
+            skill_dir.mkdir(parents=True)
+            script = skill_dir / "scripts" / "doctor_conflict.py"
+            script.parent.mkdir()
+            script.write_text("print('conflict')\n", encoding="utf-8")
+            manifest = skill_dir / "manifest.json"
+            data = {
+                "schemaVersion": 1,
+                "skill": "demo-conflict",
+                "commands": [
+                    {
+                        "name": "doctor",
+                        "aliases": [],
+                        "script": "scripts/doctor_conflict.py",
+                    }
+                ],
+            }
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+
+            result, stderr = self._run_doctor(root)
+
+        self.assertEqual(1, result)
+        self.assertIn("Skill command has multiple owners: doctor", stderr)
+        self.assertIn("demo-conflict", stderr)
+        self.assertIn("runtime-health", stderr)
+
+    def test_installed_project_reports_host_asset_validation_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._install_codex_project(root)
+            target = root / ".codex" / "hooks" / "inject-workflow-state.py"
+            target.unlink()
+
+            result, stderr = self._run_doctor(root)
+
+        self.assertEqual(1, result)
+        self.assertIn("missing command target", stderr)
+        self.assertIn(".codex/hooks/inject-workflow-state.py", stderr.replace("\\", "/"))
 
     def test_source_checkout_does_not_require_full_ignored_live_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

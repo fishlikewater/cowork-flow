@@ -119,6 +119,28 @@ class CodexHooksTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _write_active_task_session(
+        self,
+        root: Path,
+        *,
+        status: str,
+        session_id: str = "template-status",
+    ) -> dict[str, object]:
+        task_path = f".cowork-flow/tasks/05-29-template-{status}"
+        task_dir = root / task_path
+        task_dir.mkdir(parents=True)
+        (task_dir / "task.json").write_text(
+            json.dumps({"status": status}) + "\n",
+            encoding="utf-8",
+        )
+        sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / f"codex_{session_id}.json").write_text(
+            json.dumps({"active_task_path": task_path}) + "\n",
+            encoding="utf-8",
+        )
+        return {"session_id": session_id}
+
     def test_hook_emits_no_task_workflow_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -395,6 +417,53 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("state-template-source-smoke", context)
         self.assertNotIn("wrong source", context)
+
+    def test_hook_renders_each_main_status_from_workflow_state_template(self) -> None:
+        statuses = ("no_task", "planning", "in_progress", "review", "completed")
+        markers = {
+            status: f"workflow-template-marker::{status}"
+            for status in statuses
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            template_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
+            template_file.write_text(
+                "\n\n".join(
+                    (
+                        f"[workflow-state:{status}]\n{marker}\n导航：`./.cowork-flow/run task next --json`\n[/workflow-state:{status}]"
+                        for status, marker in markers.items()
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            for status, marker in markers.items():
+                payload = (
+                    {}
+                    if status == "no_task"
+                    else self._write_active_task_session(root, status=status)
+                )
+                data = self._run_hook(root, payload)
+                context = data["hookSpecificOutput"]["additionalContext"]
+
+                with self.subTest(status=status):
+                    workflow_state = re.search(
+                        r"<workflow-state>\n(?P<state>.*?)\n</workflow-state>",
+                        context,
+                        re.S,
+                    )
+                    self.assertIsNotNone(workflow_state)
+                    state_block = workflow_state.group("state")
+                    self.assertRegex(state_block, rf"Status: {status}\nSource: ")
+                    self.assertEqual(1, state_block.count(marker))
+                    self.assertIn(f"Status: {status}", state_block)
+                    self.assertIn(marker, state_block)
+                    for other_status, other_marker in markers.items():
+                        if other_status != status:
+                            self.assertNotIn(other_marker, state_block)
 
     def test_hook_config_uses_cowork_flow_python_runner(self) -> None:
         hooks = json.loads((TEMPLATE / ".codex" / "hooks.json").read_text(encoding="utf-8"))

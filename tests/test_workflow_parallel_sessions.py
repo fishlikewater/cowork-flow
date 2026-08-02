@@ -85,6 +85,31 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
                 for snippet in removed_command_snippets:
                     self.assertNotIn(snippet, text)
 
+    def test_readme_describes_current_runtime_layout(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        required_markers = (
+            "scripts/services/",
+            "scripts/infra/storage/",
+            "scripts/adapters/host/workflow_state_hook.py",
+            "kernel 只解析状态事实和 action",
+            "Skill 所有权由 manifest loader 注入",
+        )
+        stale_markers = (
+            "scripts/application/",
+            "scripts/common/storage/",
+            "scripts/common/host/workflow_state_hook.py",
+            "内核动作表推荐对应 Skill",
+        )
+
+        self.assertEqual(
+            [],
+            [marker for marker in required_markers if marker not in readme],
+        )
+        self.assertEqual(
+            [],
+            [marker for marker in stale_markers if marker in readme],
+        )
+
     def test_workflow_state_templates_are_externalized(self) -> None:
         for path in (
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",

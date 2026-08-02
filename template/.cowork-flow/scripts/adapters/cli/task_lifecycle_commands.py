@@ -14,10 +14,8 @@ if __package__:
 else:
     import _bootstrap  # noqa: F401
 
-from services.task_context import (
-    PLANNED_FILE_HINT,
-    TaskContextService,
-)
+from adapters.cli.task_context_commands import PLANNED_FILE_HINT
+from services.task_context import TaskContextService
 from services.task_lifecycle import (
     LifecyclePreflightFailure,
     LifecycleResult,

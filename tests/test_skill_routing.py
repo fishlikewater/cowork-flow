@@ -281,6 +281,34 @@ class SkillRoutingTest(unittest.TestCase):
                 route["blockers"],
             )
 
+    def test_illegal_intents_are_blocked_for_primary_workflow_states(self) -> None:
+        navigation = self._navigation()
+        cases = (
+            ("no_task", "implement", False),
+            ("planning", "archive", False),
+            ("in_progress", "archive", True),
+            ("review", "archive", True),
+            ("completed", "implement", True),
+        )
+
+        for status, intent, active_target in cases:
+            with self.subTest(status=status, intent=intent):
+                route = navigation.route_request(
+                    status=status,
+                    intent=intent,
+                    context="main",
+                    blockers=(),
+                    active_target=active_target,
+                    task_path=".cowork-flow/tasks/05-19-demo",
+                )
+
+                self.assertIsNone(route["recommendedSkill"])
+                self.assertFalse(route["action"]["runnable"])
+                self.assertEqual(
+                    [f"intent {intent} is not allowed while status is {status}"],
+                    route["blockers"],
+                )
+
     def test_cowork_flow_skill_owns_the_single_read_only_fallback(self) -> None:
         path = TEMPLATE / "skills" / "cowork-flow" / "SKILL.md"
         self.assertTrue(path.is_file())

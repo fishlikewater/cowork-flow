@@ -81,6 +81,50 @@ class SpecReviewContractTest(unittest.TestCase):
         missing = [marker for marker in required_markers if marker not in skill]
         self.assertEqual([], missing)
 
+    def test_task_review_skill_uses_task_next_for_lifecycle_blockers(self) -> None:
+        skill = (TEMPLATE / "skills" / "task-review" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        required_markers = (
+            "task next --json",
+            "task next <dir> --validate",
+            "task next <dir> --run --intent review",
+        )
+        stale_markers = ("`task review`", "`task complete`")
+
+        self.assertEqual(
+            [],
+            [marker for marker in required_markers if marker not in skill],
+        )
+        self.assertEqual(
+            [],
+            [marker for marker in stale_markers if marker in skill],
+        )
+
+    def test_lifecycle_reference_docs_use_task_next_entrypoint(self) -> None:
+        docs = {
+            "contracts/decision-anchor.md": (
+                "task next <dir> --run",
+                "task start",
+            ),
+            "references/definition-of-done.md": (
+                "task next <dir> --run",
+                "task start",
+            ),
+            "references/orchestration-patterns.md": (
+                "task next --run --title",
+                "/start",
+            ),
+        }
+
+        for relative_path, (required, forbidden) in docs.items():
+            with self.subTest(path=relative_path):
+                text = (SPEC / relative_path).read_text(encoding="utf-8")
+                self.assertEqual(
+                    (True, False),
+                    (required in text, forbidden in text),
+                )
+
     def test_adversarial_review_skill_uses_severity_and_contract_first_review(self) -> None:
         skill = (TEMPLATE / "skills" / "adversarial-review" / "SKILL.md").read_text(
             encoding="utf-8"

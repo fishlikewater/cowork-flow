@@ -19,40 +19,6 @@ from kernel.workflow_route import (
 )
 
 
-def _run_command(
-    task_path: str | None,
-    *,
-    intent: str | None = None,
-    create: bool = False,
-    commit: bool = False,
-) -> str:
-    parts = ["./.cowork-flow/run", "task", "next"]
-    if task_path:
-        parts.append(task_path)
-    parts.append("--run")
-    if intent:
-        parts.extend(["--intent", intent])
-    if create:
-        parts.extend(["--title", '"<title>"', "--slug", "<task-name>", "--assignee", "<name>"])
-    if commit:
-        parts.append("--commit")
-    return " ".join(parts)
-
-
-def _action_command(action_id: str, task_path: str | None, template: str | None) -> str | None:
-    if template:
-        return template.replace("<task-dir>", task_path or "<task-dir>")
-    if action_id in {"start_task", "implement_change"}:
-        return _run_command(task_path)
-    return None
-
-
-def _diagnostics_command(task_path: str | None, template: str | None) -> str | None:
-    if template:
-        return template.replace("<task-dir>", task_path or "<task-dir>")
-    return None
-
-
 def _action_contract(
     *,
     status: str,
@@ -95,11 +61,8 @@ def _action_contract(
         "id": action_id,
         "label": owner.label if owner is not None else action_id,
         "activatedSkill": owner.skill if owner is not None else None,
-        "command": _action_command(action_id, task_path, owner.command if owner else None),
-        "diagnosticsCommand": _diagnostics_command(
-            task_path,
-            owner.diagnostics_command if owner else None,
-        ),
+        "command": owner.command if owner is not None else None,
+        "diagnosticsCommand": owner.diagnostics_command if owner is not None else None,
         "mutatesState": action["mutatesState"],
         "lifecycleCheck": lifecycle_check,
         "runtimeGate": lifecycle_check,

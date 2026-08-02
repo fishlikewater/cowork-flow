@@ -8,12 +8,18 @@ from pathlib import Path
 
 from services.task_context import (
     CONTEXT_JSONL_FILES,
-    PLANNED_FILE_HINT,
     TaskContextError,
     TaskContextService,
 )
 from adapters.cli.task_support import Colors, colored, resolve_task_dir
 from infra.paths import get_repo_root
+
+
+PLANNED_FILE_HINT = (
+    "If this is a planned new file, add "
+    '"type": "planned-file"; if this is an already-deleted file in scope, add '
+    '"type": "deleted-file" before running `task next --run`.'
+)
 
 
 def _report_jsonl_skip(path: Path, reason: str) -> None:
