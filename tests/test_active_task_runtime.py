@@ -376,6 +376,98 @@ class RuntimeContextTransactionTest(unittest.TestCase):
             "bound_context_key": None,
         }
 
+    def test_runtime_context_initialize_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+
+            first = service.initialize("rtx_demo", self._context())
+            second = service.initialize("rtx_demo", self._context())
+
+            self.assertEqual("subagent_rtx_demo", first.logical_context_key)
+            self.assertEqual(first.logical_context_key, second.logical_context_key)
+            self.assertEqual(first.context, second.context)
+            self.assertTrue(
+                self.active_task.runtime_context_path(root, "rtx_demo").is_file()
+            )
+            self.assertTrue(
+                (
+                    self.active_task.sessions_dir(root)
+                    / "subagent_rtx_demo.json"
+                ).is_file()
+            )
+
+    def test_runtime_context_initialize_rejects_conflicting_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+            service.initialize("rtx_demo", self._context())
+            conflict = self._context()
+            conflict["task_dir"] = ".cowork-flow/tasks/05-28-other"
+
+            with self.assertRaises(
+                self.runtime_context.RuntimeContextError
+            ) as raised:
+                service.initialize("rtx_demo", conflict)
+
+            self.assertEqual("RUNTIME-INIT-001", raised.exception.code)
+            context = json.loads(
+                self.active_task.runtime_context_path(root, "rtx_demo").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(".cowork-flow/tasks/05-28-demo", context["task_dir"])
+
+    def test_runtime_context_bind_rejects_different_host_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+            service.initialize("rtx_demo", self._context())
+            service.bind("rtx_demo", "codex_child")
+
+            with self.assertRaises(
+                self.runtime_context.RuntimeContextError
+            ) as raised:
+                service.bind("rtx_demo", "codex_other")
+
+            self.assertEqual("RUNTIME-BIND-001", raised.exception.code)
+            context = json.loads(
+                self.active_task.runtime_context_path(root, "rtx_demo").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("codex_child", context["bound_context_key"])
+            self.assertFalse(
+                (self.active_task.sessions_dir(root) / "codex_other.json").exists()
+            )
+
+    def test_runtime_context_close_deletes_session_files_and_is_repeatable(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+            service.initialize("rtx_demo", self._context())
+            service.bind("rtx_demo", "codex_child")
+            sessions = self.active_task.sessions_dir(root)
+            bound_path = sessions / "codex_child.json"
+            logical_path = sessions / "subagent_rtx_demo.json"
+            self.assertTrue(bound_path.is_file())
+            self.assertTrue(logical_path.is_file())
+
+            self.assertTrue(service.close("rtx_demo"))
+            self.assertFalse(bound_path.exists())
+            self.assertFalse(logical_path.exists())
+            context_path = self.active_task.runtime_context_path(root, "rtx_demo")
+            context = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("closed", context["status"])
+
+            self.assertTrue(service.close("rtx_demo"))
+            self.assertFalse(bound_path.exists())
+            self.assertFalse(logical_path.exists())
+            context = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("closed", context["status"])
+
     def test_init_recovers_after_runtime_context_write(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
