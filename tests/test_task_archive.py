@@ -167,6 +167,57 @@ class TaskArchiveServiceTest(unittest.TestCase):
             )
             self.assertEqual("src/example.py", archived_entries[2]["file"])
 
+    def test_archive_preserves_malformed_context_lines_during_path_rewrite(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {"status": "completed"},
+            )
+            active_path = ".cowork-flow/tasks/07-10-demo"
+            context_file = task_dir / "implement.jsonl"
+            with context_file.open("w", encoding="utf-8", newline="") as stream:
+                stream.write(
+                    json.dumps({"file": active_path, "reason": "task root"})
+                    + "\r\nnot-json\r\n"
+                    + json.dumps(["not", "object"])
+                    + "\n"
+                    + json.dumps(
+                        {
+                            "file": f"{active_path}/decision-anchor.md",
+                            "reason": "task artifact",
+                        }
+                    )
+                    + "\r\n"
+                )
+
+            result = self.TaskArchiveService(root).archive(
+                task_dir,
+                archived_at="2026-07-10",
+            )
+
+            archived_path = ".cowork-flow/tasks/archive/2026-07/07-10-demo"
+            archived_text = (result.destination / "implement.jsonl").read_text(
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                json.dumps({"file": archived_path, "reason": "task root"})
+                + "\nnot-json\n"
+                + json.dumps(["not", "object"])
+                + "\n"
+                + json.dumps(
+                    {
+                        "file": f"{archived_path}/decision-anchor.md",
+                        "reason": "task artifact",
+                    }
+                )
+                + "\n",
+                archived_text,
+            )
+
     def test_archive_preserves_task_local_review_notes_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

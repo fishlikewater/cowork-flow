@@ -12,6 +12,7 @@ from pathlib import Path
 from infra.paths import DIR_ARCHIVE, get_tasks_dir
 from runtime.session_state import clear_task_from_sessions
 from infra.archive_utils import archive_directory_resumable
+from services.task_context import read_context_jsonl_entries
 from services.task_repository import TaskRepository, TaskRepositoryError
 from services.task_utils import find_task_by_name
 
@@ -258,18 +259,20 @@ class TaskArchiveService:
         source_path: str,
         destination_path: str,
     ) -> None:
-        original = context_file.read_text(encoding="utf-8")
+        with context_file.open("r", encoding="utf-8", newline="") as stream:
+            original = stream.read()
+        entries_by_line = {
+            entry.line: entry
+            for entry in read_context_jsonl_entries(context_file).entries
+        }
         rendered: list[str] = []
         changed = False
-        for line in original.splitlines(keepends=True):
-            content = line.rstrip("\r\n")
-            ending = line[len(content):]
-            try:
-                entry = json.loads(content)
-            except json.JSONDecodeError:
+        for line_number, line in enumerate(original.splitlines(keepends=True), start=1):
+            parsed = entries_by_line.get(line_number)
+            if parsed is None or not isinstance(parsed.data, dict):
                 rendered.append(line)
                 continue
-            file_path = entry.get("file") if isinstance(entry, dict) else None
+            file_path = parsed.data.get("file")
             normalized = TaskArchiveService._archived_context_path(
                 file_path,
                 source_path,
@@ -278,13 +281,15 @@ class TaskArchiveService:
             if normalized == file_path:
                 rendered.append(line)
                 continue
+            entry = dict(parsed.data)
             entry["file"] = normalized
             rendered.append(
-                json.dumps(entry, ensure_ascii=False) + ending
+                json.dumps(entry, ensure_ascii=False) + parsed.line_ending
             )
             changed = True
         if changed:
-            context_file.write_text("".join(rendered), encoding="utf-8")
+            with context_file.open("w", encoding="utf-8", newline="") as stream:
+                stream.write("".join(rendered))
 
     @staticmethod
     def _archived_context_path(

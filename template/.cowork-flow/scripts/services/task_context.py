@@ -316,6 +316,8 @@ class ContextJsonlEntry:
     context_file: str
     line: int
     data: object
+    text: str
+    line_ending: str
 
 
 @dataclass(frozen=True)
@@ -495,7 +497,12 @@ def read_context_jsonl_entries(context_file: Path) -> ContextJsonlReadResult:
     issues: list[ContextValidationIssue] = []
     entry_count = 0
     try:
-        lines = tuple(iter_jsonl_lines(context_file))
+        lines: list[tuple[int, str, str]] = []
+        with context_file.open("r", encoding="utf-8", newline="") as stream:
+            for line_number, raw_line in enumerate(stream, start=1):
+                text = raw_line.rstrip("\r\n")
+                line_ending = raw_line[len(text):]
+                lines.append((line_number, text, line_ending))
     except (OSError, UnicodeDecodeError) as error:
         return ContextJsonlReadResult(
             context_file=context_file.name,
@@ -512,7 +519,7 @@ def read_context_jsonl_entries(context_file: Path) -> ContextJsonlReadResult:
             ),
         )
 
-    for line_number, line in lines:
+    for line_number, line, line_ending in lines:
         if not line.strip():
             continue
         entry_count += 1
@@ -533,6 +540,8 @@ def read_context_jsonl_entries(context_file: Path) -> ContextJsonlReadResult:
                 context_file=context_file.name,
                 line=line_number,
                 data=data,
+                text=line,
+                line_ending=line_ending,
             )
         )
 
