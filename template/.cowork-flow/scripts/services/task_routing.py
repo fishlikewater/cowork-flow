@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from infra.skill_manifest import SkillManifestError, action_metadata
@@ -19,6 +20,63 @@ from kernel.workflow_route import (
 )
 
 
+@dataclass(frozen=True)
+class ActionContract:
+    """Internal action facts before adapter compatibility aliases are added."""
+
+    action_id: str
+    label: str
+    activated_skill: str | None
+    command: str | None
+    diagnostics_command: str | None
+    mutates_state: bool
+    lifecycle_check: str | None
+    runnable: bool
+    blockers: tuple[str, ...]
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "id": self.action_id,
+            "label": self.label,
+            "activatedSkill": self.activated_skill,
+            "command": self.command,
+            "diagnosticsCommand": self.diagnostics_command,
+            "mutatesState": self.mutates_state,
+            "lifecycleCheck": self.lifecycle_check,
+            "runnable": self.runnable,
+            "blockers": list(self.blockers),
+        }
+
+
+@dataclass(frozen=True)
+class RouteContract:
+    """Internal route facts before CLI adapter rendering."""
+
+    status: str
+    allowed_operations: tuple[str, ...]
+    required_artifacts: tuple[str, ...]
+    recommended_skill: str | None
+    blockers: tuple[str, ...]
+    action: ActionContract
+
+    def to_payload(self) -> dict[str, object]:
+        action = self.action.to_payload()
+        return {
+            "status": self.status,
+            "allowedOperations": list(self.allowed_operations),
+            "requiredArtifacts": list(self.required_artifacts),
+            "recommendedSkill": self.recommended_skill,
+            "blockers": list(self.blockers),
+            "nextAction": self.action.action_id,
+            "activatedSkill": self.action.activated_skill,
+            "actionCommand": self.action.command,
+            "diagnosticsCommand": self.action.diagnostics_command,
+            "mutatesState": self.action.mutates_state,
+            "lifecycleCheck": self.action.lifecycle_check,
+            "action": action,
+        }
+
+
 def _action_contract(
     *,
     status: str,
@@ -27,7 +85,7 @@ def _action_contract(
     active_target: bool,
     intent: str,
     repo_root: Path | None = None,
-) -> dict[str, object]:
+) -> ActionContract:
     action = _kernel_action_contract(
         status=status,
         blockers=blockers,
@@ -53,22 +111,21 @@ def _action_contract(
     if owner is not None:
         if owner.mutates_state != bool(action["mutatesState"]):
             action_blockers.append(f"Skill owner transition mismatch: {action_id}")
-        if owner.lifecycle_check != action["runtimeGate"]:
+        if owner.lifecycle_check != action["lifecycleCheck"]:
             action_blockers.append(f"Skill owner lifecycle mismatch: {action_id}")
 
-    lifecycle_check = owner.lifecycle_check if owner is not None else action["runtimeGate"]
-    return {
-        "id": action_id,
-        "label": owner.label if owner is not None else action_id,
-        "activatedSkill": owner.skill if owner is not None else None,
-        "command": owner.command if owner is not None else None,
-        "diagnosticsCommand": owner.diagnostics_command if owner is not None else None,
-        "mutatesState": action["mutatesState"],
-        "lifecycleCheck": lifecycle_check,
-        "runtimeGate": lifecycle_check,
-        "runnable": bool(action["runnable"]) and not action_blockers,
-        "blockers": action_blockers,
-    }
+    lifecycle_check = owner.lifecycle_check if owner is not None else action["lifecycleCheck"]
+    return ActionContract(
+        action_id=action_id,
+        label=owner.label if owner is not None else action_id,
+        activated_skill=owner.skill if owner is not None else None,
+        command=owner.command if owner is not None else None,
+        diagnostics_command=owner.diagnostics_command if owner is not None else None,
+        mutates_state=bool(action["mutatesState"]),
+        lifecycle_check=lifecycle_check,
+        runnable=bool(action["runnable"]) and not action_blockers,
+        blockers=tuple(action_blockers),
+    )
 
 
 def route_request(
@@ -103,20 +160,13 @@ def route_request(
         intent=intent,
         repo_root=repo_root,
     )
-    route_blockers = list(action["blockers"])
-    recommended = action["activatedSkill"] if intent_allowed and not route_blockers else None
-    return {
-        "status": status,
-        "allowedOperations": operations,
-        "requiredArtifacts": _required_artifacts(status),
-        "recommendedSkill": recommended,
-        "blockers": route_blockers,
-        "nextAction": action["id"],
-        "activatedSkill": action["activatedSkill"],
-        "actionCommand": action["command"],
-        "diagnosticsCommand": action["diagnosticsCommand"],
-        "mutatesState": action["mutatesState"],
-        "lifecycleCheck": action["lifecycleCheck"],
-        "runtimeGate": action["runtimeGate"],
-        "action": action,
-    }
+    route_blockers = action.blockers
+    recommended = action.activated_skill if intent_allowed and not route_blockers else None
+    return RouteContract(
+        status=status,
+        allowed_operations=tuple(operations),
+        required_artifacts=tuple(_required_artifacts(status)),
+        recommended_skill=recommended,
+        blockers=route_blockers,
+        action=action,
+    ).to_payload()

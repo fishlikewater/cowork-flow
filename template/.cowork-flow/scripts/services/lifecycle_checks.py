@@ -25,11 +25,29 @@ PROTECTED_WORKFLOW_PATTERNS = (
 
 
 @dataclass(frozen=True)
+class LifecycleCheckIssue:
+    """Machine-readable lifecycle check issue with stable message compatibility."""
+
+    code: str
+    message: str
+    path: str | None = None
+
+
+@dataclass(frozen=True)
 class LifecycleCheckResult:
     """Result of direct lifecycle fact checks."""
 
     stage: str
     blockers: tuple[str, ...] = ()
+    issues: tuple[LifecycleCheckIssue, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.issues and not self.blockers:
+            object.__setattr__(
+                self,
+                "blockers",
+                tuple(issue.message for issue in self.issues),
+            )
 
     @property
     def blocked(self) -> bool:
@@ -54,12 +72,12 @@ class LifecycleCheckRunner:
     ) -> LifecycleCheckResult:
         return LifecycleCheckResult(
             stage="review",
-            blockers=tuple(
-                _review_completion_blockers(
+            issues=tuple(
+                _review_completion_issues(
                     self.repo_root,
                     task_dir,
                     allow_spec_file_modifications=allow_spec_file_modifications,
-                )
+                ),
             ),
         )
 
@@ -71,14 +89,28 @@ class LifecycleCheckRunner:
     ) -> LifecycleCheckResult:
         return LifecycleCheckResult(
             stage="complete",
-            blockers=tuple(
-                _review_completion_blockers(
+            issues=tuple(
+                _review_completion_issues(
                     self.repo_root,
                     task_dir,
                     allow_spec_file_modifications=allow_spec_file_modifications,
-                )
+                ),
             ),
         )
+
+
+def _review_completion_issues(
+    repo_root: Path,
+    task_dir: Path,
+    *,
+    allow_spec_file_modifications: bool,
+) -> list[LifecycleCheckIssue]:
+    changed_files = collect_changed_paths(repo_root)
+    issues: list[LifecycleCheckIssue] = []
+    if not allow_spec_file_modifications:
+        issues.extend(_protected_workflow_file_issues(changed_files))
+    issues.extend(_allowed_file_scope_issues(task_dir, changed_files))
+    return issues
 
 
 def _review_completion_blockers(
@@ -87,43 +119,68 @@ def _review_completion_blockers(
     *,
     allow_spec_file_modifications: bool,
 ) -> list[str]:
-    changed_files = collect_changed_paths(repo_root)
-    blockers: list[str] = []
-    if not allow_spec_file_modifications:
-        blockers.extend(_protected_workflow_file_blockers(changed_files))
-    blockers.extend(_allowed_file_scope_blockers(task_dir, changed_files))
-    return blockers
+    return [
+        issue.message
+        for issue in _review_completion_issues(
+            repo_root,
+            task_dir,
+            allow_spec_file_modifications=allow_spec_file_modifications,
+        )
+    ]
 
 
-def _protected_workflow_file_blockers(changed_files: list[str]) -> list[str]:
-    blockers: list[str] = []
+def _protected_workflow_file_issues(changed_files: list[str]) -> list[LifecycleCheckIssue]:
+    issues: list[LifecycleCheckIssue] = []
     for file_path in changed_files:
         normalized = _normalize_git_path(file_path)
         if any(re.search(pattern, normalized) for pattern in PROTECTED_WORKFLOW_PATTERNS):
-            blockers.append(
-                "Protected workflow/spec file changed outside main session: "
-                f"{normalized}"
+            issues.append(
+                LifecycleCheckIssue(
+                    code="protected_workflow_file",
+                    path=normalized,
+                    message=(
+                        "Protected workflow/spec file changed outside main session: "
+                        f"{normalized}"
+                    ),
+                )
             )
-    return blockers
+    return issues
 
 
-def _allowed_file_scope_blockers(task_dir: Path, changed_files: list[str]) -> list[str]:
+def _protected_workflow_file_blockers(changed_files: list[str]) -> list[str]:
+    return [issue.message for issue in _protected_workflow_file_issues(changed_files)]
+
+
+def _allowed_file_scope_issues(
+    task_dir: Path,
+    changed_files: list[str],
+) -> list[LifecycleCheckIssue]:
     implement_jsonl = task_dir / "implement.jsonl"
     if not implement_jsonl.exists():
         return []
 
-    allowed_files, scope_blockers = _load_allowed_context_files(implement_jsonl)
-    if scope_blockers:
-        return scope_blockers
+    allowed_files, scope_issues = _load_allowed_context_files(implement_jsonl)
+    if scope_issues:
+        return scope_issues
 
-    blockers: list[str] = []
+    issues: list[LifecycleCheckIssue] = []
     for file_path in changed_files:
         normalized = _normalize_git_path(file_path)
         if _is_runtime_metadata_path(normalized):
             continue
         if normalized not in allowed_files:
-            blockers.append(f"Modified file not listed in implement.jsonl: {normalized}")
-    return blockers
+            issues.append(
+                LifecycleCheckIssue(
+                    code="unlisted_changed_file",
+                    path=normalized,
+                    message=f"Modified file not listed in implement.jsonl: {normalized}",
+                )
+            )
+    return issues
+
+
+def _allowed_file_scope_blockers(task_dir: Path, changed_files: list[str]) -> list[str]:
+    return [issue.message for issue in _allowed_file_scope_issues(task_dir, changed_files)]
 
 
 def _is_runtime_metadata_path(file_path: str) -> bool:
@@ -136,13 +193,24 @@ def _is_runtime_metadata_path(file_path: str) -> bool:
     )
 
 
-def _load_allowed_context_files(implement_jsonl: Path) -> tuple[set[str], list[str]]:
+def _context_issue(code: str, message: str) -> LifecycleCheckIssue:
+    return LifecycleCheckIssue(code=code, message=message)
+
+
+def _load_allowed_context_files(
+    implement_jsonl: Path,
+) -> tuple[set[str], list[LifecycleCheckIssue]]:
     allowed_files: set[str] = set()
-    blockers: list[str] = []
+    issues: list[LifecycleCheckIssue] = []
     try:
         lines = implement_jsonl.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError) as error:
-        return allowed_files, [f"Cannot read implement.jsonl: {error}"]
+        return allowed_files, [
+            _context_issue(
+                "implement_jsonl_read_error",
+                f"Cannot read implement.jsonl: {error}",
+            )
+        ]
 
     for line_number, line in enumerate(lines, start=1):
         line = line.strip()
@@ -151,20 +219,40 @@ def _load_allowed_context_files(implement_jsonl: Path) -> tuple[set[str], list[s
         try:
             entry = json.loads(line)
         except json.JSONDecodeError:
-            blockers.append(f"Invalid implement.jsonl JSON at line {line_number}")
+            issues.append(
+                _context_issue(
+                    "invalid_implement_jsonl_json",
+                    f"Invalid implement.jsonl JSON at line {line_number}",
+                )
+            )
             continue
         if not isinstance(entry, dict):
-            blockers.append(f"Invalid implement.jsonl entry at line {line_number}: expected object")
+            issues.append(
+                _context_issue(
+                    "invalid_implement_jsonl_entry",
+                    f"Invalid implement.jsonl entry at line {line_number}: expected object",
+                )
+            )
             continue
         normalized, error = _normalize_allowed_context_file(entry)
         if error is not None:
-            blockers.append(f"Invalid implement.jsonl file scope at line {line_number}: {error}")
+            issues.append(
+                _context_issue(
+                    "invalid_implement_jsonl_file_scope",
+                    f"Invalid implement.jsonl file scope at line {line_number}: {error}",
+                )
+            )
             continue
         if normalized is not None:
             allowed_files.add(normalized)
     if not allowed_files:
-        blockers.append("implement.jsonl contains no valid file-scope entries")
-    return allowed_files, blockers
+        issues.append(
+            _context_issue(
+                "empty_implement_jsonl_file_scope",
+                "implement.jsonl contains no valid file-scope entries",
+            )
+        )
+    return allowed_files, issues
 
 
 def _normalize_allowed_context_file(entry: dict) -> tuple[str | None, str | None]:

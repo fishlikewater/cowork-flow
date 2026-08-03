@@ -132,13 +132,28 @@ def _scope_facts(
     protected: list[str] = []
     unlisted: list[str] = []
     context_issues: list[str] = []
-    for message in result.blockers:
-        if message.startswith(PROTECTED_PREFIX):
-            protected.append(message.removeprefix(PROTECTED_PREFIX))
-        elif message.startswith(UNLISTED_PREFIX):
-            unlisted.append(message.removeprefix(UNLISTED_PREFIX))
-        else:
-            context_issues.append(message)
+    issues = tuple(getattr(result, "issues", ()) or ())
+    if issues:
+        for issue in issues:
+            code = str(getattr(issue, "code", "") or "")
+            path = getattr(issue, "path", None)
+            message = str(getattr(issue, "message", "") or "")
+            if code == "protected_workflow_file":
+                protected.append(str(path or message.removeprefix(PROTECTED_PREFIX)))
+            elif code == "unlisted_changed_file":
+                normalized = str(path or message.removeprefix(UNLISTED_PREFIX))
+                if normalized not in protected:
+                    unlisted.append(normalized)
+            else:
+                context_issues.append(message)
+    else:
+        for message in result.blockers:
+            if message.startswith(PROTECTED_PREFIX):
+                protected.append(message.removeprefix(PROTECTED_PREFIX))
+            elif message.startswith(UNLISTED_PREFIX):
+                unlisted.append(message.removeprefix(UNLISTED_PREFIX))
+            else:
+                context_issues.append(message)
     return {
         "unlistedChangedFiles": unlisted,
         "protectedWorkflowFiles": protected,

@@ -38,20 +38,20 @@ INTENT_OPERATIONS = {
 
 # These are state-transition facts, not Skill metadata.
 ACTION_TRANSITIONS = {
-    "answer_questions": {"runtimeGate": None, "mutatesState": False},
-    "debug_failure": {"runtimeGate": None, "mutatesState": False},
-    "discuss_options": {"runtimeGate": None, "mutatesState": False},
-    "doubt_review": {"runtimeGate": None, "mutatesState": False},
-    "batch_execute": {"runtimeGate": "task_start", "mutatesState": True},
-    "create_task": {"runtimeGate": None, "mutatesState": True},
-    "edit_planning_artifacts": {"runtimeGate": "task_start", "mutatesState": False},
-    "start_task": {"runtimeGate": "task_start", "mutatesState": True},
-    "implement_change": {"runtimeGate": None, "mutatesState": False},
-    "request_review": {"runtimeGate": "task_review", "mutatesState": True},
-    "complete_task": {"runtimeGate": "task_complete", "mutatesState": True},
-    "archive_task": {"runtimeGate": "task_archive", "mutatesState": True},
-    "execute_delegated_work": {"runtimeGate": None, "mutatesState": False},
-    "repair_workflow_state": {"runtimeGate": None, "mutatesState": False},
+    "answer_questions": {"lifecycleCheck": None, "mutatesState": False},
+    "debug_failure": {"lifecycleCheck": None, "mutatesState": False},
+    "discuss_options": {"lifecycleCheck": None, "mutatesState": False},
+    "doubt_review": {"lifecycleCheck": None, "mutatesState": False},
+    "batch_execute": {"lifecycleCheck": "task_start", "mutatesState": True},
+    "create_task": {"lifecycleCheck": None, "mutatesState": True},
+    "edit_planning_artifacts": {"lifecycleCheck": "task_start", "mutatesState": False},
+    "start_task": {"lifecycleCheck": "task_start", "mutatesState": True},
+    "implement_change": {"lifecycleCheck": None, "mutatesState": False},
+    "request_review": {"lifecycleCheck": "task_review", "mutatesState": True},
+    "complete_task": {"lifecycleCheck": "task_complete", "mutatesState": True},
+    "archive_task": {"lifecycleCheck": "task_archive", "mutatesState": True},
+    "execute_delegated_work": {"lifecycleCheck": None, "mutatesState": False},
+    "repair_workflow_state": {"lifecycleCheck": None, "mutatesState": False},
 }
 RUNNABLE_ACTIONS = {
     action_id
@@ -158,7 +158,7 @@ def _action_contract(
     return {
         "id": action_id,
         "mutatesState": spec["mutatesState"],
-        "runtimeGate": spec["runtimeGate"],
+        "lifecycleCheck": spec["lifecycleCheck"],
         "runnable": action_id in RUNNABLE_ACTIONS and not action_blockers,
         "blockers": action_blockers,
     }
