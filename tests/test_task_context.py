@@ -128,19 +128,27 @@ class TaskContextServiceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             context_file = root / "implement.jsonl"
-            context_file.write_text(
-                json.dumps({"file": "src/allowed.py", "reason": "allowed"})
-                + "\nnot-json\n"
-                + json.dumps(["not", "object"])
-                + "\n",
-                encoding="utf-8",
-            )
+            with context_file.open("w", encoding="utf-8", newline="") as stream:
+                stream.write(
+                    json.dumps({"file": "src/allowed.py", "reason": "allowed"})
+                    + "\r\nnot-json\r\n"
+                    + json.dumps(["not", "object"])
+                    + "\n"
+                )
 
             result = self.read_context_jsonl_entries(context_file)
 
             self.assertTrue(result.exists)
             self.assertEqual(3, result.entry_count)
             self.assertEqual([1, 3], [entry.line for entry in result.entries])
+            self.assertEqual(
+                [
+                    '{"file": "src/allowed.py", "reason": "allowed"}',
+                    '["not", "object"]',
+                ],
+                [entry.text for entry in result.entries],
+            )
+            self.assertEqual(["\r\n", "\n"], [entry.line_ending for entry in result.entries])
             self.assertEqual(
                 [("invalid_json", 2, "Invalid JSON")],
                 [(issue.code, issue.line, issue.message) for issue in result.issues],
