@@ -468,6 +468,78 @@ class RuntimeContextTransactionTest(unittest.TestCase):
             context = json.loads(context_path.read_text(encoding="utf-8"))
             self.assertEqual("closed", context["status"])
 
+    def test_load_recovers_pending_runtime_context_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            service = self.runtime_context.RuntimeContextService(
+                root,
+                fault_injector=self._fail_after_first,
+            )
+
+            with self.assertRaises(RuntimeError):
+                service.initialize("rtx_demo", self._context())
+
+            logical_path = (
+                self.active_task.sessions_dir(root) / "subagent_rtx_demo.json"
+            )
+            self.assertFalse(logical_path.exists())
+
+            loaded = self.runtime_context.RuntimeContextService(root).load(
+                "rtx_demo"
+            )
+
+            self.assertEqual("pending", loaded["status"])
+            self.assertTrue(logical_path.is_file())
+            session = json.loads(logical_path.read_text(encoding="utf-8"))
+            self.assertEqual("pending_bind", session["status"])
+
+    def test_update_recovers_pending_runtime_context_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context_path = self.active_task.runtime_context_path(root, "rtx_demo")
+            context_path.parent.mkdir(parents=True)
+            context_path.write_text(
+                json.dumps(self._context(), ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            service = self.runtime_context.RuntimeContextService(
+                root,
+                fault_injector=self._fail_after_first,
+            )
+
+            with self.assertRaises(RuntimeError):
+                service.bind("rtx_demo", "codex_child")
+
+            updated = self.runtime_context.RuntimeContextService(root).update(
+                "rtx_demo",
+                status="observed",
+                note="after recovery",
+            )
+
+            self.assertIsNotNone(updated)
+            self.assertEqual("observed", updated["status"])
+            self.assertEqual("codex_child", updated["bound_context_key"])
+            self.assertTrue(
+                (self.active_task.sessions_dir(root) / "codex_child.json").is_file()
+            )
+
+    def test_corrupt_runtime_recovery_metadata_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            operation_dir = root / ".cowork-flow" / ".runtime" / "operations"
+            operation_dir.mkdir(parents=True)
+            operation_path = operation_dir / "runtime-broken.json"
+            operation_path.write_text("{broken", encoding="utf-8")
+
+            with self.assertRaises(
+                self.runtime_context.RuntimeContextError
+            ) as raised:
+                self.runtime_context.RuntimeContextService(root).load("rtx_demo")
+
+            self.assertEqual("RUNTIME-RECOVERY-001", raised.exception.code)
+            self.assertTrue(operation_path.exists())
+
     def test_init_recovers_after_runtime_context_write(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

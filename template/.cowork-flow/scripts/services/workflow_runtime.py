@@ -64,7 +64,7 @@ class RuntimeContextService:
                 self.repo_root,
                 state_store=self.state_store,
             )
-        except UnitOfWorkError as error:
+        except (StateStoreError, UnitOfWorkError) as error:
             raise RuntimeContextError(
                 "RUNTIME-RECOVERY-001",
                 error.detail,
