@@ -267,6 +267,44 @@ class BatchRecoveryTest(FlowScriptTestCase):
         self.assertEqual("start_task", state["next_action"]["type"])
         self.assertEqual("child-a", state["next_action"]["task"])
 
+    def test_inspect_reports_completed_state_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._task(root, "solo")
+            service = self.module.BatchExecutionService(
+                root,
+                commit_verifier=lambda _: True,
+            )
+            state = self._complete_current_task(
+                service,
+                root,
+                service.start("solo"),
+            )
+            self.assertEqual("completed", state["phase"])
+            state_path = (
+                root
+                / ".cowork-flow"
+                / "runtime"
+                / "batches"
+                / f"{state['operation_id']}.json"
+            )
+            before = state_path.read_text(encoding="utf-8")
+
+            report = service.inspect(state["operation_id"])
+            after = state_path.read_text(encoding="utf-8")
+
+        self.assertEqual(before, after)
+        self.assertEqual(state["operation_id"], report["operationId"])
+        self.assertEqual("completed", report["state"])
+        self.assertEqual("solo", report["rootTask"])
+        self.assertEqual("completed", report["currentPhase"])
+        self.assertIsNone(report["currentTask"])
+        self.assertEqual(["solo"], report["completedTasks"])
+        self.assertIsNone(report["pausedReason"])
+        self.assertIsNone(report["failedAction"])
+        self.assertIsNone(report["nextAction"])
+        self.assertEqual({}, report["recovery"])
+
     def test_placeholder_success_pauses_until_task_state_is_real(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

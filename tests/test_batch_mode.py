@@ -217,14 +217,38 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
     def test_batch_internal_commands_are_not_public_parser_commands(self) -> None:
         parser_module = importlib.import_module("adapters.cli.task_parser")
         parser = parser_module.build_parser()
+        subparser_actions = [
+            action
+            for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        ]
+        self.assertEqual(1, len(subparser_actions))
+        public_commands = set(subparser_actions[0].choices)
+        internal_commands = {
+            "batch-resume",
+            "batch-record-result",
+            "batch-inspect",
+        }
 
-        for command in ("batch-resume", "batch-record-result"):
+        for command in internal_commands:
             with self.subTest(command=command):
                 with self.assertRaises(SystemExit) as raised:
                     parser.parse_args([command])
                 self.assertEqual(2, raised.exception.code)
-        self.assertFalse(hasattr(self.task, "cmd_batch_resume"))
-        self.assertFalse(hasattr(self.task, "cmd_batch_record_result"))
+        self.assertEqual(set(), internal_commands & public_commands)
+
+        task_command_names = {
+            name for name in dir(self.task) if name.startswith("cmd_batch_")
+        }
+        self.assertEqual(
+            set(),
+            {
+                "cmd_batch_resume",
+                "cmd_batch_record_result",
+                "cmd_batch_inspect",
+            }
+            & task_command_names,
+        )
 
     def test_batch_record_result_command_advances_verified_action(self) -> None:
         batch_mode = importlib.import_module("adapters.cli.batch_mode")
@@ -252,6 +276,103 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
             "init_implement_context",
             advanced["next_action"]["type"],
         )
+
+    def test_public_batch_inspect_reports_active_state_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._task(root)
+            started = self._run_public_batch_action(root, "start", task_dir.name)
+            self.assertEqual(0, started.returncode, started.stderr)
+            state = json.loads(started.stdout)
+            state_path = (
+                root
+                / ".cowork-flow"
+                / "runtime"
+                / "batches"
+                / f"{state['operation_id']}.json"
+            )
+            before = state_path.read_text(encoding="utf-8")
+
+            inspected = self._run_public_batch_action(
+                root,
+                "inspect",
+                state["operation_id"],
+            )
+            after = state_path.read_text(encoding="utf-8")
+
+        self.assertEqual(0, inspected.returncode, inspected.stderr)
+        self.assertEqual(before, after)
+        report = json.loads(inspected.stdout)
+        self.assertEqual(state["operation_id"], report["operationId"])
+        self.assertEqual("awaiting_host", report["state"])
+        self.assertEqual(task_dir.name, report["rootTask"])
+        self.assertEqual(task_dir.name, report["currentTask"])
+        self.assertEqual("start", report["currentPhase"])
+        self.assertEqual([], report["completedTasks"])
+        self.assertIsNone(report["pausedReason"])
+        self.assertEqual(state["next_action"], report["nextAction"])
+        self.assertEqual({}, report["recovery"])
+
+    def test_public_batch_inspect_reports_paused_recovery_facts_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._task(root)
+            started = self._run_public_batch_action(root, "start", task_dir.name)
+            self.assertEqual(0, started.returncode, started.stderr)
+            state = json.loads(started.stdout)
+            invalid_result = root / "invalid-result.json"
+            invalid_result.write_text(
+                json.dumps(
+                    {
+                        "action_id": state["next_action"]["action_id"],
+                        "type": "start_task",
+                        "outcome": "success",
+                        "task_status": "in_progress",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            paused = self._run_public_batch_action(
+                root,
+                "record-result",
+                state["operation_id"],
+                str(invalid_result),
+            )
+            self.assertEqual(2, paused.returncode)
+            state_path = (
+                root
+                / ".cowork-flow"
+                / "runtime"
+                / "batches"
+                / f"{state['operation_id']}.json"
+            )
+            before = state_path.read_text(encoding="utf-8")
+
+            inspected = self._run_public_batch_action(
+                root,
+                "inspect",
+                state["operation_id"],
+            )
+            after = state_path.read_text(encoding="utf-8")
+
+        self.assertEqual(0, inspected.returncode, inspected.stderr)
+        self.assertEqual(before, after)
+        report = json.loads(inspected.stdout)
+        self.assertEqual("paused", report["state"])
+        self.assertEqual(task_dir.name, report["currentTask"])
+        self.assertIn("task status", report["pausedReason"])
+        self.assertEqual("start_task", report["failedAction"]["type"])
+        self.assertEqual(
+            state["next_action"]["action_id"],
+            report["failedAction"]["actionId"],
+        )
+        self.assertEqual("success", report["failedAction"]["outcome"])
+        self.assertEqual(
+            "batch-action resume batch-07-10-demo",
+            report["recovery"]["resumeCommand"],
+        )
+        self.assertEqual(task_dir.name, report["recovery"]["retryTask"])
+        self.assertIsNone(report["nextAction"])
 
     def test_public_batch_resume_recovers_paused_operation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
