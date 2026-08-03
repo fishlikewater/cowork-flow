@@ -87,13 +87,20 @@ class SkillRoutingTest(unittest.TestCase):
         for module_name in (
             "adapters.cli.task_navigation",
             "adapters.cli",
+            "services.task_routing",
+            "services",
             "kernel",
+            "kernel.workflow_route",
+            "kernel.task_state",
             "adapters.host",
         ):
             sys.modules.pop(module_name, None)
 
     def _navigation(self):
         return importlib.import_module("adapters.cli.task_navigation")
+
+    def _routing_service(self):
+        return importlib.import_module("services.task_routing")
 
     def test_skill_directory_set_is_filesystem_authority(self) -> None:
         self.assertEqual(EXPECTED_SKILLS, template_skill_ids())
@@ -152,6 +159,36 @@ class SkillRoutingTest(unittest.TestCase):
                 if route["recommendedSkill"] is not None:
                     self.assertEqual(route["recommendedSkill"], route["activatedSkill"])
                     self.assertIn(route["recommendedSkill"], EXPECTED_SKILLS)
+
+    def test_runtime_gate_alias_is_adapter_only(self) -> None:
+        routing = self._routing_service()
+        navigation = self._navigation()
+
+        service_route = routing.route_request(
+            status="planning",
+            intent="implement",
+            context="main",
+            blockers=(),
+            active_target=True,
+            task_path=".cowork-flow/tasks/05-19-demo",
+            repo_root=ROOT,
+        )
+        adapter_route = navigation.route_request(
+            status="planning",
+            intent="implement",
+            context="main",
+            blockers=(),
+            active_target=True,
+            task_path=".cowork-flow/tasks/05-19-demo",
+            repo_root=ROOT,
+        )
+
+        self.assertEqual("task_start", service_route["lifecycleCheck"])
+        self.assertEqual("task_start", service_route["action"]["lifecycleCheck"])
+        self.assertNotIn("runtimeGate", service_route)
+        self.assertNotIn("runtimeGate", service_route["action"])
+        self.assertEqual("task_start", adapter_route["runtimeGate"])
+        self.assertEqual("task_start", adapter_route["action"]["runtimeGate"])
 
     def test_standalone_doubt_review_is_status_independent_in_main_context(self) -> None:
         navigation = self._navigation()
@@ -218,6 +255,7 @@ class SkillRoutingTest(unittest.TestCase):
             "activatedSkill",
             "recommendedSkill",
             "./.cowork-flow/run",
+            "runtimeGate",
             '"task-review"',
             '"task-planning"',
             '"adversarial-review"',

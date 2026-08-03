@@ -75,6 +75,15 @@ def _render_adapter_commands(payload: dict[str, object], task_path: str | None) 
     return payload
 
 
+def _attach_runtime_gate_alias(payload: dict[str, object]) -> dict[str, object]:
+    lifecycle_check = payload.get("lifecycleCheck")
+    payload["runtimeGate"] = lifecycle_check
+    action = payload.get("action")
+    if isinstance(action, dict):
+        action["runtimeGate"] = action.get("lifecycleCheck")
+    return payload
+
+
 def route_request(
     status: str,
     intent: str,
@@ -93,7 +102,7 @@ def route_request(
         task_path=task_path,
         repo_root=repo_root,
     )
-    return _render_adapter_commands(payload, task_path)
+    return _attach_runtime_gate_alias(_render_adapter_commands(payload, task_path))
 
 
 

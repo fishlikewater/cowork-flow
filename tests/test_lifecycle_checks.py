@@ -171,6 +171,45 @@ class LifecycleChecksTest(FlowScriptTestCase):
             },
             set(result.blockers),
         )
+        self.assertEqual(
+            {
+                ("unlisted_changed_file", "src/staged.py"),
+                ("unlisted_changed_file", "src/unstaged.py"),
+                ("unlisted_changed_file", "src/untracked.py"),
+            },
+            {(issue.code, issue.path) for issue in result.issues},
+        )
+
+    def test_lifecycle_checks_expose_structured_protected_workflow_issues(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-12-demo"
+            self._write_allowed_file_task(
+                root,
+                task_dir,
+                "in_progress",
+                allowed_files=("src/allowed.py", "AGENTS.md"),
+            )
+            (root / "src").mkdir(parents=True, exist_ok=True)
+            (root / "src" / "allowed.py").write_text("VALUE = 1\n", encoding="utf-8")
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            self._commit_all(root, "baseline")
+            (root / "AGENTS.md").write_text("# Rules changed\n", encoding="utf-8")
+            checks = importlib.import_module("services.lifecycle_checks")
+
+            result = checks.LifecycleCheckRunner(root).review(
+                task_dir,
+                allow_spec_file_modifications=False,
+            )
+
+        self.assertEqual(
+            ("Protected workflow/spec file changed outside main session: AGENTS.md",),
+            result.blockers,
+        )
+        self.assertEqual(1, len(result.issues))
+        self.assertEqual("protected_workflow_file", result.issues[0].code)
+        self.assertEqual("AGENTS.md", result.issues[0].path)
 
     def test_cmd_complete_blocks_unrequested_files_without_status_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

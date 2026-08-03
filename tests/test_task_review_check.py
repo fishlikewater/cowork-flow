@@ -170,6 +170,35 @@ class TaskReviewCheckTest(unittest.TestCase):
                 ],
             )
 
+    def test_review_check_classifies_structured_lifecycle_scope_issues(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            self._init_git_repo(root)
+            task_dir = self._write_task(root)
+            self._write_specs(root)
+            (root / "src").mkdir()
+            (root / "src" / "app.py").write_text("VALUE = 1\n", encoding="utf-8")
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            self._commit_all(root, "baseline")
+            (root / "src" / "extra.py").write_text("VALUE = 2\n", encoding="utf-8")
+            (root / "AGENTS.md").write_text("# Rules changed\n", encoding="utf-8")
+
+            scope_facts = self.module._scope_facts(
+                root,
+                task_dir,
+                allow_spec_file_modifications=False,
+            )
+
+            self.assertEqual(
+                ["src/extra.py"],
+                scope_facts["unlistedChangedFiles"],
+            )
+            self.assertEqual(
+                ["AGENTS.md"],
+                scope_facts["protectedWorkflowFiles"],
+            )
+            self.assertEqual([], scope_facts["contextIssues"])
+
 
 if __name__ == "__main__":
     unittest.main()

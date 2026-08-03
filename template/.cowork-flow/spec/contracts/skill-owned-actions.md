@@ -41,6 +41,19 @@ Skill contains the detailed phase guidance. Context consumers use the
 manifest-selected entries and a stable lexical order; services do not maintain
 Skill-id priority tables.
 
+Route services use `lifecycleCheck` as the internal lifecycle-check field.
+`runtimeGate` is a compatibility alias owned by task-navigation adapters and may
+be emitted in text or JSON route payloads for older consumers. Kernel and
+service-layer contracts must not depend on `runtimeGate`; they compare Skill
+manifest ownership against `lifecycleCheck` and add compatibility aliases only
+when rendering adapter output.
+
+Lifecycle checks may expose structured issue facts in addition to blocker
+messages. The blocker messages remain the human-facing compatibility contract,
+while advisory helpers such as `task-review` should prefer structured issue
+codes and paths when classifying protected workflow files, unlisted changed
+files, or task-context problems.
+
 Runtime Health has two scopes. An installed project validates its installed
 runtime, detected host platforms, and installed Skill manifests without
 requiring a `template/` directory. A cowork-flow source checkout distinguishes
