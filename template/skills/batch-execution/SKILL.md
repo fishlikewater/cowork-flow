@@ -33,6 +33,22 @@ Startup command:
 
 The command routes through `task next`, runs the runtime-gated Batch action, and returns the full Batch state, where `next_action` is the **only** allowed next step.
 
+## Read-Only Inspection
+
+Hosts may inspect an existing Batch operation without advancing, resuming, or
+saving the state:
+
+```bash
+batch-action inspect <operation_id>
+```
+
+The inspect report is derived from the persisted Batch state and includes
+`operationId`, `state`, `rootTask`, `currentPhase`, `currentTask`,
+`completedTasks`, `pausedReason`, `failedAction`, `nextAction`, and `recovery`.
+Use it for monitoring, recovery UI, or handoff facts. It must not replace
+`record-result` after a host action, and it must not be treated as completion
+verification.
+
 ## Host Action Loop
 
 Each cycle processes in this order:

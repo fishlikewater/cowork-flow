@@ -133,6 +133,29 @@ class BatchExecutionService:
             self._save(path, state)
         return self._advance(path, state)
 
+    def inspect(self, operation_id: str) -> dict:
+        path = self._state_path(operation_id)
+        snapshot = self._load(path)
+        if not snapshot.exists:
+            raise BatchExecutionError(
+                "BATCH-STATE-MISSING-001",
+                f"Batch state does not exist: {operation_id}",
+            )
+        state = dict(snapshot.data)
+        failed_action = self._failed_action(state)
+        return {
+            "operationId": operation_id,
+            "state": state.get("phase"),
+            "rootTask": state.get("root_task"),
+            "currentPhase": self._current_phase(state, failed_action),
+            "currentTask": state.get("current_task"),
+            "completedTasks": list(state.get("completed_tasks") or []),
+            "pausedReason": state.get("pause_reason"),
+            "failedAction": failed_action,
+            "nextAction": state.get("next_action"),
+            "recovery": self._recovery_facts(state),
+        }
+
     def record_result(self, operation_id: str, payload: dict) -> dict:
         path = self._state_path(operation_id)
         snapshot = self._load(path)
@@ -241,6 +264,70 @@ class BatchExecutionService:
         state["pause_reason"] = None
         self._save(path, state)
         return state
+
+    @classmethod
+    def _current_phase(
+        cls,
+        state: dict,
+        failed_action: dict | None,
+    ) -> str | None:
+        next_action = state.get("next_action")
+        if isinstance(next_action, dict):
+            phase = next_action.get("phase")
+            return str(phase) if isinstance(phase, str) else None
+        if failed_action is not None:
+            action_type = failed_action.get("type")
+            if isinstance(action_type, str) and action_type in BATCH_STEPS:
+                return cls._phase_for_step(action_type)
+        task_name = state.get("current_task")
+        if isinstance(task_name, str):
+            task_phases = dict(state.get("task_phases") or {})
+            phases = task_phases.get(task_name)
+            if isinstance(phases, list) and phases:
+                phase = phases[-1]
+                return str(phase) if isinstance(phase, str) else None
+        phase = state.get("phase")
+        return str(phase) if isinstance(phase, str) else None
+
+    @staticmethod
+    def _failed_action(state: dict) -> dict | None:
+        if state.get("phase") != "paused":
+            return None
+        action_results = dict(state.get("action_results") or {})
+        if not action_results:
+            return None
+        action_id, result = next(reversed(action_results.items()))
+        if not isinstance(result, dict):
+            return {"actionId": str(action_id)}
+        failed = {"actionId": str(action_id)}
+        result_type = result.get("type")
+        if isinstance(result_type, str):
+            failed["type"] = result_type
+        outcome = result.get("outcome")
+        if isinstance(outcome, str):
+            failed["outcome"] = outcome
+        detail = result.get("detail")
+        if isinstance(detail, str) and detail.strip():
+            failed["detail"] = detail.strip()
+        return failed
+
+    @staticmethod
+    def _recovery_facts(state: dict) -> dict:
+        if state.get("phase") != "paused":
+            return {}
+        operation_id = state.get("operation_id")
+        recovery: dict[str, object] = {}
+        if isinstance(operation_id, str) and operation_id.strip():
+            recovery["resumeCommand"] = (
+                f"batch-action resume {operation_id.strip()}"
+            )
+        task_name = state.get("current_task")
+        if isinstance(task_name, str) and task_name.strip():
+            recovery["retryTask"] = task_name.strip()
+        pause_reason = state.get("pause_reason")
+        if isinstance(pause_reason, str) and pause_reason.strip():
+            recovery["pausedReason"] = pause_reason.strip()
+        return recovery
 
     def _build_action(
         self,

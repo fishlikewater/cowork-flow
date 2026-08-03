@@ -18,6 +18,8 @@ def _parser() -> argparse.ArgumentParser:
     start.add_argument("root_task")
     resume = subparsers.add_parser("resume")
     resume.add_argument("operation_id")
+    inspect = subparsers.add_parser("inspect")
+    inspect.add_argument("operation_id")
     record = subparsers.add_parser("record-result")
     record.add_argument("operation_id")
     record.add_argument("file", type=Path)
@@ -32,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
             state = service.start(args.root_task)
         elif args.action == "resume":
             state = service.resume(args.operation_id)
+        elif args.action == "inspect":
+            state = service.inspect(args.operation_id)
         else:
             payload = json.loads(args.file.read_text(encoding="utf-8"))
             if not isinstance(payload, dict):

@@ -24,8 +24,11 @@ At load time every managed action and command must have exactly one owner.
 Lifecycle state, session/runtime-context, file scope, approval checks, and
 transactional persistence remain in the shared runtime. After shared Batch
 approval, the adapter invokes the manifest-owned `batch-action start`; Batch
-resume and result recording are also Skill commands rather than task CLI
-handlers.
+resume, read-only inspect, and result recording are also Skill commands rather
+than task CLI handlers. `batch-action inspect <operation_id>` may report
+existing operation facts, including current phase, current task, failed action,
+next action, and recovery hints, but it must not advance, resume, create, or
+save Batch state.
 
 Review-oriented Skill commands may provide advisory facts, such as changed-file
 coverage, applicable spec sources, and test-intent signals. An action-level
