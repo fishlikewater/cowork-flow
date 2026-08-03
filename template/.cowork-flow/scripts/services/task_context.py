@@ -311,6 +311,22 @@ class ContextFileValidation:
     issues: tuple[ContextValidationIssue, ...]
 
 
+@dataclass(frozen=True)
+class ContextJsonlEntry:
+    context_file: str
+    line: int
+    data: object
+
+
+@dataclass(frozen=True)
+class ContextJsonlReadResult:
+    context_file: str
+    exists: bool
+    entry_count: int
+    entries: tuple[ContextJsonlEntry, ...]
+    issues: tuple[ContextValidationIssue, ...]
+
+
 def get_implement_base(repo_root: Path | None = None) -> list[dict]:
     root = Path(repo_root) if repo_root is not None else get_repo_root()
     entries = [
@@ -463,6 +479,110 @@ def iter_jsonl_lines(path: Path):
             yield line_number, line.rstrip("\n")
 
 
+def read_context_jsonl_entries(context_file: Path) -> ContextJsonlReadResult:
+    """Parse a context JSONL file into reusable line-level facts."""
+    context_file = Path(context_file)
+    if not context_file.is_file():
+        return ContextJsonlReadResult(
+            context_file=context_file.name,
+            exists=False,
+            entry_count=0,
+            entries=(),
+            issues=(),
+        )
+
+    entries: list[ContextJsonlEntry] = []
+    issues: list[ContextValidationIssue] = []
+    entry_count = 0
+    try:
+        lines = tuple(iter_jsonl_lines(context_file))
+    except (OSError, UnicodeDecodeError) as error:
+        return ContextJsonlReadResult(
+            context_file=context_file.name,
+            exists=True,
+            entry_count=0,
+            entries=(),
+            issues=(
+                ContextValidationIssue(
+                    context_file=context_file.name,
+                    line=0,
+                    code="read_error",
+                    message=f"Cannot read {context_file.name}: {error}",
+                ),
+            ),
+        )
+
+    for line_number, line in lines:
+        if not line.strip():
+            continue
+        entry_count += 1
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            issues.append(
+                ContextValidationIssue(
+                    context_file=context_file.name,
+                    line=line_number,
+                    code="invalid_json",
+                    message="Invalid JSON",
+                )
+            )
+            continue
+        entries.append(
+            ContextJsonlEntry(
+                context_file=context_file.name,
+                line=line_number,
+                data=data,
+            )
+        )
+
+    return ContextJsonlReadResult(
+        context_file=context_file.name,
+        exists=True,
+        entry_count=entry_count,
+        entries=tuple(entries),
+        issues=tuple(issues),
+    )
+
+
+def normalize_context_file_scope_entry(
+    repo_root: Path,
+    entry: dict,
+) -> tuple[str | None, str | None]:
+    """Return the file-scope path allowed by one context entry.
+
+    Directory entries are valid context, but they do not authorize arbitrary
+    changed files for lifecycle review.
+    """
+    entry_type = entry.get("type", "file")
+    file_path = entry.get("file")
+    if not isinstance(file_path, str) or not file_path:
+        return None, "missing file path"
+    if entry_type == "directory":
+        return _normalize_context_file_scope_path(repo_root, file_path, entry_type)
+    if entry_type not in ("file", "planned-file", "deleted-file"):
+        return None, f"unsupported type {entry_type!r}"
+    return _normalize_context_file_scope_path(repo_root, file_path, entry_type)
+
+
+def _normalize_context_file_scope_path(
+    repo_root: Path,
+    file_path: str,
+    entry_type: str,
+) -> tuple[str | None, str | None]:
+    try:
+        normalized, _full_path = normalize_context_path(
+            repo_root,
+            file_path,
+            entry_type,
+        )
+    except TaskContextError:
+        return None, f"non-canonical path {file_path!r}"
+    if entry_type == "directory":
+        return None, None
+    return normalized, None
+
+
 class TaskContextService:
     """Manage task JSONL context without CLI rendering."""
 
@@ -556,17 +676,10 @@ class TaskContextService:
 
     def entries(self, task_dir: Path, context_name: str) -> list[dict]:
         context_file = Path(task_dir) / self._context_file_name(context_name)
-        if not context_file.is_file():
-            return []
 
         entries: list[dict] = []
-        for _, line in iter_jsonl_lines(context_file):
-            if not line.strip():
-                continue
-            try:
-                data = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+        for entry in read_context_jsonl_entries(context_file).entries:
+            data = entry.data
             if isinstance(data, dict):
                 entries.append(data)
         return entries
@@ -583,7 +696,8 @@ class TaskContextService:
         context_name: str,
     ) -> ContextFileValidation:
         context_file = Path(task_dir) / self._context_file_name(context_name)
-        if not context_file.is_file():
+        parsed = read_context_jsonl_entries(context_file)
+        if not parsed.exists:
             return ContextFileValidation(
                 context_file=context_file.name,
                 exists=False,
@@ -591,30 +705,13 @@ class TaskContextService:
                 issues=(),
             )
 
-        issues: list[ContextValidationIssue] = []
-        entry_count = 0
-        for line_number, line in iter_jsonl_lines(context_file):
-            if not line.strip():
-                continue
-            entry_count += 1
-            try:
-                data = json.loads(line)
-            except json.JSONDecodeError:
-                issues.append(
-                    ContextValidationIssue(
-                        context_file=context_file.name,
-                        line=line_number,
-                        code="invalid_json",
-                        message="Invalid JSON",
-                    )
-                )
-                continue
-
+        issues: list[ContextValidationIssue] = list(parsed.issues)
+        for entry in parsed.entries:
             issue = validate_context_entry(
                 self.repo_root,
-                context_file.name,
-                line_number,
-                data,
+                entry.context_file,
+                entry.line,
+                entry.data,
             )
             if issue is not None:
                 issues.append(issue)
@@ -622,7 +719,7 @@ class TaskContextService:
         return ContextFileValidation(
             context_file=context_file.name,
             exists=True,
-            entry_count=entry_count,
+            entry_count=parsed.entry_count,
             issues=tuple(issues),
         )
 
