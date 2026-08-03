@@ -376,6 +376,9 @@ class BatchExecutionService:
     ) -> None:
         action_type = str(action["type"])
         task_name = str(action["task"])
+        if action_type == "archive_task":
+            self._verify_archive_result(task_name, result)
+            return
         if action_type in LIFECYCLE_STATUSES:
             self._verify_task_status(
                 task_name,
@@ -409,11 +412,8 @@ class BatchExecutionService:
             if not self.commit_verifier(commit_id):
                 raise BatchExecutionError(
                     "BATCH-COMMIT-VERIFY-001",
-                    f"commit could not be verified: {commit_id}",
+                    f"commit_id could not be verified: {commit_id}",
                 )
-            return
-        if action_type == "archive_task":
-            self._verify_archive_result(task_name, result)
             return
         raise BatchExecutionError(
             "BATCH-ACTION-UNKNOWN-001",
@@ -462,14 +462,59 @@ class BatchExecutionService:
         task_name: str,
         result: dict,
     ) -> None:
-        destination = self._optional_text(result, "archive_destination")
-        if destination is None:
-            return
-        archive_path = self.repo_root / destination
-        if not archive_path.exists():
+        destination = self._required_text(
+            result,
+            "archive_destination",
+            "archive result is missing archive_destination",
+        )
+        destination_path = Path(destination)
+        if destination_path.is_absolute():
             raise BatchExecutionError(
                 "BATCH-ARCHIVE-VERIFY-001",
-                f"archive destination does not exist: {destination}",
+                f"archive_destination must be relative: {destination}",
+            )
+        archive_root = (
+            self.repo_root / ".cowork-flow" / "tasks" / "archive"
+        ).resolve()
+        archive_path = (self.repo_root / destination_path).resolve()
+        try:
+            archive_path.relative_to(archive_root)
+        except ValueError as error:
+            raise BatchExecutionError(
+                "BATCH-ARCHIVE-VERIFY-001",
+                "archive_destination must be under "
+                f".cowork-flow/tasks/archive: {destination}",
+            ) from error
+        if archive_path.name != task_name:
+            raise BatchExecutionError(
+                "BATCH-ARCHIVE-VERIFY-001",
+                f"archive_destination task name is {archive_path.name}; "
+                f"expected {task_name}",
+            )
+        if not archive_path.is_dir():
+            raise BatchExecutionError(
+                "BATCH-ARCHIVE-VERIFY-001",
+                f"archive_destination does not exist: {destination}",
+            )
+        task_json = archive_path / "task.json"
+        try:
+            task_data = json.loads(task_json.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise BatchExecutionError(
+                "BATCH-ARCHIVE-VERIFY-001",
+                f"archive_destination task.json cannot be loaded: {error}",
+            ) from error
+        if task_data.get("name") != task_name:
+            raise BatchExecutionError(
+                "BATCH-ARCHIVE-VERIFY-001",
+                "archive_destination task.json name is "
+                f"{task_data.get('name')}; expected {task_name}",
+            )
+        if task_data.get("status") != "completed":
+            raise BatchExecutionError(
+                "BATCH-ARCHIVE-VERIFY-001",
+                "archive_destination task status is "
+                f"{task_data.get('status')}; expected completed",
             )
 
     def _verify_runtime_initialized(
@@ -540,17 +585,22 @@ class BatchExecutionService:
         if runtime_context_id != runtime["runtime_context_id"]:
             raise BatchExecutionError(
                 "BATCH-RUNTIME-ID-001",
-                "runtime result does not match initialized context",
+                "runtime_context_id does not match initialized context: "
+                f"{runtime_context_id}; expected "
+                f"{runtime['runtime_context_id']}",
             )
         if host_context_key != runtime["host_context_key"]:
             raise BatchExecutionError(
                 "BATCH-RUNTIME-BIND-001",
-                "runtime result does not match expected host context",
+                "host_context_key does not match initialized context: "
+                f"{host_context_key}; expected {runtime['host_context_key']}",
             )
         if action.get("runtime_context_id") != runtime_context_id:
             raise BatchExecutionError(
                 "BATCH-RUNTIME-ID-001",
-                "pending action runtime context changed",
+                "runtime_context_id does not match pending action: "
+                f"{runtime_context_id}; expected "
+                f"{action.get('runtime_context_id')}",
             )
         context = self.runtime_contexts.load(runtime_context_id)
         self._verify_runtime_identity(
@@ -568,8 +618,10 @@ class BatchExecutionService:
         if context.get("bound_context_key") != host_context_key:
             raise BatchExecutionError(
                 "BATCH-RUNTIME-BIND-001",
-                f"runtime context {runtime_context_id} has unexpected "
-                "bound_context_key",
+                f"runtime context {runtime_context_id} "
+                "bound_context_key does not match result: "
+                f"{context.get('bound_context_key')}; expected "
+                f"{host_context_key}",
             )
         if status == "bound":
             if not self.runtime_contexts.close(runtime_context_id):
