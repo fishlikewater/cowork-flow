@@ -8,12 +8,15 @@ task metadata and the current git snapshot.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from infra.git_snapshot import collect_changed_paths
+from services.task_context import (
+    normalize_context_file_scope_entry,
+    read_context_jsonl_entries,
+)
 
 
 PROTECTED_WORKFLOW_PATTERNS = (
@@ -109,7 +112,13 @@ def _review_completion_issues(
     issues: list[LifecycleCheckIssue] = []
     if not allow_spec_file_modifications:
         issues.extend(_protected_workflow_file_issues(changed_files))
-    issues.extend(_allowed_file_scope_issues(task_dir, changed_files))
+    issues.extend(
+        _allowed_file_scope_issues(
+            task_dir,
+            changed_files,
+            repo_root=repo_root,
+        )
+    )
     return issues
 
 
@@ -154,12 +163,17 @@ def _protected_workflow_file_blockers(changed_files: list[str]) -> list[str]:
 def _allowed_file_scope_issues(
     task_dir: Path,
     changed_files: list[str],
+    *,
+    repo_root: Path | None = None,
 ) -> list[LifecycleCheckIssue]:
     implement_jsonl = task_dir / "implement.jsonl"
     if not implement_jsonl.exists():
         return []
 
-    allowed_files, scope_issues = _load_allowed_context_files(implement_jsonl)
+    allowed_files, scope_issues = _load_allowed_context_files(
+        implement_jsonl,
+        repo_root=repo_root,
+    )
     if scope_issues:
         return scope_issues
 
@@ -199,47 +213,56 @@ def _context_issue(code: str, message: str) -> LifecycleCheckIssue:
 
 def _load_allowed_context_files(
     implement_jsonl: Path,
+    *,
+    repo_root: Path | None = None,
 ) -> tuple[set[str], list[LifecycleCheckIssue]]:
     allowed_files: set[str] = set()
     issues: list[LifecycleCheckIssue] = []
-    try:
-        lines = implement_jsonl.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError) as error:
-        return allowed_files, [
-            _context_issue(
-                "implement_jsonl_read_error",
-                f"Cannot read implement.jsonl: {error}",
-            )
-        ]
-
-    for line_number, line in enumerate(lines, start=1):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
+    repo_root = Path(repo_root) if repo_root is not None else _repo_root_from_task_dir(
+        implement_jsonl.parent
+    )
+    parsed = read_context_jsonl_entries(implement_jsonl)
+    for issue in parsed.issues:
+        if issue.code == "read_error":
             issues.append(
                 _context_issue(
-                    "invalid_implement_jsonl_json",
-                    f"Invalid implement.jsonl JSON at line {line_number}",
+                    "implement_jsonl_read_error",
+                    issue.message,
                 )
             )
             continue
+        if issue.code == "invalid_json":
+            issues.append(
+                _context_issue(
+                    "invalid_implement_jsonl_json",
+                    f"Invalid implement.jsonl JSON at line {issue.line}",
+                )
+            )
+            continue
+        issues.append(_context_issue(issue.code, issue.message))
+
+    for context_entry in parsed.entries:
+        entry = context_entry.data
         if not isinstance(entry, dict):
             issues.append(
                 _context_issue(
                     "invalid_implement_jsonl_entry",
-                    f"Invalid implement.jsonl entry at line {line_number}: expected object",
+                    (
+                        "Invalid implement.jsonl entry at line "
+                        f"{context_entry.line}: expected object"
+                    ),
                 )
             )
             continue
-        normalized, error = _normalize_allowed_context_file(entry)
+        normalized, error = normalize_context_file_scope_entry(repo_root, entry)
         if error is not None:
             issues.append(
                 _context_issue(
                     "invalid_implement_jsonl_file_scope",
-                    f"Invalid implement.jsonl file scope at line {line_number}: {error}",
+                    (
+                        "Invalid implement.jsonl file scope at line "
+                        f"{context_entry.line}: {error}"
+                    ),
                 )
             )
             continue
@@ -255,24 +278,11 @@ def _load_allowed_context_files(
     return allowed_files, issues
 
 
-def _normalize_allowed_context_file(entry: dict) -> tuple[str | None, str | None]:
-    entry_type = entry.get("type", "file")
-    file_path = entry.get("file")
-    if entry_type == "directory":
-        return None, None
-    if entry_type not in ("file", "planned-file", "deleted-file"):
-        return None, f"unsupported type {entry_type!r}"
-    if not isinstance(file_path, str) or not file_path:
-        return None, "missing file path"
-    normalized = _normalize_git_path(file_path)
-    segments = normalized.split("/")
-    invalid = (
-        normalized.startswith("/")
-        or re.match(r"^[A-Za-z]:", normalized)
-        or any(segment in ("", ".", "..") for segment in segments)
-        or any(character in normalized for character in "*?[]")
-    )
-    return (None, f"non-canonical path {file_path!r}") if invalid else (normalized, None)
+def _repo_root_from_task_dir(task_dir: Path) -> Path:
+    task_dir = Path(task_dir)
+    if task_dir.parent.name == "tasks" and task_dir.parent.parent.name == ".cowork-flow":
+        return task_dir.parent.parent.parent
+    return task_dir.parent
 
 
 def _normalize_git_path(file_path: str) -> str:

@@ -20,6 +20,10 @@ class TaskContextServiceTest(unittest.TestCase):
         self.TaskContextService = context_module.TaskContextService
         self.TaskContextError = context_module.TaskContextError
         self.get_check_context = context_module.get_check_context
+        self.read_context_jsonl_entries = context_module.read_context_jsonl_entries
+        self.normalize_context_file_scope_entry = (
+            context_module.normalize_context_file_scope_entry
+        )
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
@@ -119,6 +123,67 @@ class TaskContextServiceTest(unittest.TestCase):
                 [issue.code for issue in issues],
             )
             self.assertEqual([1, 2], [issue.line for issue in issues])
+
+    def test_context_jsonl_reader_returns_shared_parse_facts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context_file = root / "implement.jsonl"
+            context_file.write_text(
+                json.dumps({"file": "src/allowed.py", "reason": "allowed"})
+                + "\nnot-json\n"
+                + json.dumps(["not", "object"])
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = self.read_context_jsonl_entries(context_file)
+
+            self.assertTrue(result.exists)
+            self.assertEqual(3, result.entry_count)
+            self.assertEqual([1, 3], [entry.line for entry in result.entries])
+            self.assertEqual(
+                [("invalid_json", 2, "Invalid JSON")],
+                [(issue.code, issue.line, issue.message) for issue in result.issues],
+            )
+
+    def test_file_scope_entry_uses_task_context_path_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "src").mkdir()
+
+            normalized, error = self.normalize_context_file_scope_entry(
+                root,
+                {
+                    "file": ".\\src\\planned.py",
+                    "reason": "Planned source",
+                    "type": "planned-file",
+                },
+            )
+            directory_scope, directory_error = self.normalize_context_file_scope_entry(
+                root,
+                {"file": "src/", "reason": "Directory scope", "type": "directory"},
+            )
+            unsafe_scope, unsafe_error = self.normalize_context_file_scope_entry(
+                root,
+                {"file": "../outside.py", "reason": "Unsafe"},
+            )
+            typed_scope, typed_error = self.normalize_context_file_scope_entry(
+                root,
+                {
+                    "file": "src/allowed.py",
+                    "reason": "Unsupported type",
+                    "type": "mystery",
+                },
+            )
+
+            self.assertEqual("src/planned.py", normalized)
+            self.assertIsNone(error)
+            self.assertIsNone(directory_scope)
+            self.assertIsNone(directory_error)
+            self.assertIsNone(unsafe_scope)
+            self.assertEqual("non-canonical path '../outside.py'", unsafe_error)
+            self.assertIsNone(typed_scope)
+            self.assertEqual("unsupported type 'mystery'", typed_error)
 
     def test_add_allows_explicit_planned_file_without_creating_placeholder(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
