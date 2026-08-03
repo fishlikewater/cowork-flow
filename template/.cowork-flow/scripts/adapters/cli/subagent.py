@@ -98,6 +98,9 @@ def _host_context_prefix(host: str) -> str:
 def _suggest_host_context_key(host: str, runtime_context_id: str) -> str:
     return f"{_host_context_prefix(host)}_{runtime_context_id}"
 
+def _print_runtime_error(error: RuntimeContextError) -> None:
+    print(f"Error: {error.code}: {error.detail}", file=sys.stderr)
+
 def _resolve_agent_type(role: str, agent_type: str | None) -> tuple[str, str]:
     normalized_role = role.strip()
     requested = agent_type.strip() if isinstance(agent_type, str) else ""
@@ -178,7 +181,7 @@ def cmd_init(args: argparse.Namespace) -> int:
             context,
         )
     except RuntimeContextError as error:
-        print(f"Error: {error.detail}", file=sys.stderr)
+        _print_runtime_error(error)
         return 1
     logical_context_key = initialized.logical_context_key
     host_context_key = _suggest_host_context_key(host, runtime_context_id)
@@ -244,7 +247,7 @@ def cmd_update(args: argparse.Namespace) -> int:
             note=args.note,
         )
     except RuntimeContextError as error:
-        print(f"Error: {error.detail}", file=sys.stderr)
+        _print_runtime_error(error)
         return 1
     if context is None:
         print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
@@ -261,7 +264,7 @@ def cmd_bind(args: argparse.Namespace) -> int:
             args.context_key,
         )
     except RuntimeContextError as error:
-        print(f"Error: {error.detail}", file=sys.stderr)
+        _print_runtime_error(error)
         return 1
     if context is None:
         print(f"Error: cannot bind runtime context: {args.subagent_id}", file=sys.stderr)
@@ -275,7 +278,7 @@ def cmd_close(args: argparse.Namespace) -> int:
     try:
         closed = RuntimeContextService(repo_root).close(args.subagent_id)
     except RuntimeContextError as error:
-        print(f"Error: {error.detail}", file=sys.stderr)
+        _print_runtime_error(error)
         return 1
     if not closed:
         print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)

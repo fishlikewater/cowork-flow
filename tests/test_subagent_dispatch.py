@@ -351,6 +351,18 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertFalse(host_session.exists())
             self.assertFalse((root / payload["logicalSessionFile"]).exists())
 
+            repeated = subprocess.run(
+                [sys.executable, str(SUBAGENT), "close", runtime_id],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, repeated.returncode, msg=repeated.stderr)
+            self.assertFalse(host_session.exists())
+            self.assertFalse((root / payload["logicalSessionFile"]).exists())
+
 
     def test_bind_is_idempotent_for_same_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -442,6 +454,7 @@ class SubagentDispatchTest(unittest.TestCase):
 
             self.assertEqual(0, first.returncode, msg=first.stderr)
             self.assertNotEqual(0, second.returncode)
+            self.assertIn("RUNTIME-BIND-001", second.stderr)
             self.assertIn("already bound to codex_first", second.stderr)
             context = json.loads(
                 (root / ".cowork-flow" / ".runtime" / "subagents" / f"{runtime_id}.json").read_text(
@@ -449,6 +462,22 @@ class SubagentDispatchTest(unittest.TestCase):
                 )
             )
             self.assertEqual("codex_first", context["bound_context_key"])
+
+    def test_bind_missing_context_key_does_not_create_runtime_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            result = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", "rtx_missing"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertFalse((root / ".cowork-flow" / ".runtime").exists())
 
 if __name__ == "__main__":
     unittest.main()
