@@ -5,6 +5,7 @@ import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
 import { runSync } from '../src/commands/sync.js';
+import { hostRegistry } from '../src/lib/host-assets.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { templateRoot } from '../src/lib/paths.js';
 import {
@@ -156,6 +157,14 @@ test('sync removes obsolete runtime rules metadata without overwriting local spe
   const rulesPath = join(target, '.cowork-flow', 'spec', 'runtime', 'rules.json');
   const rulesSchemaPath = join(target, '.cowork-flow', 'spec', 'schemas', 'rules.schema.json');
   const removedGatePath = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'gates.py');
+  assert.equal(
+    hostRegistry.obsoleteSyncFiles().includes('.cowork-flow/spec/runtime/rules.json'),
+    true
+  );
+  assert.equal(
+    hostRegistry.obsoleteSyncFiles().includes('.cowork-flow/scripts/common/gates/gates.py'),
+    true
+  );
   await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'gates'), { recursive: true });
   await writeFile(rulesPath, '{"schemaVersion":1,"rules":[]}\n', 'utf8');
   await writeFile(rulesSchemaPath, '{"type":"object"}\n', 'utf8');

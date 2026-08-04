@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 
 import { main } from '../src/cli.js';
 import { runInitWithOptions } from '../src/commands/init.js';
+import { hostRegistry } from '../src/lib/host-assets.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import {
   createTempDir,
@@ -61,6 +62,11 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')), false);
+  assert.deepEqual(hostRegistry.assetOwners('.codex/hooks.json'), ['codex']);
+  assert.deepEqual(
+    hostRegistry.assetOwners('.cowork-flow/adapters/opencode/adapter.yaml'),
+    ['opencode']
+  );
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.claude')), false);
   assert.equal(await exists(join(target, 'CLAUDE.md')), false);
