@@ -2,8 +2,10 @@ import { resolve } from 'node:path';
 
 import {
   applyPlan,
+  buildReadinessReport,
   buildSyncPlan,
   detectInstalledPlatforms,
+  formatReadinessReport,
   summarizePlan
 } from '../lib/copy-template.js';
 import { readPackageInfo } from '../lib/package-info.js';
@@ -37,6 +39,10 @@ export async function runSync(args, { io, fileSystem }) {
 
   await applyPlan(plan, { dryRun: options.dryRun, fileSystem });
   io.writeOut(summarizePlan(plan, options.dryRun));
+  if (options.dryRun) {
+    const readiness = await buildReadinessReport(plan, { fileSystem });
+    io.writeOut(formatReadinessReport(readiness));
+  }
   io.writeOut(`Platforms: ${platforms.length > 0 ? formatPlatformList(platforms) : 'none'}\n`);
   return 0;
 }

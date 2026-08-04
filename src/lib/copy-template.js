@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 
 import { createAssetPlan, planActions } from './asset-plan.js';
 import { hostRegistry } from './host-assets.js';
-import { applyAssetPlan } from './plan-applier.js';
+import { applyAssetPlan, inspectAssetTransactions } from './plan-applier.js';
 import { templateRoot } from './paths.js';
 
 async function pathExists(path) {
@@ -312,6 +312,68 @@ export async function buildSyncPlan(targetDir, options = {}) {
 
 export async function detectInstalledPlatforms(targetDir) {
   return hostRegistry.detectInstalledPlatforms(targetDir, pathExists);
+}
+
+function normalizeReportPath(value) {
+  return String(value).replaceAll('\\', '/');
+}
+
+function hostAssetOwners(relativePath) {
+  const normalized = normalizeReportPath(relativePath);
+  const owners = new Set(hostRegistry.assetOwners(normalized));
+  for (const platform of hostRegistry.platforms) {
+    const skillTarget = platform.skillTarget ? normalizeReportPath(platform.skillTarget) : null;
+    if (skillTarget && normalized.startsWith(`${skillTarget}/`)) {
+      owners.add(platform.id);
+    }
+  }
+  return [...owners];
+}
+
+function readinessAction(action) {
+  const item = { path: action.relativePath, action: action.action };
+  const platforms = hostAssetOwners(action.relativePath);
+  if (platforms.length > 0) {
+    item.platforms = platforms;
+  }
+  return item;
+}
+
+function recoveryWarning(transaction) {
+  if (transaction.error) {
+    return `pending recovery metadata unreadable at ${transaction.path}: ${transaction.error}`;
+  }
+  if (transaction.status === 'committed') {
+    return `stale committed transaction cleanup pending at ${transaction.path}`;
+  }
+  return `pending ${transaction.status} transaction recovery at ${transaction.path}`;
+}
+
+export async function buildReadinessReport(plan, options = {}) {
+  const actions = planActions(plan);
+  const pendingRecovery = await inspectAssetTransactions(plan.targetDir, {
+    fileSystem: options.fileSystem
+  });
+  return {
+    wouldCopy: actions
+      .filter((action) => action.action === 'create' || action.action === 'update')
+      .map(readinessAction),
+    wouldSkipProtected: actions
+      .filter((action) => action.action === 'protected')
+      .map(readinessAction),
+    wouldRemoveObsolete: actions
+      .filter((action) => action.action === 'delete')
+      .map(readinessAction),
+    hostAssetRefresh: actions
+      .filter((action) => action.action !== 'skip' && hostAssetOwners(action.relativePath).length > 0)
+      .map(readinessAction),
+    pendingRecovery,
+    warnings: pendingRecovery.map(recoveryWarning)
+  };
+}
+
+export function formatReadinessReport(report) {
+  return `readiness=${JSON.stringify(report)}\n`;
 }
 
 export function summarizePlan(plan, dryRun = false) {

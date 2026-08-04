@@ -76,9 +76,9 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | 命令 | 说明 |
 |---|---|
 | `init <path>` | 初始化项目模板 |
-| `sync <path>` | 同步已初始化项目的模板和技能 |
+| `sync <path> [--dry-run]` | 同步已初始化项目的模板和技能 |
 | `install-zcode-plugin` | 安装 ZCode 插件到全局缓存 |
-| `update` | 升级 CLI 本身 |
+| `update [--dry-run]` | 升级 CLI 本身 |
 
 ### init 选项
 
@@ -96,7 +96,13 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 - **保护文件**：`config.yaml`、`spec/`（除 `workflow-state-templates.md`）、任务、计划、变更、workspace
 - **正式版旧资产清理**：旧脚本位置、旧 adapter 资产和已废弃文件按 Host Asset Manifest 的 `obsoleteFiles` 清理；用户保护文件保持不变
 - **事务恢复**：上次未完成事务会在新一轮 sync 前恢复；事务元数据缺失或损坏时 fail-closed，不在未知状态上继续写入
+- **Dry-run readiness**：`sync --dry-run` 只构建计划并输出 `readiness=<json>`，不写文件或事务状态；字段包含 `wouldCopy`、`wouldSkipProtected`、`wouldRemoveObsolete`、`hostAssetRefresh`、`pendingRecovery`、`warnings`
 - `--force` 整文件覆盖保护文件
+
+### update 行为
+
+- 默认查询 npm latest，发现新版本时执行 `npm install -g cowork-flow@latest`
+- `--dry-run` 只输出当前版本、最新版本和 `readiness=<json>`，其中 `update.wouldInstall` 表示是否会执行全局安装，不调用安装命令
 
 ## ZCode 插件
 
