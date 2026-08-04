@@ -6,7 +6,6 @@ import { createAssetPlan, planActions } from './asset-plan.js';
 import { hostRegistry } from './host-assets.js';
 import { applyAssetPlan } from './plan-applier.js';
 import { templateRoot } from './paths.js';
-import { shouldIncludeForPlatforms, skillDestinationForPlatform } from './platforms.js';
 
 async function pathExists(path) {
   try {
@@ -91,7 +90,7 @@ async function appendSkillFileActions(actions, {
   for (const skill of await listSkillDirs()) {
     const skillFiles = await listSkillFiles(skill);
     for (const platform of platforms) {
-      const destBase = skillDestinationForPlatform(platform);
+      const destBase = hostRegistry.skillDestination(platform);
       if (!destBase) continue;
       for (const skillFile of skillFiles) {
         const destination = join(
@@ -124,7 +123,7 @@ export async function buildInitPlan(targetDir, options = {}) {
   const seen = new Set();
 
   for (const file of files) {
-    if (!shouldIncludeForPlatforms(file, platforms)) {
+    if (!hostRegistry.shouldInclude(file, platforms)) {
       continue;
     }
 
@@ -169,42 +168,8 @@ export async function buildInitPlan(targetDir, options = {}) {
   });
 }
 
-const PROTECTED_SYNC_FILES = new Set(
-  hostRegistry.syncPolicy.protectedFiles
-);
-const PROTECTED_SYNC_PREFIXES = hostRegistry.syncPolicy.protectedPrefixes;
-const SAFE_SYNC_FILES = new Set(hostRegistry.syncPolicy.safeFiles);
-const SAFE_SYNC_PREFIXES = [
-  ...hostRegistry.syncPolicy.safePrefixes,
-  ...hostRegistry.assetPrefixes,
-  ...hostRegistry.skillTargets.map((target) => `${target}/`)
-];
-const MANAGED_BLOCK_FILES = new Set(
-  hostRegistry.syncPolicy.managedBlockFiles
-);
-const OBSOLETE_SYNC_FILES = new Set(
-  hostRegistry.syncPolicy.obsoleteFiles
-);
-
 const COWORK_FLOW_START = '<!-- COWORK-FLOW:START -->';
 const COWORK_FLOW_END = '<!-- COWORK-FLOW:END -->';
-
-function isProtectedSyncFile(relativePath) {
-  const templatePath = toTemplatePath(relativePath);
-  if (SAFE_SYNC_FILES.has(templatePath)) {
-    return false;
-  }
-  return PROTECTED_SYNC_FILES.has(templatePath)
-    || PROTECTED_SYNC_PREFIXES.some((prefix) => templatePath.startsWith(prefix));
-}
-
-function isSafeSyncFile(relativePath) {
-  const templatePath = toTemplatePath(relativePath);
-  return SAFE_SYNC_FILES.has(templatePath)
-    || SAFE_SYNC_PREFIXES.some((prefix) => templatePath.startsWith(prefix))
-    || hostRegistry.isKnownPlatformAsset(templatePath)
-    || templatePath.endsWith('/.gitkeep');
-}
 
 function isCoveredByDeletedParent(relativePath, deletedParents) {
   return deletedParents.some((parent) => relativePath.startsWith(`${parent}/`));
@@ -276,7 +241,7 @@ export async function buildSyncPlan(targetDir, options = {}) {
   const seen = new Set();
 
   for (const file of files) {
-    if (!shouldIncludeForPlatforms(file, platforms)) {
+    if (!hostRegistry.shouldInclude(file, platforms)) {
       continue;
     }
 
@@ -289,13 +254,13 @@ export async function buildSyncPlan(targetDir, options = {}) {
 
     const source = join(templateRoot, file);
     const exists = await pathExists(destination);
-    if (MANAGED_BLOCK_FILES.has(toTemplatePath(file))) {
+    if (hostRegistry.isManagedBlockFile(file)) {
       actions.push(await buildManagedBlockSyncAction({ source, destination, exists, options, relativePath: file }));
       continue;
     }
 
-    const protectedFile = isProtectedSyncFile(file) && !options.force && exists;
-    const safeFile = isSafeSyncFile(file);
+    const protectedFile = hostRegistry.isProtectedSyncFile(file) && !options.force && exists;
+    const safeFile = hostRegistry.isSafeSyncFile(file);
 
     if (protectedFile) {
       actions.push({ action: 'protected', source, destination, relativePath: file });
@@ -315,13 +280,7 @@ export async function buildSyncPlan(targetDir, options = {}) {
   await appendSkillFileActions(actions, { targetDir, platforms, seen, sync: true });
 
   const deletedObsoleteParents = [];
-  const obsoleteFiles = [...OBSOLETE_SYNC_FILES].sort((left, right) => {
-    if (left.length !== right.length) {
-      return left.length - right.length;
-    }
-    return left.localeCompare(right);
-  });
-  for (const file of obsoleteFiles) {
+  for (const file of hostRegistry.obsoleteSyncFiles()) {
     if (isCoveredByDeletedParent(file, deletedObsoleteParents)) {
       continue;
     }

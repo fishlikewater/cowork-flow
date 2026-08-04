@@ -41,6 +41,19 @@ test('default host registry exposes manifest platform behavior', () => {
     false
   );
   assert.equal(registry.shouldInclude('skills/start/SKILL.md', ['codex']), false);
+  assert.deepEqual(registry.assetOwners('.codex/hooks.json'), ['codex']);
+  assert.deepEqual(
+    registry.assetOwners('.cowork-flow/adapters/claude-code/adapter.yaml'),
+    ['claude-code']
+  );
+  assert.equal(registry.isProtectedSyncFile('.cowork-flow/config.yaml'), true);
+  assert.equal(registry.isProtectedSyncFile('.cowork-flow/run'), false);
+  assert.equal(registry.isSafeSyncFile('.codex/hooks.json'), true);
+  assert.equal(registry.isManagedBlockFile('AGENTS.md'), true);
+  assert.equal(
+    registry.obsoleteSyncFiles().includes('.cowork-flow/workflow.md'),
+    true
+  );
 });
 
 

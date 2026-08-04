@@ -49,6 +49,20 @@ export function createHostRegistry(manifest) {
     managedBlockFiles: manifest.syncPolicy.managedBlockFiles.map(normalizePath),
     obsoleteFiles: manifest.syncPolicy.obsoleteFiles.map(normalizePath)
   };
+  const assetPrefixes = unique(
+    platforms.flatMap((platform) => platform.assetPrefixes)
+  );
+  const skillTargets = unique(
+    platforms
+      .map((platform) => platform.skillTarget)
+      .filter(
+        (value) => typeof value === 'string' && value.length > 0
+      )
+      .map(normalizePath)
+  );
+  const protectedFiles = new Set(syncPolicy.protectedFiles);
+  const safeFiles = new Set(syncPolicy.safeFiles);
+  const managedBlockFiles = new Set(syncPolicy.managedBlockFiles);
 
   function parsePlatformSelection(values) {
     const rawValues = Array.isArray(values) ? values : [values];
@@ -92,18 +106,55 @@ export function createHostRegistry(manifest) {
     ) {
       return false;
     }
-    const owners = platforms.filter((platform) => (
-      platform.assetFiles.includes(normalized)
-      || platform.assetPrefixes.some(
-        (prefix) => normalized.startsWith(prefix)
-      )
-    ));
+    const owners = assetOwners(normalized);
     if (owners.length === 0) {
       return true;
     }
     return owners.some(
-      (platform) => selectedPlatforms.includes(platform.id)
+      (platformId) => selectedPlatforms.includes(platformId)
     );
+  }
+
+  function assetOwners(relativePath) {
+    const normalized = normalizePath(relativePath);
+    return platforms
+      .filter((platform) => ownsAsset(platform, normalized))
+      .map((platform) => platform.id);
+  }
+
+  function isKnownPlatformAsset(relativePath) {
+    return assetOwners(relativePath).length > 0;
+  }
+
+  function isSafeSyncFile(relativePath) {
+    const normalized = normalizePath(relativePath);
+    return safeFiles.has(normalized)
+      || syncPolicy.safePrefixes.some((prefix) => normalized.startsWith(prefix))
+      || assetPrefixes.some((prefix) => normalized.startsWith(prefix))
+      || skillTargets.some((target) => normalized.startsWith(`${target}/`))
+      || normalized.endsWith('/.gitkeep');
+  }
+
+  function isProtectedSyncFile(relativePath) {
+    const normalized = normalizePath(relativePath);
+    if (safeFiles.has(normalized)) {
+      return false;
+    }
+    return protectedFiles.has(normalized)
+      || syncPolicy.protectedPrefixes.some((prefix) => normalized.startsWith(prefix));
+  }
+
+  function isManagedBlockFile(relativePath) {
+    return managedBlockFiles.has(normalizePath(relativePath));
+  }
+
+  function obsoleteSyncFiles() {
+    return [...syncPolicy.obsoleteFiles].sort((left, right) => {
+      if (left.length !== right.length) {
+        return left.length - right.length;
+      }
+      return left.localeCompare(right);
+    });
   }
 
   async function detectInstalledPlatforms(targetDir, pathExists) {
@@ -124,19 +175,11 @@ export function createHostRegistry(manifest) {
     platforms,
     platformIds,
     syncPolicy,
-    assetPrefixes: unique(
-      platforms.flatMap((platform) => platform.assetPrefixes)
-    ),
-    skillTargets: unique(
-      platforms
-        .map((platform) => platform.skillTarget)
-        .filter(
-          (value) => typeof value === 'string' && value.length > 0
-        )
-        .map(normalizePath)
-    ),
+    assetPrefixes,
+    skillTargets,
     parsePlatformSelection,
     shouldInclude,
+    assetOwners,
     detectInstalledPlatforms,
     platform(platformId) {
       return byId.get(platformId) ?? null;
@@ -147,16 +190,20 @@ export function createHostRegistry(manifest) {
     skillDestination(platformId) {
       return byId.get(platformId)?.skillTarget ?? null;
     },
-    isKnownPlatformAsset(relativePath) {
-      const normalized = normalizePath(relativePath);
-      return platforms.some((platform) => (
-        platform.assetFiles.includes(normalized)
-        || platform.assetPrefixes.some(
-          (prefix) => normalized.startsWith(prefix)
-        )
-      ));
-    }
+    isKnownPlatformAsset,
+    isSafeSyncFile,
+    isProtectedSyncFile,
+    isManagedBlockFile,
+    obsoleteSyncFiles
   };
+}
+
+
+function ownsAsset(platform, normalizedPath) {
+  return platform.assetFiles.includes(normalizedPath)
+    || platform.assetPrefixes.some(
+      (prefix) => normalizedPath.startsWith(prefix)
+    );
 }
 
 
