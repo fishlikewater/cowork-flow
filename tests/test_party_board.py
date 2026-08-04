@@ -57,6 +57,33 @@ class PartyBoardTest(PartyModeTestCase):
             with self.assertRaises(json.JSONDecodeError):
                 self.party_mode_v2.view_discussion(root, discussion_id="demo")
 
+    def test_monitor_rejects_malformed_actions_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = self._repo(Path(temp_name))
+            self._init_demo(root)
+            base = self._base_dir(root)
+            malformed = {
+                "schema_version": 1,
+                "discussion_id": "demo",
+                "next_actions": [
+                    {
+                        "action_id": "bad-dispatch",
+                        "type": "dispatch_child",
+                        "agent_id": "arch",
+                    }
+                ],
+            }
+            (base / "actions.json").write_text(
+                json.dumps(malformed, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                self.party_action_contract.PartyActionContractError,
+                "missing_action_field:0:agent_kind",
+            ):
+                self.party_mode_v2.monitor_discussion(root, discussion_id="demo")
+
     def test_board_store_helpers_own_board_and_history_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = self._repo(Path(temp_name))

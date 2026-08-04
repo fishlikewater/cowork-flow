@@ -51,6 +51,12 @@ validation.
 results are preserved in audit/action history so a completed discussion can
 still prove dispatch, wait, follow-up, and closeout intent.
 
+`actions.json` must validate against
+`.cowork-flow/spec/schemas/party-mode-v2-actions.schema.json` before the
+runtime exposes it to monitor or Host execution surfaces. Missing required
+fields, unknown action types, and Host-specific fields in `next_actions` fail
+closed instead of becoming executable moderator work.
+
 Host action results are recorded through runtime commands. The runtime records
 host child ids and agent status, but it still does not call host primitives
 directly.

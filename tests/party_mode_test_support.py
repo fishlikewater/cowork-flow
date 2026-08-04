@@ -29,6 +29,7 @@ class PartyModeTestCase(unittest.TestCase):
         sys.modules["party_mode_v2"] = self.party_mode_v2
         spec.loader.exec_module(self.party_mode_v2)
         self.party_board_store = importlib.import_module("party_board_store")
+        self.party_action_contract = importlib.import_module("party_action_contract")
 
     def _cleanup_imports(self) -> None:
         if str(TEMPLATE_SCRIPTS) in sys.path:
@@ -37,6 +38,7 @@ class PartyModeTestCase(unittest.TestCase):
         if script_dir in sys.path:
             sys.path.remove(script_dir)
         for module_name in (
+            "party_action_contract",
             "party_board_store",
             "party_mode_v2",
             "infra.config",
