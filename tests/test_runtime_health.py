@@ -165,6 +165,42 @@ class RuntimeHealthTest(unittest.TestCase):
         self.assertIn("missing command target", stderr)
         self.assertIn(".codex/hooks/inject-workflow-state.py", stderr.replace("\\", "/"))
 
+    def test_host_adapter_json_reports_stable_issue_envelope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._install_codex_project(root)
+            target = root / ".codex" / "hooks" / "inject-workflow-state.py"
+            target.unlink()
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                result = self.doctor._run_host_checks(
+                    root,
+                    structured=True,
+                )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(1, result)
+        self.assertEqual(1, len(payload["issues"]))
+        issue = payload["issues"][0]
+        self.assertEqual(
+            {
+                "code": "HOST-ASSET-MISSING-COMMAND-TARGET",
+                "severity": "error",
+                "path": ".codex/hooks/inject-workflow-state.py",
+                "commandHint": "",
+                "contract": "runtime-health:host-adapters",
+            },
+            {key: issue[key] for key in (
+                "code",
+                "severity",
+                "path",
+                "commandHint",
+                "contract",
+            )},
+        )
+        self.assertIn("missing command target", issue["message"])
+
     def test_source_checkout_does_not_require_full_ignored_live_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -273,17 +309,62 @@ class RuntimeHealthTest(unittest.TestCase):
             (missing_context / "implement.jsonl").write_text('{"file": "README.md"}\n', encoding="utf-8")
 
             issues = self.doctor.check_task_hygiene(root)
+            stdout = io.StringIO()
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
                 io.StringIO()
             ):
                 result = self.doctor._run_task_hygiene_checks(root)
+            with contextlib.redirect_stdout(stdout):
+                structured_result = self.doctor._run_task_hygiene_checks(
+                    root,
+                    structured=True,
+                )
 
         kinds = {issue["kind"] for issue in issues}
+        payload = json.loads(stdout.getvalue())
+        structured_issues = payload["issues"]
+        envelope_keys = {
+            "code",
+            "severity",
+            "path",
+            "message",
+            "commandHint",
+            "contract",
+        }
         self.assertEqual(0, result)
+        self.assertEqual(0, structured_result)
         self.assertIn("completed_unarchived", kinds)
         self.assertIn("in_progress_unbound", kinds)
         self.assertIn("missing_task_context", kinds)
-        self.assertTrue(all(issue["hint"].startswith("./.cowork-flow/run ") for issue in issues))
+        self.assertEqual(
+            [],
+            [issue for issue in issues if not envelope_keys <= set(issue)],
+        )
+        self.assertEqual(
+            [],
+            [
+                issue
+                for issue in structured_issues
+                if issue["commandHint"] != issue["hint"]
+            ],
+        )
+        self.assertEqual(
+            [],
+            [
+                issue
+                for issue in structured_issues
+                if issue["severity"] != "warning"
+                or issue["contract"] != "runtime-health:task-hygiene"
+            ],
+        )
+        self.assertEqual(
+            [],
+            [
+                issue
+                for issue in issues
+                if not issue["hint"].startswith("./.cowork-flow/run ")
+            ],
+        )
 
 
 if __name__ == "__main__":
