@@ -5,10 +5,37 @@ import {
   runGlobalInstall
 } from '../lib/package-info.js';
 
-function validateUpdateArgs(args) {
-  if (args.length > 0) {
-    throw new Error(`Unknown update option: ${args[0]}`);
+function parseUpdateArgs(args) {
+  const options = { dryRun: false };
+  for (const arg of args) {
+    if (arg === '--dry-run') {
+      options.dryRun = true;
+    } else {
+      throw new Error(`Unknown update option: ${arg}`);
+    }
   }
+  return options;
+}
+
+function buildUpdateReadinessReport({ current, latest, installCommand, wouldInstall, warnings = [] }) {
+  return {
+    wouldCopy: [],
+    wouldSkipProtected: [],
+    wouldRemoveObsolete: [],
+    hostAssetRefresh: [],
+    pendingRecovery: [],
+    warnings,
+    update: {
+      current,
+      latest,
+      wouldInstall,
+      installCommand
+    }
+  };
+}
+
+function formatReadinessReport(report) {
+  return `readiness=${JSON.stringify(report)}\n`;
 }
 
 export async function runUpdate(args, deps = {}) {
@@ -16,7 +43,7 @@ export async function runUpdate(args, deps = {}) {
   const readInfo = deps.readPackageInfo ?? readPackageInfo;
   const fetchLatest = deps.fetchLatestVersion ?? fetchLatestVersion;
   const installGlobal = deps.runGlobalInstall ?? runGlobalInstall;
-  validateUpdateArgs(args);
+  const options = parseUpdateArgs(args);
   const packageInfo = await readInfo();
   const current = packageInfo.version;
   const installCommand = 'npm install -g cowork-flow@latest';
@@ -25,8 +52,18 @@ export async function runUpdate(args, deps = {}) {
   try {
     latest = await fetchLatest('cowork-flow');
   } catch (error) {
-    io.writeErr(`${error instanceof Error ? error.message : String(error)}\n`);
+    const warning = error instanceof Error ? error.message : String(error);
+    io.writeErr(`${warning}\n`);
     io.writeOut(`current=${current}\n`);
+    if (options.dryRun) {
+      io.writeOut(formatReadinessReport(buildUpdateReadinessReport({
+        current,
+        latest,
+        installCommand,
+        wouldInstall: false,
+        warnings: [warning]
+      })));
+    }
     io.writeOut(`Unable to query npm latest. Run: ${installCommand}\n`);
     return 0;
   }
@@ -34,7 +71,23 @@ export async function runUpdate(args, deps = {}) {
   io.writeOut(`current=${current}\n`);
   io.writeOut(`latest=${latest}\n`);
 
-  if (compareVersions(current, latest) >= 0) {
+  const wouldInstall = compareVersions(current, latest) < 0;
+  if (options.dryRun) {
+    io.writeOut(formatReadinessReport(buildUpdateReadinessReport({
+      current,
+      latest,
+      installCommand,
+      wouldInstall
+    })));
+    if (!wouldInstall) {
+      io.writeOut('cowork-flow is already up to date.\n');
+    } else {
+      io.writeOut(`dry-run would-run: ${installCommand}\n`);
+    }
+    return 0;
+  }
+
+  if (!wouldInstall) {
     io.writeOut('cowork-flow is already up to date.\n');
     return 0;
   }

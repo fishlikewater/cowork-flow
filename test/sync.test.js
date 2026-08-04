@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
-import { join, sep } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
@@ -26,6 +26,12 @@ function createIo() {
       this.stderr += message;
     }
   };
+}
+
+function parseReadiness(stdout) {
+  const line = stdout.split('\n').find((entry) => entry.startsWith('readiness='));
+  assert.ok(line, 'expected readiness report line');
+  return JSON.parse(line.slice('readiness='.length));
 }
 
 test('sync fails when the target has not been initialized', async (t) => {
@@ -376,6 +382,63 @@ test('sync dry-run does not write safe file updates', async (t) => {
   assert.equal(await readText(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), 'old skill\n');
   assert.match(io.stdout, /dry-run/);
   assert.match(io.stdout, /would-update=/);
+  const report = parseReadiness(io.stdout);
+  assert.ok(report.wouldCopy.some((action) => (
+    action.path === '.agents/skills/cowork-flow/SKILL.md'
+    && action.action === 'update'
+  )));
+  assert.deepEqual(Object.keys(report).sort(), [
+    'hostAssetRefresh',
+    'pendingRecovery',
+    'warnings',
+    'wouldCopy',
+    'wouldRemoveObsolete',
+    'wouldSkipProtected'
+  ].sort());
+});
+
+test('sync dry-run readiness report separates protected obsolete host and recovery facts', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
+  await writeFile(join(target, 'AGENTS.md'), 'custom agents\n', 'utf8');
+  await writeFile(join(target, '.codex', 'hooks.json'), 'old hooks\n', 'utf8');
+  await mkdir(join(target, '.agents', 'skills', 'tdd'), { recursive: true });
+  await writeFile(join(target, '.agents', 'skills', 'tdd', 'SKILL.md'), 'obsolete skill\n', 'utf8');
+
+  const transactionRoot = join(dirname(target), `.${basename(target)}.cowork-flow-txn-test`);
+  await mkdir(transactionRoot, { recursive: true });
+  await writeFile(join(transactionRoot, 'transaction.json'), `${JSON.stringify({
+    schemaVersion: 1,
+    kind: 'sync',
+    status: 'rollback-failed',
+    targetDir: target,
+    targetDirExisted: true,
+    actions: [{
+      action: 'update',
+      relativePath: '.cowork-flow/run',
+      destination: join(target, '.cowork-flow', 'run'),
+      targetPolicy: 'replace',
+      rollback: { strategy: 'restore-backup' },
+      staged: true,
+      backedUp: true,
+      committed: false
+    }]
+  }, null, 2)}\n`, 'utf8');
+  const io = createIo();
+
+  const code = await main(['sync', target, '--dry-run'], { io });
+
+  assert.equal(code, 0);
+  const report = parseReadiness(io.stdout);
+  assert.ok(report.wouldSkipProtected.some((action) => action.path === 'AGENTS.md'));
+  assert.ok(report.wouldRemoveObsolete.some((action) => action.path === '.agents/skills/tdd'));
+  assert.ok(report.hostAssetRefresh.some((action) => action.path === '.codex/hooks.json'));
+  assert.ok(report.pendingRecovery.some((transaction) => transaction.status === 'rollback-failed'));
+  assert.ok(report.warnings.some((warning) => warning.includes('rollback-failed')));
+  assert.equal(await exists(transactionRoot), true);
+  assert.equal(await readText(join(target, 'AGENTS.md')), 'custom agents\n');
+  assert.equal(await readText(join(target, '.codex', 'hooks.json')), 'old hooks\n');
+  assert.equal(await exists(join(target, '.agents', 'skills', 'tdd')), true);
 });
 
 test('sync rolls back after an injected commit failure', async (t) => {

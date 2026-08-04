@@ -226,6 +226,53 @@ function validateMetadata(metadata, transactionRoot, resolvedTarget) {
   }
 }
 
+export async function inspectAssetTransactions(
+  targetDir,
+  { fileSystem = defaultFileSystem } = {}
+) {
+  const fs = fileSystem ?? defaultFileSystem;
+  const resolvedTarget = resolve(targetDir);
+  const parentDir = dirname(resolvedTarget);
+  let entries;
+  try {
+    entries = await fs.readdir(parentDir, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+
+  const prefix = transactionPrefix(resolvedTarget);
+  const transactions = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(prefix)) {
+      continue;
+    }
+    const transactionRoot = join(parentDir, entry.name);
+    try {
+      const metadata = await readMetadata(fs, transactionRoot);
+      validateMetadata(metadata, transactionRoot, resolvedTarget);
+      transactions.push({
+        path: transactionRoot,
+        status: metadata.status,
+        actionCount: metadata.actions.length,
+        pending: metadata.status !== 'committed'
+      });
+    } catch (error) {
+      transactions.push({
+        path: transactionRoot,
+        status: 'unknown',
+        actionCount: null,
+        pending: true,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  return transactions.sort((left, right) => left.path.localeCompare(right.path));
+}
+
 export async function recoverAssetTransactions(
   targetDir,
   { fileSystem = defaultFileSystem } = {}
