@@ -31,6 +31,28 @@ from infra.paths import get_repo_root
 from infra.skill_manifest import SkillManifestError, action_owners, load_skill_manifests
 
 
+def _issue(
+    *,
+    code: str,
+    severity: str,
+    path: str,
+    message: str,
+    command_hint: str = "",
+    contract: str,
+    **extra: str,
+) -> dict[str, str]:
+    issue = {
+        "code": code,
+        "severity": severity,
+        "path": path,
+        "message": message,
+        "commandHint": command_hint,
+        "contract": contract,
+    }
+    issue.update(extra)
+    return issue
+
+
 def _compare_file(
     left: Path,
     right: Path,
@@ -76,6 +98,40 @@ def _host_errors(repo_root: Path) -> list[str]:
     if not platform_ids:
         return ["no installed host platform detected"]
     return validate_host_assets(distribution_root, platform_ids=platform_ids)
+
+
+def _host_issue(error: str) -> dict[str, str]:
+    path = ""
+    if ":" in error:
+        path = error.rsplit(":", 1)[-1].strip()
+    lowered = error.lower()
+    if "missing command target" in lowered:
+        code = "HOST-ASSET-MISSING-COMMAND-TARGET"
+    elif "missing command config" in lowered:
+        code = "HOST-ASSET-MISSING-COMMAND-CONFIG"
+    elif "invalid command config" in lowered:
+        code = "HOST-ASSET-INVALID-COMMAND-CONFIG"
+    elif "illegal capability" in lowered:
+        code = "HOST-ASSET-ILLEGAL-CAPABILITY"
+    elif "capability mismatch" in lowered:
+        code = "HOST-ASSET-CAPABILITY-MISMATCH"
+    elif "adapter host mismatch" in lowered:
+        code = "HOST-ASSET-HOST-MISMATCH"
+    elif "invalid adapter yaml" in lowered:
+        code = "HOST-ASSET-INVALID-ADAPTER"
+    else:
+        code = "HOST-ASSET-VALIDATION-ERROR"
+    return _issue(
+        code=code,
+        severity="error",
+        path=path,
+        message=error,
+        contract="runtime-health:host-adapters",
+    )
+
+
+def _host_issues(repo_root: Path) -> list[dict[str, str]]:
+    return [_host_issue(error) for error in _host_errors(repo_root)]
 
 
 def _distribution_files(root: Path) -> tuple[Path, ...]:
@@ -168,13 +224,19 @@ def _task_hygiene_issue(
     message: str,
     hint: str,
 ) -> dict[str, str]:
-    return {
-        "kind": kind,
-        "task": task,
-        "status": status,
-        "message": message,
-        "hint": hint,
-    }
+    code = f"TASK-HYGIENE-{kind.replace('_', '-').upper()}"
+    return _issue(
+        code=code,
+        severity="warning",
+        path=task,
+        message=message,
+        command_hint=hint,
+        contract="runtime-health:task-hygiene",
+        kind=kind,
+        task=task,
+        status=status,
+        hint=hint,
+    )
 
 
 def _missing_context_files(task_dir: Path) -> tuple[str, ...]:
@@ -282,8 +344,12 @@ def _run_checks(repo_root: Path) -> int:
     return 0
 
 
-def _run_host_checks(repo_root: Path) -> int:
-    errors = _host_errors(repo_root)
+def _run_host_checks(repo_root: Path, *, structured: bool = False) -> int:
+    issues = _host_issues(repo_root)
+    if structured:
+        print(json.dumps({"issues": issues}, ensure_ascii=False))
+        return 1 if issues else 0
+    errors = [issue["message"] for issue in issues]
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
@@ -330,7 +396,7 @@ def main() -> int:
     if args.all:
         return _run_checks(repo_root)
     if args.host_adapters:
-        return _run_host_checks(repo_root)
+        return _run_host_checks(repo_root, structured=bool(args.json))
     if args.subagent_safety:
         return _run_runtime_checks(repo_root)
     if args.task_hygiene:

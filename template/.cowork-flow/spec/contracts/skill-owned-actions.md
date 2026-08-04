@@ -68,4 +68,8 @@ every detected installed Skill target.
 Runtime Health also reports stale task hygiene read-only. It may warn about
 completed-unarchived tasks, active-unbound tasks, and missing task context, and
 it may include command hints. These warnings must not mutate task lifecycle
-state, write evidence files, or become completion gates.
+state, write evidence files, or become completion gates. Runtime Health JSON
+issues use a stable envelope: `code`, `severity`, `path`, `message`,
+`commandHint`, and `contract`. Task hygiene output keeps its compatibility
+fields such as `kind`, `task`, `status`, and `hint`; host-adapter JSON output
+uses the same envelope for asset validation failures.
