@@ -198,6 +198,7 @@ npm run test:node:full     # 完整 Node 测试
 npm run test:template      # 核心模板集成测试
 npm run test:template:full # 完整模板 Python discovery
 npm run test:all           # 发布前全量测试与打包检查
+npm run release:check     # 发布信心门禁；当前等价于 test:all
 ```
 
 ```bash
@@ -206,7 +207,7 @@ npm run release -- minor # minor
 ```
 
 **发布流程：**
-1. `npm run test:all`、`git diff --check`
+1. `npm run release:check`、`git diff --check`
 2. 稳定性变更使用 `COWORK_TEMPLATE_TEST_REPEAT=3` 和固定 `COWORK_TEMPLATE_TEST_SEED` 重复运行 `npm run test:template:full`
 3. `npm version` 升级版本
 4. 同步版本到 `template/.cowork-flow/.version` 和 `template/.zcode/.zcode-plugin/plugin.json`
@@ -215,7 +216,7 @@ npm run release -- minor # minor
 
 CI 需要 `NPM_TOKEN` secret。
 
-Windows 上发布前使用 `run.cmd` 入口验证；POSIX shell 专属 release 用例在没有 shell 的 Windows 环境会明确跳过，不得记录为通过。
+Windows 上发布前使用 `run.cmd` 入口验证；POSIX shell 专属 release 用例在没有 shell 的 Windows 环境会明确跳过，不得记录为通过。`release:check` 会保留这些 skip 报告，不把 skip 伪装成 pass。
 
 ## 接入原则
 
