@@ -253,6 +253,26 @@ class HostAdaptersTest(unittest.TestCase):
                 for key in required_capabilities:
                     self.assertIn(adapter["capabilities"][key], usable_values, f"{host}:{key}")
 
+        manifest = json.loads(
+            (
+                ROOT
+                / "template"
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "host-assets.json"
+            ).read_text(encoding="utf-8")
+        )
+        party_capabilities = {
+            host: capabilities["party_board_action"]
+            for host, capabilities in manifest["capabilityMatrix"]["hosts"].items()
+        }
+        self.assertEqual("native", party_capabilities["codex"]["status"])
+        self.assertEqual("experimental", party_capabilities["opencode"]["status"])
+        self.assertEqual("native", party_capabilities["claude-code"]["status"])
+        self.assertEqual("unsupported", party_capabilities["zcode"]["status"])
+        self.assertEqual("inline_or_manual", party_capabilities["zcode"]["fallback"])
+
     def test_party_mode_v2_template_assets_are_valid(self) -> None:
         paths = (
             ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "party-mode-v2-actions.schema.json",
@@ -266,10 +286,12 @@ class HostAdaptersTest(unittest.TestCase):
 
     def test_flow_surfaces_are_host_neutral(self) -> None:
         banned = ("spawn_agent", "fork_turns", "wait_agent", "list_agents", "close_agent", "codex exec")
-        for path in (
+        surfaces = (
             ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
-        ):
+        )
+        self.assertEqual(2, len(surfaces))
+        for path in surfaces:
             text = path.read_text(encoding="utf-8")
             if path.name == "subagent-dispatch.md":
                 self.assertIn("runtime context", text)
@@ -282,7 +304,9 @@ class HostAdaptersTest(unittest.TestCase):
 
     def test_opencode_assets_encode_fixed_agent_contract(self) -> None:
         for base in (ROOT / "template" / ".opencode",):
-            for name in ("cowork-research", "cowork-implement", "cowork-check"):
+            agent_names = ("cowork-research", "cowork-implement", "cowork-check")
+            self.assertEqual(3, len(agent_names))
+            for name in agent_names:
                 text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn("mode: subagent", text)
                 self.assertIn("task: deny", text)
@@ -291,7 +315,7 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("needs_context", text)
                 self.assertIn("invoke subagents", text)
 
-            for name in ("cowork-research", "cowork-implement", "cowork-check"):
+            for name in agent_names:
                 text = (base / "commands" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn("subtask: true", text)
                 self.assertIn(f"agent: {name}", text)
@@ -395,10 +419,12 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn(marker, core)
         self.assertNotIn("workflow.md", core)
 
-        for hook_path in (
+        hook_paths = (
             ROOT / "template" / ".codex" / "hooks" / "inject-workflow-state.py",
             ROOT / "template" / ".claude" / "hooks" / "inject-workflow-state.py",
-        ):
+        )
+        self.assertEqual(2, len(hook_paths))
+        for hook_path in hook_paths:
             hook = hook_path.read_text(encoding="utf-8")
             self.assertIn(
                 "adapters.host.workflow_state_hook import",

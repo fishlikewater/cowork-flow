@@ -264,6 +264,46 @@ party_mode_v2:
             self.assertEqual([], json.loads((base / "actions.json").read_text(encoding="utf-8"))["next_actions"])
             self.assertIn("action-issued", (base / "action_history.jsonl").read_text(encoding="utf-8"))
 
+    def test_unsupported_host_uses_manual_fallback_without_advancing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = self._repo(Path(temp_name))
+            self.party_mode_v2.init_discussion(
+                root,
+                discussion_id="demo",
+                topic="Runtime board",
+                agent_specs=[
+                    "arch:architecture",
+                    "runtime:runtime-control",
+                    "test:testing",
+                ],
+                host_id="zcode",
+            )
+            base = self._base_dir(root)
+            actions = json.loads((base / "actions.json").read_text(encoding="utf-8"))["next_actions"]
+
+            self.assertEqual(["report_to_user"], [action["type"] for action in actions])
+            fallback = actions[0]
+            self.assertIn("party_board_action unsupported", fallback["reason"])
+            self.assertIn("inline_or_manual", fallback["reason"])
+            self.assertIn("unable_to_dispatch", fallback["reason"])
+            self.assertTrue((base / "prompts" / "arch-r1-publish.md").is_file())
+
+            result = self.party_mode_v2.record_action_result(
+                root,
+                discussion_id="demo",
+                payload={
+                    "action_id": fallback["action_id"],
+                    "type": "report_to_user",
+                    "outcome": "unable_to_dispatch",
+                },
+            )
+
+            self.assertEqual("unable_to_dispatch", result["outcome"])
+            self.assertEqual("publish", self._read_board(root)["round"]["phase"])
+            self.assertEqual("pending", self._read_agents(root)["agents"][0]["status"])
+            with self.assertRaisesRegex(ValueError, "publish_incomplete"):
+                self.party_mode_v2.advance_discussion(root, discussion_id="demo")
+
     def test_malformed_action_result_is_not_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = self._repo(Path(temp_name))
