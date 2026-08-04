@@ -10,11 +10,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
-import threading
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +26,19 @@ def _add_runtime_scripts_path() -> None:
 
 
 _add_runtime_scripts_path()
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from party_board_store import (
+    append_action_history as _append_action_history,
+    append_audit as _append_audit,
+    load_board,
+    read_json as _read_json,
+    save_board,
+    state_lock as _state_lock,
+    write_json as _write_json,
+)
 from infra.config import get_party_mode_v2_config
 from infra.paths import DIR_WORKFLOW, get_repo_root
 
@@ -44,12 +54,6 @@ HOST_FORBIDDEN_TERMS = (
     "Claude Task",
     "OpenCode task",
 )
-_LOCKS_GUARD = threading.Lock()
-_STATE_LOCKS: dict[str, dict[str, Any]] = {}
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _validate_identifier(value: str, *, label: str) -> str:
@@ -69,117 +73,6 @@ def discussion_dir(repo_root: Path, discussion_id: str) -> Path:
     if base != path and base not in path.parents:
         raise ValueError("unsafe_discussion_id")
     return path
-
-
-def _lock_file(handle: Any) -> None:
-    if os.name == "nt":
-        import msvcrt
-
-        handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-        return
-
-    import fcntl
-
-    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-
-
-def _unlock_file(handle: Any) -> None:
-    if os.name == "nt":
-        import msvcrt
-
-        handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-        return
-
-    import fcntl
-
-    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-
-
-class _StateLock:
-    def __init__(self, base_dir: Path, state: dict[str, Any]) -> None:
-        self.base_dir = base_dir
-        self.state = state
-
-    def __enter__(self) -> "_StateLock":
-        thread_lock = self.state["thread_lock"]
-        thread_lock.acquire()
-        current_thread = threading.get_ident()
-        if self.state.get("owner_thread") == current_thread:
-            self.state["depth"] += 1
-            return self
-
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-        lock_path = self.base_dir / ".state.lock"
-        handle = lock_path.open("a+b")
-        handle.seek(0)
-        handle.write(b"0")
-        handle.flush()
-        _lock_file(handle)
-        self.state["owner_thread"] = current_thread
-        self.state["depth"] = 1
-        self.state["handle"] = handle
-        return self
-
-    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
-        thread_lock = self.state["thread_lock"]
-        try:
-            current_thread = threading.get_ident()
-            if self.state.get("owner_thread") == current_thread:
-                self.state["depth"] -= 1
-                if self.state["depth"] == 0:
-                    handle = self.state.pop("handle", None)
-                    self.state["owner_thread"] = None
-                    if handle is not None:
-                        try:
-                            _unlock_file(handle)
-                        finally:
-                            handle.close()
-        finally:
-            thread_lock.release()
-
-
-def _state_lock(base_dir: Path) -> _StateLock:
-    key = str(base_dir.resolve())
-    with _LOCKS_GUARD:
-        state = _STATE_LOCKS.get(key)
-        if state is None:
-            state = {
-                "thread_lock": threading.RLock(),
-                "owner_thread": None,
-                "depth": 0,
-            }
-            _STATE_LOCKS[key] = state
-        return _StateLock(base_dir, state)
-
-
-def _write_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.{threading.get_ident()}.tmp")
-    temp_path.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(temp_path, path)
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _append_audit(base_dir: Path, event: str, payload: dict[str, Any]) -> None:
-    audit_path = base_dir / "audit.jsonl"
-    entry = {"timestamp": _now(), "event": event, "payload": payload}
-    with audit_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-
-def _append_action_history(base_dir: Path, event: str, payload: dict[str, Any]) -> None:
-    history_path = base_dir / "action_history.jsonl"
-    entry = {"timestamp": _now(), "event": event, "payload": payload}
-    with history_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def _parse_agent_spec(spec: str) -> dict[str, str]:
@@ -504,7 +397,7 @@ def init_discussion(
         agents_state = _initial_agents_state(discussion_id, agents)
         actions = _build_actions(base_dir, discussion_id, agents, round_number=1, phase="publish")
         public_round = _build_public_round(board)
-        _write_json(base_dir / "board.json", board)
+        save_board(base_dir, board)
         _write_json(base_dir / "agents.json", agents_state)
         _write_json(base_dir / "actions.json", actions)
         _write_json(base_dir / "public_round.json", public_round)
@@ -530,7 +423,7 @@ def view_discussion(
     if agent_id:
         _validate_identifier(agent_id, label="agent_id")
     with _state_lock(base_dir):
-        board = _read_json(base_dir / "board.json")
+        board = load_board(base_dir)
         public_round = _build_public_round(board)
         if agent_id:
             public_round["agent_id"] = agent_id
@@ -545,7 +438,7 @@ def view_discussion(
 
 def monitor_discussion(repo_root: Path, *, discussion_id: str) -> dict[str, Any]:
     base_dir = discussion_dir(repo_root, discussion_id)
-    board = _read_json(base_dir / "board.json")
+    board = load_board(base_dir)
     agents = _read_json(base_dir / "agents.json")
     actions = _read_json(base_dir / "actions.json")
     active_agents = [
@@ -638,7 +531,7 @@ def _build_post_payload(
 
 
 def _write_runtime_state(base_dir: Path, board: dict[str, Any]) -> None:
-    _write_json(base_dir / "board.json", board)
+    save_board(base_dir, board)
     _write_json(base_dir / "public_round.json", _build_public_round(board))
 
 
@@ -653,7 +546,7 @@ def post_submission(
     base_dir = discussion_dir(repo_root, discussion_id)
     config = get_party_mode_v2_config(repo_root)
     with _state_lock(base_dir):
-        board = _read_json(base_dir / "board.json")
+        board = load_board(base_dir)
         if board["round"]["phase"] != "publish":
             raise ValueError("phase_not_publish")
         if agent_id not in _active_agent_ids(base_dir):
@@ -869,7 +762,7 @@ def respond_submission(
     base_dir = discussion_dir(repo_root, discussion_id)
     config = get_party_mode_v2_config(repo_root)
     with _state_lock(base_dir):
-        board = _read_json(base_dir / "board.json")
+        board = load_board(base_dir)
         if board["round"]["phase"] != "respond":
             raise ValueError("phase_not_respond")
         if agent_id not in _active_agent_ids(base_dir):
@@ -1052,7 +945,7 @@ def _advance_respond_phase(
 def advance_discussion(repo_root: Path, *, discussion_id: str) -> dict[str, Any]:
     base_dir = discussion_dir(repo_root, discussion_id)
     with _state_lock(base_dir):
-        board = _read_json(base_dir / "board.json")
+        board = load_board(base_dir)
         current = _current_round(board)
         active_agents = _active_agent_ids(base_dir)
         current_round = int(board["round"]["current"])
@@ -1230,7 +1123,7 @@ def finalize_discussion(
 ) -> dict[str, Any]:
     base_dir = discussion_dir(repo_root, discussion_id)
     with _state_lock(base_dir):
-        board = _read_json(base_dir / "board.json")
+        board = load_board(base_dir)
         _ensure_finalizable(
             base_dir,
             discussion_id,

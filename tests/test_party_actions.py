@@ -56,37 +56,28 @@ class PartyActionsTest(PartyModeTestCase):
                 json.dumps(self._post_payload(1, "arch claim"), ensure_ascii=False),
                 encoding="utf-8",
             )
-            lock_path = base / ".state.lock"
-            handle = lock_path.open("a+b")
-            handle.seek(0)
-            handle.write(b"0")
-            handle.flush()
-            self.party_mode_v2._lock_file(handle)
-            process = subprocess.Popen(
-                [
-                    sys.executable,
-                    str(PARTY_MODE_SCRIPT),
-                    "--repo-root",
-                    str(root),
-                    "post",
-                    "--discussion-id",
-                    "demo",
-                    "--agent-id",
-                    "arch",
-                    "--file",
-                    str(payload_path),
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-            )
-            try:
+            with self.party_board_store.state_lock(base):
+                process = subprocess.Popen(
+                    [
+                        sys.executable,
+                        str(PARTY_MODE_SCRIPT),
+                        "--repo-root",
+                        str(root),
+                        "post",
+                        "--discussion-id",
+                        "demo",
+                        "--agent-id",
+                        "arch",
+                        "--file",
+                        str(payload_path),
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                )
                 with self.assertRaises(subprocess.TimeoutExpired):
                     process.wait(timeout=1)
-            finally:
-                self.party_mode_v2._unlock_file(handle)
-                handle.close()
 
             stdout, stderr = process.communicate(timeout=10)
             self.assertEqual(0, process.returncode, stderr)
@@ -263,6 +254,30 @@ party_mode_v2:
             self.assertTrue(terminal["terminal"])
             self.assertEqual([], json.loads((base / "actions.json").read_text(encoding="utf-8"))["next_actions"])
             self.assertIn("action-issued", (base / "action_history.jsonl").read_text(encoding="utf-8"))
+
+    def test_malformed_action_result_is_not_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = self._repo(Path(temp_name))
+            self._init_demo(root)
+            base = self._base_dir(root)
+            actions = json.loads((base / "actions.json").read_text(encoding="utf-8"))
+            dispatch = next(action for action in actions["next_actions"] if action["type"] == "dispatch_child")
+            agents_before = self._read_agents(root)
+            history_before = (base / "action_history.jsonl").read_text(encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "missing_outcome"):
+                self.party_mode_v2.record_action_result(
+                    root,
+                    discussion_id="demo",
+                    payload={
+                        "action_id": dispatch["action_id"],
+                        "type": "dispatch_child",
+                        "agent_id": dispatch["agent_id"],
+                    },
+                )
+
+            self.assertEqual(agents_before, self._read_agents(root))
+            self.assertEqual(history_before, (base / "action_history.jsonl").read_text(encoding="utf-8"))
 
     def test_post_rejects_missing_evidence_and_accepts_valid_submission(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
