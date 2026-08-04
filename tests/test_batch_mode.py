@@ -21,6 +21,41 @@ PYTHON_RUNNER = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
 
 
 class BatchModeFailClosedTest(FlowScriptTestCase):
+    def test_batch_skill_documents_recovery_without_default_batch_mode(self) -> None:
+        skill_text = (
+            ROOT
+            / "template"
+            / "skills"
+            / "batch-execution"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        required_markers = (
+            "Batch is not the default path for ordinary task work.",
+            "Use normal step-by-task progression unless the user explicitly approves automatic continuous execution.",
+            "Inspect the paused operation first:",
+            "batch-action inspect <operation_id>",
+            "Repair or rerun the failed Host action outside the Batch state file.",
+            "Resume only after the failed action can succeed:",
+            "batch-action resume <operation_id>",
+            "Do not use inspect as completion evidence.",
+        )
+        forbidden_markers = (
+            "tdd.jsonl",
+            'type: "tdd"',
+            "TDD evidence",
+            "./.cowork-flow/run task batch-",
+        )
+
+        self.assertEqual(
+            [],
+            [marker for marker in required_markers if marker not in skill_text],
+        )
+        self.assertEqual(
+            [],
+            [marker for marker in forbidden_markers if marker in skill_text],
+        )
+
     def _task(self, root: Path) -> Path:
         task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
         task_dir.mkdir(parents=True)

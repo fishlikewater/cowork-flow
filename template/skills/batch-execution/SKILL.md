@@ -9,6 +9,8 @@ description: Use when the user approves a full plan and asks for continuous exec
 
 Batch Scheduler is a persistent state machine. Do **not** simulate or check completion inside the CLI.
 
+- Batch is not the default path for ordinary task work.
+- Use normal step-by-task progression unless the user explicitly approves automatic continuous execution.
 - Task ordering comes **only** from the topological order of leaf tasks in the change/task graph.
 - `implement.jsonl` and `check.jsonl` serve **only** as current-task context and review evidence; they must **not** be used as the Batch task list.
 - Only one host-neutral `next_action` is published at a time.
@@ -46,8 +48,7 @@ The inspect report is derived from the persisted Batch state and includes
 `operationId`, `state`, `rootTask`, `currentPhase`, `currentTask`,
 `completedTasks`, `pausedReason`, `failedAction`, `nextAction`, and `recovery`.
 Use it for monitoring, recovery UI, or handoff facts. It must not replace
-`record-result` after a host action, and it must not be treated as completion
-verification.
+`record-result` after a host action. Do not use inspect as completion evidence.
 
 ## Host Action Loop
 
@@ -187,7 +188,24 @@ When the host is unavailable or any action fails, write back a non-success resul
 
 The state becomes `paused`. The failed task and all subsequent tasks are **not** marked completed.
 
-After fixing the cause, rerun the Batch action through `task next` for the parent task:
+Inspect the paused operation first:
+
+```bash
+batch-action inspect <operation_id>
+```
+
+Use the report's `failedAction`, `pausedReason`, and `recovery` facts to decide
+what the host must repair. Repair or rerun the failed Host action outside the Batch state file.
+Do **not** manually edit the Batch state file.
+
+Resume only after the failed action can succeed:
+
+```bash
+batch-action resume <operation_id>
+```
+
+Alternatively, rerun the approved Batch action through `task next` for the
+parent task:
 
 ```bash
 ./.cowork-flow/run task next <parent-task> --run --intent batch --auto --approved
