@@ -61,6 +61,15 @@ async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
 }
 
+async function pathExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function runZCodeHook(input, options = {}) {
   const result = spawnSync(process.execPath, [join(templateRoot, '.zcode', 'hooks', 'inject-context.js')], {
     cwd: options.cwd || process.cwd(),
@@ -77,10 +86,12 @@ function runZCodeHook(input, options = {}) {
   return JSON.parse(result.stdout);
 }
 
-test('zcode scaffold source does not commit standalone spec tree', async () => {
-  await assert.rejects(
-    access(join(templateRoot, '.zcode', 'scaffold', '.cowork-flow', 'spec'))
-  );
+test('zcode scaffold source does not commit workflow bootstrap files', async () => {
+  const sourceScaffold = join(templateRoot, '.zcode', 'scaffold');
+
+  for (const relativePath of ['.cowork-flow', 'AGENTS.md', 'CLAUDE.md']) {
+    await assert.rejects(access(join(sourceScaffold, relativePath)));
+  }
 });
 
 test('zcode hook config uses process executor with args', async () => {
@@ -162,18 +173,11 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   await runInstallZCodePlugin(['--force']);
 
   const pluginRoot = await installedPluginRoot(zcodeHome);
-  const installedSpec = join(pluginRoot, 'scaffold', '.cowork-flow', 'spec');
-
-  await assert.rejects(access(installedSpec));
-
   const installedScaffold = join(pluginRoot, 'scaffold');
-  const scaffoldFiles = await listRelativeFiles(installedScaffold);
-  assert.equal(
-    scaffoldFiles.some((file) => file === '.cowork-flow' || file.startsWith('.cowork-flow/')),
-    false
-  );
-  await access(join(installedScaffold, 'AGENTS.md'));
-  await access(join(installedScaffold, 'CLAUDE.md'));
+
+  for (const relativePath of ['.cowork-flow', 'AGENTS.md', 'CLAUDE.md']) {
+    await assert.rejects(access(join(installedScaffold, relativePath)));
+  }
   await access(join(pluginRoot, 'hooks', 'inject-context.js'));
   await access(join(pluginRoot, 'skills', 'cowork-flow', 'SKILL.md'));
   await access(join(pluginRoot, 'agents', 'cowork-implement.md'));
@@ -434,14 +438,24 @@ test('zcode scaffold cannot create workflow files in module directories', async 
   const installedScaffold = join(await installedPluginRoot(zcodeHome), 'scaffold');
   const moduleA = join(projectRoot, 'module-a');
   const moduleB = join(projectRoot, 'apps', 'module-b');
+  await mkdir(join(projectRoot, '.cowork-flow'), { recursive: true });
+  await writeFile(join(projectRoot, 'AGENTS.md'), 'root workflow owner\n', 'utf8');
+  await writeFile(join(projectRoot, 'CLAUDE.md'), 'root workflow owner\n', 'utf8');
   await mkdir(moduleA, { recursive: true });
   await mkdir(moduleB, { recursive: true });
 
-  for (const target of [projectRoot, moduleA, moduleB]) {
-    await cp(installedScaffold, target, { recursive: true, force: true });
+  if (await pathExists(installedScaffold)) {
+    for (const target of [moduleA, moduleB]) {
+      await cp(installedScaffold, target, { recursive: true, force: true });
+    }
   }
 
-  await assert.rejects(access(join(projectRoot, '.cowork-flow')));
-  await assert.rejects(access(join(moduleA, '.cowork-flow')));
-  await assert.rejects(access(join(moduleB, '.cowork-flow')));
+  await access(join(projectRoot, '.cowork-flow'));
+  await access(join(projectRoot, 'AGENTS.md'));
+  await access(join(projectRoot, 'CLAUDE.md'));
+  for (const moduleDir of [moduleA, moduleB]) {
+    for (const relativePath of ['.cowork-flow', 'AGENTS.md', 'CLAUDE.md']) {
+      await assert.rejects(access(join(moduleDir, relativePath)));
+    }
+  }
 });
