@@ -119,12 +119,71 @@ def _infer_dev_type(task_data: dict[str, Any], changed_files: list[str]) -> str:
     return ""
 
 
+def _normalized_issue(
+    *,
+    code: str,
+    severity: str,
+    path: str,
+    message: str,
+    source: str,
+    **extra: str,
+) -> dict[str, str]:
+    issue = {
+        "code": code,
+        "severity": severity,
+        "path": path,
+        "message": message,
+        "source": source,
+    }
+    issue.update(extra)
+    return issue
+
+
+def _lifecycle_issue_fact(issue: Any) -> dict[str, str]:
+    return _normalized_issue(
+        code=str(getattr(issue, "code", "") or "lifecycle_issue"),
+        severity="error",
+        path=str(getattr(issue, "path", "") or ""),
+        message=str(getattr(issue, "message", "") or ""),
+        source="lifecycle",
+    )
+
+
+def _fallback_lifecycle_issue(
+    *,
+    code: str,
+    path: str,
+    message: str,
+) -> dict[str, str]:
+    return _normalized_issue(
+        code=code,
+        severity="error",
+        path=path,
+        message=message,
+        source="lifecycle",
+    )
+
+
 def _scope_facts(
     repo_root: Path,
     task_dir: Path,
     *,
     allow_spec_file_modifications: bool,
 ) -> dict[str, Any]:
+    scope_facts, _ = _scope_facts_with_issues(
+        repo_root,
+        task_dir,
+        allow_spec_file_modifications=allow_spec_file_modifications,
+    )
+    return scope_facts
+
+
+def _scope_facts_with_issues(
+    repo_root: Path,
+    task_dir: Path,
+    *,
+    allow_spec_file_modifications: bool,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
     result = LifecycleCheckRunner(repo_root).review(
         task_dir,
         allow_spec_file_modifications=allow_spec_file_modifications,
@@ -132,12 +191,14 @@ def _scope_facts(
     protected: list[str] = []
     unlisted: list[str] = []
     context_issues: list[str] = []
+    normalized_issues: list[dict[str, str]] = []
     issues = tuple(getattr(result, "issues", ()) or ())
     if issues:
         for issue in issues:
             code = str(getattr(issue, "code", "") or "")
             path = getattr(issue, "path", None)
             message = str(getattr(issue, "message", "") or "")
+            normalized_issues.append(_lifecycle_issue_fact(issue))
             if code == "protected_workflow_file":
                 protected.append(str(path or message.removeprefix(PROTECTED_PREFIX)))
             elif code == "unlisted_changed_file":
@@ -149,17 +210,43 @@ def _scope_facts(
     else:
         for message in result.blockers:
             if message.startswith(PROTECTED_PREFIX):
-                protected.append(message.removeprefix(PROTECTED_PREFIX))
+                path = message.removeprefix(PROTECTED_PREFIX)
+                protected.append(path)
+                normalized_issues.append(
+                    _fallback_lifecycle_issue(
+                        code="protected_workflow_file",
+                        path=path,
+                        message=message,
+                    )
+                )
             elif message.startswith(UNLISTED_PREFIX):
-                unlisted.append(message.removeprefix(UNLISTED_PREFIX))
+                path = message.removeprefix(UNLISTED_PREFIX)
+                unlisted.append(path)
+                normalized_issues.append(
+                    _fallback_lifecycle_issue(
+                        code="unlisted_changed_file",
+                        path=path,
+                        message=message,
+                    )
+                )
             else:
                 context_issues.append(message)
-    return {
-        "unlistedChangedFiles": unlisted,
-        "protectedWorkflowFiles": protected,
-        "contextIssues": context_issues,
-        "lifecycleMessages": list(result.blockers),
-    }
+                normalized_issues.append(
+                    _fallback_lifecycle_issue(
+                        code="lifecycle_context_issue",
+                        path="",
+                        message=message,
+                    )
+                )
+    return (
+        {
+            "unlistedChangedFiles": unlisted,
+            "protectedWorkflowFiles": protected,
+            "contextIssues": context_issues,
+            "lifecycleMessages": list(result.blockers),
+        },
+        normalized_issues,
+    )
 
 
 def _check_context_sources(repo_root: Path, task_dir: Path) -> list[dict[str, Any]]:
@@ -299,6 +386,23 @@ def _test_intent_signals(repo_root: Path, changed_files: list[str]) -> dict[str,
     }
 
 
+def _test_intent_issues(test_signals: dict[str, Any]) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
+    for signal in test_signals["shallowAssertionSignals"]:
+        issues.append(
+            _normalized_issue(
+                code="shallow_assertion_signal",
+                severity="warning",
+                path=str(signal.get("file") or ""),
+                message=str(signal.get("reason") or "shallow test intent signal"),
+                source="test-intent",
+                testName=str(signal.get("testName") or ""),
+                signal=str(signal.get("signal") or ""),
+            )
+        )
+    return issues
+
+
 def _verification_hints(changed_files: list[str], test_signals: dict[str, Any]) -> list[str]:
     hints: list[str] = []
     code_files = [
@@ -321,6 +425,11 @@ def build_report(repo_root: Path, task_dir: Path) -> dict[str, Any]:
     changed_files = collect_changed_paths(repo_root)
     dev_type = _infer_dev_type(task_data, changed_files)
     test_signals = _test_intent_signals(repo_root, changed_files)
+    scope_facts, scope_issues = _scope_facts_with_issues(
+        repo_root,
+        task_dir,
+        allow_spec_file_modifications=is_main_session(repo_root),
+    )
     return {
         "reportVersion": 1,
         "mode": "advisory",
@@ -330,11 +439,11 @@ def build_report(repo_root: Path, task_dir: Path) -> dict[str, Any]:
             "devType": dev_type,
         },
         "changedFiles": changed_files,
-        "scopeFacts": _scope_facts(
-            repo_root,
-            task_dir,
-            allow_spec_file_modifications=is_main_session(repo_root),
-        ),
+        "scopeFacts": scope_facts,
+        "normalizedIssues": [
+            *scope_issues,
+            *_test_intent_issues(test_signals),
+        ],
         "specSources": _spec_sources(
             repo_root,
             task_dir,

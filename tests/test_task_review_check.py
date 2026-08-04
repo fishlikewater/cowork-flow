@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -141,7 +142,11 @@ class TaskReviewCheckTest(unittest.TestCase):
             )
             before = self._task_file_snapshot(task_dir)
 
-            report = self.module.build_report(root, task_dir)
+            with unittest.mock.patch.dict(
+                os.environ,
+                {"COWORK_FLOW_CONTEXT_ID": "subagent_case"},
+            ):
+                report = self.module.build_report(root, task_dir)
 
             self.assertEqual("advisory", report["mode"])
             self._assert_no_verdict_keys(report)
@@ -169,6 +174,28 @@ class TaskReviewCheckTest(unittest.TestCase):
                     for signal in report["testIntentSignals"]["shallowAssertionSignals"]
                 ],
             )
+            self.assertEqual(
+                [
+                    {
+                        "code": "shallow_assertion_signal",
+                        "severity": "warning",
+                        "path": "tests/test_app.py",
+                        "source": "test-intent",
+                        "signal": "block",
+                    }
+                ],
+                [
+                    {
+                        "code": issue["code"],
+                        "severity": issue["severity"],
+                        "path": issue["path"],
+                        "source": issue["source"],
+                        "signal": issue["signal"],
+                    }
+                    for issue in report["normalizedIssues"]
+                ],
+            )
+            self.assertIn("test intent helper flagged", report["normalizedIssues"][0]["message"])
 
     def test_review_check_classifies_structured_lifecycle_scope_issues(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -183,6 +210,11 @@ class TaskReviewCheckTest(unittest.TestCase):
             (root / "src" / "extra.py").write_text("VALUE = 2\n", encoding="utf-8")
             (root / "AGENTS.md").write_text("# Rules changed\n", encoding="utf-8")
 
+            with unittest.mock.patch.dict(
+                os.environ,
+                {"COWORK_FLOW_CONTEXT_ID": "subagent_case"},
+            ):
+                report = self.module.build_report(root, task_dir)
             scope_facts = self.module._scope_facts(
                 root,
                 task_dir,
@@ -198,6 +230,72 @@ class TaskReviewCheckTest(unittest.TestCase):
                 scope_facts["protectedWorkflowFiles"],
             )
             self.assertEqual([], scope_facts["contextIssues"])
+            lifecycle_issues = [
+                issue for issue in report["normalizedIssues"] if issue["source"] == "lifecycle"
+            ]
+            self.assertEqual(
+                [
+                    ("protected_workflow_file", "error", "AGENTS.md"),
+                    ("unlisted_changed_file", "error", "AGENTS.md"),
+                    ("unlisted_changed_file", "error", "src/extra.py"),
+                ],
+                sorted(
+                    (
+                        issue["code"],
+                        issue["severity"],
+                        issue["path"],
+                    )
+                    for issue in lifecycle_issues
+                ),
+            )
+            self.assertEqual(
+                [],
+                [issue for issue in lifecycle_issues if not issue["message"]],
+            )
+
+    def test_review_check_normalizes_context_issues(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            self._init_git_repo(root)
+            task_dir = self._write_task(root)
+            self._write_specs(root)
+            (task_dir / "implement.jsonl").write_text("{invalid json}\n", encoding="utf-8")
+            self._commit_all(root, "baseline")
+
+            report = self.module.build_report(root, task_dir)
+
+            self.assertEqual(
+                [
+                    "Invalid implement.jsonl JSON at line 1",
+                    "implement.jsonl contains no valid file-scope entries",
+                ],
+                report["scopeFacts"]["contextIssues"],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "code": "invalid_implement_jsonl_json",
+                        "severity": "error",
+                        "path": "",
+                        "source": "lifecycle",
+                    },
+                    {
+                        "code": "empty_implement_jsonl_file_scope",
+                        "severity": "error",
+                        "path": "",
+                        "source": "lifecycle",
+                    },
+                ],
+                [
+                    {
+                        "code": issue["code"],
+                        "severity": issue["severity"],
+                        "path": issue["path"],
+                        "source": issue["source"],
+                    }
+                    for issue in report["normalizedIssues"]
+                ],
+            )
 
 
 if __name__ == "__main__":
