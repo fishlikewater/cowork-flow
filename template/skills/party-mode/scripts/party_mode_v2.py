@@ -1050,8 +1050,75 @@ def _historical_disagreements(
     ]
 
 
+def _round_summary_phase(board: dict[str, Any], round_number: int) -> str:
+    if round_number == int(board["round"]["current"]):
+        return str(board["round"]["phase"])
+    return "completed"
+
+
+def _rounds_summary(board: dict[str, Any]) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for item in board.get("rounds", []):
+        round_number = int(item.get("round", 0))
+        posts = item.get("posts", [])
+        responses = item.get("responses", [])
+        unresolved = [r for r in responses if r.get("still_disagree")]
+        summaries.append(
+            {
+                "round": round_number,
+                "phase": _round_summary_phase(board, round_number),
+                "post_count": len(posts),
+                "response_count": len(responses),
+                "unresolved_count": len(unresolved),
+            }
+        )
+    return summaries
+
+
+def _action_results_summary(base_dir: Path) -> list[dict[str, Any]]:
+    history_path = base_dir / "action_history.jsonl"
+    if not history_path.is_file():
+        return []
+    results: list[dict[str, Any]] = []
+    with history_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if entry.get("event") != "action-result":
+                continue
+            payload = entry.get("payload", {})
+            summary: dict[str, Any] = {
+                "action_id": payload.get("action_id"),
+                "type": payload.get("type"),
+                "outcome": payload.get("outcome"),
+            }
+            if payload.get("agent_id"):
+                summary["agent_id"] = payload["agent_id"]
+            results.append(summary)
+    return results
+
+
+def _accepted_evidence_summary(responses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for response in responses:
+        if response.get("decision") != "concede":
+            continue
+        evidence = response.get("accepted_evidence", [])
+        if not evidence:
+            continue
+        summaries.append(
+            {
+                "agent_id": response.get("agent_id"),
+                "target_post_id": response.get("target_post_id"),
+                "accepted_evidence": evidence,
+            }
+        )
+    return summaries
+
 def _build_final_report(
     *,
+    base_dir: Path,
     discussion_id: str,
     board: dict[str, Any],
     posts: list[dict[str, Any]],
@@ -1076,6 +1143,9 @@ def _build_final_report(
         "terminal": True,
         "stop_reason": stop_reason,
         "board_status": board_status,
+        "rounds_summary": _rounds_summary(board),
+        "action_results": _action_results_summary(base_dir),
+        "accepted_evidence": _accepted_evidence_summary(responses),
         "next_actions": [],
         "pro": _report_pro_posts(posts),
         "con": _report_con_responses(responses),
@@ -1144,6 +1214,7 @@ def finalize_discussion(
         current_round = int(board["round"]["current"])
         stop_reason = board.get("termination", {}).get("reason") or "manual_finalize"
         report = _build_final_report(
+            base_dir=base_dir,
             discussion_id=discussion_id,
             board=board,
             posts=_discussion_posts(board),

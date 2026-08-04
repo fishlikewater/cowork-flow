@@ -67,6 +67,20 @@ Final reports distinguish current unresolved disagreements from historical
 disagreements. A report with `stop_reason=converged` must not present prior
 round disagreements as currently unresolved.
 
+Final reports are advisory fact records only. They cannot satisfy Implement,
+Check, lifecycle gate, or task completion requirements. A final report must not
+claim that implementation or review work is complete.
+
+Final reports include audit-oriented summaries:
+
+- `rounds_summary`: one entry per round with `round`, terminal `phase`,
+  `post_count`, `response_count`, and `unresolved_count`.
+- `action_results`: summaries of `action-result` entries from
+  `action_history.jsonl`, including `action_id`, `type`, `outcome`, and
+  `agent_id` when present.
+- `accepted_evidence`: evidence accepted by `concede` responses, linked to
+  `agent_id` and `target_post_id`.
+
 ## Moderator Boundary
 
 The moderator monitors runtime status, executes host-neutral next actions, and
