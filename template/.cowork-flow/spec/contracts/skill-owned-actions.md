@@ -36,6 +36,10 @@ coverage, applicable spec sources, and test-intent signals. An action-level
 it does not make the helper runnable as a lifecycle action. They must remain
 read-only helpers: no task-local review evidence file, lifecycle state mutation,
 natural-language spec hard gate, or pass/fail completion verdict.
+`task-review` JSON output may add `normalizedIssues` for machine consumers. Each
+normalized issue uses the stable envelope `code`, `severity`, `path`, `message`,
+and `source`, while existing `scopeFacts` and `testIntentSignals` fields remain
+the compatibility contract for older consumers.
 
 Text and JSON task navigation render the same resolved action contract. Text
 adapters may show the action label, owner, command, and blockers, but must not
