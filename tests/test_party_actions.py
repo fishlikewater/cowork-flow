@@ -252,6 +252,15 @@ party_mode_v2:
                 )
             terminal = self.party_mode_v2.advance_discussion(root, discussion_id="demo")
             self.assertTrue(terminal["terminal"])
+            self.assertIn(
+                {
+                    "action_id": dispatch["action_id"],
+                    "type": "dispatch_child",
+                    "outcome": "success",
+                    "agent_id": dispatch["agent_id"],
+                },
+                terminal["action_results"],
+            )
             self.assertEqual([], json.loads((base / "actions.json").read_text(encoding="utf-8"))["next_actions"])
             self.assertIn("action-issued", (base / "action_history.jsonl").read_text(encoding="utf-8"))
 

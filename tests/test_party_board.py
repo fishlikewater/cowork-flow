@@ -262,6 +262,20 @@ party_mode_v2:
             )
 
             self.assertEqual("manual_terminated", report["stop_reason"])
+            self.assertEqual(
+                [
+                    {
+                        "round": 1,
+                        "phase": "closed",
+                        "post_count": 0,
+                        "response_count": 0,
+                        "unresolved_count": 0,
+                    }
+                ],
+                report["rounds_summary"],
+            )
+            self.assertEqual([], report["action_results"])
+            self.assertEqual([], report["accepted_evidence"])
             self.assertEqual("closed", self._read_board(root)["round"]["phase"])
             self.assertEqual([], json.loads((self._base_dir(root) / "actions.json").read_text(encoding="utf-8"))["next_actions"])
 
@@ -331,6 +345,46 @@ party_mode_v2:
             self.assertEqual([], report["current_unresolved_disagreements"])
             self.assertEqual([], report["unresolved_disagreements"])
             self.assertGreaterEqual(len(report["historical_disagreements"]), 3)
+            self.assertEqual(
+                [
+                    {
+                        "round": 1,
+                        "phase": "completed",
+                        "post_count": 3,
+                        "response_count": 3,
+                        "unresolved_count": 3,
+                    },
+                    {
+                        "round": 2,
+                        "phase": "closed",
+                        "post_count": 3,
+                        "response_count": 3,
+                        "unresolved_count": 0,
+                    },
+                ],
+                report["rounds_summary"],
+            )
+            self.assertEqual([], report["action_results"])
+            self.assertEqual(
+                [
+                    {
+                        "agent_id": "arch",
+                        "target_post_id": "r2-runtime-p2",
+                        "accepted_evidence": ["runtime rejects malformed child submissions"],
+                    },
+                    {
+                        "agent_id": "runtime",
+                        "target_post_id": "r2-test-p3",
+                        "accepted_evidence": ["runtime rejects malformed child submissions"],
+                    },
+                    {
+                        "agent_id": "test",
+                        "target_post_id": "r2-arch-p1",
+                        "accepted_evidence": ["runtime rejects malformed child submissions"],
+                    },
+                ],
+                report["accepted_evidence"],
+            )
 
     def test_fresh_context_next_round_closes_stale_children_before_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -510,6 +564,20 @@ party_mode_v2:
             self.assertEqual(3, len(report["pro"]))
             self.assertEqual(3, len(report["maintained_positions"]))
             self.assertEqual(3, len(report["unresolved_disagreements"]))
+            self.assertEqual(
+                [
+                    {
+                        "round": 1,
+                        "phase": "closed",
+                        "post_count": 3,
+                        "response_count": 3,
+                        "unresolved_count": 3,
+                    }
+                ],
+                report["rounds_summary"],
+            )
+            self.assertEqual([], report["action_results"])
+            self.assertEqual([], report["accepted_evidence"])
             final_report = (
                 root
                 / ".cowork-flow"
