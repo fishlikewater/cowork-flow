@@ -12,6 +12,19 @@ export const hostAssetManifestPath = join(
   'host-assets.json'
 );
 
+const REQUIRED_HOST_NEUTRAL_CAPABILITIES = [
+  'task_action',
+  'subagent_dispatch',
+  'file_write',
+  'party_board_action'
+];
+const REQUIRED_CAPABILITY_MATRIX_HOSTS = [
+  'codex',
+  'claude-code',
+  'opencode',
+  'zcode'
+];
+
 
 export function loadHostAssetManifest(path = hostAssetManifestPath) {
   const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -41,6 +54,7 @@ export function createHostRegistry(manifest) {
     }
   }
   const platformIds = platforms.map((platform) => platform.id);
+  const capabilityMatrix = normalizeCapabilityMatrix(manifest.capabilityMatrix);
   const syncPolicy = {
     protectedFiles: manifest.syncPolicy.protectedFiles.map(normalizePath),
     protectedPrefixes: manifest.syncPolicy.protectedPrefixes.map(normalizePath),
@@ -174,6 +188,7 @@ export function createHostRegistry(manifest) {
     manifest,
     platforms,
     platformIds,
+    capabilityMatrix,
     syncPolicy,
     assetPrefixes,
     skillTargets,
@@ -186,6 +201,9 @@ export function createHostRegistry(manifest) {
     },
     platformLabel(platformId) {
       return byId.get(platformId)?.displayName ?? platformId;
+    },
+    hostCapability(hostId, capability) {
+      return capabilityMatrix.hosts[hostId]?.[capability] ?? null;
     },
     skillDestination(platformId) {
       return byId.get(platformId)?.skillTarget ?? null;
@@ -226,6 +244,7 @@ function validateManifest(manifest) {
       'Host Asset Manifest excludedPrefixes must be an array'
     );
   }
+  validateCapabilityMatrix(manifest);
   if (!manifest.syncPolicy || typeof manifest.syncPolicy !== 'object') {
     throw new Error('Host Asset Manifest syncPolicy must be an object');
   }
@@ -264,6 +283,91 @@ function validateManifest(manifest) {
 }
 
 
+function validateCapabilityMatrix(manifest) {
+  if (!Array.isArray(manifest.capabilityValues) || manifest.capabilityValues.length === 0) {
+    throw new Error('Host Asset Manifest capabilityValues must be a non-empty array');
+  }
+  const allowed = new Set(manifest.capabilityValues);
+  for (const value of allowed) {
+    if (typeof value !== 'string' || value.length === 0) {
+      throw new Error('Host Asset Manifest capabilityValues entries must be strings');
+    }
+  }
+  const matrix = manifest.capabilityMatrix;
+  if (!matrix || typeof matrix !== 'object' || Array.isArray(matrix)) {
+    throw new Error('Host Asset Manifest capabilityMatrix must be an object');
+  }
+  if (!arraysEqual(matrix.required, REQUIRED_HOST_NEUTRAL_CAPABILITIES)) {
+    throw new Error(
+      `Host Asset Manifest capabilityMatrix.required must be ${REQUIRED_HOST_NEUTRAL_CAPABILITIES.join(', ')}`
+    );
+  }
+  if (!matrix.hosts || typeof matrix.hosts !== 'object' || Array.isArray(matrix.hosts)) {
+    throw new Error('Host Asset Manifest capabilityMatrix.hosts must be an object');
+  }
+  const requiredHosts = new Set([
+    ...REQUIRED_CAPABILITY_MATRIX_HOSTS,
+    ...manifest.platforms.map((platform) => platform.id)
+  ]);
+  for (const hostId of [...requiredHosts].sort()) {
+    if (!matrix.hosts[hostId]) {
+      throw new Error(`Host Asset Manifest capability matrix missing host: ${hostId}`);
+    }
+  }
+  for (const [hostId, capabilities] of Object.entries(matrix.hosts)) {
+    if (!capabilities || typeof capabilities !== 'object' || Array.isArray(capabilities)) {
+      throw new Error(`Host Asset Manifest capabilityMatrix host ${hostId} must be an object`);
+    }
+    for (const key of Object.keys(capabilities)) {
+      if (!REQUIRED_HOST_NEUTRAL_CAPABILITIES.includes(key)) {
+        throw new Error(`Host Asset Manifest unknown host-neutral capability ${hostId}:${key}`);
+      }
+    }
+    for (const capability of REQUIRED_HOST_NEUTRAL_CAPABILITIES) {
+      const declaration = capabilities[capability];
+      if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) {
+        throw new Error(`Host Asset Manifest missing host-neutral capability ${hostId}:${capability}`);
+      }
+      if (!allowed.has(declaration.status)) {
+        throw new Error(
+          `Host Asset Manifest illegal host-neutral capability ${hostId}:${capability}=${declaration.status}`
+        );
+      }
+      if (declaration.fallback !== undefined && (
+        typeof declaration.fallback !== 'string' || declaration.fallback.length === 0
+      )) {
+        throw new Error(
+          `Host Asset Manifest capability fallback must be a non-empty string: ${hostId}:${capability}`
+        );
+      }
+      if (declaration.status === 'unsupported' && !declaration.fallback) {
+        throw new Error(
+          `Host Asset Manifest unsupported capability requires fallback: ${hostId}:${capability}`
+        );
+      }
+    }
+  }
+}
+
+
+function normalizeCapabilityMatrix(matrix) {
+  return {
+    required: [...matrix.required],
+    hosts: Object.fromEntries(
+      Object.entries(matrix.hosts).map(([hostId, capabilities]) => [
+        hostId,
+        Object.fromEntries(
+          Object.entries(capabilities).map(([capability, declaration]) => [
+            capability,
+            { ...declaration }
+          ])
+        )
+      ])
+    )
+  };
+}
+
+
 function normalizePath(value) {
   return String(value).replaceAll('\\', '/');
 }
@@ -271,6 +375,13 @@ function normalizePath(value) {
 
 function unique(values) {
   return [...new Set(values)];
+}
+
+
+function arraysEqual(left, right) {
+  return Array.isArray(left)
+    && left.length === right.length
+    && left.every((value, index) => value === right[index]);
 }
 
 

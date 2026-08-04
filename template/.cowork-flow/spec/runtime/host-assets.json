@@ -8,6 +8,74 @@
     "experimental",
     "unsupported"
   ],
+  "capabilityMatrix": {
+    "required": [
+      "task_action",
+      "subagent_dispatch",
+      "file_write",
+      "party_board_action"
+    ],
+    "hosts": {
+      "codex": {
+        "task_action": {
+          "status": "native"
+        },
+        "subagent_dispatch": {
+          "status": "native"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "native"
+        }
+      },
+      "opencode": {
+        "task_action": {
+          "status": "native"
+        },
+        "subagent_dispatch": {
+          "status": "native"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "experimental"
+        }
+      },
+      "claude-code": {
+        "task_action": {
+          "status": "native"
+        },
+        "subagent_dispatch": {
+          "status": "native"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "native"
+        }
+      },
+      "zcode": {
+        "task_action": {
+          "status": "plugin"
+        },
+        "subagent_dispatch": {
+          "status": "plugin"
+        },
+        "file_write": {
+          "status": "unsupported",
+          "fallback": "project_root_init_or_sync"
+        },
+        "party_board_action": {
+          "status": "unsupported",
+          "fallback": "inline_or_manual"
+        }
+      }
+    }
+  },
   "platforms": [
     {
       "id": "codex",

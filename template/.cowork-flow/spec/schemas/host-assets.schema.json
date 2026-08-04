@@ -7,6 +7,7 @@
   "required": [
     "schemaVersion",
     "capabilityValues",
+    "capabilityMatrix",
     "platforms",
     "excludedPrefixes",
     "syncPolicy"
@@ -20,9 +21,11 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "type": "string",
-        "minLength": 1
+        "$ref": "#/$defs/capabilityStatus"
       }
+    },
+    "capabilityMatrix": {
+      "$ref": "#/$defs/capabilityMatrix"
     },
     "platforms": {
       "type": "array",
@@ -51,7 +54,120 @@
       "type": "object",
       "minProperties": 1,
       "additionalProperties": {
-        "type": "string"
+        "$ref": "#/$defs/capabilityStatus"
+      }
+    },
+    "capabilityStatus": {
+      "type": "string",
+      "enum": [
+        "native",
+        "shim",
+        "plugin",
+        "external",
+        "experimental",
+        "unsupported"
+      ]
+    },
+    "hostNeutralCapabilityDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/capabilityStatus"
+        },
+        "fallback": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unsupported"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "fallback"
+            ]
+          }
+        }
+      ]
+    },
+    "hostNeutralCapabilitySet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_action",
+        "subagent_dispatch",
+        "file_write",
+        "party_board_action"
+      ],
+      "properties": {
+        "task_action": {
+          "$ref": "#/$defs/hostNeutralCapabilityDeclaration"
+        },
+        "subagent_dispatch": {
+          "$ref": "#/$defs/hostNeutralCapabilityDeclaration"
+        },
+        "file_write": {
+          "$ref": "#/$defs/hostNeutralCapabilityDeclaration"
+        },
+        "party_board_action": {
+          "$ref": "#/$defs/hostNeutralCapabilityDeclaration"
+        }
+      }
+    },
+    "capabilityMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "hosts"
+      ],
+      "properties": {
+        "required": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "prefixItems": [
+            {
+              "const": "task_action"
+            },
+            {
+              "const": "subagent_dispatch"
+            },
+            {
+              "const": "file_write"
+            },
+            {
+              "const": "party_board_action"
+            }
+          ],
+          "items": false
+        },
+        "hosts": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/hostNeutralCapabilitySet"
+          },
+          "required": [
+            "codex",
+            "claude-code",
+            "opencode",
+            "zcode"
+          ]
+        }
       }
     },
     "commandTarget": {
