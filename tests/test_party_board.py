@@ -45,6 +45,42 @@ class PartyBoardTest(PartyModeTestCase):
             action_types = {action["type"] for action in result["next_actions"]}
             self.assertEqual({"dispatch_child", "wait_children"}, action_types)
 
+    def test_board_store_fail_closed_on_corrupt_board_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = self._repo(Path(temp_name))
+            self._init_demo(root)
+            base = self._base_dir(root)
+
+            self.assertIs(self.party_board_store.load_board, self.party_mode_v2.load_board)
+            (base / "board.json").write_text("{not-json}\n", encoding="utf-8")
+
+            with self.assertRaises(json.JSONDecodeError):
+                self.party_mode_v2.view_discussion(root, discussion_id="demo")
+
+    def test_board_store_helpers_own_board_and_history_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = self._repo(Path(temp_name))
+            self._init_demo(root)
+            base = self._base_dir(root)
+
+            with self.party_board_store.state_lock(base):
+                board = self.party_board_store.load_board(base)
+                board["topic"] = "Stored by board store"
+                self.party_board_store.save_board(base, board)
+                self.party_board_store.append_audit(base, "store-test", {"ok": True})
+                self.party_board_store.append_action_history(
+                    base,
+                    "store-action-test",
+                    {"ok": True},
+                )
+
+            self.assertEqual("Stored by board store", self.party_board_store.load_board(base)["topic"])
+            self.assertIn("store-test", (base / "audit.jsonl").read_text(encoding="utf-8"))
+            self.assertIn(
+                "store-action-test",
+                (base / "action_history.jsonl").read_text(encoding="utf-8"),
+            )
+
     def test_view_returns_only_current_round(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = self._repo(Path(temp_name))
@@ -75,10 +111,7 @@ class PartyBoardTest(PartyModeTestCase):
                     "moderator_events": [],
                 },
             ]
-            (base / "board.json").write_text(
-                json.dumps(board, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
+            self.party_board_store.save_board(base, board)
 
             view = self.party_mode_v2.view_discussion(
                 root,
