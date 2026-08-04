@@ -158,23 +158,18 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
-    def test_zcode_scaffold_uses_current_workflow_entrypoint(self) -> None:
-        text = (
-            ROOT / "template" / ".zcode" / "scaffold" / "AGENTS.md"
-        ).read_text(encoding="utf-8")
+    def test_zcode_scaffold_does_not_include_workflow_entrypoint_files(self) -> None:
+        scaffold = ROOT / "template" / ".zcode" / "scaffold"
 
-        self.assertIn("./.cowork-flow/run task next", text)
-        self.assertIn("task.json.status", text)
-        self.assertIn("in_progress", text)
-        self.assertIn("review", text)
-        self.assertIn("Skill command manifests", text)
-        self.assertNotIn(".cowork-flow/workflow.md", text)
-        self.assertNotIn("before-dev", text)
+        self.assertFalse((scaffold / "AGENTS.md").exists())
+        self.assertFalse((scaffold / "CLAUDE.md").exists())
+        self.assertFalse((scaffold / ".cowork-flow").exists())
 
     def test_zcode_scaffold_does_not_vendor_workflow_files(self) -> None:
-        workflow_dir = ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow"
+        scaffold = ROOT / "template" / ".zcode" / "scaffold"
 
-        self.assertFalse(workflow_dir.exists())
+        for relative_path in ("AGENTS.md", "CLAUDE.md", ".cowork-flow"):
+            self.assertFalse((scaffold / relative_path).exists(), relative_path)
 
     def test_workflow_limits_generic_worker_to_advisory_work(self) -> None:
         required_markers = (
