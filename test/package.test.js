@@ -106,6 +106,10 @@ test('package metadata exposes release script and synchronized lockfile version'
   const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
 
   assert.equal(packageInfo.scripts.release, 'sh scripts/release.sh');
+  assert.equal(packageInfo.scripts['release:check'], 'npm run test:all');
+  assert.match(packageInfo.scripts['test:all'], /npm run test:node:full/);
+  assert.match(packageInfo.scripts['test:all'], /npm run test:template:full/);
+  assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
   assert.equal(packageLock.version, packageInfo.version);
   assert.equal(packageLock.packages[''].version, packageInfo.version);
 });

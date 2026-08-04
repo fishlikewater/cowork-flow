@@ -24,6 +24,7 @@
     "test:template:full": "node scripts/run-template-tests.js --suite full",
     "pack:check": "node scripts/pack-check.js",
     "test:all": "npm run test:node:full && npm run test:template:full && npm run pack:check",
+    "release:check": "npm run test:all",
     "release": "sh scripts/release.sh"
   },
   "engines": {
