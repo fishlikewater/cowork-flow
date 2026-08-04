@@ -279,6 +279,49 @@ party_mode_v2:
             self.assertEqual(agents_before, self._read_agents(root))
             self.assertEqual(history_before, (base / "action_history.jsonl").read_text(encoding="utf-8"))
 
+    def test_action_contract_rejects_malformed_action_documents(self) -> None:
+        valid = {
+            "schema_version": 1,
+            "discussion_id": "demo",
+            "next_actions": [
+                {
+                    "action_id": "r1-publish-arch",
+                    "type": "dispatch_child",
+                    "agent_id": "arch",
+                    "agent_kind": "advisory",
+                    "lens": "architecture",
+                    "message_kind": "board_publish",
+                    "prompt_file": ".cowork-flow/.runtime/party-mode-v2/demo/prompts/arch-r1-publish.md",
+                },
+                {"action_id": "r1-publish-wait", "type": "wait_children", "agent_ids": ["arch"]},
+            ],
+        }
+        self.assertIs(valid, self.party_action_contract.validate_actions_document(valid))
+
+        missing_prompt = json.loads(json.dumps(valid))
+        missing_prompt["next_actions"][0].pop("prompt_file")
+        with self.assertRaisesRegex(
+            self.party_action_contract.PartyActionContractError,
+            "missing_action_field:0:prompt_file",
+        ):
+            self.party_action_contract.validate_actions_document(missing_prompt)
+
+        unknown_type = json.loads(json.dumps(valid))
+        unknown_type["next_actions"][0]["type"] = "spawn_agent"
+        with self.assertRaisesRegex(
+            self.party_action_contract.PartyActionContractError,
+            "invalid_action_type:0:spawn_agent",
+        ):
+            self.party_action_contract.validate_actions_document(unknown_type)
+
+        host_specific = json.loads(json.dumps(valid))
+        host_specific["next_actions"][0]["host_child_id"] = "child-123"
+        with self.assertRaisesRegex(
+            self.party_action_contract.PartyActionContractError,
+            "unexpected_action_field:0:host_child_id",
+        ):
+            self.party_action_contract.validate_actions_document(host_specific)
+
     def test_post_rejects_missing_evidence_and_accepts_valid_submission(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = self._repo(Path(temp_name))

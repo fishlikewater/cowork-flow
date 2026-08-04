@@ -39,6 +39,7 @@ from party_board_store import (
     state_lock as _state_lock,
     write_json as _write_json,
 )
+from party_action_contract import validate_actions_document
 from infra.config import get_party_mode_v2_config
 from infra.paths import DIR_WORKFLOW, get_repo_root
 
@@ -302,15 +303,18 @@ def _build_actions(
             phase=phase,
         )
         actions.append(action)
-        _append_action_history(base_dir, "action-issued", action)
     wait_action = {
         "action_id": f"r{round_number}-{phase}-wait",
         "type": "wait_children",
         "agent_ids": [agent["agent_id"] for agent in agents],
     }
     actions.append(wait_action)
-    _append_action_history(base_dir, "action-issued", wait_action)
-    return {"schema_version": 1, "discussion_id": discussion_id, "next_actions": actions}
+    document = validate_actions_document(
+        {"schema_version": 1, "discussion_id": discussion_id, "next_actions": actions}
+    )
+    for action in document["next_actions"]:
+        _append_action_history(base_dir, "action-issued", action)
+    return document
 
 
 def _build_close_actions(
@@ -343,7 +347,13 @@ def _build_close_actions(
 
 
 def _empty_actions(discussion_id: str) -> dict[str, Any]:
-    return {"schema_version": 1, "discussion_id": discussion_id, "next_actions": []}
+    return validate_actions_document(
+        {"schema_version": 1, "discussion_id": discussion_id, "next_actions": []}
+    )
+
+
+def _write_actions_json(base_dir: Path, actions: dict[str, Any]) -> None:
+    _write_json(base_dir / "actions.json", validate_actions_document(actions))
 
 
 def _with_terminal_state(data: dict[str, Any], terminal: bool) -> dict[str, Any]:
@@ -399,7 +409,7 @@ def init_discussion(
         public_round = _build_public_round(board)
         save_board(base_dir, board)
         _write_json(base_dir / "agents.json", agents_state)
-        _write_json(base_dir / "actions.json", actions)
+        _write_actions_json(base_dir, actions)
         _write_json(base_dir / "public_round.json", public_round)
         _append_audit(
             base_dir,
@@ -440,7 +450,7 @@ def monitor_discussion(repo_root: Path, *, discussion_id: str) -> dict[str, Any]
     base_dir = discussion_dir(repo_root, discussion_id)
     board = load_board(base_dir)
     agents = _read_json(base_dir / "agents.json")
-    actions = _read_json(base_dir / "actions.json")
+    actions = validate_actions_document(_read_json(base_dir / "actions.json"))
     active_agents = [
         agent
         for agent in agents.get("agents", [])
@@ -814,7 +824,7 @@ def _write_actions_for_phase(
     )
     if leading_actions:
         actions["next_actions"] = leading_actions + actions["next_actions"]
-    _write_json(base_dir / "actions.json", actions)
+    _write_actions_json(base_dir, actions)
 
 
 def _advance_publish_phase(
@@ -854,7 +864,7 @@ def _close_discussion(
     board["round"]["phase"] = "closed"
     board["termination"] = {"reason": reason}
     _write_runtime_state(base_dir, board)
-    _write_json(base_dir / "actions.json", _empty_actions(discussion_id))
+    _write_actions_json(base_dir, _empty_actions(discussion_id))
     _append_audit(
         base_dir,
         "advance",
@@ -1003,7 +1013,7 @@ def _ensure_finalizable(
     board["round"]["phase"] = "closed"
     board["termination"] = {"reason": "manual_terminated"}
     _write_runtime_state(base_dir, board)
-    _write_json(base_dir / "actions.json", _empty_actions(discussion_id))
+    _write_actions_json(base_dir, _empty_actions(discussion_id))
 
 
 def _discussion_posts(board: dict[str, Any]) -> list[dict[str, Any]]:
