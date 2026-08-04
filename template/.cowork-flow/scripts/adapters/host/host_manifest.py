@@ -17,6 +17,14 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
 MANIFEST_PATH = Path(".cowork-flow/spec/runtime/host-assets.json")
 SCHEMA_PATH = Path(".cowork-flow/spec/schemas/host-assets.schema.json")
 
+REQUIRED_HOST_NEUTRAL_CAPABILITIES = (
+    "task_action",
+    "subagent_dispatch",
+    "file_write",
+    "party_board_action",
+)
+REQUIRED_CAPABILITY_MATRIX_HOSTS = ("codex", "claude-code", "opencode", "zcode")
+
 
 class HostManifestError(RuntimeError):
     """Raised when the Host Asset Manifest is unavailable or invalid."""
@@ -27,6 +35,12 @@ class CommandTarget:
     config: str
     format: str
     target: str
+
+
+@dataclass(frozen=True)
+class CapabilityDeclaration:
+    status: str
+    fallback: str | None
 
 
 @dataclass(frozen=True)
@@ -57,6 +71,8 @@ class SyncPolicy:
 class HostManifest:
     schema_version: int
     capability_values: tuple[str, ...]
+    required_host_capabilities: tuple[str, ...]
+    capability_matrix: dict[str, dict[str, CapabilityDeclaration]]
     platforms: tuple[HostPlatform, ...]
     excluded_prefixes: tuple[str, ...]
     sync_policy: SyncPolicy
@@ -79,6 +95,18 @@ class HostManifest:
             if normalized in platform.aliases:
                 return platform.id
         raise HostManifestError(f"unknown host platform alias: {alias}")
+
+    def host_capability(
+        self,
+        host_id: str,
+        capability: str,
+    ) -> CapabilityDeclaration:
+        try:
+            return self.capability_matrix[host_id][capability]
+        except KeyError as error:
+            raise HostManifestError(
+                f"unknown host-neutral capability: {host_id}:{capability}"
+            ) from error
 
 
 def load_host_manifest(template_root: Path) -> HostManifest:
@@ -300,12 +328,19 @@ def _build_manifest(raw: dict[str, Any]) -> HostManifest:
     )
     if len(platforms) != len(platforms_raw):
         raise HostManifestError("every platform must be an object")
+    required_host_capabilities, capability_matrix = _build_capability_matrix(
+        raw.get("capabilityMatrix"),
+        capability_values,
+        tuple(platform.id for platform in platforms),
+    )
     sync_raw = raw.get("syncPolicy")
     if not isinstance(sync_raw, dict):
         raise HostManifestError("syncPolicy must be an object")
     return HostManifest(
         schema_version=schema_version,
         capability_values=capability_values,
+        required_host_capabilities=required_host_capabilities,
+        capability_matrix=capability_matrix,
         platforms=platforms,
         excluded_prefixes=_string_tuple(
             raw.get("excludedPrefixes"),
@@ -338,6 +373,73 @@ def _build_manifest(raw: dict[str, Any]) -> HostManifest:
             ),
         ),
     )
+
+
+def _build_capability_matrix(
+    raw: object,
+    allowed: tuple[str, ...],
+    platform_ids: tuple[str, ...],
+) -> tuple[tuple[str, ...], dict[str, dict[str, CapabilityDeclaration]]]:
+    if not isinstance(raw, dict):
+        raise HostManifestError("capabilityMatrix must be an object")
+    required = _string_tuple(raw.get("required"), "capabilityMatrix.required")
+    if required != REQUIRED_HOST_NEUTRAL_CAPABILITIES:
+        expected = ", ".join(REQUIRED_HOST_NEUTRAL_CAPABILITIES)
+        raise HostManifestError(f"capabilityMatrix.required must be: {expected}")
+    hosts_raw = raw.get("hosts")
+    if not isinstance(hosts_raw, dict) or not hosts_raw:
+        raise HostManifestError("capabilityMatrix.hosts must be an object")
+
+    required_hosts = set(REQUIRED_CAPABILITY_MATRIX_HOSTS).union(platform_ids)
+    for host_id in sorted(required_hosts):
+        if host_id not in hosts_raw:
+            raise HostManifestError(f"capability matrix missing host: {host_id}")
+
+    allowed_values = set(allowed)
+    matrix: dict[str, dict[str, CapabilityDeclaration]] = {}
+    for host_id, capabilities_raw in hosts_raw.items():
+        if not isinstance(host_id, str) or not host_id.strip():
+            raise HostManifestError("capabilityMatrix host ids must be strings")
+        if not isinstance(capabilities_raw, dict):
+            raise HostManifestError(
+                f"capabilityMatrix host {host_id} must be an object"
+            )
+        unknown = sorted(set(capabilities_raw) - set(required))
+        if unknown:
+            raise HostManifestError(
+                f"unknown host-neutral capability {host_id}:{unknown[0]}"
+            )
+        matrix[host_id] = {}
+        for capability in required:
+            declaration = capabilities_raw.get(capability)
+            if not isinstance(declaration, dict):
+                raise HostManifestError(
+                    f"missing host-neutral capability {host_id}:{capability}"
+                )
+            status = declaration.get("status")
+            if not isinstance(status, str) or status not in allowed_values:
+                raise HostManifestError(
+                    f"illegal host-neutral capability {host_id}:{capability}={status}"
+                )
+            fallback_raw = declaration.get("fallback")
+            fallback: str | None = None
+            if fallback_raw is not None:
+                if not isinstance(fallback_raw, str) or not fallback_raw.strip():
+                    raise HostManifestError(
+                        f"capability fallback must be a non-empty string: "
+                        f"{host_id}:{capability}"
+                    )
+                fallback = fallback_raw.strip()
+            if status == "unsupported" and fallback is None:
+                raise HostManifestError(
+                    f"unsupported capability requires fallback: "
+                    f"{host_id}:{capability}"
+                )
+            matrix[host_id][capability] = CapabilityDeclaration(
+                status=status,
+                fallback=fallback,
+            )
+    return required, matrix
 
 
 def _build_platform(raw: dict[str, Any]) -> HostPlatform:

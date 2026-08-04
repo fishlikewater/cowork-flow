@@ -54,6 +54,17 @@ test('default host registry exposes manifest platform behavior', () => {
     registry.obsoleteSyncFiles().includes('.cowork-flow/workflow.md'),
     true
   );
+  assert.deepEqual(
+    registry.capabilityMatrix.required,
+    ['task_action', 'subagent_dispatch', 'file_write', 'party_board_action']
+  );
+  assert.deepEqual(
+    registry.hostCapability('zcode', 'file_write'),
+    {
+      status: 'unsupported',
+      fallback: 'project_root_init_or_sync'
+    }
+  );
 });
 
 
@@ -73,6 +84,22 @@ test('a simulated platform is added by manifest data only', () => {
     },
     commandTargets: []
   });
+  manifest.capabilityMatrix.hosts['demo-host'] = {
+    task_action: {
+      status: 'external'
+    },
+    subagent_dispatch: {
+      status: 'unsupported',
+      fallback: 'inline_or_manual'
+    },
+    file_write: {
+      status: 'native'
+    },
+    party_board_action: {
+      status: 'unsupported',
+      fallback: 'inline_or_manual'
+    }
+  };
   const registry = createHostRegistry(manifest);
 
   assert.deepEqual(registry.parsePlatformSelection(['demo']), ['demo-host']);
@@ -88,6 +115,25 @@ test('a simulated platform is added by manifest data only', () => {
   assert.equal(
     registry.skillDestination('demo-host'),
     '.demo-host/skills'
+  );
+  assert.deepEqual(
+    registry.hostCapability('demo-host', 'subagent_dispatch'),
+    {
+      status: 'unsupported',
+      fallback: 'inline_or_manual'
+    }
+  );
+});
+
+
+test('host registry rejects unsupported host-neutral capability without fallback', () => {
+  const manifest = loadHostAssetManifest();
+  const broken = structuredClone(manifest);
+  delete broken.capabilityMatrix.hosts.zcode.file_write.fallback;
+
+  assert.throws(
+    () => createHostRegistry(broken),
+    /unsupported capability requires fallback: zcode:file_write/
   );
 });
 

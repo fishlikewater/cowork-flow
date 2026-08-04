@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import shutil
 import sys
 import tempfile
@@ -39,11 +40,27 @@ class HostAssetManifestTest(unittest.TestCase):
             ("codex", "opencode", "claude-code"),
             manifest.platform_ids,
         )
+        self.assertEqual(
+            ("task_action", "subagent_dispatch", "file_write", "party_board_action"),
+            manifest.required_host_capabilities,
+        )
+        self.assertEqual(
+            ("claude-code", "codex", "opencode", "zcode"),
+            tuple(sorted(manifest.capability_matrix)),
+        )
         self.assertEqual("claude-code", manifest.resolve_alias("claude"))
         self.assertEqual(".agents/skills", manifest.platform("codex").skill_target)
         self.assertEqual(
             ".claude/skills",
             manifest.platform("claude-code").skill_target,
+        )
+        self.assertEqual(
+            "unsupported",
+            manifest.host_capability("zcode", "file_write").status,
+        )
+        self.assertEqual(
+            "project_root_init_or_sync",
+            manifest.host_capability("zcode", "file_write").fallback,
         )
         self.assertIn(
             ".cowork-flow/scripts/task.py",
@@ -134,6 +151,62 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertTrue(
             any("illegal capability" in error for error in errors),
+            errors,
+        )
+
+    def test_semantic_validation_rejects_missing_host_neutral_capability(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "template"
+            shutil.copytree(TEMPLATE, template)
+            manifest_path = (
+                template
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "host-assets.json"
+            )
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del data["capabilityMatrix"]["hosts"]["codex"]["task_action"]
+            manifest_path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            errors = self.host_manifest.validate_host_assets(template)
+
+        self.assertTrue(
+            any(
+                "missing host-neutral capability codex:task_action" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_semantic_validation_rejects_unsupported_capability_without_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "template"
+            shutil.copytree(TEMPLATE, template)
+            manifest_path = (
+                template
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "host-assets.json"
+            )
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del data["capabilityMatrix"]["hosts"]["zcode"]["file_write"]["fallback"]
+            manifest_path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            errors = self.host_manifest.validate_host_assets(template)
+
+        self.assertTrue(
+            any(
+                "unsupported capability requires fallback: zcode:file_write" in error
+                for error in errors
+            ),
             errors,
         )
 

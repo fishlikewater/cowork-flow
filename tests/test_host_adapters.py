@@ -63,6 +63,77 @@ class HostAdaptersTest(unittest.TestCase):
                 enum,
             )
 
+    def test_host_asset_schema_declares_host_neutral_capability_matrix(self) -> None:
+        schema = json.loads(
+            (
+                ROOT
+                / "template"
+                / ".cowork-flow"
+                / "spec"
+                / "schemas"
+                / "host-assets.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        matrix = schema["$defs"]["hostNeutralCapabilitySet"]
+        required = (
+            "task_action",
+            "subagent_dispatch",
+            "file_write",
+            "party_board_action",
+        )
+
+        self.assertIn("capabilityMatrix", schema["required"])
+        self.assertEqual(list(required), matrix["required"])
+        self.assertEqual(False, matrix["additionalProperties"])
+        declaration = schema["$defs"]["hostNeutralCapabilityDeclaration"]
+        self.assertEqual(
+            ["native", "shim", "plugin", "external", "experimental", "unsupported"],
+            schema["$defs"]["capabilityStatus"]["enum"],
+        )
+        rendered = json.dumps(declaration, ensure_ascii=False)
+        self.assertIn("unsupported", rendered)
+        self.assertIn("fallback", rendered)
+
+    def test_host_neutral_capability_matrix_covers_supported_hosts(self) -> None:
+        manifest = json.loads(
+            (
+                ROOT
+                / "template"
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "host-assets.json"
+            ).read_text(encoding="utf-8")
+        )
+        matrix = manifest["capabilityMatrix"]
+        required = tuple(matrix["required"])
+        self.assertEqual(
+            (
+                "task_action",
+                "subagent_dispatch",
+                "file_write",
+                "party_board_action",
+            ),
+            required,
+        )
+        self.assertEqual(
+            {"codex", "claude-code", "opencode", "zcode"},
+            set(matrix["hosts"]),
+        )
+        for host, capabilities in matrix["hosts"].items():
+            for capability in required:
+                declaration = capabilities[capability]
+                self.assertIn(
+                    declaration["status"],
+                    manifest["capabilityValues"],
+                    f"{host}:{capability}",
+                )
+                if declaration["status"] == "unsupported":
+                    self.assertTrue(
+                        declaration.get("fallback"),
+                        f"{host}:{capability}",
+                    )
+
     def test_host_adapters_match_contract(self) -> None:
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
