@@ -42,11 +42,14 @@ from party_board_store import (
 from party_action_contract import validate_actions_document
 from infra.config import get_party_mode_v2_config
 from infra.paths import DIR_WORKFLOW, get_repo_root
+from adapters.host.host_manifest import load_host_manifest
 
 RUNTIME_DIR = ".runtime"
 MODE_DIR = "party-mode-v2"
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 CONFIDENCE_VALUES = {"low", "medium", "high"}
+PARTY_BOARD_ACTION_CAPABILITY = "party_board_action"
+SUPPORTED_HOST_CAPABILITY_STATUSES = {"native", "shim", "plugin", "external", "experimental"}
 HOST_FORBIDDEN_TERMS = (
     "spawn_agent",
     "wait_agent",
@@ -256,6 +259,86 @@ def _agent_prompt_file(
     return prompt_name, str(prompt_file)
 
 
+def _host_manifest_root(repo_root: Path) -> Path:
+    repo_manifest = repo_root / DIR_WORKFLOW / "spec" / "runtime" / "host-assets.json"
+    if repo_manifest.is_file():
+        return repo_root
+    for parent in _SCRIPT_DIR.parents:
+        if (parent / DIR_WORKFLOW / "spec" / "runtime" / "host-assets.json").is_file():
+            return parent
+    return repo_root
+
+
+def _normalize_host_id(host_id: str | None) -> str | None:
+    if host_id is None or not str(host_id).strip():
+        return None
+    return _validate_identifier(str(host_id).strip(), label="host_id")
+
+
+def _party_board_capability(repo_root: Path, host_id: str | None) -> Any | None:
+    if host_id is None:
+        return None
+    manifest = load_host_manifest(_host_manifest_root(repo_root))
+    return manifest.host_capability(host_id, PARTY_BOARD_ACTION_CAPABILITY)
+
+
+def _party_board_action_is_supported(repo_root: Path, host_id: str | None) -> bool:
+    capability = _party_board_capability(repo_root, host_id)
+    if capability is None:
+        return True
+    return capability.status in SUPPORTED_HOST_CAPABILITY_STATUSES
+
+
+def _party_board_fallback_actions(
+    repo_root: Path,
+    base_dir: Path,
+    discussion_id: str,
+    agents: list[dict[str, str]],
+    *,
+    round_number: int,
+    phase: str,
+    host_id: str,
+) -> dict[str, Any]:
+    capability = _party_board_capability(repo_root, host_id)
+    fallback = capability.fallback if capability is not None else "inline_or_manual"
+    (base_dir / "prompts").mkdir(parents=True, exist_ok=True)
+    prompt_files: list[str] = []
+    for agent in agents:
+        _prompt_name, prompt_file = _agent_prompt_file(
+            base_dir,
+            discussion_id,
+            agent,
+            round_number=round_number,
+            phase=phase,
+        )
+        prompt_files.append(prompt_file)
+    action = {
+        "action_id": f"r{round_number}-{phase}-fallback",
+        "type": "report_to_user",
+        "reason": (
+            f"{PARTY_BOARD_ACTION_CAPABILITY} unsupported for host {host_id}; "
+            f"fallback={fallback}; manually deliver prompt files or record unable_to_dispatch"
+        ),
+    }
+    document = validate_actions_document(
+        {"schema_version": 1, "discussion_id": discussion_id, "next_actions": [action]}
+    )
+    _append_action_history(base_dir, "action-issued", action)
+    _append_audit(
+        base_dir,
+        "fallback",
+        {
+            "host_id": host_id,
+            "capability": PARTY_BOARD_ACTION_CAPABILITY,
+            "fallback": fallback,
+            "round": round_number,
+            "phase": phase,
+            "prompt_files": prompt_files,
+        },
+    )
+    return document
+
+
 def _child_action(
     base_dir: Path,
     discussion_id: str,
@@ -284,13 +367,26 @@ def _child_action(
 
 
 def _build_actions(
+    repo_root: Path,
     base_dir: Path,
     discussion_id: str,
     agents: list[dict[str, str]],
     *,
     round_number: int,
     phase: str,
+    host_id: str | None = None,
 ) -> dict[str, Any]:
+    host_id = _normalize_host_id(host_id)
+    if host_id is not None and not _party_board_action_is_supported(repo_root, host_id):
+        return _party_board_fallback_actions(
+            repo_root,
+            base_dir,
+            discussion_id,
+            agents,
+            round_number=round_number,
+            phase=phase,
+            host_id=host_id,
+        )
     actions = []
     prompts_dir = base_dir / "prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
@@ -361,8 +457,14 @@ def _with_terminal_state(data: dict[str, Any], terminal: bool) -> dict[str, Any]
     return data
 
 
-def _initial_board(discussion_id: str, topic: str, max_rounds: int) -> dict[str, Any]:
-    return {
+def _initial_board(
+    discussion_id: str,
+    topic: str,
+    max_rounds: int,
+    *,
+    host_id: str | None = None,
+) -> dict[str, Any]:
+    board = {
         "schema_version": 1,
         "discussion_id": discussion_id,
         "topic": topic,
@@ -370,6 +472,9 @@ def _initial_board(discussion_id: str, topic: str, max_rounds: int) -> dict[str,
         "rounds": [{"round": 1, "posts": [], "responses": [], "moderator_events": []}],
         "termination": {"reason": None},
     }
+    if host_id is not None:
+        board["host_id"] = host_id
+    return board
 
 
 def _initial_agents_state(discussion_id: str, agents: list[dict[str, str]]) -> dict[str, Any]:
@@ -395,17 +500,27 @@ def init_discussion(
     discussion_id: str,
     topic: str,
     agent_specs: list[str],
+    host_id: str | None = None,
 ) -> dict[str, Any]:
     _validate_identifier(discussion_id, label="discussion_id")
     config = get_party_mode_v2_config(repo_root)
     agents = [_parse_agent_spec(spec) for spec in agent_specs]
     _validate_agents(agents, config)
+    host_id = _normalize_host_id(host_id)
     base_dir = discussion_dir(repo_root, discussion_id)
     with _state_lock(base_dir):
         max_rounds = int(config["max_rounds"])
-        board = _initial_board(discussion_id, topic, max_rounds)
+        board = _initial_board(discussion_id, topic, max_rounds, host_id=host_id)
         agents_state = _initial_agents_state(discussion_id, agents)
-        actions = _build_actions(base_dir, discussion_id, agents, round_number=1, phase="publish")
+        actions = _build_actions(
+            repo_root,
+            base_dir,
+            discussion_id,
+            agents,
+            round_number=1,
+            phase="publish",
+            host_id=host_id,
+        )
         public_round = _build_public_round(board)
         save_board(base_dir, board)
         _write_json(base_dir / "agents.json", agents_state)
@@ -808,19 +923,23 @@ def respond_submission(
 
 
 def _write_actions_for_phase(
+    repo_root: Path,
     base_dir: Path,
     discussion_id: str,
     round_number: int,
     phase: str,
     *,
+    host_id: str | None = None,
     leading_actions: list[dict[str, Any]] | None = None,
 ) -> None:
     actions = _build_actions(
+        repo_root,
         base_dir,
         discussion_id,
         _agent_lenses(base_dir),
         round_number=round_number,
         phase=phase,
+        host_id=host_id,
     )
     if leading_actions:
         actions["next_actions"] = leading_actions + actions["next_actions"]
@@ -843,7 +962,14 @@ def _advance_publish_phase(
         raise ValueError(f"publish_incomplete:{','.join(missing)}")
     board["round"]["phase"] = "respond"
     _write_runtime_state(base_dir, board)
-    _write_actions_for_phase(base_dir, discussion_id, current_round, "respond")
+    _write_actions_for_phase(
+        repo_root,
+        base_dir,
+        discussion_id,
+        current_round,
+        "respond",
+        host_id=board.get("host_id"),
+    )
     _append_audit(
         base_dir,
         "advance",
@@ -897,10 +1023,12 @@ def _advance_next_round(
     )
     _write_runtime_state(base_dir, board)
     _write_actions_for_phase(
+        repo_root,
         base_dir,
         discussion_id,
         next_round,
         "publish",
+        host_id=board.get("host_id"),
         leading_actions=close_actions,
     )
     _append_audit(
@@ -1286,6 +1414,7 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--discussion-id", required=True)
     init_parser.add_argument("--topic", required=True)
     init_parser.add_argument("--agent", action="append", required=True)
+    init_parser.add_argument("--host-id", default=None)
 
     view_parser = subcommands.add_parser("view")
     view_parser.add_argument("--discussion-id", required=True)
@@ -1332,6 +1461,7 @@ def _command_result(repo_root: Path, args: argparse.Namespace) -> dict[str, Any]
             discussion_id=args.discussion_id,
             topic=args.topic,
             agent_specs=args.agent,
+            host_id=args.host_id,
         )
     if args.command == "view":
         return view_discussion(
