@@ -358,6 +358,18 @@ class RuntimeHealthTest(unittest.TestCase):
             ],
         )
         self.assertEqual(
+            {
+                "TASK-HYGIENE-COMPLETED-UNARCHIVED",
+                "TASK-HYGIENE-IN-PROGRESS-UNBOUND",
+                "TASK-HYGIENE-MISSING-TASK-CONTEXT",
+            },
+            {issue["code"] for issue in structured_issues},
+        )
+        self.assertEqual(
+            [],
+            [issue for issue in structured_issues if issue["severity"] == "error"],
+        )
+        self.assertEqual(
             [],
             [
                 issue

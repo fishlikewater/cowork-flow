@@ -220,6 +220,10 @@ class TaskReviewCheckTest(unittest.TestCase):
                 task_dir,
                 allow_spec_file_modifications=False,
             )
+            lifecycle_result = self.module.LifecycleCheckRunner(root).review(
+                task_dir,
+                allow_spec_file_modifications=False,
+            )
 
             self.assertEqual(
                 ["src/extra.py"],
@@ -251,6 +255,19 @@ class TaskReviewCheckTest(unittest.TestCase):
             self.assertEqual(
                 [],
                 [issue for issue in lifecycle_issues if not issue["message"]],
+            )
+            self.assertTrue(lifecycle_result.blocked)
+            self.assertEqual(
+                {
+                    ("protected_workflow_file", "AGENTS.md"),
+                    ("unlisted_changed_file", "AGENTS.md"),
+                    ("unlisted_changed_file", "src/extra.py"),
+                },
+                {(issue.code, issue.path) for issue in lifecycle_result.issues},
+            )
+            self.assertEqual(
+                {(issue["code"], issue["path"]) for issue in lifecycle_issues},
+                {(issue.code, issue.path) for issue in lifecycle_result.issues},
             )
 
     def test_review_check_normalizes_context_issues(self) -> None:
