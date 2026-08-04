@@ -20,6 +20,18 @@ Run diagnostics through the common runner:
 .cowork-flow/run doctor --task-hygiene --json
 ```
 
+## Support Triage
+
+Use runtime-health when the user reports host asset drift, hook drift, fixed-agent
+binding failures, stale completed tasks, missing task context, or template/source
+checkout health issues. Start with the narrowest doctor command that matches the
+symptom, then broaden to `doctor --all` only when the focused result is
+insufficient.
+
+Runtime-health output is diagnostic evidence. It may provide command hints, but
+it must not replace `task next --json` as the workflow router and must not mutate
+lifecycle state.
+
 ## Boundaries
 
 - Diagnostics may inspect runtime contracts, host assets, hooks, and template files.
