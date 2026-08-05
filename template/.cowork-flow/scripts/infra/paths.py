@@ -22,7 +22,6 @@ from pathlib import Path
 # Directory names
 DIR_WORKFLOW = ".cowork-flow"
 DIR_AGENTS = ".agents"
-DIR_CHANGES = "changes"
 DIR_TASKS = "tasks"
 DIR_ARCHIVE = "archive"
 DIR_SPEC = "spec"

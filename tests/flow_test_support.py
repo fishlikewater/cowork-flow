@@ -121,53 +121,6 @@ class FlowScriptTestCase(unittest.TestCase):
         for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
             (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
-    def _write_l2_change_fixture(
-        self,
-        root: Path,
-        *,
-        level: str = "L2",
-        task_link: str | None = ".cowork-flow/tasks/05-19-parent",
-        plan_link: str | None = ".cowork-flow/plans/2026-05-19-demo.md",
-        design_text: str = "# Design\n\nUse an explicit gate.\n",
-        spec_text: str = "# Spec\n\n## L2 Readiness Gate\n\n- Missing artifacts block start.\n",
-    ) -> Path:
-        change_dir = root / ".cowork-flow" / "changes" / "05-19-demo-change"
-        change_dir.mkdir(parents=True)
-        task_value = task_link if task_link is not None else "null"
-        plan_value = plan_link if plan_link is not None else "null"
-        (change_dir / "change.yaml").write_text(
-            "slug: 05-19-demo-change\n"
-            "status: active\n"
-            f"level: {level}\n"
-            "created_at: 2026-05-19T00:00:00+08:00\n"
-            "documentation_only: false\n"
-            f"plan: {plan_value}\n"
-            f"task: {task_value}\n",
-            encoding="utf-8",
-        )
-        (change_dir / "proposal.md").write_text(
-            "# Demo change\n\n"
-            "## Problem\n\nThe workflow can start L2 work too early.\n\n"
-            "## Benefits\n\nUsers get safer cross-layer changes.\n\n"
-            "## Non-goals\n\nNo heavy role system.\n",
-            encoding="utf-8",
-        )
-        (change_dir / "spec.md").write_text(spec_text, encoding="utf-8")
-        (change_dir / "design.md").write_text(design_text, encoding="utf-8")
-
-        if plan_link is not None:
-            plan_path = root / plan_link
-            plan_path.parent.mkdir(parents=True, exist_ok=True)
-            plan_path.write_text(
-                "# Demo plan\n\n"
-                "| Task |\n| --- |\n"
-                "| `.cowork-flow/tasks/05-19-child` |\n\n"
-                "## Verification\n\n"
-                "- `./.cowork-flow/run python -m unittest discover -s tests`\n"
-                "- `git diff --check`\n",
-                encoding="utf-8",
-            )
-        return change_dir
 
     def _write_behavior_prd(self, task_dir: Path) -> None:
         (task_dir / "decision-anchor.md").write_text(

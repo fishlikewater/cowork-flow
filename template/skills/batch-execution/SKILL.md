@@ -11,7 +11,7 @@ Batch Scheduler is a persistent state machine. Do **not** simulate or check comp
 
 - Batch is not the default path for ordinary task work.
 - Use normal step-by-task progression unless the user explicitly approves automatic continuous execution.
-- Task ordering comes **only** from the topological order of leaf tasks in the change/task graph.
+- Task ordering comes **only** from the topological order of leaf tasks in the task tree.
 - `implement.jsonl` and `check.jsonl` serve **only** as current-task context and review evidence; they must **not** be used as the Batch task list.
 - Only one host-neutral `next_action` is published at a time.
 - After the host executes a real action, results must be written back; the state machine validates repository state before advancing.
@@ -156,7 +156,7 @@ The host must verify the task directory has been moved to the archive location. 
 }
 ```
 
-The state machine verifies the destination directory exists on disk. If the archive fails (task directory not found, move conflict, or linked-change validation failure), write back a failure result and the batch pauses. On resume, only `archive_task` is retried — `complete_task` is not re-executed.
+The state machine verifies the destination directory exists on disk. If the archive fails (task directory not found or move conflict), write back a failure result and the batch pauses. On resume, only `archive_task` is retried — `complete_task` is not re-executed.
 
 ### `commit_task`
 

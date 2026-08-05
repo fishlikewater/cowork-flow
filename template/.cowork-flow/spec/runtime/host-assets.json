@@ -200,7 +200,6 @@
     "protectedPrefixes": [
       ".cowork-flow/spec/",
       ".cowork-flow/tasks/",
-      ".cowork-flow/changes/",
       ".cowork-flow/plans/"
     ],
     "safeFiles": [
@@ -322,7 +321,9 @@
       ".cowork-flow/spec/schemas/skill-registry.schema.json",
       ".cowork-flow/workflow.md",
       ".cowork-flow/scripts/adapters/cli/add_session.py",
-      ".cowork-flow/workspace/index.md"
+      ".cowork-flow/workspace/index.md",
+      ".cowork-flow/scripts/adapters/cli/change.py",
+      ".cowork-flow/changes/"
     ]
   }
 }

@@ -23,7 +23,6 @@ class FlowScriptPathsTest(FlowScriptTestCase):
     def test_workflow_and_agents_directory_constants_are_current(self) -> None:
         self.assertEqual(".cowork-flow", self.paths.DIR_WORKFLOW)
         self.assertEqual(".agents", self.paths.DIR_AGENTS)
-        self.assertEqual("changes", self.paths.DIR_CHANGES)
 
     def test_repo_root_detection_uses_cowork_flow_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

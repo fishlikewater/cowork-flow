@@ -645,11 +645,6 @@ class TaskNavigationTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text('{"status": "completed"}\n', encoding="utf-8")
-            self._write_l2_change_fixture(
-                root,
-                level="L1",
-                task_link=".cowork-flow/tasks/05-19-demo",
-            )
             self._write_session_task(root)
 
             previous_cwd = Path.cwd()
@@ -665,7 +660,6 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertIn("task next .cowork-flow/tasks/05-19-demo --run --intent archive", output)
             self.assertNotIn("git status --short", output)
-            self.assertNotIn("change archive 05-19-demo-change", output)
             self.assertNotIn("Then:", output)
             self.assertNotIn("task archive 05-19-demo", output)
 

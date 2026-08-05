@@ -14,7 +14,7 @@ Before writing a plan, confirm the request has an executable scope, acceptance c
 Read:
 
 - Active task `decision-anchor.md`.
-- Relevant change spec or design files.
+- Relevant decision-anchor, design, guide, or spec files.
 - Relevant `.cowork-flow/spec/` indexes and target specs.
 - `.cowork-flow/spec/guides/index.md` for non-trivial, ambiguous, cross-layer, or reusable-work planning.
 - Files that define the contracts being changed.

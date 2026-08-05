@@ -17,14 +17,12 @@ from adapters.cli.task_support import (
 from adapters.cli.task_tree_commands import cmd_list
 from infra.paths import (
     DIR_ARCHIVE,
-    DIR_CHANGES,
     DIR_TASKS,
     DIR_WORKFLOW,
     FILE_TASK_JSON,
     get_repo_root,
 )
 from adapters.git.git_context import _run_git_command
-from infra.archive_utils import archive_directory_resumable
 
 
 from kernel.task_state import DONE_STATUSES  # noqa: F401
@@ -38,127 +36,10 @@ def is_git_dirty(repo_root) -> bool:
     return rc != 0 or bool(stdout.strip())
 
 
-def linked_active_changes_for_task(repo_root, task_dir) -> list[str]:
-    from adapters.cli.change import linked_active_changes_for_task as find_changes
-
-    return find_changes(repo_root, (task_dir,))
-
-
-def linked_changes_ready_for_archive(repo_root, slugs: list[str]) -> bool:
-    from adapters.cli.change import validate_change
-
-    ready = True
-    for slug in slugs:
-        if not validate_change(repo_root, slug, quiet=True):
-            print(
-                colored(
-                    f"Error: Linked change is not ready to archive: {slug}",
-                    Colors.RED,
-                ),
-                file=sys.stderr,
-            )
-            ready = False
-    return ready
-
-
-def _linked_change_paths(repo_root, slug: str):
-    source = repo_root / DIR_WORKFLOW / DIR_CHANGES / slug
-    month = datetime.now().astimezone().strftime("%Y-%m")
-    destination = (
-        repo_root
-        / DIR_WORKFLOW
-        / DIR_CHANGES
-        / DIR_ARCHIVE
-        / month
-        / slug
-    )
-    return source, destination
-
-
-def _restore_linked_changes(
-    repo_root,
-    slugs: list[str],
-    metadata: dict[str, bytes],
-) -> bool:
-    restored = True
-    for slug in reversed(slugs):
-        source, destination = _linked_change_paths(repo_root, slug)
-        if destination.is_dir():
-            result = archive_directory_resumable(destination, source)
-            if not result.ok:
-                print(
-                    colored(
-                        f"Error: Failed to restore linked change: {slug}: "
-                        f"{result.message}",
-                        Colors.RED,
-                    ),
-                    file=sys.stderr,
-                )
-                restored = False
-                continue
-        if source.is_dir():
-            try:
-                (source / "change.yaml").write_bytes(metadata[slug])
-            except OSError as error:
-                print(
-                    colored(
-                        f"Error: Failed to restore linked change metadata: "
-                        f"{slug}: {error}",
-                        Colors.RED,
-                    ),
-                    file=sys.stderr,
-                )
-                restored = False
-    return restored
-
-
-def archive_linked_changes(repo_root, slugs: list[str]) -> bool:
-    from adapters.cli.change import archive_change_by_slug
-
-    metadata: dict[str, bytes] = {}
-    try:
-        for slug in slugs:
-            source, _ = _linked_change_paths(repo_root, slug)
-            metadata[slug] = (source / "change.yaml").read_bytes()
-    except OSError as error:
-        print(
-            colored(
-                f"Error: Failed to snapshot linked change metadata: {error}",
-                Colors.RED,
-            ),
-            file=sys.stderr,
-        )
-        return False
-
-    archived: list[str] = []
-    for slug in slugs:
-        if archive_change_by_slug(repo_root, slug) is None:
-            print(
-                colored(
-                    f"Error: Failed to archive linked change: {slug}",
-                    Colors.RED,
-                ),
-                file=sys.stderr,
-            )
-            _restore_linked_changes(repo_root, slugs, metadata)
-            return False
-        archived.append(slug)
-
-    for slug in archived:
-        print(
-            colored(f"Archived linked change: {slug}", Colors.GREEN),
-            file=sys.stderr,
-        )
-    return True
-
-
 def auto_commit_archive(task_name: str, repo_root) -> None:
     archive_rels = [
         relative
-        for relative in (
-            f"{DIR_WORKFLOW}/{DIR_TASKS}",
-            f"{DIR_WORKFLOW}/{DIR_CHANGES}",
-        )
+        for relative in (f"{DIR_WORKFLOW}/{DIR_TASKS}",)
         if (repo_root / relative).exists()
     ]
     _run_git_command(["add", "-A", *archive_rels], cwd=repo_root)
@@ -213,16 +94,11 @@ def _archive_error_message(task_name: str, error: TaskArchiveError) -> str:
     return f"Failed to archive task: {error.detail}"
 
 
-def _archive_task(repo_root, task_name: str, task_dir, linked_changes: list[str]):
+def _archive_task(repo_root, task_name: str, task_dir):
     try:
         return TaskArchiveService(repo_root).archive(
             task_dir,
             archived_at=datetime.now().strftime("%Y-%m-%d"),
-            finalize=(
-                lambda: archive_linked_changes(repo_root, linked_changes)
-            )
-            if linked_changes
-            else None,
         )
     except TaskArchiveError as error:
         message = _archive_error_message(task_name, error)
@@ -254,13 +130,6 @@ def cmd_archive(args) -> int:
     if task_dir is None:
         return 1
 
-    linked_changes = linked_active_changes_for_task(repo_root, task_dir)
-    if linked_changes and not linked_changes_ready_for_archive(
-        repo_root,
-        linked_changes,
-    ):
-        return 1
-
     if is_git_dirty(repo_root):
         print(
             colored(
@@ -271,7 +140,7 @@ def cmd_archive(args) -> int:
             file=sys.stderr,
         )
 
-    result = _archive_task(repo_root, task_name, task_dir, linked_changes)
+    result = _archive_task(repo_root, task_name, task_dir)
     if result is None:
         return 1
 
