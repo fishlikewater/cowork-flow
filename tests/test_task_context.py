@@ -552,6 +552,46 @@ class TaskContextServiceTest(unittest.TestCase):
                 {entry["file"] for entry in entries} & expected,
             )
 
+    def test_quality_sources_do_not_include_guides_for_check_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            spec_root = root / ".cowork-flow" / "spec"
+            for category, linked_file in (
+                ("backend", "api.md"),
+                ("frontend", "ui.md"),
+                ("guides", "cross-layer.md"),
+            ):
+                category_dir = spec_root / category
+                category_dir.mkdir(parents=True)
+                (category_dir / "index.md").write_text(
+                    f"# {category}\n- [linked](./{linked_file})\n",
+                    encoding="utf-8",
+                )
+                (category_dir / linked_file).write_text(
+                    f"# {category} linked\n",
+                    encoding="utf-8",
+                )
+            references_dir = spec_root / "references"
+            references_dir.mkdir(parents=True)
+            (references_dir / "definition-of-done.md").write_text("# DoD\n", encoding="utf-8")
+            (references_dir / "testing-checklist.md").write_text("# Testing\n", encoding="utf-8")
+
+            quality_sources = importlib.import_module("infra.quality_sources")
+            entries = quality_sources.quality_source_entries(root, "fullstack")
+
+        source_files = {entry["file"] for entry in entries}
+        expected_sources = {
+            ".cowork-flow/spec/backend/index.md",
+            ".cowork-flow/spec/backend/api.md",
+            ".cowork-flow/spec/frontend/index.md",
+            ".cowork-flow/spec/frontend/ui.md",
+            ".cowork-flow/spec/references/definition-of-done.md",
+            ".cowork-flow/spec/references/testing-checklist.md",
+        }
+        guide_sources = {source for source in source_files if "/guides/" in source}
+        self.assertEqual(expected_sources, source_files & expected_sources)
+        self.assertEqual(set(), guide_sources)
+
     def test_live_and_template_context_implementations_match_when_present(self) -> None:
         relative_files = (
             "services/task_context.py",

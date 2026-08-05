@@ -16,6 +16,7 @@ Read:
 - Active task `decision-anchor.md`.
 - Relevant change spec or design files.
 - Relevant `.cowork-flow/spec/` indexes and target specs.
+- `.cowork-flow/spec/guides/index.md` for non-trivial, ambiguous, cross-layer, or reusable-work planning.
 - Files that define the contracts being changed.
 
 ## Plan Shape
@@ -132,6 +133,7 @@ Then list task briefs, followed by integrated verification and completion checks
 - Map behavior-changing tests to stable `decision-anchor.md` acceptance IDs when useful; do not create `tdd.jsonl` or write TDD evidence records into `check.jsonl`.
 - Avoid placeholders such as `TODO`, `TBD`, "handle edge cases", or "write tests".
 - Keep root/template parity explicit when both copies exist.
+- When guide material changes the intended approach, capture the selected conclusion in `decision-anchor.md`, the task brief, or explicit prohibited drift; do not leave it as unstated background knowledge.
 - If a task needs more than about 15 lines of implementation pseudocode, split it or narrow the scope. Plans should guide the edit, not replace the implementation.
 
 ### Anti-Rationalization - Planning Phase
