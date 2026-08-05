@@ -237,8 +237,52 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             self.assertIn("Read active task decision-anchor: .cowork-flow/tasks/05-19-demo/decision-anchor.md", output)
             self.assertIn("Read task context JSONL files under .cowork-flow/tasks/05-19-demo directly", output)
             self.assertIn("Read current plan status: .cowork-flow/plans/2026-05-19-demo.md", output)
+            self.assertEqual(
+                1,
+                output.count(
+                    "Read current plan status: .cowork-flow/plans/2026-05-19-demo.md"
+                ),
+            )
             self.assertIn("Do not bulk-read .cowork-flow/spec/", output)
             self.assertNotIn("workspace journals", output)
+
+    def test_context_text_reads_plan_from_task_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow_dir = root / ".cowork-flow"
+            task_dir = workflow_dir / "tasks" / "05-19-demo"
+            plan_file = workflow_dir / "plans" / "2026-05-19-demo.md"
+            task_dir.mkdir(parents=True)
+            plan_file.parent.mkdir(parents=True)
+            (workflow_dir / ".developer").write_text("name=codex\n", encoding="utf-8")
+            self._write_session_task(root)
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {
+                        "name": "demo",
+                        "status": "in_progress",
+                        "assignee": "codex",
+                        "meta": {
+                            "planFile": ".cowork-flow/plans/2026-05-19-demo.md",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+                (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
+            plan_file.write_text("# Plan\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                output = self.git_context.get_context_text(root)
+
+            self.assertEqual(
+                1,
+                output.count(
+                    "Read current plan status: .cowork-flow/plans/2026-05-19-demo.md"
+                ),
+            )
 
     def test_context_json_includes_resume_checklist_without_file_contents(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -735,14 +735,81 @@ class TaskContextService:
     def start_blockers(self, task_dir: Path) -> tuple[str, ...]:
         task_dir = Path(task_dir)
         blockers: list[str] = []
+        task_data = self._task_data(task_dir)
         if not (task_dir / FILE_TASK_JSON).is_file():
             blockers.append("task.json is missing")
-        if not read_text_utf8(task_dir / "decision-anchor.md"):
+        anchor_text = read_text_utf8(task_dir / "decision-anchor.md")
+        if not anchor_text:
             blockers.append("decision-anchor.md is missing or empty")
+        else:
+            blockers.extend(self._decision_anchor_section_blockers(anchor_text))
         for context_file in ("implement.jsonl",):
             if not read_text_utf8(task_dir / context_file):
                 blockers.append(f"{context_file} is missing or empty")
+        if (task_dir / FILE_TASK_JSON).is_file() and not self._is_tiny_task(task_data):
+            blockers.extend(self._plan_file_blockers(task_data))
         return tuple(blockers)
+
+    def _task_data(self, task_dir: Path) -> dict:
+        text = read_text_utf8(Path(task_dir) / FILE_TASK_JSON)
+        if not text:
+            return {}
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @staticmethod
+    def _decision_anchor_section_blockers(anchor_text: str) -> list[str]:
+        blockers: list[str] = []
+        for section in ("## 目标", "## 验收标准"):
+            if section not in anchor_text:
+                blockers.append(
+                    f"decision-anchor.md missing required section: {section}"
+                )
+        return blockers
+
+    @staticmethod
+    def _is_tiny_task(task_data: dict) -> bool:
+        meta = task_data.get("meta")
+        candidates = [
+            task_data.get("taskType"),
+            task_data.get("task_type"),
+            meta.get("taskType") if isinstance(meta, dict) else None,
+            meta.get("task_type") if isinstance(meta, dict) else None,
+        ]
+        return any(str(candidate).lower() == "tiny" for candidate in candidates)
+
+    def _plan_file_blockers(self, task_data: dict) -> list[str]:
+        meta = task_data.get("meta")
+        plan_file = meta.get("planFile") if isinstance(meta, dict) else None
+        if not isinstance(plan_file, str) or not plan_file.strip():
+            return ["planFile is required before implementation starts"]
+        normalized = self._normalize_plan_file(plan_file)
+        if normalized is None:
+            return ["planFile must be a repo-relative .cowork-flow/plans path"]
+        plan_path = self.repo_root / normalized
+        if not plan_path.is_file():
+            return [f"planFile does not exist: {normalized}"]
+        if not read_text_utf8(plan_path).strip():
+            return [f"planFile is empty: {normalized}"]
+        return []
+
+    @staticmethod
+    def _normalize_plan_file(plan_file: str) -> str | None:
+        normalized = plan_file.replace("\\", "/").strip()
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        segments = normalized.split("/")
+        if (
+            not normalized
+            or normalized.startswith("/")
+            or any(segment in ("", ".", "..") for segment in segments)
+            or not normalized.startswith(".cowork-flow/plans/")
+        ):
+            return None
+        return normalized
 
     def validation_issue_summaries(self, task_dir: Path) -> tuple[str, ...]:
         summaries: list[str] = []

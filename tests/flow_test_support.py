@@ -111,11 +111,11 @@ class FlowScriptTestCase(unittest.TestCase):
         (task_dir / "task.json").write_text(json.dumps(task_data), encoding="utf-8")
         (task_dir / "decision-anchor.md").write_text(
             "# Demo\n\n"
-            "## Goal\n\nKeep the workflow safe.\n\n"
+            "## 目标\n\nKeep the workflow safe.\n\n"
             "## Scope\n\nOnly readiness-gated workflow startup changes.\n\n"
             "## Non-goals\n\nNo unrelated runtime coordinator.\n\n"
             "## Key Assumptions\n\nExisting task metadata is authoritative.\n\n"
-            "## Acceptance Criteria\n\nReadiness blockers are actionable.\n",
+            "## 验收标准\n\nReadiness blockers are actionable.\n",
             encoding="utf-8",
         )
         for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):

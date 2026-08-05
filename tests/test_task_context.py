@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
+ANCHOR_TEXT = "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- AC-001: Demo.\n"
 
 
 class TaskContextServiceTest(unittest.TestCase):
@@ -420,11 +421,11 @@ class TaskContextServiceTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = self._prepare_root(root)
             (task_dir / "task.json").write_text(
-                '{"status": "planning"}\n',
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
                 encoding="utf-8",
             )
             (task_dir / "decision-anchor.md").write_text(
-                "## 目标\n\nDemo\n",
+                ANCHOR_TEXT,
                 encoding="utf-8",
             )
             (task_dir / "implement.jsonl").write_text(
@@ -435,6 +436,77 @@ class TaskContextServiceTest(unittest.TestCase):
             blockers = self.TaskContextService(root).start_blockers(task_dir)
 
             self.assertEqual((), blockers)
+
+    def test_start_blockers_require_plan_for_non_tiny_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                ANCHOR_TEXT,
+                encoding="utf-8",
+            )
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md", "reason": "Demo"}\n',
+                encoding="utf-8",
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+            self.assertEqual(
+                ("planFile is required before implementation starts",),
+                blockers,
+            )
+
+    def test_start_blockers_reject_invalid_or_empty_bound_plan(self) -> None:
+        cases = (
+            ("../outside.md", None, "planFile must be a repo-relative .cowork-flow/plans path"),
+            (
+                ".cowork-flow/plans/missing.md",
+                None,
+                "planFile does not exist: .cowork-flow/plans/missing.md",
+            ),
+            (
+                ".cowork-flow/plans/empty.md",
+                "",
+                "planFile is empty: .cowork-flow/plans/empty.md",
+            ),
+        )
+        for plan_file, plan_text, expected in cases:
+            with self.subTest(plan_file=plan_file):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    task_dir = self._prepare_root(root)
+                    if plan_text is not None:
+                        path = root / plan_file
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text(plan_text, encoding="utf-8")
+                    (task_dir / "task.json").write_text(
+                        json.dumps(
+                            {
+                                "status": "planning",
+                                "meta": {
+                                    "planFile": plan_file,
+                                },
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    (task_dir / "decision-anchor.md").write_text(
+                        ANCHOR_TEXT,
+                        encoding="utf-8",
+                    )
+                    (task_dir / "implement.jsonl").write_text(
+                        '{"file": "AGENTS.md", "reason": "Demo"}\n',
+                        encoding="utf-8",
+                    )
+
+                    blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+                    self.assertEqual((expected,), blockers)
 
     def test_initialize_does_not_create_task_local_review_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
