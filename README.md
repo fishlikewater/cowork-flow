@@ -136,6 +136,25 @@ changes → brainstorming → read spec → plan → tasks → implement → che
 
 `./.cowork-flow/run task next` 是唯一公开任务流程入口。它读取当前状态，输出下一步 action、激活 Skill、runtime gate、blocker，以及可执行时的 `task next --run` 命令。
 
+`task next --json` 负责判定下一步；`task next --run` 只执行当前 action。任务主线如下：
+
+```mermaid
+flowchart TD
+  A["无活动任务\nstatus: no_task"] -->|"create_task\ntask next --run --title ..."| B["规划中\nstatus: planning"]
+  B -->|"补齐 decision-anchor.md\n和 implement.jsonl"| B
+  B -->|"start_task\ntask next <dir> --run"| C["实现中\nstatus: in_progress"]
+  C -->|"request_review\ntask next <dir> --run --intent review"| D["检查/Review\nstatus: review"]
+  D -->|"apply_review_fix"| C
+  D -->|"complete_task\ntask next <dir> --run --intent review"| E["已完成\nstatus: completed"]
+  E -->|"archive_task\ntask next <dir> --run --intent archive"| F["已归档\narchive/YYYY-MM/"]
+
+  C -.-> G["Batch runtime\n发布一个 Host action\n不暴露独立 batch 子命令"]
+  C -.-> H["runtime-health\n诊断/命令提示\n不推进生命周期"]
+  C -.-> I["Party Mode\nadvisory final facts\n不替代 implement/check"]
+```
+
+说明：Batch、doctor、Party Mode 都是任务主线旁路能力；它们可以提供事实、建议或下一步 Host action，但不能绕过 `task next` 的生命周期判定。
+
 | action | 入口 | status 结果 |
 |---|---|---|
 | `create_task` | `task next --run --title "<title>" --slug <name> --assignee <name>` | `planning` |
