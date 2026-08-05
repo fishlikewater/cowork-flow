@@ -20,6 +20,9 @@ from unittest.mock import patch
 from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 
 
+ANCHOR_TEXT = "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- AC-001: Demo.\n"
+
+
 class TaskCommandsTest(FlowScriptTestCase):
     def test_cmd_review_handles_idempotent_result_without_protocol_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -319,8 +322,14 @@ class TaskCommandsTest(FlowScriptTestCase):
 
             blockers = self.task._task_start_blockers(task_dir)
 
-        self.assertIn("decision-anchor.md is missing or empty", blockers)
-        self.assertIn("implement.jsonl is missing or empty", blockers)
+        self.assertEqual(
+            [
+                "decision-anchor.md is missing or empty",
+                "implement.jsonl is missing or empty",
+                "planFile is required before implementation starts",
+            ],
+            blockers,
+        )
         self.assertNotIn("check.jsonl is missing or empty", blockers)
         self.assertNotIn("debug.jsonl is missing or empty", blockers)
 
@@ -329,13 +338,77 @@ class TaskCommandsTest(FlowScriptTestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
-            (task_dir / "task.json").write_text("{}", encoding="utf-8")
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"meta": {"taskType": "Tiny"}}',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                ANCHOR_TEXT,
+                encoding="utf-8",
+            )
             (task_dir / "implement.jsonl").write_text(
                 '{"file": "AGENTS.md"}\n', encoding="utf-8"
             )
 
             self.assertEqual([], self.task._task_start_blockers(task_dir))
+
+    def test_task_start_blocks_non_tiny_task_without_bound_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                ANCHOR_TEXT,
+                encoding="utf-8",
+            )
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md"}\n', encoding="utf-8"
+            )
+
+            blockers = self.task._task_start_blockers(task_dir)
+
+        self.assertEqual(
+            ["planFile is required before implementation starts"],
+            blockers,
+        )
+
+    def test_task_start_blocks_anchor_without_required_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            plan_file = root / ".cowork-flow" / "plans" / "2026-05-19-demo.md"
+            task_dir.mkdir(parents=True)
+            plan_file.parent.mkdir(parents=True)
+            plan_file.write_text("# Plan\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {
+                        "status": "planning",
+                        "meta": {
+                            "planFile": ".cowork-flow/plans/2026-05-19-demo.md",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md"}\n', encoding="utf-8"
+            )
+
+            blockers = self.task._task_start_blockers(task_dir)
+
+        self.assertEqual(
+            [
+                "decision-anchor.md missing required section: ## 目标",
+                "decision-anchor.md missing required section: ## 验收标准",
+            ],
+            blockers,
+        )
 
     def test_cmd_start_blocks_unprepared_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -366,8 +439,11 @@ class TaskCommandsTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text("{}", encoding="utf-8")
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"meta": {"taskType": "Tiny"}}',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
             (task_dir / "implement.jsonl").write_text("not-json\n", encoding="utf-8")
             for name in ("check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
@@ -394,8 +470,11 @@ class TaskCommandsTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
             (task_dir / "implement.jsonl").write_text(
                 json.dumps(
                     {
@@ -435,8 +514,11 @@ class TaskCommandsTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
             (task_dir / "implement.jsonl").write_text(
                 json.dumps({"file": "src/new_module.py", "reason": "Planned source"})
                 + "\n",
@@ -472,8 +554,11 @@ class TaskCommandsTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text("{}", encoding="utf-8")
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"meta": {"taskType": "Tiny"}}',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 
@@ -498,8 +583,11 @@ class TaskCommandsTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 

@@ -19,6 +19,9 @@ from unittest.mock import patch
 from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 
 
+ANCHOR_TEXT = "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- AC-001: Demo.\n"
+
+
 class TaskNavigationTest(FlowScriptTestCase):
     def test_task_next_parser_accepts_structured_output_options(self) -> None:
         args = self.task.build_parser().parse_args(
@@ -174,10 +177,10 @@ class TaskNavigationTest(FlowScriptTestCase):
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text(
-                '{"status": "planning"}\n',
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
                 encoding="utf-8",
             )
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text(
                     '{"file": "AGENTS.md"}\n',
@@ -805,6 +808,20 @@ class TaskNavigationTest(FlowScriptTestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+        self.assertEqual(
+            0,
+            sum(
+                marker in source
+                for marker in (
+                    "_run_command",
+                    "_print_doubt_review_route",
+                    "_print_check_route",
+                    "_print_archive_route",
+                    "git status --short",
+                    "Then:",
+                )
+            ),
+        )
 
     def test_task_next_run_dispatch_lives_in_runner_module(self) -> None:
         task_source = (
@@ -825,6 +842,16 @@ class TaskNavigationTest(FlowScriptTestCase):
         self.assertIn("def run_next_action", runner_source)
         self.assertNotIn("def _dispatch_next_lifecycle_action", task_source)
         self.assertNotIn("def _validated_next_action", task_source)
+        self.assertEqual(
+            (True, True, True, False, False),
+            (
+                "run_next_action" in task_source,
+                "NextActionHandlers" in task_source,
+                "def run_next_action" in runner_source,
+                "def _dispatch_next_lifecycle_action" in task_source,
+                "def _validated_next_action" in task_source,
+            ),
+        )
 
     def test_cmd_next_routes_active_ready_planning_task_to_implementation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -832,8 +859,11 @@ class TaskNavigationTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
             self._write_session_task(root)
@@ -861,8 +891,11 @@ class TaskNavigationTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
             (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
-            (task_dir / "task.json").write_text('{"status": "planning"}\n', encoding="utf-8")
-            (task_dir / "decision-anchor.md").write_text("# Demo\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
             for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
                 (task_dir / name).write_text('{"file": "AGENTS.md"}\n', encoding="utf-8")
 

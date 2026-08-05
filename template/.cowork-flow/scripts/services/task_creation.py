@@ -10,6 +10,7 @@ from pathlib import Path
 
 from services.task_tree import TaskTreeError, TaskTreeService
 from infra.paths import (
+    DIR_WORKFLOW,
     FILE_TASK_JSON,
     ensure_task_date_prefix,
     get_tasks_dir,
@@ -82,6 +83,7 @@ class TaskCreationService:
         tasks_dir = ensure_tasks_dir(self.repo_root)
         task_name = self._task_name(request)
         task_dir = tasks_dir / task_name
+        plan_metadata = self._plan_metadata(request.from_plan)
         directory_existed = task_dir.exists()
         task_dir.mkdir(parents=True, exist_ok=True)
 
@@ -107,7 +109,7 @@ class TaskCreationService:
             "parent": None,
             "relatedFiles": [],
             "notes": "",
-            "meta": {},
+            "meta": plan_metadata,
         }
         try:
             self.repository.replace(task_dir, task_data)
@@ -154,6 +156,35 @@ class TaskCreationService:
         if request.date_prefix:
             return f"{request.date_prefix}-{request.slug}"
         return ensure_task_date_prefix(request.slug)
+
+    def _plan_metadata(self, from_plan: str | Path | None) -> dict:
+        if not from_plan:
+            return {}
+        plan_path = Path(from_plan)
+        candidate = plan_path if plan_path.is_absolute() else self.repo_root / plan_path
+        if not candidate.is_file():
+            raise TaskCreationError(
+                "TASK-CREATE-PLAN-003",
+                candidate,
+                "plan file does not exist",
+            )
+        try:
+            relative = candidate.resolve().relative_to(
+                self.repo_root.resolve()
+            ).as_posix()
+        except ValueError as error:
+            raise TaskCreationError(
+                "TASK-CREATE-PLAN-004",
+                candidate,
+                "plan file must be inside the repository",
+            ) from error
+        if not relative.startswith(f"{DIR_WORKFLOW}/plans/"):
+            raise TaskCreationError(
+                "TASK-CREATE-PLAN-005",
+                candidate,
+                f"plan file must live under {DIR_WORKFLOW}/plans",
+            )
+        return {"planFile": relative}
 
     @staticmethod
     def _generate_anchor(

@@ -66,6 +66,9 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
                     "status": "planning",
                     "children": [],
                     "parent": None,
+                    "meta": {
+                        "taskType": "Tiny",
+                    },
                 }
             ),
             encoding="utf-8",
@@ -76,7 +79,7 @@ class BatchModeFailClosedTest(FlowScriptTestCase):
         task_dir = self._task(root)
         (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
         (task_dir / "decision-anchor.md").write_text(
-            "# Demo\n\n## 验收标准\n- AC-001: fail closed\n",
+            "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n- AC-001: fail closed\n",
             encoding="utf-8",
         )
         for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):

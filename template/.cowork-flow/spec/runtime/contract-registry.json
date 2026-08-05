@@ -89,6 +89,20 @@
         "when debugging production errors",
         "when handling errors from third-party tools or services"
       ]
+    },
+    {
+      "id": "PLAN_BINDING_LITE_V1",
+      "path": ".cowork-flow/spec/contracts/plan-binding.md",
+      "digest": [
+        "Plan binding records repo-relative task.json.meta.planFile.",
+        "Task start blocks clear missing plan facts for non-Tiny tasks.",
+        "V1 does not parse plan steps, AC text, or verification evidence."
+      ],
+      "readWhen": [
+        "when changing task creation plan binding",
+        "when changing task start readiness",
+        "when changing resume context for active tasks"
+      ]
     }
   ],
   "references": [

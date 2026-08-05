@@ -10,3 +10,4 @@
 - `skill-owned-actions.md`: 分布式 Skill action/context/command ownership 合同。
 - `capabilities.md`: 宿主适配器能力模型。
 - `party-mode-v2-board.md`: Party Mode V2 board 协议。
+- `plan-binding.md`: 开发计划轻量绑定、启动前缺失阻断和恢复可见性合同。
