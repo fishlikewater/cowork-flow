@@ -72,8 +72,7 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, 'CLAUDE.md')), false);
   assert.equal(await exists(join(target, '.superpowers')), false);
   assert.match(await readText(join(target, '.cowork-flow', '.developer')), /^name=codex\ninitialized_at=.+\n$/);
-  assert.equal(await exists(join(target, '.cowork-flow', 'workspace', 'codex', 'index.md')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'workspace', 'codex', 'journal-1.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'workspace')), false);
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${packageInfo.version}\n`);
   assert.match(io.stdout, /created=/);
   assert.match(io.stdout, /Platforms: codex/);
@@ -283,7 +282,7 @@ test('init rolls back template and developer assets after an injected commit fai
 
   assert.equal(await exists(join(target, 'AGENTS.md')), false);
   assert.equal(await exists(developerFile), false);
-  assert.equal(await exists(join(target, '.cowork-flow', 'workspace', 'codex', 'journal-1.md')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'workspace')), false);
   assert.equal(await exists(join(target, '.cowork-flow', '.version')), false);
 });
 
@@ -371,7 +370,7 @@ test('init uses platform selector and then prompts for developer', async (t) => 
   assert.equal(await exists(join(target, '.claude')), false);
   assert.equal(await exists(join(target, 'CLAUDE.md')), false);
   assert.match(await readText(join(target, '.cowork-flow', '.developer')), /^name=alice\ninitialized_at=.+\n$/);
-  assert.equal(await exists(join(target, '.cowork-flow', 'workspace', 'alice', 'journal-1.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'workspace')), false);
 });
 
 test('init preserves existing developer identity even with force', async (t) => {

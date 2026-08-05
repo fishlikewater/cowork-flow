@@ -66,7 +66,8 @@ class LifecycleRuleRemovalTest(FlowScriptTestCase):
 
         self.assertIn(".cowork-flow/spec/backend/", skill)
         self.assertIn(".cowork-flow/spec/frontend/", skill)
-        self.assertIn(".cowork-flow/spec/guides/", skill)
+        self.assertNotIn(".cowork-flow/spec/guides/", skill)
+        self.assertNotIn("backend/frontend/guides", skill)
         self.assertIn("user_spec_review", skill)
         self.assertNotIn("machine_gate_review", skill)
         self.assertNotIn("complexity signals", skill)

@@ -148,17 +148,8 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             self.assertNotIn("verification:", text)
             self.assertNotIn("Project-specific commands", text)
 
-    def test_workspace_index_does_not_claim_live_developer_state(self) -> None:
-        for path in (
-            ROOT / "template" / ".cowork-flow" / "workspace" / "index.md",
-        ):
-            text = path.read_text(encoding="utf-8")
-            self.assertIn("状态来源", text)
-            self.assertIn("不维护开发者状态", text)
-            self.assertIn("./.cowork-flow/run resume", text)
-            self.assertIn("workspace 仅用于记录会话 journal", text)
-            self.assertNotIn("(none yet)", text)
-            self.assertNotIn("| 开发者 | 最近活跃 | 会话数 | 当前文件 |", text)
+    def test_workspace_journal_scaffold_is_removed(self) -> None:
+        self.assertFalse((ROOT / "template" / ".cowork-flow" / "workspace" / "index.md").exists())
 
     def test_spec_files_ship_generic_defaults_without_fill_in_placeholders(self) -> None:
         forbidden = (

@@ -29,8 +29,6 @@ COMMAND_SCRIPTS = {
     "get_developer": "adapters/cli/get_developer.py",
     "init-developer": "adapters/cli/init_developer.py",
     "init_developer": "adapters/cli/init_developer.py",
-    "add-session": "adapters/cli/add_session.py",
-    "add_session": "adapters/cli/add_session.py",
     "subagent": "adapters/cli/subagent.py",
 }
 RESERVED_COMMAND_NAMES = (*COMMAND_SCRIPTS, "python", "help", "-h", "--help")
@@ -53,7 +51,6 @@ Common commands:
   get-context
   get-developer
   init-developer
-  add-session
   subagent
   doctor
   party-v2

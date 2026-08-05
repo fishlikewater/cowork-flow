@@ -264,12 +264,33 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_closeout_contract_avoids_placeholder_commits(self) -> None:
         text = (ROOT / "template" / ".cowork-flow" / "spec" / "references" / "definition-of-done.md").read_text(encoding="utf-8")
-        add_session = (ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" / "add_session.py").read_text(encoding="utf-8")
 
         self.assertIn("git status --porcelain=v1 -uall", text)
-        self.assertIn("commit", add_session)
         self.assertNotIn('commit "-"', text)
         self.assertNotIn('add-session --title "<title>" --commit "-"', text)
+        self.assertNotIn("add_session", text)
+
+    def test_add_session_and_workspace_journal_are_not_public_flow(self) -> None:
+        docs = [
+            ROOT / "README.md",
+            ROOT / "template" / ".cowork-flow" / "scripts" / "run.py",
+            ROOT / "src" / "commands" / "init.js",
+            ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "git" / "git_context.py",
+        ]
+        forbidden_markers = (
+            "add-session",
+            "add_session",
+            "workspace journals",
+            "Development Journal",
+            "Workspace Index",
+            "--mode record",
+        )
+        for path in docs:
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual([], [marker for marker in forbidden_markers if marker in text], path)
+
+        self.assertFalse((ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" / "add_session.py").exists())
+        self.assertFalse((ROOT / "template" / ".cowork-flow" / "workspace" / "index.md").exists())
 
     def test_definition_of_done_uses_complete_git_status_snapshot(self) -> None:
         text = (

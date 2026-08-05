@@ -24,7 +24,6 @@ class FlowScriptTestCase(unittest.TestCase):
         self.addCleanup(self._cleanup_imports)
         self.paths = importlib.import_module("infra.paths")
         self.task = importlib.import_module("adapters.cli.task")
-        self.add_session = importlib.import_module("adapters.cli.add_session")
         self.developer = importlib.import_module("infra.developer_profile")
         self.git_context = importlib.import_module("adapters.git.git_context")
 
@@ -33,7 +32,6 @@ class FlowScriptTestCase(unittest.TestCase):
             sys.path.remove(str(SCRIPTS))
         for module_name in (
             "adapters.cli.task",
-            "adapters.cli.add_session",
             "adapters.cli.task_archive_commands",
             "adapters.cli.task_navigation",
             "adapters.cli.task_support",
