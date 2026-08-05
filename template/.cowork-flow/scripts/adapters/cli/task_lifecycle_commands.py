@@ -155,7 +155,7 @@ def _optional_readiness_blockers(
     except Exception:
         return [
             "readiness check failed; run task next <dir> --validate and inspect "
-            "linked change"
+            "task readiness artifacts"
         ]
     return [str(blocker) for blocker in blockers if str(blocker).strip()]
 

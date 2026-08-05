@@ -116,13 +116,8 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
                 name,
             )
 
-    def test_change_directories_do_not_define_tasks_md(self) -> None:
-        tasks_files = sorted(
-            str(path.relative_to(ROOT))
-            for path in (TEMPLATE / ".cowork-flow" / "changes").rglob("tasks.md")
-        )
-
-        self.assertEqual([], tasks_files)
+    def test_legacy_changes_directory_is_not_shipped(self) -> None:
+        self.assertFalse((TEMPLATE / ".cowork-flow" / "changes").exists())
 
     def test_legacy_team_runtime_removed(self) -> None:
         legacy_script = "agent" + "_team.py"

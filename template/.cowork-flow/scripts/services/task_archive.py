@@ -157,7 +157,7 @@ class TaskArchiveService:
                 raise TaskArchiveError(
                     "TASK-ARCHIVE-FINALIZE-001",
                     destination,
-                    "linked change archive failed",
+                    "archive finalizer failed",
                 )
         except Exception as error:
             self._rollback(

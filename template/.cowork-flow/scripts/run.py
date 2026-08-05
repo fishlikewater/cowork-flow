@@ -22,7 +22,6 @@ configure_cli_encoding()
 COMMAND_SCRIPTS = {
     "resume": "adapters/cli/resume.py",
     "task": "adapters/cli/task.py",
-    "change": "adapters/cli/change.py",
     "get-context": "adapters/cli/get_context.py",
     "get_context": "adapters/cli/get_context.py",
     "get-developer": "adapters/cli/get_developer.py",
@@ -47,7 +46,6 @@ def print_usage() -> None:
 Common commands:
   resume
   task
-  change
   get-context
   get-developer
   init-developer

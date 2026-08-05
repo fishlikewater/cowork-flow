@@ -73,7 +73,6 @@ template/
     ├── config.yaml            # 项目配置
     ├── scripts/               # Python 运行时
     ├── spec/                  # 规范文档（contracts / schemas / guides）
-    ├── changes/               # 行为变更管理
     ├── plans/                 # 实现计划
     ├── tasks/                 # 任务目录
 ```
@@ -159,7 +158,7 @@ ZCode 插件只安装 hook、skills、agents 和轻量说明文件；`.cowork-fl
 ## 任务流程
 
 ```
-changes → brainstorming → read spec → plan → tasks → implement → check → complete
+brainstorming → read spec/guides → plan → tasks → implement → check → complete
 ```
 
 `./.cowork-flow/run task next` 是唯一公开任务流程入口。它读取当前状态，输出下一步 action、激活 Skill、runtime gate、blocker，以及可执行时的 `task next --run` 命令。
@@ -206,10 +205,6 @@ Batch 使用任务图和持久化 Host action：运行 `task next <parent-task> 
 ./.cowork-flow/run task next --json
 ./.cowork-flow/run task next --list
 ./.cowork-flow/run task next <dir> --validate
-
-# 变更
-./.cowork-flow/run change create <slug>
-./.cowork-flow/run change validate <slug>
 
 # 任务
 ./.cowork-flow/run task next --run --title "<title>" --slug <name> --assignee <name>
