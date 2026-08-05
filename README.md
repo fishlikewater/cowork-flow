@@ -230,6 +230,8 @@ npm run release -- minor # minor
 5. `git commit` + `git tag`
 6. `npm publish`
 
+- 发布说明维护在 `CHANGELOG.md`；发布前更新当前版本段落，并保留 `release:check` 和 `git diff --check` 证据。
+
 CI 需要 `NPM_TOKEN` secret。
 
 Windows 上发布前使用 `run.cmd` 入口验证；POSIX shell 专属 release 用例在没有 shell 的 Windows 环境会明确跳过，不得记录为通过。`release:check` 会保留这些 skip 报告，不把 skip 伪装成 pass。

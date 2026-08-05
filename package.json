@@ -12,6 +12,7 @@
     "template",
     "template/.zcode",
     "README.md",
+    "CHANGELOG.md",
     "!template/**/__pycache__/**",
     "!template/**/*.pyc"
   ],
