@@ -416,6 +416,24 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         for marker in required_markers:
             self.assertIn(marker, text, f"{marker} missing from template/skills/brainstorming/SKILL.md")
 
+    def test_planning_and_brainstorming_use_guides_before_implementation(self) -> None:
+        planning = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
+        brainstorming = (ROOT / "template" / "skills" / "brainstorming" / "SKILL.md").read_text(encoding="utf-8")
+
+        planning_markers = (
+            ".cowork-flow/spec/guides/index.md",
+            "non-trivial, ambiguous, cross-layer, or reusable-work planning",
+            "capture the selected conclusion in `decision-anchor.md`",
+        )
+        brainstorming_markers = (
+            ".cowork-flow/spec/guides/index.md",
+            "Use guide material to shape requirements, options, and implementation boundaries",
+            "next planning handoff",
+        )
+
+        self.assertEqual([], [marker for marker in planning_markers if marker not in planning])
+        self.assertEqual([], [marker for marker in brainstorming_markers if marker not in brainstorming])
+
     def test_cowork_flow_skill_does_not_copy_parallel_session_model(self) -> None:
         text = (
             ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md"

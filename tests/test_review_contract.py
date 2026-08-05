@@ -23,13 +23,23 @@ class SpecReviewContractTest(unittest.TestCase):
         self.assertFalse((SPEC / "runtime" / "rules.json").exists())
         self.assertFalse((SPEC / "schemas" / "rules.schema.json").exists())
 
-    def test_spec_index_says_review_skill_reads_user_specs(self) -> None:
+    def test_spec_index_places_guides_in_planning_not_review_sources(self) -> None:
         index = (SPEC / "index.md").read_text(encoding="utf-8")
 
-        self.assertIn("流程内核只负责", index)
-        self.assertIn("task-review", index)
-        self.assertIn("不注册为 runtime gate", index)
-        self.assertNotIn("runtime/rules.json", index)
+        required_markers = (
+            "流程内核只负责",
+            "`backend/`、`frontend/` 中的自然语言规范不注册为 runtime gate",
+            "`task-review` skill 根据当前 diff 和任务范围读取并逐条审查",
+            "`guides/` 属于前置澄清与计划参考",
+            "`decision-anchor.md` 或任务计划",
+        )
+        forbidden_markers = (
+            "`backend/`、`frontend/`、`guides/` 中的自然语言规范",
+            "runtime/rules.json",
+        )
+
+        self.assertEqual([], [marker for marker in required_markers if marker not in index])
+        self.assertEqual([], [marker for marker in forbidden_markers if marker in index])
 
     def test_runtime_index_no_longer_declares_rule_registry(self) -> None:
         runtime_index = (SPEC / "runtime" / "index.md").read_text(encoding="utf-8")
@@ -66,8 +76,8 @@ class SpecReviewContractTest(unittest.TestCase):
         )
 
         required_markers = (
-            "Relevant `.cowork-flow/spec/backend/`, `.cowork-flow/spec/frontend/`, and `.cowork-flow/spec/guides/` files",
-            "every applicable backend/frontend/guides requirement",
+            "Relevant `.cowork-flow/spec/backend/` and `.cowork-flow/spec/frontend/` files",
+            "every applicable backend/frontend requirement",
             "pass",
             "finding",
             "not_applicable",
@@ -78,8 +88,10 @@ class SpecReviewContractTest(unittest.TestCase):
             "anti-rationalization",
             "verification-before-completion",
         )
-        missing = [marker for marker in required_markers if marker not in skill]
-        self.assertEqual([], missing)
+        forbidden_markers = ("guides", ".cowork-flow/spec/guides/", "backend/frontend/guides")
+
+        self.assertEqual([], [marker for marker in required_markers if marker not in skill])
+        self.assertEqual([], [marker for marker in forbidden_markers if marker in skill])
 
     def test_task_review_skill_uses_task_next_for_lifecycle_blockers(self) -> None:
         skill = (TEMPLATE / "skills" / "task-review" / "SKILL.md").read_text(

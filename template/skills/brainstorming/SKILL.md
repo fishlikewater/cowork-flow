@@ -9,13 +9,14 @@ Use this skill as the active clarification gate for new requirements. Turn an id
 
 ## Flow
 
-1. Read only the context needed to understand the project area: `AGENTS.md`, `task next --json`, Skill command manifests, and relevant spec indexes.
-2. State the goal, non-goals, assumptions, scope boundary, success criteria, and the smallest useful scope.
-3. Ask one high-value question only when the answer cannot be inferred safely; otherwise proceed with explicit assumptions.
-4. Present 2-3 viable approaches when trade-offs matter, with a concrete recommended direction.
-5. Do not write decision-anchor, planning, or fixed-agent dispatch input until the direction and acceptance criteria are clear.
-6. For L1/L2 work, create or update change/task artifacts required by runtime gates and `.cowork-flow/spec/` after the clarification output is stable.
-7. Hand off to `task-planning` when the requested behavior and acceptance criteria are clear.
+1. Read only the context needed to understand the project area: `AGENTS.md`, `task next --json`, Skill command manifests, relevant spec indexes, and `.cowork-flow/spec/guides/index.md` when the idea involves cross-layer design, reuse, state flow, permissions, or unclear implementation boundaries.
+2. Use guide material to shape requirements, options, and implementation boundaries before task artifacts are written; carry selected conclusions into acceptance criteria or the next planning handoff.
+3. State the goal, non-goals, assumptions, scope boundary, success criteria, and the smallest useful scope.
+4. Ask one high-value question only when the answer cannot be inferred safely; otherwise proceed with explicit assumptions.
+5. Present 2-3 viable approaches when trade-offs matter, with a concrete recommended direction.
+6. Do not write decision-anchor, planning, or fixed-agent dispatch input until the direction and acceptance criteria are clear.
+7. For L1/L2 work, create or update change/task artifacts required by runtime gates and `.cowork-flow/spec/` after the clarification output is stable.
+8. Hand off to `task-planning` when the requested behavior and acceptance criteria are clear.
 
 ## Output
 
