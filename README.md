@@ -6,6 +6,26 @@
 
 **cowork-flow 不写代码，它帮你建流程。** 把 `template/` 复制到目标项目，立刻获得任务流、规格治理、开发计划和会话记录骨架。
 
+## 当前能力
+
+| 领域 | 当前能力 |
+|---|---|
+| 任务流程 | `task next --json` 给出下一步 action，`task next --run` 只执行当前 action。 |
+| 运行健康 | `doctor` 诊断 runtime、host assets、Skill replica 和任务 hygiene，不推进生命周期。 |
+| Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode 资产和 obsolete 清理。 |
+| 批处理与讨论 | Batch 发布 Host action；Party Mode 只输出 advisory final facts。 |
+| 发布准备 | `release:check`、`CHANGELOG.md`、`pack:check` 固定发布前证据。 |
+
+## 阅读导航
+
+| 想做什么 | 建议先看 |
+|---|---|
+| 快速安装或同步 | [快速开始](#快速开始)、[CLI 命令](#cli-命令) |
+| 理解任务如何流转 | [任务流程](#任务流程) |
+| 处理故障或漂移 | [支持与故障诊断](#支持与故障诊断) |
+| 做发布前检查 | [发布](#发布)、[`CHANGELOG.md`](CHANGELOG.md) |
+| 接入到自己项目 | [接入原则](#接入原则) |
+
 ## 适用 / 不适用
 
 | ✅ 适用 | ❌ 不适用 |
@@ -20,11 +40,20 @@
 # 初始化到新项目
 npx cowork-flow init ./my-project --platform codex --developer <your-name>
 
-# 安装 ZCode 插件
-cowork-flow install-zcode-plugin
+# 预览同步计划（不写文件）
+cowork-flow sync ./my-project --dry-run
 
 # 同步已初始化项目
-cowork-flow sync .
+cowork-flow sync ./my-project
+
+# 预览 CLI 更新（不安装）
+cowork-flow update --dry-run
+
+# 安装 ZCode 插件（可选）
+cowork-flow install-zcode-plugin
+
+# 维护者发布前检查
+npm run release:check
 ```
 
 平台选项：`codex` / `opencode` / `claude-code` / `all`（逗号分隔）
