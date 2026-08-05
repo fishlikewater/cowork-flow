@@ -199,7 +199,6 @@
     ],
     "protectedPrefixes": [
       ".cowork-flow/spec/",
-      ".cowork-flow/workspace/",
       ".cowork-flow/tasks/",
       ".cowork-flow/changes/",
       ".cowork-flow/plans/"
@@ -321,7 +320,9 @@
       ".cowork-flow/spec/schemas/rules.schema.json",
       ".cowork-flow/spec/runtime/skill-registry.json",
       ".cowork-flow/spec/schemas/skill-registry.schema.json",
-      ".cowork-flow/workflow.md"
+      ".cowork-flow/workflow.md",
+      ".cowork-flow/scripts/adapters/cli/add_session.py",
+      ".cowork-flow/workspace/index.md"
     ]
   }
 }

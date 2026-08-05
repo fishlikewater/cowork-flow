@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Git and Session Context utilities.
+Git and task context utilities.
 
 Provides:
     output_json - Output context in JSON format
@@ -22,10 +22,7 @@ from infra.paths import (
     DIR_SPEC,
     DIR_TASKS,
     DIR_WORKFLOW,
-    DIR_WORKSPACE,
     FILE_TASK_JSON,
-    count_lines,
-    get_active_journal_file,
     get_developer,
     get_repo_root,
     get_tasks_dir,
@@ -263,8 +260,8 @@ def _build_resume_checklist(
     notes: list[str] = []
 
     if not snapshot.path:
-        notes.append("No active task for this session. Use `task next --run --title <title>` or `task next <task-dir> --run` with COWORK_FLOW_CONTEXT_ID.")
-        notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; read details only after a task is selected.")
+        notes.append("No active task in the current context. Use `task next --run --title <title>` or `task next <task-dir> --run` with COWORK_FLOW_CONTEXT_ID.")
+        notes.append("Do not bulk-read `.cowork-flow/spec/`; read details only after a task is selected.")
         return {"commands": commands, "readFiles": read_files, "notes": notes}
 
     active_task = snapshot.path
@@ -275,23 +272,10 @@ def _build_resume_checklist(
 
     read_files.extend(_task_plan_references(repo_root, snapshot))
     notes.append("Read current plan status only when continuing implementation.")
-    notes.append("Do not bulk-read `.cowork-flow/spec/` or workspace journals; follow JSONL references on demand.")
+    notes.append("Do not bulk-read `.cowork-flow/spec/`; follow JSONL references on demand.")
 
     return {"commands": commands, "readFiles": read_files, "notes": notes}
 
-
-def _active_task_json(snapshot: ActiveTaskSnapshot) -> dict | None:
-    """Build the record-mode activeTask JSON object."""
-    active_task = snapshot.path
-    data = snapshot.data
-    if not active_task or not data:
-        return None
-
-    return {
-        "path": active_task,
-        "name": data.get("name") or data.get("id") or "unknown",
-        "status": data.get("status", "unknown"),
-    }
 
 
 def _append_resume_checklist(
@@ -299,7 +283,7 @@ def _append_resume_checklist(
     repo_root: Path,
     snapshot: ActiveTaskSnapshot,
 ) -> None:
-    """向文本上下文追加最小恢复清单。"""
+    """Append the minimal resume checklist to text output."""
     lines.append("## RESUME CHECKLIST")
     checklist = _build_resume_checklist(repo_root, snapshot)
     commands = checklist["commands"]
@@ -308,8 +292,8 @@ def _append_resume_checklist(
     lines.append(f"- Recovery entrypoint (rerun only if context is stale): {commands[0]}")
 
     if not snapshot.path:
-        lines.append("- No active task for this session. Use `task next --run --title <title>` or `task next <task-dir> --run` with COWORK_FLOW_CONTEXT_ID.")
-        lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; choose a task first.")
+        lines.append("- No active task in the current context. Use `task next --run --title <title>` or `task next <task-dir> --run` with COWORK_FLOW_CONTEXT_ID.")
+        lines.append("- Do not bulk-read .cowork-flow/spec/; choose a task first.")
         lines.append("")
         return
 
@@ -329,7 +313,7 @@ def _append_resume_checklist(
     else:
         lines.append("- No plan reference found in task context; do not search all plans unless needed.")
 
-    lines.append("- Do not bulk-read .cowork-flow/spec/ or workspace journals; follow JSONL references on demand.")
+    lines.append("- Do not bulk-read .cowork-flow/spec/; follow JSONL references on demand.")
     lines.append("")
 
 
@@ -458,46 +442,14 @@ def _append_my_tasks(lines: list[str], developer: str, tasks_dir: Path) -> None:
     lines.append("")
 
 
-def _append_journal_file(lines: list[str], repo_root: Path, developer: str) -> None:
-    """Append journal file information to text output."""
-    lines.append("## JOURNAL FILE")
-    journal_file = get_active_journal_file(repo_root)
-    if journal_file:
-        journal_lines = count_lines(journal_file)
-        relative = f"{DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/{journal_file.name}"
-        lines.append(f"Active file: {relative}")
-        lines.append(f"Line count: {journal_lines} / 2000")
-        if journal_lines > 1800:
-            lines.append("[!] WARNING: Approaching 2000 line limit!")
-    else:
-        lines.append("No journal file found")
-    lines.append("")
 
-
-def _append_paths(lines: list[str], developer: str) -> None:
+def _append_paths(lines: list[str]) -> None:
     """Append standard cowork-flow paths."""
     lines.append("## PATHS")
-    lines.append(f"Workspace: {DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/")
     lines.append(f"Tasks: {DIR_WORKFLOW}/{DIR_TASKS}/")
     lines.append(f"Spec: {DIR_WORKFLOW}/{DIR_SPEC}/")
     lines.append("")
 
-
-def _context_journal_json(repo_root: Path, developer: str | None) -> dict:
-    """Build journal context for JSON output."""
-    journal_file = get_active_journal_file(repo_root)
-    journal_lines = 0
-    journal_relative = ""
-    if journal_file and developer:
-        journal_lines = count_lines(journal_file)
-        journal_relative = (
-            f"{DIR_WORKFLOW}/{DIR_WORKSPACE}/{developer}/{journal_file.name}"
-        )
-    return {
-        "file": journal_relative,
-        "lines": journal_lines,
-        "nearLimit": journal_lines > 1800,
-    }
 
 
 def _context_tasks_json(tasks_dir: Path) -> list[dict]:
@@ -545,7 +497,6 @@ def get_context_json(repo_root: Path | None = None) -> dict:
             "active": _context_tasks_json(tasks_dir),
             "directory": f"{DIR_WORKFLOW}/{DIR_TASKS}",
         },
-        "journal": _context_journal_json(repo_root, developer),
         "resumeChecklist": _build_resume_checklist(repo_root, active_task_snapshot),
     }
 
@@ -607,8 +558,7 @@ def _append_default_context_sections(
     tasks_dir = get_tasks_dir(repo_root)
     _append_active_tasks(lines, tasks_dir)
     _append_my_tasks(lines, developer, tasks_dir)
-    _append_journal_file(lines, repo_root, developer)
-    _append_paths(lines, developer)
+    _append_paths(lines)
 
 
 def get_context_text(repo_root: Path | None = None) -> str:
@@ -623,7 +573,7 @@ def get_context_text(repo_root: Path | None = None) -> str:
     if repo_root is None:
         repo_root = get_repo_root()
 
-    lines = _new_context_lines("SESSION CONTEXT")
+    lines = _new_context_lines("COWORK-FLOW CONTEXT")
     developer = get_developer(repo_root)
     if not _append_developer(lines, developer):
         return "\n".join(lines)
@@ -633,119 +583,6 @@ def get_context_text(repo_root: Path | None = None) -> str:
 
     return "\n".join(lines)
 
-
-def get_context_record_json(repo_root: Path | None = None) -> dict:
-    """Get record-mode context as a dictionary.
-
-    Focused on: my active tasks, git status, active task.
-    """
-    if repo_root is None:
-        repo_root = get_repo_root()
-
-    developer = get_developer(repo_root)
-    git_snapshot = _get_git_snapshot(
-        repo_root,
-        include_empty_commit_message=False,
-    )
-
-    active_task_snapshot = _get_active_task_snapshot(repo_root)
-
-    return {
-        "developer": developer or "",
-        "git": _git_json(git_snapshot),
-        "myTasks": _record_my_tasks_json(get_tasks_dir(repo_root), developer),
-        "activeTask": _active_task_json(active_task_snapshot),
-        "resumeChecklist": _build_resume_checklist(repo_root, active_task_snapshot),
-    }
-
-
-def _record_my_tasks_json(tasks_dir: Path, developer: str | None) -> list[dict]:
-    """Build record-mode task list for JSON output."""
-    my_tasks = []
-    task_data_by_dir = _load_task_json_by_dir(tasks_dir)
-    all_task_statuses = _task_statuses(task_data_by_dir)
-    for dir_name, data in task_data_by_dir.items():
-        if data.get("assignee") != developer:
-            continue
-        children_list = data.get("children", [])
-        my_tasks.append({
-            "dir": dir_name,
-            "title": data.get("title") or data.get("name") or "unknown",
-            "status": data.get("status", "unknown"),
-            "priority": data.get("priority", "P2"),
-            "children": children_list,
-            "childrenDone": _children_done_count(children_list, all_task_statuses),
-            "parent": data.get("parent"),
-            "meta": data.get("meta", {}),
-        })
-    return my_tasks
-
-
-def _append_record_my_tasks(
-    lines: list[str],
-    developer: str,
-    tasks_dir: Path,
-) -> None:
-    """Append prominent record-mode tasks assigned to the developer."""
-    lines.append(f"## [!!!] MY ACTIVE TASKS (Assigned to {developer})")
-    lines.append("[!] Review whether any should be archived before recording this session.")
-    lines.append("")
-
-    my_task_count = 0
-    task_data_by_dir = _load_task_json_by_dir(tasks_dir)
-    all_task_statuses = _task_statuses(task_data_by_dir)
-    for dir_name, data in task_data_by_dir.items():
-        if data.get("assignee", "") != developer:
-            continue
-        title = data.get("title") or data.get("name") or "unknown"
-        priority = data.get("priority", "P2")
-        status = data.get("status", "planning")
-        progress = _children_progress(data.get("children", []), all_task_statuses)
-        lines.append(f"- [{priority}] {title} ({status}){progress} - {dir_name}")
-        my_task_count += 1
-
-    if my_task_count == 0:
-        lines.append("(no active tasks assigned to you)")
-    lines.append("")
-
-
-def _append_record_context_sections(lines: list[str], repo_root: Path) -> None:
-    git_snapshot = _get_git_snapshot(repo_root)
-    _append_git_status(lines, git_snapshot, repo_root)
-    _append_recent_commits(lines, git_snapshot)
-    active_task_snapshot = _get_active_task_snapshot(repo_root)
-    _append_active_task(lines, active_task_snapshot)
-    _append_resume_checklist(lines, repo_root, active_task_snapshot)
-
-
-def get_context_text_record(repo_root: Path | None = None) -> str:
-    """Get context as formatted text for session recording mode.
-
-    Focused output: MY ACTIVE TASKS first (with [!!!] emphasis),
-    then GIT STATUS, RECENT COMMITS, ACTIVE TASK.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Formatted text output for session recording.
-    """
-    if repo_root is None:
-        repo_root = get_repo_root()
-
-    lines = _new_context_lines("SESSION CONTEXT (RECORD MODE)")
-    developer = get_developer(repo_root)
-    if not developer:
-        lines.append(
-            f"ERROR: Not initialized. Run: ./{DIR_WORKFLOW}/run init-developer <name>"
-        )
-        return "\n".join(lines)
-
-    _append_record_my_tasks(lines, developer, get_tasks_dir(repo_root))
-    _append_record_context_sections(lines, repo_root)
-    lines.append("========================================")
-
-    return "\n".join(lines)
 
 
 def output_text(repo_root: Path | None = None) -> None:
@@ -766,33 +603,19 @@ def main() -> None:
     """CLI entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Get Session Context for AI Agent")
+    parser = argparse.ArgumentParser(description="Get cowork-flow context for AI Agent")
     parser.add_argument(
         "--json",
         "-j",
         action="store_true",
-        help="Output in JSON format (works with any --mode)",
+        help="Output in JSON format",
     )
-    parser.add_argument(
-        "--mode",
-        "-m",
-        choices=["default", "record"],
-        default="default",
-        help="Output mode: default (full context) or record (for session recording)",
-    )
-
     args = parser.parse_args()
 
-    if args.mode == "record":
-        if args.json:
-            print(json.dumps(get_context_record_json(), indent=2, ensure_ascii=False))
-        else:
-            print(get_context_text_record())
+    if args.json:
+        output_json()
     else:
-        if args.json:
-            output_json()
-        else:
-            output_text()
+        output_text()
 
 
 if __name__ == "__main__":

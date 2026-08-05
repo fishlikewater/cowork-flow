@@ -24,8 +24,7 @@
 | # | 检查项 |
 |---|---|
 | L1-1 | brainstorming 记录存在 |
-| L1-2 | session add_session 已归档 |
-| L1-3 | 修改未扩散到无关模块（git diff 范围与 task.scope 一致）|
+| L1-2 | 修改未扩散到无关模块（git diff 范围与 task.scope 一致）|
 
 ## L2 专属（跨层 / 架构 / 迁移）
 

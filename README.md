@@ -76,7 +76,6 @@ template/
     ├── changes/               # 行为变更管理
     ├── plans/                 # 实现计划
     ├── tasks/                 # 任务目录
-    └── workspace/             # 开发者工作区
 ```
 
 ## 架构与扩展点
@@ -122,7 +121,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 
 - **自动识别**已安装 host 目录，只同步对应平台资产
 - **Skills** 从 `template/skills/` 按平台分发
-- **保护文件**：`config.yaml`、`spec/`（除 `workflow-state-templates.md`）、任务、计划、变更、workspace
+- **保护文件**：`config.yaml`、`spec/`（除 `workflow-state-templates.md`）、任务、计划、变更
 - **正式版旧资产清理**：旧脚本位置、旧 adapter 资产和已废弃文件按 Host Asset Manifest 的 `obsoleteFiles` 清理；用户保护文件保持不变
 - **事务恢复**：上次未完成事务会在新一轮 sync 前恢复；事务元数据缺失或损坏时 fail-closed，不在未知状态上继续写入
 - **Dry-run readiness**：`sync --dry-run` 只构建计划并输出 `readiness=<json>`，不写文件或事务状态；字段包含 `wouldCopy`、`wouldSkipProtected`、`wouldRemoveObsolete`、`hostAssetRefresh`、`pendingRecovery`、`warnings`
@@ -222,9 +221,6 @@ Batch 使用任务图和持久化 Host action：运行 `task next <parent-task> 
 ./.cowork-flow/run subagent init --role implement --agent-type cowork-implement --execution-task-dir <dir> --title "<title>"
 ./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
 
-# Session
-./.cowork-flow/run get-context --mode record
-./.cowork-flow/run add-session --title "<title>" --commit "<ref>" --summary "<summary>"
 ```
 
 ## 支持与故障诊断

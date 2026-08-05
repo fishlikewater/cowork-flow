@@ -7,7 +7,6 @@ Usage:
 
 This creates:
     - .cowork-flow/.developer file with developer info
-    - .cowork-flow/workspace/<name>/ directory structure
 """
 
 from __future__ import annotations
