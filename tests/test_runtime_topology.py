@@ -4,6 +4,7 @@ import ast
 import unittest
 from pathlib import Path
 
+from tests.architecture_test_support import import_violations, text_marker_violations
 from tests.flow_test_support import ROOT
 
 
@@ -125,6 +126,82 @@ class RuntimeTopologyTest(unittest.TestCase):
         self.assertFalse((SCRIPTS / "services" / "quality_sources.py").exists())
         self.assertFalse((SCRIPTS / "services" / "runtime_context.py").exists())
         self.assertTrue((SCRIPTS / "services" / "workflow_runtime.py").is_file())
+
+    def test_kernel_does_not_import_delivery_storage_or_skill_implementations(self) -> None:
+        self.assertEqual(
+            [],
+            import_violations(
+                SCRIPTS / "kernel",
+                SCRIPTS,
+                {
+                    "adapters": "kernel must not depend on CLI/Host/Git adapters",
+                    "infra.storage": "kernel must not depend on concrete storage",
+                    "subprocess": "kernel must not spawn subprocesses",
+                    "skills": "kernel must not import Skill-local implementations",
+                },
+            ),
+        )
+        self.assertEqual(
+            [],
+            text_marker_violations(
+                SCRIPTS / "kernel",
+                SCRIPTS,
+                {
+                    "template/skills/": "kernel must not call Skill-local scripts",
+                    "skills/": "kernel must not call Skill-local scripts",
+                    "skills\\": "kernel must not call Skill-local scripts",
+                },
+            ),
+        )
+
+    def test_infra_storage_does_not_depend_on_services_or_adapters(self) -> None:
+        self.assertEqual(
+            [],
+            import_violations(
+                SCRIPTS / "infra" / "storage",
+                SCRIPTS,
+                {
+                    "services": "storage must stay below use-case services",
+                    "adapters": "storage must not depend on delivery adapters",
+                },
+            ),
+        )
+
+    def test_services_do_not_depend_on_delivery_adapters_or_cli_modules(self) -> None:
+        self.assertEqual(
+            [],
+            import_violations(
+                SCRIPTS / "services",
+                SCRIPTS,
+                {
+                    "adapters": "services must not depend on delivery adapters",
+                    "argparse": "services must not parse CLI arguments",
+                    "click": "services must not own CLI command surfaces",
+                },
+            ),
+        )
+
+    def test_runtime_modules_do_not_reverse_import_specific_skills(self) -> None:
+        self.assertEqual(
+            [],
+            import_violations(
+                SCRIPTS / "runtime",
+                SCRIPTS,
+                {"skills": "runtime must not import Skill-local implementations"},
+            ),
+        )
+        self.assertEqual(
+            [],
+            text_marker_violations(
+                SCRIPTS / "runtime",
+                SCRIPTS,
+                {
+                    "template/skills/": "runtime must not call Skill-local scripts",
+                    "skills/": "runtime must not call Skill-local scripts",
+                    "skills\\": "runtime must not call Skill-local scripts",
+                },
+            ),
+        )
 
     def test_infra_owns_non_domain_helpers(self) -> None:
         self.assertTrue((SCRIPTS / "infra" / "developer_profile.py").is_file())

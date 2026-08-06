@@ -7,6 +7,7 @@ import argparse
 import ast
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,7 @@ from runtime.session_state import is_main_session
 PROTECTED_PREFIX = "Protected workflow/spec file changed outside main session: "
 UNLISTED_PREFIX = "Modified file not listed in implement.jsonl: "
 TEST_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+FUNCTION_LINE_SOFT_LIMIT = 60
 CODE_SUFFIXES = {
     ".py",
     ".js",
@@ -316,6 +318,124 @@ def _is_code_file(path: str) -> bool:
     return Path(path).suffix in CODE_SUFFIXES
 
 
+def _python_function_lengths(content: str) -> dict[str, dict[str, int]]:
+    try:
+        tree = ast.parse(content.lstrip("\ufeff"))
+    except SyntaxError:
+        return {}
+
+    functions: dict[str, dict[str, int]] = {}
+
+    def visit_nodes(nodes: list[ast.stmt], prefix: tuple[str, ...]) -> None:
+        for node in nodes:
+            if isinstance(node, ast.ClassDef):
+                visit_nodes(node.body, (*prefix, node.name))
+                continue
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                end_lineno = getattr(node, "end_lineno", node.lineno)
+                name = ".".join((*prefix, node.name))
+                functions[name] = {
+                    "line": node.lineno,
+                    "lines": end_lineno - node.lineno + 1,
+                }
+                visit_nodes(node.body, (*prefix, node.name))
+
+    visit_nodes(tree.body, ())
+    return functions
+
+
+def _git_baseline_text(repo_root: Path, path: str) -> str | None:
+    result = subprocess.run(
+        ["git", "show", f"HEAD:{path}"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _complexity_signals(repo_root: Path, changed_files: list[str]) -> list[dict[str, str]]:
+    signals: list[dict[str, str]] = []
+    for raw_path in changed_files:
+        normalized = raw_path.replace("\\", "/").removeprefix("./")
+        if Path(normalized).suffix != ".py":
+            continue
+        full_path = repo_root / normalized
+        if not full_path.is_file():
+            continue
+        try:
+            current_functions = _python_function_lengths(
+                full_path.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeDecodeError):
+            continue
+        baseline_text = _git_baseline_text(repo_root, normalized)
+        baseline_functions = (
+            _python_function_lengths(baseline_text) if baseline_text is not None else {}
+        )
+        for function_name, current in sorted(current_functions.items()):
+            current_lines = current["lines"]
+            if current_lines <= FUNCTION_LINE_SOFT_LIMIT:
+                continue
+            baseline_lines = baseline_functions.get(function_name, {}).get("lines", 0)
+            budget_baseline = (
+                baseline_lines if baseline_lines > FUNCTION_LINE_SOFT_LIMIT else 0
+            )
+            if budget_baseline == 0:
+                code = "complexity_new_long_function"
+                message = (
+                    f"Function {function_name} is {current_lines} lines; "
+                    f"soft budget is {FUNCTION_LINE_SOFT_LIMIT} lines."
+                )
+            elif current_lines > baseline_lines:
+                code = "complexity_hotspot_grew"
+                message = (
+                    f"Function {function_name} grew from {baseline_lines} "
+                    f"to {current_lines} lines; split responsibilities or record intent."
+                )
+            else:
+                code = "complexity_existing_hotspot"
+                message = (
+                    f"Existing hotspot {function_name} remains {current_lines} lines; "
+                    "warning only for reviewer awareness."
+                )
+            signals.append(
+                {
+                    "code": code,
+                    "file": normalized,
+                    "function": function_name,
+                    "line": str(current["line"]),
+                    "baselineLines": str(budget_baseline),
+                    "currentLines": str(current_lines),
+                    "limitLines": str(FUNCTION_LINE_SOFT_LIMIT),
+                    "reason": message,
+                }
+            )
+    return signals
+
+
+def _complexity_issues(signals: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        _normalized_issue(
+            code=signal["code"],
+            severity="warning",
+            path=signal["file"],
+            message=signal["reason"],
+            source="complexity",
+            function=signal["function"],
+            line=signal["line"],
+            baselineLines=signal["baselineLines"],
+            currentLines=signal["currentLines"],
+            limitLines=signal["limitLines"],
+        )
+        for signal in signals
+    ]
+
+
 def _python_test_names(content: str) -> list[str]:
     try:
         tree = ast.parse(content.lstrip("\ufeff"))
@@ -403,7 +523,11 @@ def _test_intent_issues(test_signals: dict[str, Any]) -> list[dict[str, str]]:
     return issues
 
 
-def _verification_hints(changed_files: list[str], test_signals: dict[str, Any]) -> list[str]:
+def _verification_hints(
+    changed_files: list[str],
+    test_signals: dict[str, Any],
+    complexity_signals: list[dict[str, str]],
+) -> list[str]:
     hints: list[str] = []
     code_files = [
         path
@@ -417,6 +541,8 @@ def _verification_hints(changed_files: list[str], test_signals: dict[str, Any]) 
         )
     if test_signals["shallowAssertionSignals"]:
         hints.append("Review shallowAssertionSignals before accepting test intent.")
+    if complexity_signals:
+        hints.append("Review complexity soft-budget warnings before accepting large functions.")
     return hints
 
 
@@ -425,6 +551,7 @@ def build_report(repo_root: Path, task_dir: Path) -> dict[str, Any]:
     changed_files = collect_changed_paths(repo_root)
     dev_type = _infer_dev_type(task_data, changed_files)
     test_signals = _test_intent_signals(repo_root, changed_files)
+    complexity_signals = _complexity_signals(repo_root, changed_files)
     scope_facts, scope_issues = _scope_facts_with_issues(
         repo_root,
         task_dir,
@@ -443,6 +570,7 @@ def build_report(repo_root: Path, task_dir: Path) -> dict[str, Any]:
         "normalizedIssues": [
             *scope_issues,
             *_test_intent_issues(test_signals),
+            *_complexity_issues(complexity_signals),
         ],
         "specSources": _spec_sources(
             repo_root,
@@ -451,7 +579,12 @@ def build_report(repo_root: Path, task_dir: Path) -> dict[str, Any]:
             changed_files=changed_files,
         ),
         "testIntentSignals": test_signals,
-        "verificationHints": _verification_hints(changed_files, test_signals),
+        "complexitySignals": complexity_signals,
+        "verificationHints": _verification_hints(
+            changed_files,
+            test_signals,
+            complexity_signals,
+        ),
         "notes": [
             "This report is advisory and does not mutate task state.",
             "Do not treat natural-language spec review as a runtime lifecycle gate.",
