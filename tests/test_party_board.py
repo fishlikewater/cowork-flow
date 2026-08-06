@@ -16,6 +16,48 @@ from tests.party_mode_test_support import PartyModeTestCase, ROOT, TEMPLATE_SCRI
 
 
 class PartyBoardTest(PartyModeTestCase):
+    def test_party_report_projection_is_pure_over_board_facts(self) -> None:
+        reports = importlib.import_module("party_reports")
+        board = {
+            "schema_version": 1,
+            "discussion_id": "demo",
+            "topic": "Runtime board",
+            "round": {"current": 1, "max": 2, "phase": "closed"},
+            "rounds": [
+                {
+                    "round": 1,
+                    "posts": [
+                        {"agent_id": "arch", "claim": "Use board facts", "evidence": ["board"]}
+                    ],
+                    "responses": [
+                        {
+                            "agent_id": "runtime",
+                            "target_post_id": "r1-arch-p1",
+                            "decision": "concede",
+                            "reasoning": "evidence accepted",
+                            "position_delta": "changed",
+                            "still_disagree": False,
+                            "accepted_evidence": ["board"],
+                        }
+                    ],
+                    "moderator_events": [],
+                }
+            ],
+            "termination": {"reason": "converged"},
+        }
+
+        report = reports.build_final_report(
+            discussion_id="demo",
+            board=board,
+            action_results=[{"action_id": "r1-publish-wait", "type": "wait_children", "outcome": "success"}],
+            stop_reason="converged",
+        )
+
+        self.assertTrue(report["terminal"])
+        self.assertEqual("demo", report["discussion_id"])
+        self.assertEqual(["board"], report["accepted_evidence"][0]["accepted_evidence"])
+        self.assertEqual([], report["next_actions"])
+
     def test_init_creates_runtime_state_and_host_neutral_actions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = self._repo(Path(temp_name))
