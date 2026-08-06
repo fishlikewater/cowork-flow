@@ -40,6 +40,25 @@ from party_board_store import (
     write_json as _write_json,
 )
 from party_action_contract import validate_actions_document
+from party_actions import (
+    actions_document as _project_actions_document,
+    child_action as _project_child_action,
+    close_actions as _project_close_actions,
+    empty_actions_document as _project_empty_actions,
+    fallback_actions_document as _project_fallback_actions,
+)
+from party_reports import (
+    action_results_summary as _project_action_results_summary,
+    build_final_report as _project_final_report,
+)
+from party_state_machine import (
+    advance_board_state as _advance_board_state,
+    build_public_round as _project_public_round,
+    current_round as _project_current_round,
+    ensure_finalizable as _ensure_finalizable_state,
+    initial_agents_state as _project_initial_agents_state,
+    initial_board as _project_initial_board,
+)
 from infra.config import get_party_mode_v2_config
 from infra.paths import DIR_WORKFLOW, get_repo_root
 from adapters.host.host_manifest import load_host_manifest
@@ -206,40 +225,7 @@ def _round_empty_state(items: list[Any], phase: str, *, item_type: str) -> str |
 
 
 def _build_public_round(board: dict[str, Any]) -> dict[str, Any]:
-    current_round = int(board["round"]["current"])
-    current = next(
-        (
-            item
-            for item in board.get("rounds", [])
-            if int(item.get("round", -1)) == current_round
-        ),
-        {"round": current_round, "posts": [], "responses": [], "moderator_events": []},
-    )
-    posts = list(current.get("posts", []))
-    responses = list(current.get("responses", []))
-    phase = board["round"]["phase"]
-    expected_next_action = {
-        "publish": "post",
-        "respond": "respond",
-        "closed": "finalized",
-    }.get(str(phase), "monitor")
-    return {
-        "schema_version": 1,
-        "discussion_id": board["discussion_id"],
-        "round": current_round,
-        "phase": phase,
-        "topic": board["topic"],
-        "visible_posts": posts,
-        "visible_responses": responses,
-        "moderator_events": list(current.get("moderator_events", [])),
-        "empty_state": {
-            "visible_posts": _round_empty_state(posts, phase, item_type="posts"),
-            "visible_responses": _round_empty_state(responses, phase, item_type="responses"),
-        },
-        "expected_next_action": expected_next_action,
-    }
-
-
+    return _project_public_round(board)
 def _agent_prompt_file(
     base_dir: Path,
     discussion_id: str,
@@ -312,17 +298,14 @@ def _party_board_fallback_actions(
             phase=phase,
         )
         prompt_files.append(prompt_file)
-    action = {
-        "action_id": f"r{round_number}-{phase}-fallback",
-        "type": "report_to_user",
-        "reason": (
-            f"{PARTY_BOARD_ACTION_CAPABILITY} unsupported for host {host_id}; "
-            f"fallback={fallback}; manually deliver prompt files or record unable_to_dispatch"
-        ),
-    }
-    document = validate_actions_document(
-        {"schema_version": 1, "discussion_id": discussion_id, "next_actions": [action]}
+    document = _project_fallback_actions(
+        discussion_id,
+        round_number=round_number,
+        phase=phase,
+        host_id=host_id,
+        fallback=fallback,
     )
+    action = document["next_actions"][0]
     _append_action_history(base_dir, "action-issued", action)
     _append_audit(
         base_dir,
@@ -337,8 +320,6 @@ def _party_board_fallback_actions(
         },
     )
     return document
-
-
 def _child_action(
     base_dir: Path,
     discussion_id: str,
@@ -347,7 +328,6 @@ def _child_action(
     round_number: int,
     phase: str,
 ) -> dict[str, Any]:
-    agent_id = agent["agent_id"]
     _prompt_name, prompt_file = _agent_prompt_file(
         base_dir,
         discussion_id,
@@ -355,17 +335,12 @@ def _child_action(
         round_number=round_number,
         phase=phase,
     )
-    return {
-        "action_id": f"r{round_number}-{phase}-{agent_id}",
-        "type": "dispatch_child" if phase == "publish" else "send_control_message",
-        "agent_id": agent_id,
-        "agent_kind": "advisory",
-        "lens": agent["lens"],
-        "message_kind": f"board_{phase}",
-        "prompt_file": prompt_file,
-    }
-
-
+    return _project_child_action(
+        agent=agent,
+        round_number=round_number,
+        phase=phase,
+        prompt_file=prompt_file,
+    )
 def _build_actions(
     repo_root: Path,
     base_dir: Path,
@@ -387,32 +362,28 @@ def _build_actions(
             phase=phase,
             host_id=host_id,
         )
-    actions = []
     prompts_dir = base_dir / "prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
-    for agent in agents:
-        action = _child_action(
+    child_actions = [
+        _child_action(
             base_dir,
             discussion_id,
             agent,
             round_number=round_number,
             phase=phase,
         )
-        actions.append(action)
-    wait_action = {
-        "action_id": f"r{round_number}-{phase}-wait",
-        "type": "wait_children",
-        "agent_ids": [agent["agent_id"] for agent in agents],
-    }
-    actions.append(wait_action)
-    document = validate_actions_document(
-        {"schema_version": 1, "discussion_id": discussion_id, "next_actions": actions}
+        for agent in agents
+    ]
+    document = _project_actions_document(
+        discussion_id,
+        child_actions=child_actions,
+        agent_ids=[agent["agent_id"] for agent in agents],
+        round_number=round_number,
+        phase=phase,
     )
     for action in document["next_actions"]:
         _append_action_history(base_dir, "action-issued", action)
     return document
-
-
 def _build_close_actions(
     base_dir: Path,
     agents: list[dict[str, str]],
@@ -420,34 +391,25 @@ def _build_close_actions(
     round_number: int,
     reason: str,
 ) -> list[dict[str, Any]]:
-    actions = []
-    for agent in agents:
-        action = {
-            "action_id": f"r{round_number}-close-{agent['agent_id']}",
-            "type": "close_child",
-            "agent_id": agent["agent_id"],
-            "reason": reason,
-        }
-        actions.append(action)
+    actions = _project_close_actions(
+        agents,
+        round_number=round_number,
+        reason=reason,
+    )
+    for action in actions:
         _append_action_history(base_dir, "action-issued", action)
         _append_audit(
             base_dir,
             "close",
             {
-                "agent_id": agent["agent_id"],
+                "agent_id": action["agent_id"],
                 "round": round_number,
                 "reason": reason,
             },
         )
     return actions
-
-
 def _empty_actions(discussion_id: str) -> dict[str, Any]:
-    return validate_actions_document(
-        {"schema_version": 1, "discussion_id": discussion_id, "next_actions": []}
-    )
-
-
+    return _project_empty_actions(discussion_id)
 def _write_actions_json(base_dir: Path, actions: dict[str, Any]) -> None:
     _write_json(base_dir / "actions.json", validate_actions_document(actions))
 
@@ -464,36 +426,14 @@ def _initial_board(
     *,
     host_id: str | None = None,
 ) -> dict[str, Any]:
-    board = {
-        "schema_version": 1,
-        "discussion_id": discussion_id,
-        "topic": topic,
-        "round": {"current": 1, "max": max_rounds, "phase": "publish"},
-        "rounds": [{"round": 1, "posts": [], "responses": [], "moderator_events": []}],
-        "termination": {"reason": None},
-    }
-    if host_id is not None:
-        board["host_id"] = host_id
-    return board
-
-
+    return _project_initial_board(
+        discussion_id,
+        topic,
+        max_rounds,
+        host_id=host_id,
+    )
 def _initial_agents_state(discussion_id: str, agents: list[dict[str, str]]) -> dict[str, Any]:
-    return {
-        "schema_version": 1,
-        "discussion_id": discussion_id,
-        "agents": [
-            {
-                "agent_id": agent["agent_id"],
-                "lens": agent["lens"],
-                "status": "pending",
-                "drift_warnings": 0,
-                "host_child_id": None,
-            }
-            for agent in agents
-        ],
-    }
-
-
+    return _project_initial_agents_state(discussion_id, agents)
 def init_discussion(
     repo_root: Path,
     *,
@@ -587,15 +527,7 @@ def monitor_discussion(repo_root: Path, *, discussion_id: str) -> dict[str, Any]
 
 
 def _current_round(board: dict[str, Any]) -> dict[str, Any]:
-    current_round = int(board["round"]["current"])
-    for item in board.get("rounds", []):
-        if int(item.get("round", -1)) == current_round:
-            return item
-    item = {"round": current_round, "posts": [], "responses": [], "moderator_events": []}
-    board.setdefault("rounds", []).append(item)
-    return item
-
-
+    return _project_current_round(board)
 def _active_agent_ids(base_dir: Path) -> list[str]:
     agents = _read_json(base_dir / "agents.json")
     return [
@@ -956,28 +888,26 @@ def _advance_publish_phase(
     active_agents: list[str],
     current_round: int,
 ) -> dict[str, Any]:
-    posted_agents = {str(post["agent_id"]) for post in current.get("posts", [])}
-    missing = sorted(set(active_agents) - posted_agents)
-    if missing:
-        raise ValueError(f"publish_incomplete:{','.join(missing)}")
-    board["round"]["phase"] = "respond"
+    transition = _advance_board_state(
+        board,
+        active_agent_ids=active_agents,
+        fresh_context_per_round=True,
+    )
     _write_runtime_state(base_dir, board)
     _write_actions_for_phase(
         repo_root,
         base_dir,
         discussion_id,
-        current_round,
-        "respond",
+        transition["next_actions"]["round"],
+        transition["next_actions"]["phase"],
         host_id=board.get("host_id"),
     )
     _append_audit(
         base_dir,
         "advance",
-        {"round": current_round, "from": "publish", "to": "respond"},
+        {"round": current_round, "from": transition["from"], "to": transition["to"]},
     )
     return monitor_discussion(repo_root, discussion_id=discussion_id)
-
-
 def _close_discussion(
     repo_root: Path,
     *,
@@ -1049,37 +979,59 @@ def _advance_respond_phase(
     active_agents: list[str],
     current_round: int,
 ) -> dict[str, Any]:
-    responded_agents = {str(response["agent_id"]) for response in current.get("responses", [])}
-    missing = sorted(set(active_agents) - responded_agents)
-    if missing:
-        raise ValueError(f"respond_incomplete:{','.join(missing)}")
-    if not any(bool(response.get("still_disagree")) for response in current.get("responses", [])):
-        return _close_discussion(
-            repo_root,
-            base_dir=base_dir,
-            discussion_id=discussion_id,
-            board=board,
-            current_round=current_round,
-            reason="converged",
-        )
-    if current_round >= int(board["round"]["max"]):
-        return _close_discussion(
-            repo_root,
-            base_dir=base_dir,
-            discussion_id=discussion_id,
-            board=board,
-            current_round=current_round,
-            reason="max_rounds_unconverged",
-        )
-    return _advance_next_round(
-        repo_root,
-        base_dir=base_dir,
-        discussion_id=discussion_id,
-        board=board,
-        current_round=current_round,
+    config = get_party_mode_v2_config(repo_root)
+    transition = _advance_board_state(
+        board,
+        active_agent_ids=active_agents,
+        fresh_context_per_round=bool(config.get("fresh_context_per_round", True)),
     )
+    if transition["to"] == "closed":
+        _write_runtime_state(base_dir, board)
+        _write_actions_json(base_dir, _empty_actions(discussion_id))
+        _append_audit(
+            base_dir,
+            "advance",
+            {
+                "round": current_round,
+                "from": transition["from"],
+                "to": transition["to"],
+                "reason": transition["reason"],
+            },
+        )
+        return finalize_discussion(repo_root, discussion_id=discussion_id)
 
-
+    if transition["to"] != "publish":
+        raise ValueError("phase_not_advanceable")
+    close_actions = []
+    close_reason = transition.get("close_children_reason")
+    if close_reason:
+        close_actions = _build_close_actions(
+            base_dir,
+            _agent_lenses(base_dir),
+            round_number=current_round,
+            reason=str(close_reason),
+        )
+    _write_runtime_state(base_dir, board)
+    _write_actions_for_phase(
+        repo_root,
+        base_dir,
+        discussion_id,
+        transition["next_actions"]["round"],
+        transition["next_actions"]["phase"],
+        host_id=board.get("host_id"),
+        leading_actions=close_actions,
+    )
+    _append_audit(
+        base_dir,
+        "advance",
+        {
+            "round": current_round,
+            "from": transition["from"],
+            "to": transition["to"],
+            "next_round": transition["next_round"],
+        },
+    )
+    return monitor_discussion(repo_root, discussion_id=discussion_id)
 def advance_discussion(repo_root: Path, *, discussion_id: str) -> dict[str, Any]:
     base_dir = discussion_dir(repo_root, discussion_id)
     with _state_lock(base_dir):
@@ -1134,16 +1086,13 @@ def _ensure_finalizable(
     *,
     manual_termination: bool,
 ) -> None:
-    if board["round"]["phase"] == "closed":
-        return
-    if not manual_termination:
-        raise ValueError("finalize_requires_closed_discussion")
-    board["round"]["phase"] = "closed"
-    board["termination"] = {"reason": "manual_terminated"}
-    _write_runtime_state(base_dir, board)
-    _write_actions_json(base_dir, _empty_actions(discussion_id))
-
-
+    changed = _ensure_finalizable_state(
+        board,
+        manual_termination=manual_termination,
+    )
+    if changed:
+        _write_runtime_state(base_dir, board)
+        _write_actions_json(base_dir, _empty_actions(discussion_id))
 def _discussion_posts(board: dict[str, Any]) -> list[dict[str, Any]]:
     return [post for item in board.get("rounds", []) for post in item.get("posts", [])]
 
@@ -1255,37 +1204,12 @@ def _build_final_report(
     historical_disagreements: list[dict[str, Any]],
     stop_reason: str,
 ) -> dict[str, Any]:
-    current_round = int(board["round"]["current"])
-    current_unresolved = [
-        response for response in current_responses if response.get("still_disagree")
-    ]
-    board_status = {
-        "round": current_round,
-        "phase": board["round"]["phase"],
-        "max_rounds": board["round"]["max"],
-        "termination_reason": stop_reason,
-    }
-    return {
-        "schema_version": 1,
-        "discussion_id": discussion_id,
-        "terminal": True,
-        "stop_reason": stop_reason,
-        "board_status": board_status,
-        "rounds_summary": _rounds_summary(board),
-        "action_results": _action_results_summary(base_dir),
-        "accepted_evidence": _accepted_evidence_summary(responses),
-        "next_actions": [],
-        "pro": _report_pro_posts(posts),
-        "con": _report_con_responses(responses),
-        "changed_positions": _responses_with_delta(responses, "changed"),
-        "maintained_positions": _responses_with_delta(responses, "unchanged"),
-        "revised_positions": _responses_with_decision(responses, "revise"),
-        "current_unresolved_disagreements": current_unresolved,
-        "historical_disagreements": historical_disagreements,
-        "unresolved_disagreements": current_unresolved,
-    }
-
-
+    return _project_final_report(
+        discussion_id=discussion_id,
+        board=board,
+        action_results=_project_action_results_summary(base_dir),
+        stop_reason=stop_reason,
+    )
 def _report_pro_posts(posts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {"agent_id": post["agent_id"], "claim": post["claim"], "evidence": post["evidence"]}

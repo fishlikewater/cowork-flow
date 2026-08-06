@@ -16,6 +16,35 @@ from tests.party_mode_test_support import PARTY_MODE_SCRIPT, PartyModeTestCase, 
 
 
 class PartyActionsTest(PartyModeTestCase):
+    def test_party_state_machine_advances_publish_phase_in_memory(self) -> None:
+        state_machine = importlib.import_module("party_state_machine")
+        board = {
+            "schema_version": 1,
+            "discussion_id": "demo",
+            "topic": "Runtime board",
+            "round": {"current": 1, "max": 3, "phase": "publish"},
+            "rounds": [
+                {
+                    "round": 1,
+                    "posts": [{"agent_id": "arch"}, {"agent_id": "runtime"}],
+                    "responses": [],
+                    "moderator_events": [],
+                }
+            ],
+            "termination": {"reason": None},
+        }
+
+        transition = state_machine.advance_board_state(
+            board,
+            active_agent_ids=["arch", "runtime"],
+            fresh_context_per_round=True,
+        )
+
+        self.assertEqual("respond", board["round"]["phase"])
+        self.assertEqual("publish", transition["from"])
+        self.assertEqual("respond", transition["to"])
+        self.assertEqual({"round": 1, "phase": "respond"}, transition["next_actions"])
+
     def test_parallel_posts_do_not_lose_updates_or_duplicate_ids(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = self._repo(Path(temp_name))

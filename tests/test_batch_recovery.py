@@ -27,6 +27,30 @@ class BatchRecoveryTest(FlowScriptTestCase):
             "services.workflow_runtime"
         )
 
+    def test_batch_state_machine_advances_in_memory_without_store(self) -> None:
+        state_machine = importlib.import_module("batch_state_machine")
+        state = {
+            "operation_id": "batch-parent",
+            "ordered_tasks": ["child-a"],
+            "completed_tasks": [],
+            "retry_count": {},
+            "task_steps": {},
+            "task_phases": {},
+            "runtime_contexts": {},
+            "next_action_sequence": 0,
+            "next_action": None,
+            "phase": "ready",
+            "pause_reason": None,
+        }
+
+        changed = state_machine.advance_state(state)
+
+        self.assertTrue(changed)
+        self.assertEqual("awaiting_host", state["phase"])
+        self.assertEqual("child-a", state["current_task"])
+        self.assertEqual("start_task", state["next_action"]["type"])
+        self.assertEqual("batch-parent:1:child-a:start_task", state["next_action"]["action_id"])
+
     def _task(
         self,
         root: Path,
