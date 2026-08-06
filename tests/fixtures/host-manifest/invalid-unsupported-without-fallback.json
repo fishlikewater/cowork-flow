@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "capabilityValues": [
+    "native",
+    "shim",
+    "plugin",
+    "external",
+    "experimental",
+    "unsupported"
+  ],
+  "capabilityMatrix": {
+    "required": [
+      "task_action",
+      "subagent_dispatch",
+      "file_write",
+      "party_board_action"
+    ],
+    "hosts": {
+      "codex": {
+        "task_action": {
+          "status": "native"
+        },
+        "subagent_dispatch": {
+          "status": "native"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "native"
+        }
+      },
+      "claude-code": {
+        "task_action": {
+          "status": "external"
+        },
+        "subagent_dispatch": {
+          "status": "external"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "unsupported",
+          "fallback": "inline_or_manual"
+        }
+      },
+      "opencode": {
+        "task_action": {
+          "status": "external"
+        },
+        "subagent_dispatch": {
+          "status": "external"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "unsupported",
+          "fallback": "inline_or_manual"
+        }
+      },
+      "zcode": {
+        "task_action": {
+          "status": "external"
+        },
+        "subagent_dispatch": {
+          "status": "unsupported",
+          "fallback": "inline_or_manual"
+        },
+        "file_write": {
+          "status": "unsupported"
+        },
+        "party_board_action": {
+          "status": "unsupported",
+          "fallback": "inline_or_manual"
+        }
+      }
+    }
+  },
+  "platforms": [
+    {
+      "id": "codex",
+      "displayName": "Codex",
+      "aliases": [
+        "codex"
+      ],
+      "detectAny": [
+        ".codex"
+      ],
+      "assetPrefixes": [
+        ".codex/"
+      ],
+      "assetFiles": [],
+      "skillTarget": ".agents/skills",
+      "adapterPath": ".cowork-flow/adapters/codex/adapter.yaml",
+      "capabilities": {
+        "dispatchSubagent": "native"
+      },
+      "commandTargets": [
+        {
+          "config": ".codex/config.toml",
+          "format": "toml",
+          "target": ".codex/agents/cowork-implement.toml"
+        }
+      ]
+    }
+  ],
+  "excludedPrefixes": [
+    "skills/"
+  ],
+  "syncPolicy": {
+    "protectedFiles": [
+      ".cowork-flow/config.yaml"
+    ],
+    "protectedPrefixes": [
+      ".cowork-flow/.runtime/"
+    ],
+    "safeFiles": [
+      ".codex/config.toml"
+    ],
+    "safePrefixes": [
+      ".codex/"
+    ],
+    "managedBlockFiles": [
+      "AGENTS.md"
+    ],
+    "obsoleteFiles": [
+      ".cowork-flow/workflow.md"
+    ]
+  }
+}

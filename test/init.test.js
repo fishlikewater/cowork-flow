@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { main } from '../src/cli.js';
@@ -18,6 +19,40 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+const HOST_MANIFEST_FIXTURES = new URL('../tests/fixtures/host-manifest/', import.meta.url);
+const CLI_MODULE = new URL('../src/cli.js', import.meta.url);
+const CLI_IMPORT_SCRIPT = `
+const args = JSON.parse(process.env.COWORK_FLOW_TEST_ARGS);
+try {
+  const { main } = await import(process.env.COWORK_FLOW_TEST_CLI_URL);
+  process.exitCode = await main(args);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+}
+`;
+
+function manifestFixturePath(name) {
+  return fileURLToPath(new URL(name, HOST_MANIFEST_FIXTURES));
+}
+
+async function runCliWithManifestFixture(fixtureName, args) {
+  try {
+    const result = await execFileAsync(process.execPath, ['--input-type=module', '--eval', CLI_IMPORT_SCRIPT], {
+      env: {
+        ...process.env,
+        COWORK_FLOW_HOST_ASSET_MANIFEST: manifestFixturePath(fixtureName),
+        COWORK_FLOW_TEST_ARGS: JSON.stringify(args),
+        COWORK_FLOW_TEST_CLI_URL: CLI_MODULE.href
+      }
+    });
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    return { code: error.code, stdout: error.stdout ?? '', stderr: error.stderr ?? '' };
+  }
+}
+
+
 function createIo() {
   return {
     stdout: '',
@@ -30,6 +65,32 @@ function createIo() {
     }
   };
 }
+
+
+test('init uses manifest-defined extra platform assets', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const result = await runCliWithManifestFixture(
+    'valid-extra-platform.json',
+    ['init', target, '--developer', 'codex', '--platform', 'demo']
+  );
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(await exists(join(target, 'AGENTS.md')), true);
+  assert.equal(await exists(join(target, '.demo-host', 'skills', 'cowork-flow', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.codex', 'config.toml')), false);
+  assert.match(result.stdout, /Platforms: demo-host/);
+});
+
+
+test('init rejects invalid host manifest before target mutation', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const result = await runCliWithManifestFixture(
+    'invalid-unknown-field.json',
+    ['init', target, '--developer', 'codex', '--platform', 'codex']
+  );
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /unknown field/i);
+  assert.equal(await exists(target), false);
+});
 
 test('init copies the template into a new target directory', async (t) => {
   const target = join(await createTempDir(t), 'demo');

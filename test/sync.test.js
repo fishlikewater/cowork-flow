@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, sep } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 import { main } from '../src/cli.js';
 import { runSourceRefresh } from '../src/commands/source-refresh.js';
@@ -15,6 +18,42 @@ import {
   fileSystemWithRenameFailure,
   readText
 } from './helpers/fs.js';
+
+const execFileAsync = promisify(execFile);
+
+const HOST_MANIFEST_FIXTURES = new URL('../tests/fixtures/host-manifest/', import.meta.url);
+const CLI_MODULE = new URL('../src/cli.js', import.meta.url);
+const CLI_IMPORT_SCRIPT = `
+const args = JSON.parse(process.env.COWORK_FLOW_TEST_ARGS);
+try {
+  const { main } = await import(process.env.COWORK_FLOW_TEST_CLI_URL);
+  process.exitCode = await main(args);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+}
+`;
+
+function manifestFixturePath(name) {
+  return fileURLToPath(new URL(name, HOST_MANIFEST_FIXTURES));
+}
+
+async function runCliWithManifestFixture(fixtureName, args) {
+  try {
+    const result = await execFileAsync(process.execPath, ['--input-type=module', '--eval', CLI_IMPORT_SCRIPT], {
+      env: {
+        ...process.env,
+        COWORK_FLOW_HOST_ASSET_MANIFEST: manifestFixturePath(fixtureName),
+        COWORK_FLOW_TEST_ARGS: JSON.stringify(args),
+        COWORK_FLOW_TEST_CLI_URL: CLI_MODULE.href
+      }
+    });
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    return { code: error.code, stdout: error.stdout ?? '', stderr: error.stderr ?? '' };
+  }
+}
+
 
 function createIo() {
   return {
@@ -464,6 +503,31 @@ test('sync rolls back after an injected commit failure', async (t) => {
 
   assert.equal(await readText(runner), 'old runner\n');
   assert.equal(await readText(versionFile), '0.1.0\n');
+});
+
+
+test('sync uses manifest-defined extra platform assets', async (t) => {
+  const target = await createTempDir(t);
+  await mkdir(join(target, '.cowork-flow'), { recursive: true });
+  await mkdir(join(target, '.demo-host'), { recursive: true });
+  await writeFile(join(target, '.cowork-flow', '.version'), '0.1.0\n', 'utf8');
+  const result = await runCliWithManifestFixture('valid-extra-platform.json', ['sync', target]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(await exists(join(target, '.demo-host', 'skills', 'cowork-flow', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.codex', 'config.toml')), false);
+  assert.match(result.stdout, /Platforms: demo-host/);
+});
+
+
+test('sync rejects invalid host manifest before target mutation', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
+  const versionPath = join(target, '.cowork-flow', '.version');
+  const beforeVersion = await readText(versionPath);
+  const result = await runCliWithManifestFixture('invalid-unknown-field.json', ['sync', target]);
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /unknown field/i);
+  assert.equal(await readText(versionPath), beforeVersion);
 });
 
 test('sync creates missing safe placeholder files', async (t) => {

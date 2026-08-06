@@ -93,6 +93,12 @@ class HostAdaptersTest(unittest.TestCase):
         rendered = json.dumps(declaration, ensure_ascii=False)
         self.assertIn("unsupported", rendered)
         self.assertIn("fallback", rendered)
+        self.assertNotIn("uniqueItems", schema["$defs"]["stringList"])
+        self.assertEqual(True, schema["$defs"]["aliasList"]["uniqueItems"])
+        self.assertEqual(
+            {"$ref": "#/$defs/aliasList"},
+            schema["$defs"]["platform"]["properties"]["aliases"],
+        )
 
     def test_host_neutral_capability_matrix_covers_supported_hosts(self) -> None:
         manifest = json.loads(

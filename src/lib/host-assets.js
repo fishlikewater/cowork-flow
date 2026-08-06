@@ -4,13 +4,14 @@ import { join } from 'node:path';
 import { templateRoot } from './paths.js';
 
 
-export const hostAssetManifestPath = join(
-  templateRoot,
-  '.cowork-flow',
-  'spec',
-  'runtime',
-  'host-assets.json'
-);
+export const hostAssetManifestPath = process.env.COWORK_FLOW_HOST_ASSET_MANIFEST
+  || join(
+    templateRoot,
+    '.cowork-flow',
+    'spec',
+    'runtime',
+    'host-assets.json'
+  );
 
 const REQUIRED_HOST_NEUTRAL_CAPABILITIES = [
   'task_action',
@@ -23,6 +24,45 @@ const REQUIRED_CAPABILITY_MATRIX_HOSTS = [
   'claude-code',
   'opencode',
   'zcode'
+];
+const CAPABILITY_STATUS_VALUES = [
+  'native',
+  'shim',
+  'plugin',
+  'external',
+  'experimental',
+  'unsupported'
+];
+const CAPABILITY_DECLARATION_KEYS = ['status', 'fallback'];
+const COMMAND_TARGET_KEYS = ['config', 'format', 'target'];
+const COMMAND_TARGET_FORMATS = ['json', 'toml', 'yaml'];
+const MANIFEST_KEYS = [
+  'schemaVersion',
+  'capabilityValues',
+  'capabilityMatrix',
+  'platforms',
+  'excludedPrefixes',
+  'syncPolicy'
+];
+const PLATFORM_KEYS = [
+  'id',
+  'displayName',
+  'aliases',
+  'detectAny',
+  'assetPrefixes',
+  'assetFiles',
+  'skillTarget',
+  'adapterPath',
+  'capabilities',
+  'commandTargets'
+];
+const SYNC_POLICY_KEYS = [
+  'protectedFiles',
+  'protectedPrefixes',
+  'safeFiles',
+  'safePrefixes',
+  'managedBlockFiles',
+  'obsoleteFiles'
 ];
 
 
@@ -229,74 +269,135 @@ function validateManifest(manifest) {
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
     throw new Error('Host Asset Manifest must be an object');
   }
+  assertKnownKeys(manifest, MANIFEST_KEYS, 'Host Asset Manifest');
   if (manifest.schemaVersion !== 1) {
     throw new Error(
       `Unsupported Host Asset Manifest schemaVersion: ${manifest.schemaVersion}`
     );
   }
+  const allowed = validateCapabilityValues(manifest.capabilityValues);
   if (!Array.isArray(manifest.platforms) || manifest.platforms.length === 0) {
     throw new Error(
       'Host Asset Manifest platforms must be a non-empty array'
     );
   }
-  if (!Array.isArray(manifest.excludedPrefixes)) {
+  const platformIds = [];
+  const seenPlatformIds = new Set();
+  const aliases = new Map();
+  for (const platform of manifest.platforms) {
+    validatePlatform(platform, allowed, seenPlatformIds, aliases);
+    platformIds.push(platform.id);
+  }
+  validateStringArray(
+    manifest.excludedPrefixes,
+    'Host Asset Manifest excludedPrefixes'
+  );
+  validateCapabilityMatrix(manifest.capabilityMatrix, allowed, platformIds);
+  validateSyncPolicy(manifest.syncPolicy);
+}
+
+function validateCapabilityValues(values) {
+  validateStringArray(
+    values,
+    'Host Asset Manifest capabilityValues',
+    { unique: true }
+  );
+  if (!arraysEqual(values, CAPABILITY_STATUS_VALUES)) {
     throw new Error(
-      'Host Asset Manifest excludedPrefixes must be an array'
+      `Host Asset Manifest capabilityValues must be ${CAPABILITY_STATUS_VALUES.join(', ')}`
     );
   }
-  validateCapabilityMatrix(manifest);
-  if (!manifest.syncPolicy || typeof manifest.syncPolicy !== 'object') {
-    throw new Error('Host Asset Manifest syncPolicy must be an object');
+  return new Set(CAPABILITY_STATUS_VALUES);
+}
+
+function validatePlatform(platform, allowed, seenPlatformIds, aliases) {
+  if (!platform || typeof platform !== 'object' || Array.isArray(platform)) {
+    throw new Error('Every host platform must be an object');
   }
-  for (const platform of manifest.platforms) {
-    if (!platform || typeof platform !== 'object' || !platform.id) {
-      throw new Error('Every host platform must define an id');
-    }
-    for (const key of [
-      'aliases',
-      'detectAny',
-      'assetPrefixes',
-      'assetFiles',
-      'commandTargets'
-    ]) {
-      if (!Array.isArray(platform[key])) {
-        throw new Error(
-          `Host platform ${platform.id} ${key} must be an array`
-        );
-      }
-    }
+  assertKnownKeys(platform, PLATFORM_KEYS, `Host platform ${platform.id ?? '<unknown>'}`);
+  validateRequiredString(platform.id, 'Host platform id');
+  if (seenPlatformIds.has(platform.id)) {
+    throw new Error(`Duplicate host platform id: ${platform.id}`);
   }
-  for (const key of [
-    'protectedFiles',
-    'protectedPrefixes',
-    'safeFiles',
-    'safePrefixes',
-    'managedBlockFiles',
-    'obsoleteFiles'
-  ]) {
-    if (!Array.isArray(manifest.syncPolicy[key])) {
-      throw new Error(
-        `Host Asset Manifest syncPolicy.${key} must be an array`
-      );
+  seenPlatformIds.add(platform.id);
+  validateRequiredString(platform.displayName, `Host platform ${platform.id} displayName`);
+  validateStringArray(platform.aliases, `Host platform ${platform.id} aliases`);
+  for (const alias of platform.aliases) {
+    const normalized = alias.toLowerCase();
+    const owner = aliases.get(normalized);
+    if (owner !== undefined) {
+      throw new Error(`Duplicate platform alias: ${alias}`);
+    }
+    aliases.set(normalized, platform.id);
+  }
+  validateStringArray(platform.detectAny, `Host platform ${platform.id} detectAny`);
+  validateStringArray(platform.assetPrefixes, `Host platform ${platform.id} assetPrefixes`);
+  validateStringArray(platform.assetFiles, `Host platform ${platform.id} assetFiles`);
+  if (platform.skillTarget !== null && typeof platform.skillTarget !== 'string') {
+    throw new Error(`Host platform ${platform.id} skillTarget must be a string or null`);
+  }
+  if (typeof platform.skillTarget === 'string' && platform.skillTarget.length === 0) {
+    throw new Error(`Host platform ${platform.id} skillTarget must be a non-empty string or null`);
+  }
+  validateRequiredString(platform.adapterPath, `Host platform ${platform.id} adapterPath`);
+  validatePlatformCapabilities(platform, allowed);
+  if (!Array.isArray(platform.commandTargets)) {
+    throw new Error(`Host platform ${platform.id} commandTargets must be an array`);
+  }
+  for (const target of platform.commandTargets) {
+    validateCommandTarget(target, platform.id);
+  }
+}
+
+function validatePlatformCapabilities(platform, allowed) {
+  if (!platform.capabilities || typeof platform.capabilities !== 'object' || Array.isArray(platform.capabilities)) {
+    throw new Error(`Host platform ${platform.id} capabilities must be an object`);
+  }
+  if (Object.keys(platform.capabilities).length === 0) {
+    throw new Error(`Host platform ${platform.id} capabilities must be a non-empty object`);
+  }
+  for (const [name, value] of Object.entries(platform.capabilities)) {
+    validateRequiredString(name, `Host platform ${platform.id} capability name`);
+    if (typeof value !== 'string' || !allowed.has(value)) {
+      throw new Error(`Host platform ${platform.id} illegal capability status ${name}=${value}`);
     }
   }
 }
 
+function validateCommandTarget(target, platformId) {
+  if (!target || typeof target !== 'object' || Array.isArray(target)) {
+    throw new Error(`Host platform ${platformId} commandTargets must be objects`);
+  }
+  assertKnownKeys(target, COMMAND_TARGET_KEYS, `Host platform ${platformId} commandTarget`);
+  validateRequiredString(target.config, `Host platform ${platformId} commandTarget.config`);
+  validateRequiredString(target.target, `Host platform ${platformId} commandTarget.target`);
+  if (!COMMAND_TARGET_FORMATS.includes(target.format)) {
+    throw new Error(`Host platform ${platformId} commandTarget.format must be json, toml, or yaml`);
+  }
+}
 
-function validateCapabilityMatrix(manifest) {
-  if (!Array.isArray(manifest.capabilityValues) || manifest.capabilityValues.length === 0) {
-    throw new Error('Host Asset Manifest capabilityValues must be a non-empty array');
+function validateSyncPolicy(syncPolicy) {
+  if (!syncPolicy || typeof syncPolicy !== 'object' || Array.isArray(syncPolicy)) {
+    throw new Error('Host Asset Manifest syncPolicy must be an object');
   }
-  const allowed = new Set(manifest.capabilityValues);
-  for (const value of allowed) {
-    if (typeof value !== 'string' || value.length === 0) {
-      throw new Error('Host Asset Manifest capabilityValues entries must be strings');
-    }
+  assertKnownKeys(syncPolicy, SYNC_POLICY_KEYS, 'Host Asset Manifest syncPolicy');
+  for (const key of SYNC_POLICY_KEYS) {
+    validateStringArray(
+      syncPolicy[key],
+      `Host Asset Manifest syncPolicy.${key}`
+    );
   }
-  const matrix = manifest.capabilityMatrix;
+}
+
+function validateCapabilityMatrix(matrix, allowed, platformIds) {
   if (!matrix || typeof matrix !== 'object' || Array.isArray(matrix)) {
     throw new Error('Host Asset Manifest capabilityMatrix must be an object');
   }
+  assertKnownKeys(matrix, ['required', 'hosts'], 'Host Asset Manifest capabilityMatrix');
+  validateStringArray(
+    matrix.required,
+    'Host Asset Manifest capabilityMatrix.required'
+  );
   if (!arraysEqual(matrix.required, REQUIRED_HOST_NEUTRAL_CAPABILITIES)) {
     throw new Error(
       `Host Asset Manifest capabilityMatrix.required must be ${REQUIRED_HOST_NEUTRAL_CAPABILITIES.join(', ')}`
@@ -307,7 +408,7 @@ function validateCapabilityMatrix(manifest) {
   }
   const requiredHosts = new Set([
     ...REQUIRED_CAPABILITY_MATRIX_HOSTS,
-    ...manifest.platforms.map((platform) => platform.id)
+    ...platformIds
   ]);
   for (const hostId of [...requiredHosts].sort()) {
     if (!matrix.hosts[hostId]) {
@@ -315,6 +416,7 @@ function validateCapabilityMatrix(manifest) {
     }
   }
   for (const [hostId, capabilities] of Object.entries(matrix.hosts)) {
+    validateRequiredString(hostId, 'Host Asset Manifest capabilityMatrix host id');
     if (!capabilities || typeof capabilities !== 'object' || Array.isArray(capabilities)) {
       throw new Error(`Host Asset Manifest capabilityMatrix host ${hostId} must be an object`);
     }
@@ -324,31 +426,74 @@ function validateCapabilityMatrix(manifest) {
       }
     }
     for (const capability of REQUIRED_HOST_NEUTRAL_CAPABILITIES) {
-      const declaration = capabilities[capability];
-      if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) {
-        throw new Error(`Host Asset Manifest missing host-neutral capability ${hostId}:${capability}`);
-      }
-      if (!allowed.has(declaration.status)) {
-        throw new Error(
-          `Host Asset Manifest illegal host-neutral capability ${hostId}:${capability}=${declaration.status}`
-        );
-      }
-      if (declaration.fallback !== undefined && (
-        typeof declaration.fallback !== 'string' || declaration.fallback.length === 0
-      )) {
-        throw new Error(
-          `Host Asset Manifest capability fallback must be a non-empty string: ${hostId}:${capability}`
-        );
-      }
-      if (declaration.status === 'unsupported' && !declaration.fallback) {
-        throw new Error(
-          `Host Asset Manifest unsupported capability requires fallback: ${hostId}:${capability}`
-        );
-      }
+      validateCapabilityDeclaration(
+        capabilities[capability],
+        allowed,
+        hostId,
+        capability
+      );
     }
   }
 }
 
+function validateCapabilityDeclaration(declaration, allowed, hostId, capability) {
+  if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) {
+    throw new Error(`Host Asset Manifest missing host-neutral capability ${hostId}:${capability}`);
+  }
+  assertKnownKeys(
+    declaration,
+    CAPABILITY_DECLARATION_KEYS,
+    `Host Asset Manifest capabilityMatrix.hosts.${hostId}.${capability}`
+  );
+  if (!allowed.has(declaration.status)) {
+    throw new Error(
+      `Host Asset Manifest illegal host-neutral capability ${hostId}:${capability}=${declaration.status}`
+    );
+  }
+  if (declaration.fallback !== undefined && (
+    typeof declaration.fallback !== 'string' || declaration.fallback.length === 0
+  )) {
+    throw new Error(
+      `Host Asset Manifest capability fallback must be a non-empty string: ${hostId}:${capability}`
+    );
+  }
+  if (declaration.status === 'unsupported' && !declaration.fallback) {
+    throw new Error(
+      `Host Asset Manifest unsupported capability requires fallback: ${hostId}:${capability}`
+    );
+  }
+}
+
+function validateRequiredString(value, label) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+}
+
+function validateStringArray(value, label, { unique = false } = {}) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array`);
+  }
+  const seen = new Set();
+  for (const item of value) {
+    if (typeof item !== 'string' || item.length === 0) {
+      throw new Error(`${label} entries must be non-empty strings`);
+    }
+    if (unique && seen.has(item)) {
+      throw new Error(`${label} entries must be unique: ${item}`);
+    }
+    seen.add(item);
+  }
+}
+
+function assertKnownKeys(value, allowedKeys, label) {
+  const allowed = new Set(allowedKeys);
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) {
+      throw new Error(`${label} unknown field: ${key}`);
+    }
+  }
+}
 
 function normalizeCapabilityMatrix(matrix) {
   return {

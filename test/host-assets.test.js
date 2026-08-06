@@ -11,6 +11,68 @@ import {
 
 const TEMPLATE_SKILLS_DIR = new URL('../template/skills/', import.meta.url);
 
+const HOST_MANIFEST_FIXTURES = new URL('../tests/fixtures/host-manifest/', import.meta.url);
+const VALID_MANIFEST_FIXTURES = ['valid-minimal.json', 'valid-extra-platform.json'];
+const INVALID_MANIFEST_FIXTURES = new Map([
+  ['invalid-duplicate-alias.json', /duplicate platform alias/i],
+  ['invalid-capability-status.json', /illegal host-neutral capability/i],
+  ['invalid-capability-value.json', /capabilityValues/i],
+  ['invalid-unsupported-without-fallback.json', /unsupported capability requires fallback/i],
+  ['invalid-unknown-field.json', /unknown field/i]
+]);
+const ALL_MANIFEST_FIXTURES = [
+  ...VALID_MANIFEST_FIXTURES,
+  ...INVALID_MANIFEST_FIXTURES.keys()
+].sort();
+const REQUIRED_HOST_NEUTRAL_CAPABILITIES = [
+  'task_action',
+  'subagent_dispatch',
+  'file_write',
+  'party_board_action'
+];
+
+function fixtureUrl(name) {
+  return new URL(name, HOST_MANIFEST_FIXTURES);
+}
+
+function loadFixtureRegistry(name) {
+  return createHostRegistry(loadHostAssetManifest(fixtureUrl(name)));
+}
+
+function registryContractSummary(registry) {
+  return {
+    schemaVersion: registry.manifest.schemaVersion,
+    platformIds: registry.platformIds,
+    aliasOwners: Object.fromEntries(
+      registry.platforms.flatMap(
+        (platform) => platform.aliases.map((alias) => [alias, platform.id])
+      ).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    assets: Object.fromEntries(registry.platforms.map((platform) => [
+      platform.id,
+      {
+        assetPrefixes: platform.assetPrefixes,
+        assetFiles: platform.assetFiles,
+        skillTarget: platform.skillTarget,
+        commandTargets: platform.commandTargets
+      }
+    ])),
+    syncPolicy: registry.syncPolicy,
+    capabilitySummary: Object.fromEntries(
+      Object.entries(registry.capabilityMatrix.hosts)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([hostId, capabilities]) => [
+          hostId,
+          Object.fromEntries(REQUIRED_HOST_NEUTRAL_CAPABILITIES.map((capability) => [
+            capability,
+            capabilities[capability]
+          ]))
+        ])
+    )
+  };
+}
+
+
 
 function templateSkillIds() {
   return readdirSync(TEMPLATE_SKILLS_DIR, { withFileTypes: true })
@@ -20,6 +82,59 @@ function templateSkillIds() {
     .sort();
 }
 
+
+
+test('host manifest fixtures are shared and classified by category', () => {
+  assert.deepEqual(
+    readdirSync(HOST_MANIFEST_FIXTURES).filter((name) => name.endsWith('.json')).sort(),
+    ALL_MANIFEST_FIXTURES
+  );
+  for (const fixtureName of VALID_MANIFEST_FIXTURES) {
+    assert.doesNotThrow(() => loadFixtureRegistry(fixtureName), fixtureName);
+  }
+  for (const [fixtureName, category] of INVALID_MANIFEST_FIXTURES) {
+    assert.throws(
+      () => loadFixtureRegistry(fixtureName),
+      (error) => {
+        assert.match(error.message, category, fixtureName);
+        return true;
+      }
+    );
+  }
+});
+
+
+test('valid host manifest fixtures expose normalized registry summaries', () => {
+  const minimal = registryContractSummary(loadFixtureRegistry('valid-minimal.json'));
+  assert.deepEqual(minimal.platformIds, ['codex']);
+  assert.deepEqual(minimal.aliasOwners, { codex: 'codex' });
+  assert.deepEqual(minimal.assets.codex.assetPrefixes, ['.codex/']);
+  assert.deepEqual(minimal.assets.codex.commandTargets[0], {
+    config: '.codex/config.toml',
+    format: 'toml',
+    target: '.codex/agents/cowork-implement.toml'
+  });
+  assert.deepEqual(minimal.syncPolicy.managedBlockFiles, ['AGENTS.md']);
+  assert.deepEqual(
+    minimal.capabilitySummary.zcode.file_write,
+    { status: 'unsupported', fallback: 'project_root_init_or_sync' }
+  );
+
+  const extra = registryContractSummary(loadFixtureRegistry('valid-extra-platform.json'));
+  assert.deepEqual(extra.platformIds, ['codex', 'demo-host']);
+  assert.equal(extra.aliasOwners.demo, 'demo-host');
+  assert.deepEqual(extra.assets['demo-host'].assetFiles, ['AGENTS.md']);
+  assert.equal(extra.assets['demo-host'].skillTarget, '.demo-host/skills');
+  assert.deepEqual(extra.assets['demo-host'].commandTargets[0], {
+    config: '.demo-host/config.json',
+    format: 'json',
+    target: '.demo-host/agents/cowork-implement.md'
+  });
+  assert.deepEqual(
+    extra.capabilitySummary['demo-host'].subagent_dispatch,
+    { status: 'unsupported', fallback: 'inline_or_manual' }
+  );
+});
 
 test('default host registry exposes manifest platform behavior', () => {
   const manifest = loadHostAssetManifest();
