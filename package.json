@@ -24,6 +24,8 @@
     "test:template": "node scripts/run-template-tests.js --suite core",
     "test:template:full": "node scripts/run-template-tests.js --suite full",
     "pack:check": "node scripts/pack-check.js",
+    "source:refresh:dry-run": "node bin/cowork-flow.js source-refresh --dry-run",
+    "source:refresh": "node bin/cowork-flow.js source-refresh",
     "test:all": "npm run test:node:full && npm run test:template:full && npm run pack:check",
     "release:check": "npm run test:all",
     "release": "sh scripts/release.sh"

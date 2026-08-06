@@ -145,13 +145,30 @@ def _distribution_files(root: Path) -> tuple[Path, ...]:
     return tuple(sorted(files))
 
 
+def _source_checkout_protected_path(relative: Path) -> bool:
+    value = relative.as_posix()
+    if value in {".cowork-flow/config.yaml", ".cowork-flow/.developer"}:
+        return True
+    return value.startswith(".cowork-flow/tasks/") or value.startswith(
+        ".cowork-flow/plans/"
+    ) or value.startswith(".cowork-flow/.runtime/")
+
+
+def _source_checkout_live_files(template: Path) -> tuple[Path, ...]:
+    runtime_root = template / ".cowork-flow"
+    return tuple(
+        source
+        for source in _distribution_files(runtime_root)
+        if not _source_checkout_protected_path(source.relative_to(template))
+    )
+
+
 def check_distribution(repo_root: Path) -> list[str]:
     errors: list[str] = []
     template = repo_root / "template"
     if _distribution_root(repo_root) == repo_root:
         return errors
-    runtime_root = template / ".cowork-flow" / "scripts"
-    for source in _distribution_files(runtime_root):
+    for source in _source_checkout_live_files(template):
         relative = source.relative_to(template)
         target = repo_root / relative
         if target.is_file():
@@ -161,11 +178,6 @@ def check_distribution(repo_root: Path) -> list[str]:
                 errors,
                 drift="local live runtime drift",
             )
-    for relative in (Path(".cowork-flow/run"), Path(".cowork-flow/run.cmd")):
-        source = template / relative
-        target = repo_root / relative
-        if source.is_file() and target.is_file():
-            _compare_file(source, target, errors, drift="local live runtime drift")
     try:
         host_manifest = load_host_manifest(template)
     except HostManifestError as error:
@@ -330,15 +342,42 @@ def check_runtime(repo_root: Path) -> list[str]:
     return errors
 
 
-def _run_checks(repo_root: Path) -> int:
-    errors = []
-    errors.extend(_host_errors(repo_root))
-    errors.extend(check_runtime(repo_root))
-    errors.extend(check_distribution(repo_root))
-    _print_task_hygiene_issues(check_task_hygiene(repo_root))
+def _all_check_result(repo_root: Path) -> dict[str, object]:
+    host_issues = _host_issues(repo_root)
+    runtime_errors = check_runtime(repo_root)
+    distribution_errors = check_distribution(repo_root)
+    task_hygiene_issues = check_task_hygiene(repo_root)
+    errors: list[dict[str, object]] = []
+    for issue in host_issues:
+        errors.append({"kind": "host_adapter", **issue})
+    errors.extend(
+        {"kind": "runtime", "message": error}
+        for error in runtime_errors
+    )
+    errors.extend(
+        {"kind": "distribution", "message": error}
+        for error in distribution_errors
+    )
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "issues": {
+            "hostAdapters": host_issues,
+            "taskHygiene": task_hygiene_issues,
+        },
+    }
+
+
+def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
+    result = _all_check_result(repo_root)
+    errors = result["errors"]
+    if structured:
+        print(json.dumps(result, ensure_ascii=False))
+        return 1 if errors else 0
+    _print_task_hygiene_issues(result["issues"]["taskHygiene"])
     if errors:
         for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
+            print(f"ERROR: {error['message']}", file=sys.stderr)
         return 1
     print("runtime health checks passed")
     return 0
@@ -394,7 +433,7 @@ def main() -> int:
     args = build_parser().parse_args()
     repo_root = get_repo_root()
     if args.all:
-        return _run_checks(repo_root)
+        return _run_checks(repo_root, structured=bool(args.json))
     if args.host_adapters:
         return _run_host_checks(repo_root, structured=bool(args.json))
     if args.subagent_safety:

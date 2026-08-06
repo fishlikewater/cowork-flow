@@ -504,11 +504,18 @@ class BatchExecutionService:
                 "BATCH-ARCHIVE-VERIFY-001",
                 f"archive_destination task.json cannot be loaded: {error}",
             ) from error
-        if task_data.get("name") != task_name:
+        logical_task_names = {task_name}
+        if len(task_name) > 6 and task_name[2] == "-" and task_name[5] == "-":
+            logical_task_names.add(task_name[6:])
+        if not any(
+            task_data.get(field) in logical_task_names
+            for field in ("name", "id")
+        ):
             raise BatchExecutionError(
                 "BATCH-ARCHIVE-VERIFY-001",
-                "archive_destination task.json name is "
-                f"{task_data.get('name')}; expected {task_name}",
+                "archive_destination task identity is "
+                f"name={task_data.get('name')} id={task_data.get('id')}; "
+                f"expected one of {sorted(logical_task_names)}",
             )
         if task_data.get("status") != "completed":
             raise BatchExecutionError(
@@ -745,12 +752,64 @@ class BatchExecutionService:
                 "BATCH-STATE-ROOT-001",
                 "Batch state is missing root_task",
             )
-        _, graph_digest = self._plan(root_task)
-        if state.get("graph_digest") != graph_digest:
-            raise BatchExecutionError(
-                "BATCH-GRAPH-CHANGED-001",
-                "task graph changed after Batch state was created",
-            )
+        try:
+            ordered, graph_digest = self._plan(root_task)
+        except BatchExecutionError as error:
+            if getattr(error, "code", "") != "BATCH-GRAPH-MISSING-001":
+                raise
+            ordered = ()
+            graph_digest = None
+        if state.get("graph_digest") == graph_digest:
+            return
+        expected_remaining = self._remaining_ordered_tasks_after_archives(state)
+        if tuple(ordered) == tuple(expected_remaining):
+            return
+        raise BatchExecutionError(
+            "BATCH-GRAPH-CHANGED-001",
+            "task graph changed after Batch state was created",
+        )
+
+    def _remaining_ordered_tasks_after_archives(self, state: dict) -> tuple[str, ...]:
+        ordered = tuple(
+            task
+            for task in state.get("ordered_tasks", ())
+            if isinstance(task, str) and task.strip()
+        )
+        task_steps = dict(state.get("task_steps") or {})
+        completed = set(
+            task
+            for task in state.get("completed_tasks", ())
+            if isinstance(task, str)
+        )
+        archived_candidates = set(completed)
+        for task_name, steps in task_steps.items():
+            if isinstance(task_name, str) and "archive_task" in list(steps or []):
+                archived_candidates.add(task_name)
+        action = state.get("next_action")
+        if isinstance(action, dict) and action.get("type") in {"archive_task", "commit_task"}:
+            task_name = action.get("task")
+            if isinstance(task_name, str):
+                archived_candidates.add(task_name)
+        if state.get("phase") == "paused":
+            current_task = state.get("current_task")
+            if isinstance(current_task, str):
+                archived_candidates.add(current_task)
+        archived = {
+            task_name
+            for task_name in archived_candidates
+            if self._archived_task_exists(task_name)
+        }
+        return tuple(task for task in ordered if task not in archived)
+
+    def _archived_task_exists(self, task_name: str) -> bool:
+        archive_root = self.repo_root / ".cowork-flow" / "tasks" / "archive"
+        if not archive_root.is_dir():
+            return False
+        return any(
+            task_dir.name == task_name and (task_dir / "task.json").is_file()
+            for task_dir in archive_root.glob("*/*")
+            if task_dir.is_dir()
+        )
 
     def _plan(self, root_task: str) -> tuple[tuple[str, ...], str]:
         nodes = self.tree.active_nodes()

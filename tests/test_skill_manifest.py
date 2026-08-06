@@ -303,18 +303,29 @@ class SkillManifestTest(unittest.TestCase):
             ):
                 self._load_from(first, second)
 
-    def test_command_script_replica_drift_fails_closed(self) -> None:
+    def test_command_script_replica_drift_prefers_tracked_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            first = Path(temp_dir) / "first"
-            second = Path(temp_dir) / "second"
-            self._write_skill(first, "demo", script_content="print('first')\n")
-            self._write_skill(second, "demo", script_content="print('second')\n")
+            repo = Path(temp_dir)
+            host = repo / ".agents" / "skills"
+            template = repo / "template" / "skills"
+            self._write_skill(host, "demo", script_content="print('host')\n")
+            template_manifest = self._write_skill(
+                template,
+                "demo",
+                script_content="print('template')\n",
+            )
 
-            with self.assertRaisesRegex(
-                self.module.SkillManifestError,
-                "conflicting Skill manifest replicas",
+            with patch.object(
+                self.module,
+                "skill_roots",
+                return_value=self.module.skill_roots(repo),
             ):
-                self._load_from(first, second)
+                commands = self.module.skill_command_scripts(repo)
+
+        self.assertEqual(
+            template_manifest.parent / "scripts" / "action.py",
+            commands["demo-command"],
+        )
 
 
 if __name__ == "__main__":

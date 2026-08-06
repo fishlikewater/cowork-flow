@@ -24,10 +24,13 @@ async function listFiles(root, current = root) {
   const files = [];
 
   for (const entry of entries) {
+    if (entry.name === '__pycache__') {
+      continue;
+    }
     const absolute = join(current, entry.name);
     if (entry.isDirectory()) {
       files.push(...await listFiles(root, absolute));
-    } else if (entry.isFile()) {
+    } else if (entry.isFile() && !entry.name.endsWith('.pyc')) {
       files.push(relative(root, absolute));
     }
   }
@@ -114,6 +117,67 @@ async function appendSkillFileActions(actions, {
       }
     }
   }
+}
+
+async function appendSkillTargetActions(actions, {
+  targetDir,
+  skillTargets,
+  seen,
+  sync = false
+}) {
+  const normalizedTargets = [...new Set(skillTargets.map(toTemplatePath))].sort();
+  for (const skill of await listSkillDirs()) {
+    const skillFiles = await listSkillFiles(skill);
+    for (const destBase of normalizedTargets) {
+      for (const skillFile of skillFiles) {
+        const destination = join(
+          targetDir,
+          destBase,
+          skill.id,
+          skillFile.skillRelativePath
+        );
+        if (seen.has(destination)) continue;
+        seen.add(destination);
+        const exists = await pathExists(destination);
+        const unchanged = sync && exists
+          ? await sourceMatchesDestination(skillFile.source, destination)
+          : false;
+        actions.push({
+          action: exists ? (sync ? (unchanged ? 'skip' : 'update') : 'skip') : 'create',
+          source: skillFile.source,
+          destination,
+          relativePath: join(destBase, skill.id, skillFile.skillRelativePath)
+        });
+      }
+    }
+  }
+}
+
+function isSourceCheckoutProtected(relativePath) {
+  const normalized = toTemplatePath(relativePath);
+  if (hostRegistry.syncPolicy.protectedFiles.includes(normalized)) {
+    return true;
+  }
+  return hostRegistry.syncPolicy.protectedPrefixes
+    .filter((prefix) => prefix !== '.cowork-flow/spec/')
+    .some((prefix) => normalized.startsWith(prefix))
+    || normalized.startsWith('.cowork-flow/.runtime/');
+}
+
+function shouldIncludeSourceCheckoutRuntimeFile(relativePath) {
+  const normalized = toTemplatePath(relativePath);
+  return normalized.startsWith('.cowork-flow/')
+    && normalized !== '.cowork-flow/.version'
+    && !isSourceCheckoutProtected(normalized);
+}
+
+function isSourceRefreshObsoleteFile(relativePath) {
+  const normalized = toTemplatePath(relativePath);
+  if (isSourceCheckoutProtected(normalized)) {
+    return false;
+  }
+  return normalized.startsWith('.cowork-flow/')
+    || hostRegistry.skillTargets.some((target) => normalized.startsWith(`${target}/`));
 }
 
 export async function buildInitPlan(targetDir, options = {}) {
@@ -228,6 +292,71 @@ async function buildFileSyncAction({ source, destination, relativePath }) {
     destination,
     relativePath
   };
+}
+
+export async function buildSourceCheckoutRefreshPlan(targetDir, options = {}) {
+  const files = await listFiles(templateRoot);
+  const actions = [];
+  const seen = new Set();
+
+  for (const file of files) {
+    const templatePath = toTemplatePath(file);
+    if (!shouldIncludeSourceCheckoutRuntimeFile(templatePath)) {
+      continue;
+    }
+    const source = join(templateRoot, file);
+    const destination = join(targetDir, file);
+    seen.add(destination);
+    const exists = await pathExists(destination);
+    if (!exists) {
+      actions.push({ action: 'create', source, destination, relativePath: file });
+      continue;
+    }
+    actions.push(await buildFileSyncAction({
+      source,
+      destination,
+      relativePath: file
+    }));
+  }
+
+  await appendSkillTargetActions(actions, {
+    targetDir,
+    skillTargets: options.skillTargets ?? hostRegistry.skillTargets,
+    seen,
+    sync: true
+  });
+
+  const deletedObsoleteParents = [];
+  for (const file of hostRegistry.obsoleteSyncFiles()) {
+    if (!isSourceRefreshObsoleteFile(file) || isCoveredByDeletedParent(file, deletedObsoleteParents)) {
+      continue;
+    }
+    const destination = join(targetDir, file);
+    if (await pathExists(destination)) {
+      deletedObsoleteParents.push(file);
+      actions.push({ action: 'delete', source: null, destination, relativePath: file });
+    }
+  }
+
+  const versionDestination = join(targetDir, '.cowork-flow', '.version');
+  const versionSource = join(templateRoot, '.cowork-flow', '.version');
+  const versionContent = await readFile(versionSource, 'utf8');
+  const versionExists = await pathExists(versionDestination);
+  const versionUnchanged = versionExists
+    && (await readFile(versionDestination, 'utf8')) === versionContent;
+  actions.push({
+    action: versionExists ? (versionUnchanged ? 'skip' : 'update') : 'create',
+    source: null,
+    destination: versionDestination,
+    relativePath: '.cowork-flow/.version',
+    content: versionContent
+  });
+
+  return createAssetPlan({
+    kind: 'source-refresh',
+    targetDir,
+    actions
+  });
 }
 
 export async function buildSyncPlan(targetDir, options = {}) {
