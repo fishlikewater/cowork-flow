@@ -34,13 +34,15 @@ class BatchRecoveryTest(FlowScriptTestCase):
         *,
         children: tuple[str, ...] = (),
         parent: str | None = None,
+        metadata_name: str | None = None,
     ) -> Path:
         task_dir = root / ".cowork-flow/tasks" / name
         task_dir.mkdir(parents=True)
         (task_dir / "task.json").write_text(
             json.dumps(
                 {
-                    "name": name,
+                    "id": metadata_name or name,
+                    "name": metadata_name or name,
                     "status": "planning",
                     "children": list(children),
                     "parent": parent,
@@ -174,25 +176,39 @@ class BatchRecoveryTest(FlowScriptTestCase):
         task_name: str,
         *,
         destination: str | None = None,
+        move_active: bool = False,
     ) -> str:
         destination = (
             destination
             or f".cowork-flow/tasks/archive/2026-07/{task_name}"
         )
         archive_dir = root / destination
-        archive_dir.mkdir(parents=True)
-        active_task = (
-            root
-            / ".cowork-flow"
-            / "tasks"
-            / task_name
-            / "task.json"
-        )
-        archive_task = archive_dir / "task.json"
-        archive_task.write_text(
-            active_task.read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        active_dir = root / ".cowork-flow" / "tasks" / task_name
+        active_task = active_dir / "task.json"
+        task_data = json.loads(active_task.read_text(encoding="utf-8"))
+        if move_active:
+            archive_dir.parent.mkdir(parents=True, exist_ok=True)
+            active_dir.rename(archive_dir)
+            parent = task_data.get("parent")
+            if isinstance(parent, str) and parent:
+                parent_json = root / ".cowork-flow" / "tasks" / parent / "task.json"
+                parent_data = json.loads(parent_json.read_text(encoding="utf-8"))
+                parent_data["children"] = [
+                    child
+                    for child in parent_data.get("children", [])
+                    if child != task_name
+                ]
+                parent_json.write_text(
+                    json.dumps(parent_data, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+        else:
+            archive_dir.mkdir(parents=True)
+            archive_task = archive_dir / "task.json"
+            archive_task.write_text(
+                active_task.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
         return destination
 
     def _advance_to_action(
@@ -331,6 +347,111 @@ class BatchRecoveryTest(FlowScriptTestCase):
             else:
                 self.fail(f"unexpected action type: {action_type}")
         return state
+
+
+
+
+    def test_resume_after_archive_verification_failure_tolerates_moved_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._graph(root)
+            service = self.module.BatchExecutionService(
+                root,
+                commit_verifier=lambda _: True,
+            )
+            state = self._advance_to_action(
+                service,
+                root,
+                service.start("parent"),
+                "archive_task",
+            )
+            self._archive_destination(root, "child-a", move_active=True)
+            paused = dict(state)
+            paused["phase"] = "paused"
+            paused["current_task"] = "child-a"
+            paused["next_action"] = None
+            paused["pause_reason"] = "child-a:archive_task: old verifier failed"
+            service._save(
+                service._state_path(state["operation_id"]),
+                paused,
+            )
+
+            resumed = service.resume(state["operation_id"])
+
+        self.assertEqual("archive_task", resumed["next_action"]["type"])
+        self.assertEqual("child-a", resumed["next_action"]["task"])
+
+    def test_archive_result_accepts_dated_directory_with_logical_task_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._task(
+                root,
+                "parent",
+                children=("08-06-child-a", "child-b"),
+            )
+            self._task(
+                root,
+                "08-06-child-a",
+                parent="parent",
+                metadata_name="child-a",
+            )
+            self._task(root, "child-b", parent="parent")
+            service = self.module.BatchExecutionService(
+                root,
+                commit_verifier=lambda _: True,
+            )
+            state = self._advance_to_action(
+                service,
+                root,
+                service.start("parent"),
+                "archive_task",
+            )
+            archive_destination = self._archive_destination(
+                root,
+                "08-06-child-a",
+                move_active=True,
+            )
+
+            state = service.record_result(
+                state["operation_id"],
+                self._payload(state, archive_destination=archive_destination),
+            )
+
+        self.assertEqual("commit_task", state["next_action"]["type"])
+
+    def test_archive_record_tolerates_real_task_move_before_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._graph(root)
+            service = self.module.BatchExecutionService(
+                root,
+                commit_verifier=lambda _: True,
+            )
+            state = self._advance_to_action(
+                service,
+                root,
+                service.start("parent"),
+                "archive_task",
+            )
+            archive_destination = self._archive_destination(
+                root,
+                "child-a",
+                move_active=True,
+            )
+
+            state = service.record_result(
+                state["operation_id"],
+                self._payload(state, archive_destination=archive_destination),
+            )
+            self.assertEqual("commit_task", state["next_action"]["type"])
+            state = service.record_result(
+                state["operation_id"],
+                self._payload(state, commit_id="commit-child-a"),
+            )
+
+        self.assertEqual(["child-a"], state["completed_tasks"])
+        self.assertEqual("start_task", state["next_action"]["type"])
+        self.assertEqual("child-b", state["next_action"]["task"])
 
     def test_batch_uses_task_graph_and_waits_for_real_host_action(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

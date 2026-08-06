@@ -4,6 +4,7 @@ import { basename, dirname, join, sep } from 'node:path';
 import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
+import { runSourceRefresh } from '../src/commands/source-refresh.js';
 import { runSync } from '../src/commands/sync.js';
 import { hostRegistry } from '../src/lib/host-assets.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
@@ -650,4 +651,105 @@ test('sync refreshes all host asset sets when all are installed', async (t) => {
   );
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
   assert.match(io.stdout, /updated=/);
+});
+
+
+test('source-refresh rolls back after an injected commit failure', async (t) => {
+  const target = await createTempDir(t);
+  const liveTaskContext = join(target, '.cowork-flow', 'scripts', 'services', 'task_context.py');
+  const versionFile = join(target, '.cowork-flow', '.version');
+  await mkdir(dirname(liveTaskContext), { recursive: true });
+  await writeFile(liveTaskContext, 'old task context\n', 'utf8');
+  await writeFile(versionFile, '0.1.0\n', 'utf8');
+  const fileSystem = fileSystemWithRenameFailure(
+    (source, destination) => source.includes(`${sep}staging${sep}`)
+      && destination === versionFile
+  );
+
+  await assert.rejects(
+    runSourceRefresh([target], { io: createIo(), fileSystem }),
+    /injected commit failure/
+  );
+
+  assert.equal(await readText(liveTaskContext), 'old task context\n');
+  assert.equal(await readText(versionFile), '0.1.0\n');
+});
+
+test('source-refresh repairs live runtime and skill replicas without touching local state', async (t) => {
+  const target = await createTempDir(t);
+  const liveTaskContext = join(target, '.cowork-flow', 'scripts', 'services', 'task_context.py');
+  const liveContractRegistry = join(target, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json');
+  const localTask = join(target, '.cowork-flow', 'tasks', 'demo', 'task.json');
+  const localPlan = join(target, '.cowork-flow', 'plans', 'demo.md');
+  const runtimeSession = join(target, '.cowork-flow', '.runtime', 'sessions', 'demo.json');
+  const developerFile = join(target, '.cowork-flow', '.developer');
+  const configFile = join(target, '.cowork-flow', 'config.yaml');
+  const customSkill = join(target, '.agents', 'skills', 'custom-local', 'SKILL.md');
+  const agentSkill = join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md');
+  const claudeSkill = join(target, '.claude', 'skills', 'runtime-health', 'SKILL.md');
+
+  await mkdir(dirname(liveTaskContext), { recursive: true });
+  await writeFile(liveTaskContext, 'old task context\n', 'utf8');
+  await mkdir(dirname(liveContractRegistry), { recursive: true });
+  await writeFile(liveContractRegistry, '{"old": true}\n', 'utf8');
+  await mkdir(dirname(localTask), { recursive: true });
+  await writeFile(localTask, '{"status":"in_progress"}\n', 'utf8');
+  await mkdir(dirname(localPlan), { recursive: true });
+  await writeFile(localPlan, '# local plan\n', 'utf8');
+  await mkdir(dirname(runtimeSession), { recursive: true });
+  await writeFile(runtimeSession, '{"session":"keep"}\n', 'utf8');
+  await writeFile(developerFile, 'codex\n', 'utf8');
+  await writeFile(configFile, 'local: true\n', 'utf8');
+  await mkdir(dirname(customSkill), { recursive: true });
+  await writeFile(customSkill, '# Custom skill\n', 'utf8');
+  await mkdir(dirname(agentSkill), { recursive: true });
+  await writeFile(agentSkill, '# Drifted cowork-flow\n', 'utf8');
+  await mkdir(dirname(claudeSkill), { recursive: true });
+  await writeFile(claudeSkill, '# Drifted runtime-health\n', 'utf8');
+
+  const dryRunIo = createIo();
+  const dryRunCode = await main(['source-refresh', target, '--dry-run'], { io: dryRunIo });
+
+  assert.equal(dryRunCode, 0);
+  assert.match(dryRunIo.stdout, /dry-run/);
+  assert.match(dryRunIo.stdout, /would-update=/);
+  assert.doesNotMatch(dryRunIo.stdout, /__pycache__|\.pyc/);
+  assert.equal(await readText(liveTaskContext), 'old task context\n');
+  assert.equal(await readText(agentSkill), '# Drifted cowork-flow\n');
+
+  const io = createIo();
+  const code = await main(['source-refresh', target], { io });
+
+  assert.equal(code, 0);
+  assert.equal(
+    await readText(liveTaskContext),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'services', 'task_context.py'))
+  );
+  assert.equal(
+    await readText(liveContractRegistry),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json'))
+  );
+  assert.equal(
+    await readText(agentSkill),
+    await readText(join(templateRoot, 'skills', 'cowork-flow', 'SKILL.md'))
+  );
+  assert.equal(
+    await readText(claudeSkill),
+    await readText(join(templateRoot, 'skills', 'runtime-health', 'SKILL.md'))
+  );
+  assert.equal(await readText(localTask), '{"status":"in_progress"}\n');
+  assert.equal(
+    await readText(join(target, '.cowork-flow', '.version')),
+    await readText(join(templateRoot, '.cowork-flow', '.version'))
+  );
+  assert.equal(await readText(localPlan), '# local plan\n');
+  assert.equal(await readText(runtimeSession), '{"session":"keep"}\n');
+  assert.equal(await readText(developerFile), 'codex\n');
+  assert.equal(await readText(configFile), 'local: true\n');
+  assert.equal(await readText(customSkill), '# Custom skill\n');
+
+  const secondIo = createIo();
+  assert.equal(await main(['source-refresh', target], { io: secondIo }), 0);
+  assert.match(secondIo.stdout, /updated=0/);
+  assert.match(secondIo.stdout, /deleted=0/);
 });

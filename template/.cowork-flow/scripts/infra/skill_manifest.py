@@ -312,8 +312,28 @@ def _parse_manifest(path: Path, raw: dict[str, Any]) -> SkillManifest:
     )
 
 
+def _replica_precedence(repo_root: Path, manifest: SkillManifest) -> tuple[int, str]:
+    root = Path(repo_root).resolve()
+    source_template = Path(__file__).resolve().parents[3] / "skills"
+    ordered_roots = (
+        root / "template" / "skills",
+        source_template,
+        root / "skills",
+        root / ".agents" / "skills",
+        root / ".claude" / "skills",
+    )
+    manifest_path = manifest.path.resolve()
+    for index, candidate in enumerate(ordered_roots):
+        try:
+            manifest_path.relative_to(candidate.resolve())
+        except ValueError:
+            continue
+        return (index, str(manifest_path))
+    return (len(ordered_roots), str(manifest_path))
+
+
 def load_skill_manifests(repo_root: Path) -> tuple[SkillManifest, ...]:
-    """Load every valid replica and reject invalid or conflicting metadata."""
+    """Load valid Skill metadata and prefer tracked source replicas."""
     manifests: dict[str, list[SkillManifest]] = {}
     for root in skill_roots(repo_root):
         if not root.is_dir():
@@ -331,7 +351,7 @@ def load_skill_manifests(repo_root: Path) -> tuple[SkillManifest, ...]:
         if any(_manifest_signature(replica) != canonical for replica in replicas[1:]):
             paths = ", ".join(str(replica.path) for replica in replicas)
             raise SkillManifestError(f"conflicting Skill manifest replicas: {skill}: {paths}")
-        result.append(replicas[0])
+        result.append(sorted(replicas, key=lambda replica: _replica_precedence(repo_root, replica))[0])
     command_owners: dict[str, str] = {}
     for manifest in result:
         for command in manifest.commands:
@@ -364,7 +384,7 @@ def _manifest_signature(manifest: SkillManifest) -> tuple[object, ...]:
             for item in manifest.context_rules
         ),
         tuple(
-            (item.name, item.aliases, item.script, item.script_digest)
+            (item.name, item.aliases, item.script)
             for item in manifest.commands
         ),
     )

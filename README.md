@@ -46,6 +46,12 @@ cowork-flow sync ./my-project --dry-run
 # 同步已初始化项目
 cowork-flow sync ./my-project
 
+# 维护者：预览本仓库 source checkout live runtime / Skill replica 刷新
+npm run source:refresh:dry-run
+
+# 维护者：刷新 ignored root .cowork-flow、.agents/skills、.claude/skills
+npm run source:refresh
+
 # 预览 CLI 更新（不安装）
 cowork-flow update --dry-run
 
@@ -104,6 +110,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 |---|---|
 | `init <path>` | 初始化项目模板 |
 | `sync <path> [--dry-run]` | 同步已初始化项目的模板和技能 |
+| `source-refresh [path] [--dry-run]` | 维护者刷新 source checkout 的 ignored live runtime 与 Host Skill replica |
 | `install-zcode-plugin` | 安装 ZCode 插件到全局缓存 |
 | `update [--dry-run]` | 升级 CLI 本身 |
 
@@ -125,6 +132,13 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 - **事务恢复**：上次未完成事务会在新一轮 sync 前恢复；事务元数据缺失或损坏时 fail-closed，不在未知状态上继续写入
 - **Dry-run readiness**：`sync --dry-run` 只构建计划并输出 `readiness=<json>`，不写文件或事务状态；字段包含 `wouldCopy`、`wouldSkipProtected`、`wouldRemoveObsolete`、`hostAssetRefresh`、`pendingRecovery`、`warnings`
 - `--force` 整文件覆盖保护文件
+
+### source-refresh 行为
+
+- **用途**：仅面向 cowork-flow 源码 checkout 维护者；以 `template/.cowork-flow/` 和 `template/skills/` 为唯一 tracked 分发源，刷新 ignored 的根 `.cowork-flow/`、`.agents/skills/`、`.claude/skills/` 受管副本
+- **保护边界**：不覆盖 `.cowork-flow/tasks/`、`.cowork-flow/plans/`、`.cowork-flow/.runtime/`、`.cowork-flow/.developer`、`.cowork-flow/config.yaml` 和自定义 Skill
+- **事务语义**：复用 Asset Plan / plan applier，失败时回滚；`.cowork-flow/.version` 保持 version-last，并复制 template 版本文件的原始内容
+- **常用命令**：`npm run source:refresh:dry-run` 只预览；`npm run source:refresh` 应用后再运行 `./.cowork-flow/run doctor --all --json`
 
 ### update 行为
 

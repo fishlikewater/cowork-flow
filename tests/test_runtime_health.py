@@ -80,10 +80,14 @@ class RuntimeHealthTest(unittest.TestCase):
     def _source_checkout_fixture(self, root: Path) -> None:
         shutil.copytree(TEMPLATE / ".cowork-flow" / "scripts", root / "template" / ".cowork-flow" / "scripts")
         shutil.copytree(TEMPLATE / "skills", root / "template" / "skills")
-        source_contract = TEMPLATE / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
-        target_contract = root / "template" / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
-        target_contract.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_contract, target_contract)
+        for relative in (
+            ".cowork-flow/spec/runtime/host-assets.json",
+            ".cowork-flow/spec/runtime/contract-registry.json",
+        ):
+            source_contract = TEMPLATE / relative
+            target_contract = root / "template" / relative
+            target_contract.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_contract, target_contract)
 
     def test_installed_codex_project_does_not_require_source_template(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -165,6 +169,24 @@ class RuntimeHealthTest(unittest.TestCase):
         self.assertIn("missing command target", stderr)
         self.assertIn(".codex/hooks/inject-workflow-state.py", stderr.replace("\\", "/"))
 
+    def test_all_json_reports_stable_payload_without_text_noise(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._install_codex_project(root)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = self.doctor._run_checks(root, structured=True)
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual("", stderr.getvalue())
+        self.assertEqual(True, payload["ok"])
+        self.assertEqual([], payload["errors"])
+        self.assertEqual([], payload["issues"]["hostAdapters"])
+        self.assertEqual([], payload["issues"]["taskHygiene"])
+
     def test_host_adapter_json_reports_stable_issue_envelope(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -209,6 +231,46 @@ class RuntimeHealthTest(unittest.TestCase):
             errors = self.doctor.check_distribution(root)
 
         self.assertEqual([], errors)
+
+    def test_source_checkout_detects_present_runtime_contract_registry_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._source_checkout_fixture(root)
+            source = (
+                root
+                / "template"
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "contract-registry.json"
+            )
+            live = (
+                root
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "contract-registry.json"
+            )
+            live.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, live)
+            live.write_text(
+                live.read_text(encoding="utf-8").replace(
+                    "CONTEXT_SYNC_V1",
+                    "CONTEXT_SYNC_DRIFT",
+                ),
+                encoding="utf-8",
+            )
+
+            errors = self.doctor.check_distribution(root)
+
+        self.assertTrue(
+            any(
+                "local live runtime drift" in error
+                and "contract-registry.json" in error.replace("\\", "/")
+                for error in errors
+            ),
+            errors,
+        )
 
     def test_source_checkout_detects_present_navigation_runtime_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
