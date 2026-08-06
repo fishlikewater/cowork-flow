@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime
 from pathlib import Path
 
 if __package__:
@@ -14,13 +13,7 @@ if __package__:
 else:
     import _bootstrap  # noqa: F401
 
-from adapters.cli.task_context_commands import PLANNED_FILE_HINT
-from services.task_context import TaskContextService
-from services.task_lifecycle import (
-    LifecyclePreflightFailure,
-    LifecycleResult,
-    TaskLifecycleService,
-)
+from services.task_lifecycle import LifecycleResult, TaskLifecycleService
 from adapters.cli.task_support import (
     Colors,
     colored,
@@ -33,13 +26,7 @@ from infra.paths import (
     FILE_TASK_JSON,
     get_repo_root,
 )
-from runtime.session_state import clear_active_task, get_active_task, is_main_session
-
-
-def _allow_spec_file_modifications(repo_root: Path, execution_context) -> bool:
-    if execution_context.is_worker or execution_context.is_subagent:
-        return False
-    return is_main_session(repo_root)
+from runtime.session_state import clear_active_task, get_active_task
 
 
 def _report_check_block(title: str, blockers: tuple[str, ...]) -> int:
@@ -116,102 +103,8 @@ def _resolve_status_task_dir(
     return task_dir
 
 
-def _task_start_blockers(task_dir: Path) -> list[str]:
-    return list(
-        TaskContextService(get_repo_root(task_dir)).start_blockers(task_dir)
-    )
-
-
-def _task_context_validation_issues(
-    task_dir: Path,
-    repo_root: Path,
-    quiet: bool = False,
-) -> list[str]:
-    del quiet
-    return list(
-        TaskContextService(repo_root).validation_issue_summaries(task_dir)
-    )
-
-
-def _refresh_task_artifact_placeholders(
-    task_dir: Path,
-    repo_root: Path,
-) -> list[str]:
-    service = TaskContextService(repo_root)
-    service.ensure_task_artifact_placeholders(task_dir)
-    return _task_context_validation_issues(task_dir, repo_root)
-
-
-def _optional_readiness_blockers(
-    repo_root: Path,
-    task_dir: Path,
-) -> list[str]:
-    try:
-        from services.readiness import task_readiness_blockers
-    except Exception:
-        return []
-    try:
-        blockers = task_readiness_blockers(repo_root, task_dir)
-    except Exception:
-        return [
-            "readiness check failed; run task next <dir> --validate and inspect "
-            "task readiness artifacts"
-        ]
-    return [str(blocker) for blocker in blockers if str(blocker).strip()]
-
-
-def _start_preflight(
-    task_dir: Path,
-    repo_root: Path,
-) -> LifecyclePreflightFailure | None:
-    blockers = _task_start_blockers(task_dir)
-    if blockers:
-        return LifecyclePreflightFailure(
-            code="TASK-START-001",
-            title="Task is not ready to start yet",
-            blockers=tuple(blockers),
-            hint=(
-                "write decision-anchor.md and required context JSONL files, "
-                "then retry `task next <dir> --run`"
-            ),
-        )
-
-    validation_issues = _task_context_validation_issues(
-        task_dir,
-        repo_root,
-    )
-    if validation_issues:
-        validation_issues = _refresh_task_artifact_placeholders(task_dir, repo_root)
-    if validation_issues:
-        return LifecyclePreflightFailure(
-            code="TASK-CONTEXT-001",
-            title="Task context validation failed",
-            blockers=tuple(validation_issues),
-            hint=(
-                "run ./.cowork-flow/run task next <dir> --validate and fix the "
-                f"reported issues. {PLANNED_FILE_HINT}"
-            ),
-        )
-
-    readiness_blockers = _optional_readiness_blockers(
-        repo_root,
-        task_dir,
-    )
-    if readiness_blockers:
-        return LifecyclePreflightFailure(
-            code="TASK-READINESS-001",
-            title="Task readiness failed",
-            blockers=tuple(readiness_blockers),
-            hint=(
-                "run ./.cowork-flow/run task next <dir> and complete the "
-                "reported readiness artifacts"
-            ),
-        )
-    return None
-
-
 def _report_lifecycle_preflight(
-    result: LifecyclePreflightFailure | LifecycleResult,
+    result: LifecycleResult,
 ) -> int:
     print(colored(f"Error: {result.title}", Colors.RED), file=sys.stderr)
     for blocker in result.blockers:
@@ -264,11 +157,11 @@ def _resolve_start_task(
 def _run_auto_start(
     args: argparse.Namespace,
     full_path: Path,
-    preflight,
+    service: TaskLifecycleService,
 ) -> int:
-    failure = preflight(full_path)
-    if failure is not None:
-        return _report_lifecycle_preflight(failure)
+    readiness = service.start_readiness(full_path)
+    if not readiness.ok:
+        return _report_lifecycle_preflight(readiness)
     from adapters.cli.batch_mode import run_batch_entry
 
     return run_batch_entry(get_repo_root(), full_path, args)
@@ -276,9 +169,7 @@ def _run_auto_start(
 
 def _report_start_failure(
     result: LifecycleResult,
-    service: TaskLifecycleService,
 ) -> int:
-    del service
     if result.title:
         return _report_lifecycle_preflight(result)
     if result.code == "LIFECYCLE-TRANSITION-001":
@@ -354,21 +245,17 @@ def cmd_start(args: argparse.Namespace) -> int:
     if full_path is None:
         return 1
 
-    def preflight(
-        task_dir: Path,
-    ) -> LifecyclePreflightFailure | None:
-        return _start_preflight(task_dir, repo_root)
-
-    if getattr(args, "auto", False):
-        return _run_auto_start(args, full_path, preflight)
-
     service = TaskLifecycleService(repo_root)
-    result = service.start(full_path, preflight=preflight)
+    if getattr(args, "auto", False):
+        return _run_auto_start(args, full_path, service)
+
+    result = service.start(full_path)
     if not result.ok:
-        return _report_start_failure(result, service)
+        return _report_start_failure(result)
 
     _report_start_success(result, repo_root, full_path)
-    _run_hooks("after_start", full_path / FILE_TASK_JSON, repo_root)
+    if "after_start" in getattr(result, "emitted_events", ()):
+        _run_hooks("after_start", full_path / FILE_TASK_JSON, repo_root)
     return 0
 
 
@@ -383,10 +270,7 @@ def cmd_review(args: argparse.Namespace) -> int:
     service = TaskLifecycleService(repo_root)
     result = service.review(
         task_dir,
-        allow_spec_file_modifications=_allow_spec_file_modifications(
-            repo_root,
-            execution_context,
-        ),
+        execution_context=execution_context,
     )
     if not result.ok:
         if result.code == "LIFECYCLE-TRANSITION-001":
@@ -415,6 +299,7 @@ def cmd_review(args: argparse.Namespace) -> int:
 def cmd_complete(args: argparse.Namespace) -> int:
     """Mark a task completed after final check."""
     repo_root = get_repo_root()
+    execution_context = execution_context_from_namespace(args)
     task_dir = _resolve_status_task_dir(args, repo_root)
     if task_dir is None:
         return 1
@@ -422,8 +307,7 @@ def cmd_complete(args: argparse.Namespace) -> int:
     service = TaskLifecycleService(repo_root)
     result = service.complete(
         task_dir,
-        completed_at=datetime.now().strftime("%Y-%m-%d"),
-        allow_spec_file_modifications=is_main_session(repo_root),
+        execution_context=execution_context,
     )
     if not result.ok:
         if result.code == "LIFECYCLE-TRANSITION-001":
@@ -475,7 +359,8 @@ def cmd_finish(args: argparse.Namespace) -> int:
             Colors.GREEN,
         )
     )
-    if task_json_path.is_file():
+    emitted_events = ("after_finish",) if task_json_path.is_file() else ()
+    if "after_finish" in emitted_events:
         _run_hooks("after_finish", task_json_path, repo_root)
     return 0
 
