@@ -18,11 +18,30 @@
     },
     "capabilityValues": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 6,
+      "maxItems": 6,
       "uniqueItems": true,
-      "items": {
-        "$ref": "#/$defs/capabilityStatus"
-      }
+      "prefixItems": [
+        {
+          "const": "native"
+        },
+        {
+          "const": "shim"
+        },
+        {
+          "const": "plugin"
+        },
+        {
+          "const": "external"
+        },
+        {
+          "const": "experimental"
+        },
+        {
+          "const": "unsupported"
+        }
+      ],
+      "items": false
     },
     "capabilityMatrix": {
       "$ref": "#/$defs/capabilityMatrix"
@@ -44,7 +63,6 @@
   "$defs": {
     "stringList": {
       "type": "array",
-      "uniqueItems": true,
       "items": {
         "type": "string",
         "minLength": 1
@@ -221,7 +239,7 @@
           "minLength": 1
         },
         "aliases": {
-          "$ref": "#/$defs/stringList"
+          "$ref": "#/$defs/aliasList"
         },
         "detectAny": {
           "$ref": "#/$defs/stringList"
@@ -283,6 +301,14 @@
         "obsoleteFiles": {
           "$ref": "#/$defs/stringList"
         }
+      }
+    },
+    "aliasList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
       }
     }
   }
