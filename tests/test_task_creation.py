@@ -110,6 +110,32 @@ class TaskCreationServiceTest(unittest.TestCase):
             self.assertEqual({}, task_data["meta"])
             self.assertNotIn("planFile", task_data["meta"])
 
+
+    def test_create_from_noncanonical_plan_path_uses_shared_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            plan_path = root / ".cowork-flow" / "plans" / "demo.md"
+            plan_path.parent.mkdir(parents=True)
+            plan_path.write_text("**Goal:** Demo\n", encoding="utf-8")
+
+            with self.assertRaises(self.TaskCreationError) as raised:
+                self.TaskCreationService(root).create(
+                    self.TaskCreationRequest(
+                        title="Noncanonical plan",
+                        slug="bad-plan",
+                        assignee="codex",
+                        priority="P2",
+                        from_plan=".cowork-flow/plans/../plans/demo.md",
+                        created_at="2026-07-10",
+                        date_prefix="07-10",
+                    )
+                )
+
+            self.assertEqual("TASK-CREATE-PLAN-005", raised.exception.code)
+            self.assertFalse(
+                (root / ".cowork-flow" / "tasks" / "07-10-bad-plan").exists()
+            )
+
     def test_create_from_missing_plan_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

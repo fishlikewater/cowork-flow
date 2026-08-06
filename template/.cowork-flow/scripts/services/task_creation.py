@@ -10,11 +10,11 @@ from pathlib import Path
 
 from services.task_tree import TaskTreeError, TaskTreeService
 from infra.paths import (
-    DIR_WORKFLOW,
     FILE_TASK_JSON,
     ensure_task_date_prefix,
     get_tasks_dir,
 )
+from services.plan_binding import PlanBindingError, bind_plan_file
 from services.task_repository import TaskRepository, TaskRepositoryError
 
 
@@ -83,7 +83,7 @@ class TaskCreationService:
         tasks_dir = ensure_tasks_dir(self.repo_root)
         task_name = self._task_name(request)
         task_dir = tasks_dir / task_name
-        plan_metadata = self._plan_metadata(request.from_plan)
+        plan_metadata, bound_plan_path = self._plan_metadata(request.from_plan)
         directory_existed = task_dir.exists()
         task_dir.mkdir(parents=True, exist_ok=True)
 
@@ -139,7 +139,7 @@ class TaskCreationService:
 
         generated_anchor = self._generate_anchor(
             task_dir,
-            request.from_plan,
+            bound_plan_path,
         )
         return TaskCreationResult(
             task_dir=task_dir,
@@ -157,43 +157,47 @@ class TaskCreationService:
             return f"{request.date_prefix}-{request.slug}"
         return ensure_task_date_prefix(request.slug)
 
-    def _plan_metadata(self, from_plan: str | Path | None) -> dict:
+    def _plan_metadata(self, from_plan: str | Path | None) -> tuple[dict, Path | None]:
         if not from_plan:
-            return {}
-        plan_path = Path(from_plan)
-        candidate = plan_path if plan_path.is_absolute() else self.repo_root / plan_path
-        if not candidate.is_file():
-            raise TaskCreationError(
+            return {}, None
+        try:
+            bound = bind_plan_file(
+                self.repo_root,
+                from_plan,
+                allow_absolute=True,
+                require_exists=True,
+            )
+        except PlanBindingError as error:
+            raise self._plan_creation_error(error) from error
+        return {"planFile": bound.normalized}, bound.path
+
+    @staticmethod
+    def _plan_creation_error(error: PlanBindingError) -> TaskCreationError:
+        if error.code == "missing":
+            return TaskCreationError(
                 "TASK-CREATE-PLAN-003",
-                candidate,
+                error.path,
                 "plan file does not exist",
             )
-        try:
-            relative = candidate.resolve().relative_to(
-                self.repo_root.resolve()
-            ).as_posix()
-        except ValueError as error:
-            raise TaskCreationError(
+        if error.code == "outside_repository":
+            return TaskCreationError(
                 "TASK-CREATE-PLAN-004",
-                candidate,
+                error.path,
                 "plan file must be inside the repository",
-            ) from error
-        if not relative.startswith(f"{DIR_WORKFLOW}/plans/"):
-            raise TaskCreationError(
-                "TASK-CREATE-PLAN-005",
-                candidate,
-                f"plan file must live under {DIR_WORKFLOW}/plans",
             )
-        return {"planFile": relative}
+        return TaskCreationError(
+            "TASK-CREATE-PLAN-005",
+            error.path,
+            "plan file must live under .cowork-flow/plans",
+        )
 
     @staticmethod
     def _generate_anchor(
         task_dir: Path,
-        from_plan: str | Path | None,
+        plan_path: Path | None,
     ) -> bool:
-        if not from_plan:
+        if plan_path is None:
             return False
-        plan_path = Path(from_plan)
         if not plan_path.is_file():
             return False
 

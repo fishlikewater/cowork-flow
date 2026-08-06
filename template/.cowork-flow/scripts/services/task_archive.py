@@ -12,7 +12,7 @@ from pathlib import Path
 from infra.paths import DIR_ARCHIVE, get_tasks_dir
 from runtime.session_state import clear_task_from_sessions
 from infra.archive_utils import archive_directory_resumable
-from services.task_context import read_context_jsonl_entries
+from services.context_jsonl import read_context_jsonl_entries
 from services.task_repository import TaskRepository, TaskRepositoryError
 from services.task_utils import find_task_by_name
 

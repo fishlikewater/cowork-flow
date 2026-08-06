@@ -31,6 +31,10 @@ class TaskContextServiceTest(unittest.TestCase):
             sys.path.remove(str(SCRIPTS))
         for module_name in (
             "services.task_context",
+            "services.context_paths",
+            "services.context_jsonl",
+            "services.plan_binding",
+            "services.context_discovery",
             "application",
             "infra.files",
             "infra.quality_sources",
