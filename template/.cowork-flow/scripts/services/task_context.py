@@ -4,162 +4,67 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from infra.files import read_text_utf8
-from infra.quality_sources import quality_source_entries
-from infra.skill_manifest import context_entries
-from infra.paths import (
-    DIR_AGENTS,
-    DIR_SPEC,
-    DIR_WORKFLOW,
-    FILE_TASK_JSON,
-    get_repo_root,
+from infra.paths import FILE_TASK_JSON
+from services.context_discovery import (
+    detect_installed_platforms,
+    discover_spec_files,
+    get_check_context,
+    get_debug_context,
+    get_domain_skill_context,
+    get_implement_backend,
+    get_implement_base,
+    get_implement_frontend,
+    get_implement_spec,
+    is_skill_path,
+    skill_path,
+    use_claude_skill_context,
 )
+from services.context_jsonl import (
+    ContextJsonlEntry,
+    ContextJsonlReadResult,
+    ContextValidationIssue,
+    iter_jsonl_lines,
+    read_context_jsonl_entries,
+    write_jsonl,
+)
+from services.context_paths import (
+    CONTEXT_ENTRY_TYPES,
+    TaskContextError,
+    normalize_context_file_scope_entry,
+    normalize_context_path,
+    prepare_context_entry,
+)
+from services.plan_binding import normalize_plan_file, plan_file_blockers
 
 
 CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
-CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file", "deleted-file"))
 
 
-class TaskContextError(RuntimeError):
-    """Raised when a context mutation cannot be performed."""
-
-    def __init__(self, code: str, path: Path, detail: str) -> None:
-        self.code = code
-        self.path = path
-        self.detail = detail
-        super().__init__(f"{code}: {detail}: {path}")
+@dataclass(frozen=True)
+class ContextInitializationResult:
+    created: tuple[str, ...]
+    skipped: tuple[str, ...]
+    entry_counts: dict[str, int]
 
 
-def normalize_context_path(
-    repo_root: Path,
-    path: str,
-    entry_type: str,
-) -> tuple[str, Path]:
-    """Return a canonical repo-relative context path and its absolute target."""
-    candidate = Path(repo_root) / str(path)
-    _validate_context_entry_type(candidate, entry_type)
-    normalized = _normalized_context_path(path, entry_type)
-    segments = normalized.split("/")
-    _validate_context_path(candidate, normalized, segments, path, entry_type)
-    repo_root, full_path = _resolved_context_target(repo_root, segments)
-    return _typed_context_path(normalized, full_path, repo_root, entry_type)
+@dataclass(frozen=True)
+class ContextAddResult:
+    added: bool
+    entry_type: str
+    path: str
+    entry: dict
 
 
-def _validate_context_entry_type(candidate: Path, entry_type: str) -> None:
-    if entry_type not in CONTEXT_ENTRY_TYPES:
-        raise TaskContextError(
-            "TASK-CONTEXT-TYPE-001",
-            candidate,
-            f"unsupported context entry type: {entry_type}",
-        )
-
-
-def _normalized_context_path(path: str, entry_type: str) -> str:
-    normalized = str(path).replace("\\", "/")
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-    if entry_type == "directory" and normalized.endswith("/"):
-        normalized = normalized[:-1]
-    return normalized
-
-
-def _validate_context_path(
-    candidate: Path,
-    normalized: str,
-    segments: list[str],
-    path: str,
-    entry_type: str,
-) -> None:
-    if not _is_valid_context_path(normalized, segments, path, entry_type):
-        raise TaskContextError(
-            "TASK-CONTEXT-PATH-002",
-            candidate,
-            "context path must be a canonical repository-relative path",
-        )
-
-
-def _is_valid_context_path(
-    normalized: str,
-    segments: list[str],
-    path: str,
-    entry_type: str,
-) -> bool:
-    return not (
-        not normalized
-        or normalized.startswith("/")
-        or re.match(r"^[A-Za-z]:", normalized) is not None
-        or any(segment in ("", ".", "..") for segment in segments)
-        or any(character in normalized for character in "*?[]")
-        or (entry_type in {"planned-file", "deleted-file"} and str(path).endswith(("/", "\\")))
-    )
-
-
-def _resolved_context_target(
-    repo_root: Path,
-    segments: list[str],
-) -> tuple[Path, Path]:
-    resolved_root = Path(repo_root).resolve()
-    return resolved_root, resolved_root.joinpath(*segments).resolve(strict=False)
-
-
-def _typed_context_path(
-    normalized: str,
-    full_path: Path,
-    repo_root: Path,
-    entry_type: str,
-) -> tuple[str, Path]:
-    try:
-        full_path.relative_to(repo_root)
-    except ValueError as error:
-        raise TaskContextError(
-            "TASK-CONTEXT-PATH-002",
-            full_path,
-            "context path resolves outside the repository",
-        ) from error
-
-    if entry_type == "directory":
-        normalized = f"{normalized}/"
-    return normalized, full_path
-
-
-def prepare_context_entry(
-    repo_root: Path,
-    path: str,
-    reason: str,
-    requested_type: str | None,
-) -> tuple[str, str, dict]:
-    """Build one validated context entry without writing it."""
-    entry_type = requested_type
-    if entry_type is None:
-        candidate = Path(repo_root) / path
-        entry_type = "directory" if candidate.is_dir() else "file"
-
-    normalized_path, full_path = normalize_context_path(
-        repo_root,
-        path,
-        entry_type,
-    )
-    valid_target = {
-        "directory": full_path.is_dir(),
-        "planned-file": not full_path.is_dir(),
-        "deleted-file": not full_path.is_dir(),
-        "file": full_path.is_file(),
-    }[entry_type]
-    if not valid_target:
-        raise TaskContextError(
-            "TASK-CONTEXT-PATH-001",
-            full_path,
-            f"context {entry_type} path does not exist or has the wrong type",
-        )
-
-    entry = {"file": normalized_path, "reason": reason}
-    if entry_type != "file":
-        entry["type"] = entry_type
-    return entry_type, normalized_path, entry
+@dataclass(frozen=True)
+class ContextFileValidation:
+    context_file: str
+    exists: bool
+    entry_count: int
+    issues: tuple[ContextValidationIssue, ...]
 
 
 def _context_issue(
@@ -278,318 +183,6 @@ def _deleted_file_issue(
         "invalid_path",
         f"Deleted file is a directory: {normalized_path}",
     )
-
-
-@dataclass(frozen=True)
-class ContextInitializationResult:
-    created: tuple[str, ...]
-    skipped: tuple[str, ...]
-    entry_counts: dict[str, int]
-
-
-@dataclass(frozen=True)
-class ContextAddResult:
-    added: bool
-    entry_type: str
-    path: str
-    entry: dict
-
-
-@dataclass(frozen=True)
-class ContextValidationIssue:
-    context_file: str
-    line: int
-    code: str
-    message: str
-
-
-@dataclass(frozen=True)
-class ContextFileValidation:
-    context_file: str
-    exists: bool
-    entry_count: int
-    issues: tuple[ContextValidationIssue, ...]
-
-
-@dataclass(frozen=True)
-class ContextJsonlEntry:
-    context_file: str
-    line: int
-    data: object
-    text: str
-    line_ending: str
-
-
-@dataclass(frozen=True)
-class ContextJsonlReadResult:
-    context_file: str
-    exists: bool
-    entry_count: int
-    entries: tuple[ContextJsonlEntry, ...]
-    issues: tuple[ContextValidationIssue, ...]
-
-
-def get_implement_base(repo_root: Path | None = None) -> list[dict]:
-    root = Path(repo_root) if repo_root is not None else get_repo_root()
-    entries = [
-        {
-            "file": "AGENTS.md",
-            "reason": "Project collaboration rules and workflow checks",
-        },
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/index.md",
-            "reason": "Pre-implementation thinking guides",
-        },
-        {
-            "file": (
-                f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/"
-                "pre-implementation-checklist.md"
-            ),
-            "reason": "Mandatory pre-coding checklist",
-        },
-    ]
-    entries.extend(context_entries(root, context="implement"))
-    return entries
-
-
-def get_implement_backend() -> list[dict]:
-    return [
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md",
-            "reason": "Backend development guide",
-        }
-    ]
-
-
-def get_implement_frontend() -> list[dict]:
-    return [
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md",
-            "reason": "Frontend development guide",
-        }
-    ]
-
-
-def get_implement_spec() -> list[dict]:
-    return [
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/index.md",
-            "reason": "Spec index — read before modifying spec/",
-        },
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/contracts/index.md",
-            "reason": "Contract definitions",
-        },
-        {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/schemas/index.md",
-            "reason": "Schema definitions",
-        },
-    ]
-
-
-def detect_installed_platforms(repo_root: Path | None = None) -> list[str]:
-    repo_root = Path(repo_root) if repo_root is not None else get_repo_root()
-    platforms: list[str] = []
-    if (repo_root / ".codex").is_dir():
-        platforms.append("codex")
-    if (repo_root / ".opencode").is_dir():
-        platforms.append("opencode")
-    if (repo_root / ".claude").is_dir() or (repo_root / "CLAUDE.md").is_file():
-        platforms.append("claude-code")
-    return platforms
-
-
-def use_claude_skill_context(repo_root: Path | None = None) -> bool:
-    return detect_installed_platforms(repo_root) == ["claude-code"]
-
-
-def skill_path(name: str, repo_root: Path | None = None) -> str:
-    if use_claude_skill_context(repo_root):
-        return f".claude/skills/{name}/SKILL.md"
-    return f"{DIR_AGENTS}/skills/{name}/SKILL.md"
-
-
-def get_domain_skill_context(
-    repo_root: Path,
-    *,
-    dev_type: str | None = None,
-    paths: tuple[str, ...] = (),
-) -> list[dict]:
-    return context_entries(
-        repo_root,
-        context="implement",
-        dev_type=dev_type,
-        paths=paths,
-        include_wildcard=False,
-    )
-
-
-def is_skill_path(file_path: str) -> bool:
-    return (
-        file_path.startswith(f"{DIR_AGENTS}/skills/")
-        or file_path.startswith(".claude/skills/")
-        or ".skills/" in file_path
-        or "/skills/" in file_path
-    )
-
-
-def discover_spec_files(repo_root: Path, dev_type: str) -> list[str]:
-    if dev_type == "spec":
-        return [f"{DIR_WORKFLOW}/{DIR_SPEC}/index.md"]
-
-    spec_dir = repo_root / DIR_WORKFLOW / DIR_SPEC / dev_type
-    if not spec_dir.is_dir():
-        return []
-    return sorted(
-        f"{DIR_WORKFLOW}/{DIR_SPEC}/{dev_type}/{path.name}"
-        for path in spec_dir.glob("*.md")
-        if path.is_file()
-    )
-
-
-def get_check_context(repo_root: Path, dev_type: str) -> list[dict]:
-    entries = context_entries(repo_root, context="check", dev_type=dev_type)
-    entries.sort(key=lambda entry: entry["file"])
-    if dev_type == "spec":
-        entries.extend(
-            {
-                "file": spec_file,
-                "reason": f"Verify {Path(spec_file).name} compliance",
-            }
-            for spec_file in discover_spec_files(repo_root, dev_type)
-        )
-    entries.extend(quality_source_entries(repo_root, dev_type))
-    return entries
-
-
-def get_debug_context(
-    dev_type: str,
-    repo_root: Path | None = None,
-) -> list[dict]:
-    root = Path(repo_root) if repo_root is not None else get_repo_root()
-    return context_entries(root, context="debug", dev_type=dev_type)
-
-
-def write_jsonl(path: Path, entries: list[dict]) -> None:
-    lines = [json.dumps(entry, ensure_ascii=False) for entry in entries]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def iter_jsonl_lines(path: Path):
-    with path.open("r", encoding="utf-8") as stream:
-        for line_number, line in enumerate(stream, start=1):
-            yield line_number, line.rstrip("\n")
-
-
-def read_context_jsonl_entries(context_file: Path) -> ContextJsonlReadResult:
-    """Parse a context JSONL file into reusable line-level facts."""
-    context_file = Path(context_file)
-    if not context_file.is_file():
-        return ContextJsonlReadResult(
-            context_file=context_file.name,
-            exists=False,
-            entry_count=0,
-            entries=(),
-            issues=(),
-        )
-
-    entries: list[ContextJsonlEntry] = []
-    issues: list[ContextValidationIssue] = []
-    entry_count = 0
-    try:
-        lines: list[tuple[int, str, str]] = []
-        with context_file.open("r", encoding="utf-8", newline="") as stream:
-            for line_number, raw_line in enumerate(stream, start=1):
-                text = raw_line.rstrip("\r\n")
-                line_ending = raw_line[len(text):]
-                lines.append((line_number, text, line_ending))
-    except (OSError, UnicodeDecodeError) as error:
-        return ContextJsonlReadResult(
-            context_file=context_file.name,
-            exists=True,
-            entry_count=0,
-            entries=(),
-            issues=(
-                ContextValidationIssue(
-                    context_file=context_file.name,
-                    line=0,
-                    code="read_error",
-                    message=f"Cannot read {context_file.name}: {error}",
-                ),
-            ),
-        )
-
-    for line_number, line, line_ending in lines:
-        if not line.strip():
-            continue
-        entry_count += 1
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            issues.append(
-                ContextValidationIssue(
-                    context_file=context_file.name,
-                    line=line_number,
-                    code="invalid_json",
-                    message="Invalid JSON",
-                )
-            )
-            continue
-        entries.append(
-            ContextJsonlEntry(
-                context_file=context_file.name,
-                line=line_number,
-                data=data,
-                text=line,
-                line_ending=line_ending,
-            )
-        )
-
-    return ContextJsonlReadResult(
-        context_file=context_file.name,
-        exists=True,
-        entry_count=entry_count,
-        entries=tuple(entries),
-        issues=tuple(issues),
-    )
-
-
-def normalize_context_file_scope_entry(
-    repo_root: Path,
-    entry: dict,
-) -> tuple[str | None, str | None]:
-    """Return the file-scope path allowed by one context entry.
-
-    Directory entries are valid context, but they do not authorize arbitrary
-    changed files for lifecycle review.
-    """
-    entry_type = entry.get("type", "file")
-    file_path = entry.get("file")
-    if not isinstance(file_path, str) or not file_path:
-        return None, "missing file path"
-    if entry_type == "directory":
-        return _normalize_context_file_scope_path(repo_root, file_path, entry_type)
-    if entry_type not in ("file", "planned-file", "deleted-file"):
-        return None, f"unsupported type {entry_type!r}"
-    return _normalize_context_file_scope_path(repo_root, file_path, entry_type)
-
-
-def _normalize_context_file_scope_path(
-    repo_root: Path,
-    file_path: str,
-    entry_type: str,
-) -> tuple[str | None, str | None]:
-    try:
-        normalized, _full_path = normalize_context_path(
-            repo_root,
-            file_path,
-            entry_type,
-        )
-    except TaskContextError:
-        return None, f"non-canonical path {file_path!r}"
-    if entry_type == "directory":
-        return None, None
-    return normalized, None
 
 
 class TaskContextService:
@@ -782,34 +375,11 @@ class TaskContextService:
         return any(str(candidate).lower() == "tiny" for candidate in candidates)
 
     def _plan_file_blockers(self, task_data: dict) -> list[str]:
-        meta = task_data.get("meta")
-        plan_file = meta.get("planFile") if isinstance(meta, dict) else None
-        if not isinstance(plan_file, str) or not plan_file.strip():
-            return ["planFile is required before implementation starts"]
-        normalized = self._normalize_plan_file(plan_file)
-        if normalized is None:
-            return ["planFile must be a repo-relative .cowork-flow/plans path"]
-        plan_path = self.repo_root / normalized
-        if not plan_path.is_file():
-            return [f"planFile does not exist: {normalized}"]
-        if not read_text_utf8(plan_path).strip():
-            return [f"planFile is empty: {normalized}"]
-        return []
+        return plan_file_blockers(self.repo_root, task_data)
 
     @staticmethod
     def _normalize_plan_file(plan_file: str) -> str | None:
-        normalized = plan_file.replace("\\", "/").strip()
-        while normalized.startswith("./"):
-            normalized = normalized[2:]
-        segments = normalized.split("/")
-        if (
-            not normalized
-            or normalized.startswith("/")
-            or any(segment in ("", ".", "..") for segment in segments)
-            or not normalized.startswith(".cowork-flow/plans/")
-        ):
-            return None
-        return normalized
+        return normalize_plan_file(plan_file)
 
     def validation_issue_summaries(self, task_dir: Path) -> tuple[str, ...]:
         summaries: list[str] = []
