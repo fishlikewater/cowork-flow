@@ -70,6 +70,16 @@ class SpecReviewContractTest(unittest.TestCase):
         ):
             self.assertIn(path, obsolete)
 
+    def test_runtime_spec_documents_real_storage_layer_path(self) -> None:
+        runtime_index = (SPEC / "runtime" / "index.md").read_text(encoding="utf-8")
+        template_scripts = TEMPLATE / ".cowork-flow" / "scripts"
+
+        self.assertTrue((template_scripts / "infra" / "storage").is_dir())
+        self.assertEqual([], list((template_scripts / "kernel" / "storage").glob("*.py")))
+        self.assertIn("scripts/infra/storage/", runtime_index)
+        self.assertNotIn("scripts/kernel/storage/", runtime_index)
+        self.assertNotIn("scripts/common/storage/", runtime_index)
+
     def test_task_review_skill_requires_per_requirement_user_spec_review(self) -> None:
         skill = (TEMPLATE / "skills" / "task-review" / "SKILL.md").read_text(
             encoding="utf-8"

@@ -105,6 +105,73 @@ class TaskReviewCheckTest(unittest.TestCase):
         (references / "definition-of-done.md").write_text("# DoD\n", encoding="utf-8")
         (references / "testing-checklist.md").write_text("# Testing\n", encoding="utf-8")
 
+    def _write_implement_scope(self, task_dir: Path, *files: str) -> None:
+        task_dir.joinpath("implement.jsonl").write_text(
+            "".join(
+                json.dumps({"file": file, "reason": "Complexity budget case"}) + "\n"
+                for file in files
+            ),
+            encoding="utf-8",
+        )
+
+    def _long_python_function(self, name: str, body_lines: int, *, value: int = 1) -> str:
+        lines = [f"def {name}():"]
+        lines.extend(f"    value_{index} = {index}" for index in range(body_lines - 2))
+        lines.append(f"    return {value}")
+        return "\n".join(lines) + "\n"
+
+    def _write_complexity_budget_fixture(self, root: Path, task_dir: Path) -> None:
+        self._write_implement_scope(
+            task_dir,
+            "src/new_long.py",
+            "src/hotspot.py",
+            "src/existing_hotspot.py",
+        )
+        (root / "src").mkdir()
+        (root / "src" / "new_long.py").write_text(
+            "def new_long():\n    return 1\n",
+            encoding="utf-8",
+        )
+        (root / "src" / "hotspot.py").write_text(
+            self._long_python_function("hotspot", 61, value=1),
+            encoding="utf-8",
+        )
+        (root / "src" / "existing_hotspot.py").write_text(
+            self._long_python_function("existing_hotspot", 62, value=1),
+            encoding="utf-8",
+        )
+        self._commit_all(root, "baseline")
+        (root / "src" / "new_long.py").write_text(
+            self._long_python_function("new_long", 61, value=2),
+            encoding="utf-8",
+        )
+        (root / "src" / "hotspot.py").write_text(
+            self._long_python_function("hotspot", 63, value=2),
+            encoding="utf-8",
+        )
+        (root / "src" / "existing_hotspot.py").write_text(
+            self._long_python_function("existing_hotspot", 62, value=2),
+            encoding="utf-8",
+        )
+
+    def _complexity_issue_summary(self, report: dict[str, Any]) -> list[tuple[str, str, str, str, str]]:
+        complexity_issues = [
+            issue
+            for issue in report["normalizedIssues"]
+            if issue["source"] == "complexity"
+        ]
+        self.assertEqual({"warning"}, {issue["severity"] for issue in complexity_issues})
+        return sorted(
+            (
+                issue["code"],
+                issue["path"],
+                issue["function"],
+                issue["baselineLines"],
+                issue["currentLines"],
+            )
+            for issue in complexity_issues
+        )
+
     def _task_file_snapshot(self, task_dir: Path) -> dict[str, bytes]:
         return {
             str(path.relative_to(task_dir)): path.read_bytes()
@@ -269,6 +336,51 @@ class TaskReviewCheckTest(unittest.TestCase):
             self.assertEqual(
                 {(issue["code"], issue["path"]) for issue in lifecycle_issues},
                 {(issue.code, issue.path) for issue in lifecycle_result.issues},
+            )
+
+    def test_review_check_warns_on_complexity_soft_budget_without_blocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            self._init_git_repo(root)
+            task_dir = self._write_task(root)
+            self._write_specs(root)
+            self._write_complexity_budget_fixture(root, task_dir)
+
+            report = self.module.build_report(root, task_dir)
+
+            self.assertEqual(
+                [
+                    (
+                        "complexity_existing_hotspot",
+                        "src/existing_hotspot.py",
+                        "existing_hotspot",
+                        "62",
+                        "62",
+                    ),
+                    (
+                        "complexity_hotspot_grew",
+                        "src/hotspot.py",
+                        "hotspot",
+                        "61",
+                        "63",
+                    ),
+                    (
+                        "complexity_new_long_function",
+                        "src/new_long.py",
+                        "new_long",
+                        "0",
+                        "61",
+                    ),
+                ],
+                self._complexity_issue_summary(report),
+            )
+            self.assertEqual(
+                [],
+                [issue for issue in report["normalizedIssues"] if issue["source"] == "lifecycle"],
+            )
+            self.assertIn(
+                "Review complexity soft-budget warnings before accepting large functions.",
+                report["verificationHints"],
             )
 
     def test_review_check_normalizes_context_issues(self) -> None:
