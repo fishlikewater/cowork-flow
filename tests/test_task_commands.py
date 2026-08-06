@@ -24,6 +24,12 @@ ANCHOR_TEXT = "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- AC-001: Demo.
 
 
 class TaskCommandsTest(FlowScriptTestCase):
+    @staticmethod
+    def _start_readiness_blockers(root: Path, task_dir: Path) -> list[str]:
+        policy = importlib.import_module("services.lifecycle_policy")
+        failure = policy.start_readiness_failure(root, task_dir)
+        return list(failure.blockers) if failure is not None else []
+
     def test_cmd_review_handles_idempotent_result_without_protocol_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -62,6 +68,64 @@ class TaskCommandsTest(FlowScriptTestCase):
                 os.chdir(previous_cwd)
 
             self.assertEqual(0, result)
+
+    def test_cmd_start_runs_hooks_only_from_lifecycle_result_events(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status":"planning"}\n',
+                encoding="utf-8",
+            )
+            lifecycle_result = SimpleNamespace(
+                ok=True,
+                code="LIFECYCLE-OK",
+                active_task_path=".cowork-flow/tasks/07-10-demo",
+                emitted_events=(),
+            )
+            service = SimpleNamespace(start=lambda *args, **kwargs: lifecycle_result)
+            lifecycle_commands = importlib.import_module(
+                "adapters.cli.task_lifecycle_commands"
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.object(
+                        lifecycle_commands,
+                        "TaskLifecycleService",
+                        return_value=service,
+                    ),
+                    patch.object(lifecycle_commands, "_run_hooks") as run_hooks,
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_start(
+                        argparse.Namespace(dir=".cowork-flow/tasks/07-10-demo")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result)
+            run_hooks.assert_not_called()
+
+    def test_lifecycle_commands_do_not_define_domain_policy_helpers(self) -> None:
+        lifecycle_commands = importlib.import_module(
+            "adapters.cli.task_lifecycle_commands"
+        )
+
+        for helper in (
+            "_allow_spec_file_modifications",
+            "_task_start_blockers",
+            "_task_context_validation_issues",
+            "_refresh_task_artifact_placeholders",
+            "_optional_readiness_blockers",
+            "_start_preflight",
+        ):
+            with self.subTest(helper=helper):
+                self.assertFalse(hasattr(lifecycle_commands, helper))
 
     def test_context_commands_are_not_public_parser_commands(self) -> None:
         parser = self.task.build_parser()
@@ -320,7 +384,7 @@ class TaskCommandsTest(FlowScriptTestCase):
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
 
-            blockers = self.task._task_start_blockers(task_dir)
+            blockers = self._start_readiness_blockers(root, task_dir)
 
         self.assertEqual(
             [
@@ -338,6 +402,7 @@ class TaskCommandsTest(FlowScriptTestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
             (task_dir / "task.json").write_text(
                 '{"meta": {"taskType": "Tiny"}}',
                 encoding="utf-8",
@@ -350,7 +415,7 @@ class TaskCommandsTest(FlowScriptTestCase):
                 '{"file": "AGENTS.md"}\n', encoding="utf-8"
             )
 
-            self.assertEqual([], self.task._task_start_blockers(task_dir))
+            self.assertEqual([], self._start_readiness_blockers(root, task_dir))
 
     def test_task_start_blocks_non_tiny_task_without_bound_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -369,7 +434,7 @@ class TaskCommandsTest(FlowScriptTestCase):
                 '{"file": "AGENTS.md"}\n', encoding="utf-8"
             )
 
-            blockers = self.task._task_start_blockers(task_dir)
+            blockers = self._start_readiness_blockers(root, task_dir)
 
         self.assertEqual(
             ["planFile is required before implementation starts"],
@@ -400,7 +465,7 @@ class TaskCommandsTest(FlowScriptTestCase):
                 '{"file": "AGENTS.md"}\n', encoding="utf-8"
             )
 
-            blockers = self.task._task_start_blockers(task_dir)
+            blockers = self._start_readiness_blockers(root, task_dir)
 
         self.assertEqual(
             [

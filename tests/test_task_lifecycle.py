@@ -136,6 +136,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
         self.addCleanup(self._cleanup_imports)
         lifecycle_module = importlib.import_module("services.task_lifecycle")
         self.LifecyclePreflightFailure = lifecycle_module.LifecyclePreflightFailure
+        self.LifecycleTransition = lifecycle_module.LifecycleTransition
         self.TaskLifecycleService = lifecycle_module.TaskLifecycleService
 
     def _cleanup_imports(self) -> None:
@@ -164,6 +165,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
                     "status": status,
                     "title": "Lifecycle demo",
                     "customMetadata": {"keep": True},
+                    "meta": {"taskType": "Tiny"},
                 }
             ),
             encoding="utf-8",
@@ -174,6 +176,24 @@ class TaskLifecycleServiceTest(unittest.TestCase):
         return json.loads(
             (task_dir / "task.json").read_text(encoding="utf-8")
         )["status"]
+
+    @staticmethod
+    def _write_start_ready_context(task_dir: Path) -> None:
+        anchor = (
+            "# Demo\n\n"
+            "## \u76ee\u6807\n\n"
+            "Run lifecycle.\n\n"
+            "## \u9a8c\u6536\u6807\u51c6\n\n"
+            "- AC-001: Ready.\n"
+        )
+        (task_dir / "decision-anchor.md").write_text(anchor, encoding="utf-8")
+        entry = {
+            "file": f".cowork-flow/tasks/{task_dir.name}/task.json",
+            "reason": "Lifecycle fixture",
+        }
+        line = json.dumps(entry, ensure_ascii=False) + "\n"
+        for context_name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+            (task_dir / context_name).write_text(line, encoding="utf-8")
 
     @staticmethod
     def _check_runner(*, blocked: bool = False):
@@ -205,6 +225,75 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             "LifecyclePreflightFailure",
             lifecycle_module.LifecyclePreflightFailure.__name__,
         )
+
+    def test_successful_start_result_declares_transition_active_task_and_event(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True):
+                result = service.start(task_dir)
+
+            self.assertTrue(result.ok)
+            self.assertEqual("LIFECYCLE-OK", result.code)
+            self.assertEqual(
+                self.LifecycleTransition(
+                    previous_status="planning",
+                    next_status="in_progress",
+                    changed=True,
+                ),
+                result.transition,
+            )
+            self.assertEqual(".cowork-flow/tasks/07-10-demo", result.active_task_path)
+            self.assertEqual(("after_start",), result.emitted_events)
+
+    def test_start_readiness_policy_reports_missing_anchor_without_terminal_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            policy = importlib.import_module("services.lifecycle_policy")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                failure = policy.start_readiness_failure(root, task_dir)
+
+            self.assertIsNotNone(failure)
+            self.assertEqual("TASK-START-001", failure.code)
+            self.assertIn("decision-anchor.md is missing or empty", failure.blockers)
+            self.assertEqual("", stdout.getvalue())
+            self.assertEqual("", stderr.getvalue())
+
+    def test_review_execution_policy_centralizes_spec_modification_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "in_progress")
+            execution = importlib.import_module("runtime.execution_context")
+            context = execution.ExecutionContext(
+                mode=execution.MODE_WORKER,
+                assignment="impl",
+                task_dir=str(task_dir),
+                prompt_file="prompt.md",
+            )
+            check_runner = self._check_runner()
+            service = self.TaskLifecycleService(root, check_runner=check_runner)
+
+            result = service.review(
+                task_dir,
+                execution_context=context,
+            )
+
+            self.assertTrue(result.ok)
+            self.assertIsNotNone(result.execution_policy)
+            self.assertFalse(result.execution_policy.allow_spec_file_modifications)
+            self.assertFalse(
+                check_runner.calls[0][2]["allow_spec_file_modifications"]
+            )
 
     def test_preflight_failure_stops_before_check_and_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -321,6 +410,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
             check_runner = self._check_runner()
             service = self.TaskLifecycleService(root, check_runner=check_runner)
 
@@ -338,6 +428,7 @@ class TaskLifecycleTransactionTest(TaskLifecycleServiceTest):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
             self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
             check_runner = self._check_runner()
 
             def interrupt_after_session(

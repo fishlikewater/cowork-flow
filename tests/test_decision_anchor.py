@@ -17,13 +17,15 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
     def setUp(self) -> None:
         sys.path.insert(0, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
-        self.task = importlib.import_module("adapters.cli.task")
+        self.policy = importlib.import_module("services.lifecycle_policy")
 
     def _cleanup_imports(self) -> None:
         if str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
-            "adapters.cli.task",
+            "services.lifecycle_policy",
+            "services.task_context",
+            "services.plan_binding",
             "services.readiness",
         ):
             if module_name in sys.modules:
@@ -38,7 +40,8 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
             (task_dir / "prd.md").write_text("# Legacy PRD\n## Goal\nTest\n", encoding="utf-8")
 
-            blockers = self.task._task_start_blockers(task_dir)
+            failure = self.policy.start_readiness_failure(root, task_dir)
+            blockers = list(failure.blockers)
 
             self.assertTrue((task_dir / "prd.md").is_file())
             self.assertFalse((task_dir / "decision-anchor.md").exists())
@@ -52,7 +55,8 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
             task_dir.mkdir(parents=True)
             (task_dir / "task.json").write_text("{}", encoding="utf-8")
 
-            blockers = self.task._task_start_blockers(task_dir)
+            failure = self.policy.start_readiness_failure(root, task_dir)
+            blockers = list(failure.blockers)
             self.assertIn("decision-anchor.md is missing or empty", blockers)
 
 

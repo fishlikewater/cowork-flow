@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from infra.git_snapshot import collect_changed_paths
+from services.lifecycle_policy import LifecycleExecutionPolicy
 from services.task_context import (
     normalize_context_file_scope_entry,
     read_context_jsonl_entries,
@@ -71,7 +72,8 @@ class LifecycleCheckRunner:
         self,
         task_dir: Path,
         *,
-        allow_spec_file_modifications: bool = False,
+        allow_spec_file_modifications: bool | None = None,
+        execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> LifecycleCheckResult:
         return LifecycleCheckResult(
             stage="review",
@@ -79,7 +81,10 @@ class LifecycleCheckRunner:
                 _review_completion_issues(
                     self.repo_root,
                     task_dir,
-                    allow_spec_file_modifications=allow_spec_file_modifications,
+                    allow_spec_file_modifications=_policy_allows_spec_changes(
+                        execution_policy,
+                        allow_spec_file_modifications,
+                    ),
                 ),
             ),
         )
@@ -88,7 +93,8 @@ class LifecycleCheckRunner:
         self,
         task_dir: Path,
         *,
-        allow_spec_file_modifications: bool = False,
+        allow_spec_file_modifications: bool | None = None,
+        execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> LifecycleCheckResult:
         return LifecycleCheckResult(
             stage="complete",
@@ -96,10 +102,23 @@ class LifecycleCheckRunner:
                 _review_completion_issues(
                     self.repo_root,
                     task_dir,
-                    allow_spec_file_modifications=allow_spec_file_modifications,
+                    allow_spec_file_modifications=_policy_allows_spec_changes(
+                        execution_policy,
+                        allow_spec_file_modifications,
+                    ),
                 ),
             ),
         )
+
+
+def _policy_allows_spec_changes(
+    execution_policy: LifecycleExecutionPolicy | None,
+    allow_spec_file_modifications: bool | None,
+) -> bool:
+    if execution_policy is not None:
+        return execution_policy.allow_spec_file_modifications
+    return bool(allow_spec_file_modifications)
+
 
 
 def _review_completion_issues(

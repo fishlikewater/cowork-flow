@@ -318,6 +318,49 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertEqual(0, complete_result, complete_stderr)
             self.assertEqual("completed", data["status"])
 
+    def test_lifecycle_checks_consume_explicit_execution_policy_facts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            workflow_dir = root / ".cowork-flow"
+            task_dir = workflow_dir / "tasks" / "05-19-demo"
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            self._write_allowed_file_task(
+                root,
+                task_dir,
+                "in_progress",
+                allowed_files=("AGENTS.md",),
+            )
+            self._commit_all(root, "baseline")
+            (root / "AGENTS.md").write_text(
+                "# Rules changed by subagent\n",
+                encoding="utf-8",
+            )
+            checks = importlib.import_module("services.lifecycle_checks")
+            policy_module = importlib.import_module("services.lifecycle_policy")
+
+            blocked = checks.LifecycleCheckRunner(root).review(
+                task_dir,
+                execution_policy=policy_module.LifecycleExecutionPolicy(
+                    execution_scope="subagent",
+                    allow_spec_file_modifications=False,
+                ),
+            )
+            allowed = checks.LifecycleCheckRunner(root).review(
+                task_dir,
+                execution_policy=policy_module.LifecycleExecutionPolicy(
+                    execution_scope="main",
+                    allow_spec_file_modifications=True,
+                ),
+            )
+
+            self.assertTrue(blocked.blocked)
+            self.assertIn(
+                "Protected workflow/spec file changed outside main session: AGENTS.md",
+                blocked.blockers,
+            )
+            self.assertFalse(allowed.blocked)
+
     def test_cmd_review_rejects_coordinator_flag_for_bound_subagent_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

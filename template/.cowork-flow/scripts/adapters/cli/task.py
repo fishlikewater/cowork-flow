@@ -38,8 +38,6 @@ from adapters.cli.task_context_commands import (
 from adapters.cli.task_create_command import cmd_create, ensure_tasks_dir
 from adapters.cli import task_navigation
 from adapters.cli.task_lifecycle_commands import (
-    _optional_readiness_blockers,
-    _task_start_blockers,
     cmd_complete,
     cmd_current,
     cmd_finish,
