@@ -70,3 +70,43 @@ class OperationLog:
             if record.get("phase") not in FINAL_PHASES:
                 records.append(record)
         return tuple(records)
+    def pending_facts(self) -> tuple[dict, ...]:
+        """Return read-only facts about non-final operation records."""
+        if not self.operations_dir.is_dir():
+            return ()
+        facts: list[dict] = []
+        for path in sorted(self.operations_dir.glob("*.json")):
+            try:
+                record = self.state_store.load(path).data
+            except StateStoreError as error:
+                facts.append(
+                    {
+                        "path": str(path),
+                        "phase": "unreadable",
+                        "error": {
+                            "code": error.code,
+                            "path": str(error.path),
+                            "detail": error.detail,
+                        },
+                    }
+                )
+                continue
+            phase = record.get("phase")
+            if phase == "committed":
+                continue
+            participants = record.get("participants")
+            facts.append(
+                {
+                    "path": str(path),
+                    "operation_id": str(record.get("operation_id") or path.stem),
+                    "kind": str(record.get("kind") or "unknown"),
+                    "phase": str(phase or "unknown"),
+                    "participant_count": (
+                        len(participants)
+                        if isinstance(participants, list)
+                        else 0
+                    ),
+                    "error": record.get("error"),
+                }
+            )
+        return tuple(facts)

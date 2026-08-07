@@ -21,13 +21,37 @@ from kernel.task_state import DONE_STATUSES  # noqa: F401
 ArchiveFinalizer = Callable[[], bool]
 
 
+@dataclass(frozen=True)
+class RollbackIssue:
+    """Best-effort compensation issue that did not replace the primary error."""
+
+    stage: str
+    path: Path
+    detail: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "stage": self.stage,
+            "path": str(self.path),
+            "detail": self.detail,
+        }
+
+
 class TaskArchiveError(RuntimeError):
     """Raised when an archive_task action cannot complete safely."""
 
-    def __init__(self, code: str, path: Path, detail: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        path: Path,
+        detail: str,
+        *,
+        rollback_issues: tuple[RollbackIssue, ...] = (),
+    ) -> None:
         self.code = code
         self.path = path
         self.detail = detail
+        self.rollback_issues = tuple(rollback_issues)
         super().__init__(f"{code}: {detail}: {path}")
 
 
@@ -160,7 +184,7 @@ class TaskArchiveService:
                     "archive finalizer failed",
                 )
         except Exception as error:
-            self._rollback(
+            rollback_issues = self._rollback(
                 task_dir,
                 destination,
                 task_data,
@@ -168,17 +192,22 @@ class TaskArchiveService:
                 context_snapshots,
             )
             if isinstance(error, TaskArchiveError):
+                error.rollback_issues = tuple(
+                    (*error.rollback_issues, *rollback_issues)
+                )
                 raise
             if isinstance(error, TaskRepositoryError):
                 raise TaskArchiveError(
                     "TASK-ARCHIVE-WRITE-001",
                     error.path,
                     error.detail,
+                    rollback_issues=rollback_issues,
                 ) from error
             raise TaskArchiveError(
                 "TASK-ARCHIVE-FINALIZE-001",
                 destination,
                 f"archive finalizer failed: {error}",
+                rollback_issues=rollback_issues,
             ) from error
 
     def _relationship_updates(
@@ -313,15 +342,23 @@ class TaskArchiveService:
                 self.repository.save(task_dir, changes)
                 applied.append((task_dir, original))
         except TaskRepositoryError as error:
+            rollback_issues: list[RollbackIssue] = []
             for task_dir, original in reversed(applied):
                 try:
                     self.repository.replace(task_dir, original)
-                except TaskRepositoryError:
-                    pass
+                except Exception as rollback_error:
+                    rollback_issues.append(
+                        RollbackIssue(
+                            "relationship_restore",
+                            Path(str(getattr(rollback_error, "path", task_dir / "task.json"))),
+                            str(getattr(rollback_error, "detail", rollback_error)),
+                        )
+                    )
             raise TaskArchiveError(
                 "TASK-ARCHIVE-RELATIONSHIP-001",
                 error.path,
                 error.detail,
+                rollback_issues=tuple(rollback_issues),
             ) from error
 
     def _rollback(
@@ -331,22 +368,71 @@ class TaskArchiveService:
         task_data: dict,
         relationship_updates: list[tuple[Path, dict, dict]],
         context_snapshots: dict[str, bytes],
-    ) -> None:
+    ) -> tuple[RollbackIssue, ...]:
+        issues: list[RollbackIssue] = []
         for task_dir, original, _ in relationship_updates:
             try:
                 self.repository.replace(task_dir, original)
-            except TaskRepositoryError:
-                pass
+            except Exception as error:
+                issues.append(
+                    RollbackIssue(
+                        "relationship_restore",
+                        Path(str(getattr(error, "path", task_dir / "task.json"))),
+                        str(getattr(error, "detail", error)),
+                    )
+                )
 
+        directory_restore_attempted = False
         if destination.is_dir() and not source.exists():
-            archive_directory_resumable(destination, source)
+            directory_restore_attempted = True
+            try:
+                move_result = archive_directory_resumable(destination, source)
+            except Exception as error:  # best-effort compensation boundary
+                issues.append(
+                    RollbackIssue(
+                        "directory_restore",
+                        source,
+                        f"failed to restore archived directory: {error}",
+                    )
+                )
+            else:
+                if not move_result.ok:
+                    issues.append(
+                        RollbackIssue(
+                            "directory_restore",
+                            move_result.destination,
+                            move_result.message,
+                        )
+                    )
         if source.is_dir():
             for name, content in context_snapshots.items():
+                context_path = source / name
                 try:
-                    (source / name).write_bytes(content)
-                except OSError:
-                    pass
+                    context_path.write_bytes(content)
+                except Exception as error:
+                    issues.append(
+                        RollbackIssue(
+                            "context_restore",
+                            context_path,
+                            str(error),
+                        )
+                    )
             try:
                 self.repository.replace(source, task_data)
-            except TaskRepositoryError:
-                pass
+            except Exception as error:
+                issues.append(
+                    RollbackIssue(
+                        "task_json_restore",
+                        Path(str(getattr(error, "path", source / "task.json"))),
+                        str(getattr(error, "detail", error)),
+                    )
+                )
+        elif not source.exists() and not directory_restore_attempted:
+            issues.append(
+                RollbackIssue(
+                    "directory_restore",
+                    source,
+                    "source task directory was not restored",
+                )
+            )
+        return tuple(issues)

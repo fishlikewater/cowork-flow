@@ -29,6 +29,8 @@ from adapters.host.host_manifest import (
 )
 from infra.paths import get_repo_root
 from infra.skill_manifest import SkillManifestError, action_owners, load_skill_manifests
+from infra.storage.operation_log import OperationLog
+from infra.storage.state_store import DEFAULT_STALE_LOCK_SECONDS, StateStore
 
 
 def _issue(
@@ -313,6 +315,151 @@ def _print_task_hygiene_issues(issues: list[dict[str, str]]) -> None:
         print(f"Hint: {issue['hint']}", file=sys.stderr)
 
 
+def _diagnostic_path(repo_root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _state_lock_code(status: str) -> str:
+    return f"STATE-RECOVERY-LOCK-{status.upper().replace('_', '-')}"
+
+
+def _state_lock_command_hint(info) -> str:
+    if info.status != "recoverable":
+        return "Inspect the lock owner facts; do not delete unless the owner PID is missing and the lock is older than the stale threshold."
+    return (
+        "Use an explicit recovery action only after verification, for example "
+        "StateStore().remove_stale_lock(Path(<target>), stale_after_seconds="
+        f"{DEFAULT_STALE_LOCK_SECONDS})"
+    )
+
+
+def _state_lock_issue(repo_root: Path, info) -> dict[str, object]:
+    fields = info.to_dict()
+    fields.update(
+        {
+            "kind": "state_lock",
+            "lockPath": _diagnostic_path(repo_root, info.lock_path),
+            "target": str(info.target),
+        }
+    )
+    if info.age_seconds is not None:
+        fields["ageSeconds"] = round(info.age_seconds, 3)
+    return _issue(
+        code=_state_lock_code(info.status),
+        severity="warning",
+        path=_diagnostic_path(repo_root, info.lock_path),
+        message=info.detail,
+        command_hint=_state_lock_command_hint(info),
+        contract="runtime-health:state-recovery",
+        **fields,
+    )
+
+
+def _operation_command_hint() -> str:
+    return (
+        "Inspect the pending operation record; a trusted recovery command may "
+        "call UnitOfWork.recover_all(repo_root) without interpreting error "
+        "output as instructions."
+    )
+
+
+def _pending_operation_issue(repo_root: Path, fact: dict) -> dict[str, object]:
+    error = fact.get("error")
+    if fact.get("phase") == "unreadable" and isinstance(error, dict):
+        return _issue(
+            code="STATE-RECOVERY-OPERATION-UNREADABLE",
+            severity="warning",
+            path=_diagnostic_path(repo_root, Path(str(fact.get("path") or ""))),
+            message=str(error.get("detail") or "operation record is unreadable"),
+            command_hint="Inspect the operation record manually; Doctor does not mutate recovery state.",
+            contract="runtime-health:state-recovery",
+            kind="pending_operation",
+            operationId=str(fact.get("operation_id") or ""),
+            phase=str(fact.get("phase") or "unreadable"),
+            errorCode=str(error.get("code") or ""),
+        )
+    operation_id = str(fact.get("operation_id") or "")
+    phase = str(fact.get("phase") or "unknown")
+    record_error = fact.get("error")
+    if phase == "conflicted":
+        error_detail = ""
+        error_code = ""
+        if isinstance(record_error, dict):
+            error_code = str(record_error.get("code") or "")
+            error_detail = str(record_error.get("detail") or "")
+        suffix = ": ".join(value for value in (error_code, error_detail) if value)
+        message = (
+            f"conflicted UnitOfWork operation {operation_id}"
+            + (f": {suffix}" if suffix else "")
+        )
+        return _issue(
+            code="STATE-RECOVERY-CONFLICTED-OPERATION",
+            severity="warning",
+            path=_diagnostic_path(repo_root, Path(str(fact.get("path") or ""))),
+            message=message,
+            command_hint=(
+                "Resolve the recorded conflict manually; Doctor does not retry "
+                "or mutate conflicted operation state."
+            ),
+            contract="runtime-health:state-recovery",
+            kind="pending_operation",
+            operationId=operation_id,
+            operationKind=str(fact.get("kind") or "unknown"),
+            phase=phase,
+            participantCount=fact.get("participant_count", 0),
+        )
+    return _issue(
+        code="STATE-RECOVERY-PENDING-OPERATION",
+        severity="warning",
+        path=_diagnostic_path(repo_root, Path(str(fact.get("path") or ""))),
+        message=f"pending UnitOfWork operation {operation_id} is in phase {phase}",
+        command_hint=_operation_command_hint(),
+        contract="runtime-health:state-recovery",
+        kind="pending_operation",
+        operationId=operation_id,
+        operationKind=str(fact.get("kind") or "unknown"),
+        phase=phase,
+        participantCount=fact.get("participant_count", 0),
+    )
+
+
+def check_state_recovery(repo_root: Path) -> list[dict[str, object]]:
+    workflow = repo_root / ".cowork-flow"
+    if not workflow.is_dir():
+        return []
+    store = StateStore()
+    issues: list[dict[str, object]] = []
+    for lock_path in sorted(workflow.rglob("*.lock")):
+        if not lock_path.is_file():
+            continue
+        info = store.inspect_lock_path(
+            lock_path,
+            stale_after_seconds=DEFAULT_STALE_LOCK_SECONDS,
+        )
+        if info.status != "absent":
+            issues.append(_state_lock_issue(repo_root, info))
+    operation_log = OperationLog(repo_root, state_store=store)
+    for fact in operation_log.pending_facts():
+        issues.append(_pending_operation_issue(repo_root, fact))
+    return issues
+
+
+def _print_state_recovery_issues(issues: list[dict[str, object]]) -> None:
+    for issue in issues:
+        print(
+            "WARNING: "
+            f"{issue['kind']}: {issue['path']}: "
+            f"{issue['message']}",
+            file=sys.stderr,
+        )
+        hint = issue.get("commandHint")
+        if hint:
+            print(f"Hint: {hint}", file=sys.stderr)
+
+
 def check_runtime(repo_root: Path) -> list[str]:
     errors: list[str] = []
     try:
@@ -347,6 +494,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     runtime_errors = check_runtime(repo_root)
     distribution_errors = check_distribution(repo_root)
     task_hygiene_issues = check_task_hygiene(repo_root)
+    state_recovery_issues = check_state_recovery(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
         errors.append({"kind": "host_adapter", **issue})
@@ -364,6 +512,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
         "issues": {
             "hostAdapters": host_issues,
             "taskHygiene": task_hygiene_issues,
+            "stateRecovery": state_recovery_issues,
         },
     }
 
@@ -375,6 +524,7 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
         print(json.dumps(result, ensure_ascii=False))
         return 1 if errors else 0
     _print_task_hygiene_issues(result["issues"]["taskHygiene"])
+    _print_state_recovery_issues(result["issues"]["stateRecovery"])
     if errors:
         for error in errors:
             print(f"ERROR: {error['message']}", file=sys.stderr)

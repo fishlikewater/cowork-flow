@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import json
 import sys
 import tempfile
@@ -113,6 +114,111 @@ class StateStoreTest(unittest.TestCase):
             self.assertEqual(3, attempts)
             self.assertEqual(1, snapshot.revision)
             self.assertEqual("稳定", store.load(path).data["value"])
+
+    def test_lock_file_records_owner_facts_for_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "state.json"
+            store = self.StateStore()
+
+            with store._lock(path):
+                lock_path = path.with_name(f"{path.name}.lock")
+                payload = json.loads(lock_path.read_text(encoding="utf-8"))
+                info = store.inspect_lock(path)
+
+                self.assertEqual(os.getpid(), payload["pid"])
+                self.assertEqual(str(path), payload["target"])
+                self.assertIsInstance(payload["createdAt"], str)
+                self.assertEqual("active", info.status)
+                self.assertTrue(info.owner_available)
+                self.assertEqual(path, info.target)
+
+    def test_legacy_empty_lock_remains_valid_and_times_out(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "state.json"
+            lock_path = path.with_name(f"{path.name}.lock")
+            lock_path.touch()
+            store = self.StateStore(
+                lock_timeout_seconds=0.02,
+                lock_poll_seconds=0.001,
+            )
+
+            info = store.inspect_lock(path, stale_after_seconds=0)
+            with self.assertRaises(self.StateStoreError) as captured:
+                store.replace(
+                    path,
+                    {"value": "blocked"},
+                    expected_revision=0,
+                    operation_id="op-blocked",
+                )
+
+            self.assertEqual("unknown", info.status)
+            self.assertEqual("unknown", info.owner_availability)
+            self.assertIsNotNone(info.age_seconds)
+            self.assertEqual("STATE-LOCK-001", captured.exception.code)
+            self.assertTrue(lock_path.exists())
+
+    def test_remove_stale_lock_requires_missing_pid_and_age_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "state.json"
+            lock_path = path.with_name(f"{path.name}.lock")
+            store = self.StateStore()
+
+            self.state_module.StateStore._write_lock_file(
+                lock_path,
+                path,
+                pid=424242,
+                created_at="2000-01-01T00:00:00Z",
+            )
+            with mock.patch.object(
+                self.state_module.StateStore,
+                "_pid_exists",
+                return_value=True,
+            ):
+                self.assertFalse(
+                    store.remove_stale_lock(path, stale_after_seconds=1)
+                )
+            self.assertTrue(lock_path.exists())
+
+            self.state_module.StateStore._write_lock_file(
+                lock_path,
+                path,
+                pid=424242,
+                created_at="2999-01-01T00:00:00Z",
+            )
+            with mock.patch.object(
+                self.state_module.StateStore,
+                "_pid_exists",
+                return_value=False,
+            ):
+                self.assertFalse(
+                    store.remove_stale_lock(path, stale_after_seconds=1)
+                )
+            self.assertTrue(lock_path.exists())
+
+            self.state_module.StateStore._write_lock_file(
+                lock_path,
+                path,
+                pid=424242,
+                created_at="2000-01-01T00:00:00Z",
+            )
+            with mock.patch.object(
+                self.state_module.StateStore,
+                "_pid_exists",
+                return_value=False,
+            ):
+                self.assertTrue(
+                    store.remove_stale_lock(path, stale_after_seconds=1)
+                )
+            self.assertFalse(lock_path.exists())
+
+    def test_remove_stale_lock_rejects_negative_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "state.json"
+            with self.assertRaisesRegex(ValueError, "stale_after_seconds"):
+                self.StateStore().remove_stale_lock(
+                    path,
+                    stale_after_seconds=-1,
+                )
 
     def test_unit_of_work_recovers_after_partial_apply(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -94,6 +94,17 @@ def _archive_error_message(task_name: str, error: TaskArchiveError) -> str:
     return f"Failed to archive task: {error.detail}"
 
 
+def _print_rollback_issues(error: TaskArchiveError) -> None:
+    if not error.rollback_issues:
+        return
+    print("Rollback issues:", file=sys.stderr)
+    for issue in error.rollback_issues:
+        print(
+            f"- {issue.stage}: {issue.path} ? {issue.detail}",
+            file=sys.stderr,
+        )
+
+
 def _archive_task(repo_root, task_name: str, task_dir):
     try:
         return TaskArchiveService(repo_root).archive(
@@ -103,6 +114,7 @@ def _archive_task(repo_root, task_name: str, task_dir):
     except TaskArchiveError as error:
         message = _archive_error_message(task_name, error)
         print(colored(f"Error: {message}", Colors.RED), file=sys.stderr)
+        _print_rollback_issues(error)
         return None
 
 

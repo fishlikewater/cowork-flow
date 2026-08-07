@@ -101,6 +101,43 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             self.assertEqual(baseline, head)
             self.assertNotIn("Auto-committed", stderr.getvalue())
 
+    def test_task_archive_error_renders_primary_and_rollback_issues(self) -> None:
+        archive_commands = importlib.import_module(
+            "adapters.cli.task_archive_commands"
+        )
+        archive_module = importlib.import_module("services.task_archive")
+        error = archive_module.TaskArchiveError(
+            "TASK-ARCHIVE-FINALIZE-001",
+            Path("archive/task"),
+            "archive finalizer failed",
+            rollback_issues=(
+                archive_module.RollbackIssue(
+                    "context_restore",
+                    Path("active/task/implement.jsonl"),
+                    "context restore denied",
+                ),
+            ),
+        )
+
+        with patch.object(
+            archive_commands.TaskArchiveService,
+            "archive",
+            side_effect=error,
+        ), contextlib.redirect_stderr(io.StringIO()) as stderr:
+            result = archive_commands._archive_task(
+                Path("repo"),
+                "05-19-demo",
+                Path("repo/.cowork-flow/tasks/05-19-demo"),
+            )
+
+        rendered = stderr.getvalue()
+        self.assertIsNone(result)
+        self.assertIn("archive finalizer failed", rendered)
+        self.assertIn("Rollback issues:", rendered)
+        self.assertIn("context_restore", rendered)
+        self.assertIn("active/task/implement.jsonl", rendered.replace("\\", "/"))
+        self.assertIn("context restore denied", rendered)
+
     def test_task_archive_rejects_removed_no_commit_flag(self) -> None:
         with patch.object(sys, "argv", ["task.py", "archive", "05-19-demo", "--no-commit"]):
             with contextlib.redirect_stderr(io.StringIO()) as stderr:
