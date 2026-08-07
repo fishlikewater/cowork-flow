@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -18,6 +19,7 @@ class TaskArchiveServiceTest(unittest.TestCase):
         self.addCleanup(self._cleanup_imports)
         archive_module = importlib.import_module("services.task_archive")
         self.TaskArchiveError = archive_module.TaskArchiveError
+        self.archive_module = archive_module
         self.TaskArchiveService = archive_module.TaskArchiveService
 
     def _cleanup_imports(self) -> None:
@@ -282,6 +284,161 @@ class TaskArchiveServiceTest(unittest.TestCase):
             self.assertTrue(task_dir.is_dir())
             self.assertFalse(destination.exists())
             self.assertEqual(original, context_file.read_bytes())
+
+    def test_archive_error_keeps_primary_failure_with_relationship_rollback_issue(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            parent = self._write_task(
+                tasks_dir,
+                "07-10-parent",
+                {"status": "in_progress", "children": ["07-10-demo"]},
+            )
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {"status": "completed", "parent": "07-10-parent"},
+            )
+            service = self.TaskArchiveService(root)
+            real_replace = service.repository.replace
+
+            def failing_replace(task: Path, data: dict, **kwargs: object) -> dict:
+                if Path(task) == parent:
+                    raise self.archive_module.TaskRepositoryError(
+                        "TASK-SAVE-001",
+                        parent / "task.json",
+                        "relationship restore denied",
+                    )
+                return real_replace(task, data, **kwargs)
+
+            service.repository.replace = failing_replace
+            with self.assertRaises(self.TaskArchiveError) as raised:
+                service.archive(
+                    task_dir,
+                    archived_at="2026-07-10",
+                    finalize=lambda: False,
+                )
+
+            self.assertEqual("TASK-ARCHIVE-FINALIZE-001", raised.exception.code)
+            self.assertEqual("archive finalizer failed", raised.exception.detail)
+            self.assertEqual(1, len(raised.exception.rollback_issues))
+            issue = raised.exception.rollback_issues[0]
+            self.assertEqual("relationship_restore", issue.stage)
+            self.assertEqual(parent / "task.json", issue.path)
+            self.assertIn("relationship restore denied", issue.detail)
+
+    def test_archive_error_reports_directory_restore_rollback_issue(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {"status": "completed"},
+            )
+            archive_utils = importlib.import_module("infra.archive_utils")
+            real_archive = self.archive_module.archive_directory_resumable
+            calls = 0
+
+            def archive_then_fail_restore(source: Path, destination: Path):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    return archive_utils.ArchiveResult(
+                        "failed",
+                        destination,
+                        "directory restore denied",
+                    )
+                return real_archive(source, destination)
+
+            with mock.patch.object(
+                self.archive_module,
+                "archive_directory_resumable",
+                side_effect=archive_then_fail_restore,
+            ):
+                with self.assertRaises(self.TaskArchiveError) as raised:
+                    self.TaskArchiveService(root).archive(
+                        task_dir,
+                        archived_at="2026-07-10",
+                        finalize=lambda: False,
+                    )
+
+            self.assertEqual("TASK-ARCHIVE-FINALIZE-001", raised.exception.code)
+            self.assertEqual(1, len(raised.exception.rollback_issues))
+            issue = raised.exception.rollback_issues[0]
+            self.assertEqual("directory_restore", issue.stage)
+            self.assertIn("directory restore denied", issue.detail)
+
+    def test_archive_error_reports_context_restore_rollback_issue(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {"status": "completed"},
+            )
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": ".cowork-flow/tasks/07-10-demo"}\n',
+                encoding="utf-8",
+            )
+            real_write_bytes = Path.write_bytes
+
+            def failing_write_bytes(path: Path, data: bytes) -> int:
+                if path.name == "implement.jsonl" and path.parent == task_dir:
+                    raise OSError("context restore denied")
+                return real_write_bytes(path, data)
+
+            with mock.patch.object(Path, "write_bytes", failing_write_bytes):
+                with self.assertRaises(self.TaskArchiveError) as raised:
+                    self.TaskArchiveService(root).archive(
+                        task_dir,
+                        archived_at="2026-07-10",
+                        finalize=lambda: False,
+                    )
+
+            self.assertEqual("TASK-ARCHIVE-FINALIZE-001", raised.exception.code)
+            self.assertEqual(1, len(raised.exception.rollback_issues))
+            issue = raised.exception.rollback_issues[0]
+            self.assertEqual("context_restore", issue.stage)
+            self.assertEqual(task_dir / "implement.jsonl", issue.path)
+            self.assertIn("context restore denied", issue.detail)
+
+    def test_archive_error_reports_task_json_restore_rollback_issue(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {"status": "completed"},
+            )
+            service = self.TaskArchiveService(root)
+            real_replace = service.repository.replace
+
+            def failing_replace(task: Path, data: dict, **kwargs: object) -> dict:
+                if Path(task) == task_dir:
+                    raise RuntimeError("task json restore denied")
+                return real_replace(task, data, **kwargs)
+
+            service.repository.replace = failing_replace
+            with self.assertRaises(self.TaskArchiveError) as raised:
+                service.archive(
+                    task_dir,
+                    archived_at="2026-07-10",
+                    finalize=lambda: False,
+                )
+
+            self.assertEqual("TASK-ARCHIVE-FINALIZE-001", raised.exception.code)
+            self.assertEqual(1, len(raised.exception.rollback_issues))
+            issue = raised.exception.rollback_issues[0]
+            self.assertEqual("task_json_restore", issue.stage)
+            self.assertEqual(task_dir / "task.json", issue.path)
+            self.assertIn("task json restore denied", issue.detail)
 
 
 if __name__ == "__main__":

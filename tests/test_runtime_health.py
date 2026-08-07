@@ -7,6 +7,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -439,6 +440,98 @@ class RuntimeHealthTest(unittest.TestCase):
                 if not issue["hint"].startswith("./.cowork-flow/run ")
             ],
         )
+
+    def test_state_recovery_reports_locks_and_pending_operations_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            runtime = root / ".cowork-flow" / ".runtime"
+            target = runtime / "sessions" / "main.json"
+            lock_path = target.with_name(f"{target.name}.lock")
+            lock_path.parent.mkdir(parents=True)
+            operation_path = runtime / "operations" / "op-demo.json"
+            operation_path.parent.mkdir(parents=True)
+            operation_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "operation_id": "op-demo",
+                        "kind": "runtime-context-bind",
+                        "phase": "prepared",
+                        "participants": [{"path": str(target)}],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            conflict_path = runtime / "operations" / "op-conflict.json"
+            conflict_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "operation_id": "op-conflict",
+                        "kind": "task-lifecycle-start",
+                        "phase": "conflicted",
+                        "participants": [{"path": str(target)}],
+                        "error": {
+                            "code": "STATE-CONFLICT-001",
+                            "path": str(target),
+                            "detail": "expected revision 1, found 2",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            self.doctor.StateStore._write_lock_file(
+                lock_path,
+                target,
+                pid=424242,
+                created_at="2000-01-01T00:00:00Z",
+            )
+
+            with mock.patch.object(
+                self.doctor.StateStore,
+                "_pid_exists",
+                return_value=False,
+            ):
+                issues = self.doctor.check_state_recovery(root)
+
+            lock_issues = [issue for issue in issues if issue["kind"] == "state_lock"]
+            operation_issues = [
+                issue for issue in issues if issue["kind"] == "pending_operation"
+            ]
+            self.assertEqual(1, len(lock_issues), issues)
+            self.assertEqual(2, len(operation_issues), issues)
+            lock_issue = lock_issues[0]
+            self.assertEqual("STATE-RECOVERY-LOCK-RECOVERABLE", lock_issue["code"])
+            self.assertEqual("recoverable", lock_issue["status"])
+            self.assertEqual("missing", lock_issue["ownerAvailability"])
+            self.assertEqual(str(target), lock_issue["target"])
+            self.assertIn("ageSeconds", lock_issue)
+            self.assertIn("remove_stale_lock", lock_issue["commandHint"])
+            self.assertTrue(lock_path.exists())
+            operation_issue = next(
+                issue
+                for issue in operation_issues
+                if issue["operationId"] == "op-demo"
+            )
+            self.assertEqual("STATE-RECOVERY-PENDING-OPERATION", operation_issue["code"])
+            self.assertEqual("prepared", operation_issue["phase"])
+            self.assertIn("UnitOfWork.recover_all", operation_issue["commandHint"])
+            conflict_issue = next(
+                issue
+                for issue in operation_issues
+                if issue["operationId"] == "op-conflict"
+            )
+            self.assertEqual(
+                "STATE-RECOVERY-CONFLICTED-OPERATION",
+                conflict_issue["code"],
+            )
+            self.assertEqual("conflicted", conflict_issue["phase"])
+            self.assertIn("STATE-CONFLICT-001", conflict_issue["message"])
+            self.assertNotIn("UnitOfWork.recover_all", conflict_issue["commandHint"])
 
 
 if __name__ == "__main__":
