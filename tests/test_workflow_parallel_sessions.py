@@ -358,7 +358,23 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("red-green-refactor", tdd_text)
+        self.assertIn("Red test before implementation", tdd_text)
+        self.assertIn("Do not modify production code before the red test", tdd_text)
+        self.assertIn("Tests added after implementation are regression tests", tdd_text)
+        self.assertIn("If red-first is skipped", tdd_text)
         self.assertIn("Do not write TDD evidence objects", tdd_text)
+
+        manifest = json.loads((
+            ROOT
+            / "template"
+            / "skills"
+            / "test-first"
+            / "manifest.json"
+        ).read_text(encoding="utf-8"))
+        self.assertNotIn("actions", manifest)
+        self.assertNotIn("commands", manifest)
+        self.assertIn("context-only red-green guide", manifest["context"][0]["reason"])
+
         for forbidden in (
             "redExitCode",
             "greenExitCode",
