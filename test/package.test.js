@@ -108,9 +108,41 @@ test('package metadata exposes release script and synchronized lockfile version'
 
   assert.equal(packageInfo.scripts.release, 'sh scripts/release.sh');
   assert.equal(packageInfo.scripts['release:check'], 'npm run test:all');
+  assert.equal(packageInfo.scripts['test:windows:core'], 'npm run test:fast && npm run test:integration && npm run pack:check && npm run test:template');
   assert.match(packageInfo.scripts['test:all'], /npm run test:node:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run test:template:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
   assert.equal(packageLock.version, packageInfo.version);
   assert.equal(packageLock.packages[''].version, packageInfo.version);
+});
+
+
+test('CI and publish workflows enforce Windows release confidence gates', async () => {
+  const ci = await readFile(join(packageRoot, '.github/workflows/ci.yml'), 'utf8');
+  const publish = (await readFile(join(packageRoot, '.github/workflows/publish.yml'), 'utf8'))
+    .replaceAll('\r\n', '\n');
+  const jobBlock = (jobName) => {
+    const marker = `  ${jobName}:\n`;
+    const start = publish.indexOf(marker);
+    assert.notEqual(start, -1, `missing workflow job: ${jobName}`);
+    const bodyStart = start + marker.length;
+    const remainder = publish.slice(bodyStart);
+    const nextJob = remainder.search(/^  [A-Za-z0-9_-]+:\n/m);
+    return nextJob === -1 ? remainder : remainder.slice(0, nextJob);
+  };
+
+  assert.match(ci, /windows-core:/);
+  assert.match(ci, /runs-on: windows-latest/);
+  assert.match(ci, /run: npm run test:windows:core/);
+
+  const ubuntuVerify = jobBlock('verify-ubuntu');
+  const windowsVerify = jobBlock('verify-windows');
+  const publishJob = jobBlock('publish');
+  assert.match(ubuntuVerify, /run: npm run release:check/);
+  assert.match(windowsVerify, /run: npm run release:check/);
+  assert.doesNotMatch(ubuntuVerify, /NPM_TOKEN/);
+  assert.doesNotMatch(windowsVerify, /NPM_TOKEN/);
+  assert.match(publishJob, /needs: \[verify-ubuntu, verify-windows\]/);
+  assert.match(publishJob, /NPM_TOKEN/);
+  assert.equal((publish.match(/NPM_TOKEN/g) ?? []).length, 1);
 });

@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path';
 
 export const CORE_TEMPLATE_TEST_MODULES = Object.freeze([
   'tests.test_state_store',
+  'tests.test_python_runner',
+  'tests.test_runtime_health',
   'tests.test_state_migrations',
   'tests.test_task_creation',
   'tests.test_task_tree',
@@ -120,11 +122,12 @@ export async function runTemplateTests({
   runner,
   tempRoot,
   spawnImpl = defaultSpawn,
+  rmImpl = rmSync,
   platform = process.platform,
   env = process.env,
   stderr = process.stderr
 }) {
-  rmSync(tempRoot, { recursive: true, force: true });
+  rmImpl(tempRoot, { recursive: true, force: true });
   mkdirSync(tempRoot, { recursive: true });
 
   for (let iteration = 1; iteration <= repeat; iteration += 1) {
@@ -132,7 +135,7 @@ export async function runTemplateTests({
       tempRoot,
       `${normalizedSeed(seed)}-${String(iteration).padStart(2, '0')}`
     );
-    rmSync(tempDir, { recursive: true, force: true });
+    rmImpl(tempDir, { recursive: true, force: true });
     mkdirSync(tempDir, { recursive: true });
     const code = await runIteration({
       runner,
@@ -153,9 +156,25 @@ export async function runTemplateTests({
       );
       return code;
     }
-    rmSync(tempDir, { recursive: true, force: true });
+    try {
+      rmImpl(tempDir, { recursive: true, force: true });
+    } catch (error) {
+      stderr.write(
+        `[template-tests] suite=${suite} iteration=${iteration}/${repeat} seed=${seed} `
+        + `exit=1 temp=${tempDir} cleanup=${error.message}\n`
+      );
+      return 1;
+    }
   }
 
-  rmSync(tempRoot, { recursive: true, force: true });
+  try {
+    rmImpl(tempRoot, { recursive: true, force: true });
+  } catch (error) {
+    stderr.write(
+      `[template-tests] suite=${suite} iteration=${repeat}/${repeat} seed=${seed} `
+      + `exit=1 temp=${tempRoot} cleanup=${error.message}\n`
+    );
+    return 1;
+  }
   return 0;
 }

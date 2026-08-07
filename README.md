@@ -265,6 +265,7 @@ npm run test:fast          # 快速 Node 测试，等价于 npm test
 npm run test:integration   # init/sync 关键集成路径
 npm run test:node:full     # 完整 Node 测试
 npm run test:template      # 核心模板集成测试
+npm run test:windows:core  # Windows core 发布信心门禁（Node/Python/init/sync/pack/模板）
 npm run test:template:full # 完整模板 Python discovery
 npm run test:all           # 发布前全量测试与打包检查
 npm run release:check     # 发布信心门禁；当前等价于 test:all
@@ -285,7 +286,7 @@ npm run release -- minor # minor
 
 - 发布说明维护在 `CHANGELOG.md`；发布前更新当前版本段落，并保留 `release:check` 和 `git diff --check` 证据。
 
-CI 需要 `NPM_TOKEN` secret。
+CI 的 PR 同时运行 Ubuntu core 与 Windows core；发布工作流要求 Ubuntu 与 Windows full verification 均成功后才执行 publish。测试 job 不接触 `NPM_TOKEN`，仅 publish job 使用该 secret。
 
 Windows 上发布前使用 `run.cmd` 入口验证；POSIX shell 专属 release 用例在没有 shell 的 Windows 环境会明确跳过，不得记录为通过。`release:check` 会保留这些 skip 报告，不把 skip 伪装成 pass。
 
