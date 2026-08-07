@@ -254,13 +254,13 @@ class RuntimeHealthTest(unittest.TestCase):
             )
             live.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, live)
+            payload = json.loads(live.read_text(encoding="utf-8"))
+            payload["schemaVersion"] = payload.get("schemaVersion", 1) + 1
             live.write_text(
-                live.read_text(encoding="utf-8").replace(
-                    "CONTEXT_SYNC_V1",
-                    "CONTEXT_SYNC_DRIFT",
-                ),
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
+            self.assertNotEqual(source.read_bytes(), live.read_bytes())
 
             errors = self.doctor.check_distribution(root)
 
