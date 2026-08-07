@@ -373,6 +373,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         ).read_text(encoding="utf-8"))
         self.assertNotIn("actions", manifest)
         self.assertNotIn("commands", manifest)
+        self.assertEqual(["*"], manifest["context"][0]["devTypes"])
+        self.assertNotIn("pathPatterns", manifest["context"][0])
         self.assertIn("context-only red-green guide", manifest["context"][0]["reason"])
 
         for forbidden in (

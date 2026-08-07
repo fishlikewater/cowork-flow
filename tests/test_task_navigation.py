@@ -170,6 +170,65 @@ class TaskNavigationTest(FlowScriptTestCase):
             )
 
 
+    def test_cmd_next_json_implement_action_exposes_read_first_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            plan_file = root / ".cowork-flow" / "plans" / "demo.md"
+            task_dir.mkdir(parents=True)
+            plan_file.parent.mkdir(parents=True)
+            plan_file.write_text("# Plan\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {
+                        "status": "in_progress",
+                        "meta": {"planFile": ".cowork-flow/plans/demo.md"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": ".agents/skills/test-first/SKILL.md", "reason": "red-green guide"}\n'
+                '{"file": "src/app.py", "reason": "implementation target"}\n',
+                encoding="utf-8",
+            )
+            self._write_session_task(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(
+                                dir=None,
+                                json=True,
+                                intent=None,
+                            )
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            read_first = payload["readFirst"]
+            read_first_files = [entry["file"] for entry in read_first]
+            self.assertEqual(0, result)
+            self.assertEqual("implement_change", payload["nextAction"])
+            self.assertEqual("in_progress", payload["status"])
+            self.assertIn(
+                ".cowork-flow/tasks/05-19-demo/decision-anchor.md",
+                read_first_files,
+            )
+            self.assertIn(".cowork-flow/plans/demo.md", read_first_files)
+            self.assertIn(
+                ".cowork-flow/tasks/05-19-demo/implement.jsonl",
+                read_first_files,
+            )
+            self.assertIn(".agents/skills/test-first/SKILL.md", read_first_files)
+            self.assertIn("src/app.py", read_first_files)
+
+
     def test_task_next_run_starts_ready_planning_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

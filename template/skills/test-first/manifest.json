@@ -8,13 +8,7 @@
         "check"
       ],
       "devTypes": [
-        "test"
-      ],
-      "pathPatterns": [
-        "test/**",
-        "tests/**",
-        "**/*.test.js",
-        "**/*_test.py"
+        "*"
       ],
       "reason": "Auto-routed context-only red-green guide"
     }
