@@ -43,6 +43,37 @@ class TaskContextServiceTest(unittest.TestCase):
         ):
             sys.modules.pop(module_name, None)
 
+    def test_test_first_context_is_routed_without_lifecycle_ownership(self) -> None:
+        context_discovery = importlib.import_module("services.context_discovery")
+
+        implement_files = {
+            entry["file"]
+            for entry in context_discovery.get_domain_skill_context(
+                ROOT,
+                dev_type="test",
+            )
+        }
+        check_files = {entry["file"] for entry in self.get_check_context(ROOT, "test")}
+        path_matched_files = {
+            entry["file"]
+            for entry in context_discovery.get_domain_skill_context(
+                ROOT,
+                paths=("tests/test_demo.py",),
+            )
+        }
+        backend_files = {
+            entry["file"]
+            for entry in context_discovery.get_domain_skill_context(
+                ROOT,
+                dev_type="backend",
+            )
+        }
+
+        self.assertIn(".agents/skills/test-first/SKILL.md", implement_files)
+        self.assertIn(".agents/skills/test-first/SKILL.md", check_files)
+        self.assertIn(".agents/skills/test-first/SKILL.md", path_matched_files)
+        self.assertNotIn(".agents/skills/test-first/SKILL.md", backend_files)
+
     @staticmethod
     def _prepare_root(root: Path) -> Path:
         task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"

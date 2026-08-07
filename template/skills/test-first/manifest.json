@@ -3,10 +3,20 @@
   "skill": "test-first",
   "context": [
     {
-      "contexts": ["implement", "check"],
-      "devTypes": ["test"],
-      "pathPatterns": ["test/**", "tests/**", "**/*.test.js", "**/*_test.py"],
-      "reason": "Auto-routed Test First guide"
+      "contexts": [
+        "implement",
+        "check"
+      ],
+      "devTypes": [
+        "test"
+      ],
+      "pathPatterns": [
+        "test/**",
+        "tests/**",
+        "**/*.test.js",
+        "**/*_test.py"
+      ],
+      "reason": "Auto-routed context-only red-green guide"
     }
   ]
 }
