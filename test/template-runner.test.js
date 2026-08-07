@@ -60,6 +60,12 @@ test('template test temp roots are unique and outside the project tree', (t) => 
   assert.notEqual(first, second);
 });
 
+test('core template suite covers Windows runner, StateStore, and clean-checkout health', () => {
+  assert.equal(CORE_TEMPLATE_TEST_MODULES.includes('tests.test_state_store'), true);
+  assert.equal(CORE_TEMPLATE_TEST_MODULES.includes('tests.test_python_runner'), true);
+  assert.equal(CORE_TEMPLATE_TEST_MODULES.includes('tests.test_runtime_health'), true);
+});
+
 test('core template suite runs a stable high-signal module list', async (t) => {
   const root = await createTempDir(t);
   const calls = [];
@@ -122,4 +128,74 @@ test('full template suite retains unittest discovery', async (t) => {
     calls[0].args,
     ['python', '-m', 'unittest', 'discover', 'tests', '-v']
   );
+});
+
+test('iteration cleanup failure returns 1 with actionable diagnostics', async (t) => {
+  const root = await createTempDir(t);
+  const tempRoot = join(root, 'template-tests');
+  const stderr = [];
+  let cleanupCalls = 0;
+  const rmImpl = (path, options) => {
+    cleanupCalls += 1;
+    if (cleanupCalls === 3) {
+      throw new Error('iteration cleanup blocked');
+    }
+    rmSync(path, options);
+  };
+  const spawnImpl = () => {
+    const child = new EventEmitter();
+    queueMicrotask(() => child.emit('close', 0));
+    return child;
+  };
+
+  const exitCode = await runTemplateTests({
+    repeat: 1,
+    seed: 'cleanup-seed',
+    suite: 'core',
+    runner: join(root, 'run.cmd'),
+    tempRoot,
+    spawnImpl,
+    rmImpl,
+    platform: 'win32',
+    stderr: { write: (message) => stderr.push(message) }
+  });
+
+  assert.equal(exitCode, 1);
+  assert.match(stderr.join(''), /suite=core iteration=1\/1 seed=cleanup-seed exit=1/);
+  assert.match(stderr.join(''), /temp=.*cleanup-seed-01 cleanup=iteration cleanup blocked/);
+});
+
+test('final temp root cleanup failure returns 1 with actionable diagnostics', async (t) => {
+  const root = await createTempDir(t);
+  const tempRoot = join(root, 'template-tests');
+  const stderr = [];
+  let cleanupCalls = 0;
+  const rmImpl = (path, options) => {
+    cleanupCalls += 1;
+    if (cleanupCalls === 4) {
+      throw new Error('root cleanup blocked');
+    }
+    rmSync(path, options);
+  };
+  const spawnImpl = () => {
+    const child = new EventEmitter();
+    queueMicrotask(() => child.emit('close', 0));
+    return child;
+  };
+
+  const exitCode = await runTemplateTests({
+    repeat: 1,
+    seed: 'root-cleanup',
+    suite: 'full',
+    runner: join(root, 'run.cmd'),
+    tempRoot,
+    spawnImpl,
+    rmImpl,
+    platform: 'win32',
+    stderr: { write: (message) => stderr.push(message) }
+  });
+
+  assert.equal(exitCode, 1);
+  assert.match(stderr.join(''), /suite=full iteration=1\/1 seed=root-cleanup exit=1/);
+  assert.match(stderr.join(''), /temp=.*template-tests cleanup=root cleanup blocked/);
 });

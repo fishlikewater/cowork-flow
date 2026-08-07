@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "test": "npm run test:fast",
-    "test:fast": "node --test test/asset-plan.test.js test/cli.test.js test/host-assets.test.js test/opencode-plugin.test.js test/template-runner.test.js test/update.test.js test/zcode-plugin.test.js",
+    "test:fast": "node --test test/asset-plan.test.js test/cli.test.js test/host-assets.test.js test/opencode-plugin.test.js test/package.test.js test/template-runner.test.js test/update.test.js test/zcode-plugin.test.js",
     "test:integration": "node --test --test-name-pattern=\"^(init copies the template into a new target directory|sync updates safe template files and preserves protected files)$\" test/init.test.js test/sync.test.js",
     "test:node:full": "node --test",
     "test:template": "node scripts/run-template-tests.js --suite core",
@@ -28,7 +28,8 @@
     "source:refresh": "node bin/cowork-flow.js source-refresh",
     "test:all": "npm run test:node:full && npm run test:template:full && npm run pack:check",
     "release:check": "npm run test:all",
-    "release": "sh scripts/release.sh"
+    "release": "sh scripts/release.sh",
+    "test:windows:core": "npm run test:fast && npm run test:integration && npm run pack:check && npm run test:template"
   },
   "engines": {
     "node": ">=20"
