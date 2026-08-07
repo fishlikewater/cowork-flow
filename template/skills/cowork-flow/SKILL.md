@@ -41,5 +41,8 @@ Use the `task next` route payload and its `activatedSkill`/`recommendedSkill` fi
 Select at most one public Skill. If the payload has no Skill, follow the allowed
 operation directly or report the blocker; never guess a second workflow entry.
 
+Before editing for implement, read `implement.jsonl` and every listed `file` entry.
+If `test-first` is listed, read it and write the red test before production code.
+
 Public Skills carry workflow guidance. Runtime Gates carry hard enforcement.
 Do not recreate an internal protocol layer or another process authority.

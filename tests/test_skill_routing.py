@@ -225,6 +225,15 @@ class SkillRoutingTest(unittest.TestCase):
         self.assertIsNone(route["recommendedSkill"])
         self.assertIsNone(route["diagnosticsCommand"])
 
+    def test_cowork_flow_skill_requires_implement_context_before_edits(self) -> None:
+        text = (TEMPLATE / "skills" / "cowork-flow" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Before editing for implement", text)
+        self.assertIn("read `implement.jsonl` and every listed `file` entry", text)
+        self.assertIn("If `test-first` is listed", text)
+
     def test_review_actions_expose_advisory_diagnostics_command(self) -> None:
         navigation = self._navigation()
 

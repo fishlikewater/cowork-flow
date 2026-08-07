@@ -165,6 +165,76 @@ def _attach_recovery(payload: dict[str, object], repo_root: Path) -> dict[str, o
     return payload
 
 
+def _add_read_first_entry(
+    entries: list[dict[str, str]],
+    seen: set[str],
+    file_path: str,
+    reason: str,
+) -> None:
+    normalized = file_path.replace("\\", "/").strip()
+    if not normalized or normalized in seen:
+        return
+    seen.add(normalized)
+    entry = {"file": normalized}
+    if reason.strip():
+        entry["reason"] = reason.strip()
+    entries.append(entry)
+
+
+def _attach_implement_read_first(
+    payload: dict[str, object],
+    repo_root: Path,
+    task_path: str | None,
+) -> dict[str, object]:
+    action = payload.get("action")
+    if not isinstance(action, dict) or action.get("id") != "implement_change":
+        return payload
+    if not task_path:
+        return payload
+
+    task_dir = repo_root / task_path
+    if not task_dir.is_dir():
+        return payload
+
+    entries: list[dict[str, str]] = []
+    seen: set[str] = set()
+    task_prefix = task_path.rstrip("/")
+    _add_read_first_entry(
+        entries,
+        seen,
+        f"{task_prefix}/decision-anchor.md",
+        "Task decision anchor",
+    )
+    try:
+        task_data = TaskRepository(repo_root).load(task_dir)
+    except TaskRepositoryError:
+        task_data = {}
+    meta = task_data.get("meta") if isinstance(task_data, dict) else None
+    plan_file = meta.get("planFile") if isinstance(meta, dict) else None
+    if isinstance(plan_file, str):
+        _add_read_first_entry(entries, seen, plan_file, "Linked implementation plan")
+    _add_read_first_entry(
+        entries,
+        seen,
+        f"{task_prefix}/implement.jsonl",
+        "Implementation context index",
+    )
+    for context_entry in TaskContextService(repo_root).entries(task_dir, "implement"):
+        file_value = context_entry.get("file")
+        if not isinstance(file_value, str):
+            continue
+        reason = context_entry.get("reason")
+        _add_read_first_entry(
+            entries,
+            seen,
+            file_value,
+            reason if isinstance(reason, str) else "Implementation context",
+        )
+    if entries:
+        payload["readFirst"] = entries
+    return payload
+
+
 def _print_recovery(payload: dict[str, object]) -> None:
     recovery = payload.get("recovery")
     if not isinstance(recovery, dict):
@@ -206,20 +276,24 @@ def build_navigation_payload(
     blockers: list[str],
     active_target: bool,
     task_path: str | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, object]:
     intent = getattr(args, "intent", None) or _default_intent(
         status,
         blockers,
         active_target,
     )
-    return route_request(
+    root = repo_root if repo_root is not None else get_repo_root()
+    payload = route_request(
         status=status,
         intent=intent,
         context=_routing_context(args),
         blockers=blockers,
         active_target=active_target,
         task_path=task_path,
+        repo_root=root,
     )
+    return _attach_implement_read_first(payload, root, task_path)
 
 
 def _print_json_route(
@@ -229,6 +303,7 @@ def _print_json_route(
     blockers: list[str],
     active_target: bool,
     task_path: str | None = None,
+    repo_root: Path | None = None,
 ) -> None:
     payload = build_navigation_payload(
         args=args,
@@ -236,6 +311,7 @@ def _print_json_route(
         blockers=blockers,
         active_target=active_target,
         task_path=task_path,
+        repo_root=repo_root,
     )
     print(json.dumps(payload, ensure_ascii=False, sort_keys=False))
 
@@ -274,6 +350,7 @@ def _navigation_target(args, repo_root: Path, structured: bool):
             blockers=[],
             active_target=False,
             task_path=None,
+            repo_root=repo_root,
         )
         _attach_recovery(payload, repo_root)
         print(json.dumps(payload, ensure_ascii=False, sort_keys=False))
@@ -286,6 +363,7 @@ def _navigation_target(args, repo_root: Path, structured: bool):
             task_path=None,
             blockers=[],
             active_target=False,
+            repo_root=repo_root,
         )
         _attach_recovery(payload, repo_root)
         _print_text_payload(payload)
@@ -302,6 +380,7 @@ def _print_stale_route(args, task_path: str, source: str, active_target: bool) -
             blockers=blockers,
             active_target=active_target,
             task_path=task_path,
+            repo_root=get_repo_root(),
         )
         return
     print("Status: stale")
@@ -332,6 +411,7 @@ def _print_text_route(
         task_path=task_path,
         blockers=blockers,
         active_target=active_target,
+        repo_root=get_repo_root(),
     )
     _print_text_payload(payload)
 
@@ -361,6 +441,7 @@ def cmd_next(args) -> int:
             blockers=blockers,
             active_target=active_target,
             task_path=task_path,
+            repo_root=repo_root,
         )
         return 0
 

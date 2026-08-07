@@ -46,14 +46,26 @@ class TaskContextServiceTest(unittest.TestCase):
     def test_test_first_context_is_routed_without_lifecycle_ownership(self) -> None:
         context_discovery = importlib.import_module("services.context_discovery")
 
-        implement_files = {
-            entry["file"]
-            for entry in context_discovery.get_domain_skill_context(
-                ROOT,
-                dev_type="test",
-            )
-        }
-        check_files = {entry["file"] for entry in self.get_check_context(ROOT, "test")}
+        for dev_type in (None, "backend"):
+            with self.subTest(dev_type=dev_type):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    task_dir = Path(temp_dir) / "task"
+                    task_dir.mkdir()
+                    service = self.TaskContextService(ROOT)
+
+                    service.initialize(task_dir, dev_type)
+
+                    implement_files = {
+                        entry["file"]
+                        for entry in service.entries(task_dir, "implement")
+                    }
+                    check_files = {
+                        entry["file"] for entry in service.entries(task_dir, "check")
+                    }
+
+                self.assertIn(".agents/skills/test-first/SKILL.md", implement_files)
+                self.assertIn(".agents/skills/test-first/SKILL.md", check_files)
+
         path_matched_files = {
             entry["file"]
             for entry in context_discovery.get_domain_skill_context(
@@ -61,18 +73,8 @@ class TaskContextServiceTest(unittest.TestCase):
                 paths=("tests/test_demo.py",),
             )
         }
-        backend_files = {
-            entry["file"]
-            for entry in context_discovery.get_domain_skill_context(
-                ROOT,
-                dev_type="backend",
-            )
-        }
 
-        self.assertIn(".agents/skills/test-first/SKILL.md", implement_files)
-        self.assertIn(".agents/skills/test-first/SKILL.md", check_files)
-        self.assertIn(".agents/skills/test-first/SKILL.md", path_matched_files)
-        self.assertNotIn(".agents/skills/test-first/SKILL.md", backend_files)
+        self.assertNotIn(".agents/skills/test-first/SKILL.md", path_matched_files)
 
     @staticmethod
     def _prepare_root(root: Path) -> Path:
