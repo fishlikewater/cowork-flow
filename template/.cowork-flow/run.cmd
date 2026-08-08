@@ -1,8 +1,8 @@
 @echo off
 setlocal EnableExtensions
 
-set "MIN_PYTHON_LABEL=Python 3.9+"
-set "VERSION_CHECK=import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)"
+set "MIN_PYTHON_LABEL=Python 3.10+"
+set "VERSION_CHECK=import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"
 set "WORKFLOW_DIR=%~dp0"
 set "RUNNER_SCRIPT=%WORKFLOW_DIR%scripts\run.py"
 set "SELECTED_PYTHON="
@@ -46,7 +46,7 @@ if not errorlevel 1 (
 )
 
 echo Error: %ENV_NAME% does not point to a usable %MIN_PYTHON_LABEL% interpreter: %ENV_VALUE% 1>&2
-echo Set %ENV_NAME% to an executable Python 3.9+ interpreter path. 1>&2
+echo Set %ENV_NAME% to an executable Python 3.10+ interpreter path. 1>&2
 exit /b 127
 
 :select_python

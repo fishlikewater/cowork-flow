@@ -66,9 +66,9 @@ class ContextPathPolicyTest(unittest.TestCase):
             )
 
             self.assertEqual("src/future.py", planned)
-            self.assertEqual(root / "src" / "future.py", planned_path)
+            self.assertEqual((root / "src" / "future.py").resolve(), planned_path)
             self.assertEqual("docs/", directory)
-            self.assertEqual(root / "docs", directory_path)
+            self.assertEqual((root / "docs").resolve(), directory_path)
 
     def test_file_scope_reuses_path_policy(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

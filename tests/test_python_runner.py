@@ -95,7 +95,7 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertIn("python3", content)
         self.assertIn("python", content)
         self.assertIn("py -3", content)
-        self.assertIn("Python 3.9+", content)
+        self.assertIn("Python 3.10+", content)
         self.assertIn(r"scripts\run.py", content)
         self.assertNotIn("task.py", content)
         self.assertNotIn(":run_task", content)
@@ -190,7 +190,7 @@ class PythonRunnerTest(unittest.TestCase):
             result = self.run_with_fake_path(temp_dir, ["python", "-V"])
 
             self.assertEqual(127, result.returncode)
-            self.assertIn("Python 3.9+", result.stderr)
+            self.assertIn("Python 3.10+", result.stderr)
             self.assertIn("COWORK_FLOW_PYTHON", result.stderr)
 
     @POSIX_ONLY

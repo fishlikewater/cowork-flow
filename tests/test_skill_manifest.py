@@ -323,7 +323,7 @@ class SkillManifestTest(unittest.TestCase):
                 commands = self.module.skill_command_scripts(repo)
 
         self.assertEqual(
-            template_manifest.parent / "scripts" / "action.py",
+            (template_manifest.parent / "scripts" / "action.py").resolve(),
             commands["demo-command"],
         )
 
