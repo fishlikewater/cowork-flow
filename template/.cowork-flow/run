@@ -1,8 +1,8 @@
 #!/bin/sh
 set -u
 
-MIN_PYTHON_LABEL="Python 3.10+"
-VERSION_CHECK='import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'
+MIN_PYTHON_LABEL="Python 3.9+"
+VERSION_CHECK='import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'
 WORKFLOW_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd) || exit 1
 RUNNER_SCRIPT="$WORKFLOW_DIR/scripts/run.py"
 

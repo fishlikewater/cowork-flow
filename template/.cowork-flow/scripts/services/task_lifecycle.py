@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from infra.storage.unit_of_work import (
     FaultInjector,
@@ -91,7 +91,10 @@ class LifecycleResult:
     emitted_events: tuple[str, ...] = ()
 
 
-Preflight = Callable[[Path], Optional[LifecyclePreflightFailure | LifecyclePolicyFailure]]
+Preflight = Callable[
+    [Path],
+    Optional[Union[LifecyclePreflightFailure, LifecyclePolicyFailure]],
+]
 
 
 class TaskLifecycleService:
