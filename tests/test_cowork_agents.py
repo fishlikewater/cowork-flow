@@ -345,7 +345,9 @@ class CoworkAgentsTest(unittest.TestCase):
             ROOT / "template" / "skills" / "task-review" / "SKILL.md"
         ).read_text(encoding="utf-8")
         self.assertIn("review result", review_skill)
-        self.assertIn("not dynamic hard validators", review_skill)
+        self.assertIn("fix every violation before completion", review_skill)
+        self.assertNotIn("not dynamic hard validators", review_skill)
+        self.assertNotIn("needs_user_judgment", review_skill)
 
         for path in role_paths:
             text = path.read_text(encoding="utf-8")
