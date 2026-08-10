@@ -12,7 +12,7 @@ Use this Skill during the check phase, before the `task next --run` completion a
 - Review early enough that fixes are cheap; do not wait until archive/commit to discover blockers.
 - Review the current diff and exact task context, not broad conversation memory.
 - Separate machine-decidable lifecycle facts from human judgment: lifecycle blockers cover state/scope facts; review judgment explains spec, quality, and risk findings.
-- Treat backend/frontend natural-language markdown as user-defined review requirements, not dynamic hard validators.
+- User-defined spec markdown under `.cowork-flow/spec/backend/` and `.cowork-flow/spec/frontend/` is binding for the task: verify the current diff against every applicable requirement and fix every violation before completion. Never skip a spec file because nothing else enforces it, and never defer a violation to the user.
 - Prefer fresh verification from the current checkout over stale prior output.
 - Do not create task-local review artifact files. The review result and command output are the evidence.
 - Use advisory helper output only as review input; it must not become a second lifecycle gate.
@@ -28,7 +28,7 @@ Read only what is needed for the current task:
 2. The linked implementation plan, if present.
 3. The check context index (`<task>/check.jsonl`) and each referenced file, if present. Treat it as context only; do not write review conclusions or readiness evidence to it.
 4. Current `git diff` / `git status --short`.
-5. Relevant `.cowork-flow/spec/backend/` and `.cowork-flow/spec/frontend/` files selected by changed paths and task scope.
+5. Relevant `.cowork-flow/spec/backend/` and `.cowork-flow/spec/frontend/` files are mandatory review input, not optional references: the task context lists the spec files for the task's dev_type; read every listed file (start from `index.md`) plus any other file in those two directories that changed paths or task scope touch.
 6. Advisory facts from `review-check <task-dir> --json`, when useful.
 7. Lifecycle blocker output, if any, from `task next --json`, `task next <dir> --validate`, or `task next <dir> --run --intent review`.
 
@@ -37,7 +37,7 @@ Read only what is needed for the current task:
 - **Scope**: every changed file is planned or justified; no unrelated cleanup sneaks in.
 - **Behavior**: acceptance criteria are satisfied through observable behavior, not implementation-shaped assertions.
 - **Tests**: test intent is explicit; tests fail for meaningful regressions, reject shallow tests such as existence/mock/snapshot-only checks, and cover boundary/error paths when relevant.
-- **User specs**: every applicable backend/frontend requirement is marked `pass`, `finding`, `not_applicable`, or `needs_user_judgment`.
+- **User specs**: every applicable backend/frontend requirement is verified against the diff and marked `pass`, `finding`, or `not_applicable` with reason. Every `finding` is fixed during review; an unfixed spec violation blocks completion and is never accepted as-is or deferred to the user.
 - **Specs**: project specs are updated when behavior/contracts changed, or the review states why no spec update is needed.
 - **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against applicable user specs.
 - **Lifecycle blockers**: state/scope blockers are fixed before acceptance; review does not invent hard blockers for natural-language specs.
@@ -50,6 +50,7 @@ Read only what is needed for the current task:
 - `critical`: correctness, security, data loss, lifecycle bypass, or completion would be invalid. Blocks completion.
 - `important`: maintainability, missing meaningful tests, spec drift, or likely future bug. Fix before completion unless explicitly accepted.
 - `minor`: clarity or polish that does not invalidate completion. May be noted without blocking.
+- Violations of user-defined backend/frontend specs are not eligible for acceptance at any severity; they are fixed or block completion.
 
 ## Output
 

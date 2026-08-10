@@ -91,14 +91,23 @@ class SpecReviewContractTest(unittest.TestCase):
             "pass",
             "finding",
             "not_applicable",
-            "needs_user_judgment",
+            "mandatory review input",
+            "fix every violation before completion",
+            "never accepted as-is or deferred to the user",
+            "not eligible for acceptance",
             "user_spec_review",
             "lifecycle_check_review",
             "anti-self-proof",
             "anti-rationalization",
             "verification-before-completion",
         )
-        forbidden_markers = ("guides", ".cowork-flow/spec/guides/", "backend/frontend/guides")
+        forbidden_markers = (
+            "guides",
+            ".cowork-flow/spec/guides/",
+            "backend/frontend/guides",
+            "needs_user_judgment",
+            "not dynamic hard validators",
+        )
 
         self.assertEqual([], [marker for marker in required_markers if marker not in skill])
         self.assertEqual([], [marker for marker in forbidden_markers if marker in skill])
