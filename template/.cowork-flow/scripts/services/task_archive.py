@@ -19,6 +19,7 @@ from services.task_utils import find_task_by_name
 
 from kernel.task_state import DONE_STATUSES  # noqa: F401
 ArchiveFinalizer = Callable[[], bool]
+PLAN_SNAPSHOT_NAME = "plan.md"
 
 
 @dataclass(frozen=True)
@@ -177,6 +178,7 @@ class TaskArchiveService:
             )
             self._apply_relationship_updates(relationship_updates)
             self._normalize_context_paths(task_dir, destination)
+            self._snapshot_plan_file(destination, task_data)
             if finalize is not None and not finalize():
                 raise TaskArchiveError(
                     "TASK-ARCHIVE-FINALIZE-001",
@@ -266,6 +268,47 @@ class TaskArchiveService:
                 "TASK-ARCHIVE-CONTEXT-001",
                 task_dir,
                 f"failed to snapshot task context: {error}",
+            ) from error
+
+    @staticmethod
+    def _discard_plan_snapshot(
+        destination: Path,
+        issues: list[RollbackIssue],
+    ) -> None:
+        plan_snapshot = destination / PLAN_SNAPSHOT_NAME
+        if not plan_snapshot.exists():
+            return
+        try:
+            plan_snapshot.unlink()
+        except OSError as error:
+            issues.append(
+                RollbackIssue(
+                    "plan_snapshot_remove",
+                    plan_snapshot,
+                    str(error),
+                )
+            )
+
+    def _snapshot_plan_file(
+        self,
+        destination: Path,
+        task_data: dict,
+    ) -> None:
+        meta = task_data.get("meta")
+        plan_file = meta.get("planFile") if isinstance(meta, dict) else None
+        if not isinstance(plan_file, str) or not plan_file.strip():
+            return
+        plan_path = self.repo_root / plan_file.strip()
+        if not plan_path.is_file():
+            return
+        try:
+            snapshot = plan_path.read_bytes()
+            (destination / PLAN_SNAPSHOT_NAME).write_bytes(snapshot)
+        except OSError as error:
+            raise TaskArchiveError(
+                "TASK-ARCHIVE-PLAN-001",
+                plan_path,
+                f"failed to snapshot plan file: {error}",
             ) from error
 
     def _normalize_context_paths(
@@ -381,6 +424,8 @@ class TaskArchiveService:
                         str(getattr(error, "detail", error)),
                     )
                 )
+
+        self._discard_plan_snapshot(destination, issues)
 
         directory_restore_attempted = False
         if destination.is_dir() and not source.exists():

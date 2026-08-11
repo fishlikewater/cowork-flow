@@ -39,6 +39,13 @@ Tiny task 可以没有 planFile，但仍必须满足现有 anchor 与 implement 
 
 当 active task 绑定了 `meta.planFile`，恢复清单必须提示先读取当前计划，再读取 `decision-anchor.md` 和 JSONL context。恢复输出只列路径，不展开计划正文。
 
+## 归档阶段
+
+- 归档任务时，runtime 把 `meta.planFile` 指向的计划文件按字节复制为归档任务目录下的 `plan.md` 快照，使归档记录自包含。
+- 快照是复制不是移动：`.cowork-flow/plans/` 原件与 `meta.planFile` 指针保持不变。
+- `meta.planFile` 缺失、为空或指向不存在的文件时跳过快照，归档照常完成。
+- 快照写入失败按既有归档事务回滚（TASK-ARCHIVE-PLAN-001）；回滚时删除已写入的快照。
+
 ## v1 非目标
 
 - 不解析计划 step 状态。
