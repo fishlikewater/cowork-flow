@@ -441,5 +441,145 @@ class TaskArchiveServiceTest(unittest.TestCase):
             self.assertIn("task json restore denied", issue.detail)
 
 
+    def test_archive_snapshots_bound_plan_into_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            plans_dir = root / ".cowork-flow" / "plans"
+            plans_dir.mkdir(parents=True)
+            plan_file = plans_dir / "2026-07-10-demo.md"
+            plan_bytes = b"# demo plan\n\n- step 1\n"
+            plan_file.write_bytes(plan_bytes)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {
+                    "status": "completed",
+                    "meta": {
+                        "planFile": ".cowork-flow/plans/2026-07-10-demo.md"
+                    },
+                },
+            )
+            service = self.TaskArchiveService(root)
+
+            result = service.archive(task_dir, archived_at="2026-07-10")
+
+            snapshot = result.destination / "plan.md"
+            self.assertEqual(plan_bytes, snapshot.read_bytes())
+            self.assertEqual(plan_bytes, plan_file.read_bytes())
+            archived = self._read_task(result.destination)
+            self.assertEqual(
+                ".cowork-flow/plans/2026-07-10-demo.md",
+                archived["meta"]["planFile"],
+            )
+
+    def test_archive_skips_plan_snapshot_when_plan_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            unbound = self._write_task(
+                tasks_dir,
+                "07-10-unbound",
+                {"status": "completed"},
+            )
+            dangling = self._write_task(
+                tasks_dir,
+                "07-10-dangling",
+                {
+                    "status": "completed",
+                    "meta": {
+                        "planFile": ".cowork-flow/plans/missing.md"
+                    },
+                },
+            )
+            service = self.TaskArchiveService(root)
+
+            first = service.archive(unbound, archived_at="2026-07-10")
+            second = service.archive(dangling, archived_at="2026-07-10")
+
+            self.assertFalse((first.destination / "plan.md").exists())
+            self.assertFalse((second.destination / "plan.md").exists())
+
+    def test_archive_rollback_removes_plan_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            plans_dir = root / ".cowork-flow" / "plans"
+            plans_dir.mkdir(parents=True)
+            plan_file = plans_dir / "2026-07-10-demo.md"
+            plan_bytes = b"# demo plan\n"
+            plan_file.write_bytes(plan_bytes)
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {
+                    "status": "completed",
+                    "meta": {
+                        "planFile": ".cowork-flow/plans/2026-07-10-demo.md"
+                    },
+                },
+            )
+            service = self.TaskArchiveService(root)
+
+            with self.assertRaises(self.TaskArchiveError) as raised:
+                service.archive(
+                    task_dir,
+                    archived_at="2026-07-10",
+                    finalize=lambda: False,
+                )
+
+            self.assertEqual(
+                "TASK-ARCHIVE-FINALIZE-001", raised.exception.code
+            )
+            self.assertEqual((), raised.exception.rollback_issues)
+            self.assertTrue(task_dir.is_dir())
+            self.assertFalse((task_dir / "plan.md").exists())
+            self.assertEqual(plan_bytes, plan_file.read_bytes())
+
+
+    def test_archive_error_reports_plan_snapshot_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            plans_dir = root / ".cowork-flow" / "plans"
+            plans_dir.mkdir(parents=True)
+            plan_file = plans_dir / "2026-07-10-demo.md"
+            plan_file.write_bytes(b"# demo plan\n")
+            task_dir = self._write_task(
+                tasks_dir,
+                "07-10-demo",
+                {
+                    "status": "completed",
+                    "meta": {
+                        "planFile": ".cowork-flow/plans/2026-07-10-demo.md"
+                    },
+                },
+            )
+            service = self.TaskArchiveService(root)
+            real_read_bytes = Path.read_bytes
+
+            def failing_read_bytes(path: Path) -> bytes:
+                if path == plan_file:
+                    raise OSError("plan snapshot denied")
+                return real_read_bytes(path)
+
+            with mock.patch.object(Path, "read_bytes", failing_read_bytes):
+                with self.assertRaises(self.TaskArchiveError) as raised:
+                    service.archive(task_dir, archived_at="2026-07-10")
+
+            self.assertEqual(
+                "TASK-ARCHIVE-PLAN-001", raised.exception.code
+            )
+            self.assertEqual(plan_file, raised.exception.path)
+            self.assertEqual((), raised.exception.rollback_issues)
+            self.assertTrue(task_dir.is_dir())
+            self.assertFalse((task_dir / "plan.md").exists())
+            self.assertTrue(plan_file.is_file())
+
+
 if __name__ == "__main__":
     unittest.main()
