@@ -47,6 +47,57 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
         with patch.dict(os.environ, {"ZCODE_SESSION_ID": "zc-123"}, clear=True):
             self.assertEqual("zcode_zc-123", self.active_task.resolve_context_key())
 
+    def test_context_key_uses_zcode_process_label_when_session_missing(self) -> None:
+        with patch.dict(os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True):
+            self.assertEqual("zcode_local-1", self.active_task.resolve_context_key())
+
+    def test_context_key_prefers_zcode_session_over_process_label(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "ZCODE_PROCESS_LABEL": "local-1",
+                "ZCODE_SESSION_ID": "sess-123",
+            },
+            clear=True,
+        ):
+            self.assertEqual("zcode_sess-123", self.active_task.resolve_context_key())
+
+    def test_context_key_maps_zcode_hook_session_id_input(self) -> None:
+        with patch.dict(os.environ, {"ZCODE_SESSION_ID": "sess-hook"}, clear=True):
+            self.assertEqual(
+                "zcode_sess-123",
+                self.active_task._resolve_input_context_key(
+                    {"session_id": "sess-123"}
+                ),
+            )
+
+    def test_context_key_maps_zcode_hook_session_id_camel_input(self) -> None:
+        with patch.dict(os.environ, {"ZCODE_SESSION_ID": "sess-hook"}, clear=True):
+            self.assertEqual(
+                "zcode_sess-456",
+                self.active_task._resolve_input_context_key(
+                    {"sessionId": "sess-456"}
+                ),
+            )
+
+    def test_context_key_zcode_input_without_session_returns_none(self) -> None:
+        with patch.dict(os.environ, {"ZCODE_SESSION_ID": "sess-hook"}, clear=True):
+            self.assertIsNone(
+                self.active_task._resolve_input_context_key(
+                    {"thread_id": "thread-123"}
+                )
+            )
+
+    def test_platform_from_context_key_maps_zcode(self) -> None:
+        self.assertEqual(
+            "zcode",
+            self.active_task._platform_from_context_key("zcode_sess-123"),
+        )
+        self.assertEqual(
+            "manual",
+            self.active_task._platform_from_context_key("unknown_key"),
+        )
+
     def test_context_key_uses_claude_session_when_cowork_missing(self) -> None:
         with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-123"}, clear=True):
             self.assertEqual("claude_claude-123", self.active_task.resolve_context_key())

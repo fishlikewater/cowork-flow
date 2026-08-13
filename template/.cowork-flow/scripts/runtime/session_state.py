@@ -54,7 +54,15 @@ def _first_prompt_value(values: Mapping[str, object] | None) -> str | None:
 
 
 def resolve_context_key(values: Mapping[str, object] | None = None) -> str | None:
-    return _resolve_env_context_key() or _resolve_input_context_key(values)
+    context_key = _resolve_env_context_key() or _resolve_input_context_key(values)
+    if context_key:
+        return context_key
+    # zcode 主会话（Bash CLI）无任何 host session id：用进程标签兜底，
+    # 保证 task start / session 解析一次成功，不再回落到其它 host。
+    process_label = os.environ.get("ZCODE_PROCESS_LABEL")
+    if process_label and process_label.strip():
+        return _prefixed_context_key("zcode", process_label)
+    return None
 
 
 def _prefixed_context_key(prefix: str, raw: str | None) -> str | None:
@@ -89,6 +97,22 @@ def _resolve_input_context_key(values: Mapping[str, object] | None) -> str | Non
     )
     if explicit:
         return _sanitize(explicit)
+
+    # 真实 zcode hook env 带 ZCODE_SESSION_ID：input 的 sessionId/session_id
+    # 归 zcode 前缀，避免被通用 key 误标成 opencode/codex；无 session 键直接短路。
+    if os.environ.get("ZCODE_SESSION_ID"):
+        zcode_session = _first_input_value(
+            values,
+            (
+                "ZCODE_SESSION_ID",
+                "zcode_session_id",
+                "sessionId",
+                "session_id",
+            ),
+        )
+        if zcode_session:
+            return _prefixed_context_key("zcode", zcode_session)
+        return None
 
     for prefix, names in (
         ("zcode", ("ZCODE_SESSION_ID", "zcode_session_id")),
@@ -147,6 +171,8 @@ def _write_json(path: Path, data: dict) -> None:
 
 
 def _platform_from_context_key(context_key: str) -> str:
+    if context_key.startswith("zcode_"):
+        return "zcode"
     if context_key.startswith("codex_"):
         return "codex"
     if context_key.startswith("opencode_"):
