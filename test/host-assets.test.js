@@ -140,13 +140,17 @@ test('default host registry exposes manifest platform behavior', () => {
   const manifest = loadHostAssetManifest();
   const registry = createHostRegistry(manifest);
 
-  assert.deepEqual(registry.platformIds, ['codex', 'opencode', 'claude-code']);
+  assert.deepEqual(registry.platformIds, ['codex', 'opencode', 'claude-code', 'dsh']);
   assert.deepEqual(
     registry.parsePlatformSelection(['claude']),
     ['claude-code']
   );
   assert.equal(registry.platformLabel('opencode'), 'OpenCode');
   assert.equal(registry.skillDestination('claude-code'), '.claude/skills');
+  assert.equal(registry.skillDestination('dsh'), '.agents/skills');
+  assert.deepEqual(registry.assetOwners('.dsh/README.md'), ['dsh']);
+  assert.equal(registry.shouldInclude('.dsh/README.md', ['codex']), false);
+  assert.deepEqual(registry.parsePlatformSelection(['dsh']), ['dsh']);
   assert.equal(
     registry.shouldInclude('.codex/hooks.json', ['codex']),
     true

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import unittest
@@ -123,7 +123,7 @@ class HostAdaptersTest(unittest.TestCase):
             required,
         )
         self.assertEqual(
-            {"codex", "claude-code", "opencode", "zcode"},
+            {"codex", "claude-code", "opencode", "zcode", "dsh"},
             set(matrix["hosts"]),
         )
         for host, capabilities in matrix["hosts"].items():
@@ -144,7 +144,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code"):
+            for host in ("codex", "opencode", "claude-code", "dsh"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(1, adapter["schemaVersion"])
                 self.assertEqual(host, adapter["host"])
@@ -180,6 +180,13 @@ class HostAdaptersTest(unittest.TestCase):
                     self.assertEqual(".claude/skills", adapter["dispatch"]["skillsPath"])
                     self.assertEqual(".claude/settings.json", adapter["dispatch"]["settingsPath"])
                     self.assertEqual(".claude/hooks", adapter["dispatch"]["hooksPath"])
+                if host == "dsh":
+                    self.assertEqual(".agents/skills", adapter["dispatch"]["skillsPath"])
+                    self.assertEqual("AGENTS.md", adapter["dispatch"]["memoryPath"])
+                    self.assertEqual("external", capabilities["stateInjection"])
+                    self.assertEqual("shim", capabilities["runtimeContextBinding"])
+                    self.assertEqual("shim", capabilities["runtimeContextCleanup"])
+                    self.assertEqual("subagent", adapter["dispatch"]["primitive"])
 
     def test_party_mode_v2_action_schema_is_host_neutral(self) -> None:
         expected_actions = {
@@ -249,7 +256,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code"):
+            for host in ("codex", "opencode", "claude-code", "dsh"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(
                     "inline_or_manual",

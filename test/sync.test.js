@@ -572,6 +572,31 @@ test('sync refreshes codex assets without creating opencode assets', async (t) =
   assert.match(io.stdout, /updated=/);
 });
 
+test('sync detects the dsh marker and refreshes dsh assets only', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target, '--developer', 'dsh-user', '--platform', 'dsh'], { io: createIo() }), 0);
+  await writeFile(join(target, '.dsh', 'README.md'), 'old marker\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml'), 'old dsh adapter\n', 'utf8');
+  const io = createIo();
+
+  const code = await main(['sync', target], { io });
+
+  assert.equal(code, 0);
+  assert.equal(
+    await readText(join(target, '.dsh', 'README.md')),
+    await readText(join(templateRoot, '.dsh', 'README.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml')),
+    await readText(join(templateRoot, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml'))
+  );
+  assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.opencode')), false);
+  assert.equal(await exists(join(target, '.claude')), false);
+  assert.match(io.stdout, /Platforms: dsh/);
+  assert.match(io.stdout, /updated=/);
+});
+
 test('sync refreshes opencode assets without creating codex assets', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'opencode'], { io: createIo() }), 0);

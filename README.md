@@ -12,7 +12,7 @@
 |---|---|
 | 任务流程 | `task next --json` 给出下一步 action，`task next --run` 只执行当前 action。 |
 | 运行健康 | `doctor` 诊断 runtime、host assets、Skill replica 和任务 hygiene，不推进生命周期。 |
-| Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode 资产和 obsolete 清理。 |
+| Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / DeepSeek Harness 资产和 obsolete 清理。 |
 | 批处理与讨论 | Batch 发布 Host action；Party Mode 只输出 advisory final facts。 |
 | 发布准备 | `release:check`、`CHANGELOG.md`、`pack:check` 固定发布前证据。 |
 
@@ -62,7 +62,7 @@ cowork-flow install-zcode-plugin
 npm run release:check
 ```
 
-平台选项：`codex` / `opencode` / `claude-code` / `all`（逗号分隔）
+平台选项：`codex` / `opencode` / `claude-code` / `dsh` / `all`（逗号分隔）
 
 ## 仓库结构
 
@@ -74,6 +74,7 @@ template/
 ├── .codex/                    # Codex agents / hooks / config
 ├── .claude/                   # Claude Code settings / agents / hooks
 ├── .opencode/                 # OpenCode agents / commands / plugins
+├── .dsh/                      # DeepSeek Harness 标记（sync 检测 + 说明）
 ├── .zcode/                    # ⭐ ZCode 插件（hooks + skills + agents + scaffold instructions）
 └── .cowork-flow/
     ├── config.yaml            # 项目配置
@@ -100,6 +101,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | 平台 | 目标目录 |
 |---|---|
 | `codex` / `opencode` | `.agents/skills/` |
+| `dsh` | `.agents/skills/` |
 | `claude-code` | `.claude/skills/` |
 
 分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
@@ -118,7 +120,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 
 | 选项 | 说明 |
 |---|---|
-| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `all` |
+| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `all` |
 | `--developer <n>` | 开发者名称 |
 | `--force` | 覆盖已有文件 |
 | `--dry-run` | 预览不写入 |
