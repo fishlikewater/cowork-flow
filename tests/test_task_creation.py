@@ -162,5 +162,53 @@ class TaskCreationServiceTest(unittest.TestCase):
             )
 
 
+    def test_create_with_full_date_slug_normalizes_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            result = self.TaskCreationService(root).create(
+                self.TaskCreationRequest(
+                    title="完整日期前缀",
+                    slug="2026-08-13-demo",
+                    assignee="codex",
+                    priority="P2",
+                    created_at="2026-08-13",
+                )
+            )
+
+            task_data = json.loads(
+                (result.task_dir / "task.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("08-13-demo", result.task_dir.name)
+            self.assertEqual("08-13-demo", task_data["id"])
+            self.assertEqual("08-13-demo", task_data["name"])
+
+    def test_create_sets_id_and_name_to_directory_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            result = self.TaskCreationService(root).create(
+                self.TaskCreationRequest(
+                    title="裸名同源",
+                    slug="demo-task",
+                    assignee="codex",
+                    priority="P2",
+                    created_at="2026-07-10",
+                    date_prefix="07-10",
+                )
+            )
+
+            task_data = json.loads(
+                (result.task_dir / "task.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("07-10-demo-task", result.task_dir.name)
+            self.assertEqual(result.task_dir.name, task_data["id"])
+            self.assertEqual(result.task_dir.name, task_data["name"])
+
+
 if __name__ == "__main__":
     unittest.main()
