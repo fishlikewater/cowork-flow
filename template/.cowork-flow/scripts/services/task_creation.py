@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -91,8 +90,8 @@ class TaskCreationService:
             "%Y-%m-%d"
         )
         task_data = {
-            "id": request.slug,
-            "name": request.slug,
+            "id": task_name,
+            "name": task_name,
             "title": request.title,
             "description": request.description or "",
             "status": "planning",
@@ -151,8 +150,6 @@ class TaskCreationService:
 
     @staticmethod
     def _task_name(request: TaskCreationRequest) -> str:
-        if re.match(r"^\d{2}-\d{2}-", request.slug):
-            return request.slug
         if request.date_prefix:
             return f"{request.date_prefix}-{request.slug}"
         return ensure_task_date_prefix(request.slug)

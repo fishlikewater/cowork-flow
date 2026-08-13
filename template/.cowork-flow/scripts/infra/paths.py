@@ -31,6 +31,7 @@ DIR_SCRIPTS = "scripts"
 FILE_DEVELOPER = ".developer"
 FILE_TASK_JSON = "task.json"
 TASK_DATE_PREFIX_PATTERN = re.compile(r"^\d{2}-\d{2}-")
+FULL_DATE_PREFIX_PATTERN = re.compile(r"^\d{4}-(\d{2}-\d{2}-)")
 
 
 # =============================================================================
@@ -146,7 +147,14 @@ def generate_task_date_prefix() -> str:
 
 
 def ensure_task_date_prefix(slug: str) -> str:
-    """Return slug with one MM-DD prefix."""
+    """Return slug with exactly one MM-DD prefix.
+
+    A full YYYY-MM-DD- prefix is normalized to MM-DD-; a bare slug
+    gets today's MM-DD prefix.
+    """
+    full = FULL_DATE_PREFIX_PATTERN.match(slug)
+    if full:
+        return full.group(1) + slug[full.end():]
     if TASK_DATE_PREFIX_PATTERN.match(slug):
         return slug
     return f"{generate_task_date_prefix()}-{slug}"
