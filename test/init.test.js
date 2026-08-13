@@ -225,7 +225,33 @@ test('init copies all selected host platforms', async (t) => {
   assert.equal(await exists(join(target, '.claude', 'skills', 'party-mode', 'scripts', 'party_mode_v2.py')), true);
   assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
   assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
-  assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
+  assert.equal(await exists(join(target, '.dsh', 'README.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml')), true);
+  assert.match(io.stdout, /Platforms: codex, opencode, claude-code, dsh/);
+});
+
+test('init installs dsh-only assets when platform is dsh', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main(['init', target, '--developer', 'dsh-user', '--platform', 'dsh'], { io });
+
+  assert.equal(code, 0, JSON.stringify({
+    stderr: io.stderr,
+    stdout: io.stdout,
+    target
+  }, null, 2));
+  assert.equal(await exists(join(target, 'AGENTS.md')), true);
+  assert.equal(await exists(join(target, '.dsh', 'README.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml')), true);
+  assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.claude')), false);
+  assert.equal(await exists(join(target, '.opencode')), false);
+  assert.equal(await exists(join(target, '.zcode')), false);
+  assert.equal(await exists(join(target, 'CLAUDE.md')), false);
+  assert.match(io.stdout, /Platforms: dsh/);
+  assert.match(io.stdout, /created=/);
 });
 
 test('installed Doctor passes for codex, claude-only, and multi-host projects', async (t) => {
@@ -386,7 +412,7 @@ test('init fails without a platform in non-interactive mode', async (t) => {
   assert.equal(code, 1);
   assert.equal(await exists(target), false);
   assert.match(io.stderr, /Platform selection required/);
-  assert.match(io.stderr, /--platform codex\|opencode\|claude-code/);
+  assert.match(io.stderr, /--platform codex\|opencode\|claude-code\|dsh/);
 });
 
 test('init fails without a developer in non-interactive mode', async (t) => {
@@ -421,12 +447,13 @@ test('init uses platform selector and then prompts for developer', async (t) => 
 
   assert.equal(code, 0);
   assert.match(selectorCalls[0].message, /Select platforms/);
-  assert.equal(selectorCalls[0].choices.length, 3);
+  assert.equal(selectorCalls[0].choices.length, 4);
   assert.match(prompts[0], /Developer name/);
   assert.equal(await exists(join(target, '.codex')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml')), false);
+  assert.equal(await exists(join(target, '.dsh')), false);
   assert.equal(await exists(join(target, '.opencode', 'agents', 'cowork-implement.md')), true);
   assert.equal(await exists(join(target, '.claude')), false);
   assert.equal(await exists(join(target, 'CLAUDE.md')), false);

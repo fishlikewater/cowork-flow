@@ -183,7 +183,8 @@
             "codex",
             "claude-code",
             "opencode",
-            "zcode"
+            "zcode",
+            "dsh"
           ]
         }
       }
