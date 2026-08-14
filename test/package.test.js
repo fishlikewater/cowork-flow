@@ -139,6 +139,8 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
   assert.match(ci, /windows-core:/);
   assert.match(ci, /runs-on: windows-latest/);
   assert.match(ci, /run: npm run test:windows:core/);
+  assert.match(ci, /pip install "pytest>=8"/);
+  assert.equal((ci.match(/python -m pytest -q/g) ?? []).length, 2);
 
   const ubuntuVerify = jobBlock('verify-ubuntu');
   const windowsVerify = jobBlock('verify-windows');

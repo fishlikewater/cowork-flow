@@ -38,6 +38,11 @@ jobs:
       - name: Run core template tests
         run: npm run test:template
 
+      - name: Run Python repository tests
+        run: |
+          pip install "pytest>=8"
+          python -m pytest -q
+
   windows-core:
     runs-on: windows-latest
 
@@ -61,3 +66,8 @@ jobs:
 
       - name: Run Windows core verification
         run: npm run test:windows:core
+
+      - name: Run Python repository tests
+        run: |
+          pip install "pytest>=8"
+          python -m pytest -q
