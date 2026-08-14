@@ -179,6 +179,8 @@ def _platform_from_context_key(context_key: str) -> str:
         return "opencode"
     if context_key.startswith("claude_"):
         return "claude-code"
+    if context_key.startswith("dsh_"):
+        return "dsh"
     return "manual"
 
 

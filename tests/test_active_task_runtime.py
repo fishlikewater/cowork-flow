@@ -98,6 +98,16 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.active_task._platform_from_context_key("unknown_key"),
         )
 
+    def test_platform_from_context_key_maps_dsh(self) -> None:
+        self.assertEqual(
+            "dsh",
+            self.active_task._platform_from_context_key("dsh_rtx-1"),
+        )
+        self.assertEqual(
+            "dsh",
+            self.active_task._platform_from_context_key("dsh_main_session"),
+        )
+
     def test_context_key_uses_claude_session_when_cowork_missing(self) -> None:
         with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-123"}, clear=True):
             self.assertEqual("claude_claude-123", self.active_task.resolve_context_key())
@@ -295,6 +305,48 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             context = json.loads(context_path.read_text(encoding="utf-8"))
             self.assertEqual("bound", context["status"])
             self.assertEqual("codex_child", context["bound_context_key"])
+
+    def test_bind_runtime_context_writes_dsh_host_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            context_dir = self.active_task.subagent_contexts_dir(root)
+            context_dir.mkdir(parents=True)
+            context_path = context_dir / "rtx_demo.json"
+            context_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "runtime_context_id": "rtx_demo",
+                        "scope": "subagent",
+                        "host": "dsh",
+                        "task_dir": ".cowork-flow/tasks/08-14-dsh-platform-label-fix",
+                        "status": "pending",
+                        "bound_context_key": None,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            bound = self.runtime_context.bind_runtime_context(
+                root,
+                "rtx_demo",
+                "dsh_child",
+            )
+
+            self.assertIsNotNone(bound)
+            session_file = self.active_task.sessions_dir(root) / "dsh_child.json"
+            session = json.loads(session_file.read_text(encoding="utf-8"))
+            self.assertEqual("subagent", session["scope"])
+            self.assertEqual("rtx_demo", session["runtime_context_id"])
+            self.assertEqual("dsh", session["platform"])
+            self.assertEqual(
+                ".cowork-flow/tasks/08-14-dsh-platform-label-fix",
+                session["active_task_path"],
+            )
+            context = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual("bound", context["status"])
+            self.assertEqual("dsh_child", context["bound_context_key"])
 
     def test_bind_runtime_context_prefers_prompt_host_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
