@@ -130,6 +130,14 @@ function normalize(output) {
 
 
 /**
+ * Test seam: forget the memoized interpreter so the next call rediscovers.
+ */
+export function resetWorkingPython() {
+  workingPython = null;
+}
+
+
+/**
  * Produce the `<workflow-state>` hook context block for a workspace cwd.
  * Empty string means "contribute nothing" (no root, hooks disabled, no
  * usable interpreter, or a broken runtime).
