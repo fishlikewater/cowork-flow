@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { runWorkflowState, resetWorkingPython } from '../presets/dsh/plugins/workflow-state.js';
+import { isLifecycleCommand, runWorkflowState, resetWorkingPython } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 
@@ -74,4 +74,26 @@ test('degrades to empty text when the protocol fails', async (t) => {
       process.env[name] = value;
     }
   }
+});
+
+
+test('isLifecycleCommand recognises workflow lifecycle invocations', () => {
+  assert.equal(
+    isLifecycleCommand('cd E:\\proj && ./.cowork-flow/run task next --json'),
+    true,
+  );
+  assert.equal(
+    isLifecycleCommand({ command: './.cowork-flow/run subagent bind rtx-1 key-1' }),
+    true,
+  );
+  assert.equal(
+    isLifecycleCommand('.cowork-flow\\run.cmd task next --run'),
+    true,
+  );
+  assert.equal(isLifecycleCommand('python tests/demo.py'), false);
+  assert.equal(isLifecycleCommand('git status --short'), false);
+  assert.equal(isLifecycleCommand(''), false);
+  assert.equal(isLifecycleCommand(undefined), false);
+  assert.equal(isLifecycleCommand(null), false);
+  assert.equal(isLifecycleCommand(42), false);
 });

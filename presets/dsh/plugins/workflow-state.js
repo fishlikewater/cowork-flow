@@ -9,11 +9,12 @@
 // is structurally identical across hosts.
 //
 // The block is refreshed per user message (`agent/session-start` warms it,
-// `agent/inbox/claimed` refreshes it) and cached per agent; each prompt
-// assembly re-renders the current cached value in place — replace semantics,
-// no accumulation across turns or steps. Between refreshes the text is
-// byte-stable, so the static prompt prefix stays cacheable and the dynamic
-// cost is confined to the trailing block.
+// `agent/inbox/claimed` refreshes it) and after lifecycle commands settle
+// (`tools/result`), then cached per agent; each prompt assembly re-renders
+// the current cached value in place — replace semantics, no accumulation
+// across turns or steps. Between refreshes the text is byte-stable, so the
+// static prompt prefix stays cacheable and the dynamic cost is confined to
+// the trailing block.
 //
 // Degradation is silent: no `.cowork-flow` root, a missing Python, a broken
 // runtime, or the `COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`
@@ -75,6 +76,25 @@ print(build_hook_context(
 // The first interpreter that ran the protocol successfully; a missing one is
 // dropped so a later refresh can rediscover (e.g. after a PATH change).
 let workingPython = null;
+
+// Cowork-flow lifecycle commands executed through any tool. Matching the
+// command text (not the tool name) keeps the trigger stable across tool
+// surface changes.
+const LIFECYCLE_COMMAND = /\.cowork-flow[\\/]run(?:\.cmd)?(?:\s+[^\s"']*)?\s+(task|subagent|resume)\b/;
+
+
+/**
+ * True when a tool argument value embeds a cowork-flow lifecycle command.
+ * Accepts strings and JSON-serializable structures; never throws.
+ */
+export function isLifecycleCommand(value) {
+  try {
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    return typeof text === 'string' && LIFECYCLE_COMMAND.test(text);
+  } catch {
+    return false;
+  }
+}
 
 
 function hooksDisabled() {
@@ -166,8 +186,8 @@ export async function runWorkflowState(cwd) {
 
 
 export function apply(ctx) {
-  // One cache entry per agent: { text, inflight }. The WeakMap key is the
-  // live Agent object the events and the assembly context both carry.
+  // One cache entry per agent: { text, inflight, queued }. The WeakMap key
+  // is the live Agent object the events and the assembly context both carry.
   const states = new WeakMap();
 
   const refresh = (agent) => {
@@ -177,10 +197,14 @@ export function apply(ctx) {
     }
     let entry = states.get(agent);
     if (!entry) {
-      entry = { text: '', inflight: false };
+      entry = { text: '', inflight: false, queued: false };
       states.set(agent, entry);
     }
     if (entry.inflight) {
+      // A refresh arrived while one was running (e.g. several lifecycle
+      // commands back to back). Re-run once after it settles so the latest
+      // on-disk state wins instead of being dropped.
+      entry.queued = true;
       return;
     }
     entry.inflight = true;
@@ -193,11 +217,24 @@ export function apply(ctx) {
       })
       .finally(() => {
         entry.inflight = false;
+        if (entry.queued) {
+          entry.queued = false;
+          refresh(agent);
+        }
       });
   };
 
   ctx.on('agent/session-start', (payload) => refresh(payload && payload.agent));
   ctx.on('agent/inbox/claimed', (payload) => refresh(payload && payload.agent));
+  // Intra-turn refresh: a lifecycle command just settled, so the next prompt
+  // assembly should already see the new state instead of the stale block.
+  ctx.on('tools/result', (exec) => {
+    const agent = exec && exec.agent;
+    if (!agent || !isLifecycleCommand(exec && exec.arguments)) {
+      return;
+    }
+    refresh(agent);
+  });
 
   ctx.effect(() => ctx.systemPrompt.section({
     name: SECTION_NAME,
