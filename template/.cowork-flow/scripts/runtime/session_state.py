@@ -170,7 +170,7 @@ def _write_json(path: Path, data: dict) -> None:
     os.replace(tmp_path, path)
 
 
-def _platform_from_context_key(context_key: str) -> str:
+def platform_from_context_key(context_key: str) -> str:
     if context_key.startswith("zcode_"):
         return "zcode"
     if context_key.startswith("codex_"):
@@ -271,7 +271,7 @@ def build_active_task_session(
     data = {
         FIELD_ACTIVE_TASK_PATH: normalized,
         FIELD_SCOPE: SCOPE_MAIN,
-        "platform": _platform_from_context_key(context_key),
+        "platform": platform_from_context_key(context_key),
         "last_seen_at": _now(),
     }
     return (
