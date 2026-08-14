@@ -26,6 +26,10 @@ run_step() {
   "$@"
 }
 
+# Live Skill replicas (.agents/skills, .claude/skills) are gitignored and
+# drift from template/skills across checkouts. The full test gate loads every
+# replica and fails on any conflict, so refresh them before running it.
+run_step npm run source:refresh || exit $?
 run_step npm run test:all || exit $?
 run_step npm version "$RELEASE_TYPE" --no-git-tag-version || exit $?
 
