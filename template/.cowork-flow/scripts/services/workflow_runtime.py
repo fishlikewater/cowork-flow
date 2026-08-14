@@ -20,6 +20,7 @@ from runtime.session_state import (
     FIELD_SCOPE,
     SCOPE_SUBAGENT,
     logical_subagent_context_key,
+    platform_from_context_key,
     resolve_context_key,
     resolve_host_context_key,
     runtime_context_path,
@@ -193,7 +194,7 @@ class RuntimeContextService:
             "schema_version": 2,
             FIELD_SCOPE: SCOPE_SUBAGENT,
             FIELD_RUNTIME_CONTEXT_ID: runtime_context_id,
-            "platform": self._platform_from_context_key(host_context_key),
+            "platform": platform_from_context_key(host_context_key),
             "status": "bound",
             "last_seen_at": now,
         }
@@ -346,18 +347,6 @@ class RuntimeContextService:
             identity.encode("utf-8")
         ).hexdigest()[:16]
         return f"runtime-{kind}-{digest}"
-
-    @staticmethod
-    def _platform_from_context_key(context_key: str) -> str:
-        if context_key.startswith("codex_"):
-            return "codex"
-        if context_key.startswith("opencode_"):
-            return "opencode"
-        if context_key.startswith("claude_"):
-            return "claude-code"
-        if context_key.startswith("dsh_"):
-            return "dsh"
-        return "manual"
 
     @staticmethod
     def _now() -> str:
