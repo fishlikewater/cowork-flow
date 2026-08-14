@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
+import { runWorkflowState, resetWorkingPython } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 
@@ -41,6 +41,30 @@ test('honours the hook disable switches', async (t) => {
 
   delete process.env.COWORK_FLOW_HOOKS;
   process.env.COWORK_FLOW_DISABLE_HOOKS = '1';
+  assert.equal(await runWorkflowState(packageRoot), '');
+
+  function restore(name, value) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
+});
+
+
+test('degrades to empty text when the protocol fails', async (t) => {
+  const previousPython = process.env.COWORK_FLOW_PYTHON;
+  t.after(() => {
+    restore('COWORK_FLOW_PYTHON', previousPython);
+    resetWorkingPython();
+  });
+
+  // node exists wherever these tests run, but `node -c <python source>` exits
+  // non-zero — an interpreter that runs yet fails the protocol. The hook must
+  // treat that as "contribute nothing", not as a missing interpreter.
+  resetWorkingPython();
+  process.env.COWORK_FLOW_PYTHON = process.execPath;
   assert.equal(await runWorkflowState(packageRoot), '');
 
   function restore(name, value) {
