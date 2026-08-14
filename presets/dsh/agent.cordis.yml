@@ -70,6 +70,14 @@
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
 
+# ── workflow state hook ────────────────────────────────────────────────────
+# DSH-native equivalent of the Codex/Claude hooks: registers a system-prompt
+# section (rendered last) that carries the `<workflow-state>` block, refreshed
+# per user message. Consumes the host `systemPrompt` registry and publishes
+# nothing, so it sits loose like the tool rows above.
+- id: workflow-state-hook
+  name: './plugins/workflow-state.js'
+
 # ── goals ───────────────────────────────────────────────────────────────────
 
 - id: tool-goal
