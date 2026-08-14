@@ -129,9 +129,11 @@ test('release shell script defaults to patch and syncs template version before p
     encoding: 'utf8'
   });
 
+  assert.match(result.stdout, /> npm run source:refresh/);
   assert.match(result.stdout, /> npm run test:all/);
   assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.0.6\n');
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
     'npm run test:all',
     'npm version patch --no-git-tag-version',
     'git add package.json package-lock.json template/.cowork-flow/.version',
@@ -154,6 +156,7 @@ test('release shell script accepts explicit npm version type', async (t) => {
 
   assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.1.0\n');
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
     'npm run test:all',
     'npm version minor --no-git-tag-version',
     'git add package.json package-lock.json template/.cowork-flow/.version',
@@ -176,7 +179,26 @@ test('release shell script stops after the first failed command', async (t) => {
     (error) => error.code === 7
   );
 
-  assert.deepEqual(await readCommands(fakeCommands.logPath), ['npm run test:all']);
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
+    'npm run test:all'
+  ]);
+});
+
+test('release shell script stops when the skill replica refresh fails', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t, { failWhen: 'npm run source:refresh' });
+
+  await assert.rejects(
+    execFileAsync(shellRunner, ['scripts/release.sh', 'patch'], {
+      cwd: await createReleaseProject(t),
+      env: fakeCommands.env,
+      encoding: 'utf8'
+    }),
+    (error) => error.code === 7
+  );
+
+  assert.deepEqual(await readCommands(fakeCommands.logPath), ['npm run source:refresh']);
 });
 
 test('release shell script rejects unsupported version type', async (t) => {
