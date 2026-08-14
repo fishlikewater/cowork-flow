@@ -975,3 +975,63 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertIn("Next action: start task", output)
             self.assertIn("./.cowork-flow/run task next .cowork-flow/tasks/05-19-demo --run", output)
             self.assertNotIn("./.cowork-flow/run task start", output)
+
+    def test_cmd_next_create_command_carries_from_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(dir=None, json=True, intent="clarify")
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual("create_task", payload["nextAction"])
+            self.assertIn("--from-plan .cowork-flow/plans/YYYY-MM-DD-<task-name>.md", payload["actionCommand"])
+
+    def test_cmd_next_planning_planfile_blocker_renders_bind_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md"}\n',
+                encoding="utf-8",
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(
+                            argparse.Namespace(
+                                dir=".cowork-flow/tasks/05-19-demo",
+                                json=True,
+                            )
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(0, result)
+            self.assertEqual("edit_planning_artifacts", payload["nextAction"])
+            self.assertIn("planFile is required before implementation starts", payload["blockers"])
+            self.assertEqual(
+                "./.cowork-flow/run task next .cowork-flow/tasks/05-19-demo --run --from-plan <plan-file>",
+                payload["actionCommand"],
+            )

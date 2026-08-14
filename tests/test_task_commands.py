@@ -673,3 +673,123 @@ class TaskCommandsTest(FlowScriptTestCase):
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
             self.assertEqual(0, result)
             self.assertEqual("in_progress", data["status"])
+
+    def test_cmd_next_run_from_plan_binds_planning_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md"}\n',
+                encoding="utf-8",
+            )
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            plan_file = root / ".cowork-flow" / "plans" / "2026-07-10-demo.md"
+            plan_file.parent.mkdir(parents=True)
+            plan_file.write_text("# Plan\n\nDemo.\n", encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_next(
+                        argparse.Namespace(
+                            dir=str(task_dir),
+                            run=True,
+                            from_plan=".cowork-flow/plans/2026-07-10-demo.md",
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, result, stderr.getvalue())
+            self.assertEqual(
+                ".cowork-flow/plans/2026-07-10-demo.md",
+                data["meta"]["planFile"],
+            )
+            self.assertEqual("planning", data["status"])
+            self.assertIn("Plan bound", stdout.getvalue())
+            self.assertIn("task next", stdout.getvalue())
+
+    def test_cmd_next_run_from_plan_rejects_missing_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "planning"}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md"}\n',
+                encoding="utf-8",
+            )
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_next(
+                        argparse.Namespace(
+                            dir=str(task_dir),
+                            run=True,
+                            from_plan=".cowork-flow/plans/missing.md",
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result)
+            self.assertNotIn("meta", data)
+            self.assertIn("missing.md", stderr.getvalue())
+
+    def test_cmd_next_run_from_plan_rejected_outside_planning(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}\n',
+                encoding="utf-8",
+            )
+            plan_file = root / ".cowork-flow" / "plans" / "2026-07-10-demo.md"
+            plan_file.parent.mkdir(parents=True)
+            plan_file.write_text("# Plan\n\nDemo.\n", encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_next(
+                        argparse.Namespace(
+                            dir=str(task_dir),
+                            run=True,
+                            from_plan=".cowork-flow/plans/2026-07-10-demo.md",
+                        )
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertIn(
+                "--from-plan binds a plan to a planning task",
+                stderr.getvalue(),
+            )

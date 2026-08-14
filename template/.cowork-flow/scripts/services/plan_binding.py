@@ -9,6 +9,7 @@ from pathlib import Path
 
 from infra.files import read_text_utf8
 from infra.paths import DIR_WORKFLOW
+from services.task_repository import TaskRepository
 
 
 PLAN_DIRECTORY = f"{DIR_WORKFLOW}/plans/"
@@ -119,6 +120,26 @@ def bind_plan_file(
             normalized,
         )
     return BoundPlanFile(normalized=normalized, path=plan_path)
+
+
+def bind_task_plan(
+    repo_root: Path,
+    task_dir: Path,
+    plan_file: str | Path,
+) -> dict:
+    """Validate and bind one plan file to a task's meta, preserving other meta keys."""
+    bound = bind_plan_file(
+        repo_root,
+        plan_file,
+        require_exists=True,
+        require_non_empty=True,
+    )
+    repository = TaskRepository(repo_root)
+    task_data = repository.load(task_dir)
+    meta = task_data.get("meta")
+    meta = dict(meta) if isinstance(meta, dict) else {}
+    meta["planFile"] = bound.normalized
+    return repository.save(task_dir, {"meta": meta})
 
 
 def plan_file_blockers(repo_root: Path, task_data: dict) -> list[str]:

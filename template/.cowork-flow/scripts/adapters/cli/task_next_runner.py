@@ -13,6 +13,7 @@ from adapters.cli import task_navigation
 from adapters.cli.task_support import Colors, colored, resolve_task_dir
 from infra.paths import get_repo_root
 from runtime.session_state import get_active_task
+from services.plan_binding import PlanBindingError, bind_task_plan
 
 
 LifecycleCommand = Callable[[argparse.Namespace], int]
@@ -115,7 +116,6 @@ def _create_input_names(args: argparse.Namespace) -> list[str]:
         "assignee",
         "description",
         "parent",
-        "from_plan",
     )
     return [name for name in names if getattr(args, name, None)]
 
@@ -131,6 +131,7 @@ def _validated_next_action(args: argparse.Namespace) -> tuple[dict[str, object] 
         return None, 1
     create_inputs = _create_input_names(args)
     action_id = action.get("id")
+    from_plan = getattr(args, "from_plan", None)
     if create_inputs and action_id != "create_task":
         print(
             colored(
@@ -140,11 +141,25 @@ def _validated_next_action(args: argparse.Namespace) -> tuple[dict[str, object] 
             file=sys.stderr,
         )
         print(
-            "Hint: archive or finish the current task first, then rerun "
-            "`task next --run --title ... --slug ... --assignee <name>`.",
+            "Hint: those flags only create a new task. To continue the "
+            "current task, run:",
+            file=sys.stderr,
+        )
+        print("  ./.cowork-flow/run task next <task-dir> --run", file=sys.stderr)
+        return None, 1
+    if from_plan and action_id not in {"create_task", "edit_planning_artifacts"}:
+        print(
+            colored(
+                "Error: --from-plan binds a plan to a planning task or "
+                "creates a new task, but the next action is "
+                f"{action_id}",
+                Colors.RED,
+            ),
             file=sys.stderr,
         )
         return None, 1
+    if action_id == "edit_planning_artifacts" and from_plan:
+        return action, 0
     if payload.get("blockers") or action.get("blockers"):
         print(colored("Error: next action is blocked", Colors.RED), file=sys.stderr)
         for blocker in payload.get("blockers", []) or action.get("blockers", []):
@@ -213,11 +228,28 @@ def _dispatch_next_lifecycle_action(
                 approved=bool(getattr(args, "approved", False)),
             )
         )
+    if action_id == "edit_planning_artifacts":
+        return _run_plan_bind_action(args, task_path)
     print(
         colored(f"Error: unsupported next action: {action_id}", Colors.RED),
         file=sys.stderr,
     )
     return 1
+
+
+def _run_plan_bind_action(args: argparse.Namespace, task_path: str) -> int:
+    repo_root = get_repo_root()
+    try:
+        bind_task_plan(repo_root, repo_root / task_path, args.from_plan)
+    except PlanBindingError as error:
+        print(
+            colored(f"Error: {error.detail}: {error.path}", Colors.RED),
+            file=sys.stderr,
+        )
+        return 1
+    print(colored(f"[OK] Plan bound to: {task_path}", Colors.GREEN))
+    print(f"Next: ./.cowork-flow/run task next {task_path} --run")
+    return 0
 
 
 def run_next_action(args: argparse.Namespace, handlers: NextActionHandlers) -> int:
