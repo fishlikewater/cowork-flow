@@ -29,7 +29,7 @@ Action inputs for `next --run`:
   --priority <P0-P3>    Optional task priority for create_task (default: P2)
   --description <text>  Optional task description for create_task
   --parent <dir>        Optional parent task directory for create_task
-  --from-plan <path>    Optional plan path for create_task
+  --from-plan <path>    Plan path for create_task or planning-phase rebind
   --auto --approved     Optional batch start flags for start_task
   --commit             Optional archive auto-commit flag for archive_task
 
@@ -40,7 +40,7 @@ Examples:
   ./.cowork-flow/run task next .cowork-flow/tasks/07-25-demo --validate
   ./.cowork-flow/run task next .cowork-flow/tasks/07-25-demo
   ./.cowork-flow/run task next .cowork-flow/tasks/07-25-demo --run
-  ./.cowork-flow/run task next --run --title "Add login feature" --slug add-login
+  ./.cowork-flow/run task next --run --title "Add login feature" --slug add-login --from-plan .cowork-flow/plans/YYYY-MM-DD-add-login.md
 """
 
 
@@ -117,7 +117,10 @@ def _add_next_create_inputs(parser: argparse.ArgumentParser) -> None:
         "--from-plan",
         "-f",
         dest="from_plan",
-        help="Plan file for create_task decision-anchor skeleton",
+        help=(
+            "Plan file to bind to the task: at creation, or as a "
+            "planning-phase rebind (repo-relative .cowork-flow/plans path)"
+        ),
     )
 
 
