@@ -11,6 +11,7 @@
     "src",
     "template",
     "template/.zcode",
+    "presets",
     "README.md",
     "CHANGELOG.md",
     "!template/**/__pycache__/**",
