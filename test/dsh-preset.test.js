@@ -92,6 +92,9 @@ test('install-dsh-preset copies preset and skills into the DSH root', async (t) 
   assert.match(installed, /new URL\('skills\/', baseUrl\)/);
   assert.match(installed, /0\.1 编码前强制门禁/);
   assert.match(installed, /subagent bind \/ close/);
+  assert.match(installed, /id: workflow-state-hook/);
+  assert.match(installed, /name: '\.\/plugins\/workflow-state\.js'/);
+  assert.equal(await pathExists(join(dest, 'plugins', 'workflow-state.js')), true);
 
   const skills = join(dest, 'skills');
   assert.equal(await pathExists(join(skills, 'cowork-flow', 'SKILL.md')), true);

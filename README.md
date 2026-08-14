@@ -187,6 +187,8 @@ cowork-flow install-dsh-preset --dry-run  # 预览不写入
 
 预设组合是部署 `standard` 预设的拷贝 + 最小改动（persona 流程规则、`skill-filesystem` 指向预设自带 `skills/`）；`cowork-flow init --platform dsh` 仍负责项目级资产（`AGENTS.md`、`.agents/skills/`、`.dsh/` 标记）。
 
+预设内置 **workflow-state hook**（`plugins/workflow-state.js`）：DSH 原生等效于 Codex/Claude hook，向系统提示末尾注入与其它宿主同构的 `<workflow-state>` 块，每条用户消息刷新一次（替换语义，不累积）。项目无 `.cowork-flow` 根、缺少 Python 或设 `COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1` 时静默降级，由 AGENTS.md 门禁的运行导航器兜底。
+
 ## 任务流程
 
 ```
