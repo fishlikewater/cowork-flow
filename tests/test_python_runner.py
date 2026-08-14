@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import os
 import stat
 import subprocess
@@ -8,12 +9,14 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "template" / ".cowork-flow" / "run"
 WINDOWS_RUNNER = ROOT / "template" / ".cowork-flow" / "run.cmd"
 PYTHON_RUNNER = ROOT / "template" / ".cowork-flow" / "scripts" / "run.py"
+SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 POSIX_ONLY = unittest.skipIf(
     os.name == "nt",
     "POSIX shell runner execution is covered on POSIX hosts",
@@ -234,6 +237,43 @@ class PythonRunnerTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("advisory review facts", result.stdout)
+
+
+class RuntimePythonpathEnvTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        cls.process = importlib.import_module("infra.process")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if str(SCRIPTS) in sys.path:
+            sys.path.remove(str(SCRIPTS))
+
+    def test_prepends_scripts_dir_and_preserves_existing(self) -> None:
+        with patch.dict(os.environ, {"PYTHONPATH": "pre-existing"}):
+            env = self.process.runtime_pythonpath_env()
+
+        self.assertEqual(
+            f"{SCRIPTS}{os.pathsep}pre-existing",
+            env["PYTHONPATH"],
+        )
+
+    def test_without_existing_pythonpath_writes_scripts_dir_only(self) -> None:
+        with patch.dict(os.environ):
+            os.environ.pop("PYTHONPATH", None)
+            env = self.process.runtime_pythonpath_env()
+
+        self.assertEqual(str(SCRIPTS), env["PYTHONPATH"])
+
+    def test_extra_entries_override_after_merge(self) -> None:
+        with patch.dict(os.environ):
+            os.environ.pop("PYTHONPATH", None)
+            env = self.process.runtime_pythonpath_env(extra={"EXTRA_KEY": "x"})
+
+        self.assertEqual("x", env["EXTRA_KEY"])
+        self.assertEqual(str(SCRIPTS), env["PYTHONPATH"])
+
 
 if __name__ == "__main__":
     unittest.main()

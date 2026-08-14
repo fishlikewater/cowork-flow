@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +14,7 @@ from adapters.cli.execution_context_args import (
     parse_public_execution_context_args,
 )
 from runtime.execution_context import ExecutionContextError
+from infra.process import runtime_pythonpath_env
 from infra.skill_manifest import SkillManifestError, skill_command_scripts
 
 configure_cli_encoding()
@@ -81,13 +81,7 @@ def resolve_project_python_script(command: str) -> Path | None:
 def run_python(args: list[str], *, pythonpath: Path | None = None) -> int:
     env = None
     if pythonpath is not None:
-        env = os.environ.copy()
-        existing = env.get("PYTHONPATH")
-        env["PYTHONPATH"] = (
-            str(pythonpath)
-            if not existing
-            else f"{pythonpath}{os.pathsep}{existing}"
-        )
+        env = runtime_pythonpath_env(pythonpath)
     completed = subprocess.run([sys.executable, *args], check=False, env=env)
     return int(completed.returncode)
 
