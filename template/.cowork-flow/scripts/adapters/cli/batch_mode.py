@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
 
+from infra.process import runtime_pythonpath_env
 from infra.skill_manifest import SkillManifestError, skill_command_scripts
 
 
@@ -36,28 +36,16 @@ def _batch_action_script(repo_root: Path) -> Path:
     return script
 
 
-def _runtime_scripts_dir() -> Path:
-    """The runtime `scripts/` dir this adapter itself was loaded from."""
-    return Path(__file__).resolve().parents[2]
-
-
 def _run_batch_action(
     repo_root: Path,
     *args: str,
 ) -> int:
     script = _batch_action_script(repo_root)
     # The skill script imports `services.*` / `infra.*` from the runtime.
-    # Mirror run.py::run_skill_script and inject the runtime scripts dir via
-    # PYTHONPATH before spawning, so the child resolves the same runtime this
+    # Inject the runtime scripts dir via PYTHONPATH before spawning (shared
+    # bootstrap with run.py) so the child resolves the same runtime this
     # adapter came from instead of relying on the ambient path.
-    env = os.environ.copy()
-    scripts_dir = str(_runtime_scripts_dir())
-    existing = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = (
-        scripts_dir
-        if not existing
-        else f"{scripts_dir}{os.pathsep}{existing}"
-    )
+    env = runtime_pythonpath_env()
     try:
         completed = subprocess.run(
             [sys.executable, str(script), *args],
