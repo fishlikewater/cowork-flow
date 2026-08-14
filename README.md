@@ -58,6 +58,9 @@ cowork-flow update --dry-run
 # 安装 ZCode 插件（可选）
 cowork-flow install-zcode-plugin
 
+# 安装 DSH 预设（可选）
+cowork-flow install-dsh-preset
+
 # 维护者发布前检查
 npm run release:check
 ```
@@ -114,6 +117,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `sync <path> [--dry-run]` | 同步已初始化项目的模板和技能 |
 | `source-refresh [path] [--dry-run]` | 维护者刷新 source checkout 的 ignored live runtime 与 Host Skill replica |
 | `install-zcode-plugin` | 安装 ZCode 插件到全局缓存 |
+| `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/` |
 | `update [--dry-run]` | 升级 CLI 本身 |
 
 ### init 选项
@@ -170,6 +174,18 @@ ZCode 插件只安装 hook、skills、agents 和轻量说明文件；`.cowork-fl
 - `cowork-implement` — 绑定 runtime context 后执行计划内实现
 - `cowork-check` — 绑定 runtime context 后做独立检查
 - `cowork-research` — 绑定 runtime context 后做只读调研
+
+## DSH 预设
+
+```bash
+cowork-flow install-dsh-preset            # 安装
+cowork-flow install-dsh-preset --force    # 覆盖已安装
+cowork-flow install-dsh-preset --dry-run  # 预览不写入
+```
+
+安装到 `~/.dsh/.agent-presets/cowork-flow/`（`DSH_HOME` 存在时以其为准）：`agent.cordis.yml` + `preset.yml` + 全部流程技能。安装后在 DeepSeek Harness 中新建会话并选择 **Cowork Flow** 预设即可使用：persona 携带流程门禁规则，技能目录随预设挂载，不依赖项目本地副本。
+
+预设组合是部署 `standard` 预设的拷贝 + 最小改动（persona 流程规则、`skill-filesystem` 指向预设自带 `skills/`）；`cowork-flow init --platform dsh` 仍负责项目级资产（`AGENTS.md`、`.agents/skills/`、`.dsh/` 标记）。
 
 ## 任务流程
 

@@ -1,0 +1,2 @@
+name: Cowork Flow
+description: 接入 cowork-flow 流程框架的编码 Agent：任务门禁（task next）、计划绑定、runtime-context 固定子代理与 16 个流程技能（brainstorming / task-planning / task-review / agent-dispatch 等）。
