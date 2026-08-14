@@ -355,6 +355,8 @@ class RuntimeContextService:
             return "opencode"
         if context_key.startswith("claude_"):
             return "claude-code"
+        if context_key.startswith("dsh_"):
+            return "dsh"
         return "manual"
 
     @staticmethod
