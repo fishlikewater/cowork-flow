@@ -47,9 +47,22 @@ def _default_action_command(
     return " ".join(parts)
 
 
-def _render_command(action_id: str, task_path: str | None, template: object) -> str | None:
+def _render_command(
+    action_id: str,
+    task_path: str | None,
+    template: object,
+    blockers: object,
+) -> str | None:
     if isinstance(template, str) and template.strip():
         return template.replace("<task-dir>", task_path or "<task-dir>")
+    if action_id == "edit_planning_artifacts":
+        items = [str(item) for item in (blockers or [])]
+        if items and all(item.startswith("planFile") for item in items):
+            return (
+                f"./.cowork-flow/run task next {task_path or '<task-dir>'}"
+                " --run --from-plan <plan-file>"
+            )
+        return None
     if action_id in {"start_task", "implement_change"}:
         return _default_action_command(task_path)
     return None
@@ -66,7 +79,12 @@ def _render_adapter_commands(payload: dict[str, object], task_path: str | None) 
     if not isinstance(action, dict):
         return payload
     action_id = str(action.get("id"))
-    command = _render_command(action_id, task_path, action.get("command"))
+    command = _render_command(
+        action_id,
+        task_path,
+        action.get("command"),
+        action.get("blockers"),
+    )
     diagnostics = _render_diagnostics(task_path, action.get("diagnosticsCommand"))
     action["command"] = command
     action["diagnosticsCommand"] = diagnostics

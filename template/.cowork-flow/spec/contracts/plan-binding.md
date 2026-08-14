@@ -23,6 +23,16 @@
 }
 ```
 
+## 规划期绑定
+
+- 未在创建时绑定的 planning task 可执行
+  `./.cowork-flow/run task next <task-dir> --run --from-plan <path>` 补绑计划。
+- 校验与创建阶段一致：路径存在、位于仓库内、`.cowork-flow/plans/` 下且非空。
+- 绑定只写 `task.json.meta.planFile`（保留 meta 其它键），不改任务状态；
+  绑定后重新运行 `task next <task-dir> --run` 继续。
+- 非 planning 任务携带 `--from-plan` 被拒绝（next action 不是
+  `edit_planning_artifacts` 时 runner 报错）。
+
 ## 启动实施前
 
 Normal / High-risk task 从 `planning` 进入 `in_progress` 前必须满足：
