@@ -482,9 +482,13 @@ class CodexHooksTest(unittest.TestCase):
             self._write_runtime_context(root, "rtx_hook_command")
             hooks = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
             command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
-            # POSIX: prepend cwd; on Windows the .cmd wrapper handles it
+            # POSIX: the sh router handles the command as written; on Windows
+            # the .cmd wrapper is the router's implementation — substitute it
+            # for the leading `.cowork-flow/run` token instead of prepending.
             if os.name == "nt":
-                command_parts = [str(root / ".cowork-flow" / "run.cmd")] + shlex.split(command)
+                parts = shlex.split(command)
+                self.assertEqual(".cowork-flow/run", parts[0])
+                command_parts = [str(root / ".cowork-flow" / "run.cmd"), *parts[1:]]
             else:
                 command_parts = ["/bin/sh", "-c", f"cd {shlex.quote(str(root))} && {command}"]
             result = subprocess.run(
