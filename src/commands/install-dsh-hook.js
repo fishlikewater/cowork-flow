@@ -213,7 +213,9 @@ export async function runInstallDshHook(args = []) {
 
   console.log('✓ cowork-flow workflow-state hook installed to ' + pluginDest);
   console.log('  Registered insert row "' + ROW_ID + '" in ' + patchFile + (changed === false ? ' (already up to date)' : ''));
-  console.log('  Restart DSH for the hook to take effect (composition loads at boot).');
+  console.log('  Restart DSH for the composition to load (installed at boot-time).');
+  console.log('  Note: current DSH builds compose this row but do not surface host-level sections');
+  console.log('  in agent prompts; use "cowork-flow install-dsh-preset" for real-time injection.');
 
   const presetComposition = join(home, '.agent-presets', 'cowork-flow', 'agent.cordis.yml');
   if (await pathExists(presetComposition)) {

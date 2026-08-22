@@ -36,6 +36,13 @@ run_step npm version "$RELEASE_TYPE" --no-git-tag-version || exit $?
 PACKAGE_VERSION=$(node -p "require('./package.json').version") || exit $?
 printf '%s\n' "$PACKAGE_VERSION" > "$TEMPLATE_VERSION_FILE" || exit $?
 
+# The changelog must already carry an entry for the version being released;
+# release:check (package tests) enforces the same on the current version.
+grep -q "^## ${PACKAGE_VERSION} " CHANGELOG.md || {
+  echo "error: CHANGELOG.md has no entry for version ${PACKAGE_VERSION}" >&2
+  exit 1
+}
+
 GIT_ADD_FILES="package.json package-lock.json $TEMPLATE_VERSION_FILE"
 if [ -f "$ZCODE_PLUGIN_JSON" ]; then
   node -e "const fs=require('fs');const p='$ZCODE_PLUGIN_JSON';const j=JSON.parse(fs.readFileSync(p));j.version='$PACKAGE_VERSION';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')" || exit $?
