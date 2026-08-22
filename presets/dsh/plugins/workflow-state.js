@@ -22,6 +22,8 @@
 // falls back to running the navigator manually.
 
 import { execFile } from 'node:child_process';
+import { stat } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 
 export const name = 'workflow-state-hook';
 export const inject = ['systemPrompt'];
@@ -35,6 +37,11 @@ const EXEC_OPTIONS = {
   maxBuffer: 1024 * 1024,
 };
 const NO_ROOT_MARKER = '__COWORK_FLOW_NO_ROOT__';
+// How long a "no .cowork-flow root" verdict is trusted for one cwd. Bounded
+// on purpose: a project that installs cowork-flow mid-session becomes visible
+// after at most one TTL, at the cost of at most one interpreter probe.
+const NO_ROOT_TTL_MS = 30_000;
+const noRootCache = new Map();
 
 // Python 3.9+ protocol reused from the host hook adapters. It resolves the
 // `.cowork-flow` root from the given cwd, loads the shared
@@ -158,12 +165,50 @@ export function resetWorkingPython() {
 
 
 /**
+ * Nearest ancestor of `cwd` whose `.cowork-flow` entry is a directory, or
+ * `null` when no such ancestor exists. Mirrors the root resolution inside
+ * the Python protocol so a project without cowork-flow never pays for an
+ * interpreter spawn at all.
+ */
+export async function findCoworkRoot(cwd) {
+  let current = resolve(cwd);
+  for (;;) {
+    try {
+      const entry = await stat(join(current, '.cowork-flow'));
+      if (entry.isDirectory()) {
+        return current;
+      }
+    } catch {
+      // Missing or inaccessible — keep walking up.
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+
+/**
  * Produce the `<workflow-state>` hook context block for a workspace cwd.
  * Empty string means "contribute nothing" (no root, hooks disabled, no
  * usable interpreter, or a broken runtime).
  */
 export async function runWorkflowState(cwd) {
-  if (hooksDisabled()) {
+  if (hooksDisabled() || !cwd) {
+    return '';
+  }
+  const resolved = resolve(cwd);
+  const cached = noRootCache.get(resolved);
+  if (cached !== undefined && cached > Date.now()) {
+    return '';
+  }
+  if ((await findCoworkRoot(resolved)) === null) {
+    if (noRootCache.size > 1000) {
+      noRootCache.clear();
+    }
+    noRootCache.set(resolved, Date.now() + NO_ROOT_TTL_MS);
     return '';
   }
   if (workingPython !== null) {

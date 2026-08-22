@@ -3,6 +3,7 @@ import { emitKeypressEvents } from 'node:readline';
 import { createInterface } from 'node:readline/promises';
 
 import { runInit } from './commands/init.js';
+import { runInstallDshHook } from './commands/install-dsh-hook.js';
 import { runInstallDshPreset } from './commands/install-dsh-preset.js';
 import { runInstallZCodePlugin } from './commands/install-zcode-plugin.js';
 import { runSourceRefresh } from './commands/source-refresh.js';
@@ -16,6 +17,7 @@ Usage:
   cowork-flow init [target] --platform <codex|opencode|claude-code|all> [--developer <name>] [--dry-run] [--force]
   cowork-flow install-zcode-plugin [--dry-run] [--force] [--prune-old]
   cowork-flow install-dsh-preset [--dry-run] [--force]
+  cowork-flow install-dsh-hook [--dry-run] [--force] [--uninstall]
   cowork-flow update
   cowork-flow sync [target] [--dry-run] [--force]
   cowork-flow source-refresh [target] [--dry-run]
@@ -191,6 +193,10 @@ export async function main(argv = process.argv.slice(2), options = {}) {
 
     if (command === 'install-dsh-preset') {
       return await runInstallDshPreset(args);
+    }
+
+    if (command === 'install-dsh-hook') {
+      return await runInstallDshHook(args);
     }
 
     io.writeErr(`Unknown command: ${command}\n`);
