@@ -83,6 +83,7 @@ def _resolve_env_context_key() -> str | None:
         ("claude", "CLAUDE_CODE_SESSION_ID"),
         ("codex", "CODEX_SESSION_ID"),
         ("codex", "CODEX_THREAD_ID"),
+        ("dsh", "DSH_SESSION_ID"),
     ):
         context_key = _prefixed_context_key(prefix, os.environ.get(env_name))
         if context_key:

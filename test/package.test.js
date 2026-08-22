@@ -122,6 +122,19 @@ test('package metadata exposes release script and synchronized lockfile version'
 });
 
 
+test('changelog carries an entry for the current package version', async () => {
+  const packageInfo = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+  const changelog = await readFile(join(packageRoot, 'CHANGELOG.md'), 'utf8');
+  // Versions are dotted digits; escape dots for the anchored section header.
+  const escaped = packageInfo.version.split('.').join('\.');
+  assert.match(
+    changelog,
+    new RegExp('^## ' + escaped + ' ', 'm'),
+    'CHANGELOG.md must start a section for the current version so release.sh can pass its post-bump gate'
+  );
+});
+
+
 test('CI and publish workflows enforce Windows release confidence gates', async () => {
   const ci = await readFile(join(packageRoot, '.github/workflows/ci.yml'), 'utf8');
   const publish = (await readFile(join(packageRoot, '.github/workflows/publish.yml'), 'utf8'))

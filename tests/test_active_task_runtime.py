@@ -108,6 +108,21 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.active_task.platform_from_context_key("dsh_main_session"),
         )
 
+    def test_context_key_uses_dsh_session_when_cowork_missing(self) -> None:
+        with patch.dict(os.environ, {"DSH_SESSION_ID": "session-123"}, clear=True):
+            self.assertEqual("dsh_session-123", self.active_task.resolve_context_key())
+
+    def test_cowork_env_precedes_dsh_session_env(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "COWORK_FLOW_CONTEXT_ID": "main window",
+                "DSH_SESSION_ID": "session-123",
+            },
+            clear=True,
+        ):
+            self.assertEqual("main_window", self.active_task.resolve_context_key())
+
     def test_context_key_uses_claude_session_when_cowork_missing(self) -> None:
         with patch.dict(os.environ, {"CLAUDE_SESSION_ID": "claude-123"}, clear=True):
             self.assertEqual("claude_claude-123", self.active_task.resolve_context_key())

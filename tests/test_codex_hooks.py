@@ -66,11 +66,17 @@ class CodexHooksTest(unittest.TestCase):
         for name in (
             "COWORK_FLOW_CONTEXT_ID",
             "COWORK_FLOW_HOST_CONTEXT_KEY",
-            "CODEX_SESSION_ID",
-            "CODEX_THREAD_ID",
             "COWORK_FLOW_RUNTIME_CONTEXT_ID",
             "COWORK_FLOW_DISABLE_HOOKS",
             "COWORK_FLOW_HOOKS",
+            "ZCODE_SESSION_ID",
+            "ZCODE_PROCESS_LABEL",
+            "OPENCODE_SESSION_ID",
+            "CLAUDE_SESSION_ID",
+            "CLAUDE_CODE_SESSION_ID",
+            "CODEX_SESSION_ID",
+            "CODEX_THREAD_ID",
+            "DSH_SESSION_ID",
         ):
             env.pop(name, None)
         return env

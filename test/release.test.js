@@ -54,6 +54,13 @@ async function createReleaseProject(t) {
     'utf8'
   );
   await writeFile(join(repo, 'template', '.cowork-flow', '.version'), '0.0.5\n', 'utf8');
+  // The release gate requires a changelog entry for the post-bump version;
+  // both fake bump targets (patch -> 0.0.6, minor -> 0.1.0) are covered.
+  await writeFile(
+    join(repo, 'CHANGELOG.md'),
+    '# Changelog\n\n## 0.1.0 - placeholder\n\nplaceholder\n\n## 0.0.6 - placeholder\n\nplaceholder\n',
+    'utf8'
+  );
   return repo;
 }
 
