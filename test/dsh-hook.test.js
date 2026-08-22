@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { isLifecycleCommand, runWorkflowState, resetWorkingPython } from '../presets/dsh/plugins/workflow-state.js';
+import { findCoworkRoot, isLifecycleCommand, runWorkflowState, resetWorkingPython } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 
@@ -74,6 +74,59 @@ test('degrades to empty text when the protocol fails', async (t) => {
       process.env[name] = value;
     }
   }
+});
+
+
+test('skips the interpreter entirely outside a cowork-flow root', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-hook-noroot-'));
+  const marker = join(dir, 'ran-marker');
+  const stub = join(dir, 'python-stub.sh');
+  const previousPython = process.env.COWORK_FLOW_PYTHON;
+  const previousMarker = process.env.COWORK_MARKER;
+  t.after(async () => {
+    await rm(dir, { recursive: true, force: true });
+    restore('COWORK_FLOW_PYTHON', previousPython);
+    restore('COWORK_MARKER', previousMarker);
+    resetWorkingPython();
+  });
+
+  // A stub interpreter that records every invocation. The JS-side root
+  // pre-check must short-circuit before any interpreter is discovered, so
+  // the marker never exists.
+  await writeFile(stub, '#!/bin/sh\nprintf x > "$COWORK_MARKER"\n', { mode: 0o755 });
+  process.env.COWORK_FLOW_PYTHON = stub;
+  process.env.COWORK_MARKER = marker;
+  resetWorkingPython();
+
+  assert.equal(await runWorkflowState(join(dir, 'sub')), '');
+  // Second call exercises the negative cache; still no interpreter.
+  assert.equal(await runWorkflowState(join(dir, 'sub')), '');
+  await assert.rejects(access(marker));
+
+  function restore(name, value) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
+});
+
+
+test('findCoworkRoot climbs to the nearest cowork-flow root', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-root-'));
+  const outside = await mkdtemp(join(tmpdir(), 'cowork-flow-outside-'));
+  t.after(async () => {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  });
+
+  await mkdir(join(root, '.cowork-flow'), { recursive: true });
+  await mkdir(join(root, 'a', 'b'), { recursive: true });
+
+  assert.equal(await findCoworkRoot(join(root, 'a', 'b')), root);
+  assert.equal(await findCoworkRoot(root), root);
+  assert.equal(await findCoworkRoot(outside), null);
 });
 
 

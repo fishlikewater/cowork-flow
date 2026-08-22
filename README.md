@@ -58,8 +58,11 @@ cowork-flow update --dry-run
 # 安装 ZCode 插件（可选）
 cowork-flow install-zcode-plugin
 
-# 安装 DSH 预设（可选）
+# 安装 DSH 预设（可选，整套 agent）
 cowork-flow install-dsh-preset
+
+# 机器级安装实时 workflow-state 注入（推荐：不换预设，任意 DSH 会话生效）
+cowork-flow install-dsh-hook
 
 # 维护者发布前检查
 npm run release:check
@@ -117,7 +120,8 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `sync <path> [--dry-run]` | 同步已初始化项目的模板和技能 |
 | `source-refresh [path] [--dry-run]` | 维护者刷新 source checkout 的 ignored live runtime 与 Host Skill replica |
 | `install-zcode-plugin` | 安装 ZCode 插件到全局缓存 |
-| `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/` |
+| `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/`（整套 agent，可选） |
+| `install-dsh-hook` | 机器级安装 workflow-state hook 到 `$DSH_HOME/cordis.patch.yml`，任意 DSH 预设会话获得实时状态注入 |
 | `update [--dry-run]` | 升级 CLI 本身 |
 
 ### init 选项
@@ -174,6 +178,21 @@ ZCode 插件只安装 hook、skills、agents 和轻量说明文件；`.cowork-fl
 - `cowork-implement` — 绑定 runtime context 后执行计划内实现
 - `cowork-check` — 绑定 runtime context 后做独立检查
 - `cowork-research` — 绑定 runtime context 后做只读调研
+
+## DSH 轻量接入（推荐）
+
+```bash
+cowork-flow init ./my-project --platform dsh   # 项目资产：AGENTS.md + .agents/skills/ + .dsh 标记
+cowork-flow install-dsh-hook                   # 机器级：实时 workflow-state 注入
+```
+
+`install-dsh-hook` 把 `workflow-state.js` 插件注册到 `$DSH_HOME/cordis.patch.yml`（未设置 `DSH_HOME` 时默认 `~/.dsh`），对**所有** DSH 会话生效——继续使用 standard 或你自己的自定义预设即可，无需切换到 cowork-flow 预设。注入的 `<workflow-state>` 块与预设版本同构：每条用户消息刷新，`task` / `subagent` / `resume` 等生命周期命令落定后轮内刷新。
+
+在未安装 cowork-flow 的项目里 hook 完全无感：JS 侧根目录预检直接短路——不注入内容、不启动 Python 进程。全局开关（环境变量）：`COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`。卸载：`cowork-flow install-dsh-hook --uninstall`（`--force` 同时删除插件文件）。
+
+> 安装或更新后需要**重启 DSH**（`cordis.patch.yml` 在启动时组合，新增/变更不会被热加载）。
+
+> 与 `install-dsh-preset` 二选一：预设本身已内置同一 hook，同时安装可能造成重复注入。
 
 ## DSH 预设
 
