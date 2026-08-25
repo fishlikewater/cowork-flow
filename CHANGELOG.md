@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.0.52 - 2026-08-26
+
+### ZCode 宿主与 hook 体验
+
+- 修复 hook 过期会话污染：按会话身份选取活动任务，全局兜底跳过失效绑定与 subagent 会话；显式身份无绑定时对齐 CLI 判 `no_task` 并列出可改绑活动任务。
+- 注册 zcode 为一等宿主平台：`host-assets.json` platforms 条目 + `adapters/zcode/adapter.yaml`，alias 解析、平台检测、adapter 一致性校验与 doctor 全链路覆盖；`.zcode/` 维持插件分发不落工程。
+- 纯 zcode 工程生命周期可用：技能落盘 `.cowork-flow/skills/`（宿主提示层仍由插件单源提供），内核 `skill_roots()` 解析 action owner；`detectAny` 增加 adapter 标记修复 sync 静默失养。
+- contract digest 注入瘦身：SessionStart（含 compact/clear）注入完整块，UserPromptSubmit 仅重复指纹行。
+- 新增 PostToolUse(Bash) 轮内刷新：生命周期命令落定后立即注入最新 workflow-state 与指纹行，无关命令零输出。
+
+### 运行时与诊断
+
+- 生命周期转换在提交单元内原子写 `.runtime/state-snapshot.json`；hook 在快照与所选任务一致时采用快照面包屑键，缺失或不一致回退 status 推导。Python 共享 hook 协议（build_hook_context）补直接单测。
+- doctor 新增会话卫生检查：报告失效任务绑定、超龄未活跃、不可读的运行时会话文件。
+
+### 文档
+
+- AGENTS.md 0.1 明确注入块优先、勿重复运行导航器；README 平台清单与技能分发表同步 zcode。
+
 ## 0.0.51 - 2026-08-15
 
 ### DSH host 接入
