@@ -6,10 +6,11 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Union
 
+from infra.paths import DIR_WORKFLOW
 from infra.storage.unit_of_work import (
     FaultInjector,
     UnitOfWork,
@@ -505,6 +506,13 @@ class TaskLifecycleService:
             self.repository.task_json_path(task_dir),
             persisted,
         )
+        unit.replace(
+            self.repo_root
+            / DIR_WORKFLOW
+            / ".runtime"
+            / "state-snapshot.json",
+            self._state_snapshot(stage, task_dir),
+        )
         try:
             unit.commit()
         except UnitOfWorkError as error:
@@ -516,6 +524,21 @@ class TaskLifecycleService:
                 check_result=check_result,
             )
         return None
+
+    def _state_snapshot(self, stage: LifecycleStage, task_dir: Path) -> dict:
+        """Host-hook breadcrumb facts recorded atomically with the transition."""
+        return {
+            "schemaVersion": 1,
+            "generatedAt": (
+                datetime.now(timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z")
+            ),
+            "activeTaskPath": self._display_task_path(task_dir),
+            "status": stage.target_status,
+            "breadcrumbKey": stage.target_status,
+        }
 
     def start_readiness(self, task: str | Path) -> LifecycleResult:
         """Check start readiness without mutating task or session state."""
