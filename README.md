@@ -172,7 +172,7 @@ ZCode 插件只安装 hook、skills、agents 和轻量说明文件；`.cowork-fl
 
 **Hook 注入内容：**
 - `workflow-state` — 当前任务状态
-- `contract-digest` — 合同摘要（SHA256 fingerprint）
+- `contract-digest` — 合同摘要：SessionStart 注入完整块，后续消息仅重复 SHA256 fingerprint
 - `delegated_subtask` — 子代理运行时上下文
 
 **插件子代理：**
