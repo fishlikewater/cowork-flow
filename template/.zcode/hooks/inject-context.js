@@ -403,11 +403,21 @@ Source: cowork-flow-plugin
     }
   }
 
-  // Inject contract digest
+  // Inject contract digest: the full block rides session start (startup,
+  // clear, compact re-runs it); later prompts only repeat the fingerprint
+  // so long sessions don't pay for the full listing on every message.
   const rootForDigest = effectiveRoot || envDir || input.cwd;
   if (rootForDigest) {
-    const contractDigest = buildContractDigest(rootForDigest);
-    context = `${contractDigest}\n\n${context}`;
+    if (
+      typeof input?.hook_event_name === "string" &&
+      input.hook_event_name.trim() === "SessionStart"
+    ) {
+      context = `${buildContractDigest(rootForDigest)}\n\n${context}`;
+    } else {
+      const contracts = loadContractRegistry(rootForDigest);
+      const fingerprint = contractFingerprint(rootForDigest, contracts);
+      context = `<contract-fingerprint value="${fingerprint}"/>\n\n${context}`;
+    }
   }
 
   const missingFiles = effectiveRoot ? checkEssentialFiles(effectiveRoot) : [];

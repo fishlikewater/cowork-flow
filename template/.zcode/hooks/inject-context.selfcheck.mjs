@@ -175,13 +175,48 @@ try {
     assert.ok(!parsed.hookSpecificOutput, "cursor format should not have hookSpecificOutput");
   });
 
-  test("outputs contract-digest with fingerprint", () => {
-    const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
+  test("UserPromptSubmit outputs a single fingerprint line without contract details", () => {
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /<contract-digest fingerprint="[a-f0-9]+">/, "should have contract-digest with hex fingerprint");
+    assert.match(ctx, /<contract-fingerprint value="[a-f0-9]+"\/>/, "should carry the repeated fingerprint");
+    assert.doesNotMatch(ctx, /<contract-digest/, "digest block must not appear on user prompts");
+    assert.doesNotMatch(ctx, /RUNTIME_CONTEXT_DISPATCH_V2/, "contract detail lines must not appear");
+  });
+
+  test("SessionStart outputs the full contract-digest block", () => {
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "SessionStart" })
+    );
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
     assert.match(ctx, /<cowork-runtime host="zcode"/, "should have cowork-runtime block");
+    assert.match(ctx, /<contract-digest fingerprint="[a-f0-9]+">/, "should have contract-digest with hex fingerprint");
     assert.match(ctx, /RUNTIME_CONTEXT_DISPATCH_V2/, "should list contracts from registry");
+  });
+
+  test("fingerprint is stable across events and reacts to spec changes", () => {
+    const promptFingerprint = () => {
+      const parsed = JSON.parse(
+        runHook({ ZCODE_PROJECT_DIR: tmpRoot }, JSON.stringify({ hook_event_name: "UserPromptSubmit" }))
+      );
+      return parsed.hookSpecificOutput.additionalContext.match(/<contract-fingerprint value="([a-f0-9]+)"\/>/)[1];
+    };
+    const before = promptFingerprint();
+    const sessionParsed = JSON.parse(
+      runHook({ ZCODE_PROJECT_DIR: tmpRoot }, JSON.stringify({ hook_event_name: "SessionStart" }))
+    );
+    const sessionFingerprint = sessionParsed.hookSpecificOutput.additionalContext.match(/fingerprint="([a-f0-9]+)"/)[1];
+    assert.equal(before, sessionFingerprint, "identical spec state must yield identical fingerprints");
+
+    const specPath = join(tmpRoot, ".cowork-flow", "spec", "contracts", "subagent-dispatch.md");
+    writeFileSync(specPath, "# Subagent Dispatch\n\nChanged content moves the fingerprint.\n", "utf8");
+    const after = promptFingerprint();
+    assert.notEqual(before, after, "spec content changes must move the fingerprint");
   });
 
   test("parses workflow-state-templates.md for breadcrumb text", () => {
