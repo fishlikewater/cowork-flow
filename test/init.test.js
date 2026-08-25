@@ -447,7 +447,11 @@ test('init uses platform selector and then prompts for developer', async (t) => 
 
   assert.equal(code, 0);
   assert.match(selectorCalls[0].message, /Select platforms/);
-  assert.equal(selectorCalls[0].choices.length, 4);
+  assert.equal(selectorCalls[0].choices.length, 5);
+  assert.deepEqual(
+    selectorCalls[0].choices.map((choice) => choice.value),
+    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode']
+  );
   assert.match(prompts[0], /Developer name/);
   assert.equal(await exists(join(target, '.codex')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
