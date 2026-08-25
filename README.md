@@ -109,7 +109,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `codex` / `opencode` | `.agents/skills/` |
 | `dsh` | `.agents/skills/` |
 | `claude-code` | `.claude/skills/` |
-| `zcode` | 无（skills 随 ZCode 插件分发，不经 init/sync 落盘） |
+| `zcode` | `.cowork-flow/skills/`（内核 owner 解析用；系统提示层仍由 ZCode 插件单源提供，不重复加载） |
 
 分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
 

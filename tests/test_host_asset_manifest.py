@@ -183,7 +183,10 @@ class HostAssetManifestTest(unittest.TestCase):
         self.assertEqual("zcode", manifest.resolve_alias("zcode"))
         self.assertEqual(".agents/skills", manifest.platform("codex").skill_target)
         self.assertEqual(".agents/skills", manifest.platform("dsh").skill_target)
-        self.assertIsNone(manifest.platform("zcode").skill_target)
+        self.assertEqual(
+            ".cowork-flow/skills",
+            manifest.platform("zcode").skill_target,
+        )
         self.assertEqual(
             ".claude/skills",
             manifest.platform("claude-code").skill_target,

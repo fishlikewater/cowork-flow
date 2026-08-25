@@ -239,13 +239,15 @@
         "zcode"
       ],
       "detectAny": [
-        ".zcode"
+        ".zcode",
+        ".cowork-flow/adapters/zcode"
       ],
       "assetPrefixes": [
-        ".cowork-flow/adapters/zcode/"
+        ".cowork-flow/adapters/zcode/",
+        ".cowork-flow/skills/"
       ],
       "assetFiles": [],
-      "skillTarget": null,
+      "skillTarget": ".cowork-flow/skills",
       "adapterPath": ".cowork-flow/adapters/zcode/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native",
