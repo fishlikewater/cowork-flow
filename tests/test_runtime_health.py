@@ -441,6 +441,84 @@ class RuntimeHealthTest(unittest.TestCase):
             ],
         )
 
+    def test_session_hygiene_reports_stale_sessions_without_failing_health(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "zcode_dead-task.json").write_text(
+                json.dumps(
+                    {
+                        "active_task_path": ".cowork-flow/tasks/06-21-gone",
+                        "scope": "main",
+                        "platform": "zcode",
+                        "last_seen_at": "2026-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (sessions / "zcode_aged.json").write_text(
+                json.dumps(
+                    {
+                        "scope": "main",
+                        "platform": "zcode",
+                        "last_seen_at": "2020-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (sessions / "zcode_broken.json").write_text("{not json", encoding="utf-8")
+            (sessions / "claude_fresh.json").write_text(
+                json.dumps(
+                    {
+                        "active_task_path": ".cowork-flow/tasks/07-02-live",
+                        "scope": "main",
+                        "platform": "claude",
+                        "last_seen_at": "2099-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            live_task = root / ".cowork-flow" / "tasks" / "07-02-live"
+            live_task.mkdir(parents=True)
+            (live_task / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+
+            issues = self.doctor.check_session_hygiene(root)
+            result = self.doctor._all_check_result(root)
+            structured_issues = result["issues"]["sessionHygiene"]
+
+        codes = {issue["code"] for issue in issues}
+        self.assertIn("SESSION-HYGIENE-DEAD-TASK", codes)
+        self.assertIn("SESSION-HYGIENE-AGED", codes)
+        self.assertIn("SESSION-HYGIENE-UNREADABLE-SESSION", codes)
+        self.assertEqual(
+            {
+                "SESSION-HYGIENE-DEAD-TASK",
+                "SESSION-HYGIENE-AGED",
+                "SESSION-HYGIENE-UNREADABLE-SESSION",
+            },
+            {issue["code"] for issue in structured_issues},
+        )
+        self.assertEqual([], [issue for issue in issues if "claude_fresh" in issue["path"]])
+        envelope_keys = {"code", "severity", "path", "message", "commandHint", "contract"}
+        self.assertEqual(
+            [],
+            [issue for issue in structured_issues if not envelope_keys <= set(issue)],
+        )
+        self.assertEqual(
+            [],
+            [
+                issue
+                for issue in structured_issues
+                if issue["severity"] != "warning"
+                or issue["contract"] != "runtime-health:session-hygiene"
+            ],
+        )
+        self.assertEqual(
+            [],
+            [error for error in result["errors"] if "SESSION-HYGIENE" in json.dumps(error)],
+        )
+
     def test_state_recovery_reports_locks_and_pending_operations_without_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

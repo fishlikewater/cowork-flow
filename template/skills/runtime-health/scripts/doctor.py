@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -315,6 +316,107 @@ def _print_task_hygiene_issues(issues: list[dict[str, str]]) -> None:
         print(f"Hint: {issue['hint']}", file=sys.stderr)
 
 
+SESSION_STALE_MAX_AGE_DAYS = 30
+
+
+def _session_hygiene_issue(
+    *,
+    kind: str,
+    path: str,
+    message: str,
+    hint: str,
+) -> dict[str, str]:
+    code = f"SESSION-HYGIENE-{kind.replace('_', '-').upper()}"
+    return _issue(
+        code=code,
+        severity="warning",
+        path=path,
+        message=message,
+        command_hint=hint,
+        contract="runtime-health:session-hygiene",
+        kind=kind,
+        hint=hint,
+    )
+
+
+def _parse_session_timestamp(raw: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def check_session_hygiene(repo_root: Path) -> list[dict[str, str]]:
+    """Report stale runtime session files without failing health."""
+    sessions_dir = repo_root / ".cowork-flow" / ".runtime" / "sessions"
+    if not sessions_dir.is_dir():
+        return []
+    now = datetime.now(timezone.utc)
+    issues: list[dict[str, str]] = []
+    for path in sorted(sessions_dir.glob("*.json")):
+        diagnostic = _diagnostic_path(repo_root, path)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            data = None
+        if not isinstance(data, dict):
+            issues.append(
+                _session_hygiene_issue(
+                    kind="unreadable_session",
+                    path=diagnostic,
+                    message="session file is unreadable or not a JSON object",
+                    hint=f"review and delete {diagnostic}",
+                )
+            )
+            continue
+        reasons: list[str] = []
+        task_path = str(data.get("active_task_path") or "")
+        dead_task = bool(task_path) and not (
+            repo_root / task_path / "task.json"
+        ).is_file()
+        raw_seen_at = str(data.get("last_seen_at") or "")
+        seen_at = _parse_session_timestamp(raw_seen_at) if raw_seen_at else None
+        aged = False
+        if seen_at is None and raw_seen_at:
+            reasons.append(f"unparsable last_seen_at: {raw_seen_at}")
+            aged = True
+        elif seen_at is not None:
+            age_days = (now - seen_at).days
+            if age_days > SESSION_STALE_MAX_AGE_DAYS:
+                reasons.append(f"not seen for {age_days} days")
+                aged = True
+        if dead_task:
+            issues.append(
+                _session_hygiene_issue(
+                    kind="dead_task",
+                    path=diagnostic,
+                    message=(
+                        f"session bound to missing task directory: {task_path}"
+                    ),
+                    hint=f"delete {diagnostic} or rebind via ./.cowork-flow/run task next",
+                )
+            )
+        if aged:
+            issues.append(
+                _session_hygiene_issue(
+                    kind="aged",
+                    path=diagnostic,
+                    message=f"stale session file: {'; '.join(reasons)}",
+                    hint=f"delete {diagnostic}",
+                )
+            )
+    return issues
+
+
+def _print_session_hygiene_issues(issues: list[dict[str, str]]) -> None:
+    for issue in issues:
+        print(
+            f"WARNING: {issue['kind']}: {issue['path']}: {issue['message']}",
+            file=sys.stderr,
+        )
+        print(f"Hint: {issue['hint']}", file=sys.stderr)
+
+
 def _diagnostic_path(repo_root: Path, path: Path) -> str:
     try:
         return path.resolve().relative_to(repo_root.resolve()).as_posix()
@@ -495,6 +597,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     distribution_errors = check_distribution(repo_root)
     task_hygiene_issues = check_task_hygiene(repo_root)
     state_recovery_issues = check_state_recovery(repo_root)
+    session_hygiene_issues = check_session_hygiene(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
         errors.append({"kind": "host_adapter", **issue})
@@ -513,6 +616,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "hostAdapters": host_issues,
             "taskHygiene": task_hygiene_issues,
             "stateRecovery": state_recovery_issues,
+            "sessionHygiene": session_hygiene_issues,
         },
     }
 
@@ -525,6 +629,7 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
         return 1 if errors else 0
     _print_task_hygiene_issues(result["issues"]["taskHygiene"])
     _print_state_recovery_issues(result["issues"]["stateRecovery"])
+    _print_session_hygiene_issues(result["issues"]["sessionHygiene"])
     if errors:
         for error in errors:
             print(f"ERROR: {error['message']}", file=sys.stderr)
