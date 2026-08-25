@@ -143,6 +143,33 @@ function toActiveTask(data) {
   };
 }
 
+// One-level scan of non-archived tasks for rebind hints; tasks/archive lives
+// two levels deeper so a plain readdir already excludes it.
+function listActiveTasks(repoRoot) {
+  const tasksDir = join(repoRoot, DIR_WORKFLOW, "tasks");
+  const out = [];
+  try {
+    for (const name of readdirSync(tasksDir)) {
+      const relative = `${DIR_WORKFLOW}/tasks/${name}`;
+      const { status, missing } = readTaskStatus(repoRoot, relative);
+      if (!missing) out.push(`${relative} (${status})`);
+    }
+  } catch {
+    // tasks dir unreadable
+  }
+  return out;
+}
+
+function formatRebindHints(repoRoot) {
+  const active = listActiveTasks(repoRoot);
+  if (active.length === 0) return "";
+  return [
+    "",
+    "活动任务（可用 ./.cowork-flow/run task next <dir> 改绑）：",
+    ...active.map((entry) => `- ${entry}`),
+  ].join("\n");
+}
+
 function readActiveTask(repoRoot, sessionKey = null) {
   const sessionsDir = join(repoRoot, DIR_WORKFLOW, ".runtime", "sessions");
   if (!existsSync(sessionsDir)) return null;
@@ -153,6 +180,9 @@ function readActiveTask(repoRoot, sessionKey = null) {
   if (sessionKey) {
     const own = entries.find((entry) => entry.name === `${sessionKey}.json`);
     if (own?.data.active_task_path) return toActiveTask(own.data);
+    // An explicitly identified session without its own file must not adopt
+    // another session's binding - the CLI reports no_task for the same state.
+    if (!own) return null;
   }
 
   // Global fallback: newest first, but skip subagent-scoped files and entries
@@ -316,10 +346,11 @@ function buildContext(repoRoot, activeTask, breadcrumbs) {
 
   if (!activeTask) {
     const body = breadcrumbs.no_task || fallback;
+    const hints = formatRebindHints(repoRoot);
     return `<workflow-state>
 Status: no_task
 Source: task next / ${DIR_WORKFLOW}/spec
-${body}
+${body}${hints ? `\n${hints}` : ""}
 </workflow-state>`;
   }
 
@@ -327,11 +358,12 @@ ${body}
   const scope = activeTask.scope === "subagent" ? "\nScope: subagent" : "";
 
   if (missing) {
+    const hints = formatRebindHints(repoRoot);
     return `<workflow-state>
 Status: no_task
 Source: runtime-session
 Session 指向的任务目录不存在（${activeTask.taskPath}）。
-当前项目无有效任务。请运行 ./.cowork-flow/run task next --run --title "<title>" --slug <task-name> --assignee <name> 创建新任务。
+当前项目无有效任务。请运行 ./.cowork-flow/run task next --run --title "<title>" --slug <task-name> --assignee <name> 创建新任务。${hints ? `\n${hints}` : ""}
 </workflow-state>`;
   }
 
