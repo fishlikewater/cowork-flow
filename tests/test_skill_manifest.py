@@ -80,6 +80,38 @@ class SkillManifestTest(unittest.TestCase):
                 reserved_names=reserved_names,
             )
 
+    def test_skill_roots_include_cowork_flow_runtime_skills(self) -> None:
+        repo = Path("/unused")
+        self.assertIn(
+            repo / ".cowork-flow" / "skills",
+            self.module.skill_roots(repo),
+        )
+
+    def test_skill_path_falls_back_to_runtime_skills_only_when_heuristic_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            runtime_skill = repo / ".cowork-flow" / "skills" / "solo"
+            runtime_skill.mkdir(parents=True)
+            (runtime_skill / "SKILL.md").write_text("x", encoding="utf-8")
+            self.assertEqual(
+                ".cowork-flow/skills/solo/SKILL.md",
+                self.module._skill_path(repo, "solo"),
+            )
+
+            claude_skill = repo / ".claude" / "skills" / "solo"
+            claude_skill.mkdir(parents=True)
+            (claude_skill / "SKILL.md").write_text("x", encoding="utf-8")
+            self.assertEqual(
+                ".claude/skills/solo/SKILL.md",
+                self.module._skill_path(repo, "solo"),
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.assertEqual(
+                ".agents/skills/solo/SKILL.md",
+                self.module._skill_path(Path(temp_dir), "solo"),
+            )
+
     def test_commands_and_aliases_resolve_through_shared_loader(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             skills = Path(temp_dir) / "skills"

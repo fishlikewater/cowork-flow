@@ -77,6 +77,7 @@ def skill_roots(repo_root: Path) -> tuple[Path, ...]:
     roots = [
         root / ".agents" / "skills",
         root / ".claude" / "skills",
+        root / ".cowork-flow" / "skills",
         root / "skills",
         root / "template" / "skills",
     ]
@@ -321,6 +322,7 @@ def _replica_precedence(repo_root: Path, manifest: SkillManifest) -> tuple[int, 
         root / "skills",
         root / ".agents" / "skills",
         root / ".claude" / "skills",
+        root / ".cowork-flow" / "skills",
     )
     manifest_path = manifest.path.resolve()
     for index, candidate in enumerate(ordered_roots):
@@ -462,8 +464,15 @@ def skill_command_scripts(
 def _skill_path(repo_root: Path, skill: str) -> str:
     root = Path(repo_root)
     if (root / ".claude").is_dir() and not (root / ".agents").is_dir():
-        return f".claude/skills/{skill}/SKILL.md"
-    return f".agents/skills/{skill}/SKILL.md"
+        candidate = f".claude/skills/{skill}/SKILL.md"
+    else:
+        candidate = f".agents/skills/{skill}/SKILL.md"
+    if (root / candidate).is_file():
+        return candidate
+    runtime_copy = root / ".cowork-flow" / "skills" / skill / "SKILL.md"
+    if runtime_copy.is_file():
+        return runtime_copy.relative_to(root).as_posix()
+    return candidate
 
 
 def action_metadata(repo_root: Path, action_id: str) -> SkillAction | None:

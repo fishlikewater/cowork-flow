@@ -150,7 +150,11 @@ test('default host registry exposes manifest platform behavior', async () => {
   assert.equal(registry.platformLabel('zcode'), 'ZCode');
   assert.equal(registry.skillDestination('claude-code'), '.claude/skills');
   assert.equal(registry.skillDestination('dsh'), '.agents/skills');
-  assert.equal(registry.skillDestination('zcode'), null);
+  assert.equal(registry.skillDestination('zcode'), '.cowork-flow/skills');
+  assert.deepEqual(
+    registry.assetOwners('.cowork-flow/skills/cowork-flow/SKILL.md'),
+    ['zcode']
+  );
   assert.deepEqual(registry.assetOwners('.dsh/README.md'), ['dsh']);
   assert.equal(registry.shouldInclude('.dsh/README.md', ['codex']), false);
   assert.deepEqual(registry.parsePlatformSelection(['dsh']), ['dsh']);
