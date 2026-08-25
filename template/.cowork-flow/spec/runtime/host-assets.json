@@ -231,6 +231,36 @@
         "runtimeContextCleanup": "shim"
       },
       "commandTargets": []
+    },
+    {
+      "id": "zcode",
+      "displayName": "ZCode",
+      "aliases": [
+        "zcode"
+      ],
+      "detectAny": [
+        ".zcode"
+      ],
+      "assetPrefixes": [
+        ".cowork-flow/adapters/zcode/"
+      ],
+      "assetFiles": [],
+      "skillTarget": null,
+      "adapterPath": ".cowork-flow/adapters/zcode/adapter.yaml",
+      "capabilities": {
+        "dispatchSubagent": "native",
+        "freshChildContext": "native",
+        "sendFollowup": "native",
+        "waitChild": "native",
+        "listChildren": "shim",
+        "cancelChild": "native",
+        "stateInjection": "external",
+        "backgroundChild": "native",
+        "runtimeContextDispatch": "native",
+        "runtimeContextBinding": "shim",
+        "runtimeContextCleanup": "native"
+      },
+      "commandTargets": []
     }
   ],
   "excludedPrefixes": [
