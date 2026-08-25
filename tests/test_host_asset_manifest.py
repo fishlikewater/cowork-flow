@@ -168,7 +168,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual(1, manifest.schema_version)
         self.assertEqual(
-            ("codex", "opencode", "claude-code", "dsh"),
+            ("codex", "opencode", "claude-code", "dsh", "zcode"),
             manifest.platform_ids,
         )
         self.assertEqual(
@@ -180,8 +180,10 @@ class HostAssetManifestTest(unittest.TestCase):
             tuple(sorted(manifest.capability_matrix)),
         )
         self.assertEqual("claude-code", manifest.resolve_alias("claude"))
+        self.assertEqual("zcode", manifest.resolve_alias("zcode"))
         self.assertEqual(".agents/skills", manifest.platform("codex").skill_target)
         self.assertEqual(".agents/skills", manifest.platform("dsh").skill_target)
+        self.assertIsNone(manifest.platform("zcode").skill_target)
         self.assertEqual(
             ".claude/skills",
             manifest.platform("claude-code").skill_target,

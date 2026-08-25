@@ -136,18 +136,21 @@ test('valid host manifest fixtures expose normalized registry summaries', () => 
   );
 });
 
-test('default host registry exposes manifest platform behavior', () => {
+test('default host registry exposes manifest platform behavior', async () => {
   const manifest = loadHostAssetManifest();
   const registry = createHostRegistry(manifest);
 
-  assert.deepEqual(registry.platformIds, ['codex', 'opencode', 'claude-code', 'dsh']);
+  assert.deepEqual(registry.platformIds, ['codex', 'opencode', 'claude-code', 'dsh', 'zcode']);
   assert.deepEqual(
     registry.parsePlatformSelection(['claude']),
     ['claude-code']
   );
+  assert.deepEqual(registry.parsePlatformSelection(['zcode']), ['zcode']);
   assert.equal(registry.platformLabel('opencode'), 'OpenCode');
+  assert.equal(registry.platformLabel('zcode'), 'ZCode');
   assert.equal(registry.skillDestination('claude-code'), '.claude/skills');
   assert.equal(registry.skillDestination('dsh'), '.agents/skills');
+  assert.equal(registry.skillDestination('zcode'), null);
   assert.deepEqual(registry.assetOwners('.dsh/README.md'), ['dsh']);
   assert.equal(registry.shouldInclude('.dsh/README.md', ['codex']), false);
   assert.deepEqual(registry.parsePlatformSelection(['dsh']), ['dsh']);
@@ -165,6 +168,27 @@ test('default host registry exposes manifest platform behavior', () => {
     registry.assetOwners('.cowork-flow/adapters/claude-code/adapter.yaml'),
     ['claude-code']
   );
+  assert.deepEqual(
+    registry.assetOwners('.cowork-flow/adapters/zcode/adapter.yaml'),
+    ['zcode']
+  );
+  assert.equal(
+    registry.shouldInclude('.cowork-flow/adapters/zcode/adapter.yaml', ['zcode']),
+    true
+  );
+  assert.equal(
+    registry.shouldInclude('.cowork-flow/adapters/zcode/adapter.yaml', ['codex']),
+    false
+  );
+  assert.equal(
+    registry.shouldInclude('.zcode/hooks/inject-context.js', ['zcode']),
+    false
+  );
+  const detected = await registry.detectInstalledPlatforms(
+    '/tmp/fake-target',
+    (candidate) => candidate === '/tmp/fake-target/.zcode'
+  );
+  assert.deepEqual(detected, ['zcode']);
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/config.yaml'), true);
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/run'), false);
   assert.equal(registry.isSafeSyncFile('.codex/hooks.json'), true);

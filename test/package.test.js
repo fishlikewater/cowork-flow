@@ -55,6 +55,7 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('template/.cowork-flow/spec/contracts/workflow-state-templates.md'), true);
   assert.equal(files.has('template/.cowork-flow/adapters/claude-code/adapter.yaml'), true);
   assert.equal(files.has('template/.cowork-flow/adapters/dsh/adapter.yaml'), true);
+  assert.equal(files.has('template/.cowork-flow/adapters/zcode/adapter.yaml'), true);
   assert.equal(files.has('template/.dsh/README.md'), true);
   assert.equal(files.has('presets/dsh/agent.cordis.yml'), true);
   assert.equal(files.has('presets/dsh/preset.yml'), true);

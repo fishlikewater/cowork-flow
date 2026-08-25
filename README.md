@@ -68,7 +68,7 @@ cowork-flow install-dsh-hook
 npm run release:check
 ```
 
-平台选项：`codex` / `opencode` / `claude-code` / `dsh` / `all`（逗号分隔）
+平台选项：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `all`（逗号分隔）
 
 ## 仓库结构
 
@@ -109,6 +109,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `codex` / `opencode` | `.agents/skills/` |
 | `dsh` | `.agents/skills/` |
 | `claude-code` | `.claude/skills/` |
+| `zcode` | 无（skills 随 ZCode 插件分发，不经 init/sync 落盘） |
 
 分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
 
@@ -128,7 +129,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 
 | 选项 | 说明 |
 |---|---|
-| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `all` |
+| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `all` |
 | `--developer <n>` | 开发者名称 |
 | `--force` | 覆盖已有文件 |
 | `--dry-run` | 预览不写入 |
