@@ -388,6 +388,38 @@ try {
     assert.doesNotMatch(m[1], /改绑|rebind/i, "no hints when nothing to rebind to");
   });
 
+  test("PostToolUse refreshes state when the command runs task lifecycle", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "claude_abc.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "claude", last_seen_at: "2026-07-02T13:00:00Z" },
+    });
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        tool_input: { command: "./.cowork-flow/run task next --run --title X" },
+      })
+    );
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    assert.equal(parsed.hookSpecificOutput.hookEventName, "PostToolUse");
+    assert.match(ctx, /Status: in_progress/, "mid-turn refresh carries updated state");
+    assert.match(ctx, /<contract-fingerprint value="[a-f0-9]+"\/>/, "fingerprint line rides the refresh");
+    assert.doesNotMatch(ctx, /<contract-digest/, "no full digest outside session start");
+  });
+
+  test("PostToolUse stays silent for unrelated commands", () => {
+    resetSessions({});
+    const stdout = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        tool_input: { command: "ls -la" },
+      })
+    );
+    assert.equal(stdout.trim(), "", "unrelated commands must produce no output");
+  });
+
 } finally {
   cleanup();
 }

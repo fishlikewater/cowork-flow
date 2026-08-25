@@ -96,7 +96,7 @@ test('zcode scaffold source does not commit workflow bootstrap files', async () 
 
 test('zcode hook config uses process executor with args', async () => {
   const hooksConfig = await readJson(join(templateRoot, '.zcode', 'hooks', 'hooks.json'));
-  for (const eventName of ['SessionStart', 'UserPromptSubmit']) {
+  for (const eventName of ['SessionStart', 'UserPromptSubmit', 'PostToolUse']) {
     const hook = hooksConfig.hooks[eventName][0].hooks[0];
     assert.equal(hook.type, 'process');
     assert.equal(hook.command, 'node');

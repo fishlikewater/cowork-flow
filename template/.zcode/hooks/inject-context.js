@@ -404,6 +404,19 @@ function main() {
   }
 
   const input = readHookInput();
+
+  // Mid-turn refresh: only lifecycle commands may re-inject state; every
+  // other Bash call stays silent so tool streams are not spammed.
+  if (
+    typeof input?.hook_event_name === "string" &&
+    input.hook_event_name.trim() === "PostToolUse"
+  ) {
+    const command = String(input?.tool_input?.command || "");
+    if (!command.includes(".cowork-flow/run task")) {
+      process.exit(0);
+    }
+  }
+
   const event = detectEventName(input);
   const format = outputFormat();
   const repoRoot = findProjectRoot(input);
