@@ -338,6 +338,56 @@ try {
     assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "main-scope session is selected, not the newer subagent one");
   });
 
+  test("explicit sessionId without own session file reports no_task with rebind hints", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "claude_other.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "claude", last_seen_at: "2026-07-03T18:00:00Z" },
+    });
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: "brand-new" })
+    );
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    assert.ok(m, "should have workflow-state block");
+    assert.match(m[1], /Status: no_task/, "unbound explicit session must be no_task");
+    assert.doesNotMatch(m[1], /Task: \./, "must not adopt another session's task");
+    assert.match(m[1], /07-02-test-task/, "should list active tasks for rebinding");
+  });
+
+  test("dead-path session shows rebind hints for remaining active tasks", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "zcode_stale.json": { active_task_path: ".cowork-flow/tasks/06-21-deleted", scope: "main", platform: "zcode", last_seen_at: "2026-08-01T09:00:00Z" },
+    });
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: "stale" })
+    );
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    assert.ok(m, "should have workflow-state block");
+    assert.match(m[1], /06-21-deleted/, "own stale binding is reported as-is");
+    assert.match(m[1], /07-02-test-task/, "remaining active task offered for rebinding");
+  });
+
+  test("unbound session with zero active tasks stays clean without hints", () => {
+    rmSync(join(tmpRoot, ".cowork-flow", "tasks"), { recursive: true, force: true });
+    resetSessions({});
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: "fresh" })
+    );
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    assert.ok(m, "should have workflow-state block");
+    assert.match(m[1], /Status: no_task/);
+    assert.doesNotMatch(m[1], /改绑|rebind/i, "no hints when nothing to rebind to");
+  });
+
 } finally {
   cleanup();
 }
