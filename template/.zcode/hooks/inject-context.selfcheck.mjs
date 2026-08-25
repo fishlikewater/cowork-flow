@@ -228,6 +228,81 @@ try {
     assert.match(ctx, /Scope: subagent/, "should show subagent scope");
   });
 
+  // --- Stale-session poisoning regression (per-session selection) ---
+
+  function resetSessions(entries) {
+    const sessionsDir = join(tmpRoot, ".cowork-flow", ".runtime", "sessions");
+    rmSync(sessionsDir, { recursive: true, force: true });
+    mkdirSync(sessionsDir, { recursive: true });
+    for (const [name, data] of Object.entries(entries)) {
+      writeFileSync(
+        join(sessionsDir, name),
+        JSON.stringify(data),
+        "utf8"
+      );
+    }
+  }
+
+  function ensureTask(taskName, status = "in_progress") {
+    const taskDir = join(tmpRoot, ".cowork-flow", "tasks", taskName);
+    mkdirSync(taskDir, { recursive: true });
+    writeFileSync(join(taskDir, "task.json"), JSON.stringify({ status }), "utf8");
+  }
+
+  test("prefers the session file matching hook input sessionId over a newer global entry", () => {
+    ensureTask("07-02-test-task");
+    ensureTask("07-03-newer-task");
+    resetSessions({
+      "zcode_my-session.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "zcode", last_seen_at: "2026-07-02T13:00:00Z" },
+      "claude_other.json": { active_task_path: ".cowork-flow/tasks/07-03-newer-task", scope: "main", platform: "claude", last_seen_at: "2026-07-03T18:00:00Z" },
+    });
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ session_id: "my-session" })
+    );
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "own session binding wins over newer global entry");
+  });
+
+  test("skips stale sessions whose task directory is gone and falls back to the newest valid one", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "zcode_gone.json": { active_task_path: ".cowork-flow/tasks/06-21-deleted-task", scope: "main", platform: "zcode", last_seen_at: "2026-08-01T09:00:00Z" },
+      "claude_abc.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "claude", last_seen_at: "2026-07-02T13:00:00Z" },
+    });
+    const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "newest valid session wins after skipping stale");
+    assert.doesNotMatch(ctx, /任务目录不存在/, "stale path must not leak into injected state");
+  });
+
+  test("reports clean no_task when every session points to a missing task", () => {
+    resetSessions({
+      "zcode_gone.json": { active_task_path: ".cowork-flow/tasks/06-21-deleted-task", scope: "main", platform: "zcode", last_seen_at: "2026-08-01T09:00:00Z" },
+    });
+    const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    assert.ok(m, "should have workflow-state block");
+    assert.match(m[1], /Status: no_task/, "should fall back to clean no_task");
+    assert.doesNotMatch(m[1], /06-21-deleted-task/, "must not reference the dead task path");
+  });
+
+  test("main-session fallback ignores subagent-scoped session files", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "subagent_child.json": { active_task_path: ".cowork-flow/tasks/sub-child", scope: "subagent", platform: "zcode", last_seen_at: "2026-08-05T09:00:00Z" },
+      "claude_abc.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "claude", last_seen_at: "2026-07-02T13:00:00Z" },
+    });
+    const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "main-scope session is selected, not the newer subagent one");
+  });
+
 } finally {
   cleanup();
 }

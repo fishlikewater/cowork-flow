@@ -86,26 +86,44 @@ function findProjectRoot(input) {
 // ---------------------------------------------------------------------------
 // Read active task from .cowork-flow/.runtime/sessions/
 // ---------------------------------------------------------------------------
-function readActiveTask(repoRoot) {
-  const sessionsDir = join(repoRoot, DIR_WORKFLOW, ".runtime", "sessions");
-  if (!existsSync(sessionsDir)) return null;
+// Sanitize rules mirror Python session_state._sanitize so both sides resolve
+// the same session file name for one context key.
+function sanitizeContextKey(raw) {
+  const safe = String(raw ?? "")
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^[._-]+|[._-]+$/g, "");
+  return safe.slice(0, 160);
+}
 
-  let latestTask = null;
-  let latestTime = "";
+function resolveSessionKey(input) {
+  const explicit = process.env.COWORK_FLOW_CONTEXT_ID;
+  const candidates = [
+    explicit,
+    process.env.ZCODE_SESSION_ID,
+    input?.zcode_session_id,
+    input?.ZCODE_SESSION_ID,
+    input?.sessionId,
+    input?.session_id,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      const key = sanitizeContextKey(candidate);
+      if (key) return `zcode_${key}`;
+    }
+  }
+  return null;
+}
 
+function loadSessionEntries(sessionsDir) {
+  const entries = [];
   try {
     const files = readdirSync(sessionsDir).filter((f) => f.endsWith(".json"));
     for (const file of files) {
-      const path = join(sessionsDir, file);
       try {
-        const data = JSON.parse(readFileSync(path, "utf8"));
-        if (data.active_task_path && data.last_seen_at > latestTime) {
-          latestTime = data.last_seen_at;
-          latestTask = {
-            taskPath: data.active_task_path,
-            scope: data.scope || "main",
-            platform: data.platform || "unknown",
-          };
+        const data = JSON.parse(readFileSync(join(sessionsDir, file), "utf8"));
+        if (data && typeof data === "object") {
+          entries.push({ name: file, data });
         }
       } catch {
         // skip malformed session file
@@ -114,7 +132,45 @@ function readActiveTask(repoRoot) {
   } catch {
     // sessions dir unreadable
   }
-  return latestTask;
+  return entries;
+}
+
+function toActiveTask(data) {
+  return {
+    taskPath: data.active_task_path,
+    scope: data.scope || "main",
+    platform: data.platform || "unknown",
+  };
+}
+
+function readActiveTask(repoRoot, sessionKey = null) {
+  const sessionsDir = join(repoRoot, DIR_WORKFLOW, ".runtime", "sessions");
+  if (!existsSync(sessionsDir)) return null;
+  const entries = loadSessionEntries(sessionsDir);
+
+  // The current session's own binding wins even when another host wrote a
+  // newer session file; a dead path here is reported as-is by buildContext.
+  if (sessionKey) {
+    const own = entries.find((entry) => entry.name === `${sessionKey}.json`);
+    if (own?.data.active_task_path) return toActiveTask(own.data);
+  }
+
+  // Global fallback: newest first, but skip subagent-scoped files and entries
+  // whose task directory no longer exists so stale sessions cannot poison
+  // fresh sessions.
+  const candidates = entries
+    .filter((entry) => entry.data.active_task_path && entry.data.scope !== "subagent")
+    .sort((a, b) => String(b.data.last_seen_at || "").localeCompare(String(a.data.last_seen_at || "")));
+  for (const entry of candidates) {
+    const taskPath = entry.data.active_task_path;
+    if (
+      existsSync(join(repoRoot, taskPath)) &&
+      existsSync(join(repoRoot, taskPath, FILE_TASK_JSON))
+    ) {
+      return toActiveTask(entry.data);
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -341,7 +397,7 @@ Source: cowork-flow-plugin
       context = buildDelegatedSubtask(delegated.contextId, delegated.ctx);
     } else {
       // PRIORITY 2: Normal session workflow state
-      const activeTask = readActiveTask(effectiveRoot);
+      const activeTask = readActiveTask(effectiveRoot, resolveSessionKey(input));
       const breadcrumbs = loadBreadcrumbs(effectiveRoot);
       context = buildContext(effectiveRoot, activeTask, breadcrumbs);
     }
