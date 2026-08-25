@@ -3,7 +3,7 @@
  * Self-check for inject-context.js
  */
 
-import { existsSync, writeFileSync, mkdirSync, rmSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join, dirname } from "path";
 import { spawnSync } from "child_process";
 import assert from "assert/strict";
@@ -418,6 +418,66 @@ try {
       })
     );
     assert.equal(stdout.trim(), "", "unrelated commands must produce no output");
+  });
+
+  test("consistent state snapshot drives breadcrumb key selection", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "claude_abc.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "claude", last_seen_at: "2026-07-02T13:00:00Z" },
+    });
+    const templatesPath = join(tmpRoot, ".cowork-flow", "spec", "contracts", "workflow-state-templates.md");
+    const templates = readFileSync(templatesPath, "utf8");
+    writeFileSync(
+      templatesPath,
+      `${templates}\n[workflow-state:snapshot-probe]\n快照键生效。\n[/workflow-state:snapshot-probe]\n`,
+      "utf8"
+    );
+    const runtimeDir = join(tmpRoot, ".cowork-flow", ".runtime");
+    mkdirSync(runtimeDir, { recursive: true });
+    writeFileSync(
+      join(runtimeDir, "state-snapshot.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        generatedAt: "2026-07-02T13:05:00Z",
+        activeTaskPath: ".cowork-flow/tasks/07-02-test-task",
+        status: "in_progress",
+        breadcrumbKey: "snapshot-probe",
+      }),
+      "utf8"
+    );
+    const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
+    const parsed = JSON.parse(result);
+    const ctx = parsed.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/);
+    assert.match(ctx, /快照键生效。/, "consistent snapshot key wins over status convention");
+    assert.doesNotMatch(ctx, /活动任务正在执行/, "status-derived fallback must not run");
+  });
+
+  test("mismatched or missing snapshot falls back to status-derived breadcrumb", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "claude_abc.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "claude", last_seen_at: "2026-07-02T13:00:00Z" },
+    });
+    const runtimeDir = join(tmpRoot, ".cowork-flow", ".runtime");
+    mkdirSync(runtimeDir, { recursive: true });
+    const snapshotPath = join(runtimeDir, "state-snapshot.json");
+    writeFileSync(
+      snapshotPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        generatedAt: "2026-07-02T13:05:00Z",
+        activeTaskPath: ".cowork-flow/tasks/some-other-task",
+        status: "review",
+        breadcrumbKey: "review",
+      })
+    );
+    const parsedFor = () => {
+      const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
+      return JSON.parse(result).hookSpecificOutput.additionalContext;
+    };
+    assert.match(parsedFor(), /活动任务正在执行/, "foreign snapshot must be ignored");
+    rmSync(snapshotPath);
+    assert.match(parsedFor(), /活动任务正在执行/, "missing snapshot falls back cleanly");
   });
 
 } finally {

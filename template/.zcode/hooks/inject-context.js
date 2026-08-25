@@ -339,6 +339,39 @@ function detectDelegatedSubtask(repoRoot, userPrompt) {
 }
 
 // ---------------------------------------------------------------------------
+// State snapshot (written atomically by lifecycle transitions)
+// ---------------------------------------------------------------------------
+function loadStateSnapshot(repoRoot) {
+  try {
+    const data = JSON.parse(
+      readFileSync(
+        join(repoRoot, DIR_WORKFLOW, ".runtime", "state-snapshot.json"),
+        "utf8"
+      )
+    );
+    return data && typeof data === "object" ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveBreadcrumbKey(repoRoot, activeTask, status) {
+  // A lifecycle-written snapshot describing exactly this task is more
+  // authoritative than re-deriving the breadcrumb key from status.
+  const snapshot = loadStateSnapshot(repoRoot);
+  if (
+    snapshot &&
+    typeof snapshot.breadcrumbKey === "string" &&
+    snapshot.breadcrumbKey.trim() &&
+    snapshot.activeTaskPath === activeTask.taskPath &&
+    snapshot.status === status
+  ) {
+    return snapshot.breadcrumbKey;
+  }
+  return status;
+}
+
+// ---------------------------------------------------------------------------
 // Build context blocks
 // ---------------------------------------------------------------------------
 function buildContext(repoRoot, activeTask, breadcrumbs) {
@@ -367,7 +400,8 @@ Session 指向的任务目录不存在（${activeTask.taskPath}）。
 </workflow-state>`;
   }
 
-  const body = breadcrumbs[status] || fallback;
+  const breadcrumbKey = resolveBreadcrumbKey(repoRoot, activeTask, status);
+  const body = breadcrumbs[breadcrumbKey] || breadcrumbs[status] || fallback;
   return `<workflow-state>
 Task: ${activeTask.taskPath}
 Status: ${status}

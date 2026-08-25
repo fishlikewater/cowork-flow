@@ -477,5 +477,46 @@ class TaskLifecycleTransactionTest(TaskLifecycleServiceTest):
             )
 
 
+class TaskLifecycleSnapshotTest(TaskLifecycleServiceTest):
+    def test_successful_start_writes_state_snapshot_in_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True):
+                result = service.start(task_dir)
+
+            self.assertTrue(result.ok)
+            snapshot_path = root / ".cowork-flow" / ".runtime" / "state-snapshot.json"
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            self.assertEqual(1, snapshot["schemaVersion"])
+            self.assertEqual(".cowork-flow/tasks/07-10-demo", snapshot["activeTaskPath"])
+            self.assertEqual("in_progress", snapshot["status"])
+            self.assertEqual("in_progress", snapshot["breadcrumbKey"])
+            self.assertTrue(snapshot.get("generatedAt"))
+
+    def test_review_transition_updates_snapshot_status_without_session_activation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "in_progress")
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            result = service.review(task_dir)
+
+            self.assertTrue(result.ok)
+            snapshot_path = root / ".cowork-flow" / ".runtime" / "state-snapshot.json"
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            self.assertEqual("review", snapshot["status"])
+            self.assertEqual("review", snapshot["breadcrumbKey"])
+            self.assertEqual(
+                ".cowork-flow/tasks/07-10-demo",
+                snapshot["activeTaskPath"],
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
