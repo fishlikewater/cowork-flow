@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "skill": "test-first",
+  "context": [
+    {
+      "contexts": [
+        "implement",
+        "check"
+      ],
+      "devTypes": [
+        "*"
+      ],
+      "reason": "Auto-routed context-only red-green guide"
+    }
+  ]
+}

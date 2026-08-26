@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "skill": "brainstorming",
+  "actions": [
+    {
+      "id": "create_task",
+      "label": "create a planned task",
+      "mutatesState": true,
+      "command": "./.cowork-flow/run task next --run --title <title> --slug <task-name> --assignee <name> --from-plan .cowork-flow/plans/YYYY-MM-DD-<task-name>.md"
+    }
+  ]
+}

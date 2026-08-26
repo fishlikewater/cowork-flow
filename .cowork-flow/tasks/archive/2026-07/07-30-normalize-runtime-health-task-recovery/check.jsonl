@@ -1,0 +1,18 @@
+{"file": ".cowork-flow/plans/2026-07-30-normalize-runtime-health-task-recovery.md", "reason": "Review executable scope, step verification, rollback, and AC mapping"}
+{"file": ".cowork-flow/spec/contracts/skill-owned-actions.md", "reason": "Review action diagnostics and CLI delivery boundary"}
+{"file": ".cowork-flow/spec/runtime/host-assets.json", "reason": "Review runtime asset sync and obsolete path policy"}
+{"file": ".agents/skills/runtime-health/SKILL.md", "reason": "Review diagnostic-only runtime-health boundaries"}
+{"file": ".agents/skills/task-review/SKILL.md", "reason": "Review advisory-only task-review boundaries"}
+{"file": "template/skills/task-review/SKILL.md", "reason": "Review source task-review Skill guidance"}
+{"file": "template/skills/adversarial-review/SKILL.md", "reason": "Review source adversarial-review Skill guidance"}
+{"file": ".agents/skills/adversarial-review/SKILL.md", "reason": "Review installed Codex adversarial-review Skill guidance"}
+{"file": "tests/test_runtime_health.py", "reason": "Verify runtime parity and stale task hygiene coverage"}
+{"file": "tests/test_task_navigation.py", "reason": "Verify task next recovery and list JSON contract coverage"}
+{"file": "tests/test_task_review_check.py", "reason": "Verify review-check advisory facts without evidence writes"}
+{"file": "tests/test_review_contract.py", "reason": "Verify review/adversarial Skill guidance contracts"}
+{"file": "tests/test_subagent_dispatch.py", "reason": "Verify ZCode runtime context dispatch behavior"}
+{"file": "tests/test_active_task_runtime.py", "reason": "Verify ZCode session key resolution"}
+{"file": "tests/test_skill_manifest.py", "reason": "Verify Skill manifest metadata parsing"}
+{"file": "tests/test_workflow_parallel_sessions.py", "reason": "Verify workflow boundary and no mega-skill regressions"}
+{"file": ".cowork-flow/spec/references/definition-of-done.md", "reason": "Verify final completion expectations"}
+{"file": ".cowork-flow/spec/references/testing-checklist.md", "reason": "Verify test depth and anti-shallow-test expectations"}

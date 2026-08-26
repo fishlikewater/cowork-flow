@@ -1,0 +1,7 @@
+{
+  "id": "historical-task",
+  "name": "historical-task",
+  "title": "历史任务",
+  "status": "in_progress",
+  "unknown_persisted_field": "必须保留"
+}

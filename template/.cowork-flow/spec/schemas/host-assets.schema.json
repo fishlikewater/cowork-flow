@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cowork-flow.local/schemas/host-assets.schema.json",
+  "title": "cowork-flow Host Asset Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "capabilityValues",
+    "capabilityMatrix",
+    "platforms",
+    "excludedPrefixes",
+    "syncPolicy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "capabilityValues": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "prefixItems": [
+        {
+          "const": "native"
+        },
+        {
+          "const": "shim"
+        },
+        {
+          "const": "plugin"
+        },
+        {
+          "const": "external"
+        },
+        {
+          "const": "experimental"
+        },
+        {
+          "const": "unsupported"
+        }
+      ],
+      "items": false
+    },
+    "capabilityMatrix": {
+      "$ref": "#/$defs/capabilityMatrix"
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/platform"
+      }
+    },
+    "excludedPrefixes": {
+      "$ref": "#/$defs/stringList"
+    },
+    "syncPolicy": {
+      "$ref": "#/$defs/syncPolicy"
+    }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/capabilityStatus"
+      }
+    },
+    "capabilityStatus": {
+      "type": "string",
+      "enum": [
+        "native",
+        "shim",
+        "plugin",
+        "external",
+        "experimental",
+        "unsupported"
+      ]
+    },
+    "hostNeutralCapabilityDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/capabilityStatus"
+        },
+        "fallback": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unsupported"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "fallback"
+            ]
+          }
+        }
+      ]
+    },
+    "hostNeutralCapabilitySet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_action",
+        "subagent_dispatch",
+        "file_write",
+        "party_board_action"
+      ],
+      "properties": {
+        "task_action": {
+          "$ref": "#/$defs/hostNeutralCapabilityDeclaration"
+        },
+        "subagent_dispatch": {
+          "$ref": "#/$defs/hostNeutralCapabilityDeclaration"
+        },
+        "file_write": {
+          "$ref": "#/$defs/hostNeutralCapabilityDeclaration"
+        },
+        "party_board_action": {
+          "$ref": "#/$defs/hostNeutralCapabilityDeclaration"
+        }
+      }
+    },
+    "capabilityMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "hosts"
+      ],
+      "properties": {
+        "required": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "prefixItems": [
+            {
+              "const": "task_action"
+            },
+            {
+              "const": "subagent_dispatch"
+            },
+            {
+              "const": "file_write"
+            },
+            {
+              "const": "party_board_action"
+            }
+          ],
+          "items": false
+        },
+        "hosts": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/hostNeutralCapabilitySet"
+          },
+          "required": [
+            "codex",
+            "claude-code",
+            "opencode",
+            "zcode",
+            "dsh"
+          ]
+        }
+      }
+    },
+    "commandTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config",
+        "format",
+        "target"
+      ],
+      "properties": {
+        "config": {
+          "type": "string",
+          "minLength": 1
+        },
+        "format": {
+          "enum": [
+            "json",
+            "toml",
+            "yaml"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "displayName",
+        "aliases",
+        "detectAny",
+        "assetPrefixes",
+        "assetFiles",
+        "skillTarget",
+        "adapterPath",
+        "capabilities",
+        "commandTargets"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "$ref": "#/$defs/aliasList"
+        },
+        "detectAny": {
+          "$ref": "#/$defs/stringList"
+        },
+        "assetPrefixes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "assetFiles": {
+          "$ref": "#/$defs/stringList"
+        },
+        "skillTarget": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adapterPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilities": {
+          "$ref": "#/$defs/capabilities"
+        },
+        "commandTargets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/commandTarget"
+          }
+        }
+      }
+    },
+    "syncPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protectedFiles",
+        "protectedPrefixes",
+        "safeFiles",
+        "safePrefixes",
+        "managedBlockFiles",
+        "obsoleteFiles"
+      ],
+      "properties": {
+        "protectedFiles": {
+          "$ref": "#/$defs/stringList"
+        },
+        "protectedPrefixes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "safeFiles": {
+          "$ref": "#/$defs/stringList"
+        },
+        "safePrefixes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "managedBlockFiles": {
+          "$ref": "#/$defs/stringList"
+        },
+        "obsoleteFiles": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "aliasList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

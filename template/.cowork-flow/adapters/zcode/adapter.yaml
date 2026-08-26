@@ -1,0 +1,30 @@
+schemaVersion: 1
+host: zcode
+displayName: ZCode
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: native
+  waitChild: native
+  listChildren: shim
+  cancelChild: native
+  stateInjection: external
+  backgroundChild: native
+  runtimeContextDispatch: native
+  runtimeContextBinding: shim
+  runtimeContextCleanup: native
+dispatch:
+  primitive: subagent
+  agentsPath: .zcode/agents
+  pluginManifest: .zcode/.zcode-plugin/plugin.json
+runtimeContext:
+  transport: prompt
+  promptKey: cowork_runtime_context_id
+  envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
+  metadataKey: cowork_runtime_context_id
+contracts:
+  dispatch: RUNTIME_CONTEXT_DISPATCH_V2
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual
+  whenRuntimeContextMissing: fail_closed

@@ -1,0 +1,8 @@
+{"file":"template/.cowork-flow/scripts/common/core/execution_context.py","reason":"拆分 worker/subagent resume 文本渲染函数"}
+{"file":"template/.cowork-flow/scripts/common/git/git_context.py","reason":"拆分 git context JSON/text 渲染函数"}
+{"file":"tests/test_task_archive_commands.py","reason":"覆盖 git context 文本/JSON 输出回归"}
+{"file":"tests/test_no_legacy_template_paths.py","reason":"覆盖正式版术语与模板路径回归"}
+{"file": ".cowork-flow/scripts/common/core/execution_context.py", "reason": "同步 root 运行时 execution_context.py 副本"}
+{"file": ".agents/skills/meta/SKILL.md", "reason": "Auto-routed Meta domain guide"}
+{"file": ".agents/skills/python-design/SKILL.md", "reason": "Auto-routed Python Design domain guide"}
+{"file": ".cowork-flow/scripts/common/git/git_context.py", "reason": "同步 root 运行时 git_context.py 副本"}

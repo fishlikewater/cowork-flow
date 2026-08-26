@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "skill": "runtime-health",
+  "commands": [
+    {
+      "name": "doctor",
+      "aliases": [],
+      "script": "scripts/doctor.py"
+    }
+  ]
+}

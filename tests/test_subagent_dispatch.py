@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -9,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SUBAGENT = ROOT / "template" / ".cowork-flow" / "scripts" / "subagent.py"
+SUBAGENT = ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" / "subagent.py"
 
 
 class SubagentDispatchTest(unittest.TestCase):
@@ -85,6 +86,84 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual(payload["runtimeContextId"], session["runtime_context_id"])
             self.assertEqual(".cowork-flow/tasks/05-29-demo", session["active_task_path"])
             self.assertEqual("pending_bind", session["status"])
+
+    def test_init_accepts_execution_task_dir_inside_subcommand(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "init",
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "--title",
+                    "API probe",
+                    "--role",
+                    "research",
+                    "--agent-type",
+                    "cowork-research",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+            payload = json.loads(result.stdout)
+            self.assertEqual(".cowork-flow/tasks/05-29-demo", payload["taskDir"])
+            self.assertEqual("formal", payload["dispatchKind"])
+
+    def test_init_detects_zcode_host_and_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            env = {
+                **os.environ,
+                "ZCODE_SESSION_ID": "zc-main",
+            }
+            for name in (
+                "CLAUDE_CODE_SESSION_ID",
+                "CLAUDE_SESSION_ID",
+                "CODEX_SESSION_ID",
+                "CODEX_THREAD_ID",
+                "OPENCODE_SESSION_ID",
+            ):
+                env.pop(name, None)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "--execution-task-dir",
+                    ".cowork-flow/tasks/05-29-demo",
+                    "init",
+                    "--title",
+                    "ZCode check",
+                    "--role",
+                    "check",
+                    "--agent-type",
+                    "cowork-check",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["hostContextKey"].startswith("zcode_"))
+
+            context = json.loads((root / payload["runtimeContextFile"]).read_text(encoding="utf-8"))
+            self.assertEqual("zcode", context["host"])
+            self.assertEqual("zcode.plugin", context["adapter"])
+            self.assertEqual("cowork-check", context["agent_type"])
 
     def test_init_rejects_fixed_agent_role_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -272,6 +351,18 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertFalse(host_session.exists())
             self.assertFalse((root / payload["logicalSessionFile"]).exists())
 
+            repeated = subprocess.run(
+                [sys.executable, str(SUBAGENT), "close", runtime_id],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, repeated.returncode, msg=repeated.stderr)
+            self.assertFalse(host_session.exists())
+            self.assertFalse((root / payload["logicalSessionFile"]).exists())
+
 
     def test_bind_is_idempotent_for_same_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -363,6 +454,7 @@ class SubagentDispatchTest(unittest.TestCase):
 
             self.assertEqual(0, first.returncode, msg=first.stderr)
             self.assertNotEqual(0, second.returncode)
+            self.assertIn("RUNTIME-BIND-001", second.stderr)
             self.assertIn("already bound to codex_first", second.stderr)
             context = json.loads(
                 (root / ".cowork-flow" / ".runtime" / "subagents" / f"{runtime_id}.json").read_text(
@@ -370,6 +462,22 @@ class SubagentDispatchTest(unittest.TestCase):
                 )
             )
             self.assertEqual("codex_first", context["bound_context_key"])
+
+    def test_bind_missing_context_key_does_not_create_runtime_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            result = subprocess.run(
+                [sys.executable, str(SUBAGENT), "bind", "rtx_missing"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertFalse((root / ".cowork-flow" / ".runtime").exists())
 
 if __name__ == "__main__":
     unittest.main()

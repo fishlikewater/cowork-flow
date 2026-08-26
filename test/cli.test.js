@@ -26,6 +26,7 @@ test('prints help when no command is provided', async () => {
   assert.match(io.stdout, /cowork-flow init/);
   assert.match(io.stdout, /cowork-flow update/);
   assert.match(io.stdout, /cowork-flow sync/);
+  assert.match(io.stdout, /cowork-flow source-refresh/);
   assert.equal(io.stderr, '');
 });
 

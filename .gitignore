@@ -18,3 +18,17 @@ __pycache__/
 # Package artifacts
 *.tgz
 .bitfun/
+
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+secrets*
+*.log
+Thumbs.db
+/.codegraph/
+/.cowork-flow/
+/.agents/
+/.claude/
+/.codex/
+template/.cowork-flow/.runtime/

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "skill": "decision-audit",
+  "context": [
+    {
+      "contexts": ["implement", "check", "debug"],
+      "devTypes": ["*"],
+      "reason": "Advisory decision review guidance"
+    }
+  ]
+}

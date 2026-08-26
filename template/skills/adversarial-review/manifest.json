@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "skill": "adversarial-review",
+  "actions": [
+    {
+      "id": "doubt_review",
+      "label": "run standalone doubt review",
+      "mutatesState": false
+    }
+  ],
+  "context": [
+    {
+      "contexts": ["debug"],
+      "devTypes": ["*"],
+      "reason": "Fresh skeptical review of a non-trivial fix"
+    }
+  ]
+}
