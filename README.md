@@ -314,6 +314,7 @@ npm run release:check     # 发布信心门禁；当前等价于 test:all
 ```bash
 npm run release          # patch
 npm run release -- minor # minor
+npm run release -- --version 0.1.0  # 精确发布指定版本（跳过自动 bump）
 ```
 
 **发布流程：**

@@ -1,25 +1,51 @@
 #!/bin/sh
 set -u
 
-RELEASE_TYPES="major minor patch major minor patch premajor preminor prepatch prerelease"
-RELEASE_TYPE="${1:-patch}"
+RELEASE_TYPES="major minor patch premajor preminor prepatch prerelease"
 TEMPLATE_VERSION_FILE="template/.cowork-flow/.version"
 ZCODE_PLUGIN_JSON="template/.zcode/.zcode-plugin/plugin.json"
 
-if [ "$#" -gt 1 ]; then
-  echo "Expected at most one release type, received: $*" >&2
-  exit 1
+usage() {
+  echo "Usage: scripts/release.sh [release-type|--version <version>]" >&2
+  echo "  release-type    one of: $RELEASE_TYPES (default: patch)" >&2
+  echo "  --version <v>   publish exactly <v> instead of bumping" >&2
+}
+
+EXACT_VERSION=""
+RELEASE_TYPE="patch"
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    --version)
+      [ "$#" -eq 2 ] || {
+        echo "Expected --version to be followed by exactly one version" >&2
+        usage
+        exit 1
+      }
+      EXACT_VERSION="$2"
+      ;;
+    major|minor|patch|premajor|preminor|prepatch|prerelease)
+      [ "$#" -eq 1 ] || {
+        echo "Expected at most one release type, received: $*" >&2
+        usage
+        exit 1
+      }
+      RELEASE_TYPE="$1"
+      ;;
+    *)
+      echo "Unsupported release type: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
 fi
 
-case "$RELEASE_TYPE" in
-  major|minor|patch|premajor|preminor|prepatch|prerelease)
-    ;;
-  *)
-    echo "Unsupported release type: $RELEASE_TYPE" >&2
-    echo "Allowed values: $RELEASE_TYPES" >&2
+if [ -n "$EXACT_VERSION" ]; then
+  printf '%s' "$EXACT_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z][0-9A-Za-z.-]*)?$' || {
+    echo "Invalid version: $EXACT_VERSION" >&2
+    usage
     exit 1
-    ;;
-esac
+  }
+fi
 
 run_step() {
   echo "> $*"
@@ -31,7 +57,16 @@ run_step() {
 # replica and fails on any conflict, so refresh them before running it.
 run_step npm run source:refresh || exit $?
 run_step npm run test:all || exit $?
-run_step npm version "$RELEASE_TYPE" --no-git-tag-version || exit $?
+if [ -n "$EXACT_VERSION" ]; then
+  CURRENT_VERSION=$(node -p "require('./package.json').version") || exit $?
+  if [ "$CURRENT_VERSION" != "$EXACT_VERSION" ]; then
+    run_step npm version "$EXACT_VERSION" --no-git-tag-version || exit $?
+  else
+    run_step echo "package.json already at $EXACT_VERSION"
+  fi
+else
+  run_step npm version "$RELEASE_TYPE" --no-git-tag-version || exit $?
+fi
 
 PACKAGE_VERSION=$(node -p "require('./package.json').version") || exit $?
 printf '%s\n' "$PACKAGE_VERSION" > "$TEMPLATE_VERSION_FILE" || exit $?
