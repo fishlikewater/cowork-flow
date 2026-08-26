@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0 - 2026-08-26
+
+首个稳定主线发布：核心流程契约、会话模型与宿主矩阵在此版本冻结，后续改动进入语义化版本约束。
+
+### 稳定性声明
+
+- **宿主矩阵冻结**：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` 五宿主经 host-assets 注册、adapter 一致性校验与 doctor 全链路覆盖；zcode 插件资产与工作区流程资产均为单源分发（`.zcode/` 走插件市场，技能落盘 `.cowork-flow/skills/` 供内核解析且不进入提示层）。
+- **状态注入协议冻结**：`<workflow-state>` 块 + contract-digest（SessionStart 全量 / 逐消息指纹行）+ 生命周期快照（`.runtime/state-snapshot.json`，与状态转换同单元原子提交）构成宿主 hook 的标准输入；`build_hook_context` 共享协议具备直接单测覆盖。
+- **会话模型冻结**：按会话身份（host session id / 显式 context id / hook sessionId）绑定；显式身份无绑定时判 `no_task` 并列可改绑任务，无身份请求才走全局最新有效兜底；进程级 fallback 绑定不再自动跟随。
+
+### 自 0.0.52 以来的变更
+
+- 会话绑定安全加固：进程 fallback 会话键（`ZCODE_PROCESS_LABEL`）带 provenance 标记，导航、`--run` 派发、review/complete 目标解析与命令行收尾拒绝自动跟随 fallback 绑定，要求显式任务目录；trusted 身份（显式 env、宿主 session env、hook sessionId）保持完整绑定语义。
+- 对抗性审查修正批次：显式 `COWORK_FLOW_CONTEXT_ID` 按裸键解析与 CLI 对齐；PostToolUse 刷新过滤支持 `cd` + 裸 `run` 与 Windows `run.cmd` 命令形态；legacy cursor 宿主保留完整 contract-digest；改绑提示排除已完成的终态任务；doctor 会话卫生检查对无时区时间戳降级为告警而非崩溃。
+- 交互式平台选择器与平台检测断言随五宿主矩阵更新。
+
 ## 0.0.52 - 2026-08-26
 
 ### ZCode 宿主与 hook 体验
