@@ -7,7 +7,60 @@ on:
   workflow_dispatch:
 
 jobs:
+  verify-ubuntu:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Run Ubuntu full verification
+        run: npm run release:check
+
+  verify-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Run Windows full verification
+        run: npm run release:check
+
   publish:
+    needs: [verify-ubuntu, verify-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,9 +78,6 @@ jobs:
 
       - name: Install Node dependencies
         run: npm ci
-
-      - name: Run full verification
-        run: npm run test:all
 
       - name: Publish
         run: npm publish

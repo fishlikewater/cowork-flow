@@ -17,6 +17,12 @@ function createIo() {
   };
 }
 
+function parseReadiness(stdout) {
+  const line = stdout.split('\n').find((entry) => entry.startsWith('readiness='));
+  assert.ok(line, 'expected readiness report line');
+  return JSON.parse(line.slice('readiness='.length));
+}
+
 test('compareVersions compares dotted numeric versions', () => {
   assert.equal(compareVersions('0.3.10', '0.3.11'), -1);
   assert.equal(compareVersions('0.3.10', '0.3.10'), 0);
@@ -69,6 +75,38 @@ test('update installs latest package when a newer version exists', async () => {
   assert.match(io.stdout, /installed cowork-flow@latest/);
 });
 
+test('update dry-run reports readiness without installing latest package', async () => {
+  const io = createIo();
+  const installs = [];
+
+  const code = await runUpdate(['--dry-run'], {
+    io,
+    readPackageInfo: async () => ({ version: '0.3.10' }),
+    fetchLatestVersion: async () => '0.3.11',
+    runGlobalInstall: async (spec) => {
+      installs.push(spec);
+      return 0;
+    }
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(installs, []);
+  assert.match(io.stdout, /dry-run would-run: npm install -g cowork-flow@latest/);
+  const report = parseReadiness(io.stdout);
+  assert.deepEqual(report.wouldCopy, []);
+  assert.deepEqual(report.wouldSkipProtected, []);
+  assert.deepEqual(report.wouldRemoveObsolete, []);
+  assert.deepEqual(report.hostAssetRefresh, []);
+  assert.deepEqual(report.pendingRecovery, []);
+  assert.deepEqual(report.warnings, []);
+  assert.deepEqual(report.update, {
+    current: '0.3.10',
+    latest: '0.3.11',
+    wouldInstall: true,
+    installCommand: 'npm install -g cowork-flow@latest'
+  });
+});
+
 test('update returns install exit code when global install fails', async () => {
   const io = createIo();
 
@@ -102,21 +140,13 @@ test('update degrades to manual command when latest query fails', async () => {
   assert.match(io.stderr, /registry offline/);
 });
 
-test('update accepts legacy --global --yes flags', async () => {
+test('update rejects removed flags', async () => {
   const io = createIo();
-  const installs = [];
 
-  const code = await runUpdate(['--global', '--yes'], {
+  await assert.rejects(() => runUpdate(['--global', '--yes'], {
     io,
     readPackageInfo: async () => ({ version: '0.3.10' }),
     fetchLatestVersion: async () => '0.3.11',
-    runGlobalInstall: async (spec) => {
-      installs.push(spec);
-      return 0;
-    }
-  });
-
-  assert.equal(code, 0);
-  assert.deepEqual(installs, ['cowork-flow@latest']);
-  assert.match(io.stdout, /installed cowork-flow@latest/);
+    runGlobalInstall: async () => 0
+  }), /Unknown update option: --global/);
 });

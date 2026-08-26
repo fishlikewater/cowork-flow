@@ -1,6 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "test/init.test.js", "reason": "init integration tests cover copied skill directory"}
-{"file": "test/sync.test.js", "reason": "sync tests cover refreshed skill directory"}
-{"file": "tests/test_flow_script_paths.py", "reason": "tests central path constants"}
-{"file": "tests/test_cowork_agents.py", "reason": "tests assert skill path layout"}

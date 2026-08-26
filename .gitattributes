@@ -1,0 +1,24 @@
+* text=auto
+
+# Shell scripts — always LF
+*.sh text eol=lf
+.cowork-flow/run text eol=lf
+
+# Batch files — always CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Python
+*.py text eol=lf
+
+# Config
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+
+# Lockfiles — diff off
+package-lock.json -diff

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "skill": "game-design",
+  "context": [
+    {
+      "contexts": ["implement", "check"],
+      "pathPatterns": ["**/*.godot", "**/*.tscn", "**/game/**", "**/games/**"],
+      "reason": "Auto-routed Game Design domain guide"
+    }
+  ]
+}

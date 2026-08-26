@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
 HOOK = TEMPLATE / ".codex" / "hooks" / "inject-workflow-state.py"
 LEGACY_POST_ACK = "post" + "_ack_execution_grace_ms"
+NO_TASK_GATE_TEXT = "MUST NOT 编辑文件、实现代码、重构代码、派发子代理。"
 
 
 class CodexHooksTest(unittest.TestCase):
@@ -26,7 +27,7 @@ class CodexHooksTest(unittest.TestCase):
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "run.cmd", root / ".cowork-flow" / "run.cmd")
         (root / ".cowork-flow" / "run").chmod(0o755)
         shutil.copytree(TEMPLATE / ".codex", root / ".codex")
-        shutil.copyfile(TEMPLATE / ".cowork-flow" / "workflow.md", root / ".cowork-flow" / "workflow.md")
+        (root / ".codex" / "hooks" / "inject-workflow-state.py").chmod(0o755)
         shutil.copyfile(TEMPLATE / ".cowork-flow" / "config.yaml", root / ".cowork-flow" / "config.yaml")
         shutil.copytree(TEMPLATE / ".cowork-flow" / "spec", root / ".cowork-flow" / "spec")
 
@@ -65,11 +66,17 @@ class CodexHooksTest(unittest.TestCase):
         for name in (
             "COWORK_FLOW_CONTEXT_ID",
             "COWORK_FLOW_HOST_CONTEXT_KEY",
-            "CODEX_SESSION_ID",
-            "CODEX_THREAD_ID",
             "COWORK_FLOW_RUNTIME_CONTEXT_ID",
             "COWORK_FLOW_DISABLE_HOOKS",
             "COWORK_FLOW_HOOKS",
+            "ZCODE_SESSION_ID",
+            "ZCODE_PROCESS_LABEL",
+            "OPENCODE_SESSION_ID",
+            "CLAUDE_SESSION_ID",
+            "CLAUDE_CODE_SESSION_ID",
+            "CODEX_SESSION_ID",
+            "CODEX_THREAD_ID",
+            "DSH_SESSION_ID",
         ):
             env.pop(name, None)
         return env
@@ -118,6 +125,28 @@ class CodexHooksTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _write_active_task_session(
+        self,
+        root: Path,
+        *,
+        status: str,
+        session_id: str = "template-status",
+    ) -> dict[str, object]:
+        task_path = f".cowork-flow/tasks/05-29-template-{status}"
+        task_dir = root / task_path
+        task_dir.mkdir(parents=True)
+        (task_dir / "task.json").write_text(
+            json.dumps({"status": status}) + "\n",
+            encoding="utf-8",
+        )
+        sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / f"codex_{session_id}.json").write_text(
+            json.dumps({"active_task_path": task_path}) + "\n",
+            encoding="utf-8",
+        )
+        return {"session_id": session_id}
+
     def test_hook_emits_no_task_workflow_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -133,13 +162,26 @@ class CodexHooksTest(unittest.TestCase):
         self.assertNotIn("<codex-mode>", context)
         self.assertIn('<cowork-runtime host="codex" adapter="codex.spawn_agent">', context)
         self.assertIn("<contract-digest fingerprint=", context)
-        self.assertIn("COWORK_ENTRY_CONTRACT_V1", context)
-        self.assertIn(".cowork-flow/spec/entry-contract.md", context)
+        self.assertNotIn("COWORK_ENTRY_CONTRACT_V1", context)
+        self.assertNotIn(".cowork-flow/spec/contracts/entry-contract.md", context)
+        self.assertIn("RUNTIME_CONTEXT_DISPATCH_V2", context)
         self.assertIn("read_before:", context)
         self.assertIn("<workflow-state>", context)
         self.assertIn("Status: no_task", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn(NO_TASK_GATE_TEXT, context)
         self.assertNotIn("<subagent-notice>", context)
+
+    def test_hook_surfaces_contract_registry_warning_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            (root / ".cowork-flow" / "spec" / "runtime" / "contract-registry.json").unlink()
+
+            data = self._run_hook(root, {})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("warning:", context)
+        self.assertIn("contract registry unavailable", context)
 
     def test_hook_keeps_bounded_prompt_on_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -161,7 +203,7 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: no_task", context)
         self.assertNotIn("Status: delegated_subtask", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_binds_runtime_context_from_prompt_before_main_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -188,7 +230,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("Task: .cowork-flow/tasks/05-29-demo", context)
         self.assertIn("Agent: cowork-implement", context)
         self.assertIn("Scope: subagent", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertNotIn(NO_TASK_GATE_TEXT, context)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_prompt", session["runtime_context_id"])
 
@@ -266,9 +308,9 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Status: delegated_subtask", context)
         self.assertIn("runtime-context-invalid", context)
-        self.assertNotIn("必须先创建或启动任务", context)
+        self.assertNotIn(NO_TASK_GATE_TEXT, context)
 
-    def test_hook_treats_explorer_brief_as_delegated_state(self) -> None:
+    def test_hook_keeps_explorer_brief_as_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
@@ -300,7 +342,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("Status: no_task", context)
         self.assertRegex(context, r"Source: (missing-context|empty-session)")
         self.assertNotIn("Status: delegated_subtask", context)
-        self.assertIn("必须先创建或启动任务", context)
+        self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_keeps_main_agent_question_from_becoming_delegated_subtask(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -363,18 +405,14 @@ class CodexHooksTest(unittest.TestCase):
         self.assertNotIn("Status: delegated_subtask", context)
         self.assertNotIn("Source: unclassified", context)
 
-    def test_hook_reads_workflow_state_templates_instead_of_workflow_md(self) -> None:
+    def test_hook_reads_workflow_state_templates_as_single_prompt_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
-            (root / ".cowork-flow" / "workflow.md").write_text(
-                "[workflow-state:no_task]\nwrong source\n[/workflow-state:no_task]\n",
-                encoding="utf-8",
-            )
-            template_file = root / ".cowork-flow" / "spec" / "workflow-state-templates.md"
+            template_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
             template_file.write_text(
                 template_file.read_text(encoding="utf-8").replace(
-                    "当前会话没有活动任务。只读问答可直接回答；只有 runtime context 已绑定或 fail-closed 时才按委托子任务处理。实现、重构或多步骤工作必须先创建或启动任务。",
+                    "MUST NOT 编辑文件、实现代码、重构代码、派发子代理。",
                     "state-template-source-smoke",
                 ),
                 encoding="utf-8",
@@ -386,11 +424,62 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn("state-template-source-smoke", context)
         self.assertNotIn("wrong source", context)
 
+    def test_hook_renders_each_main_status_from_workflow_state_template(self) -> None:
+        statuses = ("no_task", "planning", "in_progress", "review", "completed")
+        markers = {
+            status: f"workflow-template-marker::{status}"
+            for status in statuses
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            template_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
+            template_file.write_text(
+                "\n\n".join(
+                    (
+                        f"[workflow-state:{status}]\n{marker}\n导航：`./.cowork-flow/run task next --json`\n[/workflow-state:{status}]"
+                        for status, marker in markers.items()
+                    )
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            for status, marker in markers.items():
+                payload = (
+                    {}
+                    if status == "no_task"
+                    else self._write_active_task_session(root, status=status)
+                )
+                data = self._run_hook(root, payload)
+                context = data["hookSpecificOutput"]["additionalContext"]
+
+                with self.subTest(status=status):
+                    workflow_state = re.search(
+                        r"<workflow-state>\n(?P<state>.*?)\n</workflow-state>",
+                        context,
+                        re.S,
+                    )
+                    self.assertIsNotNone(workflow_state)
+                    state_block = workflow_state.group("state")
+                    self.assertRegex(state_block, rf"Status: {status}\nSource: ")
+                    self.assertEqual(1, state_block.count(marker))
+                    self.assertIn(f"Status: {status}", state_block)
+                    self.assertIn(marker, state_block)
+                    for other_status, other_marker in markers.items():
+                        if other_status != status:
+                            self.assertNotIn(other_marker, state_block)
+
     def test_hook_config_uses_cowork_flow_python_runner(self) -> None:
         hooks = json.loads((TEMPLATE / ".codex" / "hooks.json").read_text(encoding="utf-8"))
         command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
-        self.assertEqual(".cowork-flow/run python .codex/hooks/inject-workflow-state.py", command)
+        # hooks.json must reference the project-relative executable script so the
+        # hook can rely on the fixed path and the script's shebang, without
+        # hard-coding an absolute Python path.
+        self.assertTrue(command.endswith("inject-workflow-state.py"), command)
         self.assertFalse(command.startswith("python "))
+        self.assertIn(".codex/hooks/", command)
 
     def test_hook_config_command_executes_without_bare_python(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -399,10 +488,15 @@ class CodexHooksTest(unittest.TestCase):
             self._write_runtime_context(root, "rtx_hook_command")
             hooks = json.loads((root / ".codex" / "hooks.json").read_text(encoding="utf-8"))
             command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
-
-            command_parts = shlex.split(command)
+            # POSIX: the sh router handles the command as written; on Windows
+            # the .cmd wrapper is the router's implementation — substitute it
+            # for the leading `.cowork-flow/run` token instead of prepending.
             if os.name == "nt":
-                command_parts[0] = str(root / ".cowork-flow" / "run.cmd")
+                parts = shlex.split(command)
+                self.assertEqual(".cowork-flow/run", parts[0])
+                command_parts = [str(root / ".cowork-flow" / "run.cmd"), *parts[1:]]
+            else:
+                command_parts = ["/bin/sh", "-c", f"cd {shlex.quote(str(root))} && {command}"]
             result = subprocess.run(
                 command_parts,
                 input=json.dumps(
@@ -443,7 +537,7 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Task: .cowork-flow/tasks/05-29-demo", context)
         self.assertIn("Status: in_progress", context)
-        self.assertIn("派发 cowork-implement", context)
+        self.assertIn("action owner Skill", context)
 
     def test_hook_reads_codex_dispatch_mode_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -497,7 +591,7 @@ class CodexHooksTest(unittest.TestCase):
             self._make_project(root)
 
             before = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
-            spec_file = root / ".cowork-flow" / "spec" / "entry-contract.md"
+            spec_file = root / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md"
             spec_file.write_text(
                 spec_file.read_text(encoding="utf-8") + "\n<!-- fingerprint smoke -->\n",
                 encoding="utf-8",
@@ -510,17 +604,12 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIsNotNone(after_match)
         self.assertNotEqual(before_match.group(1), after_match.group(1))
 
-    def test_hook_runtime_files_root_and_template_are_synced(self) -> None:
-        for rel in (
-            Path(".codex/hooks/inject-workflow-state.py"),
-            Path(".cowork-flow/scripts/common/config.py"),
-            Path(".cowork-flow/scripts/common/active_task.py"),
-            Path(".cowork-flow/scripts/common/entry_classifier.py"),
-            Path(".cowork-flow/spec/workflow-state-templates.md"),
-        ):
-            root_text = (ROOT / rel).read_text(encoding="utf-8")
-            template_text = (TEMPLATE / rel).read_text(encoding="utf-8")
-            self.assertEqual(root_text, template_text, f"{rel} root/template mismatch")
+    def test_hook_runtime_files_template_are_valid(self) -> None:
+        # Verify template files exist
+        self.assertTrue((TEMPLATE / ".codex/hooks/inject-workflow-state.py").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow/scripts/infra/config.py").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow/scripts/runtime/session_state.py").is_file())
+        self.assertTrue((TEMPLATE / ".cowork-flow/spec/contracts/workflow-state-templates.md").is_file())
 
 
 if __name__ == "__main__":

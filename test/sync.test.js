@@ -1,12 +1,59 @@
-﻿import assert from 'node:assert/strict';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, sep } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 import { main } from '../src/cli.js';
+import { runSourceRefresh } from '../src/commands/source-refresh.js';
+import { runSync } from '../src/commands/sync.js';
+import { hostRegistry } from '../src/lib/host-assets.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { templateRoot } from '../src/lib/paths.js';
-import { createTempDir, exists, readText } from './helpers/fs.js';
+import {
+  createTempDir,
+  exists,
+  fileSystemWithRenameFailure,
+  readText
+} from './helpers/fs.js';
+
+const execFileAsync = promisify(execFile);
+
+const HOST_MANIFEST_FIXTURES = new URL('../tests/fixtures/host-manifest/', import.meta.url);
+const CLI_MODULE = new URL('../src/cli.js', import.meta.url);
+const CLI_IMPORT_SCRIPT = `
+const args = JSON.parse(process.env.COWORK_FLOW_TEST_ARGS);
+try {
+  const { main } = await import(process.env.COWORK_FLOW_TEST_CLI_URL);
+  process.exitCode = await main(args);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+}
+`;
+
+function manifestFixturePath(name) {
+  return fileURLToPath(new URL(name, HOST_MANIFEST_FIXTURES));
+}
+
+async function runCliWithManifestFixture(fixtureName, args) {
+  try {
+    const result = await execFileAsync(process.execPath, ['--input-type=module', '--eval', CLI_IMPORT_SCRIPT], {
+      env: {
+        ...process.env,
+        COWORK_FLOW_HOST_ASSET_MANIFEST: manifestFixturePath(fixtureName),
+        COWORK_FLOW_TEST_ARGS: JSON.stringify(args),
+        COWORK_FLOW_TEST_CLI_URL: CLI_MODULE.href
+      }
+    });
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    return { code: error.code, stdout: error.stdout ?? '', stderr: error.stderr ?? '' };
+  }
+}
+
 
 function createIo() {
   return {
@@ -19,6 +66,12 @@ function createIo() {
       this.stderr += message;
     }
   };
+}
+
+function parseReadiness(stdout) {
+  const line = stdout.split('\n').find((entry) => entry.startsWith('readiness='));
+  assert.ok(line, 'expected readiness report line');
+  return JSON.parse(line.slice('readiness='.length));
 }
 
 test('sync fails when the target has not been initialized', async (t) => {
@@ -38,15 +91,34 @@ test('sync updates safe template files and preserves protected files', async (t)
     0
   );
 
-  await writeFile(join(target, '.agents', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
+  await writeFile(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md'), 'old skill\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run'), 'old posix runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'run.cmd'), 'old windows runner\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'scripts', 'task.py'), 'old task script\n', 'utf8');
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'application'), { recursive: true });
+  await writeFile(join(target, '.cowork-flow', 'scripts', 'application', 'task_context.py'), 'old task context service\n', 'utf8');
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common'), { recursive: true });
+  await writeFile(join(target, '.cowork-flow', 'scripts', 'common', 'gates.py'), 'old gates script\n', 'utf8');
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'task'), { recursive: true });
+  await writeFile(
+    join(target, '.cowork-flow', 'scripts', 'common', 'task', 'lifecycle_checks.py'),
+    'old lifecycle checks\n',
+    'utf8'
+  );
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'review'), { recursive: true });
+  await writeFile(
+    join(target, '.cowork-flow', 'scripts', 'common', 'review', 'test_intent.py'),
+    'old test intent helper\n',
+    'utf8'
+  );
   await writeFile(join(target, '.cowork-flow', 'scripts', 'project_context.py'), 'old project context script\n', 'utf8');
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'commands'), { recursive: true });
+  await writeFile(join(target, '.cowork-flow', 'scripts', 'commands', 'party_mode_v2.py'), 'old party command script\n', 'utf8');
+  await writeFile(join(target, '.agents', 'skills', 'party-mode', 'scripts', 'party_mode_v2.py'), 'old party skill script\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'project-context.md'), 'local generated context\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
-  await writeFile(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md'), 'old state templates\n', 'utf8');
-  await writeFile(join(target, '.cowork-flow', 'spec', 'entry-contract.md'), 'custom entry contract\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md'), 'old state templates\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md'), 'custom entry contract\n', 'utf8');
   await mkdir(join(target, '.codex', 'agents'), { recursive: true });
   await writeFile(join(target, '.codex', 'agents', 'cowork-implement.toml'), 'old agent\n', 'utf8');
   await writeFile(join(target, '.codex', 'hooks.json'), 'old hooks\n', 'utf8');
@@ -61,8 +133,8 @@ test('sync updates safe template files and preserves protected files', async (t)
 
   assert.equal(code, 0);
   assert.equal(
-    await readText(join(target, '.agents', 'skills', 'start', 'SKILL.md')),
-    await readText(join(templateRoot, '.agents', 'skills', 'start', 'SKILL.md'))
+    await readText(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')),
+    await readText(join(templateRoot, 'skills', 'cowork-flow', 'SKILL.md'))
   );
   assert.equal(
     await readText(join(target, '.cowork-flow', 'run')),
@@ -72,24 +144,34 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'run.cmd')),
     await readText(join(templateRoot, '.cowork-flow', 'run.cmd'))
   );
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'task.py')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'application')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'commands')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'common')), false);
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'task.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'task.py'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'adapters', 'cli', 'task.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'adapters', 'cli', 'task.py'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'scripts', 'project_context.py')),
-    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'project_context.py'))
-  );
-  assert.equal(await readText(join(target, '.cowork-flow', 'project-context.md')), 'local generated context\n');
-  assert.equal(
-    await readText(join(target, '.cowork-flow', 'workflow.md')),
-    await readText(join(templateRoot, '.cowork-flow', 'workflow.md'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'services', 'lifecycle_checks.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'services', 'lifecycle_checks.py'))
   );
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'spec', 'workflow-state-templates.md')),
-    await readText(join(templateRoot, '.cowork-flow', 'spec', 'workflow-state-templates.md'))
+    await readText(join(target, '.cowork-flow', 'scripts', 'adapters', 'review', 'test_intent.py')),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'adapters', 'review', 'test_intent.py'))
   );
-  assert.equal(await readText(join(target, '.cowork-flow', 'spec', 'entry-contract.md')), 'custom entry contract\n');
+  assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'project_context.py')), false);
+  assert.equal(
+    await readText(join(target, '.agents', 'skills', 'party-mode', 'scripts', 'party_mode_v2.py')),
+    await readText(join(templateRoot, 'skills', 'party-mode', 'scripts', 'party_mode_v2.py'))
+  );
+  assert.equal(await exists(join(target, '.cowork-flow', 'project-context.md')), false);
+  assert.equal(await exists(join(target, '.cowork-flow', 'workflow.md')), false);
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md'))
+  );
+  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md')), false);
   assert.equal(
     await readText(join(target, '.codex', 'agents', 'cowork-implement.toml')),
     await readText(join(templateRoot, '.codex', 'agents', 'cowork-implement.toml'))
@@ -110,6 +192,45 @@ test('sync updates safe template files and preserves protected files', async (t)
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${(await readPackageInfo()).version}\n`);
   assert.match(io.stdout, /updated=/);
   assert.match(io.stdout, /protected=/);
+});
+
+test('sync removes obsolete runtime rules metadata without overwriting local specs', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
+    0
+  );
+  const rulesPath = join(target, '.cowork-flow', 'spec', 'runtime', 'rules.json');
+  const rulesSchemaPath = join(target, '.cowork-flow', 'spec', 'schemas', 'rules.schema.json');
+  const removedGatePath = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'gates.py');
+  assert.equal(
+    hostRegistry.obsoleteSyncFiles().includes('.cowork-flow/spec/runtime/rules.json'),
+    true
+  );
+  assert.equal(
+    hostRegistry.obsoleteSyncFiles().includes('.cowork-flow/scripts/common/gates/gates.py'),
+    true
+  );
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'gates'), { recursive: true });
+  await writeFile(rulesPath, '{"schemaVersion":1,"rules":[]}\n', 'utf8');
+  await writeFile(rulesSchemaPath, '{"type":"object"}\n', 'utf8');
+  await writeFile(removedGatePath, 'old gate registry\n', 'utf8');
+  const localSpecPath = join(
+    target,
+    '.cowork-flow',
+    'spec',
+    'backend',
+    'local-extension.md'
+  );
+  await writeFile(localSpecPath, '# Local extension\n', 'utf8');
+
+  const code = await main(['sync', target], { io: createIo() });
+
+  assert.equal(code, 0);
+  assert.equal(await exists(rulesPath), false);
+  assert.equal(await exists(rulesSchemaPath), false);
+  assert.equal(await exists(removedGatePath), false);
+  assert.equal(await readText(localSpecPath), '# Local extension\n');
 });
 
 test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
@@ -154,7 +275,128 @@ test('sync preserves direct skill layout without legacy seed material', async (t
 
   assert.equal(code, 0);
   assert.equal(await exists(join(target, '.superpowers')), false);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'check', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
+});
+
+test('sync is idempotent after the target matches the template', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
+    0
+  );
+
+  const io = createIo();
+  assert.equal(await main(['sync', target], { io }), 0);
+  assert.match(io.stdout, /updated=0/);
+  assert.match(io.stdout, /deleted=0/);
+});
+
+test('sync deletes removed official Skills and leaves custom Skills and task contexts untouched', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main([
+      'init',
+      target,
+      '--developer',
+      'codex',
+      '--platform',
+      'codex,claude'
+    ], { io: createIo() }),
+    0
+  );
+
+  const removedAgentSkill = join(target, '.agents', 'skills', 'start');
+  const removedPartyModeV2Skill = join(target, '.agents', 'skills', 'party-mode-v2');
+  const removedClaudeSkill = join(target, '.claude', 'skills', 'finish-work');
+  const customSkill = join(target, '.agents', 'skills', 'custom-local', 'SKILL.md');
+  const removedSpecValidator = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'spec_validator.py');
+  const removedJsonlValidator = join(target, '.cowork-flow', 'scripts', 'common', 'gates', 'validate_jsonl.py');
+  await mkdir(removedAgentSkill, { recursive: true });
+  await mkdir(removedPartyModeV2Skill, { recursive: true });
+  await mkdir(removedClaudeSkill, { recursive: true });
+  await mkdir(join(target, '.cowork-flow', 'scripts', 'common', 'gates'), { recursive: true });
+  await writeFile(join(removedAgentSkill, 'SKILL.md'), 'removed start\n', 'utf8');
+  await writeFile(join(removedPartyModeV2Skill, 'SKILL.md'), 'removed party v2\n', 'utf8');
+  await writeFile(join(removedClaudeSkill, 'SKILL.md'), 'removed finish\n', 'utf8');
+  await writeFile(removedSpecValidator, 'removed spec validator\n', 'utf8');
+  await writeFile(removedJsonlValidator, 'removed jsonl validator\n', 'utf8');
+  await mkdir(join(target, '.agents', 'skills', 'custom-local'), { recursive: true });
+  await writeFile(customSkill, 'custom content\n', 'utf8');
+  if (process.platform !== 'win32') {
+    await chmod(customSkill, 0o640);
+  }
+  const customMode = (await stat(customSkill)).mode & 0o777;
+
+  const activeTask = join(target, '.cowork-flow', 'tasks', 'demo');
+  const archivedTask = join(
+    target,
+    '.cowork-flow',
+    'tasks',
+    'archive',
+    '2026-07',
+    'done'
+  );
+  await mkdir(activeTask, { recursive: true });
+  await mkdir(archivedTask, { recursive: true });
+  await writeFile(
+    join(activeTask, 'implement.jsonl'),
+    [
+      JSON.stringify({
+        file: '.agents/skills/start/SKILL.md',
+        reason: 'removed managed path',
+        reference: '.agents/skills/start/SKILL.md'
+      }),
+      JSON.stringify({
+        file: '.agents/skills/custom-local/SKILL.md',
+        reason: 'custom path'
+      }),
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  await writeFile(
+    join(archivedTask, 'check.jsonl'),
+    `${JSON.stringify({
+      file: '.claude/skills/finish-work/SKILL.md',
+      reason: 'removed archived path'
+    })}\n`,
+    'utf8'
+  );
+  const activeContextBefore = await readText(
+    join(activeTask, 'implement.jsonl')
+  );
+  const archivedContextBefore = await readText(
+    join(archivedTask, 'check.jsonl')
+  );
+
+  assert.equal(await main(['sync', target], { io: createIo() }), 0);
+
+  assert.equal(await exists(removedAgentSkill), false);
+  assert.equal(await exists(removedPartyModeV2Skill), false);
+  assert.equal(await exists(removedClaudeSkill), false);
+  assert.equal(await exists(removedSpecValidator), false);
+  assert.equal(await exists(removedJsonlValidator), false);
+  assert.equal(await readText(customSkill), 'custom content\n');
+  if (process.platform !== 'win32') {
+    assert.equal((await stat(customSkill)).mode & 0o777, customMode);
+  }
+  const activeContext = await readText(join(activeTask, 'implement.jsonl'));
+  const archivedContext = await readText(join(archivedTask, 'check.jsonl'));
+  assert.equal(activeContext, activeContextBefore);
+  assert.equal(archivedContext, archivedContextBefore);
+
+  const secondIo = createIo();
+  assert.equal(await main(['sync', target], { io: secondIo }), 0);
+  assert.match(secondIo.stdout, /deleted=0/);
+  assert.equal(
+    await readText(join(activeTask, 'implement.jsonl')),
+    activeContext
+  );
+  assert.equal(
+    await readText(join(archivedTask, 'check.jsonl')),
+    archivedContext
+  );
+  assert.equal(await readText(customSkill), 'custom content\n');
 });
 
 test('sync overwrites protected files with --force', async (t) => {
@@ -171,15 +413,121 @@ test('sync overwrites protected files with --force', async (t) => {
 test('sync dry-run does not write safe file updates', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
-  await writeFile(join(target, '.agents', 'skills', 'start', 'SKILL.md'), 'old skill\n', 'utf8');
+  await writeFile(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md'), 'old skill\n', 'utf8');
   const io = createIo();
 
   const code = await main(['sync', target, '--dry-run'], { io });
 
   assert.equal(code, 0);
-  assert.equal(await readText(join(target, '.agents', 'skills', 'start', 'SKILL.md')), 'old skill\n');
+  assert.equal(await readText(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), 'old skill\n');
   assert.match(io.stdout, /dry-run/);
   assert.match(io.stdout, /would-update=/);
+  const report = parseReadiness(io.stdout);
+  assert.ok(report.wouldCopy.some((action) => (
+    action.path === '.agents/skills/cowork-flow/SKILL.md'
+    && action.action === 'update'
+  )));
+  assert.deepEqual(Object.keys(report).sort(), [
+    'hostAssetRefresh',
+    'pendingRecovery',
+    'warnings',
+    'wouldCopy',
+    'wouldRemoveObsolete',
+    'wouldSkipProtected'
+  ].sort());
+});
+
+test('sync dry-run readiness report separates protected obsolete host and recovery facts', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
+  await writeFile(join(target, 'AGENTS.md'), 'custom agents\n', 'utf8');
+  await writeFile(join(target, '.codex', 'hooks.json'), 'old hooks\n', 'utf8');
+  await mkdir(join(target, '.agents', 'skills', 'tdd'), { recursive: true });
+  await writeFile(join(target, '.agents', 'skills', 'tdd', 'SKILL.md'), 'obsolete skill\n', 'utf8');
+
+  const transactionRoot = join(dirname(target), `.${basename(target)}.cowork-flow-txn-test`);
+  await mkdir(transactionRoot, { recursive: true });
+  await writeFile(join(transactionRoot, 'transaction.json'), `${JSON.stringify({
+    schemaVersion: 1,
+    kind: 'sync',
+    status: 'rollback-failed',
+    targetDir: target,
+    targetDirExisted: true,
+    actions: [{
+      action: 'update',
+      relativePath: '.cowork-flow/run',
+      destination: join(target, '.cowork-flow', 'run'),
+      targetPolicy: 'replace',
+      rollback: { strategy: 'restore-backup' },
+      staged: true,
+      backedUp: true,
+      committed: false
+    }]
+  }, null, 2)}\n`, 'utf8');
+  const io = createIo();
+
+  const code = await main(['sync', target, '--dry-run'], { io });
+
+  assert.equal(code, 0);
+  const report = parseReadiness(io.stdout);
+  assert.ok(report.wouldSkipProtected.some((action) => action.path === 'AGENTS.md'));
+  assert.ok(report.wouldRemoveObsolete.some((action) => action.path === '.agents/skills/tdd'));
+  assert.ok(report.hostAssetRefresh.some((action) => action.path === '.codex/hooks.json'));
+  assert.ok(report.pendingRecovery.some((transaction) => transaction.status === 'rollback-failed'));
+  assert.ok(report.warnings.some((warning) => warning.includes('rollback-failed')));
+  assert.equal(await exists(transactionRoot), true);
+  assert.equal(await readText(join(target, 'AGENTS.md')), 'custom agents\n');
+  assert.equal(await readText(join(target, '.codex', 'hooks.json')), 'old hooks\n');
+  assert.equal(await exists(join(target, '.agents', 'skills', 'tdd')), true);
+});
+
+test('sync rolls back after an injected commit failure', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(
+    await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
+    0
+  );
+  const runner = join(target, '.cowork-flow', 'run');
+  const versionFile = join(target, '.cowork-flow', '.version');
+  await writeFile(runner, 'old runner\n', 'utf8');
+  await writeFile(versionFile, '0.1.0\n', 'utf8');
+  const fileSystem = fileSystemWithRenameFailure(
+    (source, destination) => source.includes(`${sep}staging${sep}`)
+      && destination === versionFile
+  );
+
+  await assert.rejects(
+    runSync([target], { io: createIo(), fileSystem }),
+    /injected commit failure/
+  );
+
+  assert.equal(await readText(runner), 'old runner\n');
+  assert.equal(await readText(versionFile), '0.1.0\n');
+});
+
+
+test('sync uses manifest-defined extra platform assets', async (t) => {
+  const target = await createTempDir(t);
+  await mkdir(join(target, '.cowork-flow'), { recursive: true });
+  await mkdir(join(target, '.demo-host'), { recursive: true });
+  await writeFile(join(target, '.cowork-flow', '.version'), '0.1.0\n', 'utf8');
+  const result = await runCliWithManifestFixture('valid-extra-platform.json', ['sync', target]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(await exists(join(target, '.demo-host', 'skills', 'cowork-flow', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.codex', 'config.toml')), false);
+  assert.match(result.stdout, /Platforms: demo-host/);
+});
+
+
+test('sync rejects invalid host manifest before target mutation', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
+  const versionPath = join(target, '.cowork-flow', '.version');
+  const beforeVersion = await readText(versionPath);
+  const result = await runCliWithManifestFixture('invalid-unknown-field.json', ['sync', target]);
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /unknown field/i);
+  assert.equal(await readText(versionPath), beforeVersion);
 });
 
 test('sync creates missing safe placeholder files', async (t) => {
@@ -224,6 +572,31 @@ test('sync refreshes codex assets without creating opencode assets', async (t) =
   assert.match(io.stdout, /updated=/);
 });
 
+test('sync detects the dsh marker and refreshes dsh assets only', async (t) => {
+  const target = await createTempDir(t);
+  assert.equal(await main(['init', target, '--developer', 'dsh-user', '--platform', 'dsh'], { io: createIo() }), 0);
+  await writeFile(join(target, '.dsh', 'README.md'), 'old marker\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml'), 'old dsh adapter\n', 'utf8');
+  const io = createIo();
+
+  const code = await main(['sync', target], { io });
+
+  assert.equal(code, 0);
+  assert.equal(
+    await readText(join(target, '.dsh', 'README.md')),
+    await readText(join(templateRoot, '.dsh', 'README.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml')),
+    await readText(join(templateRoot, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml'))
+  );
+  assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.opencode')), false);
+  assert.equal(await exists(join(target, '.claude')), false);
+  assert.match(io.stdout, /Platforms: dsh/);
+  assert.match(io.stdout, /updated=/);
+});
+
 test('sync refreshes opencode assets without creating codex assets', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'opencode'], { io: createIo() }), 0);
@@ -254,12 +627,12 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'claude'], { io: createIo() }), 0);
   await mkdir(join(target, '.claude', 'agents'), { recursive: true });
   await writeFile(join(target, '.claude', 'agents', 'cowork-check.md'), 'custom: true\n', 'utf8');
-  await mkdir(join(target, '.claude', 'skills', 'start'), { recursive: true });
-  await writeFile(join(target, '.claude', 'skills', 'start', 'SKILL.md'), 'old claude skill\n', 'utf8');
+  await mkdir(join(target, '.claude', 'skills', 'cowork-flow'), { recursive: true });
+  await writeFile(join(target, '.claude', 'skills', 'cowork-flow', 'SKILL.md'), 'old skill\n', 'utf8');
   await writeFile(join(target, '.claude', 'settings.json'), '{"hooks": {}}\n', 'utf8');
   await writeFile(join(target, '.claude', 'hooks', 'inject-workflow-state.py'), 'old claude hook\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml'), 'old claude adapter\n', 'utf8');
-  await writeFile(join(target, 'CLAUDE.md'), [
+  const customClaude = [
     '# Custom Claude Rules',
     '',
     'Keep this project-specific introduction.',
@@ -270,7 +643,8 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
     '',
     'Keep this project-specific footer.',
     ''
-  ].join('\n'), 'utf8');
+  ].join('\n');
+  await writeFile(join(target, 'CLAUDE.md'), customClaude, 'utf8');
   const templateClaude = await readText(join(templateRoot, 'CLAUDE.md'));
   const templateBlock = templateClaude.match(
     /<!-- COWORK-FLOW:START -->[\s\S]*<!-- COWORK-FLOW:END -->/
@@ -289,8 +663,8 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
     await readText(join(templateRoot, '.cowork-flow', 'adapters', 'claude-code', 'adapter.yaml'))
   );
   assert.equal(
-    await readText(join(target, '.claude', 'skills', 'start', 'SKILL.md')),
-    await readText(join(templateRoot, '.claude', 'skills', 'start', 'SKILL.md'))
+    await readText(join(target, '.claude', 'skills', 'cowork-flow', 'SKILL.md')),
+    await readText(join(templateRoot, 'skills', 'cowork-flow', 'SKILL.md'))
   );
   assert.equal(
     await readText(join(target, '.claude', 'settings.json')),
@@ -312,6 +686,7 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
+  assert.equal(await exists(join(target, '.claude', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills')), false);
   assert.match(io.stdout, /Platforms: claude-code/);
   assert.match(io.stdout, /updated=/);
@@ -326,7 +701,8 @@ test('sync refreshes all host asset sets when all are installed', async (t) => {
   await writeFile(join(target, '.codex', 'hooks.json'), 'old codex hooks\n', 'utf8');
   await writeFile(join(target, '.opencode', 'plugins', 'cowork-flow.js'), 'old opencode plugin\n', 'utf8');
   await writeFile(join(target, '.claude', 'commands', 'cowork-check.md'), 'old claude command\n', 'utf8');
-  await writeFile(join(target, '.claude', 'skills', 'check', 'SKILL.md'), 'old claude skill\n', 'utf8');
+  await writeFile(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md'), 'old skill\n', 'utf8');
+  await writeFile(join(target, '.claude', 'skills', 'cowork-flow', 'SKILL.md'), 'old skill\n', 'utf8');
   await writeFile(join(target, '.claude', 'settings.json'), '{"hooks": {}}\n', 'utf8');
   await writeFile(join(target, '.claude', 'hooks', 'inject-workflow-state.py'), 'old claude hook\n', 'utf8');
   const io = createIo();
@@ -347,8 +723,12 @@ test('sync refreshes all host asset sets when all are installed', async (t) => {
     await readText(join(templateRoot, '.claude', 'commands', 'cowork-check.md'))
   );
   assert.equal(
-    await readText(join(target, '.claude', 'skills', 'check', 'SKILL.md')),
-    await readText(join(templateRoot, '.claude', 'skills', 'check', 'SKILL.md'))
+    await readText(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')),
+    await readText(join(templateRoot, 'skills', 'cowork-flow', 'SKILL.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.claude', 'skills', 'cowork-flow', 'SKILL.md')),
+    await readText(join(templateRoot, 'skills', 'cowork-flow', 'SKILL.md'))
   );
   assert.equal(
     await readText(join(target, '.claude', 'settings.json')),
@@ -360,4 +740,105 @@ test('sync refreshes all host asset sets when all are installed', async (t) => {
   );
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
   assert.match(io.stdout, /updated=/);
+});
+
+
+test('source-refresh rolls back after an injected commit failure', async (t) => {
+  const target = await createTempDir(t);
+  const liveTaskContext = join(target, '.cowork-flow', 'scripts', 'services', 'task_context.py');
+  const versionFile = join(target, '.cowork-flow', '.version');
+  await mkdir(dirname(liveTaskContext), { recursive: true });
+  await writeFile(liveTaskContext, 'old task context\n', 'utf8');
+  await writeFile(versionFile, '0.1.0\n', 'utf8');
+  const fileSystem = fileSystemWithRenameFailure(
+    (source, destination) => source.includes(`${sep}staging${sep}`)
+      && destination === versionFile
+  );
+
+  await assert.rejects(
+    runSourceRefresh([target], { io: createIo(), fileSystem }),
+    /injected commit failure/
+  );
+
+  assert.equal(await readText(liveTaskContext), 'old task context\n');
+  assert.equal(await readText(versionFile), '0.1.0\n');
+});
+
+test('source-refresh repairs live runtime and skill replicas without touching local state', async (t) => {
+  const target = await createTempDir(t);
+  const liveTaskContext = join(target, '.cowork-flow', 'scripts', 'services', 'task_context.py');
+  const liveContractRegistry = join(target, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json');
+  const localTask = join(target, '.cowork-flow', 'tasks', 'demo', 'task.json');
+  const localPlan = join(target, '.cowork-flow', 'plans', 'demo.md');
+  const runtimeSession = join(target, '.cowork-flow', '.runtime', 'sessions', 'demo.json');
+  const developerFile = join(target, '.cowork-flow', '.developer');
+  const configFile = join(target, '.cowork-flow', 'config.yaml');
+  const customSkill = join(target, '.agents', 'skills', 'custom-local', 'SKILL.md');
+  const agentSkill = join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md');
+  const claudeSkill = join(target, '.claude', 'skills', 'runtime-health', 'SKILL.md');
+
+  await mkdir(dirname(liveTaskContext), { recursive: true });
+  await writeFile(liveTaskContext, 'old task context\n', 'utf8');
+  await mkdir(dirname(liveContractRegistry), { recursive: true });
+  await writeFile(liveContractRegistry, '{"old": true}\n', 'utf8');
+  await mkdir(dirname(localTask), { recursive: true });
+  await writeFile(localTask, '{"status":"in_progress"}\n', 'utf8');
+  await mkdir(dirname(localPlan), { recursive: true });
+  await writeFile(localPlan, '# local plan\n', 'utf8');
+  await mkdir(dirname(runtimeSession), { recursive: true });
+  await writeFile(runtimeSession, '{"session":"keep"}\n', 'utf8');
+  await writeFile(developerFile, 'codex\n', 'utf8');
+  await writeFile(configFile, 'local: true\n', 'utf8');
+  await mkdir(dirname(customSkill), { recursive: true });
+  await writeFile(customSkill, '# Custom skill\n', 'utf8');
+  await mkdir(dirname(agentSkill), { recursive: true });
+  await writeFile(agentSkill, '# Drifted cowork-flow\n', 'utf8');
+  await mkdir(dirname(claudeSkill), { recursive: true });
+  await writeFile(claudeSkill, '# Drifted runtime-health\n', 'utf8');
+
+  const dryRunIo = createIo();
+  const dryRunCode = await main(['source-refresh', target, '--dry-run'], { io: dryRunIo });
+
+  assert.equal(dryRunCode, 0);
+  assert.match(dryRunIo.stdout, /dry-run/);
+  assert.match(dryRunIo.stdout, /would-update=/);
+  assert.doesNotMatch(dryRunIo.stdout, /__pycache__|\.pyc/);
+  assert.equal(await readText(liveTaskContext), 'old task context\n');
+  assert.equal(await readText(agentSkill), '# Drifted cowork-flow\n');
+
+  const io = createIo();
+  const code = await main(['source-refresh', target], { io });
+
+  assert.equal(code, 0);
+  assert.equal(
+    await readText(liveTaskContext),
+    await readText(join(templateRoot, '.cowork-flow', 'scripts', 'services', 'task_context.py'))
+  );
+  assert.equal(
+    await readText(liveContractRegistry),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json'))
+  );
+  assert.equal(
+    await readText(agentSkill),
+    await readText(join(templateRoot, 'skills', 'cowork-flow', 'SKILL.md'))
+  );
+  assert.equal(
+    await readText(claudeSkill),
+    await readText(join(templateRoot, 'skills', 'runtime-health', 'SKILL.md'))
+  );
+  assert.equal(await readText(localTask), '{"status":"in_progress"}\n');
+  assert.equal(
+    await readText(join(target, '.cowork-flow', '.version')),
+    await readText(join(templateRoot, '.cowork-flow', '.version'))
+  );
+  assert.equal(await readText(localPlan), '# local plan\n');
+  assert.equal(await readText(runtimeSession), '{"session":"keep"}\n');
+  assert.equal(await readText(developerFile), 'codex\n');
+  assert.equal(await readText(configFile), 'local: true\n');
+  assert.equal(await readText(customSkill), '# Custom skill\n');
+
+  const secondIo = createIo();
+  assert.equal(await main(['source-refresh', target], { io: secondIo }), 0);
+  assert.match(secondIo.stdout, /updated=0/);
+  assert.match(secondIo.stdout, /deleted=0/);
 });

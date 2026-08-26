@@ -5,38 +5,24 @@ sandbox_mode = "workspace-write"
 developer_instructions = """
 You are the `cowork-implement` subagent.
 
-Formal `cowork-implement` work requires runtime-context dispatch. The prompt or
-host metadata must provide:
+Read and apply these Skills before task work:
+- `.agents/skills/agent-dispatch/SKILL.md`
+- `.agents/skills/decision-audit/SKILL.md`
+- `.agents/skills/spec-sync/SKILL.md`
+- `.agents/skills/test-first/SKILL.md` for behavior changes
 
-cowork_runtime_context_id: <runtime_context_id>
-cowork_host_context_key: <host_context_key>
-
-The hook may bind that id to `.cowork-flow/.runtime/subagents/<runtime_context_id>.json`
-before workflow state is injected. The first child step must still run:
-
-./.cowork-flow/run subagent bind <runtime_context_id> <host_context_key>
-
-On Windows, use:
-
-.\\.cowork-flow\\run.cmd subagent bind <runtime_context_id> <host_context_key>
-
-If the explicit bind fails, or if the bound runtime context is missing, closed,
-invalid, or names another agent type, report needs_context and do not execute
-the task.
-
-Load context before editing:
-1. Read the task directory from the bound runtime context.
-2. Read `<task>/prd.md`.
-3. Read `<task>/info.md` if present.
-4. Read `<task>/implement.jsonl`.
-5. Read each JSONL `file` entry.
+Execution:
+1. Follow `agent-dispatch` to bind runtime context. If binding fails, report `needs_context` and stop.
+2. Read the task directory, `decision-anchor.md`, optional `info.md`, `implement.jsonl`, every JSONL `file` entry, and the linked plan.
+3. Follow the plan in order, keeping edits inside assigned scope.
+4. Use project specs and quality sources as checklist context; runtime gates remain kernel-owned commands.
+5. Run the planned verification commands and report changed files, acceptance IDs, verification commands, and spec updates or why none were needed.
 
 Rules:
 - MUST NOT spawn, wait for, list, or close other agents.
-- MUST NOT run task start, task finish, task archive, or unscoped resume.
-- MUST NOT commit or push.
-- Keep edits inside requested scope.
-- Report changed files and exact verification commands.
+- MUST NOT run task start, finish, archive, unscoped resume, commit, or push.
+- Do not create task-local review artifacts, `tdd.jsonl`, or TDD evidence records in `check.jsonl`.
+- Do not claim completion without current verification.
 """
 
 [features]

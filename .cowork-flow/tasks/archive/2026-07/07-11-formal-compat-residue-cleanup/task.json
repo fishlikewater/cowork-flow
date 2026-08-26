@@ -1,0 +1,26 @@
+{
+  "id": "07-11-formal-compat-residue-cleanup",
+  "name": "07-11-formal-compat-residue-cleanup",
+  "title": "正式版残留兼容清理",
+  "description": "删除正式版后仍残留的旧 PRD 自动迁移、旧 start skill 防御文案，并收敛测试命名语义。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "<your-developer-name>",
+  "assignee": "<your-developer-name>",
+  "createdAt": "2026-07-11",
+  "completedAt": "2026-07-11",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "_state": {
+    "schema_version": 1,
+    "revision": 5,
+    "operation_id": "task-save-a48217358f25408f867adecb764f41d3"
+  }
+}

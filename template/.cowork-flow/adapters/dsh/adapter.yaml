@@ -1,0 +1,30 @@
+schemaVersion: 1
+host: dsh
+displayName: DeepSeek Harness
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: native
+  waitChild: native
+  listChildren: native
+  cancelChild: native
+  stateInjection: external
+  backgroundChild: native
+  runtimeContextDispatch: native
+  runtimeContextBinding: shim
+  runtimeContextCleanup: shim
+dispatch:
+  primitive: subagent
+  skillsPath: .agents/skills
+  memoryPath: AGENTS.md
+runtimeContext:
+  transport: prompt
+  promptKey: cowork_runtime_context_id
+  envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
+  metadataKey: cowork_runtime_context_id
+contracts:
+  dispatch: RUNTIME_CONTEXT_DISPATCH_V2
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual
+  whenRuntimeContextMissing: fail_closed

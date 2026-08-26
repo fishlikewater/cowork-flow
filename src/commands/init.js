@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import {
@@ -10,7 +10,8 @@ import { readPackageInfo } from '../lib/package-info.js';
 import {
   SUPPORTED_PLATFORMS,
   formatPlatformList,
-  parsePlatformSelection
+  parsePlatformSelection,
+  platformLabel
 } from '../lib/platforms.js';
 
 function parseInitArgs(args) {
@@ -107,19 +108,6 @@ async function resolveDeveloperName(options, prompt) {
   return { existing: false, name: normalizeDeveloperName(name) };
 }
 
-function platformLabel(platform) {
-  if (platform === 'codex') {
-    return 'Codex';
-  }
-  if (platform === 'opencode') {
-    return 'OpenCode';
-  }
-  if (platform === 'claude-code') {
-    return 'Claude Code';
-  }
-  return platform;
-}
-
 async function resolvePlatforms(options, selectPlatforms) {
   if (options.platforms.length > 0) {
     return parsePlatformSelection(options.platforms);
@@ -139,107 +127,49 @@ async function resolvePlatforms(options, selectPlatforms) {
   return parsePlatformSelection(selected);
 }
 
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
 
-function initialJournalContent(name) {
-  return `# Development Journal - ${name} (Part 1)
-
-> AI development session journal
-> Start date: ${todayIsoDate()}
-
----
-
-`;
-}
-
-function initialIndexContent(name) {
-  return `# Workspace Index - ${name}
-
-> Tracks AI development session records.
-
----
-
-## Current Status
-
-<!-- @@@auto:current-status -->
-- **Current file**: \`journal-1.md\`
-- **Total Sessions**: 0
-- **Last Active**: -
-<!-- @@@/auto:current-status -->
-
----
-
-## Active Documents
-
-<!-- @@@auto:active-documents -->
-| File | Lines | Status |
-|------|------|------|
-| \`journal-1.md\` | ~0 | Current |
-<!-- @@@/auto:active-documents -->
-
----
-
-## Session History
-
-<!-- @@@auto:session-history -->
-| # | Date | Title | Commit |
-|---|------|------|------|
-<!-- @@@/auto:session-history -->
-
----
-
-## Notes
-
-- Sessions are appended to the journal file
-- A new journal file is created automatically after the current file exceeds 2000 lines
-- Use \`add_session.py\` to record sessions
-- New records use English text; legacy records can remain as they are
-`;
-}
-
-async function initializeDeveloper(target, developer) {
+async function buildDeveloperActions(target, developer) {
   const workflowDir = join(target, '.cowork-flow');
   const developerFile = join(workflowDir, '.developer');
-  const workspaceDir = join(workflowDir, 'workspace', developer.name);
-  const journalFile = join(workspaceDir, 'journal-1.md');
-  const indexFile = join(workspaceDir, 'index.md');
+  const actions = [];
 
-  await mkdir(workflowDir, { recursive: true });
   if (!developer.existing) {
-    await writeFile(
-      developerFile,
-      `name=${developer.name}\ninitialized_at=${new Date().toISOString()}\n`,
-      'utf8'
-    );
+    actions.push({
+      action: 'create',
+      source: null,
+      destination: developerFile,
+      relativePath: '.cowork-flow/.developer',
+      content: `name=${developer.name}\ninitialized_at=${new Date().toISOString()}\n`,
+      targetExists: false
+    });
   }
 
-  await mkdir(workspaceDir, { recursive: true });
-  if (!await pathExists(journalFile)) {
-    await writeFile(journalFile, initialJournalContent(developer.name), 'utf8');
-  }
-  if (!await pathExists(indexFile)) {
-    await writeFile(indexFile, initialIndexContent(developer.name), 'utf8');
-  }
+  return actions;
 }
 
 export async function runInit(args, { io, prompt, selectPlatforms }) {
   return runInitWithOptions(args, { io, prompt, selectPlatforms });
 }
 
-export async function runInitWithOptions(args, { io, prompt, selectPlatforms }) {
+export async function runInitWithOptions(
+  args,
+  { io, prompt, selectPlatforms, fileSystem }
+) {
   const options = parseInitArgs(args);
   const platforms = await resolvePlatforms(options, selectPlatforms);
   const developer = await resolveDeveloperName(options, prompt);
   const packageInfo = await readPackageInfo();
+  const developerActions = developer.name
+    ? await buildDeveloperActions(options.target, developer)
+    : [];
   const plan = await buildInitPlan(options.target, {
+    additionalActions: developerActions,
     force: options.force,
     platforms,
     version: packageInfo.version
   });
 
-  await applyPlan(plan, { dryRun: options.dryRun });
+  await applyPlan(plan, { dryRun: options.dryRun, fileSystem });
   io.writeOut(summarizePlan(plan, options.dryRun));
   io.writeOut(`Platforms: ${formatPlatformList(platforms)}\n`);
 
@@ -248,13 +178,11 @@ export async function runInitWithOptions(args, { io, prompt, selectPlatforms }) 
       io.writeOut(`dry-run preserve-existing=.cowork-flow/.developer for developer ${developer.name}\n`);
     } else if (developer.name) {
       io.writeOut(`dry-run would-create=.cowork-flow/.developer for developer ${developer.name}\n`);
-      io.writeOut(`dry-run would-create=.cowork-flow/workspace/${developer.name}/\n`);
     }
     io.writeOut('Next: update AGENTS.md and .cowork-flow/config.yaml for this project.\n');
     return 0;
   }
 
-  await initializeDeveloper(options.target, developer);
   if (developer.existing) {
     io.writeOut(`Developer already initialized: ${developer.name}\n`);
   } else {

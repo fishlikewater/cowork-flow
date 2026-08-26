@@ -1,0 +1,8 @@
+{
+  "runtime_context_id": "rtx_historical",
+  "scope": "subagent",
+  "task_dir": ".cowork-flow/tasks/historical-task",
+  "host": "codex",
+  "status": "pending_bind",
+  "persisted_note": "历史运行时上下文"
+}

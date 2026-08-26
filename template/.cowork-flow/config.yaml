@@ -4,17 +4,6 @@
 # All values have sensible defaults. Only override what you need.
 
 #-------------------------------------------------------------------------------
-# Session Recording
-#-------------------------------------------------------------------------------
-
-# Commit message used when auto-committing journal/index changes
-# after running add_session.py
-session_commit_message: "chore: record journal"
-
-# Maximum lines per journal file before rotating to a new one
-max_journal_lines: 2000
-
-#-------------------------------------------------------------------------------
 # Codex Runtime
 #-------------------------------------------------------------------------------
 
@@ -27,6 +16,22 @@ codex:
   # Formal subagent identity is runtime-context based. The main session creates
   # .cowork-flow/.runtime/subagents/<id>.json with the subagent helper, then
   # passes cowork_runtime_context_id through the active host adapter transport.
+
+#-------------------------------------------------------------------------------
+# Party Mode V2 Runtime Board
+#-------------------------------------------------------------------------------
+
+# Party Mode V2 is an advisory, runtime-controlled board discussion mode.
+# The Python runtime owns board state and emits host-neutral next actions; the
+# active host adapter still performs dispatch/wait/close.
+party_mode_v2:
+  min_agents: 3
+  max_agents: 5
+  max_rounds: 5
+  max_rebuttal_targets_per_agent: 2
+  max_drift_warnings: 2
+  fresh_context_per_round: "true"
+  require_current_round_only: "true"
 
 #-------------------------------------------------------------------------------
 # Task Lifecycle Hooks

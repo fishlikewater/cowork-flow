@@ -1,0 +1,26 @@
+{
+  "id": "07-11-formal-semantic-cleanup",
+  "name": "07-11-formal-semantic-cleanup",
+  "title": "正式版语义与提示面收口",
+  "description": "清理 PRD 术语残留、废弃别名提示，并补充正式版提示面防回归验证。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P1",
+  "creator": "<your-developer-name>",
+  "assignee": "<your-developer-name>",
+  "createdAt": "2026-07-11",
+  "completedAt": "2026-07-11",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "_state": {
+    "schema_version": 1,
+    "revision": 5,
+    "operation_id": "task-save-68637db8a1084a55999aa195721de24e"
+  }
+}
