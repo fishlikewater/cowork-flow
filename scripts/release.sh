@@ -100,6 +100,15 @@ else
       ;;
   esac
 fi
-run_step git tag "v$PACKAGE_VERSION" || exit $?
+if git rev-parse -q --verify "refs/tags/v$PACKAGE_VERSION^{commit}" >/dev/null 2>&1; then
+  if [ "$(git rev-parse "refs/tags/v$PACKAGE_VERSION^{commit}")" = "$(git rev-parse HEAD)" ]; then
+    echo "tag v$PACKAGE_VERSION already exists at HEAD, continuing"
+  else
+    echo "error: tag v$PACKAGE_VERSION already exists at a different commit" >&2
+    exit 1
+  fi
+else
+  run_step git tag "v$PACKAGE_VERSION" || exit $?
+fi
 
 run_step npm publish || exit $?
