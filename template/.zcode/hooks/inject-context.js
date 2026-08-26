@@ -97,9 +97,14 @@ function sanitizeContextKey(raw) {
 }
 
 function resolveSessionKey(input) {
+  // Python session_state resolves an explicit COWORK_FLOW_CONTEXT_ID as the
+  // raw context key - it must not gain a host prefix here either.
   const explicit = process.env.COWORK_FLOW_CONTEXT_ID;
+  if (typeof explicit === "string" && explicit.trim()) {
+    const key = sanitizeContextKey(explicit);
+    if (key) return key;
+  }
   const candidates = [
-    explicit,
     process.env.ZCODE_SESSION_ID,
     input?.zcode_session_id,
     input?.ZCODE_SESSION_ID,
@@ -143,8 +148,8 @@ function toActiveTask(data) {
   };
 }
 
-// One-level scan of non-archived tasks for rebind hints; tasks/archive lives
-// two levels deeper so a plain readdir already excludes it.
+// One-level scan of bindable tasks for rebind hints; tasks/archive lives two
+// levels deeper so a plain readdir already excludes it.
 function listActiveTasks(repoRoot) {
   const tasksDir = join(repoRoot, DIR_WORKFLOW, "tasks");
   const out = [];
@@ -152,7 +157,7 @@ function listActiveTasks(repoRoot) {
     for (const name of readdirSync(tasksDir)) {
       const relative = `${DIR_WORKFLOW}/tasks/${name}`;
       const { status, missing } = readTaskStatus(repoRoot, relative);
-      if (!missing) out.push(`${relative} (${status})`);
+      if (!missing && status !== "completed") out.push(`${relative} (${status})`);
     }
   } catch {
     // tasks dir unreadable
@@ -445,8 +450,13 @@ function main() {
     typeof input?.hook_event_name === "string" &&
     input.hook_event_name.trim() === "PostToolUse"
   ) {
-    const command = String(input?.tool_input?.command || "");
-    if (!command.includes(".cowork-flow/run task")) {
+    // Normalize separators so Windows run.cmd invocations still match; the
+    // bare-run fallback covers `cd .cowork-flow && ./run task ...` forms.
+    const command = String(input?.tool_input?.command || "").replaceAll("\\", "/");
+    if (
+      !command.includes(".cowork-flow/run") &&
+      !/\brun(?:\.cmd)?\s+task\b/.test(command)
+    ) {
       process.exit(0);
     }
   }
@@ -487,10 +497,10 @@ Source: cowork-flow-plugin
   // so long sessions don't pay for the full listing on every message.
   const rootForDigest = effectiveRoot || envDir || input.cwd;
   if (rootForDigest) {
-    if (
-      typeof input?.hook_event_name === "string" &&
-      input.hook_event_name.trim() === "SessionStart"
-    ) {
+    // Use the normalized event so legacy hosts whose only signal is the
+    // plugin-root env (detectEventName guesses SessionStart) keep receiving
+    // the full block they got before slimming.
+    if (event === "SessionStart") {
       context = `${buildContractDigest(rootForDigest)}\n\n${context}`;
     } else {
       const contracts = loadContractRegistry(rootForDigest);

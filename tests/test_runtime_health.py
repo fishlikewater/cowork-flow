@@ -468,6 +468,16 @@ class RuntimeHealthTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (sessions / "zcode_broken.json").write_text("{not json", encoding="utf-8")
+            (sessions / "zcode_naive.json").write_text(
+                json.dumps(
+                    {
+                        "scope": "main",
+                        "platform": "zcode",
+                        "last_seen_at": "2099-01-01T00:00:00",
+                    }
+                ),
+                encoding="utf-8",
+            )
             (sessions / "claude_fresh.json").write_text(
                 json.dumps(
                     {
