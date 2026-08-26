@@ -12,7 +12,11 @@ from typing import Callable
 from adapters.cli import task_navigation
 from adapters.cli.task_support import Colors, colored, resolve_task_dir
 from infra.paths import get_repo_root
-from runtime.session_state import get_active_task
+from runtime.session_state import (
+    FALLBACK_BINDING_BLOCKER,
+    PROVENANCE_PROCESS_FALLBACK,
+    get_active_task,
+)
 from services.plan_binding import PlanBindingError, bind_task_plan
 
 
@@ -48,10 +52,23 @@ def _next_target_for_run(args: argparse.Namespace, repo_root: Path):
         return task_dir, _display_task_path(repo_root, task_dir), False
 
     active = get_active_task(repo_root)
-    if active.task_path:
+    # 进程标签回退身份是共享的，绑定只作 advisory，不自动定位任务。
+    if active.task_path and active.provenance != PROVENANCE_PROCESS_FALLBACK:
         task_dir = repo_root / active.task_path
         return task_dir, active.task_path, True
     return None, None, False
+
+
+def _fallback_binding_blockers(
+    args: argparse.Namespace,
+    repo_root: Path,
+) -> list[str]:
+    if getattr(args, "dir", None):
+        return []
+    active = get_active_task(repo_root)
+    if active.task_path and active.provenance == PROVENANCE_PROCESS_FALLBACK:
+        return [FALLBACK_BINDING_BLOCKER]
+    return []
 
 
 def _next_payload_for_run(args: argparse.Namespace, repo_root: Path) -> dict[str, object]:
@@ -60,7 +77,7 @@ def _next_payload_for_run(args: argparse.Namespace, repo_root: Path) -> dict[str
         return task_navigation.build_navigation_payload(
             args=args,
             status="no_task",
-            blockers=[],
+            blockers=_fallback_binding_blockers(args, repo_root),
             active_target=False,
             task_path=None,
         )

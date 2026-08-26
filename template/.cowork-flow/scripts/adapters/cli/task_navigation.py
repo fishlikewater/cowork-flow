@@ -10,7 +10,11 @@ from services.task_context import TaskContextService
 from adapters.cli.task_support import resolve_task_dir
 from adapters.cli.execution_context_args import execution_context_from_namespace
 from infra.paths import get_repo_root
-from runtime.session_state import get_active_task
+from runtime.session_state import (
+    FALLBACK_BINDING_BLOCKER,
+    PROVENANCE_PROCESS_FALLBACK,
+    get_active_task,
+)
 from services.readiness import task_readiness_blockers
 from services.task_repository import TaskRepository, TaskRepositoryError
 
@@ -359,13 +363,20 @@ def _navigation_target(args, repo_root: Path, structured: bool):
 
     active = get_active_task(repo_root)
     source = f"{active.source}:{active.context_key or '-'}"
-    if active.task_path:
+    # 进程标签回退身份是同实例所有会话共享的；其绑定只作 advisory，
+    # 不得自动定位任务（否则他会话绑定的任务会被当作本会话任务）。
+    untrusted_binding = (
+        bool(active.task_path)
+        and active.provenance == PROVENANCE_PROCESS_FALLBACK
+    )
+    if active.task_path and not untrusted_binding:
         return repo_root / active.task_path, active.task_path, source, True
+    blockers = [FALLBACK_BINDING_BLOCKER] if untrusted_binding else []
     if structured:
         payload = build_navigation_payload(
             args=args,
             status="no_task",
-            blockers=[],
+            blockers=blockers,
             active_target=False,
             task_path=None,
             repo_root=repo_root,
@@ -379,7 +390,7 @@ def _navigation_target(args, repo_root: Path, structured: bool):
             args=args,
             status="no_task",
             task_path=None,
-            blockers=[],
+            blockers=blockers,
             active_target=False,
             repo_root=repo_root,
         )

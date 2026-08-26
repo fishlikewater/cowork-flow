@@ -26,7 +26,11 @@ from infra.paths import (
     FILE_TASK_JSON,
     get_repo_root,
 )
-from runtime.session_state import clear_active_task, get_active_task
+from runtime.session_state import (
+    PROVENANCE_PROCESS_FALLBACK,
+    clear_active_task,
+    get_active_task,
+)
 
 
 def _report_check_block(title: str, blockers: tuple[str, ...]) -> int:
@@ -66,6 +70,19 @@ def _resolve_status_task_dir(
                 colored(
                     "Error: Missing session context. Set "
                     "COWORK_FLOW_CONTEXT_ID or pass a task dir.",
+                    Colors.RED,
+                ),
+                file=sys.stderr,
+            )
+            return None
+        if (
+            active.task_path
+            and active.provenance == PROVENANCE_PROCESS_FALLBACK
+        ):
+            print(
+                colored(
+                    "Error: Session binding is process-fallback (shared); "
+                    "pass a task dir explicitly.",
                     Colors.RED,
                 ),
                 file=sys.stderr,
@@ -342,6 +359,16 @@ def cmd_finish(args: argparse.Namespace) -> int:
     """Clear the active task for this session."""
     repo_root = get_repo_root()
     active = get_active_task(repo_root)
+    if active.task_path and active.provenance == PROVENANCE_PROCESS_FALLBACK:
+        print(
+            colored(
+                "Error: Refusing to clear a session binding resolved from "
+                "process-fallback identity; archive the task to clear it.",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        return 1
     if not active.task_path:
         print(
             colored(

@@ -69,6 +69,99 @@ class TaskCommandsTest(FlowScriptTestCase):
 
             self.assertEqual(0, result)
 
+    def _seed_fallback_binding(self, root: Path) -> Path:
+        task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+        task_dir.mkdir(parents=True)
+        (task_dir / "task.json").write_text(
+            '{"status":"in_progress"}\n',
+            encoding="utf-8",
+        )
+        sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "zcode_local-1.json").write_text(
+            json.dumps(
+                {
+                    "active_task_path": ".cowork-flow/tasks/07-10-demo",
+                    "scope": "main",
+                    "platform": "zcode",
+                    "identity_provenance": "process_fallback",
+                }
+            ),
+            encoding="utf-8",
+        )
+        return sessions / "zcode_local-1.json"
+
+    def test_cmd_finish_refuses_process_fallback_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            session_file = self._seed_fallback_binding(root)
+            lifecycle_commands = importlib.import_module(
+                "adapters.cli.task_lifecycle_commands"
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True
+                ):
+                    with (
+                        patch.object(lifecycle_commands, "_run_hooks"),
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_finish(argparse.Namespace())
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertTrue(session_file.exists())
+            self.assertIn("process-fallback", stderr.getvalue())
+
+    def test_cmd_finish_clears_trusted_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status":"in_progress"}\n',
+                encoding="utf-8",
+            )
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            session_file = sessions / "main.json"
+            session_file.write_text(
+                json.dumps(
+                    {
+                        "active_task_path": ".cowork-flow/tasks/07-10-demo",
+                        "scope": "main",
+                        "platform": "manual",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            lifecycle_commands = importlib.import_module(
+                "adapters.cli.task_lifecycle_commands"
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True
+                ):
+                    with (
+                        patch.object(lifecycle_commands, "_run_hooks"),
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()),
+                    ):
+                        result = self.task.cmd_finish(argparse.Namespace())
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result)
+            self.assertFalse(session_file.exists())
+
     def test_cmd_start_runs_hooks_only_from_lifecycle_result_events(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
