@@ -120,6 +120,14 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
   assert.equal(packageLock.version, packageInfo.version);
   assert.equal(packageLock.packages[''].version, packageInfo.version);
+  const zcodePlugin = JSON.parse(
+    await readFile(join(packageRoot, 'template', '.zcode', '.zcode-plugin', 'plugin.json'), 'utf8')
+  );
+  assert.equal(
+    zcodePlugin.version,
+    packageInfo.version,
+    'zcode plugin version must track the package version (release.sh bumps it automatically)'
+  );
 });
 
 
