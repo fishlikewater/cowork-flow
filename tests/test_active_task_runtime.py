@@ -51,6 +51,99 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
         with patch.dict(os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True):
             self.assertEqual("zcode_local-1", self.active_task.resolve_context_key())
 
+    def test_provenance_marks_process_fallback(self) -> None:
+        with patch.dict(os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True):
+            key, provenance = (
+                self.active_task.resolve_context_key_with_provenance()
+            )
+        self.assertEqual("zcode_local-1", key)
+        self.assertEqual(
+            self.active_task.PROVENANCE_PROCESS_FALLBACK,
+            provenance,
+        )
+
+    def test_provenance_marks_explicit_env(self) -> None:
+        with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True):
+            key, provenance = (
+                self.active_task.resolve_context_key_with_provenance()
+            )
+        self.assertEqual("main", key)
+        self.assertEqual(self.active_task.PROVENANCE_EXPLICIT, provenance)
+
+    def test_provenance_marks_host_session_env_over_input(self) -> None:
+        with patch.dict(os.environ, {"DSH_SESSION_ID": "session-123"}, clear=True):
+            _, provenance = self.active_task.resolve_context_key_with_provenance(
+                {"session_id": "sess-input"}
+            )
+        self.assertEqual(self.active_task.PROVENANCE_HOST_SESSION, provenance)
+
+    def test_provenance_missing_when_no_identity(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            key, provenance = (
+                self.active_task.resolve_context_key_with_provenance(
+                    {"unrelated": "value"}
+                )
+            )
+        self.assertIsNone(key)
+        self.assertEqual(self.active_task.PROVENANCE_MISSING, provenance)
+
+    def test_get_active_task_reports_fallback_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            task_dir = root / ".cowork-flow" / "tasks" / "05-28-demo"
+            task_dir.mkdir(parents=True)
+
+            with patch.dict(os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True):
+                self.active_task.set_active_task(
+                    root, ".cowork-flow/tasks/05-28-demo"
+                )
+                active = self.active_task.get_active_task(root)
+
+        self.assertEqual(".cowork-flow/tasks/05-28-demo", active.task_path)
+        self.assertEqual(
+            self.active_task.PROVENANCE_PROCESS_FALLBACK,
+            active.provenance,
+        )
+
+    def test_set_active_task_writes_identity_provenance_only_for_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            task_dir = root / ".cowork-flow" / "tasks" / "05-28-demo"
+            task_dir.mkdir(parents=True)
+
+            with patch.dict(os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True):
+                fallback = self.active_task.set_active_task(
+                    root, ".cowork-flow/tasks/05-28-demo"
+                )
+                assert fallback is not None
+                session_file = (
+                    self.active_task.sessions_dir(root)
+                    / f"{fallback.context_key}.json"
+                )
+                session_data = json.loads(
+                    session_file.read_text(encoding="utf-8")
+                )
+                self.assertEqual(
+                    "process_fallback",
+                    session_data.get("identity_provenance"),
+                )
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True):
+                trusted = self.active_task.set_active_task(
+                    root, ".cowork-flow/tasks/05-28-demo"
+                )
+                assert trusted is not None
+                trusted_file = (
+                    self.active_task.sessions_dir(root)
+                    / f"{trusted.context_key}.json"
+                )
+                trusted_data = json.loads(
+                    trusted_file.read_text(encoding="utf-8")
+                )
+                self.assertNotIn("identity_provenance", trusted_data)
+
     def test_context_key_prefers_zcode_session_over_process_label(self) -> None:
         with patch.dict(
             os.environ,

@@ -23,6 +23,116 @@ ANCHOR_TEXT = "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- AC-001: Demo.
 
 
 class TaskNavigationTest(FlowScriptTestCase):
+    def _seed_fallback_binding(self, root: Path, task_status: str) -> Path:
+        task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+        task_dir.mkdir(parents=True)
+        (task_dir / "task.json").write_text(
+            json.dumps({"title": "Demo", "status": task_status}),
+            encoding="utf-8",
+        )
+        sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "zcode_local-1.json").write_text(
+            json.dumps(
+                {
+                    "active_task_path": ".cowork-flow/tasks/05-19-demo",
+                    "scope": "main",
+                    "platform": "zcode",
+                    "identity_provenance": "process_fallback",
+                }
+            ),
+            encoding="utf-8",
+        )
+        return task_dir
+
+    def _run_cmd_next_json(
+        self,
+        root: Path,
+        *,
+        env: dict[str, str],
+        target: str | None,
+    ) -> tuple[int, dict]:
+        previous_cwd = Path.cwd()
+        try:
+            os.chdir(root)
+            with patch.dict(os.environ, env, clear=True):
+                with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                    result = self.task.cmd_next(
+                        argparse.Namespace(
+                            dir=target,
+                            json=True,
+                            intent="question",
+                        )
+                    )
+        finally:
+            os.chdir(previous_cwd)
+        return result, json.loads(stdout.getvalue())
+
+    def test_cmd_next_json_does_not_follow_process_fallback_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._seed_fallback_binding(root, "in_progress")
+
+            result, payload = self._run_cmd_next_json(
+                root,
+                env={"ZCODE_PROCESS_LABEL": "local-1"},
+                target=None,
+            )
+
+            self.assertEqual(0, result)
+            self.assertEqual("no_task", payload["status"])
+            self.assertTrue(payload["blockers"])
+            self.assertIn(
+                "process-fallback",
+                " ".join(str(blocker) for blocker in payload["blockers"]),
+            )
+
+    def test_cmd_next_json_explicit_dir_overrides_fallback_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._seed_fallback_binding(root, "in_progress")
+
+            result, payload = self._run_cmd_next_json(
+                root,
+                env={"ZCODE_PROCESS_LABEL": "local-1"},
+                target=".cowork-flow/tasks/05-19-demo",
+            )
+
+            self.assertEqual(0, result)
+            self.assertEqual("in_progress", payload["status"])
+            self.assertEqual([], payload["blockers"])
+
+    def test_cmd_next_json_trusted_binding_still_auto_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                json.dumps({"title": "Demo", "status": "in_progress"}),
+                encoding="utf-8",
+            )
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "main.json").write_text(
+                json.dumps(
+                    {
+                        "active_task_path": ".cowork-flow/tasks/05-19-demo",
+                        "scope": "main",
+                        "platform": "manual",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result, payload = self._run_cmd_next_json(
+                root,
+                env={"COWORK_FLOW_CONTEXT_ID": "main"},
+                target=None,
+            )
+
+            self.assertEqual(0, result)
+            self.assertEqual("in_progress", payload["status"])
+
     def test_task_next_parser_accepts_structured_output_options(self) -> None:
         args = self.task.build_parser().parse_args(
             ["next", "--json", "--intent", "question"]

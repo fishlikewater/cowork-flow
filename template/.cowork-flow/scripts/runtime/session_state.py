@@ -17,8 +17,17 @@ DIR_SUBAGENTS = "subagents"
 FIELD_ACTIVE_TASK_PATH = "active_task_path"
 FIELD_RUNTIME_CONTEXT_ID = "runtime_context_id"
 FIELD_SCOPE = "scope"
+FIELD_IDENTITY_PROVENANCE = "identity_provenance"
 SCOPE_MAIN = "main"
 SCOPE_SUBAGENT = "subagent"
+PROVENANCE_EXPLICIT = "explicit"
+PROVENANCE_HOST_SESSION = "host_session"
+PROVENANCE_PROCESS_FALLBACK = "process_fallback"
+PROVENANCE_MISSING = "missing"
+FALLBACK_BINDING_BLOCKER = (
+    "session identity is process-fallback (shared); pass <task-dir> explicitly "
+    "or set COWORK_FLOW_CONTEXT_ID to a trusted session id"
+)
 RUNTIME_CONTEXT_PROMPT_RE = re.compile(
     r"(?im)^\s*cowork_runtime_context_id\s*:\s*([A-Za-z0-9._-]+)\s*$"
 )
@@ -32,6 +41,7 @@ class ActiveTask:
     task_path: str | None
     context_key: str | None
     source: str
+    provenance: str = PROVENANCE_MISSING
 
 
 def _sanitize(raw: str) -> str:
@@ -54,15 +64,28 @@ def _first_prompt_value(values: Mapping[str, object] | None) -> str | None:
 
 
 def resolve_context_key(values: Mapping[str, object] | None = None) -> str | None:
-    context_key = _resolve_env_context_key() or _resolve_input_context_key(values)
+    return resolve_context_key_with_provenance(values)[0]
+
+
+def resolve_context_key_with_provenance(
+    values: Mapping[str, object] | None = None,
+) -> tuple[str | None, str]:
+    context_key, provenance = _resolve_env_context_key_with_provenance()
     if context_key:
-        return context_key
+        return context_key, provenance
+    context_key = _resolve_input_context_key(values)
+    if context_key:
+        return context_key, PROVENANCE_HOST_SESSION
     # zcode 主会话（Bash CLI）无任何 host session id：用进程标签兜底，
     # 保证 task start / session 解析一次成功，不再回落到其它 host。
+    # 该身份是进程级共享的，消费方必须按 PROVENANCE_PROCESS_FALLBACK 降级处理。
     process_label = os.environ.get("ZCODE_PROCESS_LABEL")
     if process_label and process_label.strip():
-        return _prefixed_context_key("zcode", process_label)
-    return None
+        return (
+            _prefixed_context_key("zcode", process_label),
+            PROVENANCE_PROCESS_FALLBACK,
+        )
+    return None, PROVENANCE_MISSING
 
 
 def _prefixed_context_key(prefix: str, raw: str | None) -> str | None:
@@ -71,10 +94,10 @@ def _prefixed_context_key(prefix: str, raw: str | None) -> str | None:
     return None
 
 
-def _resolve_env_context_key() -> str | None:
+def _resolve_env_context_key_with_provenance() -> tuple[str | None, str]:
     explicit = os.environ.get("COWORK_FLOW_CONTEXT_ID")
     if explicit and explicit.strip():
-        return _sanitize(explicit)
+        return _sanitize(explicit), PROVENANCE_EXPLICIT
 
     for prefix, env_name in (
         ("zcode", "ZCODE_SESSION_ID"),
@@ -87,8 +110,12 @@ def _resolve_env_context_key() -> str | None:
     ):
         context_key = _prefixed_context_key(prefix, os.environ.get(env_name))
         if context_key:
-            return context_key
-    return None
+            return context_key, PROVENANCE_HOST_SESSION
+    return None, PROVENANCE_MISSING
+
+
+def _resolve_env_context_key() -> str | None:
+    return _resolve_env_context_key_with_provenance()[0]
 
 
 def _resolve_input_context_key(values: Mapping[str, object] | None) -> str | None:
@@ -262,23 +289,25 @@ def build_active_task_session(
     task_path: str,
 ) -> tuple[Path, dict, ActiveTask] | None:
     """Build the session state needed to activate a task."""
-    context_key = resolve_context_key()
+    context_key, provenance = resolve_context_key_with_provenance()
     if not context_key:
         return None
     normalized = task_path.replace("\\", "/")
     target = repo_root / normalized
     if not target.is_dir():
         return None
-    data = {
+    data: dict[str, object] = {
         FIELD_ACTIVE_TASK_PATH: normalized,
         FIELD_SCOPE: SCOPE_MAIN,
         "platform": platform_from_context_key(context_key),
         "last_seen_at": _now(),
     }
+    if provenance == PROVENANCE_PROCESS_FALLBACK:
+        data[FIELD_IDENTITY_PROVENANCE] = PROVENANCE_PROCESS_FALLBACK
     return (
         _session_path(repo_root, context_key),
         data,
-        ActiveTask(normalized, context_key, "session"),
+        ActiveTask(normalized, context_key, "session", provenance=provenance),
     )
 
 
@@ -292,14 +321,14 @@ def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
 
 
 def get_active_task(repo_root: Path, values: Mapping[str, object] | None = None) -> ActiveTask:
-    context_key = resolve_context_key(values)
+    context_key, provenance = resolve_context_key_with_provenance(values)
     if not context_key:
-        return ActiveTask(None, None, "missing-context")
+        return ActiveTask(None, None, "missing-context", provenance=provenance)
     data = _read_json(_session_path(repo_root, context_key))
     task_path = data.get(FIELD_ACTIVE_TASK_PATH)
     if isinstance(task_path, str) and task_path.strip():
-        return ActiveTask(task_path.strip(), context_key, "session")
-    return ActiveTask(None, context_key, "empty-session")
+        return ActiveTask(task_path.strip(), context_key, "session", provenance=provenance)
+    return ActiveTask(None, context_key, "empty-session", provenance=provenance)
 
 
 def is_main_session(repo_root: Path, values: Mapping[str, object] | None = None) -> bool:
