@@ -85,7 +85,21 @@ if [ -f "$ZCODE_PLUGIN_JSON" ]; then
 fi
 
 run_step git add $GIT_ADD_FILES || exit $?
-run_step git commit -m "chore(release): $PACKAGE_VERSION" || exit $?
+echo "> git commit -m \"chore(release): $PACKAGE_VERSION\""
+if COMMIT_OUTPUT=$(git commit -m "chore(release): $PACKAGE_VERSION" 2>&1); then
+  [ -n "$COMMIT_OUTPUT" ] && printf '%s\n' "$COMMIT_OUTPUT"
+else
+  COMMIT_RC=$?
+  printf '%s\n' "$COMMIT_OUTPUT"
+  case "$COMMIT_OUTPUT" in
+    *"nothing to commit"*)
+      echo "nothing to commit; release files already at $PACKAGE_VERSION, continuing"
+      ;;
+    *)
+      exit "$COMMIT_RC"
+      ;;
+  esac
+fi
 run_step git tag "v$PACKAGE_VERSION" || exit $?
 
 run_step npm publish || exit $?
