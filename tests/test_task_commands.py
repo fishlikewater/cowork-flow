@@ -162,6 +162,95 @@ class TaskCommandsTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertFalse(session_file.exists())
 
+    def test_run_delivery_refuses_process_fallback_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._seed_fallback_binding(root)
+            runner = importlib.import_module("adapters.cli.task_next_runner")
+
+            def _forbidden(*args, **kwargs):
+                raise AssertionError("lifecycle handler must not run")
+
+            handlers = SimpleNamespace(
+                create=_forbidden,
+                start=_forbidden,
+                review=_forbidden,
+                complete=_forbidden,
+                archive=_forbidden,
+            )
+            args = argparse.Namespace(
+                dir=None,
+                json=False,
+                intent=None,
+                auto=False,
+                approved=False,
+                title=None,
+                slug=None,
+                assignee=None,
+                priority=None,
+                description=None,
+                parent=None,
+                from_plan=None,
+                commit=False,
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True
+                ):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = runner.run_next_action(args, handlers)
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertIn("blocked", stderr.getvalue())
+
+    def test_run_delivery_target_legs_split_on_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._seed_fallback_binding(root)
+            runner = importlib.import_module("adapters.cli.task_next_runner")
+
+            with patch.dict(
+                os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True
+            ):
+                fallback_target = runner._next_target_for_run(
+                    argparse.Namespace(dir=None), root
+                )
+                blockers = runner._fallback_binding_blockers(
+                    argparse.Namespace(dir=None), root
+                )
+
+            self.assertEqual((None, None, False), fallback_target)
+            self.assertEqual([runner.FALLBACK_BINDING_BLOCKER], blockers)
+
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            (sessions / "main.json").write_text(
+                json.dumps(
+                    {
+                        "active_task_path": ".cowork-flow/tasks/07-10-demo",
+                        "scope": "main",
+                        "platform": "manual",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True
+            ):
+                trusted_target = runner._next_target_for_run(
+                    argparse.Namespace(dir=None), root
+                )
+
+            self.assertEqual(".cowork-flow/tasks/07-10-demo", trusted_target[1])
+            self.assertTrue(trusted_target[2])
+
     def test_cmd_start_runs_hooks_only_from_lifecycle_result_events(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
