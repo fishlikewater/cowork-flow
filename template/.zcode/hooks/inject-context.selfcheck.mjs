@@ -480,6 +480,59 @@ try {
     assert.match(parsedFor(), /活动任务正在执行/, "missing snapshot falls back cleanly");
   });
 
+  test("explicit COWORK_FLOW_CONTEXT_ID resolves its raw key like the CLI", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "main-session.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "zcode", last_seen_at: "2026-07-02T13:00:00Z" },
+    });
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot, COWORK_FLOW_CONTEXT_ID: "main-session" },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
+    const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "raw explicit key must hit the same file as the CLI");
+  });
+
+  test("PostToolUse refreshes for cd-and-bare-run command forms", () => {
+    ensureTask("07-02-test-task");
+    resetSessions({
+      "claude_abc.json": { active_task_path: ".cowork-flow/tasks/07-02-test-task", scope: "main", platform: "claude", last_seen_at: "2026-07-02T13:00:00Z" },
+    });
+    for (const command of [
+      "cd .cowork-flow && ./run task next --run",
+      ".\\run.cmd task next .cowork-flow/tasks/x",
+    ]) {
+      const result = runHook(
+        { ZCODE_PROJECT_DIR: tmpRoot },
+        JSON.stringify({ hook_event_name: "PostToolUse", tool_input: { command } })
+      );
+      const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+      assert.match(ctx, /Status: in_progress/, `refresh expected for: ${command}`);
+    }
+  });
+
+  test("rebind hints exclude terminal completed tasks", () => {
+    ensureTask("07-02-test-task");
+    ensureTask("07-01-done", "completed");
+    resetSessions({
+      "zcode_stale.json": { active_task_path: ".cowork-flow/tasks/06-21-deleted", scope: "main", platform: "zcode", last_seen_at: "2026-08-01T09:00:00Z" },
+    });
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: "stale" })
+    );
+    const m = JSON.parse(result).hookSpecificOutput.additionalContext.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    assert.ok(m);
+    assert.match(m[1], /07-02-test-task/);
+    assert.doesNotMatch(m[1], /07-01-done/, "completed tasks are not bindable candidates");
+  });
+
+  test("cursor legacy format keeps receiving the full contract digest", () => {
+    const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot, CURSOR_PLUGIN_ROOT: "/x" });
+    const ctx = JSON.parse(result).additional_context;
+    assert.match(ctx, /<contract-digest fingerprint="[a-f0-9]+">/, "legacy cursor hosts get the full block as before slimming");
+  });
+
 } finally {
   cleanup();
 }

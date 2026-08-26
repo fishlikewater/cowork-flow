@@ -380,6 +380,10 @@ def check_session_hygiene(repo_root: Path) -> list[dict[str, str]]:
         if seen_at is None and raw_seen_at:
             reasons.append(f"unparsable last_seen_at: {raw_seen_at}")
             aged = True
+        elif seen_at is not None and seen_at.tzinfo is None:
+            # Naive timestamps cannot be compared against aware now().
+            reasons.append(f"last_seen_at without timezone: {raw_seen_at}")
+            aged = True
         elif seen_at is not None:
             age_days = (now - seen_at).days
             if age_days > SESSION_STALE_MAX_AGE_DAYS:
