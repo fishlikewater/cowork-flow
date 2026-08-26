@@ -526,7 +526,13 @@ class TaskLifecycleService:
         return None
 
     def _state_snapshot(self, stage: LifecycleStage, task_dir: Path) -> dict:
-        """Host-hook breadcrumb facts recorded atomically with the transition."""
+        """Host-hook breadcrumb facts recorded atomically with the transition.
+
+        breadcrumbKey intentionally equals target_status today: every current
+        stage maps one status to one breadcrumb tag. The field exists so a
+        future stage can diverge the two without changing hook consumers,
+        which trust this key over their own status-derived convention.
+        """
         return {
             "schemaVersion": 1,
             "generatedAt": (
