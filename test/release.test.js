@@ -77,6 +77,7 @@ async function createFakeCommands(t, options = {}) {
   await writeFile(logPath, '', 'utf8');
 
   const failWhen = options.failWhen ?? '';
+  const commitNoop = options.commitNoop ?? false;
   await writeFile(
     join(binDir, 'npm'),
     [
@@ -107,6 +108,15 @@ async function createFakeCommands(t, options = {}) {
       '#!/bin/sh',
       `printf 'git %s\n' "$*" >> "${logPath}"`,
       `if [ "git $*" = "${failWhen}" ]; then exit 7; fi`,
+      ...(commitNoop
+        ? [
+            'if [ "$1" = "commit" ]; then',
+            '  echo "On branch master"',
+            '  echo "nothing to commit, working tree clean"',
+            '  exit 1',
+            'fi'
+          ]
+        : []),
       'exit 0'
     ].join('\n'),
     { encoding: 'utf8', mode: 0o755 }
@@ -220,6 +230,51 @@ test('release shell script skips the bump when already at the requested version'
     'git tag v0.0.5',
     'npm publish'
   ]);
+});
+
+test('release shell script continues past a no-op commit on a clean tree', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t, { commitNoop: true });
+  const repo = await createReleaseProject(t);
+
+  const result = await execFileAsync(
+    shellRunner,
+    ['scripts/release.sh', '--version', '0.0.5'],
+    { cwd: repo, env: fakeCommands.env, encoding: 'utf8' }
+  );
+
+  assert.match(result.stdout, /> echo package.json already at 0.0.5/);
+  assert.match(result.stdout, /nothing to commit, working tree clean/);
+  assert.match(result.stdout, /> git tag v0.0.5/);
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
+    'npm run test:all',
+    'git add package.json package-lock.json template/.cowork-flow/.version',
+    'git commit -m chore(release): 0.0.5',
+    'git tag v0.0.5',
+    'npm publish'
+  ]);
+});
+
+test('release shell script still aborts when commit fails for a real reason', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t, {
+    failWhen: 'git commit -m chore(release): 0.0.5'
+  });
+  const repo = await createReleaseProject(t);
+
+  await assert.rejects(
+    execFileAsync(shellRunner, ['scripts/release.sh', '--version', '0.0.5'], {
+      cwd: repo,
+      env: fakeCommands.env,
+      encoding: 'utf8'
+    })
+  );
+
+  const commands = await readCommands(fakeCommands.logPath);
+  assert.ok(commands.includes('git commit -m chore(release): 0.0.5'));
+  assert.ok(!commands.includes('git tag v0.0.5'));
+  assert.ok(!commands.includes('npm publish'));
 });
 
 test('release shell script rejects a malformed --version before running anything', async (t) => {
