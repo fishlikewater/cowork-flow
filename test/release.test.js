@@ -78,6 +78,8 @@ async function createFakeCommands(t, options = {}) {
 
   const failWhen = options.failWhen ?? '';
   const commitNoop = options.commitNoop ?? false;
+  const tagExists = options.tagExists ?? false;
+  const tagMismatch = options.tagMismatch ?? false;
   await writeFile(
     join(binDir, 'npm'),
     [
@@ -106,8 +108,21 @@ async function createFakeCommands(t, options = {}) {
     join(binDir, 'git'),
     [
       '#!/bin/sh',
-      `printf 'git %s\n' "$*" >> "${logPath}"`,
+      `if [ "$1" != "rev-parse" ]; then printf 'git %s\n' "$*" >> "${logPath}"; fi`,
       `if [ "git $*" = "${failWhen}" ]; then exit 7; fi`,
+      `if [ "$1" = "rev-parse" ]; then`,
+      '  case "$*" in',
+      '    *"refs/tags/"*)',
+      `      if [ "${tagExists ? '1' : '0'}" = "1" ]; then`,
+      `        if [ "${tagMismatch ? '1' : '0'}" = "1" ]; then echo "2222222222222222222222222222222222"; else echo "1111111111111111111111111111111111"; fi`,
+      '      else',
+      '        exit 1',
+      '      fi',
+      '      ;;',
+      '    *) echo "1111111111111111111111111111111111" ;;',
+      '  esac',
+      '  exit 0',
+      'fi',
       ...(commitNoop
         ? [
             'if [ "$1" = "commit" ]; then',
@@ -274,6 +289,46 @@ test('release shell script still aborts when commit fails for a real reason', as
   const commands = await readCommands(fakeCommands.logPath);
   assert.ok(commands.includes('git commit -m chore(release): 0.0.5'));
   assert.ok(!commands.includes('git tag v0.0.5'));
+  assert.ok(!commands.includes('npm publish'));
+});
+
+test('release shell script reuses an existing release tag at HEAD and continues to publish', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t, { tagExists: true });
+  const repo = await createReleaseProject(t);
+
+  const result = await execFileAsync(
+    shellRunner,
+    ['scripts/release.sh', '--version', '0.0.5'],
+    { cwd: repo, env: fakeCommands.env, encoding: 'utf8' }
+  );
+
+  assert.match(result.stdout, /> echo package.json already at 0.0.5/);
+  assert.match(result.stdout, /tag v0\.0\.5 already exists at HEAD, continuing/);
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
+    'npm run test:all',
+    'git add package.json package-lock.json template/.cowork-flow/.version',
+    'git commit -m chore(release): 0.0.5',
+    'npm publish'
+  ]);
+});
+
+test('release shell script aborts when the release tag exists at a different commit', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t, { tagExists: true, tagMismatch: true });
+  const repo = await createReleaseProject(t);
+
+  await assert.rejects(
+    execFileAsync(shellRunner, ['scripts/release.sh', '--version', '0.0.5'], {
+      cwd: repo,
+      env: fakeCommands.env,
+      encoding: 'utf8'
+    })
+  );
+
+  const commands = await readCommands(fakeCommands.logPath);
+  assert.ok(commands.includes('git commit -m chore(release): 0.0.5'));
   assert.ok(!commands.includes('npm publish'));
 });
 
