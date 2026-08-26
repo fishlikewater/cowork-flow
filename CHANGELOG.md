@@ -15,6 +15,7 @@
 - 会话绑定安全加固：进程 fallback 会话键（`ZCODE_PROCESS_LABEL`）带 provenance 标记，导航、`--run` 派发、review/complete 目标解析与命令行收尾拒绝自动跟随 fallback 绑定，要求显式任务目录；trusted 身份（显式 env、宿主 session env、hook sessionId）保持完整绑定语义。
 - 对抗性审查修正批次：显式 `COWORK_FLOW_CONTEXT_ID` 按裸键解析与 CLI 对齐；PostToolUse 刷新过滤支持 `cd` + 裸 `run` 与 Windows `run.cmd` 命令形态；legacy cursor 宿主保留完整 contract-digest；改绑提示排除已完成的终态任务；doctor 会话卫生检查对无时区时间戳降级为告警而非崩溃。
 - 交互式平台选择器与平台检测断言随五宿主矩阵更新。
+- release.sh 容错：`--version` 精确模式在版本文件已全部就位（干净工作树）时，`git commit` 的 no-op 空提交不再中止脚本，继续 tag 与 publish；其余 commit 失败仍立即中止。新增回归测试覆盖两条路径。
 
 ## 0.0.52 - 2026-08-26
 
