@@ -190,7 +190,9 @@ test('default host registry exposes manifest platform behavior', async () => {
   );
   const detected = await registry.detectInstalledPlatforms(
     '/tmp/fake-target',
-    (candidate) => candidate === '/tmp/fake-target/.zcode'
+    // path.join is platform-specific; compare with separators normalized so
+    // the mock exists-check matches on win32 as well as POSIX.
+    (candidate) => candidate.replaceAll('\\', '/') === '/tmp/fake-target/.zcode'
   );
   assert.deepEqual(detected, ['zcode']);
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/config.yaml'), true);
