@@ -255,9 +255,25 @@ function loadContractRegistry(repoRoot) {
   }
 }
 
+// Stable-sorted serialization shared by every host implementation of the
+// contract fingerprint (Python sort_keys and the opencode plugin use the
+// same semantics), so the digest stays identical across hosts.
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function contractFingerprint(root, contracts) {
   const hash = createHash("sha256");
-  hash.update(JSON.stringify(contracts));
+  hash.update(stableStringify(contracts));
   for (const contract of contracts) {
     const p = contract?.path;
     if (typeof p !== "string" || !p.trim()) continue;

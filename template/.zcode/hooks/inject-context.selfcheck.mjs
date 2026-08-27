@@ -219,6 +219,33 @@ try {
     assert.notEqual(before, after, "spec content changes must move the fingerprint");
   });
 
+  test("fingerprint is invariant under registry key reordering (stable serialization)", () => {
+    const registryPath = join(tmpRoot, ".cowork-flow", "spec", "runtime", "contract-registry.json");
+    const original = JSON.parse(readFileSync(registryPath, "utf8"));
+    const contract = original.contracts[0];
+    const reordered = {
+      ...original,
+      contracts: [
+        {
+          readWhen: contract.readWhen,
+          path: contract.path,
+          digest: contract.digest,
+          id: contract.id,
+        },
+      ],
+    };
+    const promptFingerprint = () => {
+      const parsed = JSON.parse(
+        runHook({ ZCODE_PROJECT_DIR: tmpRoot }, JSON.stringify({ hook_event_name: "UserPromptSubmit" }))
+      );
+      return parsed.hookSpecificOutput.additionalContext.match(/<contract-fingerprint value="([a-f0-9]+)"\/>/)[1];
+    };
+    const before = promptFingerprint();
+    writeFileSync(registryPath, `${JSON.stringify(reordered, null, 2)}\n`, "utf8");
+    const after = promptFingerprint();
+    assert.equal(before, after, "key order inside the registry must not move the fingerprint");
+  });
+
   test("parses workflow-state-templates.md for breadcrumb text", () => {
     // Remove session files to simulate no active task
     const sessionsDir = join(tmpRoot, ".cowork-flow", ".runtime", "sessions");

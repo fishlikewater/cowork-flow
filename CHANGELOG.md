@@ -17,6 +17,7 @@
 - 交互式平台选择器与平台检测断言随五宿主矩阵更新。
 - release.sh 容错：`--version` 精确模式在版本文件已全部就位（干净工作树）时，`git commit` 的 no-op 空提交不再中止脚本，继续 tag 与 publish；其余 commit 失败仍立即中止。新增回归测试覆盖两条路径。
 - release.sh 容错：目标发布 tag 已存在且指向当前 HEAD 时跳过创建并继续 publish（上次运行 tag 后 publish 未完成的重跑场景）；指向其它提交则中止报错。新增回归测试覆盖两条路径。
+- 方向收敛（阶段 0）：README 定位改为「运行时上下文与协作事实层」；新增注入协议契约 `spec/contracts/context-injection.md`（事件时机矩阵、digest 形态规则、序列化规范）；契约指纹序列化三线统一（zcode/opencode 稳定排序 + Python 紧凑分隔符，跨 host 指纹一致性测试锁定）；Python 线补 slim（SessionStart 全量 / 后续单行指纹，无事件 host 按会话文件首次判定）；codex 事件名读取；opencode 首次全量后续单行；dsh 会话开始全量、生命周期命令后单行刷新。
 
 ## 0.0.52 - 2026-08-26
 

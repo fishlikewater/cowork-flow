@@ -63,6 +63,11 @@ def main() -> int:
     sys.path.insert(0, str(scripts_dir))
     from adapters.host.workflow_state_hook import build_hook_context
 
+    event_name = (
+        hook_input.get("hook_event_name")
+        or hook_input.get("hookEventName")
+        or "UserPromptSubmit"
+    )
     context = build_hook_context(
         root,
         hook_input,
@@ -75,11 +80,7 @@ def main() -> int:
                 "</claude-code-runtime>"
             ),
         ),
-    )
-    event_name = (
-        hook_input.get("hook_event_name")
-        or hook_input.get("hookEventName")
-        or "UserPromptSubmit"
+        session_start=(event_name == "SessionStart"),
     )
     print(
         json.dumps(

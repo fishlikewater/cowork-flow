@@ -61,6 +61,11 @@ def main() -> int:
     )
 
     dispatch_mode = codex_dispatch_mode(root)
+    event_name = (
+        hook_input.get("hook_event_name")
+        or hook_input.get("hookEventName")
+        or "UserPromptSubmit"
+    )
     context = build_hook_context(
         root,
         hook_input,
@@ -77,12 +82,15 @@ def main() -> int:
                 "</codex-runtime>"
             ),
         ),
+        # Codex registers UserPromptSubmit only, so event_name carries no
+        # session-start signal; build_hook_context falls back to the session
+        # state file probe (full on first injection, slim afterwards).
     )
     print(
         json.dumps(
             {
                 "hookSpecificOutput": {
-                    "hookEventName": "UserPromptSubmit",
+                    "hookEventName": event_name,
                     "additionalContext": context,
                 }
             },

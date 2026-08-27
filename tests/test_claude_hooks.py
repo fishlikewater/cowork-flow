@@ -169,8 +169,10 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertEqual("UserPromptSubmit", output["hookEventName"])
         context = output["additionalContext"]
         self.assertIn("<claude-code-runtime>", context)
-        self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', context)
-        self.assertIn("<contract-digest fingerprint=", context)
+        # UserPromptSubmit repeats only the fingerprint line; the full
+        # contract block rides SessionStart (see session-start test).
+        self.assertNotIn("<cowork-runtime", context)
+        self.assertRegex(context, r'<contract-fingerprint value="[0-9a-f]{16}"/>')
         self.assertIn("Status: no_task", context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
 
@@ -180,7 +182,7 @@ class ClaudeHooksTest(unittest.TestCase):
             self._make_project(root)
             (root / ".cowork-flow" / "spec" / "runtime" / "contract-registry.json").unlink()
 
-            data = self._run_hook(root, {})
+            data = self._run_hook(root, {"hook_event_name": "SessionStart"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("warning:", context)
@@ -440,6 +442,10 @@ class ClaudeHooksTest(unittest.TestCase):
 
         output = data["hookSpecificOutput"]
         self.assertEqual("SessionStart", output["hookEventName"])
+        context = output["additionalContext"]
+        self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', context)
+        self.assertIn("<contract-digest fingerprint=", context)
+        self.assertIn("Status: no_task", context)
         self.assertIn("Status: no_task", output["additionalContext"])
 
     def test_hook_resolves_active_task_from_claude_session_id(self) -> None:
@@ -540,8 +546,8 @@ class ClaudeHooksTest(unittest.TestCase):
             )
             after = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
 
-        before_match = re.search(r'<contract-digest fingerprint="([^"]+)">', before)
-        after_match = re.search(r'<contract-digest fingerprint="([^"]+)">', after)
+        before_match = re.search(r'<contract-fingerprint value="([0-9a-f]+)"/>', before)
+        after_match = re.search(r'<contract-fingerprint value="([0-9a-f]+)"/>', after)
         self.assertIsNotNone(before_match)
         self.assertIsNotNone(after_match)
         self.assertNotEqual(before_match.group(1), after_match.group(1))
