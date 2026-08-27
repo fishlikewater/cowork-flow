@@ -126,6 +126,79 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn("Status: delegated_subtask", context)
         self.assertIn("Runtime context is missing, closed, or invalid.", context)
 
+    def test_session_start_emits_full_digest_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_workflow_spec(root)
+
+            context = self.module.build_hook_context(
+                root,
+                {},
+                host="codex",
+                adapter="codex.hook",
+                preamble=(),
+                session_start=True,
+            )
+
+        self.assertIn('<cowork-runtime host="codex" adapter="codex.hook">', context)
+        self.assertIn("<contract-digest fingerprint=", context)
+        self.assertIn("<workflow-state>", context)
+
+    def test_non_session_start_emits_fingerprint_line_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_workflow_spec(root)
+
+            context = self.module.build_hook_context(
+                root,
+                {},
+                host="codex",
+                adapter="codex.hook",
+                preamble=(),
+                session_start=False,
+            )
+
+        self.assertRegex(context, r'<contract-fingerprint value="[a-f0-9]{16}"/>')
+        self.assertNotIn("<contract-digest", context)
+        self.assertNotIn("<cowork-runtime", context)
+        self.assertIn("<workflow-state>", context)
+
+    def test_auto_shape_uses_session_state_file_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_workflow_spec(root)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "probe.json").write_text(
+                json.dumps({"active_task_path": ".cowork-flow/tasks/07-10-demo"}),
+                encoding="utf-8",
+            )
+
+            # No event signal + existing session state file -> slim.
+            started = self.module.build_hook_context(
+                root,
+                {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                host="codex",
+                adapter="codex.hook",
+                preamble=(),
+            )
+            self.assertRegex(
+                started,
+                r'<contract-fingerprint value="[a-f0-9]{16}"/>',
+            )
+            self.assertNotIn("<contract-digest", started)
+
+            # No event signal + no session state file -> full (first injection).
+            (sessions / "probe.json").unlink()
+            fresh = self.module.build_hook_context(
+                root,
+                {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                host="codex",
+                adapter="codex.hook",
+                preamble=(),
+            )
+            self.assertIn("<contract-digest fingerprint=", fresh)
+
 
 if __name__ == "__main__":
     unittest.main()

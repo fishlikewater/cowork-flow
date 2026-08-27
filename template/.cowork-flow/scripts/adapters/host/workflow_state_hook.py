@@ -63,6 +63,7 @@ def build_hook_context(
     host: str,
     adapter: str,
     preamble: tuple[str, ...],
+    session_start: bool | None = None,
 ) -> str:
     breadcrumbs = _load_breadcrumbs(root)
     runtime_context, runtime_context_id = _resolve_runtime_context(
@@ -107,13 +108,45 @@ def build_hook_context(
         header = f"Status: {status}\nSource: {source}"
     else:
         header = f"Task: {task_path}\nStatus: {status}\nSource: {source}"
+    if session_start is None:
+        # No event signal from the host: treat the first injection as a
+        # session start. Session state files appear once a task activation
+        # exists (start), so their absence keeps every injection full.
+        session_start = not _session_has_started(root, hook_input)
+    if session_start:
+        digest_block = _build_contract_digest(root, host, adapter)
+    else:
+        contracts, _warning = _load_contract_registry(root)
+        digest_block = (
+            f'<contract-fingerprint value="{contract_fingerprint(root, contracts)}"/>'
+        )
     return "\n\n".join(
         [
             *preamble,
-            _build_contract_digest(root, host, adapter),
+            digest_block,
             f"<workflow-state>\n{header}\n{body}\n</workflow-state>",
         ]
     )
+
+
+def _session_has_started(root: Path, hook_input: dict[str, Any]) -> bool:
+    """True once the hook session holds a task activation state file.
+
+    Resolving the context key and probing the session directory keeps this
+    conservative: any resolution failure falls back to the full digest
+    (reported as "not started").
+    """
+    try:
+        from runtime.session_state import resolve_context_key, sessions_dir
+    except Exception:
+        return False
+    try:
+        context_key = resolve_context_key(hook_input)
+    except Exception:
+        return False
+    if not context_key:
+        return False
+    return (sessions_dir(root) / f"{context_key}.json").exists()
 
 
 def _load_breadcrumbs(root: Path) -> dict[str, str]:
@@ -132,6 +165,29 @@ def _load_breadcrumbs(root: Path) -> dict[str, str]:
         match.group(1): match.group(2).strip()
         for match in TAG_RE.finditer(text)
     }
+
+
+def contract_fingerprint(root: Path, contracts: list[dict[str, Any]]) -> str:
+    digest = hashlib.sha256()
+    digest.update(
+        json.dumps(
+            contracts,
+            ensure_ascii=False,
+            sort_keys=True,
+            # Compact separators keep the bytes identical to the JS
+            # stableStringify implementations (see context-injection.md).
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    for contract in contracts:
+        path = contract.get("path")
+        if not isinstance(path, str) or not path.strip():
+            continue
+        try:
+            digest.update((root / path).read_bytes())
+        except OSError:
+            digest.update(f"missing:{path}".encode("utf-8"))
+    return digest.hexdigest()[:16]
 
 
 def _load_contract_registry(
@@ -172,25 +228,10 @@ def _build_contract_digest(
     adapter: str,
 ) -> str:
     contracts, warning = _load_contract_registry(root)
-    digest = hashlib.sha256()
-    digest.update(
-        json.dumps(
-            contracts,
-            ensure_ascii=False,
-            sort_keys=True,
-        ).encode("utf-8")
-    )
-    for contract in contracts:
-        path = contract.get("path")
-        if not isinstance(path, str) or not path.strip():
-            continue
-        try:
-            digest.update((root / path).read_bytes())
-        except OSError:
-            digest.update(f"missing:{path}".encode("utf-8"))
+    fingerprint = contract_fingerprint(root, contracts)
     lines = [
         f'<cowork-runtime host="{host}" adapter="{adapter}">',
-        f'<contract-digest fingerprint="{digest.hexdigest()[:16]}">',
+        f'<contract-digest fingerprint="{fingerprint}">',
         (
             "policy: repeat this short digest every hook; "
             "read full spec files only before listed actions."

@@ -342,13 +342,38 @@ function buildRuntimeWorkflowState(input) {
   return header.join("\n")
 }
 
+// Digest shape: full contract block on the first injection of a session,
+// single fingerprint line afterwards, so long sessions do not pay the full
+// listing on every prompt assembly. In-memory per plugin process; a process
+// restart (e.g. resume) deliberately re-injects the full block.
+const fullDigestSessions = new Set()
+
+function buildInjectedDigest(input) {
+  const root = findRepoRoot(input)
+  if (!root) {
+    return ""
+  }
+  const contextKey = resolveContextKey(input)
+  const firstInjection = contextKey ? !fullDigestSessions.has(contextKey) : true
+  if (firstInjection) {
+    if (contextKey) {
+      fullDigestSessions.add(contextKey)
+    }
+    return buildContractDigest(input)
+  }
+  const { contracts } = loadContractRegistry(root)
+  return `<contract-fingerprint value="${contractFingerprint(root, contracts)}"/>`
+}
+
 export const CoworkFlowPlugin = async () => {
   return {
     "shell.env": async (input, output) => {
       injectShellEnv(input, output)
     },
     "experimental.chat.system.transform": async (input, output) => {
-      output.system.push([buildContractDigest(input), buildRuntimeWorkflowState(input)].filter(Boolean).join("\n\n"))
+      output.system.push([buildInjectedDigest(input), buildRuntimeWorkflowState(input)].filter(Boolean).join("\n\n"))
     },
   }
 }
+
+export { contractFingerprint, stableStringify }

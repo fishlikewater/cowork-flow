@@ -51,6 +51,7 @@ import sys
 from pathlib import Path
 
 cwd = sys.argv[1]
+full_digest = len(sys.argv) > 2 and sys.argv[2] != "0"
 current = Path(cwd).resolve()
 root = None
 while True:
@@ -77,6 +78,7 @@ print(build_hook_context(
         "runtime_context_identity: formal subagent sessions bind before workflow-state injection\\n"
         "</dsh-runtime>",
     ),
+    session_start=full_digest,
 ))
 `;
 
@@ -127,11 +129,11 @@ function discoverCandidates() {
 }
 
 
-function tryPython(candidate, cwd) {
+function tryPython(candidate, cwd, full = true) {
   return new Promise((resolve) => {
     execFile(
       candidate.command,
-      [...candidate.args, '-c', PYTHON_PROTOCOL, cwd],
+      [...candidate.args, '-c', PYTHON_PROTOCOL, cwd, full ? '1' : '0'],
       EXEC_OPTIONS,
       (error, stdout) => {
         if (error) {
@@ -192,10 +194,12 @@ export async function findCoworkRoot(cwd) {
 
 /**
  * Produce the `<workflow-state>` hook context block for a workspace cwd.
- * Empty string means "contribute nothing" (no root, hooks disabled, no
- * usable interpreter, or a broken runtime).
+ * `full` selects the digest shape: true (default) for the full contract
+ * block on session-start-like refreshes, false for the single fingerprint
+ * line on intra-turn refreshes. Empty string means "contribute nothing"
+ * (no root, hooks disabled, no usable interpreter, or a broken runtime).
  */
-export async function runWorkflowState(cwd) {
+export async function runWorkflowState(cwd, full = true) {
   if (hooksDisabled() || !cwd) {
     return '';
   }
@@ -212,14 +216,14 @@ export async function runWorkflowState(cwd) {
     return '';
   }
   if (workingPython !== null) {
-    const result = await tryPython(workingPython, cwd);
+    const result = await tryPython(workingPython, cwd, full);
     if (!result.missing) {
       return normalize(result.output);
     }
     workingPython = null;
   }
   for (const candidate of discoverCandidates()) {
-    const result = await tryPython(candidate, cwd);
+    const result = await tryPython(candidate, cwd, full);
     if (result.missing) {
       continue;
     }
@@ -231,11 +235,15 @@ export async function runWorkflowState(cwd) {
 
 
 export function apply(ctx) {
-  // One cache entry per agent: { text, inflight, queued }. The WeakMap key
-  // is the live Agent object the events and the assembly context both carry.
+  // One cache entry per agent: { text, inflight, queued, full }.
+  // `full` records the digest shape the next refresh should use: session
+  // starts and inbox claims re-inject the full contract block, intra-turn
+  // refreshes after lifecycle commands only repeat the fingerprint line.
+  // The WeakMap key is the live Agent object the events and the assembly
+  // context both carry.
   const states = new WeakMap();
 
-  const refresh = (agent) => {
+  const refresh = (agent, full = true) => {
     const cwd = agent && agent.cwd;
     if (!cwd) {
       return;
@@ -245,6 +253,7 @@ export function apply(ctx) {
       entry = { text: '', inflight: false, queued: false };
       states.set(agent, entry);
     }
+    entry.full = full;
     if (entry.inflight) {
       // A refresh arrived while one was running (e.g. several lifecycle
       // commands back to back). Re-run once after it settles so the latest
@@ -253,7 +262,7 @@ export function apply(ctx) {
       return;
     }
     entry.inflight = true;
-    runWorkflowState(cwd)
+    runWorkflowState(cwd, entry.full)
       .then((text) => {
         entry.text = text;
       })
@@ -264,21 +273,22 @@ export function apply(ctx) {
         entry.inflight = false;
         if (entry.queued) {
           entry.queued = false;
-          refresh(agent);
+          refresh(agent, entry.full);
         }
       });
   };
 
-  ctx.on('agent/session-start', (payload) => refresh(payload && payload.agent));
-  ctx.on('agent/inbox/claimed', (payload) => refresh(payload && payload.agent));
+  ctx.on('agent/session-start', (payload) => refresh(payload && payload.agent, true));
+  ctx.on('agent/inbox/claimed', (payload) => refresh(payload && payload.agent, true));
   // Intra-turn refresh: a lifecycle command just settled, so the next prompt
   // assembly should already see the new state instead of the stale block.
+  // Same-session refresh, so only the fingerprint line is repeated.
   ctx.on('tools/result', (exec) => {
     const agent = exec && exec.agent;
     if (!agent || !isLifecycleCommand(exec && exec.arguments)) {
       return;
     }
-    refresh(agent);
+    refresh(agent, false);
   });
 
   ctx.effect(() => ctx.systemPrompt.section({
