@@ -28,6 +28,7 @@ COMMAND_SCRIPTS = {
     "get_developer": "adapters/cli/get_developer.py",
     "init-developer": "adapters/cli/init_developer.py",
     "init_developer": "adapters/cli/init_developer.py",
+    "state": "adapters/cli/state.py",
     "subagent": "adapters/cli/subagent.py",
 }
 RESERVED_COMMAND_NAMES = (*COMMAND_SCRIPTS, "python", "help", "-h", "--help")
@@ -46,6 +47,7 @@ def print_usage() -> None:
 Common commands:
   resume
   task
+  state
   get-context
   get-developer
   init-developer
