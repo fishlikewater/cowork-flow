@@ -304,6 +304,88 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
   return updated
 }
 
+// Attribute header + decision-anchor helpers, mirroring
+// services/fact_view.py and the zcode hook (context-injection.md stage 1).
+const DECISION_ANCHOR_STATES = ["planning", "in_progress", "review"]
+
+function xmlAttr(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+}
+
+function parseDecisionAnchor(text) {
+  const result = { goal: "", acceptanceCriteria: [], rejectedOptions: [] }
+  const goalLines = []
+  let section = null
+  for (const raw of String(text ?? "").split("\n")) {
+    const line = raw.trim()
+    const heading = line.match(/^##\s*(.+?)\s*$/)
+    if (heading) {
+      section = ["目标", "验收标准", "被拒方案"].includes(heading[1]) ? heading[1] : null
+      continue
+    }
+    if (section === "目标") {
+      if (line) goalLines.push(line)
+    } else if (section === "验收标准") {
+      const match = raw.match(/^\s*-\s*\[[ xX]?\]\s*(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$/)
+      if (match) result.acceptanceCriteria.push({ id: match[1], text: match[2] })
+    } else if (section === "被拒方案") {
+      const match = raw.match(/^\s*-\s*\*\*(.+?)\*\*/)
+      if (match) result.rejectedOptions.push(match[1].trim())
+    }
+  }
+  result.goal = goalLines.join("\n").slice(0, 300)
+  return result
+}
+
+function decisionAnchorBlock(root, taskPath, status) {
+  if (!taskPath) {
+    return null
+  }
+  let effective = status
+  if (status === "delegated_subtask") {
+    const data = readJson(resolve(root, taskPath, "task.json"))
+    effective = data && typeof data.status === "string" ? data.status : null
+    if (!effective) {
+      return null
+    }
+  }
+  if (!DECISION_ANCHOR_STATES.includes(effective)) {
+    return null
+  }
+  let parsed
+  try {
+    parsed = parseDecisionAnchor(readFileSync(resolve(root, taskPath, "decision-anchor.md"), "utf8"))
+  } catch {
+    return null
+  }
+  if (!parsed.goal && parsed.acceptanceCriteria.length === 0) {
+    return null
+  }
+  const lines = [`<decision-anchor task="${xmlAttr(taskPath)}">`]
+  if (parsed.goal) {
+    lines.push(`Goal: ${parsed.goal.split("\n")[0].slice(0, 160)}`)
+  }
+  if (parsed.acceptanceCriteria.length > 0) {
+    lines.push(
+      `Acceptance: ${parsed.acceptanceCriteria.slice(0, 8).map((item) => `${item.id} ${item.text.slice(0, 80)}`).join("; ")}`
+    )
+  }
+  if (parsed.rejectedOptions.length > 0) {
+    lines.push(`Rejected: ${parsed.rejectedOptions.slice(0, 6).join("; ")}`)
+  }
+  lines.push("</decision-anchor>")
+  return lines.join("\n")
+}
+
+function withDecisionAnchor(block, root, taskPath, status) {
+  const anchor = decisionAnchorBlock(root, taskPath, status)
+  return anchor ? `${anchor}\n\n${block}` : block
+}
+
 function buildRuntimeWorkflowState(input) {
   const root = findRepoRoot(input)
   const runtimeContextId = resolveRuntimeContextId(input)
@@ -315,9 +397,7 @@ function buildRuntimeWorkflowState(input) {
   const context = readJson(contextFile)
   if (!context || context.scope !== "subagent" || context.status === "closed") {
     return [
-      "<workflow-state>",
-      "Status: delegated_subtask",
-      `Source: runtime-context-invalid:${runtimeContextId}`,
+      `<workflow-state status="delegated_subtask" source="runtime-context-invalid:${xmlAttr(runtimeContextId)}">`,
       `Runtime context: ${runtimeContextId}`,
       "Scope: subagent",
       "Runtime context is missing, closed, or invalid. Do not run start/resume/task start/archive/commit/spawn.",
@@ -327,11 +407,14 @@ function buildRuntimeWorkflowState(input) {
 
   const bound = bindRuntimeContext(root, runtimeContextId, context, input)
   const assignment = bound.assignment && typeof bound.assignment === "object" ? bound.assignment : {}
+  const taskDir = typeof bound.task_dir === "string" && bound.task_dir.trim() ? bound.task_dir.trim() : null
+  const attrs = [
+    taskDir ? ` task="${xmlAttr(taskDir)}"` : null,
+    ' status="delegated_subtask"',
+    ` source="runtime-context:${xmlAttr(runtimeContextId)}"`,
+  ].filter(Boolean)
   const header = [
-    "<workflow-state>",
-    typeof bound.task_dir === "string" && bound.task_dir.trim() ? `Task: ${bound.task_dir.trim()}` : null,
-    "Status: delegated_subtask",
-    `Source: runtime-context:${runtimeContextId}`,
+    `<workflow-state${attrs.join("")}>`,
     `Runtime context: ${runtimeContextId}`,
     `Agent: ${bound.agent_type || "unknown"}`,
     "Scope: subagent",
@@ -339,7 +422,7 @@ function buildRuntimeWorkflowState(input) {
     typeof assignment.goal === "string" && assignment.goal.trim() ? `Goal: ${assignment.goal.trim()}` : null,
     "</workflow-state>",
   ].filter(Boolean)
-  return header.join("\n")
+  return withDecisionAnchor(header.join("\n"), root, taskDir, "delegated_subtask")
 }
 
 // Digest shape: full contract block on the first injection of a session,

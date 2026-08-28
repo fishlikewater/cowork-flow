@@ -104,10 +104,6 @@ def build_hook_context(
     )
     if extra_lines:
         body = "\n".join([body, *extra_lines])
-    if task_path is None:
-        header = f"Status: {status}\nSource: {source}"
-    else:
-        header = f"Task: {task_path}\nStatus: {status}\nSource: {source}"
     if session_start is None:
         # No event signal from the host: treat the first injection as a
         # session start. Session state files appear once a task activation
@@ -120,13 +116,15 @@ def build_hook_context(
         digest_block = (
             f'<contract-fingerprint value="{contract_fingerprint(root, contracts)}"/>'
         )
-    return "\n\n".join(
-        [
-            *preamble,
-            digest_block,
-            f"<workflow-state>\n{header}\n{body}\n</workflow-state>",
-        ]
+    anchor_block = _decision_anchor_block(root, task_path, status)
+    blocks = [*preamble, digest_block]
+    if anchor_block:
+        blocks.append(anchor_block)
+    blocks.append(
+        f"<workflow-state{_workflow_state_attrs(task_path, status, source)}>"
+        f"\n{body}\n</workflow-state>"
     )
+    return "\n\n".join(blocks)
 
 
 def _session_has_started(root: Path, hook_input: dict[str, Any]) -> bool:
@@ -147,6 +145,78 @@ def _session_has_started(root: Path, hook_input: dict[str, Any]) -> bool:
     if not context_key:
         return False
     return (sessions_dir(root) / f"{context_key}.json").exists()
+
+
+def _xml_attr(value: Any) -> str:
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def _workflow_state_attrs(
+    task_path: str | None, status: str, source: str
+) -> str:
+    """Structured fact header (context-injection.md, stage 1): the machine
+    picks task/status/source off the attributes; humans read the body."""
+    attrs = [f'status="{_xml_attr(status)}"', f'source="{_xml_attr(source)}"']
+    if task_path:
+        attrs.insert(0, f'task="{_xml_attr(task_path)}"')
+    return "".join(f" {attr}" for attr in attrs)
+
+
+DECISION_ANCHOR_STATES = ("planning", "in_progress", "review")
+
+
+def _decision_anchor_block(
+    root: Path, task_path: str | None, status: str
+) -> str | None:
+    """Compact decision facts (why this task, what done means, what was
+    rejected) for states where they steer execution. Delegated subtasks read
+    the underlying task's status. Absent anchor file or terminal states
+    inject nothing."""
+    if not task_path:
+        return None
+    effective_status = status
+    if status == "delegated_subtask":
+        try:
+            data = json.loads(
+                (root / task_path / "task.json").read_text(encoding="utf-8")
+            )
+            effective_status = data.get("status")
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(effective_status, str):
+            return None
+    if effective_status not in DECISION_ANCHOR_STATES:
+        return None
+    try:
+        from services.fact_view import parse_decision_anchor
+
+        text = (root / task_path / "decision-anchor.md").read_text(
+            encoding="utf-8"
+        )
+        parsed = parse_decision_anchor(text)
+    except Exception:
+        return None
+    if not parsed["goal"] and not parsed["acceptanceCriteria"]:
+        return None
+    lines = [f'<decision-anchor task="{_xml_attr(task_path)}">']
+    if parsed["goal"]:
+        lines.append(f"Goal: {parsed['goal'].splitlines()[0][:160]}")
+    if parsed["acceptanceCriteria"]:
+        items = "; ".join(
+            f"{item['id']} {item['text'][:80]}"
+            for item in parsed["acceptanceCriteria"][:8]
+        )
+        lines.append(f"Acceptance: {items}")
+    if parsed["rejectedOptions"]:
+        lines.append("Rejected: " + "; ".join(parsed["rejectedOptions"][:6]))
+    lines.append("</decision-anchor>")
+    return "\n".join(lines)
 
 
 def _load_breadcrumbs(root: Path) -> dict[str, str]:

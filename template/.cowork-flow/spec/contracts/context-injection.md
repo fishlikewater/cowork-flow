@@ -58,6 +58,46 @@ Two shapes, both sha256-based:
 
 The `<workflow-state>` block is always emitted, independent of digest shape.
 
+## Workflow-state structured header (stage 1)
+
+The `<workflow-state>` open tag carries the machine-readable fact header as
+XML attributes; the body keeps the human-readable breadcrumb prose.
+
+- Attributes: `status` and `source` are always present; `task` (repo-relative
+  task path) appears whenever a task is bound. Attribute values are XML-escaped
+  (`& < > "`).
+- The legacy `Task:` / `Status:` / `Source:` label lines are gone — machines
+  parse the attributes, humans read the body. `Scope: subagent` style context
+  lines stay in the body.
+
+```text
+<workflow-state task=".cowork-flow/tasks/08-28-demo" status="in_progress" source="runtime-session">
+活动任务正在执行。...
+</workflow-state>
+```
+
+## Decision-anchor injection (stage 1)
+
+For tasks whose status is `planning`, `in_progress`, or `review` (a delegated
+subtask reads the underlying task's status), hosts with the task bound also
+inject a compact `<decision-anchor task="...">` block before
+`<workflow-state>`, so every session knows why the task exists and what done
+means without re-reading the file:
+
+```text
+<decision-anchor task=".cowork-flow/tasks/08-28-demo">
+Goal: <first goal line, max 160 chars>
+Acceptance: AC-001 <text, max 80>; AC-002 <...>   (first 8 items)
+Rejected: <rejected option name>; ...             (first 6 names)
+</decision-anchor>
+```
+
+- Extracted from `decision-anchor.md` with the line-level parser frozen in
+  `services/fact_view.py` (`parse_decision_anchor`); the zcode and opencode JS
+  lines carry an identical parser shape.
+- Missing anchor file, no extractable essentials, or terminal statuses
+  (`completed`) inject nothing.
+
 ## Fingerprint computation
 
 sha256 over (1) the registry `contracts` array serialized with

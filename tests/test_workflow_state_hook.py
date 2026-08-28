@@ -69,8 +69,8 @@ class WorkflowStateHookTest(unittest.TestCase):
                 preamble=(),
             )
 
-        self.assertIn("<workflow-state>", context)
-        self.assertIn("Status: no_task", context)
+        self.assertIn("<workflow-state status=", context)
+        self.assertIn('status=\"no_task\"', context)
         self.assertIn("STOP - no active task.", context)
         self.assertIn('<cowork-runtime host="codex" adapter="codex.hook">', context)
         self.assertIn('fingerprint="', context)
@@ -106,8 +106,8 @@ class WorkflowStateHookTest(unittest.TestCase):
                 preamble=(),
             )
 
-        self.assertIn("Task: .cowork-flow/tasks/07-10-demo", context)
-        self.assertIn("Status: in_progress", context)
+        self.assertIn('task=\".cowork-flow/tasks/07-10-demo\"', context)
+        self.assertIn('status=\"in_progress\"', context)
         self.assertIn("活动任务正在执行。", context)
 
     def test_invalid_runtime_context_renders_guard_rail_body(self) -> None:
@@ -123,7 +123,7 @@ class WorkflowStateHookTest(unittest.TestCase):
                 preamble=(),
             )
 
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
         self.assertIn("Runtime context is missing, closed, or invalid.", context)
 
     def test_session_start_emits_full_digest_block(self) -> None:
@@ -142,7 +142,7 @@ class WorkflowStateHookTest(unittest.TestCase):
 
         self.assertIn('<cowork-runtime host="codex" adapter="codex.hook">', context)
         self.assertIn("<contract-digest fingerprint=", context)
-        self.assertIn("<workflow-state>", context)
+        self.assertIn("<workflow-state status=", context)
 
     def test_non_session_start_emits_fingerprint_line_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -161,7 +161,7 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertRegex(context, r'<contract-fingerprint value="[a-f0-9]{16}"/>')
         self.assertNotIn("<contract-digest", context)
         self.assertNotIn("<cowork-runtime", context)
-        self.assertIn("<workflow-state>", context)
+        self.assertIn("<workflow-state status=", context)
 
     def test_auto_shape_uses_session_state_file_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -198,6 +198,87 @@ class WorkflowStateHookTest(unittest.TestCase):
                 preamble=(),
             )
             self.assertIn("<contract-digest fingerprint=", fresh)
+
+    def _write_anchor(self, root: Path) -> None:
+        anchor = root / ".cowork-flow" / "tasks" / "07-10-demo" / "decision-anchor.md"
+        anchor.parent.mkdir(parents=True, exist_ok=True)
+        anchor.write_text(
+            "\n".join(
+                [
+                    "## 目标",
+                    "把注入做成结构化事实头。",
+                    "",
+                    "## 验收标准",
+                    "- [ ] AC-001: 三线属性头一致",
+                    "- [ ] AC-002: 决策要点条件注入",
+                    "",
+                    "## 被拒方案",
+                    "- **方案B（双写行）**: 拒绝——冗余",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    def test_decision_anchor_injected_for_active_states(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_workflow_spec(root)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "probe.json").write_text(
+                json.dumps({"active_task_path": ".cowork-flow/tasks/07-10-demo"}),
+                encoding="utf-8",
+            )
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}', encoding="utf-8"
+            )
+            self._write_anchor(root)
+
+            context = self.module.build_hook_context(
+                root,
+                {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                host="codex",
+                adapter="codex.hook",
+                preamble=(),
+                session_start=False,
+            )
+
+        self.assertIn(
+            '<decision-anchor task=".cowork-flow/tasks/07-10-demo">', context
+        )
+        self.assertIn("Goal: 把注入做成结构化事实头。", context)
+        self.assertIn("AC-001", context)
+        self.assertIn("Rejected: 方案B（双写行）", context)
+
+    def test_decision_anchor_skipped_for_terminal_states(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_workflow_spec(root)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "probe.json").write_text(
+                json.dumps({"active_task_path": ".cowork-flow/tasks/07-10-demo"}),
+                encoding="utf-8",
+            )
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "completed"}', encoding="utf-8"
+            )
+            self._write_anchor(root)
+
+            context = self.module.build_hook_context(
+                root,
+                {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                host="codex",
+                adapter="codex.hook",
+                preamble=(),
+                session_start=False,
+            )
+
+        self.assertNotIn("<decision-anchor", context)
 
 
 if __name__ == "__main__":
