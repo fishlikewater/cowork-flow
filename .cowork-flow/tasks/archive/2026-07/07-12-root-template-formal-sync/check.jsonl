@@ -1,4 +1,0 @@
-{"file": ".cowork-flow/spec/protocols/review.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".cowork-flow/spec/protocols/decision-review.md", "reason": "Verify structured decision review evidence"}
-{"file": ".cowork-flow/spec/protocols/spec-maintenance.md", "reason": "Verify specification maintenance decisions"}
-{"file": ".agents/skills/cowork-flow/SKILL.md", "reason": "Workflow review, completion, and archive routing"}
