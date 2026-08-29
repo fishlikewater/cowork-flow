@@ -250,6 +250,71 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self.assertEqual(".cowork-flow/tasks/07-10-demo", result.active_task_path)
             self.assertEqual(("after_start",), result.emitted_events)
 
+    def test_start_records_executor_and_blocks_foreign_takeover(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-a"}, clear=True):
+                first = service.start(task_dir)
+            self.assertTrue(first.ok)
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("session-a", persisted["executor"])
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}, clear=True):
+                blocked = service.start(task_dir)
+            self.assertFalse(blocked.ok)
+            self.assertEqual("LIFECYCLE-EXECUTOR-001", blocked.code)
+            self.assertTrue(
+                any("session-a" in blocker for blocker in blocked.blockers)
+            )
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}, clear=True):
+                taken = service.start(task_dir, takeover=True)
+            self.assertTrue(taken.ok)
+            self.assertEqual(
+                "LIFECYCLE-EXECUTOR-TAKEN-OVER", taken.code
+            )
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("session-b", persisted["executor"])
+            self.assertEqual("in_progress", persisted["status"])
+
+    def test_sessionless_start_with_explicit_executor_skips_session_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(os.environ, {}, clear=True):
+                result = service.start(task_dir, executor="ci-bot")
+
+            self.assertTrue(result.ok)
+            self.assertIsNone(result.active_task_path)
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("ci-bot", persisted["executor"])
+            self.assertEqual("in_progress", persisted["status"])
+            sessions_dir = root / ".cowork-flow" / ".runtime" / "sessions"
+            self.assertFalse(
+                sessions_dir.exists() and any(sessions_dir.iterdir()),
+                "sessionless start must not bind a host session",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                rerun = service.start(task_dir, executor="ci-bot")
+            self.assertTrue(rerun.ok)
+            self.assertEqual("LIFECYCLE-IDEMPOTENT", rerun.code)
+
     def test_start_readiness_policy_reports_missing_anchor_without_terminal_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

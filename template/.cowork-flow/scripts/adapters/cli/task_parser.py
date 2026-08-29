@@ -140,6 +140,15 @@ def _add_next_runtime_inputs(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Auto git commit after archive_task",
     )
+    parser.add_argument(
+        "--executor",
+        help="Explicit executor identity; enables sessionless (CI) start_task",
+    )
+    parser.add_argument(
+        "--takeover",
+        action="store_true",
+        help="Take the task over from its current executor on start_task",
+    )
 
 
 def _add_next_command(subparsers: argparse._SubParsersAction) -> None:

@@ -166,8 +166,8 @@ class CodexHooksTest(unittest.TestCase):
         self.assertNotIn(".cowork-flow/spec/contracts/entry-contract.md", context)
         self.assertIn("RUNTIME_CONTEXT_DISPATCH_V2", context)
         self.assertIn("read_before:", context)
-        self.assertIn("<workflow-state>", context)
-        self.assertIn("Status: no_task", context)
+        self.assertIn("<workflow-state status=", context)
+        self.assertIn('status=\"no_task\"', context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
         self.assertNotIn("<subagent-notice>", context)
 
@@ -201,8 +201,8 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: no_task", context)
-        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"no_task\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_binds_runtime_context_from_prompt_before_main_state(self) -> None:
@@ -225,9 +225,9 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("Source: runtime-context:rtx_prompt", context)
-        self.assertIn("Task: .cowork-flow/tasks/05-29-demo", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
+        self.assertIn('source=\"runtime-context:rtx_prompt\"', context)
+        self.assertIn('task=\".cowork-flow/tasks/05-29-demo\"', context)
         self.assertIn("Agent: cowork-implement", context)
         self.assertIn("Scope: subagent", context)
         self.assertNotIn(NO_TASK_GATE_TEXT, context)
@@ -250,8 +250,8 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("Source: runtime-context:rtx_structured", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
+        self.assertIn('source=\"runtime-context:rtx_structured\"', context)
 
     def test_hook_prefers_prompt_host_context_key_over_session_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -285,7 +285,7 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_prompt_key", session["runtime_context_id"])
         self.assertEqual("codex_prompt_key", runtime_context["bound_context_key"])
@@ -306,7 +306,7 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
         self.assertIn("runtime-context-invalid", context)
         self.assertNotIn(NO_TASK_GATE_TEXT, context)
 
@@ -319,7 +319,7 @@ class CodexHooksTest(unittest.TestCase):
                 root,
                 {
                     "prompt": (
-                        "Task: inspect route wiring only.\n"
+                        'task=\"inspect route wiring only.\n\"'
                         "Agent type: explorer\n"
                         "Constraint: do not run project start or resume; read only.\n"
                         "Output: concise findings with line references."
@@ -328,8 +328,8 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: no_task", context)
-        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"no_task\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
 
     def test_hook_keeps_unclassified_nonempty_prompt_on_no_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -339,9 +339,9 @@ class CodexHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"prompt": "Inspect routing notes and report concise findings."})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: no_task", context)
-        self.assertRegex(context, r"Source: (missing-context|empty-session)")
-        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"no_task\"', context)
+        self.assertRegex(context, r'source="(missing-context|empty-session)"')
+        self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_keeps_main_agent_question_from_becoming_delegated_subtask(self) -> None:
@@ -352,8 +352,8 @@ class CodexHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"prompt": "为什么会有这种误解，我希望避免这种误解"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: no_task", context)
-        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"no_task\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
 
     def test_hook_reads_utf8_prompt_bytes_before_classification(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -372,10 +372,10 @@ class CodexHooksTest(unittest.TestCase):
             data = self._run_hook_bytes(root, {"session_id": "demo-session", "prompt": "先归档提交"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Task: .cowork-flow/tasks/06-04-demo", context)
-        self.assertIn("Status: in_progress", context)
-        self.assertNotIn("Status: delegated_subtask", context)
-        self.assertNotIn("Source: unclassified", context)
+        self.assertIn('task=\".cowork-flow/tasks/06-04-demo\"', context)
+        self.assertIn('status=\"in_progress\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
+        self.assertNotIn('source=\"unclassified\"', context)
 
     def test_hook_honors_explicit_main_session_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -400,10 +400,10 @@ class CodexHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Task: .cowork-flow/tasks/06-04-demo", context)
-        self.assertIn("Status: in_progress", context)
-        self.assertNotIn("Status: delegated_subtask", context)
-        self.assertNotIn("Source: unclassified", context)
+        self.assertIn('task=\".cowork-flow/tasks/06-04-demo\"', context)
+        self.assertIn('status=\"in_progress\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
+        self.assertNotIn('source=\"unclassified\"', context)
 
     def test_hook_reads_workflow_state_templates_as_single_prompt_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -457,15 +457,15 @@ class CodexHooksTest(unittest.TestCase):
 
                 with self.subTest(status=status):
                     workflow_state = re.search(
-                        r"<workflow-state>\n(?P<state>.*?)\n</workflow-state>",
+                        r"<workflow-state[^>]*>\n(?P<state>.*?)\n</workflow-state>",
                         context,
                         re.S,
                     )
                     self.assertIsNotNone(workflow_state)
                     state_block = workflow_state.group("state")
-                    self.assertRegex(state_block, rf"Status: {status}\nSource: ")
+                    self.assertRegex(context, rf'status="{status}" source="')
                     self.assertEqual(1, state_block.count(marker))
-                    self.assertIn(f"Status: {status}", state_block)
+                    self.assertIn(f'status="{status}"', context)
                     self.assertIn(marker, state_block)
                     for other_status, other_marker in markers.items():
                         if other_status != status:
@@ -516,7 +516,7 @@ class CodexHooksTest(unittest.TestCase):
         self.assertEqual("", result.stderr)
         self.assertEqual(0, result.returncode)
         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
 
     def test_hook_resolves_active_task_from_codex_input(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -535,8 +535,8 @@ class CodexHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"session_id": "demo-session"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Task: .cowork-flow/tasks/05-29-demo", context)
-        self.assertIn("Status: in_progress", context)
+        self.assertIn('task=\".cowork-flow/tasks/05-29-demo\"', context)
+        self.assertIn('status=\"in_progress\"', context)
         self.assertIn("action owner Skill", context)
 
     def test_hook_reads_codex_dispatch_mode_from_config(self) -> None:
@@ -582,7 +582,7 @@ class CodexHooksTest(unittest.TestCase):
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("<codex-dispatch-mode>sub-agent</codex-dispatch-mode>", context)
-        self.assertIn("Status: no_task", context)
+        self.assertIn('status=\"no_task\"', context)
         self.assertNotIn(LEGACY_POST_ACK, context)
 
     def test_hook_contract_digest_fingerprint_tracks_spec_changes(self) -> None:

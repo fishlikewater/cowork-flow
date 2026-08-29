@@ -255,9 +255,25 @@ function loadContractRegistry(repoRoot) {
   }
 }
 
+// Stable-sorted serialization shared by every host implementation of the
+// contract fingerprint (Python sort_keys and the opencode plugin use the
+// same semantics), so the digest stays identical across hosts.
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function contractFingerprint(root, contracts) {
   const hash = createHash("sha256");
-  hash.update(JSON.stringify(contracts));
+  hash.update(stableStringify(contracts));
   for (const contract of contracts) {
     const p = contract?.path;
     if (typeof p !== "string" || !p.trim()) continue;
@@ -379,15 +395,94 @@ function resolveBreadcrumbKey(repoRoot, activeTask, status) {
 // ---------------------------------------------------------------------------
 // Build context blocks
 // ---------------------------------------------------------------------------
+const DECISION_ANCHOR_STATES = ["planning", "in_progress", "review"];
+
+function xmlAttr(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+// Mirrors services/fact_view.py parse_decision_anchor (line-level, same
+// section names) so the JS lines inject the same decision facts.
+function parseDecisionAnchor(text) {
+  const result = { goal: "", acceptanceCriteria: [], rejectedOptions: [] };
+  const goalLines = [];
+  let section = null;
+  for (const raw of String(text ?? "").split("\n")) {
+    const line = raw.trim();
+    const heading = line.match(/^##\s*(.+?)\s*$/);
+    if (heading) {
+      section = ["目标", "验收标准", "被拒方案"].includes(heading[1])
+        ? heading[1]
+        : null;
+      continue;
+    }
+    if (section === "目标") {
+      if (line) goalLines.push(line);
+    } else if (section === "验收标准") {
+      const match = raw.match(/^\s*-\s*\[[ xX]?\]\s*(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$/);
+      if (match) result.acceptanceCriteria.push({ id: match[1], text: match[2] });
+    } else if (section === "被拒方案") {
+      const match = raw.match(/^\s*-\s*\*\*(.+?)\*\*/);
+      if (match) result.rejectedOptions.push(match[1].trim());
+    }
+  }
+  result.goal = goalLines.join("\n").slice(0, 300);
+  return result;
+}
+
+function decisionAnchorBlock(repoRoot, taskPath, status) {
+  if (!taskPath) return null;
+  let effective = status;
+  if (status === "delegated_subtask") {
+    const taskStatus = readTaskStatus(repoRoot, taskPath);
+    if (taskStatus.missing || typeof taskStatus.status !== "string") return null;
+    effective = taskStatus.status;
+  }
+  if (!DECISION_ANCHOR_STATES.includes(effective)) return null;
+  let parsed;
+  try {
+    parsed = parseDecisionAnchor(
+      readFileSync(join(repoRoot, taskPath, "decision-anchor.md"), "utf8")
+    );
+  } catch {
+    return null;
+  }
+  if (!parsed.goal && parsed.acceptanceCriteria.length === 0) return null;
+  const lines = [`<decision-anchor task="${xmlAttr(taskPath)}">`];
+  if (parsed.goal) {
+    lines.push(`Goal: ${parsed.goal.split("\n")[0].slice(0, 160)}`);
+  }
+  if (parsed.acceptanceCriteria.length > 0) {
+    lines.push(
+      `Acceptance: ${parsed.acceptanceCriteria
+        .slice(0, 8)
+        .map((item) => `${item.id} ${item.text.slice(0, 80)}`)
+        .join("; ")}`
+    );
+  }
+  if (parsed.rejectedOptions.length > 0) {
+    lines.push(`Rejected: ${parsed.rejectedOptions.slice(0, 6).join("; ")}`);
+  }
+  lines.push("</decision-anchor>");
+  return lines.join("\n");
+}
+
+function withDecisionAnchor(block, repoRoot, taskPath, status) {
+  const anchor = decisionAnchorBlock(repoRoot, taskPath, status);
+  return anchor ? `${anchor}\n\n${block}` : block;
+}
+
 function buildContext(repoRoot, activeTask, breadcrumbs) {
   const fallback = "Run ./.cowork-flow/run task next for the current workflow step.";
 
   if (!activeTask) {
     const body = breadcrumbs.no_task || fallback;
     const hints = formatRebindHints(repoRoot);
-    return `<workflow-state>
-Status: no_task
-Source: task next / ${DIR_WORKFLOW}/spec
+    return `<workflow-state status="no_task" source="task next / ${DIR_WORKFLOW}/spec">
 ${body}${hints ? `\n${hints}` : ""}
 </workflow-state>`;
   }
@@ -397,9 +492,7 @@ ${body}${hints ? `\n${hints}` : ""}
 
   if (missing) {
     const hints = formatRebindHints(repoRoot);
-    return `<workflow-state>
-Status: no_task
-Source: runtime-session
+    return `<workflow-state status="no_task" source="runtime-session">
 Session 指向的任务目录不存在（${activeTask.taskPath}）。
 当前项目无有效任务。请运行 ./.cowork-flow/run task next --run --title "<title>" --slug <task-name> --assignee <name> 创建新任务。${hints ? `\n${hints}` : ""}
 </workflow-state>`;
@@ -407,20 +500,20 @@ Session 指向的任务目录不存在（${activeTask.taskPath}）。
 
   const breadcrumbKey = resolveBreadcrumbKey(repoRoot, activeTask, status);
   const body = breadcrumbs[breadcrumbKey] || breadcrumbs[status] || fallback;
-  return `<workflow-state>
-Task: ${activeTask.taskPath}
-Status: ${status}
-Source: runtime-session${scope}
-${body}
-</workflow-state>`;
+  return withDecisionAnchor(
+    `<workflow-state task="${xmlAttr(activeTask.taskPath)}" status="${xmlAttr(status)}" source="runtime-session">
+${body}${scope}
+</workflow-state>`,
+    repoRoot,
+    activeTask.taskPath,
+    status
+  );
 }
 
 function buildDelegatedSubtask(contextId, ctx) {
+  const taskPath = ctx?.task_dir || "unknown";
   const lines = [
-    `<workflow-state>`,
-    `Task: ${ctx?.task_dir || "unknown"}`,
-    `Status: delegated_subtask`,
-    `Source: runtime-context:${contextId}`,
+    `<workflow-state task="${xmlAttr(taskPath)}" status="delegated_subtask" source="runtime-context:${xmlAttr(contextId)}">`,
     `Runtime context: ${contextId}`,
     `Agent: ${ctx?.agent_type || "unknown"}`,
     `Scope: subagent`,
@@ -431,7 +524,12 @@ function buildDelegatedSubtask(contextId, ctx) {
     lines.push(`Goal: ${goal.trim()}`);
   }
   lines.push(`</workflow-state>`);
-  return lines.join("\n");
+  return withDecisionAnchor(
+    lines.join("\n"),
+    findProjectRoot({}),
+    taskPath,
+    "delegated_subtask"
+  );
 }
 
 // ---------------------------------------------------------------------------

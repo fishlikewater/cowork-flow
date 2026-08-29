@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0 - 2026-08-29
+
+> **版本内容错位说明**：npm registry 上的 1.0.0 tarball 发布于 2026-08-26（仅含发版脚本修复之前的代码）。1.0.0 段下述的里程碑描述以本 1.1.0 为其实际发布载体——阶段 0-3 的全部内容自本版本起进入 npm 分发。
+
+### 方向落地（阶段 0-3，详见 1.0.0 段与 docs/direction.md）
+
+- 阶段 0：README 定位改写为「运行时上下文与协作事实层」；注入协议契约 `spec/contracts/context-injection.md`；契约指纹序列化三线统一 + slim 全覆盖 + 跨 host 一致性测试。
+- 阶段 1：`run state [task] --json` 事实视图；`<workflow-state>` 属性事实头 + `<decision-anchor>` 决策要点注入（三线一致）。
+- 阶段 2：`executor` 归属、冲突拦截与 `--takeover`、无会话 CI start、`subagent evidence` 证据位。
+- 阶段 3：`run mcp-state` 无依赖 MCP stdio 只读服务（`task_state` / `task_list`）+ `spec/contracts/fact-layer-access.md` 接入契约。
+- MCP 全局入口：`cowork-flow mcp-state` 透传命令——MCP 客户端全局注册一次即可服务所有 cowork-flow 项目。
+
 ## 1.0.0 - 2026-08-26
 
 首个稳定主线发布：核心流程契约、会话模型与宿主矩阵在此版本冻结，后续改动进入语义化版本约束。
@@ -17,6 +29,12 @@
 - 交互式平台选择器与平台检测断言随五宿主矩阵更新。
 - release.sh 容错：`--version` 精确模式在版本文件已全部就位（干净工作树）时，`git commit` 的 no-op 空提交不再中止脚本，继续 tag 与 publish；其余 commit 失败仍立即中止。新增回归测试覆盖两条路径。
 - release.sh 容错：目标发布 tag 已存在且指向当前 HEAD 时跳过创建并继续 publish（上次运行 tag 后 publish 未完成的重跑场景）；指向其它提交则中止报错。新增回归测试覆盖两条路径。
+- 方向收敛（阶段 0）：README 定位改为「运行时上下文与协作事实层」；新增注入协议契约 `spec/contracts/context-injection.md`（事件时机矩阵、digest 形态规则、序列化规范）；契约指纹序列化三线统一（zcode/opencode 稳定排序 + Python 紧凑分隔符，跨 host 指纹一致性测试锁定）；Python 线补 slim（SessionStart 全量 / 后续单行指纹，无事件 host 按会话文件首次判定）；codex 事件名读取；opencode 首次全量后续单行；dsh 会话开始全量、生命周期命令后单行刷新。
+- 事实层 API 化（阶段 1a）：新增 `./.cowork-flow/run state [task] --json` 事实视图——聚合 task.json（含 `_state` 修订）、decision-anchor 结构化要点（目标/验收项/被拒方案名）、plan 绑定、绑定会话与受信快照；无绑定输出 `task: null` 供机器分支。
+- 注入结构化（阶段 1b）：`<workflow-state>` 升级为属性事实头（`task`/`status`/`source` 进开标签，body 保留人读面包屑），三线一致并在协议契约冻结；planning/in_progress/review 状态下三线注入紧凑 `<decision-anchor>` 决策要点块（Python 复用 fact_view 解析单源），completed 终态与缺文件不注入。
+- 多执行者语义（阶段 2）：task.json 增加 `executor` 归属（start 写入会话 key 或显式 `--executor`）；执行者冲突 fail-closed（`LIFECYCLE-EXECUTOR-001`，幂等重跑同样拦截），`--takeover` 显式接管并覆写归属（含已激活任务的幂等接管）；`--executor` 允许无会话 CI/无头 start（不建会话绑定）；子代理运行时上下文新增 `evidence` 证据位（`subagent evidence <id> --note [--artifact]`，CAS 保护、closed 可补记、不影响任务状态机）；`run state` 人读摘要透出 Executor。
+- 生态适配（阶段 3）：新增 `./.cowork-flow/run mcp-state`——无依赖 MCP stdio 只读服务（newline-delimited JSON-RPC 2.0），工具 `task_state`（事实视图）与 `task_list`（活动任务概览）；接入契约 `spec/contracts/fact-layer-access.md` 冻结只读保证与"不自创跨 agent 协议、adapter 保持薄"立场，写路径仍独占于 CLI 门禁链。
+- MCP 全局入口：npm CLI 新增 `cowork-flow mcp-state` 透传命令——从 cwd 向上定位最近 `.cowork-flow/` 并以继承 stdio exec 该项目的 `run mcp-state`；MCP 客户端全局注册一次（`cowork-flow mcp-state`）即可服务所有 cowork-flow 项目，无需逐项目配置。
 
 ## 0.0.52 - 2026-08-26
 

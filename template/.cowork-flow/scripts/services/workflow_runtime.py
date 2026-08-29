@@ -156,6 +156,51 @@ class RuntimeContextService:
             ) from error
         return context
 
+    def evidence(
+        self,
+        runtime_context_id: str,
+        *,
+        note: str,
+        artifact: str | None = None,
+    ) -> dict | None:
+        """Append an evidence entry to the runtime context (stage 2: the
+        evidence rail advances independently of the task status machine).
+        CAS-protected; allowed on closed contexts so late findings can be
+        recorded."""
+        self.recover()
+        path = runtime_context_path(self.repo_root, runtime_context_id)
+        snapshot = self._load_path(path)
+        if not snapshot.exists:
+            return None
+        context = dict(snapshot.data)
+        entries = context.get("evidence")
+        entries = list(entries) if isinstance(entries, list) else []
+        entry: dict = {"note": note, "at": self._now()}
+        if artifact and artifact.strip():
+            entry["artifact"] = artifact.strip()
+        entries.append(entry)
+        context["evidence"] = entries
+        context["updated_at"] = self._now()
+        operation_id = self._operation_id(
+            "evidence",
+            runtime_context_id,
+            str(snapshot.revision),
+            str(len(entries)),
+        )
+        try:
+            self.state_store.replace(
+                path,
+                context,
+                expected_revision=snapshot.revision,
+                operation_id=operation_id,
+            )
+        except StateStoreError as error:
+            raise RuntimeContextError(
+                "RUNTIME-EVIDENCE-001",
+                error.detail,
+            ) from error
+        return context
+
     def bind(
         self,
         runtime_context_id: str,

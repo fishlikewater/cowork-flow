@@ -119,8 +119,16 @@ class TaskLifecycleService:
         task: str | Path,
         *,
         preflight: Preflight | None = None,
+        executor: str | None = None,
+        takeover: bool = False,
     ) -> LifecycleResult:
-        return self.execute(START_STAGE, task, preflight=preflight)
+        return self.execute(
+            START_STAGE,
+            task,
+            preflight=preflight,
+            executor=executor,
+            takeover=takeover,
+        )
 
     def review(
         self,
@@ -161,6 +169,8 @@ class TaskLifecycleService:
         allow_spec_file_modifications: bool | None = None,
         completed_at: str | None = None,
         execution_context: object | None = None,
+        executor: str | None = None,
+        takeover: bool = False,
     ) -> LifecycleResult:
         """Resolve, preflight, validate, check, and persist one transition."""
         task_dir = self.repository.resolve(task)
@@ -169,7 +179,9 @@ class TaskLifecycleService:
             execution_context,
             allow_spec_file_modifications=allow_spec_file_modifications,
         )
-        prepared = self._prepare_transition(stage, task_dir, preflight)
+        prepared = self._prepare_transition(
+            stage, task_dir, preflight, executor=executor, takeover=takeover
+        )
         if isinstance(prepared, LifecycleResult):
             return prepared
         task_data, already_at_target, transition = prepared
@@ -184,7 +196,26 @@ class TaskLifecycleService:
             return checked
         check_result = checked
 
+        executor_failure = self._check_executor(
+            stage,
+            task_dir,
+            task_data,
+            executor,
+            takeover,
+        )
+        if executor_failure is not None:
+            return executor_failure
+
         if already_at_target:
+            takeover_result = self._apply_takeover_on_idempotent(
+                stage,
+                task_dir,
+                task_data,
+                executor,
+                takeover,
+            )
+            if takeover_result is not None:
+                return takeover_result
             return self._validated_idempotent_result(
                 stage,
                 task_dir,
@@ -201,6 +232,7 @@ class TaskLifecycleService:
             completed_at,
             transition=transition,
             execution_policy=execution_policy,
+            executor=executor,
         )
 
     def _prepare_transition(
@@ -208,6 +240,8 @@ class TaskLifecycleService:
         stage: LifecycleStage,
         task_dir: Path,
         preflight: Preflight | None,
+        executor: str | None = None,
+        takeover: bool = False,
     ) -> tuple[dict, bool, LifecycleTransition] | LifecycleResult:
         task_data_or_failure = self._load_transition_task(stage, task_dir)
         if isinstance(task_data_or_failure, LifecycleResult):
@@ -221,6 +255,9 @@ class TaskLifecycleService:
             task_dir,
             already_at_target,
             transition,
+            task_data=task_data,
+            executor=executor,
+            takeover=takeover,
         )
         if idempotent is not None:
             return idempotent
@@ -274,12 +311,18 @@ class TaskLifecycleService:
         *,
         transition: LifecycleTransition,
         execution_policy: LifecycleExecutionPolicy,
+        executor: str | None = None,
     ) -> LifecycleResult:
+        explicit_executor = bool(executor and executor.strip())
+        resolved_executor = (
+            self._resolve_executor(executor) if stage.activates_session else None
+        )
         session_state_or_failure = self._build_session_state(
             stage,
             task_dir,
             check_result,
             transition,
+            executor_provided=explicit_executor,
         )
         if isinstance(session_state_or_failure, LifecycleResult):
             return session_state_or_failure
@@ -289,7 +332,9 @@ class TaskLifecycleService:
             stage,
             task_dir,
             task_data,
-            self._persisted_task_data(stage, task_data, completed_at),
+            self._persisted_task_data(
+                stage, task_data, completed_at, executor=resolved_executor
+            ),
             session_state,
             check_result,
         )
@@ -340,9 +385,40 @@ class TaskLifecycleService:
         task_dir: Path,
         already_at_target: bool,
         transition: LifecycleTransition,
+        task_data: dict | None = None,
+        executor: str | None = None,
+        takeover: bool = False,
     ) -> LifecycleResult | None:
         if not already_at_target or stage.name != START_STAGE.name:
             return None
+        # Executor gate runs before the idempotent shortcut: a foreign
+        # session re-running start on an active task must not ride through
+        # as a no-op success (stage 2 ownership semantics).
+        current = task_data.get("executor") if isinstance(task_data, dict) else None
+        current = (
+            current.strip()
+            if isinstance(current, str) and current.strip()
+            else None
+        )
+        if stage.activates_session and current is not None:
+            resolved = self._resolve_executor(executor)
+            if resolved is None or resolved != current:
+                if takeover and resolved is not None:
+                    return self._apply_takeover_on_idempotent(
+                        stage, task_dir, task_data, executor, takeover
+                    )
+                return self._failure(
+                    stage,
+                    task_dir,
+                    "LIFECYCLE-EXECUTOR-001",
+                    title=f"task is owned by executor '{current}'",
+                    blockers=(
+                        f"task is owned by executor '{current}', not "
+                        f"'{resolved or '<no-identity>'}'; re-run with "
+                        "--takeover to take over, or --executor <label> to "
+                        "identify yourself",
+                    ),
+                )
         return LifecycleResult(
             ok=True,
             code="LIFECYCLE-IDEMPOTENT",
@@ -452,8 +528,14 @@ class TaskLifecycleService:
         task_dir: Path,
         check_result: object,
         transition: LifecycleTransition,
+        *,
+        executor_provided: bool = False,
     ) -> tuple[object | None, str | None] | LifecycleResult:
         if not stage.activates_session:
+            return None, None
+        if executor_provided:
+            # Sessionless (CI / headless) start: ownership is recorded via
+            # the explicit executor; no host session file is bound.
             return None, None
         active_task_path = self._display_task_path(task_dir)
         session_state = build_active_task_session(
@@ -475,6 +557,7 @@ class TaskLifecycleService:
         stage: LifecycleStage,
         task_data: dict,
         completed_at: str | None,
+        executor: str | None = None,
     ) -> dict:
         persisted = dict(task_data)
         persisted["status"] = stage.target_status
@@ -482,7 +565,111 @@ class TaskLifecycleService:
             persisted["completedAt"] = (
                 completed_at or datetime.now().strftime("%Y-%m-%d")
             )
+        if stage.activates_session and executor:
+            persisted["executor"] = executor
         return persisted
+
+    def _resolve_executor(self, executor: str | None) -> str | None:
+        """Explicit executor wins; otherwise fall back to the ambient
+        session identity from the environment."""
+        if executor and executor.strip():
+            return executor.strip()
+        try:
+            from runtime.session_state import resolve_context_key
+
+            key = resolve_context_key({})
+        except Exception:
+            return None
+        return key or None
+
+    def _apply_takeover_on_idempotent(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        executor: str | None,
+        takeover: bool,
+    ) -> LifecycleResult | None:
+        """Reassign ownership when an already-active task is taken over; a
+        plain idempotent start performs no write."""
+        if not stage.activates_session or not takeover:
+            return None
+        current = task_data.get("executor")
+        if not isinstance(current, str) or not current.strip():
+            return None
+        resolved = self._resolve_executor(executor)
+        if resolved is None or resolved == current.strip():
+            return None
+        persisted = dict(task_data)
+        persisted["executor"] = resolved
+        identity = (
+            str(task_dir.resolve()),
+            str(task_data.get("createdAt") or ""),
+            resolved,
+        )
+        digest = hashlib.sha256("|".join(identity).encode("utf-8")).hexdigest()[:16]
+        unit = UnitOfWork(
+            self.repo_root,
+            operation_id=f"task-{stage.name}-takeover-{digest}",
+            kind=f"task-lifecycle-{stage.name}-takeover",
+            fault_injector=self.fault_injector,
+        )
+        unit.replace(self.repository.task_json_path(task_dir), persisted)
+        try:
+            unit.commit()
+        except UnitOfWorkError as error:
+            return self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-UOW-001",
+                title=error.detail,
+            )
+        return LifecycleResult(
+            ok=True,
+            code="LIFECYCLE-EXECUTOR-TAKEN-OVER",
+            stage=stage,
+            task_dir=task_dir,
+            transition=LifecycleTransition(
+                previous_status=task_data.get("status"),
+                next_status=task_data.get("status"),
+                changed=False,
+            ),
+            active_task_path=self._display_task_path(task_dir),
+            emitted_events=self._success_events(stage),
+        )
+
+    def _check_executor(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        executor: str | None,
+        takeover: bool,
+    ) -> LifecycleResult | None:
+        """Fail-closed ownership gate on the start activation point (stage 2
+        multi-executor semantics). A task already owned by another executor
+        needs an explicit takeover; review/complete stay session-free."""
+        if not stage.activates_session:
+            return None
+        current = task_data.get("executor")
+        if not isinstance(current, str) or not current.strip():
+            return None
+        current = current.strip()
+        resolved = self._resolve_executor(executor)
+        if resolved is not None and resolved == current:
+            return None
+        if takeover:
+            return None
+        return self._failure(
+            stage,
+            task_dir,
+            "LIFECYCLE-EXECUTOR-001",
+            title=f"task is owned by executor '{current}'",
+            blockers=(
+                f"task is owned by executor '{current}', not '{resolved or '<no-identity>'}'; "
+                "re-run with --takeover to take over, or --executor <label> to identify yourself",
+            ),
+        )
 
     def _commit_transition(
         self,

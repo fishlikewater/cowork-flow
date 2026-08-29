@@ -266,7 +266,11 @@ def cmd_start(args: argparse.Namespace) -> int:
     if getattr(args, "auto", False):
         return _run_auto_start(args, full_path, service)
 
-    result = service.start(full_path)
+    result = service.start(
+        full_path,
+        executor=getattr(args, "executor", None),
+        takeover=bool(getattr(args, "takeover", False)),
+    )
     if not result.ok:
         return _report_start_failure(result)
 

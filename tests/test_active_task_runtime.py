@@ -698,6 +698,39 @@ class RuntimeContextTransactionTest(unittest.TestCase):
             )
             self.assertEqual(".cowork-flow/tasks/05-28-demo", context["task_dir"])
 
+    def test_evidence_appends_without_touching_task_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+            service.initialize("rtx_demo", self._context())
+
+            first = service.evidence("rtx_demo", note="implemented slice A")
+            second = service.evidence(
+                "rtx_demo", note="late finding", artifact="logs/x.txt"
+            )
+
+            self.assertEqual(1, len(first["evidence"]))
+            self.assertEqual(2, len(second["evidence"]))
+            self.assertEqual("implemented slice A", second["evidence"][0]["note"])
+            self.assertEqual("logs/x.txt", second["evidence"][1]["artifact"])
+            self.assertIn("at", second["evidence"][1])
+            # Status stays untouched by evidence appends.
+            loaded = self.runtime_context.RuntimeContextService(root).load("rtx_demo")
+            self.assertEqual("pending", loaded["status"])
+
+    def test_evidence_allowed_on_closed_context_and_missing_returns_none(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+            service.initialize("rtx_demo", self._context())
+            service.update("rtx_demo", status="closed")
+
+            appended = service.evidence("rtx_demo", note="post-close evidence")
+            self.assertEqual(1, len(appended["evidence"]))
+            self.assertEqual("closed", appended["status"])
+
+            self.assertIsNone(service.evidence("rtx_missing", note="x"))
+
     def test_runtime_context_bind_rejects_different_host_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
