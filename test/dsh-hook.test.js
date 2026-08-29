@@ -12,7 +12,7 @@ test('produces the workflow-state block for a cowork-flow root', async () => {
   const text = await runWorkflowState(packageRoot);
 
   assert.match(text, /<workflow-state[^>]*>/);
-  assert.match(text, /Status: /);
+  assert.match(text, /status="[a-z_]+"/);
   assert.match(text, /<cowork-runtime host="dsh"/);
   assert.match(text, /adapter="dsh\.preset\.systemPrompt"/);
 });
