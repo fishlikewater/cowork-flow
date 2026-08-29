@@ -6,6 +6,7 @@ import { runInit } from './commands/init.js';
 import { runInstallDshHook } from './commands/install-dsh-hook.js';
 import { runInstallDshPreset } from './commands/install-dsh-preset.js';
 import { runInstallZCodePlugin } from './commands/install-zcode-plugin.js';
+import { runMcpState } from './commands/mcp-state.js';
 import { runSourceRefresh } from './commands/source-refresh.js';
 import { runSync } from './commands/sync.js';
 import { runUpdate } from './commands/update.js';
@@ -21,6 +22,7 @@ Usage:
   cowork-flow update
   cowork-flow sync [target] [--dry-run] [--force]
   cowork-flow source-refresh [target] [--dry-run]
+  cowork-flow mcp-state
   cowork-flow --version
   cowork-flow --help
 `;
@@ -197,6 +199,10 @@ export async function main(argv = process.argv.slice(2), options = {}) {
 
     if (command === 'install-dsh-hook') {
       return await runInstallDshHook(args);
+    }
+
+    if (command === 'mcp-state') {
+      return await runMcpState(args);
     }
 
     io.writeErr(`Unknown command: ${command}\n`);

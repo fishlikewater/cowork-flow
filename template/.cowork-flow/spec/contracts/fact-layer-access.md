@@ -23,6 +23,14 @@ Command: `./.cowork-flow/run mcp-state` (stdio, one JSON-RPC message per
 line; notifications are never answered; unknown methods return `-32601`;
 stderr is kept log-only).
 
+Global registration: `cowork-flow mcp-state` (npm CLI) resolves the nearest
+`.cowork-flow/` from the client's cwd and execs that project's runner with
+inherited stdio — register it once (`command: cowork-flow, args:
+["mcp-state"]`) and every cowork-flow project works, because the root
+resolution is identical to the server's own (`get_repo_root`). Outside a
+project the passthrough fails with a clear error; inside one, nested
+subdirectories resolve to the project root.
+
 Server info: `cowork-flow-facts`. On `initialize` the server echoes the
 client's requested `protocolVersion` (falling back to `2025-06-18`).
 
