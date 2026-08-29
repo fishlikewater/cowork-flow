@@ -126,8 +126,8 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/);
-    assert.match(ctx, /Status: in_progress/);
+    assert.match(ctx, /task="\.cowork-flow\/tasks\/07-02-test-task"/);
+    assert.match(ctx, /status="in_progress"/);
   });
 
   test("reports not_initialized without scaffolding when ZCODE_PROJECT_DIR has none", () => {
@@ -148,7 +148,7 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /<workflow-state>/);
+    assert.match(ctx, /<workflow-state [a-z]+="/);
     assert.match(ctx, /<\/workflow-state>/);
   });
 
@@ -219,6 +219,59 @@ try {
     assert.notEqual(before, after, "spec content changes must move the fingerprint");
   });
 
+  test("fingerprint is invariant under registry key reordering (stable serialization)", () => {
+    const registryPath = join(tmpRoot, ".cowork-flow", "spec", "runtime", "contract-registry.json");
+    const original = JSON.parse(readFileSync(registryPath, "utf8"));
+    const contract = original.contracts[0];
+    const reordered = {
+      ...original,
+      contracts: [
+        {
+          readWhen: contract.readWhen,
+          path: contract.path,
+          digest: contract.digest,
+          id: contract.id,
+        },
+      ],
+    };
+    const promptFingerprint = () => {
+      const parsed = JSON.parse(
+        runHook({ ZCODE_PROJECT_DIR: tmpRoot }, JSON.stringify({ hook_event_name: "UserPromptSubmit" }))
+      );
+      return parsed.hookSpecificOutput.additionalContext.match(/<contract-fingerprint value="([a-f0-9]+)"\/>/)[1];
+    };
+    const before = promptFingerprint();
+    writeFileSync(registryPath, `${JSON.stringify(reordered, null, 2)}\n`, "utf8");
+    const after = promptFingerprint();
+    assert.equal(before, after, "key order inside the registry must not move the fingerprint");
+  });
+
+  test("decision anchor essentials ride along for active states", () => {
+    writeProjectFile(
+      tmpRoot,
+      ".cowork-flow/tasks/07-02-test-task/decision-anchor.md",
+      [
+        "## 目标",
+        "让注入可被机器解析。",
+        "",
+        "## 验收标准",
+        "- [ ] AC-001: 属性头三线一致",
+        "",
+        "## 被拒方案",
+        "- **方案B（双写行）**: 冗余",
+      ].join("\n")
+    );
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
+    const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+    assert.match(ctx, /<decision-anchor task="\.cowork-flow\/tasks\/07-02-test-task">/);
+    assert.match(ctx, /Goal: 让注入可被机器解析。/);
+    assert.match(ctx, /AC-001/);
+    assert.match(ctx, /Rejected: 方案B（双写行）/);
+  });
+
   test("parses workflow-state-templates.md for breadcrumb text", () => {
     // Remove session files to simulate no active task
     const sessionsDir = join(tmpRoot, ".cowork-flow", ".runtime", "sessions");
@@ -228,7 +281,7 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    const m = ctx.match(/<workflow-state[^>]*>([\s\S]*?)<\/workflow-state>/);
     assert.ok(m, "should have workflow-state block");
     assert.match(m[1], /STOP/, "no_task breadcrumb should contain STOP marker from templates.md");
   });
@@ -245,7 +298,7 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /Status: in_progress/, "should show in_progress status");
+    assert.match(ctx, /status="in_progress"/, "should show in_progress status");
     assert.match(ctx, /活动任务正在执行/, "should contain in_progress breadcrumb from templates.md");
   });
 
@@ -259,7 +312,7 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot, COWORK_FLOW_RUNTIME_CONTEXT_ID: contextId });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /Status: delegated_subtask/, "should detect delegated_subtask");
+    assert.match(ctx, /status="delegated_subtask"/, "should detect delegated_subtask");
     assert.match(ctx, /Scope: subagent/, "should show subagent scope");
   });
 
@@ -297,7 +350,7 @@ try {
     );
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "own session binding wins over newer global entry");
+    assert.match(ctx, /task="\.cowork-flow\/tasks\/07-02-test-task"/, "own session binding wins over newer global entry");
   });
 
   test("skips stale sessions whose task directory is gone and falls back to the newest valid one", () => {
@@ -309,7 +362,7 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "newest valid session wins after skipping stale");
+    assert.match(ctx, /task="\.cowork-flow\/tasks\/07-02-test-task"/, "newest valid session wins after skipping stale");
     assert.doesNotMatch(ctx, /任务目录不存在/, "stale path must not leak into injected state");
   });
 
@@ -320,9 +373,9 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    const m = ctx.match(/<workflow-state[^>]*>([\s\S]*?)<\/workflow-state>/);
     assert.ok(m, "should have workflow-state block");
-    assert.match(m[1], /Status: no_task/, "should fall back to clean no_task");
+    assert.match(m[0], /status="no_task"/, "should fall back to clean no_task");
     assert.doesNotMatch(m[1], /06-21-deleted-task/, "must not reference the dead task path");
   });
 
@@ -335,7 +388,7 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "main-scope session is selected, not the newer subagent one");
+    assert.match(ctx, /task="\.cowork-flow\/tasks\/07-02-test-task"/, "main-scope session is selected, not the newer subagent one");
   });
 
   test("explicit sessionId without own session file reports no_task with rebind hints", () => {
@@ -349,10 +402,10 @@ try {
     );
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    const m = ctx.match(/<workflow-state[^>]*>([\s\S]*?)<\/workflow-state>/);
     assert.ok(m, "should have workflow-state block");
-    assert.match(m[1], /Status: no_task/, "unbound explicit session must be no_task");
-    assert.doesNotMatch(m[1], /Task: \./, "must not adopt another session's task");
+    assert.match(m[0], /status="no_task"/, "unbound explicit session must be no_task");
+    assert.doesNotMatch(m[0], /task="\."/, "must not adopt another session's task");
     assert.match(m[1], /07-02-test-task/, "should list active tasks for rebinding");
   });
 
@@ -367,7 +420,7 @@ try {
     );
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    const m = ctx.match(/<workflow-state[^>]*>([\s\S]*?)<\/workflow-state>/);
     assert.ok(m, "should have workflow-state block");
     assert.match(m[1], /06-21-deleted/, "own stale binding is reported as-is");
     assert.match(m[1], /07-02-test-task/, "remaining active task offered for rebinding");
@@ -382,9 +435,9 @@ try {
     );
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    const m = ctx.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    const m = ctx.match(/<workflow-state[^>]*>([\s\S]*?)<\/workflow-state>/);
     assert.ok(m, "should have workflow-state block");
-    assert.match(m[1], /Status: no_task/);
+    assert.match(m[0], /status="no_task"/);
     assert.doesNotMatch(m[1], /改绑|rebind/i, "no hints when nothing to rebind to");
   });
 
@@ -403,7 +456,7 @@ try {
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
     assert.equal(parsed.hookSpecificOutput.hookEventName, "PostToolUse");
-    assert.match(ctx, /Status: in_progress/, "mid-turn refresh carries updated state");
+    assert.match(ctx, /status="in_progress"/, "mid-turn refresh carries updated state");
     assert.match(ctx, /<contract-fingerprint value="[a-f0-9]+"\/>/, "fingerprint line rides the refresh");
     assert.doesNotMatch(ctx, /<contract-digest/, "no full digest outside session start");
   });
@@ -448,7 +501,7 @@ try {
     const result = runHook({ ZCODE_PROJECT_DIR: tmpRoot });
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/);
+    assert.match(ctx, /task="\.cowork-flow\/tasks\/07-02-test-task"/);
     assert.match(ctx, /快照键生效。/, "consistent snapshot key wins over status convention");
     assert.doesNotMatch(ctx, /活动任务正在执行/, "status-derived fallback must not run");
   });
@@ -490,7 +543,7 @@ try {
       JSON.stringify({ hook_event_name: "UserPromptSubmit" })
     );
     const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
-    assert.match(ctx, /Task: \.cowork-flow\/tasks\/07-02-test-task/, "raw explicit key must hit the same file as the CLI");
+    assert.match(ctx, /task="\.cowork-flow\/tasks\/07-02-test-task"/, "raw explicit key must hit the same file as the CLI");
   });
 
   test("PostToolUse refreshes for cd-and-bare-run command forms", () => {
@@ -507,7 +560,7 @@ try {
         JSON.stringify({ hook_event_name: "PostToolUse", tool_input: { command } })
       );
       const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
-      assert.match(ctx, /Status: in_progress/, `refresh expected for: ${command}`);
+      assert.match(ctx, /status="in_progress"/, `refresh expected for: ${command}`);
     }
   });
 
@@ -521,7 +574,7 @@ try {
       { ZCODE_PROJECT_DIR: tmpRoot },
       JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: "stale" })
     );
-    const m = JSON.parse(result).hookSpecificOutput.additionalContext.match(/<workflow-state>([\s\S]*?)<\/workflow-state>/);
+    const m = JSON.parse(result).hookSpecificOutput.additionalContext.match(/<workflow-state[^>]*>([\s\S]*?)<\/workflow-state>/);
     assert.ok(m);
     assert.match(m[1], /07-02-test-task/);
     assert.doesNotMatch(m[1], /07-01-done/, "completed tasks are not bindable candidates");

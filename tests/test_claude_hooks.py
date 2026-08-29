@@ -169,9 +169,11 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertEqual("UserPromptSubmit", output["hookEventName"])
         context = output["additionalContext"]
         self.assertIn("<claude-code-runtime>", context)
-        self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', context)
-        self.assertIn("<contract-digest fingerprint=", context)
-        self.assertIn("Status: no_task", context)
+        # UserPromptSubmit repeats only the fingerprint line; the full
+        # contract block rides SessionStart (see session-start test).
+        self.assertNotIn("<cowork-runtime", context)
+        self.assertRegex(context, r'<contract-fingerprint value="[0-9a-f]{16}"/>')
+        self.assertIn('status=\"no_task\"', context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_surfaces_contract_registry_warning_when_missing(self) -> None:
@@ -180,7 +182,7 @@ class ClaudeHooksTest(unittest.TestCase):
             self._make_project(root)
             (root / ".cowork-flow" / "spec" / "runtime" / "contract-registry.json").unlink()
 
-            data = self._run_hook(root, {})
+            data = self._run_hook(root, {"hook_event_name": "SessionStart"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("warning:", context)
@@ -204,8 +206,8 @@ class ClaudeHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: no_task", context)
-        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"no_task\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_binds_runtime_context_from_prompt_before_main_state(self) -> None:
@@ -228,9 +230,9 @@ class ClaudeHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
-        self.assertIn("Source: runtime-context:rtx_claude_prompt", context)
-        self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
+        self.assertIn('source=\"runtime-context:rtx_claude_prompt\"', context)
+        self.assertIn('task=\".cowork-flow/tasks/06-03-demo\"', context)
         self.assertIn("Agent: cowork-implement", context)
         self.assertIn("Scope: subagent", context)
         self.assertNotIn(NO_TASK_GATE_TEXT, context)
@@ -268,7 +270,7 @@ class ClaudeHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_claude_prompt_key", session["runtime_context_id"])
         self.assertEqual("claude_prompt_key", runtime_context["bound_context_key"])
@@ -287,7 +289,7 @@ class ClaudeHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
         self.assertIn("runtime-context-invalid", context)
         self.assertNotIn(NO_TASK_GATE_TEXT, context)
 
@@ -299,9 +301,9 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"prompt": "Inspect routing notes and report concise findings."})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: no_task", context)
-        self.assertRegex(context, r"Source: (missing-context|empty-session)")
-        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"no_task\"', context)
+        self.assertRegex(context, r'source="(missing-context|empty-session)"')
+        self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_keeps_main_agent_question_from_becoming_delegated_subtask(self) -> None:
@@ -312,8 +314,8 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"prompt": "为什么会有这种误解，我希望避免这种误解"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: no_task", context)
-        self.assertNotIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"no_task\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
 
     def test_hook_reads_utf8_prompt_bytes_before_classification(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -332,10 +334,10 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook_bytes(root, {"session_id": "demo-session", "prompt": "先归档提交"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Task: .cowork-flow/tasks/06-04-demo", context)
-        self.assertIn("Status: in_progress", context)
-        self.assertNotIn("Status: delegated_subtask", context)
-        self.assertNotIn("Source: unclassified", context)
+        self.assertIn('task=\".cowork-flow/tasks/06-04-demo\"', context)
+        self.assertIn('status=\"in_progress\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
+        self.assertNotIn('source=\"unclassified\"', context)
 
     def test_hook_honors_explicit_main_session_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -360,10 +362,10 @@ class ClaudeHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Task: .cowork-flow/tasks/06-04-demo", context)
-        self.assertIn("Status: in_progress", context)
-        self.assertNotIn("Status: delegated_subtask", context)
-        self.assertNotIn("Source: unclassified", context)
+        self.assertIn('task=\".cowork-flow/tasks/06-04-demo\"', context)
+        self.assertIn('status=\"in_progress\"', context)
+        self.assertNotIn('status=\"delegated_subtask\"', context)
+        self.assertNotIn('source=\"unclassified\"', context)
 
     def test_hook_reads_workflow_state_templates_as_single_prompt_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -417,15 +419,15 @@ class ClaudeHooksTest(unittest.TestCase):
 
                 with self.subTest(status=status):
                     workflow_state = re.search(
-                        r"<workflow-state>\n(?P<state>.*?)\n</workflow-state>",
+                        r"<workflow-state[^>]*>\n(?P<state>.*?)\n</workflow-state>",
                         context,
                         re.S,
                     )
                     self.assertIsNotNone(workflow_state)
                     state_block = workflow_state.group("state")
-                    self.assertRegex(state_block, rf"Status: {status}\nSource: ")
+                    self.assertRegex(context, rf'status="{status}" source="')
                     self.assertEqual(1, state_block.count(marker))
-                    self.assertIn(f"Status: {status}", state_block)
+                    self.assertIn(f'status="{status}"', context)
                     self.assertIn(marker, state_block)
                     for other_status, other_marker in markers.items():
                         if other_status != status:
@@ -440,7 +442,11 @@ class ClaudeHooksTest(unittest.TestCase):
 
         output = data["hookSpecificOutput"]
         self.assertEqual("SessionStart", output["hookEventName"])
-        self.assertIn("Status: no_task", output["additionalContext"])
+        context = output["additionalContext"]
+        self.assertIn('<cowork-runtime host="claude-code" adapter="claude-code.hooks">', context)
+        self.assertIn("<contract-digest fingerprint=", context)
+        self.assertIn('status=\"no_task\"', context)
+        self.assertIn('status=\"no_task\"', output["additionalContext"])
 
     def test_hook_resolves_active_task_from_claude_session_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -459,8 +465,8 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"session_id": "demo-session"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
-        self.assertIn("Status: in_progress", context)
+        self.assertIn('task=\".cowork-flow/tasks/06-03-demo\"', context)
+        self.assertIn('status=\"in_progress\"', context)
         self.assertIn("action owner Skill", context)
 
     def test_hook_resolves_active_task_from_claude_code_session_id(self) -> None:
@@ -480,8 +486,8 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"claude_code_session_id": "code-session"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Task: .cowork-flow/tasks/06-03-demo", context)
-        self.assertIn("Status: in_progress", context)
+        self.assertIn('task=\".cowork-flow/tasks/06-03-demo\"', context)
+        self.assertIn('status=\"in_progress\"', context)
         self.assertIn("action owner Skill", context)
 
     def test_settings_config_uses_cowork_flow_python_runner_for_both_events(self) -> None:
@@ -525,7 +531,7 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertEqual("", result.stderr)
         self.assertEqual(0, result.returncode)
         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Status: delegated_subtask", context)
+        self.assertIn('status=\"delegated_subtask\"', context)
 
     def test_hook_contract_digest_fingerprint_tracks_spec_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -540,8 +546,8 @@ class ClaudeHooksTest(unittest.TestCase):
             )
             after = self._run_hook(root, {})["hookSpecificOutput"]["additionalContext"]
 
-        before_match = re.search(r'<contract-digest fingerprint="([^"]+)">', before)
-        after_match = re.search(r'<contract-digest fingerprint="([^"]+)">', after)
+        before_match = re.search(r'<contract-fingerprint value="([0-9a-f]+)"/>', before)
+        after_match = re.search(r'<contract-fingerprint value="([0-9a-f]+)"/>', after)
         self.assertIsNotNone(before_match)
         self.assertIsNotNone(after_match)
         self.assertNotEqual(before_match.group(1), after_match.group(1))

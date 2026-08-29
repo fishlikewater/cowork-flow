@@ -135,8 +135,8 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
     prompt: "cowork_runtime_context_id: rtx_plugin\ncowork_host_context_key: opencode_prompt_key",
   })
 
-  assert.match(context, /Status: delegated_subtask/)
-  assert.match(context, /Source: runtime-context:rtx_plugin/)
+  assert.match(context, /status="delegated_subtask"/)
+  assert.match(context, /source="runtime-context:rtx_plugin"/)
   assert.match(context, /Agent: cowork-check/)
   assert.match(context, /Scope: subagent/)
   const session = JSON.parse(

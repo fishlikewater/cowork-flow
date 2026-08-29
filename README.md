@@ -1,16 +1,17 @@
 # cowork-flow
 
-> 项目协作流程模板 — 把需求、计划、实现、验证串成闭环。
+> 多主机 Agent 协作的运行时上下文与协作事实层 — 让任何主机上的任何 agent，在任何会话、任何时刻，从同一份权威事实起步。
 
 ## 一句话
 
-**cowork-flow 不写代码，它帮你建流程。** 把 `template/` 复制到目标项目，立刻获得任务流、规格治理、开发计划和会话记录骨架。
+**cowork-flow 不写代码，它给 agent 喂状态。** 把 `template/` 复制到目标项目，立刻获得运行时状态注入、任务生命周期、决策记录、规格契约与跨宿主的协作事实一致性。
 
 ## 当前能力
 
 | 领域 | 当前能力 |
 |---|---|
 | 任务流程 | `task next --json` 给出下一步 action，`task next --run` 只执行当前 action。 |
+| 事实接入 | `run state [task] --json` 事实视图；`run mcp-state` 无依赖 MCP 只读服务（`task_state` / `task_list`）供任何 MCP 客户端查询。 |
 | 运行健康 | `doctor` 诊断 runtime、host assets、Skill replica 和任务 hygiene，不推进生命周期。 |
 | Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / DeepSeek Harness 资产和 obsolete 清理。 |
 | 批处理与讨论 | Batch 发布 Host action；Party Mode 只输出 advisory final facts。 |
@@ -24,6 +25,7 @@
 | 理解任务如何流转 | [任务流程](#任务流程) |
 | 处理故障或漂移 | [支持与故障诊断](#支持与故障诊断) |
 | 做发布前检查 | [发布](#发布)、[`CHANGELOG.md`](CHANGELOG.md) |
+| 了解项目方向与演进路线 | [`docs/direction.md`](docs/direction.md) |
 | 接入到自己项目 | [接入原则](#接入原则) |
 
 ## 适用 / 不适用
@@ -124,6 +126,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/`（整套 agent，可选） |
 | `install-dsh-hook` | 机器级注册 workflow-state hook 组合行到 `$DSH_HOME/cordis.patch.yml`（当前 DSH 的 agent 提示不收集 host 层 section，实时注入请用预设方式） |
 | `update [--dry-run]` | 升级 CLI 本身 |
+| `mcp-state` | 全局 MCP 事实入口：从 cwd 向上定位项目运行时并透传 `run mcp-state`（全局注册一次，所有 cowork-flow 项目通用） |
 
 ### init 选项
 

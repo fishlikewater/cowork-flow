@@ -120,8 +120,8 @@ test('zcode hook reads stdin event and cwd for workflow-state injection', async 
   );
 
   assert.equal(payload.hookSpecificOutput.hookEventName, 'SessionStart');
-  assert.match(payload.hookSpecificOutput.additionalContext, /<workflow-state>/);
-  assert.doesNotMatch(payload.hookSpecificOutput.additionalContext, /Status: not_initialized/);
+  assert.match(payload.hookSpecificOutput.additionalContext, /<workflow-state[^>]*>/);
+  assert.doesNotMatch(payload.hookSpecificOutput.additionalContext, /status="not_initialized"/);
 });
 
 test('zcode hook uses prompt runtime context for delegated subtask injection', async (t) => {
@@ -153,7 +153,7 @@ test('zcode hook uses prompt runtime context for delegated subtask injection', a
   });
 
   assert.equal(payload.hookSpecificOutput.hookEventName, 'UserPromptSubmit');
-  assert.match(payload.hookSpecificOutput.additionalContext, /Status: delegated_subtask/);
+  assert.match(payload.hookSpecificOutput.additionalContext, /status="delegated_subtask"/);
   assert.match(payload.hookSpecificOutput.additionalContext, /Runtime context: ctx-zcode-test/);
 });
 
