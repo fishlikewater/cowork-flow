@@ -126,6 +126,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/`（整套 agent，可选） |
 | `install-dsh-hook` | 机器级注册 workflow-state hook 组合行到 `$DSH_HOME/cordis.patch.yml`（当前 DSH 的 agent 提示不收集 host 层 section，实时注入请用预设方式） |
 | `update [--dry-run]` | 升级 CLI 本身 |
+| `mcp-state` | 全局 MCP 事实入口：从 cwd 向上定位项目运行时并透传 `run mcp-state`（全局注册一次，所有 cowork-flow 项目通用） |
 
 ### init 选项
 
