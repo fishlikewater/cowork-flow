@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -7,9 +7,52 @@ import { test } from 'node:test';
 import { findCoworkRoot, isLifecycleCommand, runWorkflowState, resetWorkingPython } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
+// The workflow runtime under the repository root is a gitignored live
+// checkout (source-refresh), so CI checkouts do not have it. Every test that
+// needs a real workflow project builds one from the committed template.
+async function createWorkflowProject(t) {
+  const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-dsh-hook-'));
+  t.after(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+  const workflow = join(dir, '.cowork-flow');
+  await mkdir(workflow, { recursive: true });
+  await cp(
+    join(packageRoot, 'template', '.cowork-flow', 'scripts'),
+    join(workflow, 'scripts'),
+    { recursive: true }
+  );
+  await mkdir(join(workflow, 'spec', 'contracts'), { recursive: true });
+  await mkdir(join(workflow, 'spec', 'runtime'), { recursive: true });
+  await cp(
+    join(
+      packageRoot,
+      'template',
+      '.cowork-flow',
+      'spec',
+      'contracts',
+      'workflow-state-templates.md'
+    ),
+    join(workflow, 'spec', 'contracts', 'workflow-state-templates.md')
+  );
+  await cp(
+    join(
+      packageRoot,
+      'template',
+      '.cowork-flow',
+      'spec',
+      'runtime',
+      'contract-registry.json'
+    ),
+    join(workflow, 'spec', 'runtime', 'contract-registry.json')
+  );
+  return dir;
+}
 
-test('produces the workflow-state block for a cowork-flow root', async () => {
-  const text = await runWorkflowState(packageRoot);
+
+test('produces the workflow-state block for a cowork-flow root', async (t) => {
+  const project = await createWorkflowProject(t);
+  const text = await runWorkflowState(project);
 
   assert.match(text, /<workflow-state[^>]*>/);
   assert.match(text, /status="[a-z_]+"/);
@@ -29,6 +72,7 @@ test('returns empty text outside a cowork-flow root', async (t) => {
 
 
 test('honours the hook disable switches', async (t) => {
+  const project = await createWorkflowProject(t);
   const previousHooks = process.env.COWORK_FLOW_HOOKS;
   const previousDisable = process.env.COWORK_FLOW_DISABLE_HOOKS;
   t.after(() => {
@@ -37,11 +81,11 @@ test('honours the hook disable switches', async (t) => {
   });
 
   process.env.COWORK_FLOW_HOOKS = '0';
-  assert.equal(await runWorkflowState(packageRoot), '');
+  assert.equal(await runWorkflowState(project), '');
 
   delete process.env.COWORK_FLOW_HOOKS;
   process.env.COWORK_FLOW_DISABLE_HOOKS = '1';
-  assert.equal(await runWorkflowState(packageRoot), '');
+  assert.equal(await runWorkflowState(project), '');
 
   function restore(name, value) {
     if (value === undefined) {
@@ -54,6 +98,7 @@ test('honours the hook disable switches', async (t) => {
 
 
 test('degrades to empty text when the protocol fails', async (t) => {
+  const project = await createWorkflowProject(t);
   const previousPython = process.env.COWORK_FLOW_PYTHON;
   t.after(() => {
     restore('COWORK_FLOW_PYTHON', previousPython);
@@ -65,7 +110,7 @@ test('degrades to empty text when the protocol fails', async (t) => {
   // treat that as "contribute nothing", not as a missing interpreter.
   resetWorkingPython();
   process.env.COWORK_FLOW_PYTHON = process.execPath;
-  assert.equal(await runWorkflowState(packageRoot), '');
+  assert.equal(await runWorkflowState(project), '');
 
   function restore(name, value) {
     if (value === undefined) {
