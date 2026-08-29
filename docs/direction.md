@@ -133,3 +133,4 @@
 - 2026-08-28：阶段 1 完成并更新状态追踪。1a：`run state [task] --json` 事实视图（60753fa）。1b：`<workflow-state>` 属性事实头 + `<decision-anchor>` 决策要点注入，三线一致，协议契约同步（5cb25ea）。
 - 2026-08-28：阶段 2 完成并更新状态追踪。executor 归属（start 写入会话 key / 显式 `--executor`）、`LIFECYCLE-EXECUTOR-001` 冲突拦截（幂等重跑同样拦截）、`--takeover` 接管（含已激活任务）、无会话 CI start、`subagent evidence` 证据位、`run state` Executor 行（fd4d6af）。
 - 2026-08-29：阶段 3 完成并更新状态追踪——路线图阶段 0-3 全部落地。`run mcp-state` 无依赖 MCP stdio 只读服务（task_state / task_list）、`spec/contracts/fact-layer-access.md` 接入契约（只读保证 + 薄 adapter 立场）（a88474e）。观察期事项：AGNTCY 等跨 agent 协议收敛后按薄壳接入；MCP 写工具默认拒绝，提案须先重开 fact-layer-access 契约。
+- 2026-08-29：MCP 全局入口补充——npm CLI 新增 `cowork-flow mcp-state` 透传命令（cwd 向上定位项目运行时、stdio inherit、退出码透传），MCP 客户端全局注册一次即可服务所有项目，消除逐项目 `.mcp.json` 配置（9a1fa86）。
