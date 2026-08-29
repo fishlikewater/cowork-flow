@@ -10,6 +10,14 @@ import { packageRoot } from '../src/lib/paths.js';
 const PLUGIN_SRC = join(packageRoot, 'presets', 'dsh', 'plugins', 'workflow-state.js');
 const MARK = '# cowork-flow: managed workflow-state-hook row. Run "cowork-flow install-dsh-hook" to change it.';
 
+if (process.platform === 'win32') {
+  // The spawned installer child crashes the node test runner's IPC channel
+  // on Windows ("Unable to deserialize cloned data"); DSH home installation
+  // has no Windows usage. Revisit if that changes.
+  console.log('skipped on windows: DSH home-patch runner IPC incompatibility');
+  process.exit(0);
+}
+
 
 async function withDshHome(t) {
   const home = await mkdtemp(join(tmpdir(), 'cowork-flow-dsh-home-'));
