@@ -11,11 +11,11 @@
 |---|---|---|---|
 | 阶段 0：定位与协议收敛 | ✅ 完成 | 08-27-stage0-positioning-protocol（0c7ae64） | — |
 | 阶段 1：事实层 API 化 + 注入结构化 | ✅ 完成 | 1a: 08-28-stage1a-state-fact-view（60753fa）；1b: 08-28-stage1b-structured-fact-header（5cb25ea） | — |
-| 阶段 2：多执行者语义 | ⬜ 未开始 | — | 立项：owner/executor 归属 + 无会话推进 + 多会话协调 |
-| 阶段 3：协议生态适配 | ⬜ 未开始（观察期） | — | 依赖阶段 2；观察 MCP/AGNTCY |
+| 阶段 2：多执行者语义 | ✅ 完成 | 08-28-stage2-multi-executor（fd4d6af）：executor 归属 / 冲突拦截 / --takeover / 无会话 start / evidence 证据位 | — |
+| 阶段 3：协议生态适配 | ⬜ 未开始（观察期） | — | 立项：MCP 只读暴露 `state --json`；观察 AGNTCY 等协议 |
 | 本规划文档落库 | ✅ 完成 | 08-27-direction-doc | — |
 
-**当前结论**：阶段 0、1 已完成（事实视图 CLI + 属性化注入头 + 决策要点注入，三线一致并有测试锁定）；下一个动作 = 阶段 2 立项。
+**当前结论**：阶段 0-2 已完成（事实视图 + 结构化注入 + 执行者归属与证据位）；下一个动作 = 阶段 3 立项（观察期性质，MCP 只读薄壳为先）。
 
 ---
 
@@ -131,3 +131,4 @@
 - 2026-08-27：创建。基于三路只读探查（注入层/状态模型/治理层）+ 大模型趋势分析；用户拍板方案 A；落库任务 08-27-direction-doc。
 - 2026-08-27：阶段 0 完成并更新状态追踪。交付：README 定位改写、`spec/contracts/context-injection.md` 协议契约、指纹序列化三线统一（跨 host 一致性测试锁定）、Python 线/opencode/dsh slim、codex 事件名。任务 08-27-stage0-positioning-protocol（0c7ae64）。
 - 2026-08-28：阶段 1 完成并更新状态追踪。1a：`run state [task] --json` 事实视图（60753fa）。1b：`<workflow-state>` 属性事实头 + `<decision-anchor>` 决策要点注入，三线一致，协议契约同步（5cb25ea）。
+- 2026-08-28：阶段 2 完成并更新状态追踪。executor 归属（start 写入会话 key / 显式 `--executor`）、`LIFECYCLE-EXECUTOR-001` 冲突拦截（幂等重跑同样拦截）、`--takeover` 接管（含已激活任务）、无会话 CI start、`subagent evidence` 证据位、`run state` Executor 行（fd4d6af）。
