@@ -11,6 +11,7 @@
 | 领域 | 当前能力 |
 |---|---|
 | 任务流程 | `task next --json` 给出下一步 action，`task next --run` 只执行当前 action。 |
+| 事实接入 | `run state [task] --json` 事实视图；`run mcp-state` 无依赖 MCP 只读服务（`task_state` / `task_list`）供任何 MCP 客户端查询。 |
 | 运行健康 | `doctor` 诊断 runtime、host assets、Skill replica 和任务 hygiene，不推进生命周期。 |
 | Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / DeepSeek Harness 资产和 obsolete 清理。 |
 | 批处理与讨论 | Batch 发布 Host action；Party Mode 只输出 advisory final facts。 |

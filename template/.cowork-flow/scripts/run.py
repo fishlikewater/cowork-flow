@@ -29,6 +29,7 @@ COMMAND_SCRIPTS = {
     "init-developer": "adapters/cli/init_developer.py",
     "init_developer": "adapters/cli/init_developer.py",
     "state": "adapters/cli/state.py",
+    "mcp-state": "adapters/mcp/state_server.py",
     "subagent": "adapters/cli/subagent.py",
 }
 RESERVED_COMMAND_NAMES = (*COMMAND_SCRIPTS, "python", "help", "-h", "--help")
