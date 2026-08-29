@@ -7,27 +7,9 @@ import { test } from 'node:test';
 import { promisify } from 'node:util';
 
 import { packageRoot } from '../src/lib/paths.js';
+import { shellRunner, skipWithoutShell } from './shell-capability.js';
 
 const execFileAsync = promisify(execFile);
-const shellRunner = (() => {
-  for (const candidate of ['sh', 'bash']) {
-    try {
-      execFileSync(candidate, ['-c', 'exit 0'], { stdio: 'ignore' });
-      return candidate;
-    } catch {
-      // Try next shell candidate.
-    }
-  }
-  return null;
-})();
-
-function skipWithoutShell(t) {
-  if (shellRunner === null) {
-    t.skip('POSIX shell is not available on this host');
-    return true;
-  }
-  return false;
-}
 
 async function createReleaseProject(t) {
   const tempDir = await mkdtemp(join(tmpdir(), 'cowork-flow-release-project-'));
