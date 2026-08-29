@@ -21,6 +21,7 @@
 - 事实层 API 化（阶段 1a）：新增 `./.cowork-flow/run state [task] --json` 事实视图——聚合 task.json（含 `_state` 修订）、decision-anchor 结构化要点（目标/验收项/被拒方案名）、plan 绑定、绑定会话与受信快照；无绑定输出 `task: null` 供机器分支。
 - 注入结构化（阶段 1b）：`<workflow-state>` 升级为属性事实头（`task`/`status`/`source` 进开标签，body 保留人读面包屑），三线一致并在协议契约冻结；planning/in_progress/review 状态下三线注入紧凑 `<decision-anchor>` 决策要点块（Python 复用 fact_view 解析单源），completed 终态与缺文件不注入。
 - 多执行者语义（阶段 2）：task.json 增加 `executor` 归属（start 写入会话 key 或显式 `--executor`）；执行者冲突 fail-closed（`LIFECYCLE-EXECUTOR-001`，幂等重跑同样拦截），`--takeover` 显式接管并覆写归属（含已激活任务的幂等接管）；`--executor` 允许无会话 CI/无头 start（不建会话绑定）；子代理运行时上下文新增 `evidence` 证据位（`subagent evidence <id> --note [--artifact]`，CAS 保护、closed 可补记、不影响任务状态机）；`run state` 人读摘要透出 Executor。
+- 生态适配（阶段 3）：新增 `./.cowork-flow/run mcp-state`——无依赖 MCP stdio 只读服务（newline-delimited JSON-RPC 2.0），工具 `task_state`（事实视图）与 `task_list`（活动任务概览）；接入契约 `spec/contracts/fact-layer-access.md` 冻结只读保证与"不自创跨 agent 协议、adapter 保持薄"立场，写路径仍独占于 CLI 门禁链。
 
 ## 0.0.52 - 2026-08-26
 
