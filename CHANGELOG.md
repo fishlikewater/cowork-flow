@@ -20,6 +20,7 @@
 - 方向收敛（阶段 0）：README 定位改为「运行时上下文与协作事实层」；新增注入协议契约 `spec/contracts/context-injection.md`（事件时机矩阵、digest 形态规则、序列化规范）；契约指纹序列化三线统一（zcode/opencode 稳定排序 + Python 紧凑分隔符，跨 host 指纹一致性测试锁定）；Python 线补 slim（SessionStart 全量 / 后续单行指纹，无事件 host 按会话文件首次判定）；codex 事件名读取；opencode 首次全量后续单行；dsh 会话开始全量、生命周期命令后单行刷新。
 - 事实层 API 化（阶段 1a）：新增 `./.cowork-flow/run state [task] --json` 事实视图——聚合 task.json（含 `_state` 修订）、decision-anchor 结构化要点（目标/验收项/被拒方案名）、plan 绑定、绑定会话与受信快照；无绑定输出 `task: null` 供机器分支。
 - 注入结构化（阶段 1b）：`<workflow-state>` 升级为属性事实头（`task`/`status`/`source` 进开标签，body 保留人读面包屑），三线一致并在协议契约冻结；planning/in_progress/review 状态下三线注入紧凑 `<decision-anchor>` 决策要点块（Python 复用 fact_view 解析单源），completed 终态与缺文件不注入。
+- 多执行者语义（阶段 2）：task.json 增加 `executor` 归属（start 写入会话 key 或显式 `--executor`）；执行者冲突 fail-closed（`LIFECYCLE-EXECUTOR-001`，幂等重跑同样拦截），`--takeover` 显式接管并覆写归属（含已激活任务的幂等接管）；`--executor` 允许无会话 CI/无头 start（不建会话绑定）；子代理运行时上下文新增 `evidence` 证据位（`subagent evidence <id> --note [--artifact]`，CAS 保护、closed 可补记、不影响任务状态机）；`run state` 人读摘要透出 Executor。
 
 ## 0.0.52 - 2026-08-26
 

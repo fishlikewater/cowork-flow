@@ -273,6 +273,25 @@ def cmd_bind(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_evidence(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    try:
+        context = RuntimeContextService(repo_root).evidence(
+            args.subagent_id,
+            note=args.note,
+            artifact=getattr(args, "artifact", None),
+        )
+    except RuntimeContextError as error:
+        _print_runtime_error(error)
+        return 1
+    if context is None:
+        print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
+        return 1
+    entries = context.get("evidence") or []
+    print(f"subagent {args.subagent_id} evidence entries={len(entries)}")
+    return 0
+
+
 def cmd_close(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     try:
@@ -321,6 +340,15 @@ def build_parser() -> argparse.ArgumentParser:
     bind.add_argument("subagent_id")
     bind.add_argument("context_key")
     bind.set_defaults(func=cmd_bind)
+
+    evidence = subparsers.add_parser(
+        "evidence",
+        help="Append an evidence entry to a runtime context (does not move task status)",
+    )
+    evidence.add_argument("subagent_id")
+    evidence.add_argument("--note", required=True)
+    evidence.add_argument("--artifact", default=None)
+    evidence.set_defaults(func=cmd_evidence)
 
     close = subparsers.add_parser("close", help="Close subagent runtime context")
     close.add_argument("subagent_id")

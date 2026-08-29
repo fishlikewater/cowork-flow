@@ -31,6 +31,9 @@ def _human_summary(view: dict) -> str:
         f"Task: {view.get('taskPath')}",
         f"Status: {task.get('status')}",
     ]
+    executor = task.get("executor")
+    if executor:
+        lines.append(f"Executor: {executor}")
     anchor = view.get("decisionAnchor") or {}
     if anchor.get("exists"):
         goal = anchor.get("goal") or ""
