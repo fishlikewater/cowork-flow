@@ -66,6 +66,10 @@ cowork-flow install-dsh-preset
 # 机器级安装实时 workflow-state 注入（推荐：不换预设，任意 DSH 会话生效）
 cowork-flow install-dsh-hook
 
+# MCP 客户端接入（可选）：全局注册一次，任意项目查询任务事实
+# 各客户端配置样例见 docs/mcp-client-setup.md
+cowork-flow mcp-state
+
 # 维护者发布前检查
 npm run release:check
 ```
@@ -327,6 +331,8 @@ npm run release -- --version 0.1.0  # 精确发布指定版本（跳过自动 bu
 4. 同步版本到 `template/.cowork-flow/.version` 和 `template/.zcode/.zcode-plugin/plugin.json`
 5. `git commit` + `git tag`
 6. `npm publish`
+
+**CI 发布通道（推荐）：** `scripts/release.sh --version <v>` 打好 tag 后，`gh release create v<v>` 触发 `.github/workflows/publish.yml`——Ubuntu/Windows 双平台全量门禁通过后自动 `npm publish`（需仓库 secret `NPM_TOKEN`，权限：publish）。
 
 - 发布说明维护在 `CHANGELOG.md`；发布前更新当前版本段落，并保留 `release:check` 和 `git diff --check` 证据。
 
