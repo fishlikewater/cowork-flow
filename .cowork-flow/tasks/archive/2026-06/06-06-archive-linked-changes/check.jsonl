@@ -1,4 +1,0 @@
-{"file": ".agents/skills/check/SKILL.md", "reason": "Quality, contract, and template consistency check"}
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish, archive, and session recording gate"}
-{"file": "tests/test_flow_script_paths.py", "reason": "task archive regression coverage"}
-{"file": "tests/test_change_script.py", "reason": "existing change archive behavior should remain intact"}

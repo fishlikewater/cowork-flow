@@ -1,8 +1,0 @@
-{"file":".cowork-flow/workflow.md","reason":"同步 root 工作流文档正式版 decision-anchor 术语"}
-{"file":".cowork-flow/spec/runtime/contract-registry.json","reason":"同步 root runtime contract 文案"}
-{"file":".cowork-flow/spec/references/definition-of-done.md","reason":"同步 root definition-of-done 正式版术语"}
-{"file":".cowork-flow/spec/contracts/workflow-state-templates.md","reason":"同步 root workflow-state 模板正式版术语"}
-{"file":".cowork-flow/scripts/common/gates/tdd_evidence.py","reason":"同步 root TDD gate 运行时副本"}
-{"file":"template/.cowork-flow/scripts/common/gates/tdd_evidence.py","reason":"作为 root/template 同步源和漂移保护对象"}
-{"file":"tests/test_workflow_parallel_sessions.py","reason":"补充 root/template 漂移保护测试"}
-{"file":"tests/test_no_legacy_template_paths.py","reason":"按需扩展正式版术语残留扫描"}

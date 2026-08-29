@@ -1,9 +1,0 @@
-{"file":"template/.cowork-flow/spec/references/definition-of-done.md","reason":"Replace stale PRD terminology with decision-anchor acceptance wording"}
-{"file":"template/.cowork-flow/spec/contracts/workflow-state-templates.md","reason":"Align review-state prompt wording with decision-anchor terminology"}
-{"file":"template/.claude/agents/cowork-implement.md","reason":"Remove stale PRD acceptance wording from Claude implement prompt"}
-{"file":"template/.opencode/agents/cowork-implement.md","reason":"Remove stale PRD terminology from OpenCode implement prompt"}
-{"file":"template/.cowork-flow/scripts/common/git/git_context.py","reason":"Rename internal decision-anchor state variables and reduce context rendering complexity"}
-{"file":"tests/test_no_legacy_template_paths.py","reason":"Tighten formal prompt PRD terminology regression scan with explicit allowlist"}
-{"file":"tests/test_task_archive_commands.py","reason":"Update archive/resume tests for renamed git context internals if needed"}
-{"file":"tests/test_workflow_parallel_sessions.py","reason":"Add workflow/scaffold sync drift guard and update terminology expectations"}
-{"file": ".gitignore", "reason": "Ignore local generated runtime directories so they are not accidentally staged"}
