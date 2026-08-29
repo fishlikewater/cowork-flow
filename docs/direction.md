@@ -12,10 +12,10 @@
 | 阶段 0：定位与协议收敛 | ✅ 完成 | 08-27-stage0-positioning-protocol（0c7ae64） | — |
 | 阶段 1：事实层 API 化 + 注入结构化 | ✅ 完成 | 1a: 08-28-stage1a-state-fact-view（60753fa）；1b: 08-28-stage1b-structured-fact-header（5cb25ea） | — |
 | 阶段 2：多执行者语义 | ✅ 完成 | 08-28-stage2-multi-executor（fd4d6af）：executor 归属 / 冲突拦截 / --takeover / 无会话 start / evidence 证据位 | — |
-| 阶段 3：协议生态适配 | ⬜ 未开始（观察期） | — | 立项：MCP 只读暴露 `state --json`；观察 AGNTCY 等协议 |
+| 阶段 3：协议生态适配 | ✅ 完成（观察期持续） | 08-29-stage3-mcp-fact-access（a88474e）：`run mcp-state` 无依赖 MCP 只读服务 + `fact-layer-access.md` 接入契约 | 观察 AGNTCY 等协议收敛；写工具默认拒绝，需重开契约 |
 | 本规划文档落库 | ✅ 完成 | 08-27-direction-doc | — |
 
-**当前结论**：阶段 0-2 已完成（事实视图 + 结构化注入 + 执行者归属与证据位）；下一个动作 = 阶段 3 立项（观察期性质，MCP 只读薄壳为先）。
+**当前结论**：方向路线图阶段 0-3 全部落地。项目当前形态：「多主机 Agent 协作的运行时上下文与协作事实层」——事实视图（CLI + MCP）、结构化注入、跨宿主一致性治理、执行者归属与证据位均已就绪并有测试锁定。后续演进见「不做什么」边界与观察期事项。
 
 ---
 
@@ -132,3 +132,4 @@
 - 2026-08-27：阶段 0 完成并更新状态追踪。交付：README 定位改写、`spec/contracts/context-injection.md` 协议契约、指纹序列化三线统一（跨 host 一致性测试锁定）、Python 线/opencode/dsh slim、codex 事件名。任务 08-27-stage0-positioning-protocol（0c7ae64）。
 - 2026-08-28：阶段 1 完成并更新状态追踪。1a：`run state [task] --json` 事实视图（60753fa）。1b：`<workflow-state>` 属性事实头 + `<decision-anchor>` 决策要点注入，三线一致，协议契约同步（5cb25ea）。
 - 2026-08-28：阶段 2 完成并更新状态追踪。executor 归属（start 写入会话 key / 显式 `--executor`）、`LIFECYCLE-EXECUTOR-001` 冲突拦截（幂等重跑同样拦截）、`--takeover` 接管（含已激活任务）、无会话 CI start、`subagent evidence` 证据位、`run state` Executor 行（fd4d6af）。
+- 2026-08-29：阶段 3 完成并更新状态追踪——路线图阶段 0-3 全部落地。`run mcp-state` 无依赖 MCP stdio 只读服务（task_state / task_list）、`spec/contracts/fact-layer-access.md` 接入契约（只读保证 + 薄 adapter 立场）（a88474e）。观察期事项：AGNTCY 等跨 agent 协议收敛后按薄壳接入；MCP 写工具默认拒绝，提案须先重开 fact-layer-access 契约。
