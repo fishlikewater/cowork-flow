@@ -461,5 +461,74 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertIn("Task state transition blocked", stderr)
 
 
+    def _write_baseline_task_with_manifest(self, root: Path, task_dir: Path, *, meta: dict) -> None:
+        task_dir.mkdir(parents=True, exist_ok=True)
+        (task_dir / "task.json").write_text(
+            json.dumps({"status": "in_progress", "meta": meta}),
+            encoding="utf-8",
+        )
+        (task_dir / "decision-anchor.md").write_text(
+            "# Demo\n\n## 目标\n\nExplicit scope.\n\n## 验收标准\n\n- AC-001: only planned files change.\n",
+            encoding="utf-8",
+        )
+        (task_dir / "implement.jsonl").write_text(
+            '{"file": "src/only_planned.py", "reason": "planned"}\n',
+            encoding="utf-8",
+        )
+
+    def _git_repo_with_baseline(self, root: Path) -> str:
+        self._init_git_repo(root)
+        (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+        self._commit_all(root, "baseline")
+        baseline = self._run_git(root, "rev-parse", "HEAD")
+        src = root / "src"
+        src.mkdir(parents=True, exist_ok=True)
+        (src / "only_planned.py").write_text("PLANNED = 1\n", encoding="utf-8")
+        self._commit_all(root, "planned baseline file")
+        return baseline
+
+    def test_review_flags_committed_unlisted_files_after_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            baseline = self._git_repo_with_baseline(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_baseline_task_with_manifest(
+                root, task_dir, meta={"baselineCommit": baseline}
+            )
+            # Sneak an unlisted file in via a commit: it must still surface.
+            (root / "src" / "sneaky.py").write_text("SNEAKY = 1\n", encoding="utf-8")
+            self._commit_all(root, "sneaky unlisted file")
+
+            checks = importlib.import_module("services.lifecycle_checks")
+            issues = checks._review_completion_issues(
+                root, task_dir, allow_spec_file_modifications=False
+            )
+
+        codes = [issue.code for issue in issues]
+        self.assertIn("unlisted_changed_file", codes)
+        self.assertTrue(
+            any("src/sneaky.py" in issue.message for issue in issues),
+            "the committed unlisted file must be flagged",
+        )
+
+    def test_review_without_baseline_degrades_to_status_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._git_repo_with_baseline(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            # No meta.baselineCommit: pre-baseline tasks see working-tree
+            # changes only, and the committed sneaky file stays invisible.
+            self._write_baseline_task_with_manifest(root, task_dir, meta={})
+            (root / "src" / "sneaky.py").write_text("SNEAKY = 1\n", encoding="utf-8")
+            self._commit_all(root, "sneaky unlisted file")
+
+            checks = importlib.import_module("services.lifecycle_checks")
+            issues = checks._review_completion_issues(
+                root, task_dir, allow_spec_file_modifications=False
+            )
+
+        self.assertEqual([], issues)
+
+
 if __name__ == "__main__":
     unittest.main()
