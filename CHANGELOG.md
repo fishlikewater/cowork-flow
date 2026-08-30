@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.3 - 2026-08-30
+
+### 规则表数据化（scope-rules 单源）
+
+- 新增 `.cowork-flow/spec/runtime/scope-rules.json`：scope 过滤规则（allowedTypes/wildcardChars/rejectedSegments/driveLetterPattern/trailingSlashRejectedTypes）与 stage-contract 限制（budget/scopeLimit/specLimit/verifyLimit）从三份复制实现下沉为单一数据文件。
+- Python（context_paths/fact_view）与 zcode/opencode JS 镜像运行时消费同一文件；文件缺失/畸形降级到与默认内容逐字一致的内嵌默认（默认等价由 tests/test_scope_rules.py 与 selfcheck 锁定）。
+- 规则可真实改变行为：wildcardChars 置空 → 通配条目进入 Scope；budget 调小 → 预算降级路径触发。
+- 修复预算兜底 1 字节超限：裁剪切分与闭标签间的换行预留。
+
 ## 1.1.2 - 2026-08-30
 
 ### Review 基线 diff（堵住提交绕行面）

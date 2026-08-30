@@ -256,7 +256,9 @@ def _fit_stage_contract(
     if len("\n".join(lines)) <= budget:
         return lines
     closing = lines[-1]
-    room = budget - len(closing)
+    # The final join inserts one newline between the cut body and the closing
+    # tag — reserve it so the block stays within budget byte-for-byte.
+    room = budget - len(closing) - 1
     body = "\n".join(lines[:-1])
     if len(body) <= room:
         return lines
@@ -271,15 +273,19 @@ def _stage_contract_lines(
     spec_files: list[str],
     anchor: dict[str, Any],
     mutable: bool = True,
+    *,
+    scope_limit: int = STAGE_CONTRACT_SCOPE_LIMIT,
+    spec_limit: int = STAGE_CONTRACT_SPECS_LIMIT,
+    verify_limit: int = STAGE_CONTRACT_VERIFY_LIMIT,
 ) -> list[str]:
     """Assemble the stage-contract body lines. Byte-for-byte mirrored by the
     zcode and opencode JS implementations — keep the formatting identical."""
     scope_suffix = "[agent-mutable]" if mutable else "[read-only]"
     lines: list[str] = []
-    scope_items = [entry["file"] for entry in whitelist[:STAGE_CONTRACT_SCOPE_LIMIT]]
+    scope_items = [entry["file"] for entry in whitelist[:scope_limit]]
     lines.append(_scope_row(scope_items, len(whitelist), scope_suffix))
     if spec_files:
-        spec_items = spec_files[:STAGE_CONTRACT_SPECS_LIMIT]
+        spec_items = spec_files[:spec_limit]
         specs_text = "; ".join(spec_items)
         spec_more = len(spec_files) - len(spec_items)
         if spec_more > 0:
@@ -288,7 +294,7 @@ def _stage_contract_lines(
     lines.append(GATES_TEXT if mutable else GATES_TEXT_READONLY)
     verify = anchor.get("validationCommands") or []
     if verify:
-        lines.append("Verify: " + "; ".join(verify[:STAGE_CONTRACT_VERIFY_LIMIT]))
+        lines.append("Verify: " + "; ".join(verify[:verify_limit]))
     return lines
 
 
@@ -308,22 +314,36 @@ def build_stage_contract(
     spec_files: list[str],
     anchor: dict[str, Any],
     mutable: bool = True,
+    rules: dict | None = None,
 ) -> str:
     """Assemble the stage-contract block. Byte-for-byte mirrored by the zcode
     and opencode JS implementations — keep the formatting identical. Over-
     budget inputs degrade through _fit_stage_contract, never emitting a half-
     closed block. `mutable=False` renders the parent scope as a read-only
-    reference for delegated subtasks."""
+    reference for delegated subtasks. `rules` comes from
+    scope-rules.json (load_scope_rules) and carries budget and limits; None
+    falls back to the module constants."""
+    stage_contract = (rules or {}).get("stageContract") or {}
+    budget = stage_contract.get("budget", STAGE_CONTRACT_BUDGET)
+    scope_limit = stage_contract.get("scopeLimit", STAGE_CONTRACT_SCOPE_LIMIT)
+    spec_limit = stage_contract.get("specLimit", STAGE_CONTRACT_SPECS_LIMIT)
+    verify_limit = stage_contract.get("verifyLimit", STAGE_CONTRACT_VERIFY_LIMIT)
     lines = [f'<stage-contract task="{xml_attr(task_path)}">']
     lines.extend(
-        _stage_contract_lines(whitelist, spec_files, anchor, mutable=mutable)
+        _stage_contract_lines(
+            whitelist,
+            spec_files,
+            anchor,
+            mutable=mutable,
+            scope_limit=scope_limit,
+            spec_limit=spec_limit,
+            verify_limit=verify_limit,
+        )
     )
     lines.append("</stage-contract>")
-    scope_entries = [
-        entry["file"] for entry in whitelist[:STAGE_CONTRACT_SCOPE_LIMIT]
-    ]
+    scope_entries = [entry["file"] for entry in whitelist[:scope_limit]]
     fitted = _fit_stage_contract(
-        lines, scope_entries, len(whitelist), mutable
+        lines, scope_entries, len(whitelist), mutable, budget=budget
     )
     return "\n".join(fitted)
 

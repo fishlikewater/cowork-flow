@@ -529,22 +529,53 @@ function readImplementEntries(repoRoot, taskPath) {
   return entries;
 }
 
+// Mirrors the shipped .cowork-flow/spec/runtime/scope-rules.json; loaded from
+// disk at runtime so the rules are a single source across hosts (python +
+// these JS mirrors). Keep both sides in sync (locked by the node matrix test
+// and tests/test_scope_rules.py default-equivalence).
+const DEFAULT_SCOPE_RULES = {
+  schemaVersion: 1,
+  scopeFilter: {
+    allowedTypes: ["file", "planned-file", "deleted-file"],
+    wildcardChars: ["*", "?", "[", "]"],
+    rejectedSegments: ["", ".", ".."],
+    driveLetterPattern: "^[A-Za-z]:",
+    trailingSlashRejectedTypes: ["planned-file", "deleted-file"],
+  },
+  stageContract: { budget: 1200, scopeLimit: 8, specLimit: 4, verifyLimit: 3 },
+};
+
+function readScopeRules(repoRoot) {
+  try {
+    const loaded = JSON.parse(
+      readFileSync(
+        join(repoRoot, DIR_WORKFLOW, "spec", "runtime", "scope-rules.json"),
+        "utf8"
+      )
+    );
+    if (loaded && loaded.schemaVersion === 1) return loaded;
+  } catch {
+    // Missing or malformed rules file: degrade to the shipped defaults.
+  }
+  return DEFAULT_SCOPE_RULES;
+}
+
 // Port of services/context_paths.py::_is_valid_context_path: the JS side must
 // skip exactly the entries the Python whitelist drops (absolute paths, drive
 // letters, dot segments, wildcards, trailing slash on planned/deleted files).
-function isValidScopePath(normalized, raw, type) {
-  if (!["file", "planned-file", "deleted-file"].includes(type)) return false;
-  if (!normalized || normalized.startsWith("/")) return false;
-  if (/^[A-Za-z]:/.test(normalized)) return false;
+// Rules come from scope-rules.json; empty lists are meaningful (never "or"ed
+// away), so nullish coalescing is used for defaults only.
+function isValidScopePath(normalized, raw, type, rules) {
+  const sf = (rules || {}).scopeFilter || {};
+  const wildcards = sf.wildcardChars ?? ["*", "?", "[", "]"];
   const segments = normalized.split("/");
-  if (segments.some((segment) => segment === "" || segment === "." || segment === ".."))
-    return false;
-  if (/[*?[\]]/.test(normalized)) return false;
-  if (
-    ["planned-file", "deleted-file"].includes(type) &&
-    /[\\/]$/.test(raw)
-  )
-    return false;
+  const rejected = sf.rejectedSegments ?? ["", ".", ".."];
+  if (!normalized || normalized.startsWith("/")) return false;
+  if (new RegExp(sf.driveLetterPattern ?? "^[A-Za-z]:").test(normalized)) return false;
+  if (segments.some((segment) => rejected.includes(segment))) return false;
+  if (wildcards.some((character) => normalized.includes(character))) return false;
+  const trailing = sf.trailingSlashRejectedTypes ?? ["planned-file", "deleted-file"];
+  if (trailing.includes(type) && /[\\/]$/.test(raw)) return false;
   return true;
 }
 
@@ -552,9 +583,11 @@ function isValidScopePath(normalized, raw, type) {
 // directory entries authorize nothing, non-canonical entries are dropped,
 // and the whitelist is the single source for both the Scope row and the
 // per-edit warning check.
-function buildScopeWhitelist(entries) {
+function buildScopeWhitelist(entries, rules) {
   const whitelist = [];
   const specFiles = [];
+  const sf = (rules || {}).scopeFilter || {};
+  const allowedTypes = sf.allowedTypes ?? ["file", "planned-file", "deleted-file"];
   for (const entry of entries) {
     const file = typeof entry.file === "string" ? entry.file : "";
     let normalized = file.replaceAll("\\", "/");
@@ -563,7 +596,8 @@ function buildScopeWhitelist(entries) {
     }
     const type = typeof entry.type === "string" && entry.type ? entry.type : "file";
     if (type === "directory") continue;
-    if (!isValidScopePath(normalized, file, type)) continue;
+    if (!allowedTypes.includes(type)) continue;
+    if (!isValidScopePath(normalized, file, type, rules)) continue;
     whitelist.push({ file: normalized, type });
     if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized);
   }
@@ -580,9 +614,8 @@ function scopeRow(entries, total, suffix) {
 // Mirrors services/fact_view.py::_fit_stage_contract: degrade an over-budget
 // block without ever emitting a malformed one — the closing tag and the guard
 // rows (Scope/Gates) always survive. Keep the row-role rules and drop order
-// identical with the Python side.
-function fitStageContract(lines, scopeEntries, scopeTotal, mutable) {
-  const budget = STAGE_CONTRACT_BUDGET;
+// identical with the Python side. budget comes from scope-rules.json.
+function fitStageContract(lines, scopeEntries, scopeTotal, mutable, budget = STAGE_CONTRACT_BUDGET) {
   if (lines.join("\n").length <= budget) return lines;
   let removable = [];
   for (let i = 1; i < lines.length - 1; i++) {
@@ -607,7 +640,9 @@ function fitStageContract(lines, scopeEntries, scopeTotal, mutable) {
   }
   if (lines.join("\n").length <= budget) return lines;
   const closing = lines[lines.length - 1];
-  const room = budget - closing.length;
+  // The final join inserts one newline between the cut body and the closing
+  // tag — reserve it so the block stays within budget byte-for-byte.
+  const room = budget - closing.length - 1;
   const body = lines.slice(0, -1).join("\n");
   if (body.length <= room) return lines;
   const head = body.slice(0, room).replace(/\s+$/, "");
@@ -625,7 +660,13 @@ function stageContractBlock(repoRoot, taskPath, status, readonly = false) {
   }
   if (!STAGE_CONTRACT_STATES.includes(effective)) return null;
 
-  const { whitelist, specFiles } = buildScopeWhitelist(readImplementEntries(repoRoot, taskPath));
+  const rules = readScopeRules(repoRoot);
+  const { whitelist, specFiles } = buildScopeWhitelist(readImplementEntries(repoRoot, taskPath), rules);
+  const stage = rules.stageContract || {};
+  const scopeLimit = stage.scopeLimit ?? STAGE_CONTRACT_SCOPE_LIMIT;
+  const specLimit = stage.specLimit ?? STAGE_CONTRACT_SPECS_LIMIT;
+  const verifyLimit = stage.verifyLimit ?? STAGE_CONTRACT_VERIFY_LIMIT;
+  const budget = stage.budget ?? STAGE_CONTRACT_BUDGET;
 
   let parsed = {
     goal: "",
@@ -645,12 +686,12 @@ function stageContractBlock(repoRoot, taskPath, status, readonly = false) {
   const suffix = readonly ? "[read-only]" : "[agent-mutable]";
   const lines = [`<stage-contract task="${xmlAttr(taskPath)}">`];
   lines.push(scopeRow(
-    whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file),
+    whitelist.slice(0, scopeLimit).map((e) => e.file),
     whitelist.length,
     suffix
   ));
   if (specFiles.length > 0) {
-    const specItems = specFiles.slice(0, STAGE_CONTRACT_SPECS_LIMIT);
+    const specItems = specFiles.slice(0, specLimit);
     let specsText = specItems.join("; ");
     const specMore = specFiles.length - specItems.length;
     if (specMore > 0) specsText += ` (+${specMore} more)`;
@@ -660,15 +701,16 @@ function stageContractBlock(repoRoot, taskPath, status, readonly = false) {
   if (parsed.validationCommands.length > 0) {
     lines.push(
       "Verify: " +
-        parsed.validationCommands.slice(0, STAGE_CONTRACT_VERIFY_LIMIT).join("; ")
+        parsed.validationCommands.slice(0, verifyLimit).join("; ")
     );
   }
   lines.push("</stage-contract>");
   return fitStageContract(
     lines,
-    whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file),
+    whitelist.slice(0, scopeLimit).map((e) => e.file),
     whitelist.length,
-    !readonly
+    !readonly,
+    budget
   ).join("\n");
 }
 
@@ -702,7 +744,7 @@ function editScopeWarning(input, filePath) {
   if (missing || !STAGE_CONTRACT_STATES.includes(status)) return "";
 
   const target = normalizeScopePath(filePath);
-  const { whitelist } = buildScopeWhitelist(readImplementEntries(root, activeTask.taskPath));
+  const { whitelist } = buildScopeWhitelist(readImplementEntries(root, activeTask.taskPath), readScopeRules(root));
   const inScope = whitelist.some((entry) => entry.file === target);
   if (inScope) return "";
 

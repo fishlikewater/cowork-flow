@@ -381,6 +381,70 @@ try {
     assert.doesNotMatch(ctx, /Scope: subagent/);
   });
 
+  test("scope-rules.json drives the whitelist and budget", () => {
+    // Wildcards admitted + tight budget: both prove the rules file is
+    // really consumed by the hook.
+    writeProjectFile(tmpRoot, ".cowork-flow/tasks/07-02-test-task/implement.jsonl",
+      [
+        JSON.stringify({ file: "src/a*.py", reason: "wildcard" }),
+        JSON.stringify({ file: "src/demo.py", reason: "main" }),
+      ].join("\n") + "\n");
+    writeProjectFile(tmpRoot, ".cowork-flow/spec/runtime/scope-rules.json",
+      JSON.stringify({
+        schemaVersion: 1,
+        scopeFilter: {
+          allowedTypes: ["file", "planned-file", "deleted-file"],
+          wildcardChars: [],
+          rejectedSegments: ["", ".", ".."],
+          driveLetterPattern: "^[A-Za-z]:",
+          trailingSlashRejectedTypes: ["planned-file", "deleted-file"],
+        },
+        stageContract: { budget: 400, scopeLimit: 8, specLimit: 4, verifyLimit: 3 },
+      }));
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
+    const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+    const block = ctx.match(/<stage-contract task="[^"]*">[\s\S]*?<\/stage-contract>/);
+    assert.ok(block, "stage-contract must ride with rules present");
+    assert.match(block[0], /Scope: src\/a\*\.py; src\/demo\.py \[agent-mutable\]/,
+      "emptied wildcardChars must admit the wildcard entry");
+    assert.ok(block[0].length <= 400, `rules budget must hold: ${block[0].length}`);
+  });
+
+  test("default rules file keeps output byte-identical with no file", () => {
+    writeProjectFile(tmpRoot, ".cowork-flow/tasks/07-02-test-task/implement.jsonl",
+      JSON.stringify({ file: "src/demo.py", reason: "main" }) + "\n");
+    // Rewrite the rules file with the exact shipped defaults (a stale
+    // custom file may exist from the previous test).
+    writeProjectFile(tmpRoot, ".cowork-flow/spec/runtime/scope-rules.json",
+      JSON.stringify({
+        schemaVersion: 1,
+        scopeFilter: {
+          allowedTypes: ["file", "planned-file", "deleted-file"],
+          wildcardChars: ["*", "?", "[", "]"],
+          rejectedSegments: ["", ".", ".."],
+          driveLetterPattern: "^[A-Za-z]:",
+          trailingSlashRejectedTypes: ["planned-file", "deleted-file"],
+        },
+        stageContract: { budget: 1200, scopeLimit: 8, specLimit: 4, verifyLimit: 3 },
+      }));
+    const withFile = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
+    rmSync(join(tmpRoot, ".cowork-flow", "spec", "runtime", "scope-rules.json"), { force: true });
+    const withoutFile = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
+    const extract = (out) =>
+      JSON.parse(out).hookSpecificOutput.additionalContext.match(/<stage-contract task="[^"]*">[\s\S]*?<\/stage-contract>/)[0];
+    assert.equal(extract(withFile), extract(withoutFile),
+      "default-content rules file must equal the no-file fallback");
+  });
+
   test("decision anchor essentials ride along for active states", () => {
     writeProjectFile(
       tmpRoot,
