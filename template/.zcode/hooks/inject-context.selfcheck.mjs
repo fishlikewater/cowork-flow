@@ -246,6 +246,22 @@ try {
     assert.equal(before, after, "key order inside the registry must not move the fingerprint");
   });
 
+  test("stage-contract rides with active states and honors the char budget", () => {
+    writeProjectFile(tmpRoot, ".cowork-flow/tasks/07-02-test-task/implement.jsonl",
+      JSON.stringify({ file: "src/demo.py", reason: "main" }) + "\n");
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
+    const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+    const block = ctx.match(/<stage-contract task="[^"]*">[\s\S]*?<\/stage-contract>/);
+    assert.ok(block, "stage-contract must ride with in_progress tasks");
+    assert.match(block[0], /Scope: src\/demo\.py \[agent-mutable\]/);
+    assert.match(block[0], /Gates: edits outside Scope are review blockers/);
+    assert.ok(block[0].length <= 1200, `stage-contract budget: ${block[0].length}`);
+    assert.match(ctx, /status="in_progress"/);
+  });
+
   test("decision anchor essentials ride along for active states", () => {
     writeProjectFile(
       tmpRoot,

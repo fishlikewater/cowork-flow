@@ -120,6 +120,9 @@ def build_hook_context(
     blocks = [*preamble, digest_block]
     if anchor_block:
         blocks.append(anchor_block)
+    contract_block = _stage_contract_block(root, task_path, status)
+    if contract_block:
+        blocks.append(contract_block)
     blocks.append(
         f"<workflow-state{_workflow_state_attrs(task_path, status, source)}>"
         f"\n{body}\n</workflow-state>"
@@ -148,13 +151,11 @@ def _session_has_started(root: Path, hook_input: dict[str, Any]) -> bool:
 
 
 def _xml_attr(value: Any) -> str:
-    return (
-        str(value)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
+    # Delegates to the fact-view implementation: the escaping rules must stay
+    # identical across the decision-anchor and stage-contract blocks.
+    from services.fact_view import xml_attr
+
+    return xml_attr(value)
 
 
 def _workflow_state_attrs(
@@ -169,6 +170,24 @@ def _workflow_state_attrs(
 
 
 DECISION_ANCHOR_STATES = ("planning", "in_progress", "review")
+STAGE_CONTRACT_STATES = ("in_progress", "review")
+
+
+def _effective_task_status(
+    root: Path, task_path: str, status: str
+) -> str | None:
+    """Delegated subtasks read the underlying task's status; every other
+    status is already effective."""
+    if status != "delegated_subtask":
+        return status
+    try:
+        data = json.loads(
+            (root / task_path / "task.json").read_text(encoding="utf-8")
+        )
+        effective_status = data.get("status")
+    except (OSError, json.JSONDecodeError):
+        return None
+    return effective_status if isinstance(effective_status, str) else None
 
 
 def _decision_anchor_block(
@@ -180,17 +199,7 @@ def _decision_anchor_block(
     inject nothing."""
     if not task_path:
         return None
-    effective_status = status
-    if status == "delegated_subtask":
-        try:
-            data = json.loads(
-                (root / task_path / "task.json").read_text(encoding="utf-8")
-            )
-            effective_status = data.get("status")
-        except (OSError, json.JSONDecodeError):
-            return None
-        if not isinstance(effective_status, str):
-            return None
+    effective_status = _effective_task_status(root, task_path, status)
     if effective_status not in DECISION_ANCHOR_STATES:
         return None
     try:
@@ -217,6 +226,41 @@ def _decision_anchor_block(
         lines.append("Rejected: " + "; ".join(parsed["rejectedOptions"][:6]))
     lines.append("</decision-anchor>")
     return "\n".join(lines)
+
+
+def _stage_contract_block(
+    root: Path, task_path: str | None, status: str
+) -> str | None:
+    """Implementation contract (edit scope, specs to read, gates preview,
+    declared verification commands) for states where it steers execution.
+    Data comes from the frozen task artifacts via services.fact_view — the
+    single source shared with the MCP task_scope tool."""
+    if not task_path:
+        return None
+    effective_status = _effective_task_status(root, task_path, status)
+    if effective_status not in STAGE_CONTRACT_STATES:
+        return None
+    try:
+        from services.fact_view import (
+            build_stage_contract,
+            file_scope_whitelist,
+            parse_decision_anchor,
+            spec_pointer_files,
+        )
+
+        task_dir = root / task_path
+        whitelist = file_scope_whitelist(root, task_dir)
+        spec_files = spec_pointer_files(task_dir)
+        anchor_path = task_dir / "decision-anchor.md"
+        try:
+            parsed = parse_decision_anchor(
+                anchor_path.read_text(encoding="utf-8")
+            )
+        except OSError:
+            parsed = {"validationCommands": []}
+        return build_stage_contract(task_path, whitelist, spec_files, parsed)
+    except Exception:
+        return None
 
 
 def _load_breadcrumbs(root: Path) -> dict[str, str]:

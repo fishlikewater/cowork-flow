@@ -252,6 +252,59 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn("AC-001", context)
         self.assertIn("Rejected: 方案B（双写行）", context)
 
+    def test_stage_contract_injected_for_active_states_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_workflow_spec(root)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "probe.json").write_text(
+                json.dumps({"active_task_path": ".cowork-flow/tasks/07-10-demo"}),
+                encoding="utf-8",
+            )
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}', encoding="utf-8"
+            )
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps({"file": "src/demo.py", "reason": "main"}) + "\n",
+                encoding="utf-8",
+            )
+
+            active = self.module.build_hook_context(
+                root,
+                {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                host="codex",
+                adapter="codex.hook",
+                preamble=(),
+                session_start=False,
+            )
+            self.assertIn('<stage-contract task=".cowork-flow/tasks/07-10-demo">', active)
+            self.assertIn("Scope: src/demo.py [agent-mutable]", active)
+            self.assertIn("Gates: edits outside Scope are review blockers", active)
+            self.assertLessEqual(
+                len(
+                    active.split("<stage-contract", 1)[1].split("</stage-contract>", 1)[0]
+                )
+                + len("<stage-contract></stage-contract>"),
+                1200,
+            )
+
+            # Terminal states inject nothing.
+            (task_dir / "task.json").write_text(
+                '{"status": "completed"}', encoding="utf-8"
+            )
+            done = self.module.build_hook_context(
+                root,
+                {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                host="codex",
+                adapter="codex.hook",
+                preamble=(),
+                session_start=False,
+            )
+            self.assertNotIn("<stage-contract", done)
+
     def test_decision_anchor_skipped_for_terminal_states(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
