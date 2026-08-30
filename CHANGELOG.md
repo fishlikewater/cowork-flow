@@ -11,6 +11,7 @@
 - 规则可真实改变行为：wildcardChars 置空 → 通配条目进入 Scope；budget 调小 → 预算降级路径触发。
 - 修复预算兜底 1 字节超限：裁剪切分与闭标签间的换行预留。
 - **CI 修复（delegated 注入崩溃）**：zcode delegated 分支不再以空输入对象重新发现项目根（`findProjectRoot({})`），改为复用 main 已解析的工作流根——在无 `.cowork-flow/` 的目录（干净 checkout、非项目目录）触发 delegated prompt 不再 `join(null)` 崩溃；对应的注入测试显式指定 spawn 工作目录，消除对测试运行 cwd 的隐式依赖（干净 checkout 下此前必红，实测 dev 推送 CI 双平台失败）。
+- **CI 修复（Windows git 降级）**：`git` 二进制不可用（PATH 缺失/未安装）时 `_run_git_command` 捕获 OSError 按 rc!=0 降级——`current_head` 视为无头（不写 baseline）、变更集收集降级 status-only，`task start` 不再崩溃（Windows 的 CreateProcess 在 PATH 缺失时不回退，清空环境的会话测试此前必红；macOS execvp 有默认 PATH 兜底故本地绿）。
 
 ## 1.1.2 - 2026-08-30
 
