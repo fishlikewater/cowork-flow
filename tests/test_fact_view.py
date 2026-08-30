@@ -30,8 +30,12 @@ ANCHOR_TEXT = "\n".join(
         "- **方案B（Node 侧实现）**: 拒绝——事实层与宿主无关",
         "- **方案C（注入全文）**: 拒绝——token 成本不可控",
         "",
-        "## 关键假设",
-        "- 与解析无关的章节",
+        "## 验证命令",
+        "- npm run test:fast",
+        "- python3 -m pytest tests/ -q",
+        "",
+        "## 范围边界",
+        "范围内: services/ only",
     ]
 )
 
@@ -52,6 +56,11 @@ class ParseDecisionAnchorTest(unittest.TestCase):
             ["方案B（Node 侧实现）", "方案C（注入全文）"],
             parsed["rejectedOptions"],
         )
+        self.assertEqual(
+            ["npm run test:fast", "python3 -m pytest tests/ -q"],
+            parsed["validationCommands"],
+        )
+        self.assertEqual("范围内: services/ only", parsed["scopeBoundary"])
 
     def test_degrades_to_empty_without_sections(self) -> None:
         parsed = parse_decision_anchor("# Decision Anchor\n\n没有章节。")

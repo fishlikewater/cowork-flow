@@ -316,15 +316,31 @@ function xmlAttr(value) {
     .replaceAll('"', "&quot;")
 }
 
+const STAGE_CONTRACT_STATES = ["in_progress", "review"]
+const STAGE_CONTRACT_SCOPE_LIMIT = 8
+const STAGE_CONTRACT_SPECS_LIMIT = 4
+const STAGE_CONTRACT_VERIFY_LIMIT = 3
+const STAGE_CONTRACT_BUDGET = 1200
+const GATES_TEXT =
+  "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
+  "files are protected; spec/ edits may be allowed by review policy; " +
+  "scope is agent-mutable (self-declared via task context add)"
+
 function parseDecisionAnchor(text) {
-  const result = { goal: "", acceptanceCriteria: [], rejectedOptions: [] }
+  const result = {
+    goal: "",
+    acceptanceCriteria: [],
+    rejectedOptions: [],
+    validationCommands: [],
+    scopeBoundary: "",
+  }
   const goalLines = []
   let section = null
   for (const raw of String(text ?? "").split("\n")) {
     const line = raw.trim()
     const heading = line.match(/^##\s*(.+?)\s*$/)
     if (heading) {
-      section = ["目标", "验收标准", "被拒方案"].includes(heading[1]) ? heading[1] : null
+      section = ["目标", "验收标准", "被拒方案", "验证命令", "范围边界"].includes(heading[1]) ? heading[1] : null
       continue
     }
     if (section === "目标") {
@@ -335,10 +351,96 @@ function parseDecisionAnchor(text) {
     } else if (section === "被拒方案") {
       const match = raw.match(/^\s*-\s*\*\*(.+?)\*\*/)
       if (match) result.rejectedOptions.push(match[1].trim())
+    } else if (section === "验证命令") {
+      let command = line
+      if (command.startsWith("- ")) command = command.slice(2).trim()
+      if (command && result.validationCommands.length < 5) {
+        result.validationCommands.push(command.slice(0, 120))
+      }
+    } else if (section === "范围边界") {
+      if (line && !result.scopeBoundary) result.scopeBoundary = line.slice(0, 160)
     }
   }
   result.goal = goalLines.join("\n").slice(0, 300)
   return result
+}
+
+function stageContractBlock(root, taskPath, status) {
+  if (!taskPath) {
+    return null
+  }
+  let effective = status
+  if (status === "delegated_subtask") {
+    const data = readJson(resolve(root, taskPath, "task.json"))
+    effective = data && typeof data.status === "string" ? data.status : null
+    if (!effective) {
+      return null
+    }
+  }
+  if (!STAGE_CONTRACT_STATES.includes(effective)) {
+    return null
+  }
+  let entries = []
+  try {
+    for (const line of String(readFileSync(resolve(root, taskPath, "implement.jsonl"), "utf8") ?? "").split("\n")) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      try {
+        const entry = JSON.parse(trimmed)
+        if (entry && typeof entry === "object") entries.push(entry)
+      } catch {
+        // Skip malformed lines; Python side reports them separately.
+      }
+    }
+  } catch {
+    // Absent jsonl: scope degrades to empty.
+  }
+  const whitelist = []
+  const specFiles = []
+  for (const entry of entries) {
+    const file = typeof entry.file === "string" ? entry.file : ""
+    const normalized = file.replaceAll("\\", "/")
+    while (normalized.startsWith("./")) {
+      normalized = normalized.slice(2)
+    }
+    if (!normalized) continue
+    const type = typeof entry.type === "string" && entry.type ? entry.type : "file"
+    if (type === "directory") continue
+    whitelist.push({ file: normalized, type })
+    if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized)
+  }
+  let parsed
+  try {
+    parsed = parseDecisionAnchor(readFileSync(resolve(root, taskPath, "decision-anchor.md"), "utf8"))
+  } catch {
+    parsed = { goal: "", acceptanceCriteria: [], rejectedOptions: [], validationCommands: [], scopeBoundary: "" }
+  }
+  const lines = [`<stage-contract task="${xmlAttr(taskPath)}">`]
+  const scopeItems = whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file)
+  let scopeText = scopeItems.length > 0 ? scopeItems.join("; ") : "(empty)"
+  const more = whitelist.length - scopeItems.length
+  if (more > 0) scopeText += ` (+${more} more in implement.jsonl)`
+  lines.push(`Scope: ${scopeText} [agent-mutable]`)
+  if (specFiles.length > 0) {
+    const specItems = specFiles.slice(0, STAGE_CONTRACT_SPECS_LIMIT)
+    let specsText = specItems.join("; ")
+    const specMore = specFiles.length - specItems.length
+    if (specMore > 0) specsText += ` (+${specMore} more)`
+    lines.push(`Specs: ${specsText}`)
+  }
+  lines.push(GATES_TEXT)
+  if (parsed.validationCommands.length > 0) {
+    lines.push("Verify: " + parsed.validationCommands.slice(0, STAGE_CONTRACT_VERIFY_LIMIT).join("; "))
+  }
+  lines.push("</stage-contract>")
+  return lines.join("\n").slice(0, STAGE_CONTRACT_BUDGET)
+}
+
+function withStageFacts(block, root, taskPath, status) {
+  const anchor = decisionAnchorBlock(root, taskPath, status)
+  const contract = stageContractBlock(root, taskPath, status)
+  const parts = [anchor, contract].filter(Boolean)
+  return parts.length > 0 ? `${parts.join("\n\n")}\n\n${block}` : block
 }
 
 function decisionAnchorBlock(root, taskPath, status) {
@@ -422,7 +524,7 @@ function buildRuntimeWorkflowState(input) {
     typeof assignment.goal === "string" && assignment.goal.trim() ? `Goal: ${assignment.goal.trim()}` : null,
     "</workflow-state>",
   ].filter(Boolean)
-  return withDecisionAnchor(header.join("\n"), root, taskDir, "delegated_subtask")
+  return withStageFacts(header.join("\n"), root, taskDir, "delegated_subtask")
 }
 
 // Digest shape: full contract block on the first injection of a session,

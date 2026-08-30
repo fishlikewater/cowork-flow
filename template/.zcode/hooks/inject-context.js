@@ -407,15 +407,31 @@ function xmlAttr(value) {
 
 // Mirrors services/fact_view.py parse_decision_anchor (line-level, same
 // section names) so the JS lines inject the same decision facts.
+const STAGE_CONTRACT_STATES = ["in_progress", "review"];
+const STAGE_CONTRACT_SCOPE_LIMIT = 8;
+const STAGE_CONTRACT_SPECS_LIMIT = 4;
+const STAGE_CONTRACT_VERIFY_LIMIT = 3;
+const STAGE_CONTRACT_BUDGET = 1200;
+const GATES_TEXT =
+  "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
+  "files are protected; spec/ edits may be allowed by review policy; " +
+  "scope is agent-mutable (self-declared via task context add)";
+
 function parseDecisionAnchor(text) {
-  const result = { goal: "", acceptanceCriteria: [], rejectedOptions: [] };
+  const result = {
+    goal: "",
+    acceptanceCriteria: [],
+    rejectedOptions: [],
+    validationCommands: [],
+    scopeBoundary: "",
+  };
   const goalLines = [];
   let section = null;
   for (const raw of String(text ?? "").split("\n")) {
     const line = raw.trim();
     const heading = line.match(/^##\s*(.+?)\s*$/);
     if (heading) {
-      section = ["目标", "验收标准", "被拒方案"].includes(heading[1])
+      section = ["目标", "验收标准", "被拒方案", "验证命令", "范围边界"].includes(heading[1])
         ? heading[1]
         : null;
       continue;
@@ -428,6 +444,14 @@ function parseDecisionAnchor(text) {
     } else if (section === "被拒方案") {
       const match = raw.match(/^\s*-\s*\*\*(.+?)\*\*/);
       if (match) result.rejectedOptions.push(match[1].trim());
+    } else if (section === "验证命令") {
+      let command = line;
+      if (command.startsWith("- ")) command = command.slice(2).trim();
+      if (command && result.validationCommands.length < 5) {
+        result.validationCommands.push(command.slice(0, 120));
+      }
+    } else if (section === "范围边界") {
+      if (line && !result.scopeBoundary) result.scopeBoundary = line.slice(0, 160);
     }
   }
   result.goal = goalLines.join("\n").slice(0, 300);
@@ -476,6 +500,102 @@ function withDecisionAnchor(block, repoRoot, taskPath, status) {
   return anchor ? `${anchor}\n\n${block}` : block;
 }
 
+// Mirrors services/fact_view.py file_scope_whitelist + spec_pointer_files +
+// build_stage_contract. Keep the line formatting byte-identical to Python —
+// the cross-host equality test locks it.
+function readImplementEntries(repoRoot, taskPath) {
+  let text;
+  try {
+    text = readFileSync(join(repoRoot, taskPath, "implement.jsonl"), "utf8");
+  } catch {
+    return [];
+  }
+  const entries = [];
+  for (const line of String(text ?? "").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const entry = JSON.parse(trimmed);
+      if (entry && typeof entry === "object") entries.push(entry);
+    } catch {
+      // Skip malformed lines; Python side reports them separately.
+    }
+  }
+  return entries;
+}
+
+function stageContractBlock(repoRoot, taskPath, status) {
+  if (!taskPath) return null;
+  let effective = status;
+  if (status === "delegated_subtask") {
+    const taskStatus = readTaskStatus(repoRoot, taskPath);
+    if (taskStatus.missing || typeof taskStatus.status !== "string") return null;
+    effective = taskStatus.status;
+  }
+  if (!STAGE_CONTRACT_STATES.includes(effective)) return null;
+
+  const entries = readImplementEntries(repoRoot, taskPath);
+  const whitelist = [];
+  const specFiles = [];
+  for (const entry of entries) {
+    const file = typeof entry.file === "string" ? entry.file : "";
+    const normalized = file.replaceAll("\\", "/");
+    while (normalized.startsWith("./")) {
+      normalized = normalized.slice(2);
+    }
+    if (!normalized) continue;
+    const type = typeof entry.type === "string" && entry.type ? entry.type : "file";
+    if (type === "directory") continue;
+    whitelist.push({ file: normalized, type });
+    if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized);
+  }
+
+  let parsed = {
+    goal: "",
+    acceptanceCriteria: [],
+    rejectedOptions: [],
+    validationCommands: [],
+    scopeBoundary: "",
+  };
+  try {
+    parsed = parseDecisionAnchor(
+      readFileSync(join(repoRoot, taskPath, "decision-anchor.md"), "utf8")
+    );
+  } catch {
+    // Absent anchor: the contract still carries scope/gates.
+  }
+
+  const lines = [`<stage-contract task="${xmlAttr(taskPath)}">`];
+  const scopeItems = whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file);
+  let scopeText = scopeItems.length > 0 ? scopeItems.join("; ") : "(empty)";
+  const more = whitelist.length - scopeItems.length;
+  if (more > 0) scopeText += ` (+${more} more in implement.jsonl)`;
+  lines.push(`Scope: ${scopeText} [agent-mutable]`);
+  if (specFiles.length > 0) {
+    const specItems = specFiles.slice(0, STAGE_CONTRACT_SPECS_LIMIT);
+    let specsText = specItems.join("; ");
+    const specMore = specFiles.length - specItems.length;
+    if (specMore > 0) specsText += ` (+${specMore} more)`;
+    lines.push(`Specs: ${specsText}`);
+  }
+  lines.push(GATES_TEXT);
+  if (parsed.validationCommands.length > 0) {
+    lines.push(
+      "Verify: " +
+        parsed.validationCommands.slice(0, STAGE_CONTRACT_VERIFY_LIMIT).join("; ")
+    );
+  }
+  lines.push("</stage-contract>");
+  return lines.join("\n").slice(0, STAGE_CONTRACT_BUDGET);
+}
+
+function withStageFacts(block, repoRoot, taskPath, status) {
+  const anchor = decisionAnchorBlock(repoRoot, taskPath, status);
+  const contract = stageContractBlock(repoRoot, taskPath, status);
+  const parts = [anchor, contract].filter(Boolean);
+  return parts.length > 0 ? `${parts.join("\n\n")}\n\n${block}` : block;
+}
+
 function buildContext(repoRoot, activeTask, breadcrumbs) {
   const fallback = "Run ./.cowork-flow/run task next for the current workflow step.";
 
@@ -500,7 +620,7 @@ Session 指向的任务目录不存在（${activeTask.taskPath}）。
 
   const breadcrumbKey = resolveBreadcrumbKey(repoRoot, activeTask, status);
   const body = breadcrumbs[breadcrumbKey] || breadcrumbs[status] || fallback;
-  return withDecisionAnchor(
+  return withStageFacts(
     `<workflow-state task="${xmlAttr(activeTask.taskPath)}" status="${xmlAttr(status)}" source="runtime-session">
 ${body}${scope}
 </workflow-state>`,
@@ -524,7 +644,7 @@ function buildDelegatedSubtask(contextId, ctx) {
     lines.push(`Goal: ${goal.trim()}`);
   }
   lines.push(`</workflow-state>`);
-  return withDecisionAnchor(
+  return withStageFacts(
     lines.join("\n"),
     findProjectRoot({}),
     taskPath,

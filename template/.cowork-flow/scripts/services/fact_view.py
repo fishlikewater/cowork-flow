@@ -18,7 +18,10 @@ from pathlib import Path
 from typing import Any
 
 GOAL_TRUNCATE = 300
-ANCHOR_SECTIONS = ("目标", "验收标准", "被拒方案")
+VERIFY_COMMAND_TRUNCATE = 120
+VERIFY_COMMAND_MAX = 5
+SCOPE_BOUNDARY_TRUNCATE = 160
+ANCHOR_SECTIONS = ("目标", "验收标准", "被拒方案", "验证命令", "范围边界")
 ACCEPTANCE_RE = re.compile(
     r"^\s*-\s*\[[ xX]?\]\s*(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$"
 )
@@ -27,13 +30,15 @@ _HEADING_RE = re.compile(r"^##\s*(.+?)\s*$")
 
 
 def parse_decision_anchor(text: str) -> dict[str, Any]:
-    """Extract goal / acceptance criteria / rejected option names from a
-    decision-anchor.md body. Section format is frozen by
-    spec/contracts/decision-anchor.md; parsing is line-level and degrades to
-    empty lists when sections are missing."""
+    """Extract goal / acceptance criteria / rejected option names / declared
+    verification commands / scope boundary from a decision-anchor.md body.
+    Section format is frozen by spec/contracts/decision-anchor.md; parsing is
+    line-level and degrades to empty values when sections are missing."""
     goal_lines: list[str] = []
     acceptance: list[dict[str, str]] = []
     rejected: list[str] = []
+    verify_commands: list[str] = []
+    scope_boundary = ""
     section: str | None = None
     for raw in text.splitlines():
         heading = _HEADING_RE.match(raw.strip())
@@ -54,10 +59,21 @@ def parse_decision_anchor(text: str) -> dict[str, Any]:
             match = REJECTED_RE.match(raw)
             if match:
                 rejected.append(match.group(1).strip())
+        elif section == "验证命令":
+            command = raw.strip()
+            if command.startswith("- "):
+                command = command[2:].strip()
+            if command and len(verify_commands) < VERIFY_COMMAND_MAX:
+                verify_commands.append(command[:VERIFY_COMMAND_TRUNCATE])
+        elif section == "范围边界":
+            if raw.strip() and not scope_boundary:
+                scope_boundary = raw.strip()[:SCOPE_BOUNDARY_TRUNCATE]
     return {
         "goal": "\n".join(goal_lines)[:GOAL_TRUNCATE],
         "acceptanceCriteria": acceptance,
         "rejectedOptions": rejected,
+        "validationCommands": verify_commands,
+        "scopeBoundary": scope_boundary,
     }
 
 
@@ -112,6 +128,34 @@ def file_scope_whitelist(repo_root: Path, task_dir: Path) -> list[dict]:
     return whitelist
 
 
+def spec_pointer_files(task_dir: Path) -> list[str]:
+    """spec/ pointer entries from implement.jsonl, in planning order — the
+    reading list the implementing agent should consume before coding."""
+    path = task_dir / "implement.jsonl"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    files: list[str] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        file_value = entry.get("file")
+        if (
+            isinstance(file_value, str)
+            and file_value.replace("\\", "/").startswith(".cowork-flow/spec/")
+        ):
+            files.append(file_value.replace("\\", "/"))
+    return files
+
+
 def path_in_scope(
     whitelist: list[dict], candidate: str
 ) -> dict:
@@ -127,6 +171,70 @@ def path_in_scope(
         "inScope": matched is not None,
         "matched": matched,
     }
+
+
+STAGE_CONTRACT_STATES = ("in_progress", "review")
+STAGE_CONTRACT_SCOPE_LIMIT = 8
+STAGE_CONTRACT_SPECS_LIMIT = 4
+STAGE_CONTRACT_VERIFY_LIMIT = 3
+STAGE_CONTRACT_BUDGET = 1200
+GATES_TEXT = (
+    "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow "
+    "files are protected; spec/ edits may be allowed by review policy; "
+    "scope is agent-mutable (self-declared via task context add)"
+)
+
+
+def _stage_contract_lines(
+    whitelist: list[dict],
+    spec_files: list[str],
+    anchor: dict[str, Any],
+) -> list[str]:
+    """Assemble the stage-contract body lines. Byte-for-byte mirrored by the
+    zcode and opencode JS implementations — keep the formatting identical."""
+    lines: list[str] = []
+    scope_items = [entry["file"] for entry in whitelist[:STAGE_CONTRACT_SCOPE_LIMIT]]
+    scope_text = "; ".join(scope_items) if scope_items else "(empty)"
+    more = len(whitelist) - len(scope_items)
+    if more > 0:
+        scope_text += f" (+{more} more in implement.jsonl)"
+    lines.append(f"Scope: {scope_text} [agent-mutable]")
+    if spec_files:
+        spec_items = spec_files[:STAGE_CONTRACT_SPECS_LIMIT]
+        specs_text = "; ".join(spec_items)
+        spec_more = len(spec_files) - len(spec_items)
+        if spec_more > 0:
+            specs_text += f" (+{spec_more} more)"
+        lines.append(f"Specs: {specs_text}")
+    lines.append(GATES_TEXT)
+    verify = anchor.get("validationCommands") or []
+    if verify:
+        lines.append("Verify: " + "; ".join(verify[:STAGE_CONTRACT_VERIFY_LIMIT]))
+    return lines
+
+
+def xml_attr(value: Any) -> str:
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def build_stage_contract(
+    task_path: str,
+    whitelist: list[dict],
+    spec_files: list[str],
+    anchor: dict[str, Any],
+) -> str:
+    lines = [f'<stage-contract task="{xml_attr(task_path)}">']
+    lines.extend(
+        _stage_contract_lines(whitelist, spec_files, anchor)
+    )
+    lines.append("</stage-contract>")
+    return "\n".join(lines)[:STAGE_CONTRACT_BUDGET]
 
 
 def _normalize_rel(path_value: str) -> str | None:

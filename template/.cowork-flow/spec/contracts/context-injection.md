@@ -98,6 +98,42 @@ Rejected: <rejected option name>; ...             (first 6 names)
 - Missing anchor file, no extractable essentials, or terminal statuses
   (`completed`) inject nothing.
 
+- Missing anchor file, no extractable essentials, or terminal statuses
+  (`completed`) inject nothing.
+
+## Stage contract (implementation guardrails)
+
+For tasks whose effective status is `in_progress` or `review`, hosts with
+the task bound also inject a compact `<stage-contract task="...">` block
+after `<decision-anchor>`, so the implementing agent sees its edit boundary,
+the specs to read, and what the gates will check — before coding, not at
+review time:
+
+```text
+<stage-contract task=".cowork-flow/tasks/08-30-demo">
+Scope: src/demo.py; src/next.py (+1 more in implement.jsonl) [agent-mutable]
+Specs: .cowork-flow/spec/backend/index.md (+1 more)
+Gates: edits outside Scope are review blockers; CLAUDE.md and workflow files are protected; spec/ edits may be allowed by review policy; scope is agent-mutable (self-declared via task context add)
+Verify: npm run test:fast; python3 -m pytest tests/ -q
+</stage-contract>
+```
+
+- **Scope**: the task's file-scope whitelist (file/planned-file/deleted-file
+  entries; directories authorize nothing), first 8 + `(+N more)`. The scope
+  is **agent-mutable** (`task context add` can extend it) — it is a
+  self-declared boundary, not a hard fence; the label says so.
+- **Specs**: `.cowork-flow/spec/` pointer entries from implement.jsonl
+  (first 4). Read them before coding; the full files are not injected.
+- **Gates**: static preview text, identical on all hosts.
+- **Verify**: `## 验证命令` lines from decision-anchor (first 3, 120 chars
+  each) — the agent's own declared self-checks; omitted when none.
+- Budget: the whole block stays ≤ 1200 characters (asserted by tests).
+- Absent for `no_task` / `planning` / `completed` states. Byte-identical
+  across the three host implementations (cross-host equality test).
+
+The authoritative per-file verdict lives in the MCP `task_scope` tool
+(`services.fact_view.file_scope_whitelist` — same semantics, live data).
+
 ## Fingerprint computation
 
 sha256 over (1) the registry `contracts` array serialized with
