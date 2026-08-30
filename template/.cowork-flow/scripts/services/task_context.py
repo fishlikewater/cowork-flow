@@ -15,10 +15,7 @@ from services.context_discovery import (
     get_check_context,
     get_debug_context,
     get_domain_skill_context,
-    get_implement_backend,
-    get_implement_base,
-    get_implement_frontend,
-    get_implement_spec,
+    implement_spec_entries,
     is_skill_path,
     skill_path,
     use_claude_skill_context,
@@ -419,23 +416,7 @@ class TaskContextService:
         return tuple(created)
 
     def _implement_entries(self, dev_type: str) -> list[dict]:
-        entries = get_implement_base(self.repo_root)
-        entries.extend(
-            get_domain_skill_context(
-                self.repo_root,
-                dev_type=dev_type,
-            )
-        )
-        if dev_type in ("backend", "test"):
-            entries.extend(get_implement_backend())
-        elif dev_type == "frontend":
-            entries.extend(get_implement_frontend())
-        elif dev_type == "fullstack":
-            entries.extend(get_implement_backend())
-            entries.extend(get_implement_frontend())
-        elif dev_type == "spec":
-            entries.extend(get_implement_spec())
-        return entries
+        return implement_spec_entries(self.repo_root, dev_type)
 
     def _append_domain_guides(
         self,

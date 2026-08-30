@@ -97,7 +97,7 @@ test('matrix: project-level runner serves the full session', async (t) => {
   assert.equal(replies[0].result.serverInfo.name, 'cowork-flow-facts');
   assert.deepEqual(
     replies[1].result.tools.map((tool) => tool.name),
-    ['task_state', 'task_list']
+    ['task_state', 'task_list', 'task_specs', 'task_scope']
   );
 });
 
@@ -118,6 +118,6 @@ test('matrix: global CLI walks up from a nested directory to the project runner'
   assert.equal(replies[0].result.serverInfo.name, 'cowork-flow-facts');
   assert.deepEqual(
     replies[1].result.tools.map((tool) => tool.name),
-    ['task_state', 'task_list']
+    ['task_state', 'task_list', 'task_specs', 'task_scope']
   );
 });

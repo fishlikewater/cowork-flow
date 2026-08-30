@@ -82,6 +82,25 @@ class BuildFactViewTest(unittest.TestCase):
         (task_dir / "decision-anchor.md").write_text(
             ANCHOR_TEXT, encoding="utf-8"
         )
+        (task_dir / "implement.jsonl").write_text(
+            "\n".join(
+                (
+                    json.dumps({"file": "src/demo.py", "reason": "main"}),
+                    json.dumps(
+                        {
+                            "file": "src/next.py",
+                            "reason": "planned",
+                            "type": "planned-file",
+                        }
+                    ),
+                    json.dumps(
+                        {"file": "src/", "reason": "dir ctx", "type": "directory"}
+                    ),
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         sessions = root / ".cowork-flow" / ".runtime" / "sessions"
         sessions.mkdir(parents=True)
         (sessions / "zcode_a.json").write_text(
@@ -129,6 +148,15 @@ class BuildFactViewTest(unittest.TestCase):
         self.assertEqual("让事实视图可被机器消费。", view["decisionAnchor"]["goal"])
         self.assertEqual(3, len(view["decisionAnchor"]["acceptanceCriteria"]))
         self.assertEqual(2, len(view["decisionAnchor"]["rejectedOptions"]))
+        # Directory entries authorize nothing: file-scope only.
+        self.assertEqual(
+            ["src/demo.py", "src/next.py"],
+            [entry["file"] for entry in view["whitelist"]],
+        )
+        self.assertEqual(
+            {"src/next.py": "planned-file"},
+            {e["file"]: e["type"] for e in view["whitelist"] if e["type"] != "file"},
+        )
         self.assertTrue(view["plan"]["bound"])
         self.assertEqual(".cowork-flow/plans/demo.md", view["plan"]["file"])
         self.assertEqual(
