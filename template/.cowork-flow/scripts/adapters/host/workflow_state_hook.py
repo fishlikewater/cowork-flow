@@ -89,7 +89,6 @@ def build_hook_context(
         source = f"runtime-context-invalid:{runtime_context_id}"
         extra_lines = [
             f"Runtime context: {runtime_context_id}",
-            "Scope: subagent",
             (
                 "Runtime context is missing, closed, or invalid. "
                 "Do not run standalone lifecycle commands, resume, archive, commit, or spawn."
@@ -209,7 +208,13 @@ def _decision_anchor_block(
             encoding="utf-8"
         )
         parsed = parse_decision_anchor(text)
-    except Exception:
+    except (OSError, UnicodeDecodeError):
+        # Absent or undecodable anchors are routine: no block, no noise.
+        return None
+    except Exception as error:
+        # Anything else leaves a trace so silent guard loss stays diagnosable
+        # (stdout is the injection channel, stderr is safe).
+        sys.stderr.write(f"decision-anchor degraded: {error}\n")
         return None
     if not parsed["goal"] and not parsed["acceptanceCriteria"]:
         return None
@@ -234,7 +239,8 @@ def _stage_contract_block(
     """Implementation contract (edit scope, specs to read, gates preview,
     declared verification commands) for states where it steers execution.
     Data comes from the frozen task artifacts via services.fact_view — the
-    single source shared with the MCP task_scope tool."""
+    single source shared with the MCP task_scope tool. Delegated subtasks
+    render the parent scope as a read-only reference."""
     if not task_path:
         return None
     effective_status = _effective_task_status(root, task_path, status)
@@ -256,10 +262,24 @@ def _stage_contract_block(
             parsed = parse_decision_anchor(
                 anchor_path.read_text(encoding="utf-8")
             )
-        except OSError:
+        except (OSError, UnicodeDecodeError):
+            # Absent or undecodable anchor: scope/gates still render; the
+            # verify line is dropped by the empty results.
             parsed = {"validationCommands": []}
-        return build_stage_contract(task_path, whitelist, spec_files, parsed)
-    except Exception:
+        except Exception as error:
+            # Never silently kill the guard block: leave a degradation trace
+            # on stderr (stdout is the injection channel).
+            sys.stderr.write(f"stage-contract degraded: {error}\n")
+            return None
+        return build_stage_contract(
+            task_path,
+            whitelist,
+            spec_files,
+            parsed,
+            mutable=status != "delegated_subtask",
+        )
+    except Exception as error:
+        sys.stderr.write(f"stage-contract degraded: {error}\n")
         return None
 
 
@@ -431,10 +451,12 @@ def _subagent_runtime_lines(context: dict[str, Any]) -> list[str]:
         if isinstance(context.get("assignment"), dict)
         else {}
     )
+    # No "Scope: subagent" line here: the stage-contract block owns the scope
+    # declaration and renders the parent task's scope as a read-only reference
+    # for delegated sessions (build_stage_contract(mutable=False)).
     lines = [
         f"Runtime context: {context.get('runtime_context_id')}",
         f"Agent: {context.get('agent_type') or 'unknown'}",
-        "Scope: subagent",
         "Do not run standalone lifecycle commands, resume, archive, commit, or spawn.",
     ]
     goal = assignment.get("goal")

@@ -134,6 +134,21 @@ class LifecycleChecksTest(FlowScriptTestCase):
 
         self.assertEqual(["Invalid implement.jsonl JSON at line 2"], blockers)
 
+    def test_allowed_file_scope_blocks_missing_implement_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = Path(temp_dir) / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            checks = importlib.import_module("services.lifecycle_checks")
+
+            blockers = checks._allowed_file_scope_blockers(
+                task_dir, ["src/anything.py"]
+            )
+
+        self.assertEqual(
+            ["implement.jsonl is missing; file-scope review cannot run (remove it and every unlisted edit becomes a free pass at review)"],
+            blockers,
+        )
+
     def test_allowed_file_scope_blocks_existing_implement_jsonl_without_file_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             task_dir = Path(temp_dir) / ".cowork-flow" / "tasks" / "07-10-demo"

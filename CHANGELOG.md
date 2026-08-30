@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.1 - 2026-08-30
+
+### 守卫修复批次（对抗评审后落地）
+
+- **hook 崩溃修复**：implement.jsonl 含 `./` 前缀条目时 zcode/opencode 双宿主 hook 从 `TypeError: Assignment to constant variable` 崩溃（整个上下文注入丢失）改为正常输出——`const`→`let` 两处 + 回归 fixture。
+- **stage-contract 预算降级**：超限输入不再产出未闭合的畸形块；按 Verify → Specs → Scope 条目（至少 1 条）逐级降级，收尾标签与 Gates 行恒在；三线同构算法。
+- **MCP 路径隔离**：`task_scope`/`task_specs` 拒绝仓库外路径（`../`、绝对路径）返回 `task-outside-repo`；无 id 的 JSON-RPC 通知（含 initialize/ping/tools/list）不再响应。
+- **JS 白名单语义对齐**：zcode/opencode 过滤规则与 Python `normalize_context_file_scope_entry` 一致（非法 type、`../`、绝对路径、盘符、通配符一律丢弃）——editScopeWarning 与 Scope 行不再对 gate 会标记越界的文件静默放行；spec 指针同规则过滤。
+- **delegated 只读 scope**：子代理注入包删除 `Scope: subagent` 行；stage-contract 以父任务 scope `[read-only]` 变体呈现，Gates 话术同步（不再暗示子代理可自声明 scope）。
+- **异常降级可诊断**：锚点文件非法 UTF-8 时 stage-contract 保留 Scope/Gates 仅丢 Verify（此前整块静默消失）；非例行异常在 stderr 留痕。
+- **review 门禁补洞**：implement.jsonl 缺失时 review 产生 `missing_implement_jsonl_file_scope` blocker（此前静默放行，删除 manifest 即绕过白名单）。
+- **矩阵化跨端测试**：`test/fixtures/stage-contract-matrix.json` 单一数据文件驱动三线（python/zcode/opencode）逐字节相等断言，覆盖规范/`./` 前缀/非法边界/超限/emoji/缺锚点/空 scope/delegated 8 类用例；zcode hooks.json matcher（Bash|Edit|Write|MultiEdit）由模板测试锁定；新增 Python 侧矩阵断言。
+- dev_type 畸形值（非字符串）在 task_specs 中按缺省降级；spec 指针忽略 directory 条目；normalizeScopePath 带 trim；zcode 生命周期刷新正则对齐 dsh（task|subagent|resume）。
+- 契约文档如实化：context-injection.md 不再声称三线结构恒等/always emitted，改为差异表 + 矩阵锁定范围 + 残余缺口清单（matcher 依赖 ZCode 运行时工具名、JS 过滤为规则移植）。
+
 ## 1.1.0 - 2026-08-29
 
 > **版本内容错位说明**：npm registry 上的 1.0.0 tarball 发布于 2026-08-26（仅含发版脚本修复之前的代码）。1.0.0 段下述的里程碑描述以本 1.1.0 为其实际发布载体——阶段 0-3 的全部内容自本版本起进入 npm 分发。

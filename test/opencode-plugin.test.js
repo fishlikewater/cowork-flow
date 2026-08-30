@@ -138,7 +138,9 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   assert.match(context, /status="delegated_subtask"/)
   assert.match(context, /source="runtime-context:rtx_plugin"/)
   assert.match(context, /Agent: cowork-check/)
-  assert.match(context, /Scope: subagent/)
+  // Scope ownership moved into the stage-contract block: "Scope: subagent"
+  // lines are gone; absent task artifacts render no block at all.
+  assert.doesNotMatch(context, /Scope: subagent/)
   const session = JSON.parse(
     await readFile(
       join(root, ".cowork-flow", ".runtime", "sessions", "opencode_prompt_key.json"),

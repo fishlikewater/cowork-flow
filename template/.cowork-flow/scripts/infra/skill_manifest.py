@@ -414,7 +414,9 @@ def context_entries(
     paths: tuple[str, ...] = (),
     include_wildcard: bool = True,
 ) -> list[dict[str, str]]:
-    normalized_dev_type = (dev_type or "").strip()
+    normalized_dev_type = (
+        dev_type if isinstance(dev_type, str) else ""
+    ).strip()
     normalized_paths = tuple(
         str(path).replace("\\", "/").removeprefix("./") for path in paths
     )

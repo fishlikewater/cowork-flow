@@ -187,7 +187,17 @@ def _allowed_file_scope_issues(
 ) -> list[LifecycleCheckIssue]:
     implement_jsonl = task_dir / "implement.jsonl"
     if not implement_jsonl.exists():
-        return []
+        return [
+            LifecycleCheckIssue(
+                code="missing_implement_jsonl_file_scope",
+                path="implement.jsonl",
+                message=(
+                    "implement.jsonl is missing; file-scope review cannot "
+                    "run (remove it and every unlisted edit becomes a free "
+                    "pass at review)"
+                ),
+            )
+        ]
 
     allowed_files, scope_issues = _load_allowed_context_files(
         implement_jsonl,

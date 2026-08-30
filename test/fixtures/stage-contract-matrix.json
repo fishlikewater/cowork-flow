@@ -1,0 +1,238 @@
+{
+  "budget": 1200,
+  "cases": [
+    {
+      "name": "canonical",
+      "status": "in_progress",
+      "entries": [
+        {
+          "file": "src/demo.py",
+          "reason": "main"
+        },
+        {
+          "file": "src/next.py",
+          "reason": "planned",
+          "type": "planned-file"
+        },
+        {
+          "file": "src/",
+          "reason": "dir ctx",
+          "type": "directory"
+        },
+        {
+          "file": ".cowork-flow/spec/backend/index.md",
+          "reason": "backend guide"
+        },
+        {
+          "file": ".cowork-flow/spec/guides/index.md",
+          "reason": "guides"
+        }
+      ],
+      "anchor": {
+        "goal": "Serve the stage contract identically on every host.",
+        "acceptance": [
+          "AC-001: byte-identical stage-contract"
+        ],
+        "validationCommands": [
+          "npm run test:fast",
+          "python3 -m pytest tests/ -q"
+        ],
+        "scopeBoundary": "within: src/ only"
+      },
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "scopeMin": 1,
+        "scopeExact": "Scope: src/demo.py; src/next.py; .cowork-flow/spec/backend/index.md; .cowork-flow/spec/guides/index.md [agent-mutable]",
+        "gates": true,
+        "specsExact": "Specs: .cowork-flow/spec/backend/index.md; .cowork-flow/spec/guides/index.md",
+        "verifyContains": "Verify: npm run test:fast"
+      }
+    },
+    {
+      "name": "dot-prefix",
+      "status": "in_progress",
+      "entries": [
+        {
+          "file": "./src/a.py",
+          "reason": "hand-written"
+        }
+      ],
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "scopeMin": 1,
+        "scopeContains": "Scope: src/a.py [agent-mutable]"
+      }
+    },
+    {
+      "name": "boundary-invalid",
+      "status": "in_progress",
+      "entries": [
+        {
+          "file": "../escape.py",
+          "reason": "escape"
+        },
+        {
+          "file": "/abs.py",
+          "reason": "absolute"
+        },
+        {
+          "file": "C:/win.py",
+          "reason": "drive"
+        },
+        {
+          "file": "src/a*.py",
+          "reason": "wildcard"
+        },
+        {
+          "file": "guide.md",
+          "type": "guide",
+          "reason": "bad type"
+        },
+        {
+          "file": "src/",
+          "reason": "dir ctx",
+          "type": "directory"
+        }
+      ],
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "scopeExact": "Scope: (empty) [agent-mutable]"
+      }
+    },
+    {
+      "name": "over-budget",
+      "status": "in_progress",
+      "entries": [
+        {
+          "file": "src/module-0/path-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.py",
+          "reason": "long"
+        },
+        {
+          "file": "src/module-1/path-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.py",
+          "reason": "long"
+        },
+        {
+          "file": "src/module-2/path-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.py",
+          "reason": "long"
+        },
+        {
+          "file": "src/module-3/path-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.py",
+          "reason": "long"
+        },
+        {
+          "file": "src/module-4/path-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.py",
+          "reason": "long"
+        },
+        {
+          "file": "src/module-5/path-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.py",
+          "reason": "long"
+        },
+        {
+          "file": "src/module-6/path-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.py",
+          "reason": "long"
+        },
+        {
+          "file": "src/module-7/path-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.py",
+          "reason": "long"
+        },
+        {
+          "file": ".cowork-flow/spec/backend/guide-0-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyy.md",
+          "reason": "spec"
+        },
+        {
+          "file": ".cowork-flow/spec/backend/guide-1-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyy.md",
+          "reason": "spec"
+        },
+        {
+          "file": ".cowork-flow/spec/backend/guide-2-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyy.md",
+          "reason": "spec"
+        },
+        {
+          "file": ".cowork-flow/spec/backend/guide-3-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyy.md",
+          "reason": "spec"
+        }
+      ],
+      "anchor": {
+        "validationCommands": [
+          "verify vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+          "check ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "run uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"
+        ]
+      },
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "gates": true,
+        "scopeMin": 1
+      }
+    },
+    {
+      "name": "emoji-scope",
+      "status": "in_progress",
+      "entries": [
+        {
+          "file": "src/emoji-🎯-x.py",
+          "reason": "emoji"
+        }
+      ],
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "scopeContains": "src/emoji-🎯-x.py"
+      }
+    },
+    {
+      "name": "missing-anchor",
+      "status": "in_progress",
+      "entries": [
+        {
+          "file": "src/a.py",
+          "reason": "main"
+        }
+      ],
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "scopeContains": "Scope: src/a.py [agent-mutable]",
+        "noVerify": true
+      }
+    },
+    {
+      "name": "empty-scope",
+      "status": "in_progress",
+      "entries": [],
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "scopeExact": "Scope: (empty) [agent-mutable]"
+      }
+    },
+    {
+      "name": "delegated-readonly",
+      "status": "delegated_subtask",
+      "underlying": "in_progress",
+      "entries": [
+        {
+          "file": "src/demo.py",
+          "reason": "main"
+        }
+      ],
+      "anchor": {
+        "goal": "Child slice.",
+        "validationCommands": [
+          "npm run test:fast"
+        ]
+      },
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "scopeContains": "Scope: src/demo.py [read-only]",
+        "gatesReadonly": "scope is inherited from the parent task (read-only reference)",
+        "noAgentMutable": true
+      }
+    }
+  ]
+}

@@ -130,7 +130,12 @@ def file_scope_whitelist(repo_root: Path, task_dir: Path) -> list[dict]:
 
 def spec_pointer_files(task_dir: Path) -> list[str]:
     """spec/ pointer entries from implement.jsonl, in planning order — the
-    reading list the implementing agent should consume before coding."""
+    reading list the implementing agent should consume before coding.
+    Directory entries are context but not files to read, and entries the
+    whitelist would reject (non-canonical paths) are skipped too, keeping the
+    Specs row sourced from the same rules as the Scope row."""
+    from services.context_paths import _is_valid_context_path
+
     path = task_dir / "implement.jsonl"
     try:
         text = path.read_text(encoding="utf-8")
@@ -147,12 +152,23 @@ def spec_pointer_files(task_dir: Path) -> list[str]:
             continue
         if not isinstance(entry, dict):
             continue
+        if entry.get("type") == "directory":
+            continue
         file_value = entry.get("file")
-        if (
-            isinstance(file_value, str)
-            and file_value.replace("\\", "/").startswith(".cowork-flow/spec/")
+        if not isinstance(file_value, str):
+            continue
+        normalized = file_value.replace("\\", "/")
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        if not normalized.startswith(".cowork-flow/spec/"):
+            continue
+        entry_type = entry.get("type", "file")
+        segments = normalized.split("/")
+        if not _is_valid_context_path(
+            normalized, segments, file_value, entry_type
         ):
-            files.append(file_value.replace("\\", "/"))
+            continue
+        files.append(normalized)
     return files
 
 
@@ -183,22 +199,85 @@ GATES_TEXT = (
     "files are protected; spec/ edits may be allowed by review policy; "
     "scope is agent-mutable (self-declared via task context add)"
 )
+# Delegated subtasks render the parent task's scope as a read-only reference:
+# the child must not believe it can self-declare scope on the parent's behalf.
+GATES_TEXT_READONLY = (
+    "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow "
+    "files are protected; spec/ edits may be allowed by review policy; "
+    "scope is inherited from the parent task (read-only reference)"
+)
+
+
+def _scope_row(entries: list[str], total: int, suffix: str) -> str:
+    text = "; ".join(entries) if entries else "(empty)"
+    more = total - len(entries)
+    extra = f" (+{more} more in implement.jsonl)" if more > 0 else ""
+    return f"Scope: {text}{extra} {suffix}"
+
+
+def _fit_stage_contract(
+    lines: list[str],
+    scope_entries: list[str],
+    scope_total: int,
+    mutable: bool,
+    budget: int = STAGE_CONTRACT_BUDGET,
+) -> list[str]:
+    """Degrade an over-budget block without ever emitting a malformed one:
+    the closing tag and the guard rows (Scope/Gates) always survive. Order:
+    1) drop removable rows (Specs/Verify) from the tail; 2) shrink Scope
+    entries one by one (min 1); 3) last-resort codepoint cut that keeps the
+    closing tag. Mirrored by the zcode/opencode JS implementations — keep
+    the row-role rules and the drop order identical."""
+    if len("\n".join(lines)) <= budget:
+        return lines
+    removable = [
+        i
+        for i in range(1, len(lines) - 1)
+        if not lines[i].startswith(("Scope:", "Gates:"))
+    ]
+    for i in reversed(removable):
+        reduced = [line for j, line in enumerate(lines) if j != i]
+        if len("\n".join(reduced)) <= budget:
+            return reduced
+        lines = reduced
+    suffix = "[agent-mutable]" if mutable else "[read-only]"
+    pool = list(scope_entries)
+    while len(pool) > 1:
+        pool = pool[:-1]
+        candidate = [
+            _scope_row(pool, scope_total, suffix)
+            if line.startswith("Scope:")
+            else line
+            for line in lines
+        ]
+        if len("\n".join(candidate)) <= budget:
+            return candidate
+        lines = candidate
+    if len("\n".join(lines)) <= budget:
+        return lines
+    closing = lines[-1]
+    room = budget - len(closing)
+    body = "\n".join(lines[:-1])
+    if len(body) <= room:
+        return lines
+    head = body[:room].rstrip()
+    if not head:
+        return lines
+    return [head, closing]
 
 
 def _stage_contract_lines(
     whitelist: list[dict],
     spec_files: list[str],
     anchor: dict[str, Any],
+    mutable: bool = True,
 ) -> list[str]:
     """Assemble the stage-contract body lines. Byte-for-byte mirrored by the
     zcode and opencode JS implementations — keep the formatting identical."""
+    scope_suffix = "[agent-mutable]" if mutable else "[read-only]"
     lines: list[str] = []
     scope_items = [entry["file"] for entry in whitelist[:STAGE_CONTRACT_SCOPE_LIMIT]]
-    scope_text = "; ".join(scope_items) if scope_items else "(empty)"
-    more = len(whitelist) - len(scope_items)
-    if more > 0:
-        scope_text += f" (+{more} more in implement.jsonl)"
-    lines.append(f"Scope: {scope_text} [agent-mutable]")
+    lines.append(_scope_row(scope_items, len(whitelist), scope_suffix))
     if spec_files:
         spec_items = spec_files[:STAGE_CONTRACT_SPECS_LIMIT]
         specs_text = "; ".join(spec_items)
@@ -206,7 +285,7 @@ def _stage_contract_lines(
         if spec_more > 0:
             specs_text += f" (+{spec_more} more)"
         lines.append(f"Specs: {specs_text}")
-    lines.append(GATES_TEXT)
+    lines.append(GATES_TEXT if mutable else GATES_TEXT_READONLY)
     verify = anchor.get("validationCommands") or []
     if verify:
         lines.append("Verify: " + "; ".join(verify[:STAGE_CONTRACT_VERIFY_LIMIT]))
@@ -228,13 +307,25 @@ def build_stage_contract(
     whitelist: list[dict],
     spec_files: list[str],
     anchor: dict[str, Any],
+    mutable: bool = True,
 ) -> str:
+    """Assemble the stage-contract block. Byte-for-byte mirrored by the zcode
+    and opencode JS implementations — keep the formatting identical. Over-
+    budget inputs degrade through _fit_stage_contract, never emitting a half-
+    closed block. `mutable=False` renders the parent scope as a read-only
+    reference for delegated subtasks."""
     lines = [f'<stage-contract task="{xml_attr(task_path)}">']
     lines.extend(
-        _stage_contract_lines(whitelist, spec_files, anchor)
+        _stage_contract_lines(whitelist, spec_files, anchor, mutable=mutable)
     )
     lines.append("</stage-contract>")
-    return "\n".join(lines)[:STAGE_CONTRACT_BUDGET]
+    scope_entries = [
+        entry["file"] for entry in whitelist[:STAGE_CONTRACT_SCOPE_LIMIT]
+    ]
+    fitted = _fit_stage_contract(
+        lines, scope_entries, len(whitelist), mutable
+    )
+    return "\n".join(fitted)
 
 
 def _normalize_rel(path_value: str) -> str | None:

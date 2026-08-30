@@ -416,6 +416,11 @@ const GATES_TEXT =
   "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
   "files are protected; spec/ edits may be allowed by review policy; " +
   "scope is agent-mutable (self-declared via task context add)";
+// Delegated subtasks render the parent task's scope as a read-only reference.
+const GATES_TEXT_READONLY =
+  "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
+  "files are protected; spec/ edits may be allowed by review policy; " +
+  "scope is inherited from the parent task (read-only reference)";
 
 function parseDecisionAnchor(text) {
   const result = {
@@ -524,7 +529,93 @@ function readImplementEntries(repoRoot, taskPath) {
   return entries;
 }
 
-function stageContractBlock(repoRoot, taskPath, status) {
+// Port of services/context_paths.py::_is_valid_context_path: the JS side must
+// skip exactly the entries the Python whitelist drops (absolute paths, drive
+// letters, dot segments, wildcards, trailing slash on planned/deleted files).
+function isValidScopePath(normalized, raw, type) {
+  if (!["file", "planned-file", "deleted-file"].includes(type)) return false;
+  if (!normalized || normalized.startsWith("/")) return false;
+  if (/^[A-Za-z]:/.test(normalized)) return false;
+  const segments = normalized.split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === ".."))
+    return false;
+  if (/[*?[\]]/.test(normalized)) return false;
+  if (
+    ["planned-file", "deleted-file"].includes(type) &&
+    /[\\/]$/.test(raw)
+  )
+    return false;
+  return true;
+}
+
+// Mirrors services/fact_view.py file_scope_whitelist + spec_pointer_files:
+// directory entries authorize nothing, non-canonical entries are dropped,
+// and the whitelist is the single source for both the Scope row and the
+// per-edit warning check.
+function buildScopeWhitelist(entries) {
+  const whitelist = [];
+  const specFiles = [];
+  for (const entry of entries) {
+    const file = typeof entry.file === "string" ? entry.file : "";
+    let normalized = file.replaceAll("\\", "/");
+    while (normalized.startsWith("./")) {
+      normalized = normalized.slice(2);
+    }
+    const type = typeof entry.type === "string" && entry.type ? entry.type : "file";
+    if (type === "directory") continue;
+    if (!isValidScopePath(normalized, file, type)) continue;
+    whitelist.push({ file: normalized, type });
+    if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized);
+  }
+  return { whitelist, specFiles };
+}
+
+function scopeRow(entries, total, suffix) {
+  const text = entries.length > 0 ? entries.join("; ") : "(empty)";
+  const more = total - entries.length;
+  const extra = more > 0 ? ` (+${more} more in implement.jsonl)` : "";
+  return `Scope: ${text}${extra} ${suffix}`;
+}
+
+// Mirrors services/fact_view.py::_fit_stage_contract: degrade an over-budget
+// block without ever emitting a malformed one — the closing tag and the guard
+// rows (Scope/Gates) always survive. Keep the row-role rules and drop order
+// identical with the Python side.
+function fitStageContract(lines, scopeEntries, scopeTotal, mutable) {
+  const budget = STAGE_CONTRACT_BUDGET;
+  if (lines.join("\n").length <= budget) return lines;
+  let removable = [];
+  for (let i = 1; i < lines.length - 1; i++) {
+    if (!lines[i].startsWith("Scope:") && !lines[i].startsWith("Gates:")) {
+      removable.push(i);
+    }
+  }
+  for (let i = removable.length - 1; i >= 0; i--) {
+    const reduced = lines.filter((_, j) => j !== removable[i]);
+    if (reduced.join("\n").length <= budget) return reduced;
+    lines = reduced;
+  }
+  const suffix = mutable ? "[agent-mutable]" : "[read-only]";
+  let pool = scopeEntries.slice();
+  while (pool.length > 1) {
+    pool = pool.slice(0, -1);
+    const candidate = lines.map((line) =>
+      line.startsWith("Scope:") ? scopeRow(pool, scopeTotal, suffix) : line
+    );
+    if (candidate.join("\n").length <= budget) return candidate;
+    lines = candidate;
+  }
+  if (lines.join("\n").length <= budget) return lines;
+  const closing = lines[lines.length - 1];
+  const room = budget - closing.length;
+  const body = lines.slice(0, -1).join("\n");
+  if (body.length <= room) return lines;
+  const head = body.slice(0, room).replace(/\s+$/, "");
+  if (!head) return lines;
+  return [head, closing];
+}
+
+function stageContractBlock(repoRoot, taskPath, status, readonly = false) {
   if (!taskPath) return null;
   let effective = status;
   if (status === "delegated_subtask") {
@@ -534,21 +625,7 @@ function stageContractBlock(repoRoot, taskPath, status) {
   }
   if (!STAGE_CONTRACT_STATES.includes(effective)) return null;
 
-  const entries = readImplementEntries(repoRoot, taskPath);
-  const whitelist = [];
-  const specFiles = [];
-  for (const entry of entries) {
-    const file = typeof entry.file === "string" ? entry.file : "";
-    const normalized = file.replaceAll("\\", "/");
-    while (normalized.startsWith("./")) {
-      normalized = normalized.slice(2);
-    }
-    if (!normalized) continue;
-    const type = typeof entry.type === "string" && entry.type ? entry.type : "file";
-    if (type === "directory") continue;
-    whitelist.push({ file: normalized, type });
-    if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized);
-  }
+  const { whitelist, specFiles } = buildScopeWhitelist(readImplementEntries(repoRoot, taskPath));
 
   let parsed = {
     goal: "",
@@ -565,12 +642,13 @@ function stageContractBlock(repoRoot, taskPath, status) {
     // Absent anchor: the contract still carries scope/gates.
   }
 
+  const suffix = readonly ? "[read-only]" : "[agent-mutable]";
   const lines = [`<stage-contract task="${xmlAttr(taskPath)}">`];
-  const scopeItems = whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file);
-  let scopeText = scopeItems.length > 0 ? scopeItems.join("; ") : "(empty)";
-  const more = whitelist.length - scopeItems.length;
-  if (more > 0) scopeText += ` (+${more} more in implement.jsonl)`;
-  lines.push(`Scope: ${scopeText} [agent-mutable]`);
+  lines.push(scopeRow(
+    whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file),
+    whitelist.length,
+    suffix
+  ));
   if (specFiles.length > 0) {
     const specItems = specFiles.slice(0, STAGE_CONTRACT_SPECS_LIMIT);
     let specsText = specItems.join("; ");
@@ -578,7 +656,7 @@ function stageContractBlock(repoRoot, taskPath, status) {
     if (specMore > 0) specsText += ` (+${specMore} more)`;
     lines.push(`Specs: ${specsText}`);
   }
-  lines.push(GATES_TEXT);
+  lines.push(readonly ? GATES_TEXT_READONLY : GATES_TEXT);
   if (parsed.validationCommands.length > 0) {
     lines.push(
       "Verify: " +
@@ -586,18 +664,23 @@ function stageContractBlock(repoRoot, taskPath, status) {
     );
   }
   lines.push("</stage-contract>");
-  return lines.join("\n").slice(0, STAGE_CONTRACT_BUDGET);
+  return fitStageContract(
+    lines,
+    whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file),
+    whitelist.length,
+    !readonly
+  ).join("\n");
 }
 
-function withStageFacts(block, repoRoot, taskPath, status) {
+function withStageFacts(block, repoRoot, taskPath, status, readonly = false) {
   const anchor = decisionAnchorBlock(repoRoot, taskPath, status);
-  const contract = stageContractBlock(repoRoot, taskPath, status);
+  const contract = stageContractBlock(repoRoot, taskPath, status, readonly);
   const parts = [anchor, contract].filter(Boolean);
   return parts.length > 0 ? `${parts.join("\n\n")}\n\n${block}` : block;
 }
 
 function normalizeScopePath(value) {
-  let normalized = String(value ?? "").replaceAll("\\", "/");
+  let normalized = String(value ?? "").trim().replaceAll("\\", "/");
   while (normalized.startsWith("./")) {
     normalized = normalized.slice(2);
   }
@@ -619,12 +702,8 @@ function editScopeWarning(input, filePath) {
   if (missing || !STAGE_CONTRACT_STATES.includes(status)) return "";
 
   const target = normalizeScopePath(filePath);
-  const entries = readImplementEntries(root, activeTask.taskPath);
-  const inScope = entries.some((entry) => {
-    const type = typeof entry.type === "string" && entry.type ? entry.type : "file";
-    if (type === "directory") return false;
-    return normalizeScopePath(entry.file) === target;
-  });
+  const { whitelist } = buildScopeWhitelist(readImplementEntries(root, activeTask.taskPath));
+  const inScope = whitelist.some((entry) => entry.file === target);
   if (inScope) return "";
 
   const payload = {
@@ -650,7 +729,7 @@ ${body}${hints ? `\n${hints}` : ""}
   }
 
   const { status, missing } = readTaskStatus(repoRoot, activeTask.taskPath);
-  const scope = activeTask.scope === "subagent" ? "\nScope: subagent" : "";
+  const readonly = activeTask.scope === "subagent";
 
   if (missing) {
     const hints = formatRebindHints(repoRoot);
@@ -664,11 +743,12 @@ Session 指向的任务目录不存在（${activeTask.taskPath}）。
   const body = breadcrumbs[breadcrumbKey] || breadcrumbs[status] || fallback;
   return withStageFacts(
     `<workflow-state task="${xmlAttr(activeTask.taskPath)}" status="${xmlAttr(status)}" source="runtime-session">
-${body}${scope}
+${body}
 </workflow-state>`,
     repoRoot,
     activeTask.taskPath,
-    status
+    status,
+    readonly
   );
 }
 
@@ -678,7 +758,6 @@ function buildDelegatedSubtask(contextId, ctx) {
     `<workflow-state task="${xmlAttr(taskPath)}" status="delegated_subtask" source="runtime-context:${xmlAttr(contextId)}">`,
     `Runtime context: ${contextId}`,
     `Agent: ${ctx?.agent_type || "unknown"}`,
-    `Scope: subagent`,
     `Do not run start/resume/task start/archive/commit/spawn.`,
   ];
   const goal = ctx?.assignment?.goal;
@@ -690,7 +769,8 @@ function buildDelegatedSubtask(contextId, ctx) {
     lines.join("\n"),
     findProjectRoot({}),
     taskPath,
-    "delegated_subtask"
+    "delegated_subtask",
+    true
   );
 }
 
@@ -729,7 +809,7 @@ function main() {
     const command = String(input?.tool_input?.command || "").replaceAll("\\", "/");
     if (
       !command.includes(".cowork-flow/run") &&
-      !/\brun(?:\.cmd)?\s+task\b/.test(command)
+      !/\brun(?:\.cmd)?\s+(?:task|subagent|resume)\b/.test(command)
     ) {
       process.exit(0);
     }

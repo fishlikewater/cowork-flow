@@ -12,7 +12,12 @@ SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from services.fact_view import build_fact_view, parse_decision_anchor  # noqa: E402
+from services.fact_view import (  # noqa: E402
+    build_fact_view,
+    build_stage_contract,
+    parse_decision_anchor,
+    spec_pointer_files,
+)
 
 ANCHOR_TEXT = "\n".join(
     [
@@ -210,6 +215,125 @@ class BuildFactViewTest(unittest.TestCase):
         self.assertFalse(view["plan"]["bound"])
         self.assertEqual([], view["sessions"])
         self.assertIsNone(view["snapshot"])
+
+
+class StageContractBuildTest(unittest.TestCase):
+    """Budget-aware assembly: closing tag and guard rows (Scope/Gates) always
+    survive, mutable=False renders the read-only variant for delegated
+    sessions, and spec pointers skip directory entries."""
+
+    TASK_PATH = ".cowork-flow/tasks/08-30-demo"
+
+    def _build(
+        self,
+        whitelist,
+        spec_files=(),
+        anchor=None,
+        mutable=True,
+    ) -> str:
+        return build_stage_contract(
+            self.TASK_PATH,
+            whitelist,
+            list(spec_files),
+            anchor or {"validationCommands": []},
+            mutable=mutable,
+        )
+
+    def test_under_budget_keeps_exact_legacy_shape(self) -> None:
+        block = self._build([{"file": "src/demo.py", "type": "file"}])
+        self.assertTrue(block.endswith("</stage-contract>"))
+        self.assertIn("Scope: src/demo.py [agent-mutable]", block)
+        self.assertIn(
+            "scope is agent-mutable (self-declared via task context add)",
+            block,
+        )
+
+    def test_over_budget_keeps_closing_and_gates(self) -> None:
+        whitelist = [
+            {"file": f"src/module-{i}/long-{'x' * 60}-name.py", "type": "file"}
+            for i in range(8)
+        ]
+        spec_files = [
+            f".cowork-flow/spec/backend/guide-{i}-{'y' * 30}.md"
+            for i in range(4)
+        ]
+        anchor = {
+            "validationCommands": [f"cmd {'v' * 118}" for _ in range(3)]
+        }
+        block = self._build(whitelist, spec_files, anchor)
+        self.assertLessEqual(len(block), 1200)
+        self.assertTrue(block.endswith("</stage-contract>"))
+        self.assertIn("Gates: edits outside Scope are review blockers", block)
+        self.assertIn(
+            "scope is agent-mutable (self-declared via task context add)",
+            block,
+        )
+        self.assertRegex(block, r"Scope: src/module-0")
+
+    def test_extreme_over_budget_shrinks_scope_keeps_guard_rows(self) -> None:
+        whitelist = [{"file": "s" * 300, "type": "file"} for _ in range(8)]
+        block = self._build(
+            whitelist,
+            anchor={"validationCommands": ["x" * 120] * 3},
+        )
+        self.assertLessEqual(len(block), 1200)
+        self.assertTrue(block.endswith("</stage-contract>"))
+        self.assertIn("Scope: ", block)
+        self.assertIn("Gates: edits outside Scope are review blockers", block)
+
+    def test_readonly_variant_for_delegated(self) -> None:
+        block = self._build(
+            [{"file": "src/a.py", "type": "file"}],
+            mutable=False,
+        )
+        self.assertIn("Scope: src/a.py [read-only]", block)
+        self.assertIn(
+            "scope is inherited from the parent task (read-only reference)",
+            block,
+        )
+        self.assertNotIn("self-declared", block)
+        self.assertNotIn("[agent-mutable]", block)
+
+    def test_spec_pointers_skip_directory_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = Path(temp_dir) / "task"
+            task_dir.mkdir()
+            (task_dir / "implement.jsonl").write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "file": ".cowork-flow/spec/backend/index.md",
+                                "reason": "backend",
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "file": ".cowork-flow/spec/",
+                                "type": "directory",
+                                "reason": "dir",
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "file": ".cowork-flow/spec/guides/index.md",
+                                "reason": "guides",
+                            }
+                        ),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            files = spec_pointer_files(task_dir)
+
+        self.assertEqual(
+            [
+                ".cowork-flow/spec/backend/index.md",
+                ".cowork-flow/spec/guides/index.md",
+            ],
+            files,
+        )
 
 
 if __name__ == "__main__":

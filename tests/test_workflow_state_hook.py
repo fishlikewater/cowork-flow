@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import sys
 import tempfile
@@ -16,6 +18,8 @@ HOOK_PATH = (
     / "host"
     / "workflow_state_hook.py"
 )
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
 
 
 def _load_module():
@@ -332,6 +336,95 @@ class WorkflowStateHookTest(unittest.TestCase):
             )
 
         self.assertNotIn("<decision-anchor", context)
+
+    def test_stage_contract_delegated_renders_readonly_variant(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}', encoding="utf-8"
+            )
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps({"file": "src/demo.py", "reason": "main"}) + "\n",
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                "# Decision Anchor\n\n## 目标\nX\n", encoding="utf-8"
+            )
+
+            block = self.module._stage_contract_block(
+                root,
+                ".cowork-flow/tasks/07-10-demo",
+                "delegated_subtask",
+            )
+
+        self.assertIsNotNone(block)
+        self.assertIn("Scope: src/demo.py [read-only]", block)
+        self.assertIn(
+            "scope is inherited from the parent task (read-only reference)",
+            block,
+        )
+        self.assertNotIn("[agent-mutable]", block)
+        self.assertNotIn("self-declared", block)
+
+    def test_stage_contract_degraded_on_undecodable_anchor_keeps_guards(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}', encoding="utf-8"
+            )
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps({"file": "src/demo.py", "reason": "main"}) + "\n",
+                encoding="utf-8",
+            )
+            # Invalid UTF-8: previously bubbled past except OSError and
+            # silently killed the whole block; it now degrades like a missing
+            # anchor (scope/gates survive, verify is dropped).
+            (task_dir / "decision-anchor.md").write_bytes(
+                b"# Decision Anchor\n\n## \xff\xfe broken\n"
+            )
+
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                block = self.module._stage_contract_block(
+                    root,
+                    ".cowork-flow/tasks/07-10-demo",
+                    "in_progress",
+                )
+                trace = stderr.getvalue()
+
+        self.assertIsNotNone(block)
+        self.assertIn("Scope: src/demo.py [agent-mutable]", block)
+        self.assertIn("Gates: edits outside Scope are review blockers", block)
+        self.assertNotIn("Verify:", block)
+        self.assertNotIn("stage-contract degraded", trace)
+
+    def test_decision_anchor_undecodable_degrades_quietly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}', encoding="utf-8"
+            )
+            (task_dir / "decision-anchor.md").write_bytes(
+                b"## \xff\xfe broken\n"
+            )
+
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                block = self.module._decision_anchor_block(
+                    root,
+                    ".cowork-flow/tasks/07-10-demo",
+                    "in_progress",
+                )
+                trace = stderr.getvalue()
+
+        # Undecodable anchors are treated like absent ones: silent no-block —
+        # the decision-anchor block is optional, unlike the stage contract.
+        self.assertIsNone(block)
+        self.assertEqual("", trace)
 
 
 if __name__ == "__main__":

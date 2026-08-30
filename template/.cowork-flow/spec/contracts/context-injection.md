@@ -22,9 +22,25 @@ would make the digest self-referential).
 | opencode | plugin `experimental.chat.system.transform` + `shell.env` | system-prompt section push / env object |
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 
-The string block inside every transport is structurally identical across
-hosts: an optional runtime preamble, the contract digest (full block or
-fingerprint line, see below), and the `<workflow-state>` block.
+The string block inside every transport follows the same shape: an optional
+runtime preamble, the contract digest (full block or fingerprint line, see
+below), optional `decision-anchor` / `stage-contract` blocks, and the
+`<workflow-state>` block. It is **not** byte-identical across hosts at the
+string level — the digest policy line differs per host wording and zcode
+drops the registry-warning line. Exactly two things are byte-identical and
+test-locked: the contract digest **fingerprint value** and the
+`<stage-contract>` block.
+
+| Host | workflow-state emission | digest policy line wording |
+|---|---|---|
+| zcode | always (main + delegated) | `policy: repeat fingerprint every hook; read full spec files only before listed actions.` |
+| codex / claude-code / dsh (Python core) | always (main + delegated) | `policy: repeat this short digest every hook; read full spec files only before listed actions.` |
+| opencode | delegated subagent sessions only | `policy: repeat this short digest every plugin transform; read full spec files only before listed actions.` |
+
+The opencode plugin has no ordinary-session injection channel: its
+`shell.env`/transform coverage is scoped to delegated subagent sessions, and
+the in-memory session set re-injects the full digest after a process restart
+(deliberate, see "Change guard").
 
 ## Event timing matrix
 
@@ -53,10 +69,13 @@ Two shapes, both sha256-based:
 2. **Fingerprint line** — single
    `<contract-fingerprint value="…"/>`. Emitted for every other injection
    (mid-session messages, post-lifecycle refreshes) so long sessions do not
-   pay the full listing on every message. `policy: repeat fingerprint every
-   hook; read full spec files only before listed actions.`
+   pay the full listing on every message. The policy line wording differs per
+   host line (see the transport table); the fingerprint *value* is
+   byte-identical everywhere.
 
-The `<workflow-state>` block is always emitted, independent of digest shape.
+The `<workflow-state>` block is emitted independently of digest shape on
+zcode / codex / claude-code / dsh; the opencode line covers delegated
+subagent sessions only.
 
 ## Workflow-state structured header (stage 1)
 
@@ -67,8 +86,10 @@ XML attributes; the body keeps the human-readable breadcrumb prose.
   task path) appears whenever a task is bound. Attribute values are XML-escaped
   (`& < > "`).
 - The legacy `Task:` / `Status:` / `Source:` label lines are gone — machines
-  parse the attributes, humans read the body. `Scope: subagent` style context
-  lines stay in the body.
+  parse the attributes, humans read the body. There is no bare `Scope:`
+  line in the body: the stage-contract block owns the scope declaration
+  (main sessions render the boundary as `[agent-mutable]`; delegated sessions
+  as a read-only `[read-only]` reference of the parent task).
 
 ```text
 <workflow-state task=".cowork-flow/tasks/08-28-demo" status="in_progress" source="runtime-session">
@@ -119,12 +140,20 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
 ```
 
 - **Scope**: the task's file-scope whitelist (file/planned-file/deleted-file
-  entries; directories authorize nothing), first 8 + `(+N more)`. The scope
-  is **agent-mutable** (`task context add` can extend it) — it is a
-  self-declared boundary, not a hard fence; the label says so.
+  entries; directory entries and non-canonical paths — `..` segments,
+  absolute paths, drive letters, wildcards, unsupported types — authorize
+  nothing and are dropped, matching `context_paths.normalize_context_file_scope_entry`),
+  first 8 + `(+N more)`. The scope is **agent-mutable** on main
+  (`task context add` can extend it) — it is a self-declared boundary, not a
+  hard fence; the label says so. Delegated sessions inherit the parent
+  task's scope and see it as `[read-only]` — the child must not believe it
+  can self-declare scope on the parent's behalf.
 - **Specs**: `.cowork-flow/spec/` pointer entries from implement.jsonl
-  (first 4). Read them before coding; the full files are not injected.
-- **Gates**: static preview text, identical on all hosts.
+  (first 4, same canonicality filter as Scope). Read them before coding; the
+  full files are not injected.
+- **Gates**: static preview text, identical on all hosts; the delegated
+  variant replaces the self-declaration sentence with "scope is inherited
+  from the parent task (read-only reference)".
 - **Verify**: `## 验证命令` lines from decision-anchor (first 3, 120 chars
   each) — the agent's own declared self-checks; omitted when none.
 - **Per-edit warning (zcode only)**: PostToolUse on Edit/Write/MultiEdit
@@ -132,10 +161,22 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   (`editScopeWarning: plugin`; every other host declares `unsupported` —
   their fallback is this static stage-contract preview). Bash-initiated
   writes (redirection, tee) are a declared residual gap: the warning covers
-  Edit/Write/MultiEdit tool invocations only.
-- Budget: the whole block stays ≤ 1200 characters (asserted by tests).
-- Absent for `no_task` / `planning` / `completed` states. Byte-identical
-  across the three host implementations (cross-host equality test).
+  Edit/Write/MultiEdit tool invocations only. The PostToolUse matcher text
+  (`Bash|Edit|Write|MultiEdit`) is asserted by template tests but depends on
+  the ZCode runtime's tool names — there is no external runtime contract to
+  verify them against, so a runtime rename would silently disable the
+  warning; the matcher is the single switch.
+- Budget: the whole block stays ≤ 1200 characters. Over-budget inputs
+  degrade by dropping Verify, then Specs, then shrinking Scope entries
+  (min 1) — the closing tag and the Gates row always survive; tests assert
+  the block stays well-formed.
+- Absent for `no_task` / `planning` / `completed` states. Block content is
+  byte-identical across the three host implementations for the whole fixture
+  matrix (`test/fixtures/stage-contract-matrix.json` drives the cross-host
+  equality test: canonical, `./`-prefixed, invalid-boundary, over-budget,
+  emoji, missing-anchor, empty-scope, delegated-readonly). The JS scope
+  filter is a port of the Python rules and is locked by that matrix — a
+  port, not a mechanism, so the matrix list grows whenever the rules grow.
 
 The authoritative per-file verdict lives in the MCP `task_scope` tool
 (`services.fact_view.file_scope_whitelist` — same semantics, live data).

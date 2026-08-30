@@ -104,6 +104,17 @@ test('zcode hook config uses process executor with args', async () => {
   }
 });
 
+test('zcode PostToolUse matcher covers every edit-capable tool', async () => {
+  const hooksConfig = await readJson(join(templateRoot, '.zcode', 'hooks', 'hooks.json'));
+  const matchers = hooksConfig.hooks.PostToolUse.map((entry) => entry.matcher);
+  for (const tool of ['Edit', 'Write', 'MultiEdit', 'Bash']) {
+    assert.ok(
+      matchers.some((m) => m.split('|').includes(tool)),
+      `${tool} must be matched (edit-scope warnings / lifecycle refresh rely on it)`
+    );
+  }
+});
+
 test('zcode hook reads stdin event and cwd for workflow-state injection', async (t) => {
   const unrelatedCwd = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-hook-cwd-'));
   t.after(async () => {
