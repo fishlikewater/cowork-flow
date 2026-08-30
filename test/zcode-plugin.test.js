@@ -157,11 +157,14 @@ test('zcode hook uses prompt runtime context for delegated subtask injection', a
     'utf8'
   );
 
-  const payload = runZCodeHook({
-    hook_event_name: 'UserPromptSubmit',
-    cwd: projectRoot,
-    prompt: 'cowork_runtime_context_id: ctx-zcode-test'
-  });
+  const payload = runZCodeHook(
+    {
+      hook_event_name: 'UserPromptSubmit',
+      cwd: projectRoot,
+      prompt: 'cowork_runtime_context_id: ctx-zcode-test'
+    },
+    { cwd: projectRoot }
+  );
 
   assert.equal(payload.hookSpecificOutput.hookEventName, 'UserPromptSubmit');
   assert.match(payload.hookSpecificOutput.additionalContext, /status="delegated_subtask"/);

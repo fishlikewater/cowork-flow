@@ -794,7 +794,7 @@ ${body}
   );
 }
 
-function buildDelegatedSubtask(contextId, ctx) {
+function buildDelegatedSubtask(contextId, ctx, repoRoot) {
   const taskPath = ctx?.task_dir || "unknown";
   const lines = [
     `<workflow-state task="${xmlAttr(taskPath)}" status="delegated_subtask" source="runtime-context:${xmlAttr(contextId)}">`,
@@ -809,7 +809,7 @@ function buildDelegatedSubtask(contextId, ctx) {
   lines.push(`</workflow-state>`);
   return withStageFacts(
     lines.join("\n"),
-    findProjectRoot({}),
+    repoRoot,
     taskPath,
     "delegated_subtask",
     true
@@ -879,7 +879,7 @@ Source: cowork-flow-plugin
     const userPrompt = typeof input.prompt === "string" ? input.prompt : "";
     const delegated = detectDelegatedSubtask(effectiveRoot, userPrompt);
     if (delegated) {
-      context = buildDelegatedSubtask(delegated.contextId, delegated.ctx);
+      context = buildDelegatedSubtask(delegated.contextId, delegated.ctx, effectiveRoot);
     } else {
       // PRIORITY 2: Normal session workflow state
       const activeTask = readActiveTask(effectiveRoot, resolveSessionKey(input));
