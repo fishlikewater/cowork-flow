@@ -326,6 +326,61 @@ try {
     assert.match(ctx, /status="in_progress"/);
   });
 
+  test("./-prefixed entries never crash the hook and stay canonical", () => {
+    writeProjectFile(tmpRoot, ".cowork-flow/tasks/07-02-test-task/implement.jsonl",
+      JSON.stringify({ file: "./src/demo.py", reason: "hand-written" }) + "\n");
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
+    const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+    const block = ctx.match(/<stage-contract task="[^"]*">[\s\S]*?<\/stage-contract>/);
+    assert.ok(block, "stage-contract must survive ./-prefixed entries");
+    assert.match(block[0], /Scope: src\/demo\.py \[agent-mutable\]/);
+  });
+
+  test("invalid scope entries are dropped like the python whitelist drops them", () => {
+    writeProjectFile(tmpRoot, ".cowork-flow/tasks/07-02-test-task/implement.jsonl",
+      [
+        JSON.stringify({ file: "../escape.py", reason: "escape" }),
+        JSON.stringify({ file: "/abs.py", reason: "absolute" }),
+        JSON.stringify({ file: "src/a*.py", reason: "wildcard" }),
+        JSON.stringify({ file: "guide.md", type: "guide", reason: "bad type" }),
+      ].join("\n") + "\n");
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit" })
+    );
+    const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+    const block = ctx.match(/<stage-contract task="[^"]*">[\s\S]*?<\/stage-contract>/);
+    assert.ok(block, "stage-contract must ride with in_progress tasks");
+    assert.match(block[0], /Scope: \(empty\) \[agent-mutable\]/);
+  });
+
+  test("delegated sessions render the parent scope as read-only", () => {
+    writeProjectFile(tmpRoot, ".cowork-flow/tasks/07-02-test-task/implement.jsonl",
+      JSON.stringify({ file: "src/demo.py", reason: "main" }) + "\n");
+    // Add one sibling session file without wiping the others: resetSessions
+    // would clear the shared fixture for the tests that follow.
+    writeProjectFile(tmpRoot, ".cowork-flow/.runtime/sessions/zcode_child.json",
+      JSON.stringify({
+        active_task_path: ".cowork-flow/tasks/07-02-test-task",
+        scope: "subagent",
+        platform: "zcode",
+        last_seen_at: "2026-08-30T13:00:00Z",
+      }));
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: "child" })
+    );
+    const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+    const block = ctx.match(/<stage-contract task="[^"]*">[\s\S]*?<\/stage-contract>/);
+    assert.ok(block, "delegated sessions keep the stage contract");
+    assert.match(block[0], /Scope: src\/demo\.py \[read-only\]/);
+    assert.match(block[0], /scope is inherited from the parent task \(read-only reference\)/);
+    assert.doesNotMatch(ctx, /Scope: subagent/);
+  });
+
   test("decision anchor essentials ride along for active states", () => {
     writeProjectFile(
       tmpRoot,
@@ -393,7 +448,9 @@ try {
     const parsed = JSON.parse(result);
     const ctx = parsed.hookSpecificOutput.additionalContext;
     assert.match(ctx, /status="delegated_subtask"/, "should detect delegated_subtask");
-    assert.match(ctx, /Scope: subagent/, "should show subagent scope");
+    // Scope ownership moved into the stage-contract block: no bare
+    // "Scope: subagent" line survives in delegated workflow-state bodies.
+    assert.doesNotMatch(ctx, /Scope: subagent/, "scope rows must not duplicate");
   });
 
   // --- Stale-session poisoning regression (per-session selection) ---

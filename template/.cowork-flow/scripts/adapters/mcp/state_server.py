@@ -139,6 +139,11 @@ def _resolve_task_dir(root: Path, target: str | None) -> Path:
         task_dir = TaskRepository(root).resolve(target)
     except TaskRepositoryError as error:
         raise ValueError(str(error)) from error
+    try:
+        resolved = Path(task_dir).resolve()
+        resolved.relative_to(Path(root).resolve())
+    except ValueError as error:
+        raise ValueError("task-outside-repo") from error
     if not (Path(task_dir) / "task.json").is_file():
         raise ValueError(f"task.json not found under {task_dir}")
     return Path(task_dir)
@@ -185,10 +190,13 @@ TOOL_HANDLERS = {
 
 
 def handle_request(root: Path, request: dict) -> dict | None:
-    """Dispatch one decoded JSON-RPC message. Notifications (no id) yield
-    None and are never answered."""
+    """Dispatch one decoded JSON-RPC message. Notifications (no id member)
+    yield None and are never answered — including initialize/ping/tools/list,
+    which are requests only when an id is present."""
     method = request.get("method")
     request_id = request.get("id")
+    if "id" not in request:
+        return None
     if method == "initialize":
         requested = (request.get("params") or {}).get("protocolVersion")
         return {

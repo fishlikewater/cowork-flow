@@ -234,7 +234,10 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn('source=\"runtime-context:rtx_claude_prompt\"', context)
         self.assertIn('task=\".cowork-flow/tasks/06-03-demo\"', context)
         self.assertIn("Agent: cowork-implement", context)
-        self.assertIn("Scope: subagent", context)
+        # Scope ownership moved into the stage-contract block, rendered as a
+        # read-only reference for delegated sessions.
+        self.assertIn("Scope: (empty) [read-only]", context)
+        self.assertNotIn("Scope: subagent", context)
         self.assertNotIn(NO_TASK_GATE_TEXT, context)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_claude_prompt", session["runtime_context_id"])

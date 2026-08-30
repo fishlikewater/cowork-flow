@@ -235,6 +235,87 @@ class HandleRequestTest(unittest.TestCase):
         self.assertIn("AGENTS.md", spec_files)
         self.assertNotIn(".cowork-flow/spec/backend/index.md", spec_files)
 
+    def test_tools_call_task_specs_malformed_dev_type_degrades(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+            task_json = root / ".cowork-flow" / "tasks" / "08-29-demo" / "task.json"
+            task = json.loads(task_json.read_text(encoding="utf-8"))
+            task["dev_type"] = 123
+            task_json.write_text(json.dumps(task), encoding="utf-8")
+
+            response = self.module.handle_request(
+                root,
+                {
+                    "jsonrpc": "2.0",
+                    "id": 10,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "task_specs",
+                        "arguments": {"task": "08-29-demo"},
+                    },
+                },
+            )
+
+        # Normal result: no isError member (rather than an error ride).
+        self.assertNotIn("isError", response["result"])
+        payload = json.loads(response["result"]["content"][0]["text"])
+        spec_files = [entry["file"] for entry in payload["specs"]]
+        self.assertIn("AGENTS.md", spec_files)
+        self.assertNotIn(".cowork-flow/spec/backend/index.md", spec_files)
+
+    def test_tools_call_task_scope_rejects_outside_repo(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+            outside = root.parent / "elsewhere"
+            outside.mkdir(exist_ok=True)
+            target = outside / "task.json"
+            target.write_text('{"status": "in_progress"}', encoding="utf-8")
+            (outside / "implement.jsonl").write_text(
+                '{"file": "secret.py", "reason": "leak"}\n', encoding="utf-8"
+            )
+
+            relative_escape = self.module.handle_request(
+                root,
+                {
+                    "jsonrpc": "2.0",
+                    "id": 11,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "task_scope",
+                        "arguments": {"task": "../elsewhere"},
+                    },
+                },
+            )
+            absolute_escape = self.module.handle_request(
+                root,
+                {
+                    "jsonrpc": "2.0",
+                    "id": 12,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "task_scope",
+                        "arguments": {"task": str(outside)},
+                    },
+                },
+            )
+
+        for response in (relative_escape, absolute_escape):
+            self.assertTrue(response["result"]["isError"])
+            self.assertIn(
+                "task-outside-repo",
+                response["result"]["content"][0]["text"],
+            )
+
+    def test_notification_without_id_not_answered(self) -> None:
+        for method in ("initialize", "ping", "tools/list", "tools/call"):
+            response = self.module.handle_request(
+                Path("/tmp"),
+                {"jsonrpc": "2.0", "method": method},
+            )
+            self.assertIsNone(response, f"{method} notification must not respond")
+
     def test_tools_call_task_state_returns_fact_view(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

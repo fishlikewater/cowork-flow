@@ -229,7 +229,10 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn('source=\"runtime-context:rtx_prompt\"', context)
         self.assertIn('task=\".cowork-flow/tasks/05-29-demo\"', context)
         self.assertIn("Agent: cowork-implement", context)
-        self.assertIn("Scope: subagent", context)
+        # Scope ownership moved into the stage-contract block, rendered as a
+        # read-only reference for delegated sessions.
+        self.assertIn("Scope: (empty) [read-only]", context)
+        self.assertNotIn("Scope: subagent", context)
         self.assertNotIn(NO_TASK_GATE_TEXT, context)
         self.assertEqual("subagent", session["scope"])
         self.assertEqual("rtx_prompt", session["runtime_context_id"])

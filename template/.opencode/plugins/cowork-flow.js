@@ -325,6 +325,11 @@ const GATES_TEXT =
   "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
   "files are protected; spec/ edits may be allowed by review policy; " +
   "scope is agent-mutable (self-declared via task context add)"
+// Delegated subtasks render the parent task's scope as a read-only reference.
+const GATES_TEXT_READONLY =
+  "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
+  "files are protected; spec/ edits may be allowed by review policy; " +
+  "scope is inherited from the parent task (read-only reference)"
 
 function parseDecisionAnchor(text) {
   const result = {
@@ -365,7 +370,85 @@ function parseDecisionAnchor(text) {
   return result
 }
 
-function stageContractBlock(root, taskPath, status) {
+// Port of services/context_paths.py::_is_valid_context_path: the JS side must
+// skip exactly the entries the Python whitelist drops (absolute paths, drive
+// letters, dot segments, wildcards, trailing slash on planned/deleted files).
+function isValidScopePath(normalized, raw, type) {
+  if (!["file", "planned-file", "deleted-file"].includes(type)) return false
+  if (!normalized || normalized.startsWith("/")) return false
+  if (/^[A-Za-z]:/.test(normalized)) return false
+  const segments = normalized.split("/")
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return false
+  if (/[*?[\]]/.test(normalized)) return false
+  if (["planned-file", "deleted-file"].includes(type) && /[\\/]$/.test(raw)) return false
+  return true
+}
+
+// Mirrors services/fact_view.py file_scope_whitelist + spec_pointer_files:
+// directory entries authorize nothing, non-canonical entries are dropped.
+function buildScopeWhitelist(entries) {
+  const whitelist = []
+  const specFiles = []
+  for (const entry of entries) {
+    const file = typeof entry.file === "string" ? entry.file : ""
+    let normalized = file.replaceAll("\\", "/")
+    while (normalized.startsWith("./")) {
+      normalized = normalized.slice(2)
+    }
+    const type = typeof entry.type === "string" && entry.type ? entry.type : "file"
+    if (type === "directory") continue
+    if (!isValidScopePath(normalized, file, type)) continue
+    whitelist.push({ file: normalized, type })
+    if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized)
+  }
+  return { whitelist, specFiles }
+}
+
+function scopeRow(entries, total, suffix) {
+  const text = entries.length > 0 ? entries.join("; ") : "(empty)"
+  const more = total - entries.length
+  const extra = more > 0 ? ` (+${more} more in implement.jsonl)` : ""
+  return `Scope: ${text}${extra} ${suffix}`
+}
+
+// Mirrors services/fact_view.py::_fit_stage_contract: degrade an over-budget
+// block without ever emitting a malformed one — closing tag and guard rows
+// (Scope/Gates) always survive. Keep row-role rules and drop order identical.
+function fitStageContract(lines, scopeEntries, scopeTotal, mutable) {
+  const budget = STAGE_CONTRACT_BUDGET
+  if (lines.join("\n").length <= budget) return lines
+  const removable = []
+  for (let i = 1; i < lines.length - 1; i++) {
+    if (!lines[i].startsWith("Scope:") && !lines[i].startsWith("Gates:")) {
+      removable.push(i)
+    }
+  }
+  for (let i = removable.length - 1; i >= 0; i--) {
+    const reduced = lines.filter((_, j) => j !== removable[i])
+    if (reduced.join("\n").length <= budget) return reduced
+    lines = reduced
+  }
+  const suffix = mutable ? "[agent-mutable]" : "[read-only]"
+  let pool = scopeEntries.slice()
+  while (pool.length > 1) {
+    pool = pool.slice(0, -1)
+    const candidate = lines.map((line) =>
+      line.startsWith("Scope:") ? scopeRow(pool, scopeTotal, suffix) : line
+    )
+    if (candidate.join("\n").length <= budget) return candidate
+    lines = candidate
+  }
+  if (lines.join("\n").length <= budget) return lines
+  const closing = lines[lines.length - 1]
+  const room = budget - closing.length
+  const body = lines.slice(0, -1).join("\n")
+  if (body.length <= room) return lines
+  const head = body.slice(0, room).replace(/\s+$/, "")
+  if (!head) return lines
+  return [head, closing]
+}
+
+function stageContractBlock(root, taskPath, status, readonly = false) {
   if (!taskPath) {
     return null
   }
@@ -395,32 +478,20 @@ function stageContractBlock(root, taskPath, status) {
   } catch {
     // Absent jsonl: scope degrades to empty.
   }
-  const whitelist = []
-  const specFiles = []
-  for (const entry of entries) {
-    const file = typeof entry.file === "string" ? entry.file : ""
-    const normalized = file.replaceAll("\\", "/")
-    while (normalized.startsWith("./")) {
-      normalized = normalized.slice(2)
-    }
-    if (!normalized) continue
-    const type = typeof entry.type === "string" && entry.type ? entry.type : "file"
-    if (type === "directory") continue
-    whitelist.push({ file: normalized, type })
-    if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized)
-  }
+  const { whitelist, specFiles } = buildScopeWhitelist(entries)
   let parsed
   try {
     parsed = parseDecisionAnchor(readFileSync(resolve(root, taskPath, "decision-anchor.md"), "utf8"))
   } catch {
     parsed = { goal: "", acceptanceCriteria: [], rejectedOptions: [], validationCommands: [], scopeBoundary: "" }
   }
+  const suffix = readonly ? "[read-only]" : "[agent-mutable]"
   const lines = [`<stage-contract task="${xmlAttr(taskPath)}">`]
-  const scopeItems = whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file)
-  let scopeText = scopeItems.length > 0 ? scopeItems.join("; ") : "(empty)"
-  const more = whitelist.length - scopeItems.length
-  if (more > 0) scopeText += ` (+${more} more in implement.jsonl)`
-  lines.push(`Scope: ${scopeText} [agent-mutable]`)
+  lines.push(scopeRow(
+    whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file),
+    whitelist.length,
+    suffix
+  ))
   if (specFiles.length > 0) {
     const specItems = specFiles.slice(0, STAGE_CONTRACT_SPECS_LIMIT)
     let specsText = specItems.join("; ")
@@ -428,17 +499,22 @@ function stageContractBlock(root, taskPath, status) {
     if (specMore > 0) specsText += ` (+${specMore} more)`
     lines.push(`Specs: ${specsText}`)
   }
-  lines.push(GATES_TEXT)
+  lines.push(readonly ? GATES_TEXT_READONLY : GATES_TEXT)
   if (parsed.validationCommands.length > 0) {
     lines.push("Verify: " + parsed.validationCommands.slice(0, STAGE_CONTRACT_VERIFY_LIMIT).join("; "))
   }
   lines.push("</stage-contract>")
-  return lines.join("\n").slice(0, STAGE_CONTRACT_BUDGET)
+  return fitStageContract(
+    lines,
+    whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file),
+    whitelist.length,
+    !readonly
+  ).join("\n")
 }
 
-function withStageFacts(block, root, taskPath, status) {
+function withStageFacts(block, root, taskPath, status, readonly = false) {
   const anchor = decisionAnchorBlock(root, taskPath, status)
-  const contract = stageContractBlock(root, taskPath, status)
+  const contract = stageContractBlock(root, taskPath, status, readonly)
   const parts = [anchor, contract].filter(Boolean)
   return parts.length > 0 ? `${parts.join("\n\n")}\n\n${block}` : block
 }
@@ -501,7 +577,6 @@ function buildRuntimeWorkflowState(input) {
     return [
       `<workflow-state status="delegated_subtask" source="runtime-context-invalid:${xmlAttr(runtimeContextId)}">`,
       `Runtime context: ${runtimeContextId}`,
-      "Scope: subagent",
       "Runtime context is missing, closed, or invalid. Do not run start/resume/task start/archive/commit/spawn.",
       "</workflow-state>",
     ].join("\n")
@@ -519,12 +594,11 @@ function buildRuntimeWorkflowState(input) {
     `<workflow-state${attrs.join("")}>`,
     `Runtime context: ${runtimeContextId}`,
     `Agent: ${bound.agent_type || "unknown"}`,
-    "Scope: subagent",
     "Do not run start/resume/task start/archive/commit/spawn.",
     typeof assignment.goal === "string" && assignment.goal.trim() ? `Goal: ${assignment.goal.trim()}` : null,
     "</workflow-state>",
   ].filter(Boolean)
-  return withStageFacts(header.join("\n"), root, taskDir, "delegated_subtask")
+  return withStageFacts(header.join("\n"), root, taskDir, "delegated_subtask", true)
 }
 
 // Digest shape: full contract block on the first injection of a session,
@@ -561,4 +635,4 @@ export const CoworkFlowPlugin = async () => {
   }
 }
 
-export { contractFingerprint, stableStringify }
+export { contractFingerprint, stableStringify, stageContractBlock }
