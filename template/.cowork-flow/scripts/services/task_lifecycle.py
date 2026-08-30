@@ -17,6 +17,7 @@ from infra.storage.unit_of_work import (
     UnitOfWorkError,
 )
 from runtime.session_state import build_active_task_session
+from infra.git_snapshot import current_head
 from services.lifecycle_checks import LifecycleCheckResult, LifecycleCheckRunner
 from services.lifecycle_policy import (
     LifecycleExecutionPolicy,
@@ -567,6 +568,17 @@ class TaskLifecycleService:
             )
         if stage.activates_session and executor:
             persisted["executor"] = executor
+        if stage.activates_session:
+            # Record the git baseline once: review merges baseline..HEAD with
+            # the working tree, so committing mid-task can no longer hide
+            # unlisted files. Already-present baselines are never overwritten
+            # (repeated/covered starts must not shrink the review window).
+            meta = dict(persisted.get("meta") or {})
+            if not meta.get("baselineCommit"):
+                head = current_head(self.repo_root)
+                if head:
+                    meta["baselineCommit"] = head
+                    persisted["meta"] = meta
         return persisted
 
     def _resolve_executor(self, executor: str | None) -> str | None:

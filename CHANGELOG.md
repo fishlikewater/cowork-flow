@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.2 - 2026-08-30
+
+### Review 基线 diff（堵住提交绕行面）
+
+- **基线记录**：`task start`（进入 in_progress）在 task.json `meta.baselineCommit` 记录当前 HEAD，且永不滑动（重复/幂等 start 不覆盖）——任务期间的审查窗口从激活时刻起固定。
+- **变更集合并**：review 门禁以 `baseline..HEAD` diff 与 working-tree status 的并集去重作为变更集——agent 中途 `git commit` 越界文件后，review 的 `unlisted_changed_file` 仍会触发（此前提交即从 status 消失，形成无痕通道）。
+- **降级语义**：无 git 仓库 / HEAD 不存在 / 基线缺失 / diff 失败（如 rebase 孤儿化）→ 降级 status-only，与旧行为一致，不产生错误 blocker。
+- **契约重开**：task-review SKILL 输入语义写明基线变更集与降级行为；已审查任务的增量重审聚焦自基线以来的变化，证据要求不变。
+
 ## 1.1.1 - 2026-08-30
 
 ### 守卫修复批次（对抗评审后落地）

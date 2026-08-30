@@ -58,6 +58,39 @@ def collect_changed_paths(repo_root: Path) -> list[str]:
     return [changed.path for changed in collect_changed_files(repo_root)]
 
 
+def collect_changed_paths_since(
+    repo_root: Path, base_commit: str | None
+) -> tuple[list[str], bool]:
+    """Merge the baseline..HEAD diff with the working-tree status:
+    (paths, degraded). Committing during a task no longer hides changed
+    files from review.
+
+    degraded=True when there is no baseline, HEAD does not exist, or the
+    diff fails (e.g. a rebase orphaned the baseline) — callers fall back to
+    status-only, which is exactly the pre-baseline behavior."""
+    status_paths = collect_changed_paths(repo_root)
+    if not base_commit:
+        return status_paths, True
+    rc, stdout, _ = _run_git_command(
+        ["diff", "--name-only", f"{base_commit}..HEAD"],
+        cwd=repo_root,
+    )
+    if rc != 0:
+        return status_paths, True
+    diff_paths = [line.strip() for line in stdout.splitlines() if line.strip()]
+    merged = sorted(set(status_paths) | set(diff_paths))
+    return merged, False
+
+
+def current_head(repo_root: Path) -> str | None:
+    """Full HEAD sha of the repo, or None when no commits exist yet."""
+    rc, stdout, _ = _run_git_command(["rev-parse", "HEAD"], cwd=repo_root)
+    if rc != 0:
+        return None
+    value = stdout.strip()
+    return value or None
+
+
 def _run_git_command(args: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
     completed = subprocess.run(
         ["git", *args],

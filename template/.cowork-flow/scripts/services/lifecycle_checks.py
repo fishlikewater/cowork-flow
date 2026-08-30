@@ -8,11 +8,11 @@ task metadata and the current git snapshot.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from infra.git_snapshot import collect_changed_paths
 from services.lifecycle_policy import LifecycleExecutionPolicy
 from services.task_context import (
     normalize_context_file_scope_entry,
@@ -121,13 +121,34 @@ def _policy_allows_spec_changes(
 
 
 
+def _baseline_changed_paths(
+    repo_root: Path, task_dir: Path
+) -> tuple[list[str], bool]:
+    """Review change set: baseline..HEAD diff merged with the working-tree
+    status (task start records meta.baselineCommit once). A missing baseline
+    or failed diff degrades to status-only — the pre-baseline behavior."""
+    baseline = None
+    try:
+        task_data = json.loads(
+            (task_dir / "task.json").read_text(encoding="utf-8")
+        )
+        meta = task_data.get("meta") or {}
+        value = meta.get("baselineCommit")
+        baseline = value if isinstance(value, str) and value else None
+    except (OSError, json.JSONDecodeError):
+        pass
+    from infra.git_snapshot import collect_changed_paths_since
+
+    return collect_changed_paths_since(repo_root, baseline)
+
+
 def _review_completion_issues(
     repo_root: Path,
     task_dir: Path,
     *,
     allow_spec_file_modifications: bool,
 ) -> list[LifecycleCheckIssue]:
-    changed_files = collect_changed_paths(repo_root)
+    changed_files, _degraded = _baseline_changed_paths(repo_root, task_dir)
     issues: list[LifecycleCheckIssue] = []
     if not allow_spec_file_modifications:
         issues.extend(_protected_workflow_file_issues(changed_files))

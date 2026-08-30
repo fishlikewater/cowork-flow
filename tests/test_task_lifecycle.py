@@ -5,6 +5,7 @@ import importlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -285,6 +286,57 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             )
             self.assertEqual("session-b", persisted["executor"])
             self.assertEqual("in_progress", persisted["status"])
+
+    def _git(self, root: Path, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        return result.stdout.strip()
+
+    def test_start_records_baseline_commit_and_never_overwrites(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._git(root, "init")
+            self._git(root, "config", "user.name", "Test User")
+            self._git(root, "config", "user.email", "test@example.com")
+            (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+            self._git(root, "add", "-A")
+            self._git(root, "commit", "-m", "baseline")
+            baseline = self._git(root, "rev-parse", "HEAD")
+
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True):
+                first = service.start(task_dir)
+            self.assertTrue(first.ok)
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(baseline, persisted["meta"]["baselineCommit"])
+
+            # A later commit must not slide the recorded baseline: repeated
+            # starts keep the original review window.
+            (root / "later.txt").write_text("later\n", encoding="utf-8")
+            self._git(root, "add", "-A")
+            self._git(root, "commit", "-m", "later")
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True):
+                again = service.start(task_dir)
+            self.assertTrue(again.ok)
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                baseline, persisted["meta"]["baselineCommit"],
+                "baseline must never slide",
+            )
 
     def test_sessionless_start_with_explicit_executor_skips_session_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
