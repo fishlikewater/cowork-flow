@@ -56,6 +56,46 @@ TOOLS = [
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "task_specs",
+        "description": (
+            "Spec files the implementing agent should read for a task, "
+            "dispatched by its dev_type (base guides + domain skills + "
+            "backend/frontend/spec pointers). Read them before coding."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "Task directory or name.",
+                },
+            },
+        },
+    },
+    {
+        "name": "task_scope",
+        "description": (
+            "Edit-scope verdict for a task. Without `path`: the file-scope "
+            "whitelist summary (only file/planned-file/deleted-file entries "
+            "authorize edits; directories authorize nothing). With `path`: "
+            "an inScope verdict for that one file. Edits outside the scope "
+            "are review blockers."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "Task directory or name.",
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Repo-relative file path to check.",
+                },
+            },
+        },
+    },
 ]
 
 
@@ -87,9 +127,60 @@ def _tool_task_list(root: Path, _arguments: dict) -> dict:
     return {"tasks": records, "count": len(records)}
 
 
+def _resolve_task_dir(root: Path, target: str | None) -> Path:
+    from runtime.session_state import get_active_task
+    from services.task_repository import TaskRepository, TaskRepositoryError
+
+    if not target:
+        target = get_active_task(root).task_path
+        if not target:
+            raise ValueError("no-active-task")
+    try:
+        task_dir = TaskRepository(root).resolve(target)
+    except TaskRepositoryError as error:
+        raise ValueError(str(error)) from error
+    if not (Path(task_dir) / "task.json").is_file():
+        raise ValueError(f"task.json not found under {task_dir}")
+    return Path(task_dir)
+
+
+def _tool_task_scope(root: Path, arguments: dict) -> dict:
+    from services.fact_view import file_scope_whitelist, path_in_scope
+
+    task_dir = _resolve_task_dir(root, arguments.get("task"))
+    whitelist = file_scope_whitelist(root, task_dir)
+    candidate = arguments.get("path")
+    if candidate:
+        verdict = path_in_scope(whitelist, str(candidate))
+        return {"taskDir": task_dir.name, **verdict}
+    return {
+        "taskDir": task_dir.name,
+        "whitelist": whitelist,
+        "count": len(whitelist),
+    }
+
+
+def _tool_task_specs(root: Path, arguments: dict) -> dict:
+    from services.context_discovery import implement_spec_entries
+    from services.fact_view import _read_json
+
+    task_dir = _resolve_task_dir(root, arguments.get("task"))
+    task = _read_json(task_dir / "task.json")
+    dev_type = task.get("dev_type") if isinstance(task, dict) else None
+    specs = implement_spec_entries(root, dev_type)
+    return {
+        "taskDir": task_dir.name,
+        "devType": dev_type,
+        "specs": specs,
+        "count": len(specs),
+    }
+
+
 TOOL_HANDLERS = {
     "task_state": _tool_task_state,
     "task_list": _tool_task_list,
+    "task_scope": _tool_task_scope,
+    "task_specs": _tool_task_specs,
 }
 
 

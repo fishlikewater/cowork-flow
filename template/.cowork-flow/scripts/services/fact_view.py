@@ -72,6 +72,63 @@ def _read_json(path: Path) -> Any:
         return None
 
 
+def file_scope_whitelist(repo_root: Path, task_dir: Path) -> list[dict]:
+    """File-scope-only whitelist entries for one task.
+
+    Single source of the edit-scope semantics the lifecycle gates enforce:
+    directory entries are valid context but authorize nothing, so only
+    file/planned-file/deleted-file entries appear here. MCP tooling and any
+    other consumer must use this instead of re-parsing implement.jsonl.
+    """
+    from services.context_paths import normalize_context_file_scope_entry
+
+    path = task_dir / "implement.jsonl"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    whitelist: list[dict] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        normalized, error = normalize_context_file_scope_entry(
+            repo_root, entry
+        )
+        if error is not None or normalized is None:
+            continue
+        whitelist.append(
+            {
+                "file": normalized,
+                "type": entry.get("type", "file"),
+            }
+        )
+    return whitelist
+
+
+def path_in_scope(
+    whitelist: list[dict], candidate: str
+) -> dict:
+    """Verdict for one candidate path against a file_scope_whitelist list."""
+    value = candidate.strip().replace("\\", "/")
+    while value.startswith("./"):
+        value = value[2:]
+    matched = next(
+        (entry for entry in whitelist if entry["file"] == value), None
+    )
+    return {
+        "path": value,
+        "inScope": matched is not None,
+        "matched": matched,
+    }
+
+
 def _normalize_rel(path_value: str) -> str | None:
     value = path_value.strip().replace("\\", "/")
     while value.startswith("./"):
@@ -157,6 +214,7 @@ def build_fact_view(repo_root: Path, task_dir: Path) -> dict[str, Any]:
         "task": task,
         "decisionAnchor": anchor,
         "plan": plan,
+        "whitelist": file_scope_whitelist(repo_root, task_dir),
         "sessions": _bound_sessions(repo_root, rel_task),
         "snapshot": _matching_snapshot(repo_root, rel_task, status),
     }

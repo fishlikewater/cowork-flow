@@ -110,6 +110,32 @@ def get_domain_skill_context(
     )
 
 
+def implement_spec_entries(
+    repo_root: Path,
+    dev_type: str | None,
+) -> list[dict]:
+    """Single source of the implement-context dispatch (base + domain skills
+    + dev-type spec pointers). Consumed by task context init and by the MCP
+    task_specs tool, so both agree on what an agent should read."""
+    entries = list(get_implement_base(repo_root))
+    entries.extend(
+        get_domain_skill_context(
+            repo_root,
+            dev_type=dev_type,
+        )
+    )
+    if dev_type in ("backend", "test"):
+        entries.extend(get_implement_backend())
+    elif dev_type == "frontend":
+        entries.extend(get_implement_frontend())
+    elif dev_type == "fullstack":
+        entries.extend(get_implement_backend())
+        entries.extend(get_implement_frontend())
+    elif dev_type == "spec":
+        entries.extend(get_implement_spec())
+    return entries
+
+
 def is_skill_path(file_path: str) -> bool:
     return (
         file_path.startswith(f"{DIR_AGENTS}/skills/")

@@ -12,15 +12,17 @@ if __package__:
 else:
     import _bootstrap  # noqa: F401
 
+from services.context_discovery import (
+    get_implement_backend,
+    get_implement_base,
+    get_implement_frontend,
+    get_implement_spec,
+)
 from services.task_context import (
     detect_installed_platforms as _detect_installed_platforms,
     discover_spec_files as _discover_spec_files,
     get_check_context,
     get_debug_context,
-    get_implement_backend,
-    get_implement_base,
-    get_implement_frontend,
-    get_implement_spec,
     is_skill_path as _is_skill_path,
     iter_jsonl_lines as _iter_jsonl_lines,
     skill_path as _skill_path,

@@ -38,6 +38,7 @@ def _write_project(root: Path) -> Path:
                 "title": "Demo",
                 "assignee": "zhangxiang",
                 "executor": "ci-bot",
+                "dev_type": "backend",
                 "meta": {"planFile": ".cowork-flow/plans/demo.md"},
             }
         ),
@@ -53,6 +54,23 @@ def _write_project(root: Path) -> Path:
         "- **方案B（写工具）**: 拒绝——只读立场\n"
     )
     (task_dir / "decision-anchor.md").write_text(anchor, encoding="utf-8")
+    (task_dir / "implement.jsonl").write_text(
+        "\n".join(
+            (
+                json.dumps({"file": "src/demo.py", "reason": "main change"}),
+                json.dumps(
+                    {
+                        "file": "src/planned.py",
+                        "reason": "new module",
+                        "type": "planned-file",
+                    }
+                ),
+                json.dumps({"file": "src/", "reason": "directory context", "type": "directory"}),
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     sessions = root / ".cowork-flow" / ".runtime" / "sessions"
     sessions.mkdir(parents=True)
     (sessions / "zcode_probe.json").write_text(
@@ -86,14 +104,136 @@ class HandleRequestTest(unittest.TestCase):
         )
         self.assertIn("tools", response["result"]["capabilities"])
 
-    def test_tools_list_declares_two_read_only_tools(self) -> None:
+    def test_tools_list_declares_four_read_only_tools(self) -> None:
         response = self.module.handle_request(
             Path("/tmp"), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
         )
         names = [tool["name"] for tool in response["result"]["tools"]]
-        self.assertEqual(["task_state", "task_list"], names)
+        self.assertEqual(
+            ["task_state", "task_list", "task_specs", "task_scope"], names
+        )
         for tool in response["result"]["tools"]:
             self.assertIn("inputSchema", tool)
+
+    def test_tools_call_task_scope_summary_excludes_directory_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+
+            response = self.module.handle_request(
+                root,
+                {
+                    "jsonrpc": "2.0",
+                    "id": 5,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "task_scope",
+                        "arguments": {"task": "08-29-demo"},
+                    },
+                },
+            )
+
+        payload = json.loads(response["result"]["content"][0]["text"])
+        # Directory entries are context, not authorization: they must not
+        # appear in the file-scope whitelist.
+        self.assertEqual(
+            ["src/demo.py", "src/planned.py"],
+            [entry["file"] for entry in payload["whitelist"]],
+        )
+        self.assertEqual(2, payload["count"])
+
+    def test_tools_call_task_scope_verdict_per_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+
+            inside = self.module.handle_request(
+                root,
+                {
+                    "jsonrpc": "2.0",
+                    "id": 6,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "task_scope",
+                        "arguments": {"task": "08-29-demo", "path": "src/demo.py"},
+                    },
+                },
+            )
+            outside = self.module.handle_request(
+                root,
+                {
+                    "jsonrpc": "2.0",
+                    "id": 7,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "task_scope",
+                        "arguments": {
+                            "task": "08-29-demo",
+                            "path": "./src/other.py",
+                        },
+                    },
+                },
+            )
+
+        inside_payload = json.loads(inside["result"]["content"][0]["text"])
+        self.assertTrue(inside_payload["inScope"])
+        self.assertEqual("file", inside_payload["matched"]["type"])
+        outside_payload = json.loads(outside["result"]["content"][0]["text"])
+        self.assertFalse(outside_payload["inScope"])
+        self.assertIsNone(outside_payload["matched"])
+
+    def test_tools_call_task_specs_dispatches_by_dev_type(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+
+            response = self.module.handle_request(
+                root,
+                {
+                    "jsonrpc": "2.0",
+                    "id": 8,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "task_specs",
+                        "arguments": {"task": "08-29-demo"},
+                    },
+                },
+            )
+
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertEqual("backend", payload["devType"])
+        spec_files = [entry["file"] for entry in payload["specs"]]
+        self.assertIn("AGENTS.md", spec_files)
+        self.assertIn(".cowork-flow/spec/backend/index.md", spec_files)
+        self.assertNotIn(".cowork-flow/spec/frontend/index.md", spec_files)
+
+    def test_tools_call_task_specs_degrades_without_dev_type(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+            task_json = root / ".cowork-flow" / "tasks" / "08-29-demo" / "task.json"
+            task = json.loads(task_json.read_text(encoding="utf-8"))
+            task["dev_type"] = None
+            task_json.write_text(json.dumps(task), encoding="utf-8")
+
+            response = self.module.handle_request(
+                root,
+                {
+                    "jsonrpc": "2.0",
+                    "id": 9,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "task_specs",
+                        "arguments": {"task": "08-29-demo"},
+                    },
+                },
+            )
+
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertIsNone(payload["devType"])
+        spec_files = [entry["file"] for entry in payload["specs"]]
+        self.assertIn("AGENTS.md", spec_files)
+        self.assertNotIn(".cowork-flow/spec/backend/index.md", spec_files)
 
     def test_tools_call_task_state_returns_fact_view(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -206,7 +346,9 @@ class StdioSessionTest(unittest.TestCase):
         self.assertEqual(4, len(replies))
         self.assertEqual("2025-06-18", replies[0]["result"]["protocolVersion"])
         names = [tool["name"] for tool in replies[1]["result"]["tools"]]
-        self.assertEqual(["task_state", "task_list"], names)
+        self.assertEqual(
+            ["task_state", "task_list", "task_specs", "task_scope"], names
+        )
         listing = json.loads(replies[2]["result"]["content"][0]["text"])
         self.assertEqual(1, listing["count"])
         self.assertEqual("08-29-demo", listing["tasks"][0]["name"])
