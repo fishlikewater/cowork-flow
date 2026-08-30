@@ -92,16 +92,22 @@ def current_head(repo_root: Path) -> str | None:
 
 
 def _run_git_command(args: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
-    completed = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+    except OSError:
+        # git unavailable (not installed, or PATH stripped): callers degrade
+        # through the existing rc!=0 paths — no HEAD means no baseline, no
+        # changes means status-only review.
+        return 127, "", "git unavailable"
     return completed.returncode, completed.stdout, completed.stderr
 
 

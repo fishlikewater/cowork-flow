@@ -314,7 +314,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self._write_start_ready_context(task_dir)
             service = self.TaskLifecycleService(root, check_runner=self._check_runner())
 
-            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True):
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
                 first = service.start(task_dir)
             self.assertTrue(first.ok)
             persisted = json.loads(
@@ -327,7 +327,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             (root / "later.txt").write_text("later\n", encoding="utf-8")
             self._git(root, "add", "-A")
             self._git(root, "commit", "-m", "later")
-            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}, clear=True):
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
                 again = service.start(task_dir)
             self.assertTrue(again.ok)
             persisted = json.loads(
@@ -337,6 +337,34 @@ class TaskLifecycleServiceTest(unittest.TestCase):
                 baseline, persisted["meta"]["baselineCommit"],
                 "baseline must never slide",
             )
+
+    def test_git_unavailable_degrades_baseline_and_changed_files(self) -> None:
+        git_snapshot = importlib.import_module("infra.git_snapshot")
+
+        def _git_boom(*args: object, **kwargs: object) -> object:
+            raise FileNotFoundError("git not found")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with patch(
+                "infra.git_snapshot.subprocess.run",
+                side_effect=_git_boom,
+            ):
+                self.assertIsNone(
+                    git_snapshot.current_head(root),
+                    "unavailable git must read as no HEAD, not raise",
+                )
+                self.assertEqual(
+                    [], git_snapshot.collect_changed_files(root),
+                    "unavailable git must collect no changes, not raise",
+                )
+                paths, degraded = git_snapshot.collect_changed_paths_since(
+                    root, "0000000000000000000000000000000000000000"
+                )
+                self.assertEqual([], paths)
+                self.assertTrue(
+                    degraded, "unavailable git must degrade to status-only"
+                )
 
     def test_sessionless_start_with_explicit_executor_skips_session_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
