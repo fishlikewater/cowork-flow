@@ -246,6 +246,70 @@ try {
     assert.equal(before, after, "key order inside the registry must not move the fingerprint");
   });
 
+  test("per-edit out-of-scope warning fires for Edit outside the whitelist", () => {
+    const result = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        tool_name: "Edit",
+        tool_input: { file_path: "src/outside.py" },
+      })
+    );
+    const ctx = JSON.parse(result).hookSpecificOutput.additionalContext;
+    assert.match(ctx, /src\/outside\.py is outside the task's declared scope/);
+    assert.match(ctx, /task context add.{0,20}or revert/);
+  });
+
+  test("per-edit warning stays silent inside scope and for subagents", () => {
+    // In-scope edit: the whitelist contains the task's own context file.
+    writeProjectFile(
+      tmpRoot,
+      ".cowork-flow/tasks/07-02-test-task/implement.jsonl",
+      JSON.stringify({
+        file: ".cowork-flow/tasks/07-02-test-task/task.json",
+        reason: "context",
+      }) + "\n"
+    );
+    const inScope = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        tool_name: "Edit",
+        tool_input: {
+          file_path: ".cowork-flow/tasks/07-02-test-task/task.json",
+        },
+      })
+    );
+    assert.equal(inScope.trim(), "");
+    rmSync(
+      join(tmpRoot, ".cowork-flow/tasks/07-02-test-task/implement.jsonl"),
+      { force: true }
+    );
+
+    // Subagent-scoped sessions stay silent (capability-matrix fallback).
+    const subSession = join(tmpRoot, ".cowork-flow/.runtime/sessions/zcode_sub.json");
+    writeFileSync(
+      subSession,
+      JSON.stringify({
+        active_task_path: ".cowork-flow/tasks/07-02-test-task",
+        scope: "subagent",
+        platform: "zcode",
+        last_seen_at: "2026-07-03T10:00:00Z",
+      })
+    );
+    const subagentResult = runHook(
+      { ZCODE_PROJECT_DIR: tmpRoot },
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        tool_name: "Edit",
+        tool_input: { file_path: "src/outside.py" },
+        session_id: "sub",
+      })
+    );
+    assert.equal(subagentResult.trim(), "");
+    rmSync(subSession, { force: true });
+  });
+
   test("stage-contract rides with active states and honors the char budget", () => {
     writeProjectFile(tmpRoot, ".cowork-flow/tasks/07-02-test-task/implement.jsonl",
       JSON.stringify({ file: "src/demo.py", reason: "main" }) + "\n");

@@ -118,7 +118,8 @@
         "backgroundChild": "native",
         "runtimeContextDispatch": "native",
         "runtimeContextBinding": "shim",
-        "runtimeContextCleanup": "native"
+        "runtimeContextCleanup": "native",
+        "editScopeWarning": "unsupported"
       },
       "commandTargets": [
         {
@@ -155,7 +156,8 @@
         "backgroundChild": "experimental",
         "runtimeContextDispatch": "native",
         "runtimeContextBinding": "shim",
-        "runtimeContextCleanup": "native"
+        "runtimeContextCleanup": "native",
+        "editScopeWarning": "unsupported"
       },
       "commandTargets": []
     },
@@ -191,7 +193,8 @@
         "backgroundChild": "native",
         "runtimeContextDispatch": "native",
         "runtimeContextBinding": "shim",
-        "runtimeContextCleanup": "native"
+        "runtimeContextCleanup": "native",
+        "editScopeWarning": "unsupported"
       },
       "commandTargets": [
         {
@@ -228,7 +231,8 @@
         "backgroundChild": "native",
         "runtimeContextDispatch": "native",
         "runtimeContextBinding": "shim",
-        "runtimeContextCleanup": "shim"
+        "runtimeContextCleanup": "shim",
+        "editScopeWarning": "unsupported"
       },
       "commandTargets": []
     },
@@ -260,7 +264,8 @@
         "backgroundChild": "native",
         "runtimeContextDispatch": "native",
         "runtimeContextBinding": "shim",
-        "runtimeContextCleanup": "native"
+        "runtimeContextCleanup": "native",
+        "editScopeWarning": "plugin"
       },
       "commandTargets": []
     }

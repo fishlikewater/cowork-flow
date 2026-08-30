@@ -13,6 +13,7 @@ capabilities:
   runtimeContextDispatch: native
   runtimeContextBinding: shim
   runtimeContextCleanup: native
+  editScopeWarning: unsupported
 dispatch:
   primitive: task
   agentsPath: .opencode/agents

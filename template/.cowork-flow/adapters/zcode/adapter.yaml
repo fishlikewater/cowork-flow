@@ -13,6 +13,7 @@ capabilities:
   runtimeContextDispatch: native
   runtimeContextBinding: shim
   runtimeContextCleanup: native
+  editScopeWarning: plugin
 dispatch:
   primitive: subagent
   agentsPath: .zcode/agents

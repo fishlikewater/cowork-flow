@@ -596,6 +596,48 @@ function withStageFacts(block, repoRoot, taskPath, status) {
   return parts.length > 0 ? `${parts.join("\n\n")}\n\n${block}` : block;
 }
 
+function normalizeScopePath(value) {
+  let normalized = String(value ?? "").replaceAll("\\", "/");
+  while (normalized.startsWith("./")) {
+    normalized = normalized.slice(2);
+  }
+  return normalized;
+}
+
+// Per-edit out-of-scope warning (zcode-only capability: editScopeWarning).
+// Short path by design — returns at most one warning line, or "" when the
+// edit is in scope, there is no active in_progress/review task, or the
+// session is a subagent (delegated sessions stay silent, per the capability
+// matrix fallback to the static stage-contract preview).
+function editScopeWarning(input, filePath) {
+  const root = findProjectRoot(input);
+  if (!root) return "";
+  const activeTask = readActiveTask(root, resolveSessionKey(input));
+  if (!activeTask || !activeTask.taskPath) return "";
+  if (activeTask.scope === "subagent") return "";
+  const { status, missing } = readTaskStatus(root, activeTask.taskPath);
+  if (missing || !STAGE_CONTRACT_STATES.includes(status)) return "";
+
+  const target = normalizeScopePath(filePath);
+  const entries = readImplementEntries(root, activeTask.taskPath);
+  const inScope = entries.some((entry) => {
+    const type = typeof entry.type === "string" && entry.type ? entry.type : "file";
+    if (type === "directory") return false;
+    return normalizeScopePath(entry.file) === target;
+  });
+  if (inScope) return "";
+
+  const payload = {
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext:
+        `⚠️ ${target} is outside the task's declared scope. ` +
+        "If intended, add it with `task context add` (agent-mutable) or revert the edit.",
+    },
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
 function buildContext(repoRoot, activeTask, breadcrumbs) {
   const fallback = "Run ./.cowork-flow/run task next for the current workflow step.";
 
@@ -668,6 +710,20 @@ function main() {
     typeof input?.hook_event_name === "string" &&
     input.hook_event_name.trim() === "PostToolUse"
   ) {
+    // Edit-scope short path: one warning line at most, never the full block
+    // (an edit storm must not multiply the whole injection payload).
+    const toolName = String(input?.tool_name || "");
+    const editedPath = input?.tool_input?.file_path;
+    if (
+      ["Edit", "Write", "MultiEdit"].includes(toolName) &&
+      typeof editedPath === "string" &&
+      editedPath.trim()
+    ) {
+      process.stdout.write(
+        editScopeWarning(input, editedPath.trim())
+      );
+      process.exit(0);
+    }
     // Normalize separators so Windows run.cmd invocations still match; the
     // bare-run fallback covers `cd .cowork-flow && ./run task ...` forms.
     const command = String(input?.tool_input?.command || "").replaceAll("\\", "/");
