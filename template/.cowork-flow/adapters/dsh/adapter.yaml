@@ -13,6 +13,7 @@ capabilities:
   runtimeContextDispatch: native
   runtimeContextBinding: shim
   runtimeContextCleanup: shim
+  editScopeWarning: unsupported
 dispatch:
   primitive: subagent
   skillsPath: .agents/skills

@@ -127,6 +127,12 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
 - **Gates**: static preview text, identical on all hosts.
 - **Verify**: `## 验证命令` lines from decision-anchor (first 3, 120 chars
   each) — the agent's own declared self-checks; omitted when none.
+- **Per-edit warning (zcode only)**: PostToolUse on Edit/Write/MultiEdit
+  injects at most one line when the edited file is outside the scope
+  (`editScopeWarning: plugin`; every other host declares `unsupported` —
+  their fallback is this static stage-contract preview). Bash-initiated
+  writes (redirection, tee) are a declared residual gap: the warning covers
+  Edit/Write/MultiEdit tool invocations only.
 - Budget: the whole block stays ≤ 1200 characters (asserted by tests).
 - Absent for `no_task` / `planning` / `completed` states. Byte-identical
   across the three host implementations (cross-host equality test).
