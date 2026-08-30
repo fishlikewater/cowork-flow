@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "scopeFilter": {
+    "allowedTypes": ["file", "planned-file", "deleted-file"],
+    "wildcardChars": ["*", "?", "[", "]"],
+    "rejectedSegments": ["", ".", ".."],
+    "driveLetterPattern": "^[A-Za-z]:",
+    "trailingSlashRejectedTypes": ["planned-file", "deleted-file"]
+  },
+  "stageContract": {
+    "budget": 1200,
+    "scopeLimit": 8,
+    "specLimit": 4,
+    "verifyLimit": 3
+  }
+}

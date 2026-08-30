@@ -169,7 +169,11 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
 - Budget: the whole block stays ≤ 1200 characters. Over-budget inputs
   degrade by dropping Verify, then Specs, then shrinking Scope entries
   (min 1) — the closing tag and the Gates row always survive; tests assert
-  the block stays well-formed.
+  the block stays well-formed. The scope-filter rules and the stage-contract
+  budget/limits come from `.cowork-flow/spec/runtime/scope-rules.json`, the
+  single source consumed by Python and both JS mirrors at runtime; a missing
+  or malformed file degrades to embedded defaults that are byte-identical
+  with the shipped file (locked by `tests/test_scope_rules.py`).
 - Absent for `no_task` / `planning` / `completed` states. Block content is
   byte-identical across the three host implementations for the whole fixture
   matrix (`test/fixtures/stage-contract-matrix.json` drives the cross-host

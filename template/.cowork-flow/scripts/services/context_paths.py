@@ -3,11 +3,54 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 
 CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file", "deleted-file"))
+
+# Byte-identical with the shipped .cowork-flow/spec/runtime/scope-rules.json;
+# loaded from disk at runtime so the rules are a single source across python
+# and the zcode/opencode JS mirrors. Keep both sides in sync (locked by
+# tests/test_scope_rules.py default-equivalence).
+DEFAULT_SCOPE_RULES: dict = {
+    "schemaVersion": 1,
+    "scopeFilter": {
+        "allowedTypes": ["file", "planned-file", "deleted-file"],
+        "wildcardChars": ["*", "?", "[", "]"],
+        "rejectedSegments": ["", ".", ".."],
+        "driveLetterPattern": "^[A-Za-z]:",
+        "trailingSlashRejectedTypes": ["planned-file", "deleted-file"],
+    },
+    "stageContract": {
+        "budget": 1200,
+        "scopeLimit": 8,
+        "specLimit": 4,
+        "verifyLimit": 3,
+    },
+}
+
+_RULES_CACHE: dict[str, dict] = {}
+
+
+def load_scope_rules(repo_root: Path) -> dict:
+    """Read <repo>/.cowork-flow/spec/runtime/scope-rules.json; missing or
+    malformed files fall back to DEFAULT_SCOPE_RULES (per-process cache)."""
+    root = Path(repo_root).resolve()
+    cached = _RULES_CACHE.get(str(root))
+    if cached is not None:
+        return cached
+    rules = DEFAULT_SCOPE_RULES
+    path = root / ".cowork-flow" / "spec" / "runtime" / "scope-rules.json"
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict) and loaded.get("schemaVersion") == 1:
+            rules = loaded
+    except (OSError, json.JSONDecodeError):
+        pass
+    _RULES_CACHE[str(root)] = rules
+    return rules
 
 
 class TaskContextError(RuntimeError):
@@ -30,7 +73,10 @@ def normalize_context_path(
     _validate_context_entry_type(candidate, entry_type)
     normalized = _normalized_context_path(path, entry_type)
     segments = normalized.split("/")
-    _validate_context_path(candidate, normalized, segments, path, entry_type)
+    rules = load_scope_rules(repo_root)
+    _validate_context_path(
+        candidate, normalized, segments, path, entry_type, rules=rules
+    )
     repo_root, full_path = _resolved_context_target(repo_root, segments)
     return _typed_context_path(normalized, full_path, repo_root, entry_type)
 
@@ -59,8 +105,9 @@ def _validate_context_path(
     segments: list[str],
     path: str,
     entry_type: str,
+    rules: dict | None = None,
 ) -> None:
-    if not _is_valid_context_path(normalized, segments, path, entry_type):
+    if not _is_valid_context_path(normalized, segments, path, entry_type, rules):
         raise TaskContextError(
             "TASK-CONTEXT-PATH-002",
             candidate,
@@ -73,14 +120,33 @@ def _is_valid_context_path(
     segments: list[str],
     path: str,
     entry_type: str,
+    rules: dict | None = None,
 ) -> bool:
+    """Rules come from scope-rules.json (loaded by the caller); None falls
+    back to the default constants, keeping direct callers byte-compatible.
+    Type allow-listing happens at the file-scope layer
+    (normalize_context_file_scope_entry), not here: directory entries are
+    valid context paths through this function."""
+    scope_filter = (rules or {}).get("scopeFilter") or {}
+    wildcard_chars = scope_filter.get("wildcardChars")
+    if wildcard_chars is None:
+        wildcard_chars = ("*", "?", "[", "]")
+    drive_letter = scope_filter.get("driveLetterPattern")
+    if drive_letter is None:
+        drive_letter = r"^[A-Za-z]:"
+    rejected_segments = scope_filter.get("rejectedSegments")
+    if rejected_segments is None:
+        rejected_segments = ("", ".", "..")
+    trailing_types = scope_filter.get("trailingSlashRejectedTypes")
+    if trailing_types is None:
+        trailing_types = ("planned-file", "deleted-file")
     return not (
         not normalized
         or normalized.startswith("/")
-        or re.match(r"^[A-Za-z]:", normalized) is not None
-        or any(segment in ("", ".", "..") for segment in segments)
-        or any(character in normalized for character in "*?[]")
-        or (entry_type in {"planned-file", "deleted-file"} and str(path).endswith(("/", "\\")))
+        or re.match(drive_letter, normalized) is not None
+        or any(segment in rejected_segments for segment in segments)
+        or any(character in normalized for character in wildcard_chars)
+        or (entry_type in trailing_types and str(path).endswith(("/", "\\")))
     )
 
 
@@ -155,15 +221,19 @@ def normalize_context_file_scope_entry(
     """Return the file-scope path allowed by one context entry.
 
     Directory entries are valid context, but they do not authorize arbitrary
-    changed files for lifecycle review.
-    """
+    changed files for lifecycle review. The allowed type set comes from
+    scope-rules.json (single source shared with the JS mirrors)."""
     entry_type = entry.get("type", "file")
     file_path = entry.get("file")
     if not isinstance(file_path, str) or not file_path:
         return None, "missing file path"
     if entry_type == "directory":
         return _normalize_context_file_scope_path(repo_root, file_path, entry_type)
-    if entry_type not in ("file", "planned-file", "deleted-file"):
+    rules = load_scope_rules(repo_root)
+    allowed_types = (rules.get("scopeFilter") or {}).get("allowedTypes")
+    if allowed_types is None:
+        allowed_types = ("file", "planned-file", "deleted-file")
+    if entry_type not in allowed_types:
         return None, f"unsupported type {entry_type!r}"
     return _normalize_context_file_scope_path(repo_root, file_path, entry_type)
 

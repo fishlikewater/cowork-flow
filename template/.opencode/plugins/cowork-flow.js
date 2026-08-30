@@ -370,25 +370,58 @@ function parseDecisionAnchor(text) {
   return result
 }
 
+// Mirrors the shipped .cowork-flow/spec/runtime/scope-rules.json; loaded from
+// disk at runtime so the rules are a single source across hosts. Keep both
+// sides in sync (locked by tests/test_scope_rules.py default-equivalence).
+const DEFAULT_SCOPE_RULES = {
+  schemaVersion: 1,
+  scopeFilter: {
+    allowedTypes: ["file", "planned-file", "deleted-file"],
+    wildcardChars: ["*", "?", "[", "]"],
+    rejectedSegments: ["", ".", ".."],
+    driveLetterPattern: "^[A-Za-z]:",
+    trailingSlashRejectedTypes: ["planned-file", "deleted-file"],
+  },
+  stageContract: { budget: 1200, scopeLimit: 8, specLimit: 4, verifyLimit: 3 },
+}
+
+function readScopeRules(repoRoot) {
+  try {
+    const loaded = JSON.parse(
+      readFileSync(resolve(repoRoot, ".cowork-flow", "spec", "runtime", "scope-rules.json"), "utf8")
+    )
+    if (loaded && loaded.schemaVersion === 1) return loaded
+  } catch {
+    // Missing or malformed rules file: degrade to the shipped defaults.
+  }
+  return DEFAULT_SCOPE_RULES
+}
+
 // Port of services/context_paths.py::_is_valid_context_path: the JS side must
-// skip exactly the entries the Python whitelist drops (absolute paths, drive
-// letters, dot segments, wildcards, trailing slash on planned/deleted files).
-function isValidScopePath(normalized, raw, type) {
-  if (!["file", "planned-file", "deleted-file"].includes(type)) return false
-  if (!normalized || normalized.startsWith("/")) return false
-  if (/^[A-Za-z]:/.test(normalized)) return false
+// skip exactly the entries the Python whitelist drops. Rules come from
+// scope-rules.json; empty lists are meaningful, so nullish coalescing is used
+// for defaults only.
+function isValidScopePath(normalized, raw, type, rules) {
+  const sf = (rules || {}).scopeFilter || {}
+  const wildcards = sf.wildcardChars ?? ["*", "?", "[", "]"]
   const segments = normalized.split("/")
-  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return false
-  if (/[*?[\]]/.test(normalized)) return false
-  if (["planned-file", "deleted-file"].includes(type) && /[\\/]$/.test(raw)) return false
+  const rejected = sf.rejectedSegments ?? ["", ".", ".."]
+  if (!normalized || normalized.startsWith("/")) return false
+  if (new RegExp(sf.driveLetterPattern ?? "^[A-Za-z]:").test(normalized)) return false
+  if (segments.some((segment) => rejected.includes(segment))) return false
+  if (wildcards.some((character) => normalized.includes(character))) return false
+  const trailing = sf.trailingSlashRejectedTypes ?? ["planned-file", "deleted-file"]
+  if (trailing.includes(type) && /[\\/]$/.test(raw)) return false
   return true
 }
 
 // Mirrors services/fact_view.py file_scope_whitelist + spec_pointer_files:
 // directory entries authorize nothing, non-canonical entries are dropped.
-function buildScopeWhitelist(entries) {
+function buildScopeWhitelist(entries, rules) {
   const whitelist = []
   const specFiles = []
+  const sf = (rules || {}).scopeFilter || {}
+  const allowedTypes = sf.allowedTypes ?? ["file", "planned-file", "deleted-file"]
   for (const entry of entries) {
     const file = typeof entry.file === "string" ? entry.file : ""
     let normalized = file.replaceAll("\\", "/")
@@ -397,7 +430,8 @@ function buildScopeWhitelist(entries) {
     }
     const type = typeof entry.type === "string" && entry.type ? entry.type : "file"
     if (type === "directory") continue
-    if (!isValidScopePath(normalized, file, type)) continue
+    if (!allowedTypes.includes(type)) continue
+    if (!isValidScopePath(normalized, file, type, rules)) continue
     whitelist.push({ file: normalized, type })
     if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized)
   }
@@ -414,9 +448,9 @@ function scopeRow(entries, total, suffix) {
 // Mirrors services/fact_view.py::_fit_stage_contract: degrade an over-budget
 // block without ever emitting a malformed one — closing tag and guard rows
 // (Scope/Gates) always survive. Keep row-role rules and drop order identical.
-function fitStageContract(lines, scopeEntries, scopeTotal, mutable) {
-  const budget = STAGE_CONTRACT_BUDGET
-  if (lines.join("\n").length <= budget) return lines
+function fitStageContract(lines, scopeEntries, scopeTotal, mutable, budget) {
+  const effectiveBudget = budget ?? STAGE_CONTRACT_BUDGET
+  if (lines.join("\n").length <= effectiveBudget) return lines
   const removable = []
   for (let i = 1; i < lines.length - 1; i++) {
     if (!lines[i].startsWith("Scope:") && !lines[i].startsWith("Gates:")) {
@@ -425,7 +459,7 @@ function fitStageContract(lines, scopeEntries, scopeTotal, mutable) {
   }
   for (let i = removable.length - 1; i >= 0; i--) {
     const reduced = lines.filter((_, j) => j !== removable[i])
-    if (reduced.join("\n").length <= budget) return reduced
+    if (reduced.join("\n").length <= effectiveBudget) return reduced
     lines = reduced
   }
   const suffix = mutable ? "[agent-mutable]" : "[read-only]"
@@ -435,12 +469,14 @@ function fitStageContract(lines, scopeEntries, scopeTotal, mutable) {
     const candidate = lines.map((line) =>
       line.startsWith("Scope:") ? scopeRow(pool, scopeTotal, suffix) : line
     )
-    if (candidate.join("\n").length <= budget) return candidate
+    if (candidate.join("\n").length <= effectiveBudget) return candidate
     lines = candidate
   }
-  if (lines.join("\n").length <= budget) return lines
+  if (lines.join("\n").length <= effectiveBudget) return lines
   const closing = lines[lines.length - 1]
-  const room = budget - closing.length
+  // The final join inserts one newline between the cut body and the closing
+  // tag — reserve it so the block stays within budget byte-for-byte.
+  const room = effectiveBudget - closing.length - 1
   const body = lines.slice(0, -1).join("\n")
   if (body.length <= room) return lines
   const head = body.slice(0, room).replace(/\s+$/, "")
@@ -478,7 +514,13 @@ function stageContractBlock(root, taskPath, status, readonly = false) {
   } catch {
     // Absent jsonl: scope degrades to empty.
   }
-  const { whitelist, specFiles } = buildScopeWhitelist(entries)
+  const rules = readScopeRules(root)
+  const { whitelist, specFiles } = buildScopeWhitelist(entries, rules)
+  const stage = rules.stageContract || {}
+  const scopeLimit = stage.scopeLimit ?? STAGE_CONTRACT_SCOPE_LIMIT
+  const specLimit = stage.specLimit ?? STAGE_CONTRACT_SPECS_LIMIT
+  const verifyLimit = stage.verifyLimit ?? STAGE_CONTRACT_VERIFY_LIMIT
+  const budget = stage.budget ?? STAGE_CONTRACT_BUDGET
   let parsed
   try {
     parsed = parseDecisionAnchor(readFileSync(resolve(root, taskPath, "decision-anchor.md"), "utf8"))
@@ -488,12 +530,12 @@ function stageContractBlock(root, taskPath, status, readonly = false) {
   const suffix = readonly ? "[read-only]" : "[agent-mutable]"
   const lines = [`<stage-contract task="${xmlAttr(taskPath)}">`]
   lines.push(scopeRow(
-    whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file),
+    whitelist.slice(0, scopeLimit).map((e) => e.file),
     whitelist.length,
     suffix
   ))
   if (specFiles.length > 0) {
-    const specItems = specFiles.slice(0, STAGE_CONTRACT_SPECS_LIMIT)
+    const specItems = specFiles.slice(0, specLimit)
     let specsText = specItems.join("; ")
     const specMore = specFiles.length - specItems.length
     if (specMore > 0) specsText += ` (+${specMore} more)`
@@ -501,14 +543,15 @@ function stageContractBlock(root, taskPath, status, readonly = false) {
   }
   lines.push(readonly ? GATES_TEXT_READONLY : GATES_TEXT)
   if (parsed.validationCommands.length > 0) {
-    lines.push("Verify: " + parsed.validationCommands.slice(0, STAGE_CONTRACT_VERIFY_LIMIT).join("; "))
+    lines.push("Verify: " + parsed.validationCommands.slice(0, verifyLimit).join("; "))
   }
   lines.push("</stage-contract>")
   return fitStageContract(
     lines,
-    whitelist.slice(0, STAGE_CONTRACT_SCOPE_LIMIT).map((e) => e.file),
+    whitelist.slice(0, scopeLimit).map((e) => e.file),
     whitelist.length,
-    !readonly
+    !readonly,
+    budget
   ).join("\n")
 }
 

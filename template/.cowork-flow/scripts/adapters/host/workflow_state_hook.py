@@ -247,6 +247,7 @@ def _stage_contract_block(
     if effective_status not in STAGE_CONTRACT_STATES:
         return None
     try:
+        from services.context_paths import load_scope_rules
         from services.fact_view import (
             build_stage_contract,
             file_scope_whitelist,
@@ -257,6 +258,7 @@ def _stage_contract_block(
         task_dir = root / task_path
         whitelist = file_scope_whitelist(root, task_dir)
         spec_files = spec_pointer_files(task_dir)
+        rules = load_scope_rules(root)
         anchor_path = task_dir / "decision-anchor.md"
         try:
             parsed = parse_decision_anchor(
@@ -277,6 +279,7 @@ def _stage_contract_block(
             spec_files,
             parsed,
             mutable=status != "delegated_subtask",
+            rules=rules,
         )
     except Exception as error:
         sys.stderr.write(f"stage-contract degraded: {error}\n")
