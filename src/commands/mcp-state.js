@@ -54,6 +54,9 @@ export async function runMcpState(args, options = {}) {
     const child = spawn(runner, ['mcp-state', ...args], {
       stdio: 'inherit',
       cwd: root,
+      // Windows: newer Node (v24+) throws EINVAL when spawning .cmd files
+      // directly; routing through cmd.exe matches how npm shims launch.
+      shell: process.platform === 'win32',
     });
     child.on('error', (error) => {
       io.writeErr(`Error: failed to launch ${runner}: ${error.message}\n`);
