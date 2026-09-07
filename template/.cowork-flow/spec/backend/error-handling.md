@@ -1,5 +1,19 @@
 # 后端异常处理规范
 
+<!--
+本 spec 支持 frontmatter `checks:` 声明检查命令（规范挂命令契约见
+spec/contracts/spec-checks.md）。模板自带的声明由上游维护、sync 会覆盖
+本地修改；请把实际声明写进自建 spec 文件。示例：
+
+---
+checks:
+  - cmd: python scripts/check_error_codes.py
+    files: "src/"
+    when: lifecycle
+---
+
+-->
+
 ## 目标
 
 - 调用方能稳定感知错误

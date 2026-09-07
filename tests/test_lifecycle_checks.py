@@ -6,6 +6,7 @@ import importlib
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
 from datetime import datetime
@@ -81,7 +82,12 @@ class LifecycleChecksTest(FlowScriptTestCase):
             os.chdir(previous_cwd)
         return result, stdout.getvalue(), stderr.getvalue()
 
-    def _run_complete(self, root: Path) -> tuple[int, str, str]:
+    def _run_complete(
+        self,
+        root: Path,
+        *,
+        allow_unchecked: bool = False,
+    ) -> tuple[int, str, str]:
         previous_cwd = Path.cwd()
         try:
             os.chdir(root)
@@ -90,7 +96,12 @@ class LifecycleChecksTest(FlowScriptTestCase):
                     contextlib.redirect_stdout(io.StringIO()) as stdout,
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
-                    result = self.task.cmd_complete(argparse.Namespace(dir=None))
+                    result = self.task.cmd_complete(
+                        argparse.Namespace(
+                            dir=None,
+                            allow_unchecked=allow_unchecked,
+                        )
+                    )
         finally:
             os.chdir(previous_cwd)
         return result, stdout.getvalue(), stderr.getvalue()
@@ -272,6 +283,85 @@ class LifecycleChecksTest(FlowScriptTestCase):
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
             self.assertEqual(0, result, stderr)
             self.assertEqual("completed", data["status"])
+
+    @staticmethod
+    def _write_spec_check_fixture(root: Path, command: str) -> None:
+        spec_dir = root / ".cowork-flow" / "spec" / "backend"
+        spec_dir.mkdir(parents=True, exist_ok=True)
+        (spec_dir / "gate.md").write_text(
+            "---\n"
+            "checks:\n"
+            f"  - cmd: {command}\n"
+            "---\n\n# gate\n",
+            encoding="utf-8",
+        )
+
+    def test_complete_blocked_by_spec_check_violation_without_status_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            self._write_spec_check_fixture(
+                root, f'"{sys.executable}" -c "import sys; print(\'boom\'); sys.exit(1)"'
+            )
+
+            result, _stdout, stderr = self._run_complete(root)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, result, stderr)
+            self.assertEqual("review", data["status"], "violation must not advance status")
+            self.assertIsNone(data["completedAt"])
+            self.assertIn("spec checks report 1 violation(s)", stderr)
+            self.assertIn("backend/gate.md", stderr)
+            self.assertIn("boom", stderr)
+
+    def test_unchecked_spec_commands_block_until_explicit_exempt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            self._write_spec_check_fixture(
+                root, "definitely-not-a-real-command-xyz --flag"
+            )
+
+            blocked, _stdout, stderr = self._run_complete(root)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, blocked, stderr)
+            self.assertEqual("review", data["status"])
+            self.assertIn("spec checks report 1 unchecked command(s)", stderr)
+            self.assertIn("--allow-unchecked", stderr)
+
+            exempt_result, _stdout, exempt_stderr = self._run_complete(
+                root,
+                allow_unchecked=True,
+            )
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, exempt_result, exempt_stderr)
+            self.assertEqual("completed", data["status"])
+            self.assertEqual(1, data["meta"]["specCheckExempt"]["unchecked"])
+            self.assertEqual(1, data["meta"]["specCheckSummary"]["unchecked"])
+
+    def test_passing_spec_checks_record_summary_on_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            self._write_spec_check_fixture(
+                root, f'"{sys.executable}" -c "import sys; sys.exit(0)"'
+            )
+
+            result, _stdout, stderr = self._run_complete(root)
+
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertEqual(0, result, stderr)
+            self.assertEqual("completed", data["status"])
+            self.assertEqual(1, data["meta"]["specCheckSummary"]["pass"])
+            self.assertNotIn("specCheckExempt", data["meta"])
 
     def _write_bound_subagent_review_fixture(
         self,

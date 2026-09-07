@@ -555,6 +555,82 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIsNotNone(after_match)
         self.assertNotEqual(before_match.group(1), after_match.group(1))
 
+    def _run_hook_raw(
+        self, root: Path, payload: dict[str, object]
+    ) -> subprocess.CompletedProcess:
+        env = self._hook_env()
+        return subprocess.run(
+            [sys.executable, str(HOOK)],
+            input=json.dumps({"cwd": str(root), **payload}),
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            cwd=root,
+            env=env,
+            timeout=30,
+        )
+
+    def _spec_edit_fixture(self, root: Path, command: str) -> None:
+        spec_dir = root / ".cowork-flow" / "spec" / "backend"
+        spec_dir.mkdir(parents=True, exist_ok=True)
+        (spec_dir / "edit-gate.md").write_text(
+            "---\n"
+            "checks:\n"
+            f"  - cmd: {command}\n"
+            "    when: edit\n"
+            "    files: src/\n"
+            "---\n\n# gate\n",
+            encoding="utf-8",
+        )
+
+    def _post_tool_use_payload(self, session_id: str) -> dict[str, object]:
+        return {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "src/a.py"},
+            "session_id": session_id,
+        }
+
+    def test_post_tool_use_reports_spec_violation_then_throttles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            session = self._write_active_task_session(root, status="in_progress")
+            self._spec_edit_fixture(
+                root,
+                f'"{sys.executable}" -c "import sys; print(\'hook-boom\'); sys.exit(1)"',
+            )
+
+            first = self._run_hook_raw(
+                root, self._post_tool_use_payload(str(session["session_id"]))
+            )
+            self.assertEqual(2, first.returncode, first.stderr)
+            self.assertEqual("", first.stdout.strip())
+            self.assertEqual(1, len(first.stderr.strip().splitlines()))
+            self.assertIn("backend/edit-gate.md", first.stderr)
+            self.assertIn("hook-boom", first.stderr)
+
+            second = self._run_hook_raw(
+                root, self._post_tool_use_payload(str(session["session_id"]))
+            )
+            self.assertEqual(0, second.returncode, second.stderr)
+            self.assertEqual("", second.stderr)
+
+    def test_post_tool_use_stays_silent_without_active_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._spec_edit_fixture(
+                root,
+                f'"{sys.executable}" -c "import sys; print(\'should-not-run\'); sys.exit(1)"',
+            )
+
+            result = self._run_hook_raw(
+                root, self._post_tool_use_payload("no-task-session")
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stderr)
+
     def test_hook_runtime_files_template_are_valid(self) -> None:
         # Verify template files exist
         self.assertTrue((TEMPLATE / ".claude/settings.json").is_file())

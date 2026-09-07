@@ -53,6 +53,10 @@ function writeMatrixFixture(root, caseDef) {
     }
     writeFileSync(join(taskDir, 'decision-anchor.md'), lines.join('\n'));
   }
+  for (const [specPath, content] of Object.entries(caseDef.specFiles || {})) {
+    mkdirSync(join(root, specPath, '..'), { recursive: true });
+    writeFileSync(join(root, specPath), content);
+  }
   writeFileSync(
     join(workflow, 'spec', 'contracts', 'workflow-state-templates.md'),
     [

@@ -151,6 +151,7 @@ class TaskLifecycleService:
         *,
         completed_at: str | None = None,
         allow_spec_file_modifications: bool | None = None,
+        allow_unchecked_specs: bool = False,
         execution_context: object | None = None,
     ) -> LifecycleResult:
         return self.execute(
@@ -158,6 +159,7 @@ class TaskLifecycleService:
             task,
             completed_at=completed_at,
             allow_spec_file_modifications=allow_spec_file_modifications,
+            allow_unchecked_specs=allow_unchecked_specs,
             execution_context=execution_context,
         )
 
@@ -168,6 +170,7 @@ class TaskLifecycleService:
         *,
         preflight: Preflight | None = None,
         allow_spec_file_modifications: bool | None = None,
+        allow_unchecked_specs: bool = False,
         completed_at: str | None = None,
         execution_context: object | None = None,
         executor: str | None = None,
@@ -179,6 +182,7 @@ class TaskLifecycleService:
             self.repo_root,
             execution_context,
             allow_spec_file_modifications=allow_spec_file_modifications,
+            allow_unchecked_specs=allow_unchecked_specs,
         )
         prepared = self._prepare_transition(
             stage, task_dir, preflight, executor=executor, takeover=takeover
@@ -334,7 +338,12 @@ class TaskLifecycleService:
             task_dir,
             task_data,
             self._persisted_task_data(
-                stage, task_data, completed_at, executor=resolved_executor
+                stage,
+                task_data,
+                completed_at,
+                executor=resolved_executor,
+                check_result=check_result,
+                execution_policy=execution_policy,
             ),
             session_state,
             check_result,
@@ -559,6 +568,8 @@ class TaskLifecycleService:
         task_data: dict,
         completed_at: str | None,
         executor: str | None = None,
+        check_result: object | None = None,
+        execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> dict:
         persisted = dict(task_data)
         persisted["status"] = stage.target_status
@@ -579,6 +590,27 @@ class TaskLifecycleService:
                 if head:
                     meta["baselineCommit"] = head
                     persisted["meta"] = meta
+        if stage.name == COMPLETE_STAGE.name:
+            meta = dict(persisted.get("meta") or {})
+            spec_report = getattr(check_result, "spec_check", None)
+            if isinstance(spec_report, dict):
+                # Overwrite-on-each-completion telemetry: retry loops must
+                # not accumulate, the latest gate result wins.
+                meta["specCheckSummary"] = dict(
+                    spec_report.get("summary") or {}
+                )
+                if (
+                    execution_policy is not None
+                    and execution_policy.allow_unchecked_specs
+                    and int((spec_report.get("summary") or {}).get("unchecked") or 0)
+                ):
+                    meta["specCheckExempt"] = {
+                        "at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                        "unchecked": int(
+                            (spec_report.get("summary") or {}).get("unchecked") or 0
+                        ),
+                    }
+                persisted["meta"] = meta
         return persisted
 
     def _resolve_executor(self, executor: str | None) -> str | None:

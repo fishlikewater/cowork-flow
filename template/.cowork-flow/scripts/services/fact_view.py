@@ -277,6 +277,7 @@ def _stage_contract_lines(
     scope_limit: int = STAGE_CONTRACT_SCOPE_LIMIT,
     spec_limit: int = STAGE_CONTRACT_SPECS_LIMIT,
     verify_limit: int = STAGE_CONTRACT_VERIFY_LIMIT,
+    digests: dict[str, str] | None = None,
 ) -> list[str]:
     """Assemble the stage-contract body lines. Byte-for-byte mirrored by the
     zcode and opencode JS implementations — keep the formatting identical."""
@@ -285,8 +286,13 @@ def _stage_contract_lines(
     scope_items = [entry["file"] for entry in whitelist[:scope_limit]]
     lines.append(_scope_row(scope_items, len(whitelist), scope_suffix))
     if spec_files:
+        digest_map = digests or {}
         spec_items = spec_files[:spec_limit]
-        specs_text = "; ".join(spec_items)
+        parts = []
+        for item in spec_items:
+            digest = digest_map.get(item)
+            parts.append(f"{item}({digest})" if digest else item)
+        specs_text = "; ".join(parts)
         spec_more = len(spec_files) - len(spec_items)
         if spec_more > 0:
             specs_text += f" (+{spec_more} more)"
@@ -315,6 +321,7 @@ def build_stage_contract(
     anchor: dict[str, Any],
     mutable: bool = True,
     rules: dict | None = None,
+    digests: dict[str, str] | None = None,
 ) -> str:
     """Assemble the stage-contract block. Byte-for-byte mirrored by the zcode
     and opencode JS implementations — keep the formatting identical. Over-
@@ -322,7 +329,8 @@ def build_stage_contract(
     closed block. `mutable=False` renders the parent scope as a read-only
     reference for delegated subtasks. `rules` comes from
     scope-rules.json (load_scope_rules) and carries budget and limits; None
-    falls back to the module constants."""
+    falls back to the module constants. `digests` maps spec pointer entries
+    to their h2 heading digest (spec_digest_items)."""
     stage_contract = (rules or {}).get("stageContract") or {}
     budget = stage_contract.get("budget", STAGE_CONTRACT_BUDGET)
     scope_limit = stage_contract.get("scopeLimit", STAGE_CONTRACT_SCOPE_LIMIT)
@@ -338,6 +346,7 @@ def build_stage_contract(
             scope_limit=scope_limit,
             spec_limit=spec_limit,
             verify_limit=verify_limit,
+            digests=digests,
         )
     )
     lines.append("</stage-contract>")
@@ -346,6 +355,50 @@ def build_stage_contract(
         lines, scope_entries, len(whitelist), mutable, budget=budget
     )
     return "\n".join(fitted)
+
+
+# Spec digest: the h2 heading tree of each bound spec — the "entry-name"
+# index injected with the contract so the rules exist in the agent's
+# attention without reading full spec bodies. Format is pinned byte-for-byte
+# across the Python source and the zcode/opencode JS mirrors (contract
+# fingerprint tests): path(h2a/h2b), at most 6 headings, each truncated to
+# 24 chars after stripping "();" characters.
+SPEC_DIGEST_MAX_HEADINGS = 6
+SPEC_DIGEST_MAX_CHARS = 24
+
+
+def _clean_digest_heading(raw: str) -> str:
+    cleaned = (
+        raw.replace("(", "").replace(")", "").replace(";", "").strip()
+    )
+    return cleaned[:SPEC_DIGEST_MAX_CHARS]
+
+
+def spec_heading_digest(path: Path) -> str | None:
+    """Extract the h2 heading digest of one spec file, or None."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    headings: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("## ") and not line.startswith("###"):
+            cleaned = _clean_digest_heading(line[3:])
+            if cleaned:
+                headings.append(cleaned)
+                if len(headings) >= SPEC_DIGEST_MAX_HEADINGS:
+                    break
+    return "/".join(headings) if headings else None
+
+
+def spec_digest_items(root: Path, spec_files: list[str]) -> dict[str, str]:
+    """Digest map for spec pointer entries; missing files stay unannotated."""
+    digests: dict[str, str] = {}
+    for item in spec_files:
+        digest = spec_heading_digest(root / item)
+        if digest:
+            digests[item] = digest
+    return digests
 
 
 def _normalize_rel(path_value: str) -> str | None:

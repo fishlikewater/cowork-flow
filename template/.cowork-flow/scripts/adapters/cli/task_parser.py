@@ -85,6 +85,13 @@ def _add_next_output_options(parser: argparse.ArgumentParser) -> None:
         help="Validate task context JSONL without changing task state",
     )
     parser.add_argument(
+        "--allow-unchecked",
+        dest="allow_unchecked",
+        action="store_true",
+        help="With task completion: allow unchecked spec-check commands "
+        "(missing/timeout) and record the exemption in task.json meta",
+    )
+    parser.add_argument(
         "--list",
         dest="list_tasks",
         action="store_true",
