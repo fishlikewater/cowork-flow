@@ -621,6 +621,51 @@ class RuntimeHealthTest(unittest.TestCase):
             self.assertIn("STATE-CONFLICT-001", conflict_issue["message"])
             self.assertNotIn("UnitOfWork.recover_all", conflict_issue["commandHint"])
 
+    def test_spec_checks_health_reports_broken_declarations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            spec_dir = root / ".cowork-flow" / "spec" / "backend"
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            (spec_dir / "bad-glob.md").write_text(
+                "---\n"
+                "checks:\n"
+                "  - cmd: echo hi\n"
+                "    files: src/**/*.ts\n"
+                "---\n",
+                encoding="utf-8",
+            )
+            (spec_dir / "missing-entry.md").write_text(
+                "---\n"
+                "checks:\n"
+                "  - cmd: definitely-not-a-real-command-xyz\n"
+                "---\n",
+                encoding="utf-8",
+            )
+
+            issues = self.doctor.check_spec_checks(root)
+
+            specs = {issue["spec"]: issue["message"] for issue in issues}
+            self.assertIn("backend/bad-glob.md", specs)
+            self.assertIn("unsupported files form", specs["backend/bad-glob.md"])
+            self.assertIn("backend/missing-entry.md", specs)
+            self.assertIn("command entry not found", specs["backend/missing-entry.md"])
+
+    def test_spec_checks_health_passes_clean_declarations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            spec_dir = root / ".cowork-flow" / "spec" / "backend"
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            (spec_dir / "clean.md").write_text(
+                "---\n"
+                "checks:\n"
+                "  - cmd: echo ok\n"
+                "    files: src/\n"
+                "---\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual([], self.doctor.check_spec_checks(root))
+
 
 if __name__ == "__main__":
     unittest.main()

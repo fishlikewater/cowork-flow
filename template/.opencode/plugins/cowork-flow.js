@@ -445,6 +445,43 @@ function scopeRow(entries, total, suffix) {
   return `Scope: ${text}${extra} ${suffix}`
 }
 
+// Mirrors services/fact_view.py spec_digest_items: the h2 heading tree of
+// each bound spec, injected as the Specs-row entry-name index. Format is
+// pinned byte-for-byte with the Python source (contract fingerprint tests):
+// path(h2a/h2b), at most 6 headings, each truncated to 24 chars after
+// stripping "();" characters; missing files stay unannotated.
+const SPEC_DIGEST_MAX_HEADINGS = 6
+const SPEC_DIGEST_MAX_CHARS = 24
+
+function specHeadingDigest(specFile, root) {
+  let text
+  try {
+    text = readFileSync(resolve(root, specFile), "utf8")
+  } catch {
+    return null
+  }
+  const headings = []
+  for (const line of text.split(/\r?\n/)) {
+    if (line.startsWith("## ") && !line.startsWith("###")) {
+      const cleaned = line.slice(3).replace(/[();]/g, "").trim().slice(0, SPEC_DIGEST_MAX_CHARS)
+      if (cleaned) {
+        headings.push(cleaned)
+        if (headings.length >= SPEC_DIGEST_MAX_HEADINGS) break
+      }
+    }
+  }
+  return headings.length > 0 ? headings.join("/") : null
+}
+
+function specDigestItems(root, specFiles) {
+  const map = {}
+  for (const item of specFiles) {
+    const digest = specHeadingDigest(item, root)
+    if (digest) map[item] = digest
+  }
+  return map
+}
+
 // Mirrors services/fact_view.py::_fit_stage_contract: degrade an over-budget
 // block without ever emitting a malformed one — closing tag and guard rows
 // (Scope/Gates) always survive. Keep row-role rules and drop order identical.
@@ -536,7 +573,12 @@ function stageContractBlock(root, taskPath, status, readonly = false) {
   ))
   if (specFiles.length > 0) {
     const specItems = specFiles.slice(0, specLimit)
-    let specsText = specItems.join("; ")
+    const digestMap = specDigestItems(root, specFiles)
+    const parts = specItems.map((item) => {
+      const digest = digestMap[item]
+      return digest ? `${item}(${digest})` : item
+    })
+    let specsText = parts.join("; ")
     const specMore = specFiles.length - specItems.length
     if (specMore > 0) specsText += ` (+${specMore} more)`
     lines.push(`Specs: ${specsText}`)

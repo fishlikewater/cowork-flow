@@ -44,6 +44,7 @@ class LifecycleCheckResult:
     stage: str
     blockers: tuple[str, ...] = ()
     issues: tuple[LifecycleCheckIssue, ...] = ()
+    spec_check: dict | None = None
 
     def __post_init__(self) -> None:
         if self.issues and not self.blockers:
@@ -96,18 +97,27 @@ class LifecycleCheckRunner:
         allow_spec_file_modifications: bool | None = None,
         execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> LifecycleCheckResult:
+        spec_report = _spec_check_report(self.repo_root)
+        spec_issues = _spec_check_completion_issues(
+            spec_report,
+            allow_unchecked_specs=_policy_allows_unchecked(
+                execution_policy,
+            ),
+        )
         return LifecycleCheckResult(
             stage="complete",
             issues=tuple(
-                _review_completion_issues(
+                list(_review_completion_issues(
                     self.repo_root,
                     task_dir,
                     allow_spec_file_modifications=_policy_allows_spec_changes(
                         execution_policy,
                         allow_spec_file_modifications,
                     ),
-                ),
+                ))
+                + list(spec_issues)
             ),
+            spec_check=spec_report,
         )
 
 
@@ -118,6 +128,69 @@ def _policy_allows_spec_changes(
     if execution_policy is not None:
         return execution_policy.allow_spec_file_modifications
     return bool(allow_spec_file_modifications)
+
+
+def _policy_allows_unchecked(
+    execution_policy: LifecycleExecutionPolicy | None,
+) -> bool:
+    return bool(execution_policy is not None and execution_policy.allow_unchecked_specs)
+
+
+def _spec_check_report(repo_root: Path) -> dict | None:
+    """Run the lifecycle-phase spec checks. A structural failure degrades to
+    an unchecked report — never to a silently passing gate."""
+    try:
+        from services.spec_check import run_checks
+    except Exception:  # pragma: no cover - import surface must stay lazy
+        return {"schemaVersion": 1, "phase": "lifecycle", "results": [],
+                "parseErrors": [], "summary": {"pass": 0, "violation": 0,
+                "unchecked": 1, "executorError": 1}}
+    try:
+        return run_checks(repo_root, phase="lifecycle")
+    except Exception as error:  # fail closed: unchecked, not pass
+        return {"schemaVersion": 1, "phase": "lifecycle", "results": [],
+                "parseErrors": [], "summary": {"pass": 0, "violation": 0,
+                "unchecked": 1, "executorError": 1, "error": str(error)}}
+
+
+def _spec_check_completion_issues(
+    spec_report: dict | None,
+    *,
+    allow_unchecked_specs: bool,
+) -> list[LifecycleCheckIssue]:
+    if not spec_report:
+        return []
+    summary = spec_report.get("summary") or {}
+    issues: list[LifecycleCheckIssue] = []
+    violation = int(summary.get("violation") or 0)
+    unchecked = int(summary.get("unchecked") or 0)
+    if violation:
+        first_lines = []
+        for item in spec_report.get("results") or []:
+            if item.get("status") == "violation":
+                detail = item.get("firstViolationLine") or item.get("reason") or ""
+                first_lines.append(f"{item.get('spec')}: {detail}")
+        issues.append(
+            LifecycleCheckIssue(
+                code="SPEC-CHECK-VIOLATION",
+                message=(
+                    "spec checks report "
+                    f"{violation} violation(s): {'; '.join(first_lines[:3])}"
+                ),
+            )
+        )
+    if unchecked and not allow_unchecked_specs:
+        issues.append(
+            LifecycleCheckIssue(
+                code="SPEC-CHECK-UNCHECKED",
+                message=(
+                    f"spec checks report {unchecked} unchecked command(s) "
+                    "(missing/timeout); rerun spec-check, or pass "
+                    "--allow-unchecked to complete with the exemption recorded"
+                ),
+            )
+        )
+    return issues
 
 
 

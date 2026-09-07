@@ -211,6 +211,36 @@
       }
     },
     {
+      "name": "spec-digest",
+      "status": "in_progress",
+      "entries": [
+        {
+          "file": "src/demo.py",
+          "reason": "main"
+        },
+        {
+          "file": ".cowork-flow/spec/backend/error-handling.md",
+          "reason": "backend spec"
+        },
+        {
+          "file": ".cowork-flow/spec/missing-spec.md",
+          "reason": "absent spec"
+        }
+      ],
+      "specFiles": {
+        ".cowork-flow/spec/backend/error-handling.md": "# 异常处理规范\n\n## 目标\n\n- 调用方能稳定感知错误\n\n## 推荐做法\n\n- 统一错误码\n\n### 三级标题不进 digest\n"
+      },
+      "anchor": {
+        "goal": "Digest is an index, not the body."
+      },
+      "assert": {
+        "closed": true,
+        "maxLen": 1200,
+        "scopeContains": "Scope: src/demo.py",
+        "specsExact": "Specs: .cowork-flow/spec/backend/error-handling.md(目标/推荐做法); .cowork-flow/spec/missing-spec.md"
+      }
+    },
+    {
       "name": "delegated-readonly",
       "status": "delegated_subtask",
       "underlying": "in_progress",

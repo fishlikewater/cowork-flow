@@ -61,13 +61,26 @@ def main() -> int:
         return 0
     scripts_dir = root / ".cowork-flow" / "scripts"
     sys.path.insert(0, str(scripts_dir))
-    from adapters.host.workflow_state_hook import build_hook_context
 
     event_name = (
         hook_input.get("hook_event_name")
         or hook_input.get("hookEventName")
         or "UserPromptSubmit"
     )
+    if event_name == "PostToolUse":
+        # Editor-phase spec-check short path: at most one advisory line on
+        # stderr (exit 2 surfaces it to the model; the edit itself has
+        # already happened). Nothing to report exits 0 silently.
+        from adapters.host.workflow_state_hook import spec_edit_warning
+
+        warning = spec_edit_warning(root, hook_input)
+        if warning:
+            print(warning, file=sys.stderr)
+            return 2
+        return 0
+
+    from adapters.host.workflow_state_hook import build_hook_context
+
     context = build_hook_context(
         root,
         hook_input,
@@ -76,7 +89,7 @@ def main() -> int:
         preamble=(
             (
                 "<claude-code-runtime>\n"
-                "hooks: UserPromptSubmit, SessionStart\n"
+                "hooks: UserPromptSubmit, SessionStart, PostToolUse\n"
                 "</claude-code-runtime>"
             ),
         ),

@@ -9,6 +9,7 @@
 import { readFileSync, existsSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { createHash } from "crypto";
+import { spawnSync } from "child_process";
 
 const DIR_WORKFLOW = ".cowork-flow";
 const FILE_TASK_JSON = "task.json";
@@ -611,6 +612,47 @@ function scopeRow(entries, total, suffix) {
   return `Scope: ${text}${extra} ${suffix}`;
 }
 
+// Mirrors services/fact_view.py spec_digest_items: the h2 heading tree of
+// each bound spec, injected as the Specs-row entry-name index. Format is
+// pinned byte-for-byte with the Python source (contract fingerprint tests):
+// path(h2a/h2b), at most 6 headings, each truncated to 24 chars after
+// stripping "();" characters; missing files stay unannotated.
+const SPEC_DIGEST_MAX_HEADINGS = 6;
+const SPEC_DIGEST_MAX_CHARS = 24;
+
+function specHeadingDigest(specFile, repoRoot) {
+  let text;
+  try {
+    text = readFileSync(join(repoRoot, specFile), "utf8");
+  } catch {
+    return null;
+  }
+  const headings = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (line.startsWith("## ") && !line.startsWith("###")) {
+      const cleaned = line
+        .slice(3)
+        .replace(/[();]/g, "")
+        .trim()
+        .slice(0, SPEC_DIGEST_MAX_CHARS);
+      if (cleaned) {
+        headings.push(cleaned);
+        if (headings.length >= SPEC_DIGEST_MAX_HEADINGS) break;
+      }
+    }
+  }
+  return headings.length > 0 ? headings.join("/") : null;
+}
+
+function specDigestItems(repoRoot, specFiles) {
+  const map = {};
+  for (const item of specFiles) {
+    const digest = specHeadingDigest(item, repoRoot);
+    if (digest) map[item] = digest;
+  }
+  return map;
+}
+
 // Mirrors services/fact_view.py::_fit_stage_contract: degrade an over-budget
 // block without ever emitting a malformed one — the closing tag and the guard
 // rows (Scope/Gates) always survive. Keep the row-role rules and drop order
@@ -692,7 +734,12 @@ function stageContractBlock(repoRoot, taskPath, status, readonly = false) {
   ));
   if (specFiles.length > 0) {
     const specItems = specFiles.slice(0, specLimit);
-    let specsText = specItems.join("; ");
+    const digestMap = specDigestItems(repoRoot, specFiles);
+    const parts = specItems.map((item) => {
+      const digest = digestMap[item];
+      return digest ? `${item}(${digest})` : item;
+    });
+    let specsText = parts.join("; ");
     const specMore = specFiles.length - specItems.length;
     if (specMore > 0) specsText += ` (+${specMore} more)`;
     lines.push(`Specs: ${specsText}`);
@@ -759,8 +806,81 @@ function editScopeWarning(input, filePath) {
   return JSON.stringify(payload, null, 2);
 }
 
-function buildContext(repoRoot, activeTask, breadcrumbs) {
-  const fallback = "Run ./.cowork-flow/run task next for the current workflow step.";
+// Editor-phase spec-check short path (mirrors workflow_state_hook.py
+// spec_edit_warning): executes the single-source spec_check.py CLI in
+// throttled single-line mode. Same silence rules as editScopeWarning —
+// only active in_progress/review main sessions get advisories. The 3.8s
+// spawn ceiling keeps the whole hook inside its 5s budget (the check
+// itself clamps to 3s; throttle state lives in .cowork-flow/.runtime so
+// edit storms cannot multiply command costs).
+function mergedEditWarning(input, filePath) {
+  const scopeJson = editScopeWarning(input, filePath);
+  const specLine = specEditWarningLine(input, filePath);
+  if (!specLine) return scopeJson;
+  let context = "";
+  if (scopeJson) {
+    try {
+      context = JSON.parse(scopeJson)?.hookSpecificOutput?.additionalContext || "";
+    } catch {
+      context = "";
+    }
+  }
+  context = context ? `${context}\n${specLine}` : specLine;
+  return JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext: context,
+    },
+  });
+}
+
+function specEditWarningLine(input, filePath) {
+  const root = findProjectRoot(input);
+  if (!root) return "";
+  const activeTask = readActiveTask(root, resolveSessionKey(input));
+  if (!activeTask || !activeTask.taskPath) return "";
+  if (activeTask.scope === "subagent") return "";
+  const { status, missing } = readTaskStatus(root, activeTask.taskPath);
+  if (missing || !STAGE_CONTRACT_STATES.includes(status)) return "";
+  return spawnSpecCheckEdit(root, filePath);
+}
+
+function pythonCandidates() {
+  const list = [];
+  const env = (process.env.COWORK_FLOW_PYTHON || "").trim();
+  if (env) list.push([env]);
+  list.push(["python3"], ["python"]);
+  if (process.platform === "win32") list.push(["py", "-3"]);
+  return list;
+}
+
+function spawnSpecCheckEdit(root, filePath) {
+  const script = join(
+    root,
+    DIR_WORKFLOW,
+    "scripts",
+    "adapters",
+    "cli",
+    "spec_check.py"
+  );
+  for (const candidate of pythonCandidates()) {
+    let result;
+    try {
+      result = spawnSync(candidate[0], [...candidate.slice(1), script, "--phase", "edit", "--file", filePath, "--throttled"], {
+        cwd: root,
+        timeout: 3800,
+        encoding: "utf8",
+      });
+    } catch {
+      continue;
+    }
+    if (result.error || result.status === null) continue;
+    return (result.stdout || "").split(/\r?\n/)[0].trim();
+  }
+  return "";
+}
+
+function buildContext(repoRoot, activeTask, breadcrumbs) {  const fallback = "Run ./.cowork-flow/run task next for the current workflow step.";
 
   if (!activeTask) {
     const body = breadcrumbs.no_task || fallback;
@@ -841,9 +961,7 @@ function main() {
       typeof editedPath === "string" &&
       editedPath.trim()
     ) {
-      process.stdout.write(
-        editScopeWarning(input, editedPath.trim())
-      );
+      process.stdout.write(mergedEditWarning(input, editedPath.trim()));
       process.exit(0);
     }
     // Normalize separators so Windows run.cmd invocations still match; the

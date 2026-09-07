@@ -252,12 +252,14 @@ def _stage_contract_block(
             build_stage_contract,
             file_scope_whitelist,
             parse_decision_anchor,
+            spec_digest_items,
             spec_pointer_files,
         )
 
         task_dir = root / task_path
         whitelist = file_scope_whitelist(root, task_dir)
         spec_files = spec_pointer_files(task_dir)
+        digests = spec_digest_items(root, spec_files) if spec_files else {}
         rules = load_scope_rules(root)
         anchor_path = task_dir / "decision-anchor.md"
         try:
@@ -280,10 +282,43 @@ def _stage_contract_block(
             parsed,
             mutable=status != "delegated_subtask",
             rules=rules,
+            digests=digests,
         )
     except Exception as error:
         sys.stderr.write(f"stage-contract degraded: {error}\n")
         return None
+
+
+def spec_edit_warning(root: Path, hook_input: dict[str, Any]) -> str:
+    """Editor-phase spec-check single-line warning (PostToolUse short path).
+
+    Silence rules match the zcode JS mirror (editScopeWarning family): only
+    an active in_progress/review main-session task gets advisories —
+    no_task, planning, completed, and delegated sessions stay silent. Empty
+    string means silent. Never raises — the editor path must not break
+    edits.
+    """
+    try:
+        task_path, status, _source = _get_active_task(root, hook_input)
+    except Exception:
+        return ""
+    if not task_path or status not in STAGE_CONTRACT_STATES:
+        return ""
+    tool_name = hook_input.get("tool_name")
+    tool_input = hook_input.get("tool_input")
+    if tool_name not in {"Edit", "Write", "MultiEdit"}:
+        return ""
+    file_path = (
+        tool_input.get("file_path") if isinstance(tool_input, dict) else None
+    )
+    if not isinstance(file_path, str) or not file_path.strip():
+        return ""
+    try:
+        from services.spec_check import run_edit_checks
+
+        return run_edit_checks(root, file_path)
+    except Exception:
+        return ""
 
 
 def _load_breadcrumbs(root: Path) -> dict[str, str]:

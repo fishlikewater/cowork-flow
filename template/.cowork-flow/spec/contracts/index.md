@@ -11,3 +11,4 @@
 - `capabilities.md`: 宿主适配器能力模型。
 - `party-mode-v2-board.md`: Party Mode V2 board 协议。
 - `plan-binding.md`: 开发计划轻量绑定、启动前缺失阻断和恢复可见性合同。
+- `spec-checks.md`: 规范挂命令契约——用户规范 frontmatter `checks:` 声明的语法、三态门禁语义、时机与宿主能力矩阵。

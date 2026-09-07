@@ -329,6 +329,7 @@ def cmd_complete(args: argparse.Namespace) -> int:
     result = service.complete(
         task_dir,
         execution_context=execution_context,
+        allow_unchecked_specs=bool(getattr(args, "allow_unchecked", False)),
     )
     if not result.ok:
         if result.code == "LIFECYCLE-TRANSITION-001":
