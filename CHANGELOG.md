@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.0 - 2026-09-08
+
+### 规范挂命令（spec 约束前移）
+
+用户在 `.cowork-flow/spec/` 定义的行为规范，从"review 才发现"前移为"编码时即约束"：
+
+- **spec frontmatter `checks:` 声明**：每条规范可声明检查命令（`cmd`/`files`/`timeout`/`when`），由唯一执行器 `./.cowork-flow/run spec-check` 按相位执行；机制只消费声明、不解析规范正文，规则变化随 spec 同文件天然同步。`files` 只支持目录前缀与扩展名两种形式（完整 glob 解析为错误且声明不执行，doctor 报告）。契约文档见 `spec/contracts/spec-checks.md`。
+- **三态门禁语义**：`pass` / `violation`（complete 阻断、状态不推进）/ `unchecked`（命令缺失、解释器缺失、超时——阻断并要求显式 `--allow-unchecked`，豁免留痕进 `task.json` `meta.specCheckExempt` 供 review 可见）。unchecked 永不冒充 pass。
+- **收口遥测**：complete 时全量结果写 `meta.specCheckSummary`，为"返工前移"效果提供可对比基线。
+- **三线 digest 注入**：进入 in_progress 后，stage-contract 的 Specs 行升级为 h2 标题树索引（每 spec 最多 6 条、每条截断 24 字符），规范条目名随契约常驻注意力；spec 正文改动不影响 digest，超预算整行让位（Scope/Gates 永不丢）。python/zcode/opencode 输出由 matrix 用例锁定逐字相等，claude 线经 Python 单源自动获得。
+- **编辑期快跑**：zcode（PostToolUse 短路径，spawn 单源 CLI、3.8s 上限）与 claude（PostToolUse 新增 hook 资产，exit 2 单行 stderr 反馈）在编辑命中 `files` 的声明时就地执行，违规单行警告、同文件 10 秒节流（状态在 `.cowork-flow/.runtime/`）、执行器缺失静默不阻断编辑流；opencode 降级为仅 digest + 收口。
+- **doctor 健康项**：`specChecks` 报告声明解析错误与命令入口不存在——"跑不了的声明"在收口前暴露。
+
+配套：spec-check CLI（`--phase/--file/--json/--verbose/--throttled`）、`--allow-unchecked` 收口旗标、架构拓扑保持 services 层无 CLI 关注点。
+
 ## 1.1.4 - 2026-08-31
 
 ### 修复
