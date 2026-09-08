@@ -116,15 +116,25 @@ test('zcode PostToolUse matcher covers every edit-capable tool', async () => {
 });
 
 test('zcode hook reads stdin event and cwd for workflow-state injection', async (t) => {
-  const unrelatedCwd = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-hook-cwd-'));
+  const projectRoot = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-hook-cwd-'));
+  const unrelatedCwd = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-unrelated-'));
   t.after(async () => {
+    await rm(projectRoot, { recursive: true, force: true });
     await rm(unrelatedCwd, { recursive: true, force: true });
   });
+
+  // The shim renders through the project's own runtime copy (same root the
+  // CLI resolves), so the fixture project needs the scripts installed.
+  await cp(
+    join(templateRoot, '.cowork-flow', 'scripts'),
+    join(projectRoot, '.cowork-flow', 'scripts'),
+    { recursive: true }
+  );
 
   const payload = runZCodeHook(
     {
       hook_event_name: 'SessionStart',
-      cwd: process.cwd(),
+      cwd: projectRoot,
       source: 'startup'
     },
     { cwd: unrelatedCwd }
@@ -140,6 +150,11 @@ test('zcode hook uses prompt runtime context for delegated subtask injection', a
     await rm(projectRoot, { recursive: true, force: true });
   });
 
+  await cp(
+    join(templateRoot, '.cowork-flow', 'scripts'),
+    join(projectRoot, '.cowork-flow', 'scripts'),
+    { recursive: true }
+  );
   const runtimeDir = join(projectRoot, '.cowork-flow', '.runtime', 'subagents');
   await mkdir(runtimeDir, { recursive: true });
   await writeFile(

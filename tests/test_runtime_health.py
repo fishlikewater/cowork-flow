@@ -666,6 +666,72 @@ class RuntimeHealthTest(unittest.TestCase):
 
             self.assertEqual([], self.doctor.check_spec_checks(root))
 
+    def test_mcp_registration_reports_project_level_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".mcp.json").write_text(
+                json.dumps(
+                    {
+                        "mcpServers": {
+                            "cowork-flow": {
+                                "command": "cowork-flow",
+                                "args": ["mcp-state"],
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(
+                self.doctor, "_global_mcp_registered", return_value=False
+            ):
+                issues = self.doctor.check_mcp_registration(root)
+
+        statuses = {issue["status"] for issue in issues}
+        self.assertIn("project", statuses)
+        self.assertNotIn("absent", statuses)
+        self.assertNotIn("duplicate", statuses)
+
+    def test_mcp_registration_reports_duplicate_global_and_project(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".mcp.json").write_text(
+                json.dumps({"mcpServers": {"cowork-flow": {}}}),
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(
+                self.doctor, "_global_mcp_registered", return_value=True
+            ):
+                issues = self.doctor.check_mcp_registration(root)
+
+        statuses = {issue["status"] for issue in issues}
+        self.assertIn("duplicate", statuses)
+
+    def test_mcp_registration_absent_is_advisory_not_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir(parents=True)
+
+            with mock.patch.object(
+                self.doctor, "_global_mcp_registered", return_value=False
+            ):
+                issues = self.doctor.check_mcp_registration(root)
+                result = self.doctor._all_check_result(root)
+
+        statuses = {issue["status"] for issue in issues}
+        self.assertIn("absent", statuses)
+        # Advisory only: MCP registration issues never appear in the fatal
+        # error list, whatever else the doctor reports about the fixture.
+        self.assertFalse(
+            [
+                error
+                for error in result["errors"]
+                if error.get("kind") == "mcp"
+            ]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

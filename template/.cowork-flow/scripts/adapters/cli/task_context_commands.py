@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from services.task_context import (
@@ -243,4 +244,68 @@ def cmd_list_context(args: argparse.Namespace) -> int:
                 )
             print(f"     {colored('->', Colors.YELLOW)} {reason}")
         print()
+    return 0
+
+
+def _resolve_fact_task_dir(
+    task_dir_arg: str | None, repo_root: Path
+) -> Path | None:
+    """Explicit dir wins; otherwise the session-bound active task. Returns
+    None when nothing is resolvable (the caller reports no-active-task)."""
+    if task_dir_arg:
+        return resolve_task_dir(task_dir_arg, repo_root)
+    from runtime.session_state import get_active_task
+
+    active = get_active_task(repo_root)
+    if not active.task_path:
+        return None
+    return repo_root / active.task_path
+
+
+def _print_fact_json(payload: dict) -> None:
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def cmd_scope(args: argparse.Namespace) -> int:
+    """File-scope whitelist for a task (read-only fact query, MCP task_scope
+    parity). With --path, prints the per-file inScope verdict instead."""
+    repo_root = get_repo_root()
+    task_dir = _resolve_fact_task_dir(getattr(args, "dir", None), repo_root)
+    if task_dir is None or not task_dir.is_dir():
+        _print_fact_json({"error": "no-active-task"})
+        return 1
+    from services.fact_view import file_scope_whitelist, path_in_scope
+
+    whitelist = file_scope_whitelist(repo_root, task_dir)
+    if getattr(args, "path", None):
+        payload = {"taskDir": task_dir.name, **path_in_scope(whitelist, args.path)}
+    else:
+        payload = {
+            "taskDir": task_dir.name,
+            "whitelist": whitelist,
+            "count": len(whitelist),
+        }
+    _print_fact_json(payload)
+    return 0
+
+
+def cmd_specs(args: argparse.Namespace) -> int:
+    """Spec/skill reading list dispatched by task dev_type (read-only fact
+    query, MCP task_specs parity)."""
+    repo_root = get_repo_root()
+    task_dir = _resolve_fact_task_dir(getattr(args, "dir", None), repo_root)
+    if task_dir is None or not task_dir.is_dir():
+        _print_fact_json({"error": "no-active-task"})
+        return 1
+    from services.fact_view import spec_entries_for_task
+
+    dev_type, specs = spec_entries_for_task(repo_root, task_dir)
+    _print_fact_json(
+        {
+            "taskDir": task_dir.name,
+            "devType": dev_type,
+            "specs": specs,
+            "count": len(specs),
+        }
+    )
     return 0

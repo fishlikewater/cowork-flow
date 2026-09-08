@@ -14,6 +14,18 @@ const DEFAULT_CONTRACT_REGISTRY = {
       ],
       readWhen: ["before formal subagent dispatch", "when checking subagent health"],
     },
+    {
+      id: "FACT_LAYER_ACCESS_V1",
+      path: ".cowork-flow/spec/contracts/fact-layer-access.md",
+      digest: [
+        "Task/scope/spec facts are read-only via MCP tools or CLI; writes only flow through CLI lifecycle gates.",
+        "Prefer MCP task_state/task_scope/task_specs for fact queries when available; CLI is the fallback.",
+      ],
+      readWhen: [
+        "when querying task facts or file scope",
+        "when registering the fact layer for a new host or external client",
+      ],
+    },
   ],
 }
 

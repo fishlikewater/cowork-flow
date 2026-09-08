@@ -3,10 +3,11 @@
 Single source for how every host adapter injects cowork-flow runtime context
 into a session: the transport shape, the event timing matrix, the contract
 digest shape rules (full block vs fingerprint line), and the fingerprint
-serialization norm. All host implementations — zcode JS hook, the Python
-shared core (codex / claude-code / dsh), and the opencode JS plugin — must
-follow this document; cross-host behavior tests lock the three independent
-implementations to it.
+serialization norm. The workflow facts are rendered by ONE Python source —
+`adapters/host/inject.py` over `workflow_state_hook.py` +
+`services.fact_view.py` — consumed by the zcode transport shim (node),
+claude-code, codex, and dsh; the opencode JS plugin remains the one
+independent mirror, locked to the same bytes by cross-host behavior tests.
 
 This document is a meta-protocol: it describes the injection layer itself and
 is intentionally **not** registered in `contract-registry.json` (registering it
@@ -16,9 +17,9 @@ would make the digest self-referential).
 
 | Host | Transport | Shape |
 |---|---|---|
-| zcode | process hook (`inject-context.js`), stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` |
-| codex | command hook (Python shell), stdout JSON | same shape |
-| claude-code | command hook (Python shell), stdout JSON | same shape |
+| zcode | process hook shim (`inject-context.js`) → `inject.py --host zcode`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` |
+| codex | thin wrapper (`inject-workflow-state.py`) → `inject.py --host codex`, stdout JSON | same shape |
+| claude-code | thin wrapper (`inject-workflow-state.py`) → `inject.py --host claude-code`, stdout JSON | same shape |
 | opencode | plugin `experimental.chat.system.transform` + `shell.env` | system-prompt section push / env object |
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 
@@ -27,7 +28,8 @@ runtime preamble, the contract digest (full block or fingerprint line, see
 below), optional `decision-anchor` / `stage-contract` blocks, and the
 `<workflow-state>` block. It is **not** byte-identical across hosts at the
 string level — the digest policy line differs per host wording and zcode
-drops the registry-warning line. Exactly two things are byte-identical and
+drops the registry-warning line; both differences are selected inside the
+single Python source by `--host`. Exactly two things are byte-identical and
 test-locked: the contract digest **fingerprint value** and the
 `<stage-contract>` block.
 
@@ -171,16 +173,17 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   (min 1) — the closing tag and the Gates row always survive; tests assert
   the block stays well-formed. The scope-filter rules and the stage-contract
   budget/limits come from `.cowork-flow/spec/runtime/scope-rules.json`, the
-  single source consumed by Python and both JS mirrors at runtime; a missing
-  or malformed file degrades to embedded defaults that are byte-identical
-  with the shipped file (locked by `tests/test_scope_rules.py`).
+  single source consumed at runtime; a missing or malformed file degrades to
+  embedded defaults that are byte-identical with the shipped file (locked by
+  `tests/test_scope_rules.py`).
 - Absent for `no_task` / `planning` / `completed` states. Block content is
-  byte-identical across the three host implementations for the whole fixture
-  matrix (`test/fixtures/stage-contract-matrix.json` drives the cross-host
-  equality test: canonical, `./`-prefixed, invalid-boundary, over-budget,
-  emoji, missing-anchor, empty-scope, delegated-readonly). The JS scope
-  filter is a port of the Python rules and is locked by that matrix — a
-  port, not a mechanism, so the matrix list grows whenever the rules grow.
+  byte-identical across host lines for the whole fixture matrix
+  (`test/fixtures/stage-contract-matrix.json` drives the equality test:
+  canonical, `./`-prefixed, invalid-boundary, over-budget, emoji,
+  missing-anchor, empty-scope, delegated-readonly). The zcode line now runs
+  through the same Python source as the python line (transport shim), so the
+  matrix's remaining cross-host assertion is opencode's JS mirror against
+  the single source — a mirror, not a mechanism.
 
 The authoritative per-file verdict lives in the MCP `task_scope` tool
 (`services.fact_view.file_scope_whitelist` — same semantics, live data).
@@ -189,15 +192,16 @@ The authoritative per-file verdict lives in the MCP `task_scope` tool
 
 sha256 over (1) the registry `contracts` array serialized with
 **recursively sorted keys** (Python `json.dumps(..., sort_keys=True,
-ensure_ascii=False)`; the JS implementations use the equivalent
+ensure_ascii=False)`; the opencode plugin uses the equivalent
 `stableStringify`), then (2) each contract file's raw bytes in registry
 order; a missing file hashes as the literal string `missing:<path>`. The
 fingerprint is the first 16 hex chars of the digest.
 
-Serialization must be byte-identical across the three implementations: same
+Serialization must be byte-identical across implementations: same
 key order, same escaping (ASCII-safe content), same UTF-8 encoding. The
 cross-host test (`test/contract-fingerprint.test.js`) asserts this and is the
-regression lock against drift.
+regression lock against drift between the opencode mirror and the Python
+single source.
 
 ## Change guard
 
