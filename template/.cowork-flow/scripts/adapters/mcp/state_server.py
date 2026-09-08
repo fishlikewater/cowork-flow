@@ -166,13 +166,10 @@ def _tool_task_scope(root: Path, arguments: dict) -> dict:
 
 
 def _tool_task_specs(root: Path, arguments: dict) -> dict:
-    from services.context_discovery import implement_spec_entries
-    from services.fact_view import _read_json
+    from services.fact_view import spec_entries_for_task
 
     task_dir = _resolve_task_dir(root, arguments.get("task"))
-    task = _read_json(task_dir / "task.json")
-    dev_type = task.get("dev_type") if isinstance(task, dict) else None
-    specs = implement_spec_entries(root, dev_type)
+    dev_type, specs = spec_entries_for_task(root, task_dir)
     return {
         "taskDir": task_dir.name,
         "devType": dev_type,

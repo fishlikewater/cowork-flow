@@ -287,12 +287,24 @@ def _first_violation_line(output: Iterable[str]) -> str:
 def _run_command(decl: CheckDecl, repo_root: Path) -> tuple[str, int | None, str, list[str]]:
     """Execute one declaration. Returns (status, exit_code, reason, output)."""
     command = _decl_for_platform(decl)
+    tokens: list[str] = []
     if IS_WINDOWS:
         # Windows: newer runtimes refuse to spawn .cmd shims directly
-        # (EINVAL); route through cmd.exe the way npm shims launch. Failure
-        # to find cmd.exe or the entry degrades to unchecked, never pass.
-        argv = ["cmd.exe", "/c", command]
-        popen_kwargs: dict = {}
+        # (EINVAL), so the command goes through cmd.exe. Passing an argv list
+        # makes list2cmdline escape an already-quoted command into `\"...\"`
+        # — cmd then strips the outer quotes and fails to parse — so the
+        # raw string runs via shell=True, exactly the way npm shims launch.
+        # The entry check keeps "missing command" as unchecked instead of a
+        # cmd.exe rc=1 masquerading as a violation.
+        try:
+            tokens = shlex.split(command, posix=False)
+        except ValueError:
+            tokens = []
+        first_token = tokens[0].strip('"') if tokens else ""
+        if not first_token or shutil.which(first_token) is None:
+            return "unchecked", None, f"command not found: {first_token}", []
+        argv: str | list[str] = command
+        popen_kwargs: dict = {"shell": True}
     else:
         try:
             argv = shlex.split(command)
@@ -309,7 +321,11 @@ def _run_command(decl: CheckDecl, repo_root: Path) -> tuple[str, int | None, str
             argv,
             cwd=str(repo_root),
             capture_output=True,
-            text=True,
+            # Explicit UTF-8 with replacement: command output is process
+            # noise (first violation line only), never allowed to crash the
+            # reader thread or masquerade as a check outcome.
+            encoding="utf-8",
+            errors="replace",
             timeout=decl.timeout,
             check=False,
             **popen_kwargs,

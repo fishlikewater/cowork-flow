@@ -43,7 +43,9 @@ spec 为无检查并进 doctor 报告，不炸流程。
 - **编辑期**（zcode/claude）：违规输出单行
   `spec-check[<spec>] violation: <首个违规行>`；同一文件 10 秒内只报一次
   （节流状态在 `.cowork-flow/.runtime/spec-edit-throttle.json`）；执行器
-  缺失或超时静默，绝不阻断编辑流。
+  缺失或超时静默，绝不阻断编辑流。zcode 经 shim 转发到单源入口
+  （`inject.py`），scope 警告与 spec 警告合并进同一个 additionalContext
+  载荷；claude 走 exit 2 stderr 反馈。
 - **收口期**（task complete）：全量执行，结果进 `meta.specCheckSummary`
   遥测；阻断消息只列未过项摘要。
 - 手动查询：`./.cowork-flow/run spec-check [--file <path>] [--json]
@@ -67,8 +69,9 @@ spec 为无检查并进 doctor 报告，不炸流程。
 ## digest 注入
 
 进入 in_progress 后，stage-contract 的 Specs 行升级为
-`Specs: <spec>(<h2 标题树>); …`：最多 6 个 h2 条目、每条截断 24 字符、
-剔除 `();` 字符；文件缺失不加注解。digest 是条目名索引不是正文，受
+`Specs: <spec>(<h2 标题树>); …`：最多 6 个 h2 条目、每条截断 24 字符、剔除
+`();` 字符；文件缺失不加注解。digest 是条目名索引不是正文，受
 scope-rules.json `stageContract.budget` 硬顶，超预算整行让位
-（Scope/Gates 行永不丢）。格式由三线逐字相等测试锁定
+（Scope/Gates 行永不丢）。python/zcode 输出同源于单一 Python 入口，
+opencode 镜像与它逐字相等由 matrix 用例锁定
 （`test/stage-contract.test.js` matrix）。

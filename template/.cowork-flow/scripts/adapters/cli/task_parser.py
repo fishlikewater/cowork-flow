@@ -168,6 +168,27 @@ def _add_next_command(subparsers: argparse._SubParsersAction) -> None:
     _add_next_create_inputs(next_parser)
     _add_next_runtime_inputs(next_parser)
 
+
+def _add_scope_command(subparsers: argparse._SubParsersAction) -> None:
+    scope_parser = subparsers.add_parser(
+        "scope",
+        help="File-scope whitelist for a task (read-only fact query)",
+    )
+    _add_optional_task_dir(scope_parser)
+    scope_parser.add_argument(
+        "--path",
+        help="Check one repo-relative path and print the inScope verdict",
+    )
+
+
+def _add_specs_command(subparsers: argparse._SubParsersAction) -> None:
+    specs_parser = subparsers.add_parser(
+        "specs",
+        help="Spec/skill reading list dispatched by task dev_type "
+        "(read-only fact query)",
+    )
+    _add_optional_task_dir(specs_parser)
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Task workflow router for cowork-flow",
@@ -179,6 +200,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Commands",
     )
     _add_next_command(subparsers)
+    _add_scope_command(subparsers)
+    _add_specs_command(subparsers)
     return parser
 
 

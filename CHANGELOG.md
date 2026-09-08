@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### 跨宿主适配通用化（注入单源化 + MCP 重定位）
+
+注入事实逻辑收拢到单一 Python 源，MCP 定位收口为"外部/无 hook 宿主的通用 pull 通道"：
+
+- **宿主中立入口 `inject.py`**：zcode shim、claude-code、codex 全部走同一入口（`--host` 选择信封与形状），wrapper 瘦身为 ≤20 行委托。digest policy 措辞、registry-warning 抑制（zcode）、preamble、信封缩进全部按 host 参数化，仍由 context-injection.md 契约锁定。
+- **zcode shim 化**：`inject-context.js` 从 ~1000 行事实镜像降为 ~140 行传输层——事件路由、PostToolUse(Bash) 廉价过滤（非生命周期命令零 spawn）、解释器定位（项目 runtime 优先、插件缓存副本兜底）、stdin/stdout 转发。删除 `inject-context.selfcheck.mjs`。matrix 逐字相等测试中的 zcode 线改为经 shim 驱动单源。
+- **JS-only 行为移植进 Python 单源**：`formatRebindHints`（zcode 无任务体补活动任务列表）、`editScopeWarning`（逐文件 scope 白名单警告，与 spec 警告合并进同一载荷）、missing-task 统一文案（原 "stale" 通用回退改为明确指向任务目录不存在 + 建任务指引，全宿主生效）、`checkEssentialFiles` 缺文件警告（zcode）、无会话身份时的 newest-session 显示回退（zcode，仅显示不改写绑定语义）。
+- **MCP 重定位**：`task_scope` / `task_specs` 补 CLI 同源事实命令（`task scope` / `task specs`），MCP 不再有独占能力；contract-registry 注册 `FACT_LAYER_ACCESS_V1` 契约（digest 行注入"MCP 优先查询事实，CLI 兜底"）；doctor 新增 MCP 注册健康项（项目级 .mcp.json 存在性 / 全局+项目双重注册提示 / 缺失提示），只读 advisory 不阻断；README 增加两档注册说明（全局受支持默认 + 项目 opt-in 地图）。
+- **修复（1.2.0 遗留，Windows）**：`spec_check._run_command` 三处——含引号命令经 list2cmdline 转义后 cmd.exe 解析失败；`text=True` 未显式 `encoding="utf-8", errors="replace"`，中文 Windows cmd GBK 输出致解码线程崩溃、输出丢失；命令入口缺失在 Windows 被误分类为 violation（现经 `shutil.which` 归 unchecked，契约三态语义恢复一致）。
+- **修复**：delegated 子代理会话的编辑期 spec 警告此前未被 Python 侧静默（JS 侧一直静默），现按能力矩阵一致静默；legacy runtime context 文件（缺 `runtime_context_id` 字段）注入显示回退到检测到的 id。
+
+**行为变更**：delegated 绑定写语义统一为 Python（zcode 注入时新增 bind 写，原 JS 为只读）；zcode missing-task 文案与全宿主统一；digest/fingerprint 因注册 `FACT_LAYER_ACCESS_V1` 而变化（预期内，change guard 允许）。
+
 ## 1.2.0 - 2026-09-08
 
 ### 规范挂命令（spec 约束前移）

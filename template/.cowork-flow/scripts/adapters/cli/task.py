@@ -35,6 +35,8 @@ from adapters.cli.task_context_commands import (
     cmd_add_context,
     cmd_init_context,
     cmd_list_context,
+    cmd_scope,
+    cmd_specs,
     cmd_validate,
 )
 from adapters.cli.task_create_command import cmd_create, ensure_tasks_dir
@@ -124,6 +126,8 @@ WORKER_BLOCKED_COMMANDS = frozenset()
 
 COMMANDS = {
     "next": cmd_next,
+    "scope": cmd_scope,
+    "specs": cmd_specs,
 }
 
 

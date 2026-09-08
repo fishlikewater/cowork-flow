@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { cpSync } from 'node:fs';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,18 @@ import { test } from 'node:test';
 import { packageRoot } from '../src/lib/paths.js';
 
 const NODE = process.execPath;
+
+// python3 is not guaranteed on Windows; probe the same candidate chain the
+// runtime uses.
+function pythonCommand() {
+  if (process.env.COWORK_FLOW_PYTHON) return [process.env.COWORK_FLOW_PYTHON];
+  for (const exe of ['python3', 'python']) {
+    const probe = spawnSync(exe, ['-c', 'print(1)'], { encoding: 'utf8' });
+    if (probe.status === 0) return [exe];
+  }
+  if (process.platform === 'win32') return ['py', '-3'];
+  return ['python3'];
+}
 
 // The registry below deliberately lists contract object keys in a different
 // order than the JSON document order, and the two contracts out of id order,
@@ -45,6 +58,13 @@ const CONTRACT_FILES = {
 async function createFixture() {
   const root = await mkdtemp(join(tmpdir(), 'cowork-flow-fingerprint-'));
   await mkdir(join(root, '.cowork-flow', 'spec', 'runtime'), { recursive: true });
+  // The zcode probe runs through the transport shim, which renders via the
+  // project's own runtime copy — install it like init/sync would.
+  await cpSync(
+    join(packageRoot, 'template', '.cowork-flow', 'scripts'),
+    join(root, '.cowork-flow', 'scripts'),
+    { recursive: true }
+  );
   await writeFile(
     join(root, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json'),
     `${JSON.stringify(REGISTRY, null, 2)}\n`,
@@ -67,13 +87,13 @@ from adapters.host.workflow_state_hook import contract_fingerprint, _load_contra
 contracts, _ = _load_contract_registry(Path(${JSON.stringify(root)}))
 print(contract_fingerprint(Path(${JSON.stringify(root)}), contracts))
 `;
-  const result = spawnSync('python3', ['-c', script], { encoding: 'utf8' });
+  const python = spawnSync(pythonCommand()[0], [...pythonCommand().slice(1), '-c', script], { encoding: 'utf8' });
   assert.equal(
-    result.status,
+    python.status,
     0,
-    `python fingerprint probe failed: ${result.stderr || result.stdout}`
+    `python fingerprint probe failed: ${python.stderr || python.stdout}`
   );
-  return result.stdout.trim();
+  return python.stdout.trim();
 }
 
 function fingerprintFromZcodeHook(root) {

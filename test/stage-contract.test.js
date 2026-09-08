@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -14,6 +14,18 @@ const SERVER = join(SCRIPTS, 'adapters', 'mcp', 'state_server.py');
 const MATRIX_FILE = join(packageRoot, 'test', 'fixtures', 'stage-contract-matrix.json');
 const matrix = JSON.parse(readFileSync(MATRIX_FILE, 'utf8'));
 
+// python3 is not guaranteed on Windows (Store stub / missing alias); probe
+// the same candidate chain the runtime uses.
+function pythonCommand() {
+  if (process.env.COWORK_FLOW_PYTHON) return [process.env.COWORK_FLOW_PYTHON];
+  for (const exe of ['python3', 'python']) {
+    const probe = spawnSync(exe, ['-c', 'print(1)'], { encoding: 'utf8' });
+    if (probe.status === 0) return [exe];
+  }
+  if (process.platform === 'win32') return ['py', '-3'];
+  return ['python3'];
+}
+
 // One matrix case drives every host line: python build_hook_context, the zcode
 // hook over stdin, and the opencode stageContractBlock called directly. Every
 // line must produce a byte-identical <stage-contract> block, and the case's
@@ -22,6 +34,9 @@ function writeMatrixFixture(root, caseDef) {
   const workflow = join(root, '.cowork-flow');
   const taskPath = caseDef.taskPath || '.cowork-flow/tasks/08-30-demo';
   mkdirSync(join(workflow, 'tasks'), { recursive: true });
+  // The zcode line goes through the transport shim, which renders via the
+  // project's own runtime copy — install it like init/sync would.
+  cpSync(SCRIPTS, join(workflow, 'scripts'), { recursive: true });
   mkdirSync(join(workflow, '.runtime', 'sessions'), { recursive: true });
   mkdirSync(join(workflow, 'spec', 'contracts'), { recursive: true });
   mkdirSync(join(workflow, 'spec', 'runtime'), { recursive: true });
@@ -100,7 +115,9 @@ function writeMatrixFixture(root, caseDef) {
 }
 
 function extractStageContract(context) {
-  const match = context.match(/<stage-contract task="[^"]*">[\s\S]*?<\/stage-contract>/);
+  const match = context
+    .replace(/\r\n/g, '\n')
+    .match(/<stage-contract task="[^"]*">[\s\S]*?<\/stage-contract>/);
   assert.ok(match, 'stage-contract block must be present');
   return match[0];
 }
@@ -126,7 +143,7 @@ context = build_hook_context(
 )
 print(context)
 `;
-  const python = spawnSync('python3', ['-c', script], { encoding: 'utf8' });
+  const python = spawnSync(pythonCommand()[0], [...pythonCommand().slice(1), '-c', script], { encoding: 'utf8' });
   assert.equal(python.status, 0, `python probe failed: ${python.stderr}`);
   return extractStageContract(python.stdout);
 }

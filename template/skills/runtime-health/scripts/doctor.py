@@ -641,6 +641,92 @@ def check_spec_checks(repo_root: Path) -> list[dict[str, str]]:
     return issues
 
 
+def _global_mcp_registered() -> bool:
+    """Tolerant probe of user-level host configs for a cowork-flow MCP
+    entry. Read-only; missing files simply mean "not registered"."""
+    import os
+
+    home = Path(os.path.expanduser("~"))
+    candidates = (
+        home / ".zcode" / "cli" / "config.json",
+        home / ".claude.json",
+        home / ".codex" / "config.toml",
+    )
+    for path in candidates:
+        try:
+            if path.is_file() and "cowork-flow" in path.read_text(
+                encoding="utf-8", errors="replace"
+            ):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def check_mcp_registration(repo_root: Path) -> list[dict[str, str]]:
+    """MCP fact-layer registration health. Advisory only (never fatal):
+    global registration is a supported default, so absence is a hint, not
+    an error. Reports project-level .mcp.json presence and the duplicate
+    global+project combination."""
+    issues: list[dict[str, str]] = []
+    project_registered = False
+    project_mcp = repo_root / ".mcp.json"
+    if project_mcp.is_file():
+        try:
+            data = json.loads(project_mcp.read_text(encoding="utf-8"))
+            servers = (
+                data.get("mcpServers") if isinstance(data, dict) else None
+            )
+            project_registered = isinstance(servers, dict) and any(
+                "cowork" in str(name).lower() for name in servers
+            )
+            issues.append(
+                {
+                    "kind": "mcp",
+                    "status": "project",
+                    "message": (
+                        "project .mcp.json registers the fact layer"
+                        if project_registered
+                        else "project .mcp.json present but no cowork-flow server entry"
+                    ),
+                }
+            )
+        except (OSError, json.JSONDecodeError, ValueError):
+            issues.append(
+                {
+                    "kind": "mcp",
+                    "status": "project",
+                    "message": "project .mcp.json is not valid JSON",
+                }
+            )
+    global_registered = _global_mcp_registered()
+    if project_registered and global_registered:
+        issues.append(
+            {
+                "kind": "mcp",
+                "status": "duplicate",
+                "message": (
+                    "cowork-flow is registered both globally and at project "
+                    "level; hosts deduplicate by server name, but removing "
+                    "one keeps the tool list clean"
+                ),
+            }
+        )
+    if not project_registered and not global_registered:
+        issues.append(
+            {
+                "kind": "mcp",
+                "status": "absent",
+                "message": (
+                    "fact layer not registered: register globally with "
+                    "`cowork-flow mcp-state`, or add a project .mcp.json "
+                    "(see spec/contracts/fact-layer-access.md)"
+                ),
+            }
+        )
+    return issues
+
+
 def _all_check_result(repo_root: Path) -> dict[str, object]:
     host_issues = _host_issues(repo_root)
     runtime_errors = check_runtime(repo_root)
@@ -649,6 +735,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     state_recovery_issues = check_state_recovery(repo_root)
     session_hygiene_issues = check_session_hygiene(repo_root)
     spec_check_issues = check_spec_checks(repo_root)
+    mcp_issues = check_mcp_registration(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
         errors.append({"kind": "host_adapter", **issue})
@@ -670,6 +757,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "stateRecovery": state_recovery_issues,
             "sessionHygiene": session_hygiene_issues,
             "specChecks": spec_check_issues,
+            "mcpRegistration": mcp_issues,
         },
     }
 
@@ -683,6 +771,8 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
     _print_task_hygiene_issues(result["issues"]["taskHygiene"])
     _print_state_recovery_issues(result["issues"]["stateRecovery"])
     _print_session_hygiene_issues(result["issues"]["sessionHygiene"])
+    for issue in result["issues"]["mcpRegistration"]:
+        print(f"MCP ({issue['status']}): {issue['message']}")
     if errors:
         for error in errors:
             print(f"ERROR: {error['message']}", file=sys.stderr)

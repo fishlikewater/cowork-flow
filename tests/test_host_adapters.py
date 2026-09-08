@@ -396,10 +396,8 @@ class HostAdaptersTest(unittest.TestCase):
                 settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
             )
             hook = (base / "hooks" / "inject-workflow-state.py").read_text(encoding="utf-8")
-            self.assertIn("adapters.host.workflow_state_hook import", hook)
-            self.assertIn("build_hook_context", hook)
-            self.assertIn("hookSpecificOutput", hook)
-            self.assertIn("additionalContext", hook)
+            self.assertIn("adapters.host.inject import", hook)
+            self.assertIn("--host", hook)
 
         for path in (ROOT / "CLAUDE.md", ROOT / "template" / "CLAUDE.md"):
             text = path.read_text(encoding="utf-8")
@@ -440,8 +438,8 @@ class HostAdaptersTest(unittest.TestCase):
         for hook_path in hook_paths:
             hook = hook_path.read_text(encoding="utf-8")
             self.assertIn(
-                "adapters.host.workflow_state_hook import",
+                "adapters.host.inject import",
                 hook,
             )
-            self.assertIn("build_hook_context", hook)
+            self.assertIn("--host", hook)
             self.assertNotIn("def _load_contract_registry", hook)

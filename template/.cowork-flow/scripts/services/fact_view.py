@@ -189,6 +189,20 @@ def path_in_scope(
     }
 
 
+def spec_entries_for_task(
+    repo_root: Path, task_dir: Path
+) -> tuple[Any, list[dict]]:
+    """Public facade for the implement reading list: the task's dev_type plus
+    the dispatched spec/skill entries. The MCP task_specs tool and the
+    `task specs` CLI fact command both consume this, so the two channels
+    cannot drift."""
+    from services.context_discovery import implement_spec_entries
+
+    task = _read_json(task_dir / "task.json")
+    dev_type = task.get("dev_type") if isinstance(task, dict) else None
+    return dev_type, implement_spec_entries(repo_root, dev_type)
+
+
 STAGE_CONTRACT_STATES = ("in_progress", "review")
 STAGE_CONTRACT_SCOPE_LIMIT = 8
 STAGE_CONTRACT_SPECS_LIMIT = 4

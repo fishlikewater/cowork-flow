@@ -11,7 +11,7 @@
 | 领域 | 当前能力 |
 |---|---|
 | 任务流程 | `task next --json` 给出下一步 action，`task next --run` 只执行当前 action。 |
-| 事实接入 | `run state [task] --json` 事实视图；`run mcp-state` 无依赖 MCP 只读服务（`task_state` / `task_list`）供任何 MCP 客户端查询。 |
+| 事实接入 | `run state [task] --json` 事实视图；`run mcp-state` 无依赖 MCP 只读服务（`task_state` / `task_list` / `task_scope` / `task_specs`）供任何 MCP 客户端查询；`task scope` / `task specs` 为 CLI 同源事实命令。 |
 | 运行健康 | `doctor` 诊断 runtime、host assets、Skill replica 和任务 hygiene，不推进生命周期。 |
 | Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / DeepSeek Harness 资产和 obsolete 清理。 |
 | 批处理与讨论 | Batch 发布 Host action；Party Mode 只输出 advisory final facts。 |
@@ -66,8 +66,9 @@ cowork-flow install-dsh-preset
 # 机器级安装实时 workflow-state 注入（推荐：不换预设，任意 DSH 会话生效）
 cowork-flow install-dsh-hook
 
-# MCP 客户端接入（可选）：全局注册一次，任意项目查询任务事实
-# 各客户端配置样例见 docs/mcp-client-setup.md
+# MCP 客户端接入（可选）：全局注册一次，任意项目查询任务事实；
+# 项目级 opt-in（如 claude-code 的 .mcp.json）与注册健康检测见
+# `run doctor`，各客户端配置样例见 docs/mcp-client-setup.md
 cowork-flow mcp-state
 
 # 维护者发布前检查
