@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
-"""Shared workflow-state protocol used by host hook adapters."""
+"""Shared workflow-state protocol used by host hook adapters.
+
+This module is host-neutral: it renders the workflow facts and consumes a
+HostPolicy object for the per-host deltas (digest wording, preamble,
+edit warnings, unbound-session fallback). Host behaviors live in the
+per-host policy modules beside this file (zcode_policy.py,
+claude_code_policy.py, codex_policy.py); hosts without a module (dsh) run
+on default_policy().
+"""
 
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 TAG_RE = re.compile(
@@ -56,37 +65,96 @@ def find_repo_root(start: Path) -> Path | None:
         current = current.parent
 
 
-# Digest policy line wording is a per-host contract fact (context-injection.md
-# transport table): the zcode line says "repeat fingerprint", the opencode
-# plugin line says "every plugin transform", and zcode additionally drops the
-# registry-warning line.
-DIGEST_POLICY_BY_HOST = {
-    "zcode": (
-        "policy: repeat fingerprint every hook; "
-        "read full spec files only before listed actions."
-    ),
-    "opencode": (
-        "policy: repeat this short digest every plugin transform; "
-        "read full spec files only before listed actions."
-    ),
-}
-DIGEST_POLICY_DEFAULT = (
+# Digest policy wording is a per-host contract fact (context-injection.md
+# transport table); hosts carry their line in their policy module, unknown
+# hosts fall back to the default line below.
+DEFAULT_DIGEST_POLICY = (
     "policy: repeat this short digest every hook; "
     "read full spec files only before listed actions."
 )
-DIGEST_WARNING_SILENT_HOSTS = frozenset({"zcode"})
 
 
-def codex_dispatch_mode(root: Path) -> str:
-    _load_common(root)
+class HostPolicy:
+    """Per-host deltas consumed by the neutral renderer.
+
+    Fields left at their defaults mean "no such behavior for this host" —
+    the renderer checks callables instead of branching on host names.
+    Plain class on purpose: this file is also loaded standalone by tests
+    under ad-hoc module names, where @dataclass processing crashes on the
+    unregistered module lookup.
+    """
+
+    __slots__ = (
+        "host",
+        "digest_policy",
+        "digest_warning_silent",
+        "session_start_event",
+        "session_alias",
+        "preamble",
+        "rebind_hints",
+        "essential_files_warning",
+        "fallback_for_unbound",
+        "post_tool_use",
+        "emit_indent",
+        "emit_not_initialized",
+    )
+
+    def __init__(
+        self,
+        host: str,
+        digest_policy: str = DEFAULT_DIGEST_POLICY,
+        digest_warning_silent: bool = False,
+        session_start_event: str | None = "SessionStart",
+        session_alias: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        preamble: Callable[[Path], tuple[str, ...]] | None = None,
+        rebind_hints: Callable[[Path], str] | None = None,
+        essential_files_warning: Callable[[Path], str] | None = None,
+        fallback_for_unbound: bool = False,
+        post_tool_use: Callable[[Path, dict[str, Any]], tuple[str, int]] | None = None,
+        emit_indent: bool = False,
+        emit_not_initialized: bool = False,
+    ) -> None:
+        self.host = host
+        self.digest_policy = digest_policy
+        self.digest_warning_silent = digest_warning_silent
+        self.session_start_event = session_start_event
+        self.session_alias = session_alias
+        self.preamble = preamble
+        self.rebind_hints = rebind_hints
+        self.essential_files_warning = essential_files_warning
+        self.fallback_for_unbound = fallback_for_unbound
+        self.post_tool_use = post_tool_use
+        self.emit_indent = emit_indent
+        self.emit_not_initialized = emit_not_initialized
+
+
+def default_policy(host: str = "generic") -> HostPolicy:
+    return HostPolicy(host=host)
+
+
+# Host → policy module dispatch. Data-driven: adding a host is one row plus
+# its policy module; the neutral renderer never branches on host names.
+_HOST_POLICY_MODULES = {
+    "zcode": "adapters.host.zcode_policy",
+    "claude-code": "adapters.host.claude_code_policy",
+    "codex": "adapters.host.codex_policy",
+}
+
+
+def resolve_policy(host: str, policy: HostPolicy | None = None) -> HostPolicy:
+    if policy is not None:
+        return policy
+    module_name = _HOST_POLICY_MODULES.get(host)
+    if not module_name:
+        return default_policy(host)
     try:
-        from infra.config import get_codex_dispatch_mode
+        module = importlib.import_module(module_name)
     except Exception:
-        return "sub-agent"
-    try:
-        return get_codex_dispatch_mode(root)
-    except Exception:
-        return "sub-agent"
+        # A broken host policy module degrades to the neutral default
+        # instead of killing the injection.
+        return default_policy(host)
+    policy = module.POLICY
+    return policy if isinstance(policy, HostPolicy) else default_policy(host)
 
 
 def build_hook_context(
@@ -97,7 +165,9 @@ def build_hook_context(
     adapter: str,
     preamble: tuple[str, ...],
     session_start: bool | None = None,
+    policy: HostPolicy | None = None,
 ) -> str:
+    policy = resolve_policy(host, policy)
     breadcrumbs = _load_breadcrumbs(root)
     runtime_context, runtime_context_id = _resolve_runtime_context(
         root,
@@ -129,7 +199,9 @@ def build_hook_context(
         ]
     else:
         task_path, status, source = _get_active_task_with_fallback(
-            root, hook_input, host
+            root,
+            hook_input,
+            policy.fallback_for_unbound,
         )
 
     if status == "stale" and task_path:
@@ -143,8 +215,8 @@ def build_hook_context(
             breadcrumbs.get(status)
             or "Run ./.cowork-flow/run task next --json for the current workflow route."
         )
-    if host == "zcode":
-        body += _rebind_hints(root)
+    if policy.rebind_hints is not None:
+        body += policy.rebind_hints(root)
     if extra_lines:
         body = "\n".join([body, *extra_lines])
     if session_start is None:
@@ -153,7 +225,7 @@ def build_hook_context(
         # exists (start), so their absence keeps every injection full.
         session_start = not _session_has_started(root, hook_input)
     if session_start:
-        digest_block = _build_contract_digest(root, host, adapter)
+        digest_block = _build_contract_digest(root, policy, adapter)
     else:
         contracts, _warning = _load_contract_registry(root)
         digest_block = (
@@ -171,10 +243,11 @@ def build_hook_context(
         f"\n{body}\n</workflow-state>"
     )
     context = "\n\n".join(blocks)
-    if host == "zcode":
-        # Port of the zcode essential-files check: appended after the whole
-        # context so a broken install is visible without a second hook pass.
-        context += _essential_files_warning(root)
+    if policy.essential_files_warning is not None:
+        # Appended after the whole context so a broken install is visible
+        # without a second hook pass (host policy decides whether the check
+        # exists at all).
+        context += policy.essential_files_warning(root)
     return context
 
 
@@ -339,24 +412,25 @@ def _stage_contract_block(
 
 
 def spec_edit_warning(
-    root: Path, hook_input: dict[str, Any], host: str = "claude-code"
+    root: Path,
+    hook_input: dict[str, Any],
+    policy: HostPolicy,
 ) -> str:
     """Editor-phase spec-check single-line warning (PostToolUse short path).
 
     Delegated subagents are the primary coders, so spec violations must
     reach them too: only an active in_progress/review task is required —
     session scope is not consulted here (scope warnings stay main-only in
-    edit_scope_warning). zcode main sessions resolve their own hook
-    conversation id, which is never bound (the Bash CLI holds the
-    activation), so zcode follows the newest main session like the display
-    path; claude-code/codex keep strict session identity (their Bash env
-    carries the same session id). no_task, planning, and completed stay
-    silent. Empty string means silent. Never raises — the editor path must
-    not break edits.
+    the zcode policy's edit_scope_warning). Hosts with
+    fallback_for_unbound (zcode) follow the newest main session for their
+    never-bound hook sessions; strict-identity hosts (claude-code/codex)
+    require the calling session's own binding. no_task, planning, and
+    completed stay silent. Empty string means silent. Never raises — the
+    editor path must not break edits.
     """
     try:
         task_path, status, _source = _get_active_task_with_fallback(
-            root, hook_input, host
+            root, hook_input, policy.fallback_for_unbound
         )
     except Exception:
         return ""
@@ -376,64 +450,19 @@ def spec_edit_warning(
         return ""
 
 
-def edit_scope_warning(root: Path, hook_input: dict[str, Any]) -> str:
-    """Per-edit out-of-scope warning (zcode-only capability). Port of the
-    zcode hook's editScopeWarning: at most one line when the edited file is
-    outside the task's file-scope whitelist. Silence rules match the JS
-    source, including the newest-session display fallback for sessions with
-    no resolvable identity. Never raises."""
-    try:
-        task_path, status, _source = _get_active_task_with_fallback(
-            root, hook_input, "zcode"
-        )
-    except Exception:
-        return ""
-    if not task_path or status not in STAGE_CONTRACT_STATES:
-        return ""
-    if _session_scope(root, hook_input) == "subagent":
-        return ""
-    tool_input = hook_input.get("tool_input")
-    file_path = (
-        tool_input.get("file_path") if isinstance(tool_input, dict) else None
-    )
-    if not isinstance(file_path, str) or not file_path.strip():
-        return ""
-    # Hosts pass absolute edit paths; whitelist entries are repo-relative.
-    # Same normalization the spec path applies in run_edit_checks.
-    normalized = file_path.replace("\\", "/").strip()
-    try:
-        normalized = (
-            Path(normalized).resolve().relative_to(root.resolve()).as_posix()
-        )
-    except (ValueError, OSError):
-        pass
-    try:
-        from services.fact_view import file_scope_whitelist, path_in_scope
-
-        whitelist = file_scope_whitelist(root, root / task_path)
-        if path_in_scope(whitelist, normalized).get("inScope"):
-            return ""
-    except Exception:
-        return ""
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-    return (
-        f"⚠️ {normalized} is outside the task's declared scope. "
-        "If intended, add it with `task context add` (agent-mutable) "
-        "or revert the edit."
-    )
-
-
-def merged_edit_warning(root: Path, hook_input: dict[str, Any]) -> str:
-    """zcode PostToolUse Edit/Write/MultiEdit context: the scope warning and
-    the spec-check warning merged into one additionalContext payload, at
-    most one line each, joined by a newline (port of the zcode hook's
-    mergedEditWarning)."""
-    scope_line = edit_scope_warning(root, hook_input)
-    spec_line = spec_edit_warning(root, hook_input, "zcode")
-    if scope_line and spec_line:
-        return f"{scope_line}\n{spec_line}"
-    return scope_line or spec_line
+def spec_only_post_tool_use(
+    root: Path,
+    hook_input: dict[str, Any],
+    policy: HostPolicy,
+) -> tuple[str, int]:
+    """claude-code / codex PostToolUse transport: spec-check advisory on
+    stderr only (exit 2 surfaces it to the model); the edit itself has
+    already happened. No additionalContext payload."""
+    warning = spec_edit_warning(root, hook_input, policy)
+    if warning:
+        print(warning, file=sys.stderr)
+        return "", 2
+    return "", 0
 
 
 def _load_breadcrumbs(root: Path) -> dict[str, str]:
@@ -511,17 +540,17 @@ def _load_contract_registry(
 
 def _build_contract_digest(
     root: Path,
-    host: str,
+    policy: HostPolicy,
     adapter: str,
 ) -> str:
     contracts, warning = _load_contract_registry(root)
     fingerprint = contract_fingerprint(root, contracts)
     lines = [
-        f'<cowork-runtime host="{host}" adapter="{adapter}">',
+        f'<cowork-runtime host="{policy.host}" adapter="{adapter}">',
         f'<contract-digest fingerprint="{fingerprint}">',
-        DIGEST_POLICY_BY_HOST.get(host, DIGEST_POLICY_DEFAULT),
+        policy.digest_policy,
     ]
-    if warning and host not in DIGEST_WARNING_SILENT_HOSTS:
+    if warning and not policy.digest_warning_silent:
         lines.append(f"warning: {warning}")
     for contract in contracts:
         contract_id = contract.get("id")
@@ -570,22 +599,11 @@ MISSING_TASK_BODY = (
     '--title "<title>" --slug <task-name> --assignee <name> 创建新任务。'
 )
 
-# Port of the zcode hook's essential-files check (inject-context.js
-# checkEssentialFiles): appended to the zcode context when any guard file of
-# the workflow install is missing.
-ESSENTIAL_FILES = (
-    "AGENTS.md",
-    ".cowork-flow/config.yaml",
-    ".cowork-flow/run",
-    ".cowork-flow/spec/runtime/contract-registry.json",
-    ".cowork-flow/spec/contracts/workflow-state-templates.md",
-)
-
 
 def _get_active_task_with_fallback(
     root: Path,
     hook_input: dict[str, Any],
-    host: str,
+    fallback_for_unbound: bool,
 ) -> tuple[str | None, str, str]:
     """zcode parity: a hook session that carries no binding follows the
     newest valid main session's binding. Two sources qualify: no session
@@ -593,12 +611,13 @@ def _get_active_task_with_fallback(
     was never bound (empty-session) — the zcode hook always carries the
     conversation's own session id, while task activation happens in the
     Bash CLI under a separate explicit identity, so the hook session file
-    never exists. Display/warning-only — the CLI lifecycle commands keep
-    their strict identity semantics. Multi-window setups may cross-read
-    another window's binding; accepted for advisory output."""
+    never exists. Gated by the host policy's fallback_for_unbound flag;
+    display/warning-only — the CLI lifecycle commands keep their strict
+    identity semantics. Multi-window setups may cross-read another window's
+    binding; accepted for advisory output."""
     task_path, status, source = _get_active_task(root, hook_input)
     if (
-        host != "zcode"
+        not fallback_for_unbound
         or task_path
         or source not in {"missing-context", "empty-session"}
     ):
@@ -651,50 +670,6 @@ def _newest_session_task(root: Path) -> str | None:
         if task_dir.is_dir() and (task_dir / "task.json").is_file():
             return task_path
     return None
-
-
-def _rebind_hints(root: Path) -> str:
-    """Port of the zcode hook's formatRebindHints: one-level task scan for
-    bindable (non-completed) tasks, appended to no_task/missing bodies."""
-    tasks_dir = root / ".cowork-flow" / "tasks"
-    try:
-        children = sorted(tasks_dir.iterdir())
-    except OSError:
-        return ""
-    entries: list[str] = []
-    for child in children:
-        if not child.is_dir():
-            continue
-        relative = f".cowork-flow/tasks/{child.name}"
-        task_json = child / "task.json"
-        if not task_json.is_file():
-            continue
-        try:
-            data = json.loads(task_json.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, ValueError):
-            status = "unknown"
-        else:
-            status = str(data.get("status") or "unknown").strip() or "unknown"
-        if status == "completed":
-            continue
-        entries.append(f"- {relative} ({status})")
-    if not entries:
-        return ""
-    return (
-        "\n活动任务（可用 ./.cowork-flow/run task next <dir> 改绑）：\n"
-        + "\n".join(entries)
-    )
-
-
-def _essential_files_warning(root: Path) -> str:
-    missing = [rel for rel in ESSENTIAL_FILES if not (root / rel).exists()]
-    if not missing:
-        return ""
-    return (
-        "\n\n⚠️ 缺少必要文件："
-        + ", ".join(missing)
-        + "。\n请立即创建这些文件以保障工作流正常运行。"
-    )
 
 
 def _session_scope(root: Path, hook_input: dict[str, Any]) -> str:

@@ -85,14 +85,27 @@ def detect_installed_platforms(repo_root: Path | None = None) -> list[str]:
     return platforms
 
 
-def use_claude_skill_context(repo_root: Path | None = None) -> bool:
-    return detect_installed_platforms(repo_root) == ["claude-code"]
+# Platforms that load skills from their own asset dir declare it here; the
+# shared .agents/skills layout is the default for every other platform.
+SKILL_REPLICA_DIR_BY_PLATFORM = {
+    "claude-code": ".claude/skills",
+}
+
+
+def skill_root(repo_root: Path | None = None) -> str:
+    """Neutral rule over platform data: when exactly one platform is
+    installed and that platform declares a dedicated skill replica dir, the
+    skills live there; otherwise the shared .agents/skills layout applies."""
+    platforms = detect_installed_platforms(repo_root)
+    if len(platforms) == 1:
+        dedicated = SKILL_REPLICA_DIR_BY_PLATFORM.get(platforms[0])
+        if dedicated:
+            return dedicated
+    return f"{DIR_AGENTS}/skills"
 
 
 def skill_path(name: str, repo_root: Path | None = None) -> str:
-    if use_claude_skill_context(repo_root):
-        return f".claude/skills/{name}/SKILL.md"
-    return f"{DIR_AGENTS}/skills/{name}/SKILL.md"
+    return f"{skill_root(repo_root)}/{name}/SKILL.md"
 
 
 def get_domain_skill_context(

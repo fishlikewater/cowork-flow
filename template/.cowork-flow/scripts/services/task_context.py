@@ -18,7 +18,6 @@ from services.context_discovery import (
     implement_spec_entries,
     is_skill_path,
     skill_path,
-    use_claude_skill_context,
 )
 from services.context_jsonl import (
     ContextJsonlEntry,
