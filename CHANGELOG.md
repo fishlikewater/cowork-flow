@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 - 2026-09-09
 
 ### 跨宿主适配通用化（注入单源化 + MCP 重定位）
 
@@ -8,12 +8,30 @@
 
 - **宿主中立入口 `inject.py`**：zcode shim、claude-code、codex 全部走同一入口（`--host` 选择信封与形状），wrapper 瘦身为 ≤20 行委托。digest policy 措辞、registry-warning 抑制（zcode）、preamble、信封缩进全部按 host 参数化，仍由 context-injection.md 契约锁定。
 - **zcode shim 化**：`inject-context.js` 从 ~1000 行事实镜像降为 ~140 行传输层——事件路由、PostToolUse(Bash) 廉价过滤（非生命周期命令零 spawn）、解释器定位（项目 runtime 优先、插件缓存副本兜底）、stdin/stdout 转发。删除 `inject-context.selfcheck.mjs`。matrix 逐字相等测试中的 zcode 线改为经 shim 驱动单源。
+- **每宿主策略模块**：`adapters/host` 拆出 zcode/claude_code/codex policy（digest 措辞、警告静默、rebind 提示、essential-files、PostToolUse 传输、emit 格式化），共享层与入口零 `host ==` 分支；无模块宿主（dsh）走中立默认。字节级契约不变（fingerprint、stage-contract matrix 绿）。
 - **JS-only 行为移植进 Python 单源**：`formatRebindHints`（zcode 无任务体补活动任务列表）、`editScopeWarning`（逐文件 scope 白名单警告，与 spec 警告合并进同一载荷）、missing-task 统一文案（原 "stale" 通用回退改为明确指向任务目录不存在 + 建任务指引，全宿主生效）、`checkEssentialFiles` 缺文件警告（zcode）、无会话身份时的 newest-session 显示回退（zcode，仅显示不改写绑定语义）。
 - **MCP 重定位**：`task_scope` / `task_specs` 补 CLI 同源事实命令（`task scope` / `task specs`），MCP 不再有独占能力；contract-registry 注册 `FACT_LAYER_ACCESS_V1` 契约（digest 行注入"MCP 优先查询事实，CLI 兜底"）；doctor 新增 MCP 注册健康项（项目级 .mcp.json 存在性 / 全局+项目双重注册提示 / 缺失提示），只读 advisory 不阻断；README 增加两档注册说明（全局受支持默认 + 项目 opt-in 地图）。
 - **修复（1.2.0 遗留，Windows）**：`spec_check._run_command` 三处——含引号命令经 list2cmdline 转义后 cmd.exe 解析失败；`text=True` 未显式 `encoding="utf-8", errors="replace"`，中文 Windows cmd GBK 输出致解码线程崩溃、输出丢失；命令入口缺失在 Windows 被误分类为 violation（现经 `shutil.which` 归 unchecked，契约三态语义恢复一致）。
-- **修复**：delegated 子代理会话的编辑期 spec 警告此前未被 Python 侧静默（JS 侧一直静默），现按能力矩阵一致静默；legacy runtime context 文件（缺 `runtime_context_id` 字段）注入显示回退到检测到的 id。
+- **修复**：legacy runtime context 文件（缺 `runtime_context_id` 字段）注入显示回退到检测到的 id。
 
 **行为变更**：delegated 绑定写语义统一为 Python（zcode 注入时新增 bind 写，原 JS 为只读）；zcode missing-task 文案与全宿主统一；digest/fingerprint 因注册 `FACT_LAYER_ACCESS_V1` 而变化（预期内，change guard 允许）。
+
+### 实弹修正与 delegated 自检协议化（fix）
+
+实弹验证（zcode 插件 live proof）暴露四个缺陷并修复：
+
+- **未绑定会话的编辑期警告可达**：zcode hook 会话携带对话自身 id、从不绑定（激活发生在 Bash CLI 的显式身份下），empty-session 此前跳过 newest-session 回退——主会话的编辑期 spec/scope 警告完全静默。回退现覆盖 empty-session，`spec_edit_warning` 的 zcode 路由经它放行（claude-code/codex 保持严格身份）。
+- **scope 路径相对化**：`edit_scope_warning` 此前拿原始绝对路径与仓库相对白名单比对，所有编辑都被误标越界；现与 spec 路径同样归一为仓库相对，警告行显示相对路径。
+- **编辑期预算与节流加固**：edit 钳制 3s→2.5s（子进程预算余量）；节流只在跑完一次后写入（执行器崩溃不再吞掉节流窗口）；`files` 多值列表逐 token 剥引号。
+- **delegated 子代理收到 spec 反馈**：编辑期 spec 警告的静默范围此前在 Python/JS 两侧不一致，现统一为 delegated 会话可达（scope 警告保持仅主会话）。
+
+配套协议化（文档与 skill）：实弹两轮证实宿主 PostToolUse 只覆盖主会话流——Agent 子代理收不到编辑期反馈。按已验证的 CLI 拉取路径固化：子代理报告前跑 `run spec-check` 自检修复（subagent-dispatch.md、agent-dispatch SKILL）；父侧验收把 violation 作为验收阻断项（task-review SKILL，delegated 工作最早的可靠检查点）；task-planning 的实现 Verify 命令默认含 spec-check 自检；spec-checks.md 记录缺口、四部分补偿与治理方向（向宿主请求；原生的那一环降级为冗余保险）。
+
+**已知合法副作用**：contract fingerprint 更新为 `d1d0e2536e8fa150`（内容派生；Python 与 JS 镜像重算一致）。
+
+### 发布门禁加固（release.sh）
+
+- 同步 `--force` 自实例镜像时带 AGENTS.md 定制守卫（脏树预检、sync 后从 HEAD 还原）；pytest services 门禁前置到 `test:all` 之前；`.gitattributes` 将 `*.version` 钉为 LF（fingerprint 字节比对前提）。
 
 ## 1.2.0 - 2026-09-08
 
