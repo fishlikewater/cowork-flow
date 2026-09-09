@@ -41,6 +41,7 @@ Read only what is needed for the current task:
 - **Specs**: project specs are updated when behavior/contracts changed, or the review states why no spec update is needed.
 - **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against applicable user specs.
 - **Lifecycle blockers**: state/scope blockers are fixed before acceptance; review does not invent hard blockers for natural-language specs.
+- **Delegated acceptance**: when the implementation came from a delegated subagent, run `./.cowork-flow/run spec-check` before accepting its report — delegated sessions receive no edit-phase hook feedback on some hosts (zcode), so the report can be silently non-compliant; every violation is fixed or blocks acceptance.
 - **Advisory facts**: helper output is used to focus review, not to declare pass/fail or block completion.
 - **Anti-self-proof**: every claimed pass maps to source, diff, test output, or lifecycle output.
 - **Anti-rationalization**: every accepted gap has an explicit user decision or narrow technical reason.
