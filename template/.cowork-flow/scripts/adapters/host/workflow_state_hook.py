@@ -338,18 +338,26 @@ def _stage_contract_block(
         return None
 
 
-def spec_edit_warning(root: Path, hook_input: dict[str, Any]) -> str:
+def spec_edit_warning(
+    root: Path, hook_input: dict[str, Any], host: str = "claude-code"
+) -> str:
     """Editor-phase spec-check single-line warning (PostToolUse short path).
 
     Delegated subagents are the primary coders, so spec violations must
     reach them too: only an active in_progress/review task is required —
     session scope is not consulted here (scope warnings stay main-only in
-    edit_scope_warning). no_task, planning, and completed stay silent.
-    Empty string means silent. Never raises — the editor path must not
-    break edits.
+    edit_scope_warning). zcode main sessions resolve their own hook
+    conversation id, which is never bound (the Bash CLI holds the
+    activation), so zcode follows the newest main session like the display
+    path; claude-code/codex keep strict session identity (their Bash env
+    carries the same session id). no_task, planning, and completed stay
+    silent. Empty string means silent. Never raises — the editor path must
+    not break edits.
     """
     try:
-        task_path, status, _source = _get_active_task(root, hook_input)
+        task_path, status, _source = _get_active_task_with_fallback(
+            root, hook_input, host
+        )
     except Exception:
         return ""
     if not task_path or status not in STAGE_CONTRACT_STATES:
@@ -390,15 +398,23 @@ def edit_scope_warning(root: Path, hook_input: dict[str, Any]) -> str:
     )
     if not isinstance(file_path, str) or not file_path.strip():
         return ""
+    # Hosts pass absolute edit paths; whitelist entries are repo-relative.
+    # Same normalization the spec path applies in run_edit_checks.
+    normalized = file_path.replace("\\", "/").strip()
+    try:
+        normalized = (
+            Path(normalized).resolve().relative_to(root.resolve()).as_posix()
+        )
+    except (ValueError, OSError):
+        pass
     try:
         from services.fact_view import file_scope_whitelist, path_in_scope
 
         whitelist = file_scope_whitelist(root, root / task_path)
-        if path_in_scope(whitelist, file_path).get("inScope"):
+        if path_in_scope(whitelist, normalized).get("inScope"):
             return ""
     except Exception:
         return ""
-    normalized = file_path.strip().replace("\\", "/")
     while normalized.startswith("./"):
         normalized = normalized[2:]
     return (
@@ -414,7 +430,7 @@ def merged_edit_warning(root: Path, hook_input: dict[str, Any]) -> str:
     most one line each, joined by a newline (port of the zcode hook's
     mergedEditWarning)."""
     scope_line = edit_scope_warning(root, hook_input)
-    spec_line = spec_edit_warning(root, hook_input)
+    spec_line = spec_edit_warning(root, hook_input, "zcode")
     if scope_line and spec_line:
         return f"{scope_line}\n{spec_line}"
     return scope_line or spec_line
@@ -571,11 +587,21 @@ def _get_active_task_with_fallback(
     hook_input: dict[str, Any],
     host: str,
 ) -> tuple[str | None, str, str]:
-    """zcode parity: when no session identity resolves at all, the zcode hook
-    displayed the newest valid main session's binding. Display-only — the CLI
-    lifecycle commands keep their strict identity semantics."""
+    """zcode parity: a hook session that carries no binding follows the
+    newest valid main session's binding. Two sources qualify: no session
+    identity at all (missing-context), and a session id that resolves but
+    was never bound (empty-session) — the zcode hook always carries the
+    conversation's own session id, while task activation happens in the
+    Bash CLI under a separate explicit identity, so the hook session file
+    never exists. Display/warning-only — the CLI lifecycle commands keep
+    their strict identity semantics. Multi-window setups may cross-read
+    another window's binding; accepted for advisory output."""
     task_path, status, source = _get_active_task(root, hook_input)
-    if host != "zcode" or task_path or source != "missing-context":
+    if (
+        host != "zcode"
+        or task_path
+        or source not in {"missing-context", "empty-session"}
+    ):
         return task_path, status, source
     fallback = _newest_session_task(root)
     if fallback is None:

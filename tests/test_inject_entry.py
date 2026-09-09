@@ -468,6 +468,34 @@ class InjectEntryTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stdout.strip())
 
+    def _write_task_whitelist(
+        self, root: Path, task_path: str, files: list[str]
+    ) -> None:
+        task_dir = root / task_path
+        task_dir.mkdir(parents=True, exist_ok=True)
+        (task_dir / "implement.jsonl").write_text(
+            "".join(
+                json.dumps({"file": f, "type": "planned-file"}) + "\n"
+                for f in files
+            ),
+            encoding="utf-8",
+        )
+
+    def _write_spec_fixture(
+        self, root: Path, files: str, marker: str
+    ) -> None:
+        spec_dir = root / ".cowork-flow" / "spec" / "backend"
+        spec_dir.mkdir(parents=True, exist_ok=True)
+        (spec_dir / "edit-gate.md").write_text(
+            "---\n"
+            "checks:\n"
+            f"  - cmd: \"{sys.executable}\" -c \"import sys; print('{marker}'); sys.exit(1)\"\n"
+            f"    when: edit\n"
+            f"    files: \"{files}\"\n"
+            "---\n\n# gate\n",
+            encoding="utf-8",
+        )
+
     def test_zcode_spec_warning_reaches_subagent_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -509,6 +537,132 @@ class InjectEntryTest(unittest.TestCase):
         # Scope warnings stay main-only: the delegated session gets the spec
         # violation, never the scope line.
         self.assertNotIn("outside the task's declared scope", context)
+
+    def test_zcode_spec_warning_reaches_unbound_hook_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(
+                root,
+                "zcode_main",
+                ".cowork-flow/tasks/09-01-demo",
+                last_seen_at="2026-09-08T01:00:00+00:00",
+            )
+            self._write_task_whitelist(
+                root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
+            )
+            self._write_spec_fixture(root, "src/", "gate-boom")
+
+            data = self._run_json(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Edit",
+                    "tool_input": {"file_path": "src/child.py"},
+                    "session_id": "hookconv",
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("backend/edit-gate.md", context)
+        self.assertIn("gate-boom", context)
+        self.assertNotIn("outside the task's declared scope", context)
+
+    def test_zcode_scope_warning_reaches_unbound_hook_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(
+                root,
+                "zcode_main",
+                ".cowork-flow/tasks/09-01-demo",
+                last_seen_at="2026-09-08T01:00:00+00:00",
+            )
+            self._write_task_whitelist(
+                root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
+            )
+            self._write_spec_fixture(root, "lib/", "gate-silent")
+
+            data = self._run_json(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Edit",
+                    "tool_input": {"file_path": "src/outside.py"},
+                    "session_id": "hookconv",
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("src/outside.py is outside the task's declared scope", context)
+        self.assertNotIn("spec-check[", context)
+
+    def test_zcode_scope_warning_accepts_absolute_in_scope_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(
+                root,
+                "zcode_main",
+                ".cowork-flow/tasks/09-01-demo",
+                last_seen_at="2026-09-08T01:00:00+00:00",
+            )
+            self._write_task_whitelist(
+                root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
+            )
+            self._write_spec_fixture(root, "src/", "gate-boom")
+
+            data = self._run_json(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Edit",
+                    "tool_input": {
+                        "file_path": str(root / "src" / "child.py")
+                    },
+                    "session_id": "hookconv",
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        # The whitelisted file must not be flagged despite the absolute path.
+        self.assertNotIn("outside the task's declared scope", context)
+        self.assertIn("spec-check[", context)
+
+    def test_zcode_scope_warning_reports_absolute_out_scope_path_relatively(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(
+                root,
+                "zcode_main",
+                ".cowork-flow/tasks/09-01-demo",
+                last_seen_at="2026-09-08T01:00:00+00:00",
+            )
+            self._write_task_whitelist(
+                root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
+            )
+            self._write_spec_fixture(root, "lib/", "gate-silent")
+
+            data = self._run_json(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Edit",
+                    "tool_input": {
+                        "file_path": str(root / "src" / "outside.py")
+                    },
+                    "session_id": "hookconv",
+                },
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(
+            "src/outside.py is outside the task's declared scope", context
+        )
+        self.assertNotIn(str(root), context)
 
     def test_zcode_merged_scope_and_spec_warning_share_one_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
