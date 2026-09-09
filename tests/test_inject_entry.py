@@ -468,6 +468,48 @@ class InjectEntryTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stdout.strip())
 
+    def test_zcode_spec_warning_reaches_subagent_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(
+                root,
+                "zcode_child",
+                ".cowork-flow/tasks/09-01-demo",
+                scope="subagent",
+            )
+            spec_dir = root / ".cowork-flow" / "spec" / "backend"
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            (spec_dir / "edit-gate.md").write_text(
+                "---\n"
+                "checks:\n"
+                f"  - cmd: \"{sys.executable}\" -c \"import sys; print('gate-boom'); sys.exit(1)\"\n"
+                "    when: edit\n"
+                "    files: src/\n"
+                "---\n\n# gate\n",
+                encoding="utf-8",
+            )
+
+            result = self._run_inject(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Edit",
+                    "tool_input": {"file_path": "src/outside.py"},
+                    "session_id": "child",
+                },
+                env_extra={"ZCODE_SESSION_ID": "child"},
+            )
+
+        self.assertEqual(0, result.returncode)
+        payload = json.loads(result.stdout)
+        context = payload["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("backend/edit-gate.md", context)
+        self.assertIn("gate-boom", context)
+        # Scope warnings stay main-only: the delegated session gets the spec
+        # violation, never the scope line.
+        self.assertNotIn("outside the task's declared scope", context)
+
     def test_zcode_merged_scope_and_spec_warning_share_one_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

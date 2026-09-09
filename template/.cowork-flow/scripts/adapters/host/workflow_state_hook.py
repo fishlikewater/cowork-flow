@@ -341,19 +341,18 @@ def _stage_contract_block(
 def spec_edit_warning(root: Path, hook_input: dict[str, Any]) -> str:
     """Editor-phase spec-check single-line warning (PostToolUse short path).
 
-    Silence rules match the zcode JS mirror (editScopeWarning family): only
-    an active in_progress/review main-session task gets advisories —
-    no_task, planning, completed, and delegated sessions stay silent. Empty
-    string means silent. Never raises — the editor path must not break
-    edits.
+    Delegated subagents are the primary coders, so spec violations must
+    reach them too: only an active in_progress/review task is required —
+    session scope is not consulted here (scope warnings stay main-only in
+    edit_scope_warning). no_task, planning, and completed stay silent.
+    Empty string means silent. Never raises — the editor path must not
+    break edits.
     """
     try:
         task_path, status, _source = _get_active_task(root, hook_input)
     except Exception:
         return ""
     if not task_path or status not in STAGE_CONTRACT_STATES:
-        return ""
-    if _session_scope(root, hook_input) == "subagent":
         return ""
     tool_input = hook_input.get("tool_input")
     file_path = (
