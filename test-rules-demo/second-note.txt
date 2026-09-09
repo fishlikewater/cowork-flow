@@ -1,0 +1,3 @@
+本目录用于验证 backend spec 的 checks: 机制。
+本次为宿主策略模块重构后的链路复验。
+DONE 本文件已补齐标记行，由 cowork-implement 子代理按任务 09-09-demo-rule-recheck 创建。
