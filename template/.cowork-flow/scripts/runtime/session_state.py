@@ -34,6 +34,14 @@ RUNTIME_CONTEXT_PROMPT_RE = re.compile(
 HOST_CONTEXT_PROMPT_RE = re.compile(
     r"(?im)^\s*cowork_host_context_key\s*:\s*([A-Za-z0-9._-]+)\s*$"
 )
+# Process-label providers: hosts whose Bash spawns carry only a shared
+# process label (no per-session id). Data-driven like the env mapping tables
+# below — adding a host is one row, no host branches in this module. The
+# identity is process-level shared; consumers must treat it as
+# PROVENANCE_PROCESS_FALLBACK and degrade accordingly.
+PROCESS_LABEL_PROVIDERS: tuple[tuple[str, str], ...] = (
+    ("zcode", "ZCODE_PROCESS_LABEL"),
+)
 
 
 @dataclass(frozen=True)
@@ -76,15 +84,17 @@ def resolve_context_key_with_provenance(
     context_key = _resolve_input_context_key(values)
     if context_key:
         return context_key, PROVENANCE_HOST_SESSION
-    # zcode 主会话（Bash CLI）无任何 host session id：用进程标签兜底，
-    # 保证 task start / session 解析一次成功，不再回落到其它 host。
-    # 该身份是进程级共享的，消费方必须按 PROVENANCE_PROCESS_FALLBACK 降级处理。
-    process_label = os.environ.get("ZCODE_PROCESS_LABEL")
-    if process_label and process_label.strip():
-        return (
-            _prefixed_context_key("zcode", process_label),
-            PROVENANCE_PROCESS_FALLBACK,
-        )
+    # Hosts whose Bash CLI carries no session id fall back to their shared
+    # process label so task start / session resolution succeeds once instead
+    # of dropping to another host's identity. Process-level shared identity —
+    # consumers must degrade per PROVENANCE_PROCESS_FALLBACK.
+    for prefix, env_name in PROCESS_LABEL_PROVIDERS:
+        process_label = os.environ.get(env_name)
+        if process_label and process_label.strip():
+            return (
+                _prefixed_context_key(prefix, process_label),
+                PROVENANCE_PROCESS_FALLBACK,
+            )
     return None, PROVENANCE_MISSING
 
 

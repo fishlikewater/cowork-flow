@@ -4,10 +4,11 @@
 
 Every process-hook host funnels through this module so the workflow facts are
 rendered by a single Python source (workflow_state_hook.py + services.fact_view).
-Host adapters keep only transport duties: event routing, the cheap Bash filter,
-and byte forwarding. Per-host output differences (digest policy wording,
-preamble, envelope pretty-printing) are selected by --host here, exactly as
-frozen by spec/contracts/context-injection.md.
+The entry keeps only transport duties: event routing and byte forwarding.
+Per-host behavior differences (session aliases, preamble, digest policy
+wording, edit warnings, envelope pretty-printing) ride the host policy
+modules beside this file, selected by --host, exactly as frozen by
+spec/contracts/context-injection.md.
 """
 
 from __future__ import annotations
@@ -15,12 +16,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any
-
-LIFECYCLE_BASH_RE = re.compile(r"\brun(?:\.cmd)?\s+(?:task|subagent|resume)\b")
 
 # This file lives in <scripts>/adapters/host/; running it as a script puts
 # only its own directory on sys.path. The module root is needed both for the
@@ -71,32 +69,6 @@ def _read_input() -> dict[str, Any]:
     return data
 
 
-def _claude_session_alias(data: dict[str, Any]) -> dict[str, Any]:
-    # Ported from the claude-code wrapper: bare session_id must resolve as a
-    # claude session, not fall through to the codex session_id rule.
-    if "claude_session_id" not in data:
-        session_id = data.get("session_id")
-        if isinstance(session_id, str) and session_id.strip():
-            data["claude_session_id"] = session_id
-    return data
-
-
-def _zcode_session_alias(data: dict[str, Any]) -> dict[str, Any]:
-    # Ported from the zcode hook's resolveSessionKey candidate order
-    # (env wins inside session_state; input aliases only fill the gap).
-    # Without this, a bare sessionId/session_id would resolve as a codex
-    # session and lose the session's own binding.
-    existing = data.get("zcode_session_id")
-    if isinstance(existing, str) and existing.strip():
-        return data
-    for key in ("ZCODE_SESSION_ID", "sessionId", "session_id"):
-        value = data.get(key)
-        if isinstance(value, str) and value.strip():
-            data["zcode_session_id"] = value
-            break
-    return data
-
-
 def detect_event_name(hook_input: dict[str, Any]) -> str:
     name = hook_input.get("hook_event_name") or hook_input.get("hookEventName")
     if isinstance(name, str) and name.strip():
@@ -141,57 +113,11 @@ def resolve_root(hook_input: dict[str, Any]) -> Path | None:
     return None
 
 
-def _is_lifecycle_bash(hook_input: dict[str, Any]) -> bool:
-    tool_input = hook_input.get("tool_input")
-    command = (
-        tool_input.get("command") if isinstance(tool_input, dict) else None
-    )
-    if not isinstance(command, str):
-        return False
-    normalized = command.replace("\\", "/")
-    return ".cowork-flow/run" in normalized or bool(
-        LIFECYCLE_BASH_RE.search(normalized)
-    )
-
-
-def _session_start_for_host(host: str, event_name: str) -> bool | None:
-    # zcode / claude-code signal session start by event name; codex registers
-    # UserPromptSubmit only, so its digest shape derives from the session
-    # state file probe (build_hook_context session_start=None).
-    if host in {"zcode", "claude-code"}:
-        return event_name == "SessionStart"
-    return None
-
-
-def _host_preamble(root: Path, host: str) -> tuple[str, ...]:
-    if host == "claude-code":
-        return (
-            (
-                "<claude-code-runtime>\n"
-                "hooks: UserPromptSubmit, SessionStart, PostToolUse\n"
-                "</claude-code-runtime>"
-            ),
-        )
-    if host == "codex":
-        from adapters.host.workflow_state_hook import codex_dispatch_mode
-
-        dispatch_mode = codex_dispatch_mode(root)
-        return (
-            f"<codex-dispatch-mode>{dispatch_mode}</codex-dispatch-mode>",
-            (
-                "<codex-runtime>\n"
-                "dispatch_mode_meaning: workflow dispatch hint, not current "
-                "thread role\n"
-                "runtime_context_identity: formal subagent sessions bind "
-                "before workflow-state injection\n"
-                "</codex-runtime>"
-            ),
-        )
-    return ()
-
-
 def _not_initialized_context(
-    hook_input: dict[str, Any], event_name: str, host: str
+    hook_input: dict[str, Any],
+    event_name: str,
+    host: str,
+    policy: Any,
 ) -> str:
     from adapters.host.workflow_state_hook import (
         _build_contract_digest,
@@ -207,7 +133,7 @@ def _not_initialized_context(
     )
     digest_root = Path(env_dir)
     if event_name == "SessionStart":
-        prefix = _build_contract_digest(digest_root, host, HOST_ADAPTERS[host])
+        prefix = _build_contract_digest(digest_root, policy, HOST_ADAPTERS[host])
     else:
         contracts, _warning = _load_contract_registry(digest_root)
         prefix = (
@@ -217,7 +143,10 @@ def _not_initialized_context(
 
 
 def _emit(
-    context: str, event_name: str, host: str, output_format_name: str
+    context: str,
+    event_name: str,
+    output_format_name: str,
+    policy: Any,
 ) -> None:
     if output_format_name == "cursor":
         payload: dict[str, Any] = {"additional_context": context}
@@ -228,64 +157,24 @@ def _emit(
                 "additionalContext": context,
             }
         }
-    indent = 2 if host == "zcode" else None
+    indent = 2 if policy.emit_indent else None
     sys.stdout.write(json.dumps(payload, ensure_ascii=False, indent=indent))
 
 
 def _handle_post_tool_use(
     root: Path | None,
     hook_input: dict[str, Any],
-    host: str,
+    policy: Any,
     output_format_name: str,
 ) -> int:
     if root is None:
         return 0
-    tool_name = str(hook_input.get("tool_name") or "")
-    tool_input = hook_input.get("tool_input")
-    file_path = (
-        tool_input.get("file_path") if isinstance(tool_input, dict) else None
-    )
-    event_name = "PostToolUse"
-    if host == "zcode":
-        if (
-            tool_name in {"Edit", "Write", "MultiEdit"}
-            and isinstance(file_path, str)
-            and file_path.strip()
-        ):
-            from adapters.host.workflow_state_hook import merged_edit_warning
-
-            context = merged_edit_warning(root, hook_input)
-            if context:
-                _emit(context, event_name, host, output_format_name)
-            return 0
-        # Edit storms must not multiply the injection payload; only lifecycle
-        # commands trigger a mid-turn state refresh (the shim pre-filters the
-        # common case, this branch keeps the entry correct standalone).
-        if not _is_lifecycle_bash(hook_input):
-            return 0
-        from adapters.host.workflow_state_hook import build_hook_context
-
-        context = build_hook_context(
-            root,
-            hook_input,
-            host=host,
-            adapter=HOST_ADAPTERS[host],
-            preamble=(),
-            session_start=False,
-        )
-        _emit(context, event_name, host, output_format_name)
+    if policy.post_tool_use is None:
         return 0
-
-    # claude-code / codex: spec-check short path only — at most one advisory
-    # line on stderr (exit 2 surfaces it to the model); the edit itself has
-    # already happened.
-    from adapters.host.workflow_state_hook import spec_edit_warning
-
-    warning = spec_edit_warning(root, hook_input, host)
-    if warning:
-        print(warning, file=sys.stderr)
-        return 2
-    return 0
+    context, exit_code = policy.post_tool_use(root, hook_input)
+    if context:
+        _emit(context, "PostToolUse", output_format_name, policy)
+    return exit_code
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -300,44 +189,59 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     host = args.host
 
+    from adapters.host.workflow_state_hook import (
+        build_hook_context,
+        resolve_policy,
+    )
+
+    policy = resolve_policy(host)
+
     hook_input = _read_input()
-    if host == "claude-code":
-        hook_input = _claude_session_alias(hook_input)
-    elif host == "zcode":
-        hook_input = _zcode_session_alias(hook_input)
+    if policy.session_alias is not None:
+        hook_input = policy.session_alias(hook_input)
     event_name = detect_event_name(hook_input)
     output_format_name = output_format()
     root = resolve_root(hook_input)
 
     if event_name == "PostToolUse":
-        return _handle_post_tool_use(root, hook_input, host, output_format_name)
+        return _handle_post_tool_use(root, hook_input, policy, output_format_name)
 
     if root is None:
-        if host == "zcode":
+        if policy.emit_not_initialized:
             _emit(
-                _not_initialized_context(hook_input, event_name, host),
+                _not_initialized_context(hook_input, event_name, host, policy),
                 event_name,
-                host,
                 output_format_name,
+                policy,
             )
             return 0
-        # claude-code / codex wrappers exit silently outside a project.
+        # Hosts without the not-initialized payload exit silently outside a
+        # project.
         return 0
 
     scripts_dir = root / ".cowork-flow" / "scripts"
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
-    from adapters.host.workflow_state_hook import build_hook_context
 
+    # zcode / claude-code signal session start by event name; codex (and the
+    # default policy) register UserPromptSubmit only, so their digest shape
+    # derives from the session state file probe (session_start=None).
+    if policy.session_start_event is None:
+        session_start = None
+    else:
+        session_start = event_name == policy.session_start_event
+
+    preamble = policy.preamble(root) if policy.preamble is not None else ()
     context = build_hook_context(
         root,
         hook_input,
         host=host,
         adapter=HOST_ADAPTERS[host],
-        preamble=_host_preamble(root, host),
-        session_start=_session_start_for_host(host, event_name),
+        preamble=preamble,
+        session_start=session_start,
+        policy=policy,
     )
-    _emit(context, event_name, host, output_format_name)
+    _emit(context, event_name, output_format_name, policy)
     return 0
 
 

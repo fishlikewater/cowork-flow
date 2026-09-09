@@ -26,7 +26,6 @@ from services.task_context import (
     is_skill_path as _is_skill_path,
     iter_jsonl_lines as _iter_jsonl_lines,
     skill_path as _skill_path,
-    use_claude_skill_context as _use_claude_skill_context,
     write_jsonl as _write_jsonl,
 )
 from adapters.cli.task_archive_commands import cmd_archive
