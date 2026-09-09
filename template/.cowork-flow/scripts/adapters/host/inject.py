@@ -281,7 +281,7 @@ def _handle_post_tool_use(
     # already happened.
     from adapters.host.workflow_state_hook import spec_edit_warning
 
-    warning = spec_edit_warning(root, hook_input)
+    warning = spec_edit_warning(root, hook_input, host)
     if warning:
         print(warning, file=sys.stderr)
         return 2

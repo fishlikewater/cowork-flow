@@ -47,7 +47,10 @@ spec 为无检查并进 doctor 报告，不炸流程。
   （节流状态在 `.cowork-flow/.runtime/spec-edit-throttle.json`，检查完整
   跑过才写节流——执行器崩溃不消费时间窗，重试仍会执行）；执行器
   缺失或超时静默，绝不阻断编辑流。delegated 子代理会话同样收到 spec
-  违规反馈（子代理是主力写码者）；scope 警告保持 main-only。zcode 经
+  违规反馈（子代理是主力写码者）；scope 警告保持 main-only。zcode 主
+  会话的 hook 身份（对话自身 session id）不会被绑定——激活发生在 Bash
+  侧显式身份下——显示与编辑期警告按最新主会话兜底；claude/codex 保持
+  严格会话身份（其 Bash env 携带同一 session id）。zcode 经
   shim 转发到单源入口（`inject.py`），scope 警告与 spec 警告合并进同一个
   additionalContext 载荷；claude 走 exit 2 stderr 反馈。
 - **收口期**（task complete）：全量执行，结果进 `meta.specCheckSummary`
