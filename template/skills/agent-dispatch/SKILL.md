@@ -27,6 +27,21 @@ Use this Skill only inside fixed subagents such as `cowork-implement`,
 - Treat runtime gates as CLI adapters backed by kernel services; this Skill may
   explain when to run or report them, but does not enforce them.
 
+## Spec Self-Check
+
+Delegated subagent tool calls receive no edit-phase hook feedback on hosts
+whose plugin hooks cover only the main session stream — a `spec-check[...]
+violation` line never reaches this session, even when the edit violates a
+declared check. Before reporting completion after any file change, run:
+
+```text
+./.cowork-flow/run spec-check
+```
+
+Fix every reported violation and re-run until the summary is clean, or report
+the remaining violations as blockers. Honor any hook feedback the host does
+deliver; the self-check exists because delivery is not guaranteed.
+
 ## Role Outputs
 
 - `cowork-implement`: report changed files, acceptance IDs, verification

@@ -128,6 +128,7 @@ Then list task briefs, followed by integrated verification and completion checks
 
 - For Tiny tasks, keep the brief short but still name exact file boundaries, completion conditions, and verification commands.
 - For behavior changes, include a failing test before implementation when behavior can be tested.
+- For implementation tasks whose changed files are covered by spec `checks:` declarations, include the spec self-check in the task's Verification Command (for example `./.cowork-flow/run spec-check`): delegated subagents receive no edit-phase hook feedback on some hosts (zcode), so the explicit command is the reliable pull path for both self-check and acceptance.
 - Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mock calls without behavior, or snapshot empty structure.
 - For complex problems, test depth first: business invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.
 - Map behavior-changing tests to stable `decision-anchor.md` acceptance IDs when useful; do not create `tdd.jsonl` or write TDD evidence records into `check.jsonl`.

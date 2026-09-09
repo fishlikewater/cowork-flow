@@ -76,9 +76,24 @@ spec 为无检查并进 doctor 报告，不炸流程。
 
 | 宿主 | digest 注入 | 编辑期快跑 | 收口强制 |
 | --- | --- | --- | --- |
-| zcode | 有（Specs 行 h2 digest） | 有（PostToolUse 短路径） | 有 |
+| zcode | 有（Specs 行 h2 digest） | 有（PostToolUse 短路径；**仅主会话**） | 有 |
 | claude-code | 有（Python 单源） | 有（PostToolUse，exit 2 反馈） | 有 |
 | opencode | 有 | **降级：无**（插件无 PostToolUse 短路径） | 有 |
+
+**delegated 子代理编辑期缺口（zcode 实测，2026-09-09 两轮）**：ZCode 的插件
+hook 只在主会话工具流上派发（事件模型七事件均挂主会话；子代理是独立内部
+会话流 `sess_subagent_agent_*`），Agent 子代理的 Edit/Write 收不到
+`spec-check[...] violation` 行——runtime 绑定与检查逻辑均正常，缺的是宿主
+派发。补偿机制（subagent-dispatch.md 契约固化）：
+
+1. 子代理完成前自查：`./.cowork-flow/run spec-check` 全量并修复（拉取路径，
+   实测有效）；
+2. 父会话验收前再查：violation 视为验收阻塞（反馈时点从收口提前到返回）；
+3. 实现类任务 Verify 命令默认含 spec-check 自查；
+4. 收口硬门禁兜底不变（violation 阻断 complete）。
+
+治理方向：向宿主提需求扩展子代理工具流的 hook 派发；落地后第 1 条自动
+退化为冗余保险。
 
 ## digest 注入
 
