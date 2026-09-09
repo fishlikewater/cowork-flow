@@ -19,10 +19,19 @@ async function createReleaseProject(t) {
 
   const repo = join(tempDir, 'repo');
   await mkdir(join(repo, 'scripts'), { recursive: true });
+  await mkdir(join(repo, 'bin'), { recursive: true });
   await mkdir(join(repo, 'template', '.cowork-flow'), { recursive: true });
   await writeFile(
     join(repo, 'scripts', 'release.sh'),
     await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8'),
+    { encoding: 'utf8', mode: 0o755 }
+  );
+  // Release-test stub: sync semantics are covered by test/sync.test.js; the
+  // release.sh orchestration only requires the self-instance mirror step to
+  // exit cleanly, mirroring how npm/git are faked above.
+  await writeFile(
+    join(repo, 'bin', 'cowork-flow.js'),
+    '#!/usr/bin/env node\nprocess.exit(0);\n',
     { encoding: 'utf8', mode: 0o755 }
   );
   await writeFile(
@@ -119,6 +128,18 @@ async function createFakeCommands(t, options = {}) {
     { encoding: 'utf8', mode: 0o755 }
   );
 
+  // release.sh gates on the Python services suite before test:all; the fake
+  // covers the python3-first invocation (the python fallback stays unreached).
+  await writeFile(
+    join(binDir, 'python3'),
+    [
+      '#!/bin/sh',
+      `printf 'python3 %s\\n' "$*" >> "${logPath}"`,
+      'exit 0'
+    ].join('\n'),
+    { encoding: 'utf8', mode: 0o755 }
+  );
+
   return {
     logPath,
     env: {
@@ -149,6 +170,9 @@ test('release shell script defaults to patch and syncs template version before p
   assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.0.6\n');
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
     'npm run test:all',
     'npm version patch --no-git-tag-version',
     'git add package.json package-lock.json template/.cowork-flow/.version',
@@ -172,6 +196,9 @@ test('release shell script accepts explicit npm version type', async (t) => {
   assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.1.0\n');
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
     'npm run test:all',
     'npm version minor --no-git-tag-version',
     'git add package.json package-lock.json template/.cowork-flow/.version',
@@ -197,6 +224,9 @@ test('release shell script publishes an explicit --version without bumping', asy
   assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.0.7\n');
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
     'npm run test:all',
     'npm version 0.0.7 --no-git-tag-version',
     'git add package.json package-lock.json template/.cowork-flow/.version',
@@ -221,6 +251,9 @@ test('release shell script skips the bump when already at the requested version'
   assert.doesNotMatch(result.stdout, /> npm version /);
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
     'npm run test:all',
     'git add package.json package-lock.json template/.cowork-flow/.version',
     'git commit -m chore(release): 0.0.5',
@@ -245,6 +278,9 @@ test('release shell script continues past a no-op commit on a clean tree', async
   assert.match(result.stdout, /> git tag v0.0.5/);
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
     'npm run test:all',
     'git add package.json package-lock.json template/.cowork-flow/.version',
     'git commit -m chore(release): 0.0.5',
@@ -289,6 +325,9 @@ test('release shell script reuses an existing release tag at HEAD and continues 
   assert.match(result.stdout, /tag v0\.0\.5 already exists at HEAD, continuing/);
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
     'npm run test:all',
     'git add package.json package-lock.json template/.cowork-flow/.version',
     'git commit -m chore(release): 0.0.5',
@@ -345,6 +384,9 @@ test('release shell script stops after the first failed command', async (t) => {
 
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
     'npm run test:all'
   ]);
 });
