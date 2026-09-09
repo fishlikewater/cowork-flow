@@ -103,7 +103,7 @@ class SpecCheckTest(unittest.TestCase):
             self.assertEqual(result["status"], "unchecked")
             self.assertIn("timed out", result["reason"])
 
-    def test_edit_phase_clamps_timeout_to_3s(self) -> None:
+    def test_edit_phase_clamps_timeout_to_edit_budget(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _spec(
@@ -231,6 +231,65 @@ class SpecCheckTest(unittest.TestCase):
             self.assertIn("backend/one.md", line)
             self.assertIn("boom-line", line)
             self.assertNotIn("\n", line)
+
+    def test_edit_phase_files_filter_multi_value_quoted_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _spec(
+                root,
+                "backend/multi.md",
+                "---\n"
+                "checks:\n"
+                f"  - cmd: \"{PY}\" -c \"print('multi-ran')\"\n"
+                "    files: \"src/\", \"lib/\"\n"
+                "    when: edit\n"
+                "---\n",
+            )
+            hit = self.run_checks(
+                root, phase="edit", changed_files=["src/a.py"]
+            )
+            self.assertEqual(len(hit["results"]), 1)
+            hit_lib = self.run_checks(
+                root, phase="edit", changed_files=["lib/b.py"]
+            )
+            self.assertEqual(len(hit_lib["results"]), 1)
+            miss = self.run_checks(
+                root, phase="edit", changed_files=["docs/readme.ts"]
+            )
+            self.assertEqual(len(miss["results"]), 0)
+
+    def test_edit_checks_throttle_not_consumed_when_executor_crashes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _spec(
+                root,
+                "backend/edit-gate.md",
+                "---\n"
+                "checks:\n"
+                f"  - cmd: \"{PY}\" -c \"print('never-runs')\"\n"
+                "    when: edit\n"
+                "    files: src/\n"
+                "---\n",
+            )
+            module = importlib.import_module("services.spec_check")
+            calls: list[list[str]] = []
+
+            def crashing_run_checks(repo_root, *, phase, changed_files=None, **_):
+                calls.append(list(changed_files or []))
+                raise RuntimeError("executor crashed")
+
+            original = module.run_checks
+            module.run_checks = crashing_run_checks
+            try:
+                first = module.run_edit_checks(root, "src/a.py", now=1000.0)
+                retry = module.run_edit_checks(root, "src/a.py", now=1005.0)
+            finally:
+                module.run_checks = original
+            self.assertEqual(first, "")
+            self.assertEqual(retry, "")
+            self.assertEqual(len(calls), 2)
+            throttle_path = root / ".cowork-flow" / ".runtime" / "spec-edit-throttle.json"
+            self.assertFalse(throttle_path.exists())
 
     def test_edit_checks_throttle_same_file_within_interval(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

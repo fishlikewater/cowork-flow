@@ -21,9 +21,11 @@ checks:
 
 - `files` 只支持两种形式：目录前缀（`src/`，以 `/` 结尾或自动补齐）与
   扩展名（`*.ts`）。完整 glob 形态（`**`、`[]`）解析为错误，声明不执行，
-  doctor 报告——绝不回退为"匹配一切"。
+  doctor 报告——绝不回退为"匹配一切"。多值形态（如 `files: "src/", "lib/"`）
+  每个 token 按同样的引号规则去引号后生效。
 - `when: edit` 的声明在编辑期（PostToolUse）对命中 `files` 的改动文件
-  就地执行，超时被钳制到 3 秒；慢命令请声明 `when: lifecycle`。
+  就地执行，超时被钳制到 2.5 秒（为解释器启动与 cmd 包装留 spawn 预算）；
+  慢命令请声明 `when: lifecycle`。
 - 引号规则：仅值整体为单对引号时去引号；`"python" -c "..."`
   这类含多对引号的命令值原样保留，由执行器按 shell 规则拆分。
 
@@ -42,14 +44,23 @@ spec 为无检查并进 doctor 报告，不炸流程。
 
 - **编辑期**（zcode/claude）：违规输出单行
   `spec-check[<spec>] violation: <首个违规行>`；同一文件 10 秒内只报一次
-  （节流状态在 `.cowork-flow/.runtime/spec-edit-throttle.json`）；执行器
-  缺失或超时静默，绝不阻断编辑流。zcode 经 shim 转发到单源入口
-  （`inject.py`），scope 警告与 spec 警告合并进同一个 additionalContext
-  载荷；claude 走 exit 2 stderr 反馈。
+  （节流状态在 `.cowork-flow/.runtime/spec-edit-throttle.json`，检查完整
+  跑过才写节流——执行器崩溃不消费时间窗，重试仍会执行）；执行器
+  缺失或超时静默，绝不阻断编辑流。delegated 子代理会话同样收到 spec
+  违规反馈（子代理是主力写码者）；scope 警告保持 main-only。zcode 经
+  shim 转发到单源入口（`inject.py`），scope 警告与 spec 警告合并进同一个
+  additionalContext 载荷；claude 走 exit 2 stderr 反馈。
 - **收口期**（task complete）：全量执行，结果进 `meta.specCheckSummary`
   遥测；阻断消息只列未过项摘要。
 - 手动查询：`./.cowork-flow/run spec-check [--file <path>] [--json]
   [--verbose]`。
+- **edit-only 是 best-effort 提示，不是门禁**：Bash 直写绕过 PostToolUse
+  不会触发编辑期反馈；无编辑期快跑能力的宿主（见能力矩阵）同样没有
+  这层提示，且收口期不会对 `when: edit` 声明补跑。需要硬门禁的检查
+  必须声明 `when: lifecycle` 或默认 `both`。
+- **开放决策**：收口期全量执行没有聚合预算——声明多且慢的仓库 complete
+  会线性变慢；是否给收口加并行/预算上限留给后续产品决策，当前保持
+  简单串行。
 
 ## 归属与 sync 策略
 

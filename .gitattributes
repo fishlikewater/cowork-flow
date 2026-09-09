@@ -11,6 +11,9 @@
 # Python
 *.py text eol=lf
 
+# Version marker — release byte-compares it, keep LF everywhere
+*.version text eol=lf
+
 # Config
 *.yaml text eol=lf
 *.yml text eol=lf

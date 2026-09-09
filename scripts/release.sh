@@ -56,6 +56,29 @@ run_step() {
 # drift from template/skills across checkouts. The full test gate loads every
 # replica and fails on any conflict, so refresh them before running it.
 run_step npm run source:refresh || exit $?
+
+# Uncommitted AGENTS.md edits must not be silently clobbered below.
+if ! git diff --quiet -- AGENTS.md; then
+  echo "error: AGENTS.md has uncommitted changes; commit or stash first" >&2
+  exit 1
+fi
+
+# This repository is its own instance: mirror template/ into .cowork-flow so
+# the released package ships what this repo actually runs. sync --force
+# overwrites AGENTS.md customization slots (项目名称/技术栈) that the template
+# does not carry — restore them from HEAD instead of releasing the template
+# defaults.
+run_step node bin/cowork-flow.js sync --force || exit $?
+if ! git diff --quiet -- AGENTS.md; then
+  git checkout -- AGENTS.md
+  echo "note: sync --force overwrote AGENTS.md customization; restored from HEAD" >&2
+fi
+
+# npm test covers package tests only; the Python services suite is the
+# runtime gate for the shipped scripts and has caught whole-platform
+# regressions (1.2.0 Windows encodings) that the Node tests cannot see.
+python3 -m pytest tests/ -q || python -m pytest tests/ -q || exit $?
+
 run_step npm run test:all || exit $?
 if [ -n "$EXACT_VERSION" ]; then
   CURRENT_VERSION=$(node -p "require('./package.json').version") || exit $?

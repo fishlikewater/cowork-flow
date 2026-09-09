@@ -33,10 +33,11 @@ from typing import Iterable
 # is kept free of CLI/process plumbing concerns by architecture tests.
 IS_WINDOWS = os.name == "nt"
 
-# Editor-phase budget: the zcode/claude PostToolUse hook runs on a 5s hard
-# budget including interpreter startup, so edit-phase commands get 3s and
-# nothing more.
-EDIT_PHASE_TIMEOUT = 3.0
+# Editor-phase budget: the zcode/claude PostToolUse hook runs on a ~5s hard
+# budget including interpreter startup, so edit-phase commands get 2.5s —
+# leaving room for Python startup plus cmd.exe wrapper overhead on slow
+# machines. Slow or unfiltered commands belong to the lifecycle phase.
+EDIT_PHASE_TIMEOUT = 2.5
 DEFAULT_TIMEOUT = 30.0
 MAX_TIMEOUT = 120.0
 MAX_FIRST_LINE_CHARS = 200
@@ -215,7 +216,7 @@ def _parse_files(raw: str) -> tuple[tuple[str, ...], list[str]]:
     errors: list[str] = []
     matched: list[str] = []
     for part in raw.split(","):
-        token = part.strip().replace("\\", "/")
+        token = _strip_quotes(part).replace("\\", "/")
         while token.startswith("./"):
             token = token[2:]
         if not token:
@@ -434,7 +435,9 @@ def normalized_one_line(report: dict) -> str:
 # Per-file throttle for editor-phase runs: an edit storm must not multiply
 # the command cost. State lives in the workflow runtime directory because
 # every hook invocation is a fresh process — in-memory maps cannot throttle
-# across invocations.
+# across invocations. The slot is recorded only after a completed run: an
+# executor crash must not consume the interval, so the next edit within it
+# still runs its checks.
 EDIT_THROTTLE_INTERVAL_SECONDS = 10.0
 EDIT_THROTTLE_FILE = ".cowork-flow" / Path(".runtime") / "spec-edit-throttle.json"
 
@@ -497,11 +500,14 @@ def run_edit_checks(
             and current - state["ts"] < EDIT_THROTTLE_INTERVAL_SECONDS
         ):
             return ""
-        _write_throttle(repo_root, normalized, current)
     try:
         report = run_checks(repo_root, phase="edit", changed_files=[normalized])
     except Exception:
+        # Executor crash (not a check failure): leave the throttle untouched
+        # so a retry within the interval is not silently swallowed.
         return ""
+    if throttled:
+        _write_throttle(repo_root, normalized, time.time() if now is None else now)
     return normalized_one_line(report)
 
 
