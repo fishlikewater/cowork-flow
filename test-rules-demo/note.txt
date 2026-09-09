@@ -1,0 +1,4 @@
+本目录用于验证 backend spec 的 checks: 机制。
+编辑期反馈：文件写入时 hook 实时检查并即时反馈违规。
+收口期门禁：task complete 阶段对全部生效规则做全量复核。
+DONE 本文件已补齐标记行，符合 backend/demo-done-marker.md 规则。
