@@ -341,6 +341,75 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
             self.assertEqual("claude_main", active.context_key)
             self.assertEqual("claude-code", session_data.get("platform"))
 
+    def test_claim_active_task_writes_hook_session_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            task_dir = root / ".cowork-flow" / "tasks" / "05-28-demo"
+            task_dir.mkdir(parents=True)
+
+            with patch.dict(os.environ, {"ZCODE_SESSION_ID": "zc-1"}, clear=True):
+                active = self.active_task.claim_active_task(
+                    root, ".cowork-flow/tasks/05-28-demo"
+                )
+
+            assert active is not None
+            self.assertEqual("zcode_zc-1", active.context_key)
+            self.assertEqual(
+                self.active_task.PROVENANCE_HOST_SESSION, active.provenance
+            )
+            session_data = json.loads(
+                (self.active_task.sessions_dir(root) / "zcode_zc-1.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                ".cowork-flow/tasks/05-28-demo", session_data["active_task_path"]
+            )
+            self.assertEqual("main", session_data["scope"])
+            self.assertEqual("zcode", session_data["platform"])
+            self.assertNotIn("identity_provenance", session_data)
+
+    def test_claim_active_task_rejects_untrusted_identities(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+            task_dir = root / ".cowork-flow" / "tasks" / "05-28-demo"
+            task_dir.mkdir(parents=True)
+
+            with patch.dict(
+                os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True
+            ):
+                self.assertIsNone(
+                    self.active_task.claim_active_task(
+                        root, ".cowork-flow/tasks/05-28-demo"
+                    )
+                )
+            with patch.dict(os.environ, {}, clear=True):
+                self.assertIsNone(
+                    self.active_task.claim_active_task(
+                        root, ".cowork-flow/tasks/05-28-demo"
+                    )
+                )
+            self.assertFalse(
+                (self.active_task.sessions_dir(root) / "zcode_local-1.json").exists()
+            )
+
+    def test_claim_active_task_rejects_missing_task_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            with patch.dict(os.environ, {"ZCODE_SESSION_ID": "zc-1"}, clear=True):
+                self.assertIsNone(
+                    self.active_task.claim_active_task(
+                        root, ".cowork-flow/tasks/05-28-missing"
+                    )
+                )
+            self.assertFalse(
+                (self.active_task.sessions_dir(root) / "zcode_zc-1.json").exists()
+            )
+
     def test_clear_task_from_sessions_removes_matching_pointers_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

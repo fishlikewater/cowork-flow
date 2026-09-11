@@ -250,6 +250,141 @@ class InjectEntryTest(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stdout.strip())
 
+    def _write_task(self, root: Path, task_path: str) -> None:
+        task_dir = root / task_path
+        task_dir.mkdir(parents=True, exist_ok=True)
+        (task_dir / "task.json").write_text(
+            '{"status": "in_progress"}\n', encoding="utf-8"
+        )
+
+    def test_zcode_post_tool_use_claim_writes_hook_session_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_task(root, ".cowork-flow/tasks/09-01-demo")
+            # Another window's binding must stay untouched by this claim.
+            self._write_session(
+                root,
+                "zcode_s2",
+                ".cowork-flow/tasks/09-02-other",
+                last_seen_at="2026-09-08T02:00:00+00:00",
+            )
+
+            result = self._run_inject(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": (
+                            "./.cowork-flow/run task next "
+                            ".cowork-flow/tasks/09-01-demo --run"
+                        )
+                    },
+                    "session_id": "s1",
+                },
+                env_extra={"ZCODE_SESSION_ID": "s1"},
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            claimed = json.loads(
+                (sessions / "zcode_s1.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                ".cowork-flow/tasks/09-01-demo", claimed["active_task_path"]
+            )
+            self.assertEqual("main", claimed["scope"])
+            other = json.loads(
+                (sessions / "zcode_s2.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                ".cowork-flow/tasks/09-02-other", other["active_task_path"]
+            )
+            context = json.loads(result.stdout)["hookSpecificOutput"][
+                "additionalContext"
+            ]
+            self.assertIn('task=".cowork-flow/tasks/09-01-demo"', context)
+            self.assertIn('status="in_progress"', context)
+            self.assertNotIn("empty-session", context)
+            self.assertNotIn("session-fallback", context)
+
+    def test_zcode_post_tool_use_claim_on_task_start(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_task(root, ".cowork-flow/tasks/09-01-demo")
+
+            result = self._run_inject(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": "./.cowork-flow/run task start 09-01-demo"
+                    },
+                    "session_id": "s1",
+                },
+                env_extra={"ZCODE_SESSION_ID": "s1"},
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            claimed = json.loads(
+                (sessions / "zcode_s1.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                ".cowork-flow/tasks/09-01-demo", claimed["active_task_path"]
+            )
+
+    def test_zcode_post_tool_use_query_commands_do_not_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_task(root, ".cowork-flow/tasks/09-01-demo")
+
+            result = self._run_inject(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": "./.cowork-flow/run task next --json"
+                    },
+                    "session_id": "s1",
+                },
+                env_extra={"ZCODE_SESSION_ID": "s1"},
+            )
+
+            self.assertEqual(0, result.returncode)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            self.assertFalse((sessions / "zcode_s1.json").exists())
+
+    def test_zcode_post_tool_use_claim_skips_unknown_task_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            result = self._run_inject(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": (
+                            "./.cowork-flow/run task next "
+                            ".cowork-flow/tasks/09-99-gone --run"
+                        )
+                    },
+                    "session_id": "s1",
+                },
+                env_extra={"ZCODE_SESSION_ID": "s1"},
+            )
+
+            self.assertEqual(0, result.returncode)
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            self.assertFalse((sessions / "zcode_s1.json").exists())
+
     def test_zcode_post_tool_use_bash_nonlifecycle_is_silent(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -431,6 +566,33 @@ class InjectEntryTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn('task=".cowork-flow/tasks/09-01-keeper"', context)
         self.assertIn('status="in_progress"', context)
+
+    def test_zcode_two_main_bindings_unbound_session_does_not_follow(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(
+                root,
+                "zcode_a",
+                ".cowork-flow/tasks/09-01-demo",
+                last_seen_at="2026-09-08T01:00:00+00:00",
+            )
+            self._write_session(
+                root,
+                "zcode_b",
+                ".cowork-flow/tasks/09-02-other",
+                last_seen_at="2026-09-08T02:00:00+00:00",
+            )
+
+            data = self._run_json(root, {})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        # Two main-session bindings exist: an unbound hook session must not
+        # follow the newest one — it renders no_task plus the rebind list.
+        self.assertIn('status="no_task"', context)
+        self.assertNotIn("<workflow-state task=", context)
+        self.assertNotIn('source="session-fallback"', context)
+        self.assertIn(REBIND_HINTS_HEADER, context)
 
     def test_zcode_essential_files_warning_appended(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

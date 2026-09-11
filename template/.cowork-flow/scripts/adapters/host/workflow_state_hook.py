@@ -239,7 +239,7 @@ def build_hook_context(
     if contract_block:
         blocks.append(contract_block)
     blocks.append(
-        f"<workflow-state{_workflow_state_attrs(task_path, status, source)}>"
+        f"<workflow-state{_workflow_state_attrs(task_path, status, source, session=_resolve_session_identity(root, hook_input))}>"
         f"\n{body}\n</workflow-state>"
     )
     context = "\n\n".join(blocks)
@@ -279,14 +279,38 @@ def _xml_attr(value: Any) -> str:
     return xml_attr(value)
 
 
+def _resolve_session_identity(
+    root: Path, hook_input: dict[str, Any]
+) -> str | None:
+    """The caller's resolved context key for the session attribute
+    (context-injection.md, stage 1). None when no identity is resolvable —
+    the attribute is omitted rather than guessed."""
+    _load_common(root)
+    try:
+        from runtime.session_state import resolve_context_key
+    except Exception:
+        return None
+    try:
+        return resolve_context_key(hook_input)
+    except Exception:
+        return None
+
+
 def _workflow_state_attrs(
-    task_path: str | None, status: str, source: str
+    task_path: str | None,
+    status: str,
+    source: str,
+    session: str | None = None,
 ) -> str:
     """Structured fact header (context-injection.md, stage 1): the machine
-    picks task/status/source off the attributes; humans read the body."""
+    picks task/status/source/session off the attributes; humans read the
+    body. session is appended last and only when a session identity was
+    resolvable from the hook input or environment."""
     attrs = [f'status="{_xml_attr(status)}"', f'source="{_xml_attr(source)}"']
     if task_path:
         attrs.insert(0, f'task="{_xml_attr(task_path)}"')
+    if session:
+        attrs.append(f'session="{_xml_attr(session)}"')
     return "".join(f" {attr}" for attr in attrs)
 
 
@@ -422,11 +446,12 @@ def spec_edit_warning(
     reach them too: only an active in_progress/review task is required —
     session scope is not consulted here (scope warnings stay main-only in
     the zcode policy's edit_scope_warning). Hosts with
-    fallback_for_unbound (zcode) follow the newest main session for their
-    never-bound hook sessions; strict-identity hosts (claude-code/codex)
-    require the calling session's own binding. no_task, planning, and
-    completed stay silent. Empty string means silent. Never raises — the
-    editor path must not break edits.
+    fallback_for_unbound (zcode) follow another main session's binding for
+    their never-bound hook sessions only while exactly one main-session
+    binding exists (see _get_active_task_with_fallback); strict-identity
+    hosts (claude-code/codex) require the calling session's own binding.
+    no_task, planning, and completed stay silent. Empty string means
+    silent. Never raises — the editor path must not break edits.
     """
     try:
         task_path, status, _source = _get_active_task_with_fallback(
@@ -605,16 +630,18 @@ def _get_active_task_with_fallback(
     hook_input: dict[str, Any],
     fallback_for_unbound: bool,
 ) -> tuple[str | None, str, str]:
-    """zcode parity: a hook session that carries no binding follows the
-    newest valid main session's binding. Two sources qualify: no session
-    identity at all (missing-context), and a session id that resolves but
-    was never bound (empty-session) — the zcode hook always carries the
-    conversation's own session id, while task activation happens in the
-    Bash CLI under a separate explicit identity, so the hook session file
-    never exists. Gated by the host policy's fallback_for_unbound flag;
-    display/warning-only — the CLI lifecycle commands keep their strict
-    identity semantics. Multi-window setups may cross-read another window's
-    binding; accepted for advisory output."""
+    """zcode parity: a hook session that carries no binding follows another
+    main session's binding — but only when exactly one main-session binding
+    exists. Two sources qualify for the fallback: no session identity at all
+    (missing-context), and a session id that resolves but was never bound
+    (empty-session) — the zcode hook always carries the conversation's own
+    session id, while task activation happens in the Bash CLI under a
+    separate explicit identity, so the hook session file may not exist yet.
+    Gated by the host policy's fallback_for_unbound flag; display/warning-only
+    — the CLI lifecycle commands keep their strict identity semantics. With
+    two or more main-session bindings the newest one belongs to some other
+    window, so the fallback refuses and the caller renders no_task plus the
+    rebind hints instead."""
     task_path, status, source = _get_active_task(root, hook_input)
     if (
         not fallback_for_unbound
@@ -622,9 +649,10 @@ def _get_active_task_with_fallback(
         or source not in {"missing-context", "empty-session"}
     ):
         return task_path, status, source
-    fallback = _newest_session_task(root)
-    if fallback is None:
+    candidates = _main_session_task_candidates(root)
+    if len(candidates) != 1:
         return task_path, status, source
+    fallback = candidates[0]
     task_json = root / fallback / "task.json"
     try:
         data = json.loads(task_json.read_text(encoding="utf-8"))
@@ -636,19 +664,22 @@ def _get_active_task_with_fallback(
     return fallback, status.strip(), "session-fallback"
 
 
-def _newest_session_task(root: Path) -> str | None:
+def _main_session_task_candidates(root: Path) -> list[str]:
+    """All main-scope session bindings whose task directory is still valid,
+    newest first. Subagent scopes never qualify: delegated sessions follow
+    their runtime context, not another session's file."""
     try:
         from runtime.session_state import sessions_dir
     except Exception:
-        return None
+        return []
     sessions = sessions_dir(root)
     if not sessions.is_dir():
-        return None
+        return []
     entries: list[tuple[str, str]] = []
     try:
         paths = sorted(sessions.glob("*.json"))
     except OSError:
-        return None
+        return []
     for path in paths:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -665,11 +696,12 @@ def _newest_session_task(root: Path) -> str | None:
             (str(data.get("last_seen_at") or ""), task_path.strip())
         )
     entries.sort(reverse=True)
+    candidates: list[str] = []
     for _seen_at, task_path in entries:
         task_dir = root / task_path
         if task_dir.is_dir() and (task_dir / "task.json").is_file():
-            return task_path
-    return None
+            candidates.append(task_path)
+    return candidates
 
 
 def _session_scope(root: Path, hook_input: dict[str, Any]) -> str:
