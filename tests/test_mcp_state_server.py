@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -370,6 +371,130 @@ class HandleRequestTest(unittest.TestCase):
             {"jsonrpc": "2.0", "method": "notifications/initialized"},
         )
         self.assertIsNone(notification)
+
+
+class IdentityGateTest(unittest.TestCase):
+    """Implicit resolution (no explicit `task` argument) must never present a
+    process-fallback or missing identity as "the current task" — the MCP
+    caller's own trusted session identity is the only implicit authority."""
+
+    def setUp(self) -> None:
+        self.module = _load_module()
+
+    def _call(self, root: Path, request_id: int, name: str, arguments: dict):
+        return self.module.handle_request(
+            root,
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "tools/call",
+                "params": {"name": name, "arguments": arguments},
+            },
+        )
+
+    def test_task_state_implicit_untrusted_identity_returns_no_active_task(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+
+            with patch.dict(
+                os.environ, {"ZCODE_PROCESS_LABEL": "probe"}, clear=True
+            ):
+                response = self._call(root, 20, "task_state", {})
+
+        self.assertNotIn("isError", response["result"])
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertIsNone(payload["task"])
+        self.assertIn("no-active-task", payload["reason"])
+        self.assertIn("identity-untrusted", payload["reason"])
+
+    def test_task_state_implicit_trusted_identity_resolves_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+
+            with patch.dict(
+                os.environ, {"ZCODE_SESSION_ID": "probe"}, clear=True
+            ):
+                response = self._call(root, 21, "task_state", {})
+
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertEqual("in_progress", payload["task"]["status"])
+
+    def test_task_state_explicit_task_ignores_untrusted_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+
+            with patch.dict(
+                os.environ, {"ZCODE_PROCESS_LABEL": "probe"}, clear=True
+            ):
+                response = self._call(
+                    root, 22, "task_state", {"task": "08-29-demo"}
+                )
+
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertEqual("in_progress", payload["task"]["status"])
+
+    def test_task_scope_implicit_untrusted_identity_is_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+
+            with patch.dict(
+                os.environ, {"ZCODE_PROCESS_LABEL": "probe"}, clear=True
+            ):
+                response = self._call(root, 23, "task_scope", {})
+
+        self.assertTrue(response["result"]["isError"])
+        self.assertIn(
+            "no-active-task", response["result"]["content"][0]["text"]
+        )
+        self.assertIn(
+            "identity-untrusted", response["result"]["content"][0]["text"]
+        )
+
+    def test_task_list_active_only_marked_for_trusted_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_project(root)
+
+            with patch.dict(os.environ, {}, clear=True):
+                anonymous = self._call(root, 24, "task_list", {})
+            with patch.dict(
+                os.environ, {"ZCODE_PROCESS_LABEL": "probe"}, clear=True
+            ):
+                fallback = self._call(root, 25, "task_list", {})
+            with patch.dict(
+                os.environ, {"ZCODE_SESSION_ID": "probe"}, clear=True
+            ):
+                trusted = self._call(root, 26, "task_list", {})
+
+        for label, response in (
+            ("anonymous", anonymous),
+            ("process-fallback", fallback),
+        ):
+            payload = json.loads(response["result"]["content"][0]["text"])
+            self.assertEqual(
+                [],
+                [
+                    record
+                    for record in payload["tasks"]
+                    if record.get("active")
+                ],
+                f"{label} identity must not mark any record active",
+            )
+        payload = json.loads(trusted["result"]["content"][0]["text"])
+        self.assertEqual(
+            ["08-29-demo"],
+            [
+                record["name"]
+                for record in payload["tasks"]
+                if record.get("active")
+            ],
+        )
 
 
 class StdioSessionTest(unittest.TestCase):

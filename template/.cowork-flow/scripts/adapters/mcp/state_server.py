@@ -99,16 +99,36 @@ TOOLS = [
 ]
 
 
-def _tool_task_state(root: Path, arguments: dict) -> dict:
+TRUSTED_PROVENANCE = ("explicit", "host_session")
+
+
+def _implicit_active_task(root: Path) -> tuple[str | None, str]:
+    """Implicit resolution (no explicit `task` argument): the caller's own
+    session-bound active task. A process-fallback identity is shared across
+    every window on the host and a missing identity is no identity at all —
+    neither may impersonate "the current task", so both return no task with
+    an identity-untrusted reason. Returns (task_path, no_task_reason)."""
     from runtime.session_state import get_active_task
+
+    active = get_active_task(root)
+    if active.provenance not in TRUSTED_PROVENANCE:
+        return None, (
+            f"no-active-task (identity-untrusted: {active.provenance})"
+        )
+    if not active.task_path:
+        return None, "no-active-task"
+    return active.task_path, "no-active-task"
+
+
+def _tool_task_state(root: Path, arguments: dict) -> dict:
     from services.fact_view import build_fact_view
     from services.task_repository import TaskRepository, TaskRepositoryError
 
     target = arguments.get("task")
     if not target:
-        target = get_active_task(root).task_path
+        target, reason = _implicit_active_task(root)
         if not target:
-            return {"schemaVersion": 1, "task": None, "reason": "no-active-task"}
+            return {"schemaVersion": 1, "task": None, "reason": reason}
     try:
         task_dir = TaskRepository(root).resolve(target)
     except TaskRepositoryError as error:
@@ -124,17 +144,23 @@ def _tool_task_list(root: Path, _arguments: dict) -> dict:
     records, error = _list_task_records(root, mine=False, status=None)
     if error:
         return {"tasks": [], "count": 0, "error": error}
+    # records[].active is a per-session fact: only a trusted caller identity
+    # whose bound path matches the record may carry it.
+    trusted_active = _implicit_active_task(root)[0]
+    for record in records:
+        record["active"] = (
+            bool(trusted_active) and record.get("path") == trusted_active
+        )
     return {"tasks": records, "count": len(records)}
 
 
 def _resolve_task_dir(root: Path, target: str | None) -> Path:
-    from runtime.session_state import get_active_task
     from services.task_repository import TaskRepository, TaskRepositoryError
 
     if not target:
-        target = get_active_task(root).task_path
+        target, reason = _implicit_active_task(root)
         if not target:
-            raise ValueError("no-active-task")
+            raise ValueError(reason)
     try:
         task_dir = TaskRepository(root).resolve(target)
     except TaskRepositoryError as error:

@@ -4,10 +4,12 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -113,6 +115,44 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn('task=\".cowork-flow/tasks/07-10-demo\"', context)
         self.assertIn('status=\"in_progress\"', context)
         self.assertIn("活动任务正在执行。", context)
+
+    def test_workflow_state_header_carries_session_attribute(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_workflow_spec(root)
+
+            with patch.dict(
+                os.environ, {"COWORK_FLOW_CONTEXT_ID": "probe"}, clear=True
+            ):
+                context = self.module.build_hook_context(
+                    root,
+                    {},
+                    host="codex",
+                    adapter="codex.hook",
+                    preamble=(),
+                )
+
+        self.assertIn('session="probe"', context)
+        self.assertRegex(
+            context,
+            r'<workflow-state status="no_task" source="empty-session" session="probe">',
+        )
+
+    def test_workflow_state_header_omits_session_without_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _write_workflow_spec(root)
+
+            with patch.dict(os.environ, {}, clear=True):
+                context = self.module.build_hook_context(
+                    root,
+                    {},
+                    host="codex",
+                    adapter="codex.hook",
+                    preamble=(),
+                )
+
+        self.assertNotIn("session=", context)
 
     def test_invalid_runtime_context_renders_guard_rail_body(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -55,6 +55,60 @@ def is_lifecycle_bash(hook_input: dict[str, Any]) -> bool:
     )
 
 
+# Activation intent inside a lifecycle Bash command: `task next <dir> --run`,
+# `task start <dir>`, `resume <dir>` (the run prefix is optional). Query
+# forms (`task next --json`, `task next --run` without a dir) match nothing
+# claimable — the captured token must be a task dir whose task.json exists.
+ACTIVATION_COMMAND_RE = re.compile(
+    r"\btask\s+next\s+(?P<next>\S+)\s+--run\b"
+    r"|\btask\s+start\s+(?P<start>\S+?)(?=\s|$)"
+    r"|(?<![\w./-])resume\s+(?P<resume>\S+?)(?=\s|$)"
+)
+
+
+def _resolvable_task_path(root: Path, token: str) -> str | None:
+    candidates = [token]
+    if not token.startswith(".cowork-flow/"):
+        candidates.append(f".cowork-flow/tasks/{token}")
+    for candidate in candidates:
+        normalized = candidate.replace("\\", "/").strip("/")
+        if (root / normalized / "task.json").is_file():
+            return normalized
+    return None
+
+
+def claim_after_lifecycle_bash(root: Path, hook_input: dict[str, Any]) -> None:
+    """Bind the activated task to this hook session's own identity.
+
+    The lifecycle Bash CLI resolves a process-fallback identity, so the
+    binding it writes is shared across windows; PostToolUse re-binds with the
+    hook input's session id via session_state.claim_active_task (explicit /
+    host_session provenance only). Commands without an activation intent or
+    with an unresolvable task dir claim nothing, and claim failure stays
+    silent — the refresh path below still renders the state."""
+    tool_input = hook_input.get("tool_input")
+    command = (
+        tool_input.get("command") if isinstance(tool_input, dict) else None
+    )
+    if not isinstance(command, str):
+        return
+    match = ACTIVATION_COMMAND_RE.search(command.replace("\\", "/"))
+    if match is None:
+        return
+    token = next(value for value in match.groupdict().values() if value)
+    if token.startswith("-"):
+        return
+    task_path = _resolvable_task_path(root, token)
+    if task_path is None:
+        return
+    try:
+        from runtime.session_state import claim_active_task
+
+        claim_active_task(root, task_path, hook_input)
+    except Exception:
+        pass
+
+
 def zcode_session_alias(data: dict[str, Any]) -> dict[str, Any]:
     # Ported from the zcode hook's resolveSessionKey candidate order
     # (env wins inside session_state; input aliases only fill the gap).
@@ -202,6 +256,7 @@ def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
         return merged_edit_warning(root, hook_input), 0
     if not is_lifecycle_bash(hook_input):
         return "", 0
+    claim_after_lifecycle_bash(root, hook_input)
     from adapters.host.workflow_state_hook import build_hook_context
 
     context = build_hook_context(

@@ -85,8 +85,13 @@ The `<workflow-state>` open tag carries the machine-readable fact header as
 XML attributes; the body keeps the human-readable breadcrumb prose.
 
 - Attributes: `status` and `source` are always present; `task` (repo-relative
-  task path) appears whenever a task is bound. Attribute values are XML-escaped
-  (`& < > "`).
+  task path) appears whenever a task is bound; `session` (the caller's
+  resolved context key) appears whenever a session identity is resolvable
+  from the hook input or environment and is omitted otherwise (hosts that
+  cannot resolve an identity never guess one — the attribute is the machine
+  handle for re-binding with `COWORK_FLOW_CONTEXT_ID`). Attribute values are
+  XML-escaped (`& < > "`). The opencode JS mirror does not emit `session`
+  (delegated-only transport; documented behavioral difference, not drift).
 - The legacy `Task:` / `Status:` / `Source:` label lines are gone — machines
   parse the attributes, humans read the body. There is no bare `Scope:`
   line in the body: the stage-contract block owns the scope declaration
@@ -94,10 +99,18 @@ XML attributes; the body keeps the human-readable breadcrumb prose.
   as a read-only `[read-only]` reference of the parent task).
 
 ```text
-<workflow-state task=".cowork-flow/tasks/08-28-demo" status="in_progress" source="runtime-session">
+<workflow-state task=".cowork-flow/tasks/08-28-demo" status="in_progress" source="runtime-session" session="zcode_probe">
 活动任务正在执行。...
 </workflow-state>
 ```
+
+- Unbound-session fallback (zcode only, display/warning-only): a hook
+  session with no binding follows another main session's binding only while
+  **exactly one** main-session binding exists (`source="session-fallback"`).
+  With two or more main-session bindings the newest one belongs to some
+  other window, so the fallback refuses: the injection renders
+  `status="no_task"` plus the rebind hints list. The CLI lifecycle commands
+  keep their strict identity semantics regardless (FALLBACK_BINDING_BLOCKER).
 
 ## Decision-anchor injection (stage 1)
 

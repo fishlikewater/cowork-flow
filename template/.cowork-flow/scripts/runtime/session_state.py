@@ -330,6 +330,41 @@ def set_active_task(repo_root: Path, task_path: str) -> ActiveTask | None:
     return active
 
 
+def claim_active_task(
+    repo_root: Path,
+    task_path: str,
+    values: Mapping[str, object] | None = None,
+) -> ActiveTask | None:
+    """Bind the task to the caller's own resolved session identity.
+
+    Used by host PostToolUse hooks after a lifecycle Bash activation: the CLI
+    process often only carries a shared process-fallback identity, so the hook
+    re-binds with the session id parsed from the hook input. Only explicit /
+    host_session provenance may claim — process_fallback and missing
+    identities are shared or absent, and a main binding written with them
+    would hijack the binding for every other window. Claim failures return
+    None and write nothing.
+    """
+    context_key, provenance = resolve_context_key_with_provenance(values)
+    if not context_key or provenance not in (
+        PROVENANCE_EXPLICIT,
+        PROVENANCE_HOST_SESSION,
+    ):
+        return None
+    normalized = task_path.replace("\\", "/")
+    target = repo_root / normalized
+    if not target.is_dir():
+        return None
+    data: dict[str, object] = {
+        FIELD_ACTIVE_TASK_PATH: normalized,
+        FIELD_SCOPE: SCOPE_MAIN,
+        "platform": platform_from_context_key(context_key),
+        "last_seen_at": _now(),
+    }
+    _write_json(_session_path(repo_root, context_key), data)
+    return ActiveTask(normalized, context_key, "session", provenance=provenance)
+
+
 def get_active_task(repo_root: Path, values: Mapping[str, object] | None = None) -> ActiveTask:
     context_key, provenance = resolve_context_key_with_provenance(values)
     if not context_key:
