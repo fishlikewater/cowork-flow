@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0 - 2026-09-14
+
+### Hook 会话身份绑定（fix(runtime)）
+
+实弹暴露的多窗口交叉读取问题：zcode hook 会话携带对话自身的 session id，而任务激活发生在 Bash CLI 的显式身份下，导致未绑定的 hook 会话回退到 newest-session 时可能**读到另一个窗口的任务**。本版把绑定与回退语义一起收紧：
+
+- **激活即认领**：PostToolUse 在激活类命令（`task start` / `task next <dir> --run` / `resume <dir>`）之后，把 hook 会话自己的 `zcode_<sessionId>` 绑定认领下来（`session_state.claim_active_task`）；查询类命令与不可信身份（process-fallback/缺失）永不认领。
+- **回退语义收紧**：`fallback_for_unbound` 仅在**恰好存在一个** main-session 绑定时跟随最新的那个；存在多个绑定时，未绑定 hook 会话渲染 no_task + rebind 提示，绝不交叉读取其他窗口。
+- **会话身份显式化**：workflow-state 头部新增 `session=<contextKey>` 属性，模型可将其作为 `COWORK_FLOW_CONTEXT_ID` 传给后续 CLI 调用，打通 hook 会话与 CLI 身份。
+- **MCP 拒绝隐式冒认**：`task_state` / `task_scope` / `task_list` 在不可信身份下拒绝隐式解析（`identity-untrusted`），不再冒认 process-fallback 任务；CLI `FALLBACK_BINDING_BLOCKER` 语义不变（回归护栏锁定）。
+- 契约文档 context-injection.md 同步记录 session 属性与回退语义；新增 pytest 396 行覆盖（active_task_runtime / inject_entry / mcp_state_server / workflow_state_hook）。
+
 ## 1.3.0 - 2026-09-09
 
 ### 跨宿主适配通用化（注入单源化 + MCP 重定位）
