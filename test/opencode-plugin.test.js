@@ -185,3 +185,41 @@ test("opencode party mode v2 command points to runtime board", async () => {
     assert.doesNotMatch(text, /spawn_agent|wait_agent|close_agent|codex exec/)
   }
 })
+
+async function runToolExecuteAfter(cwd, input, output = {}) {
+  const plugin = await CoworkFlowPlugin()
+  assert.equal(typeof plugin["tool.execute.after"], "function")
+  await plugin["tool.execute.after"]({ cwd, ...input }, output)
+  return output
+}
+
+test("tool.execute.after leaves non-edit tools untouched", async (t) => {
+  const root = await createRegistryRepo(t)
+  const output = await runToolExecuteAfter(root, {
+    tool: "bash",
+    args: { command: "ls" },
+  })
+  assert.equal(output.output, undefined)
+})
+
+test("tool.execute.after skips an edit without a file path", async (t) => {
+  const root = await createRegistryRepo(t)
+  const output = await runToolExecuteAfter(
+    root,
+    { tool: "edit", args: {} },
+    { output: "original" }
+  )
+  assert.equal(output.output, "original")
+})
+
+test("tool.execute.after preserves tool output when the runtime is absent", async (t) => {
+  const root = await createRegistryRepo(t)
+  // The fixture has no .cowork-flow/run entry, so the checker must stay
+  // silent instead of failing the edit path.
+  const output = await runToolExecuteAfter(
+    root,
+    { tool: "edit", args: { filePath: "src/a.py" } },
+    { output: "original" }
+  )
+  assert.equal(output.output, "original")
+})

@@ -19,6 +19,21 @@ LEGACY_POST_ACK = "post" + "_ack_execution_grace_ms"
 NO_TASK_GATE_TEXT = "MUST NOT 编辑文件、实现代码、重构代码、派发子代理。"
 
 
+def _load_workflow_state_hook():
+    import importlib.util
+
+    scripts = TEMPLATE / ".cowork-flow" / "scripts"
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    spec = importlib.util.spec_from_file_location(
+        "codex_test_workflow_state_hook",
+        scripts / "adapters" / "host" / "workflow_state_hook.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class CodexHooksTest(unittest.TestCase):
     def _make_project(self, root: Path) -> None:
         (root / ".cowork-flow").mkdir(parents=True)
@@ -483,6 +498,39 @@ class CodexHooksTest(unittest.TestCase):
         self.assertTrue(command.endswith("inject-workflow-state.py"), command)
         self.assertFalse(command.startswith("python "))
         self.assertIn(".codex/hooks/", command)
+
+    def test_hook_config_registers_post_tool_use_for_file_edits(self) -> None:
+        hooks = json.loads((TEMPLATE / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+        entries = hooks["hooks"]["PostToolUse"]
+        matcher = entries[0]["matcher"]
+        # apply_patch is codex's canonical edit tool; Write/Edit are matcher
+        # aliases its dispatcher accepts, so one matcher covers both surfaces.
+        for tool in ("apply_patch", "Write", "Edit"):
+            self.assertIn(tool, matcher.split("|"))
+        command = entries[0]["hooks"][0]["command"]
+        self.assertTrue(command.endswith("inject-workflow-state.py"), command)
+
+    def test_extract_edited_paths_covers_host_payload_shapes(self) -> None:
+        module = _load_workflow_state_hook()
+        extract = module._extract_edited_paths
+        self.assertEqual(["src/a.py"], extract({"file_path": "src/a.py"}))
+        self.assertEqual(["src/a.py"], extract({"filePath": "src/a.py"}))
+        patch = (
+            "*** Begin Patch\n"
+            "*** Update File: src/b.py\n"
+            "*** Add File: src/c.py\n"
+            "*** End Patch\n"
+        )
+        self.assertEqual(["src/b.py", "src/c.py"], extract({"input": patch}))
+        # The same path arriving in two shapes must not burn the throttle
+        # window twice.
+        self.assertEqual(
+            ["src/a.py"],
+            extract({"file_path": "src/a.py", "input": "*** Update File: src/a.py\n"}),
+        )
+        self.assertEqual([], extract({"file_path": "   "}))
+        self.assertEqual([], extract({}))
+        self.assertEqual([], extract(None))
 
     def test_hook_config_command_executes_without_bare_python(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

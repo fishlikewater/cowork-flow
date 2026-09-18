@@ -180,7 +180,9 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   (`Bash|Edit|Write|MultiEdit`) is asserted by template tests but depends on
   the ZCode runtime's tool names — there is no external runtime contract to
   verify them against, so a runtime rename would silently disable the
-  warning; the matcher is the single switch.
+  warning; the matcher is the single switch. This bullet covers the scope
+  warning only; the spec-check violation line is a separate channel that
+  also reaches codex and opencode sessions (see spec-checks.md).
 - Budget: the whole block stays ≤ 1200 characters. Over-budget inputs
   degrade by dropping Verify, then Specs, then shrinking Scope entries
   (min 1) — the closing tag and the Gates row always survive; tests assert

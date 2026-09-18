@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
@@ -721,6 +722,81 @@ function buildInjectedDigest(input) {
   return `<contract-fingerprint value="${contractFingerprint(root, contracts)}"/>`
 }
 
+// Editor-phase spec-check: opencode sessions get the same single-line
+// violation hint zcode and claude-code already receive. Best-effort — a
+// missing runtime, a timeout, or any error stays silent and never blocks
+// the edit that already happened.
+const EDIT_TOOL_NAMES = new Set(["edit", "write"])
+const EDIT_CHECK_TIMEOUT_MS = 2500
+
+function editedFilePath(input) {
+  const tool = typeof input?.tool === "string" ? input.tool : ""
+  if (!EDIT_TOOL_NAMES.has(tool)) {
+    return ""
+  }
+  const args = input?.args
+  const candidate = args && typeof args === "object" ? args.filePath : null
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : ""
+}
+
+function runEditSpecCheck(root, filePath) {
+  return new Promise((resolvePromise) => {
+    let settled = false
+    const finish = (value) => {
+      if (!settled) {
+        settled = true
+        resolvePromise(value)
+      }
+    }
+    const entry = resolve(
+      root,
+      ".cowork-flow",
+      process.platform === "win32" ? "run.cmd" : "run"
+    )
+    if (!existsSync(entry)) {
+      finish("")
+      return
+    }
+    let child
+    try {
+      child = spawn(
+        entry,
+        ["spec-check", "--phase", "edit", "--file", filePath, "--throttled"],
+        {
+          cwd: root,
+          stdio: ["ignore", "pipe", "ignore"],
+          shell: process.platform === "win32",
+        }
+      )
+    } catch {
+      finish("")
+      return
+    }
+    const timer = setTimeout(() => {
+      try {
+        child.kill()
+      } catch {
+        // the edit must not be held up by a stuck checker
+      }
+      finish("")
+    }, EDIT_CHECK_TIMEOUT_MS)
+    let stdout = ""
+    if (child.stdout) {
+      child.stdout.on("data", (chunk) => {
+        stdout += String(chunk)
+      })
+    }
+    child.on("error", () => {
+      clearTimeout(timer)
+      finish("")
+    })
+    child.on("close", () => {
+      clearTimeout(timer)
+      finish(stdout.trim())
+    })
+  })
+}
+
 export const CoworkFlowPlugin = async () => {
   return {
     "shell.env": async (input, output) => {
@@ -728,6 +804,16 @@ export const CoworkFlowPlugin = async () => {
     },
     "experimental.chat.system.transform": async (input, output) => {
       output.system.push([buildInjectedDigest(input), buildRuntimeWorkflowState(input)].filter(Boolean).join("\n\n"))
+    },
+    "tool.execute.after": async (input, output) => {
+      const filePath = editedFilePath(input)
+      if (!filePath) {
+        return
+      }
+      const warning = await runEditSpecCheck(findRepoRoot(input), filePath)
+      if (warning) {
+        output.output = [output.output, warning].filter(Boolean).join("\n")
+      }
     },
   }
 }

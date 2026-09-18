@@ -84,7 +84,11 @@ spec 为无检查并进 doctor 报告，不炸流程。
 | --- | --- | --- | --- |
 | zcode | 有（Specs 行 h2 digest） | 有（PostToolUse 短路径；**仅主会话**） | 有 |
 | claude-code | 有（Python 单源） | 有（PostToolUse，exit 2 反馈） | 有 |
-| opencode | 有 | **降级：无**（插件无 PostToolUse 短路径） | 有 |
+| codex | 有 | 有（PostToolUse，`apply_patch\|Write\|Edit` → exit 2 stderr） | 有 |
+| opencode | 有 | 有（插件 `tool.execute.after` 单行追加到工具结果） | 有 |
+| dsh | 有（预设注入） | **未接线**（宿主提供 `tools/post-execute` 通道，runtime 侧尚未接入该传输） | 有 |
+
+三线（zcode / codex / claude-code）经 Python 单源共享 `run_edit_checks`；opencode 在插件内以 CLI 拉取同一执行器（`run spec-check --phase edit --throttled`），因此四家共享同一节流状态与三态语义，不各自实现检查逻辑。dsh 的编辑期是宿主已支持、项目未接线的状态，不属"宿主降级"。
 
 **delegated 子代理编辑期缺口（zcode 实测，2026-09-09 两轮）**：ZCode 的插件
 hook 只在主会话工具流上派发（事件模型七事件均挂主会话；子代理是独立内部

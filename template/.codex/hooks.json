@@ -10,6 +10,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
