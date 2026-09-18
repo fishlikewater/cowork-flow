@@ -175,6 +175,57 @@ test('install-dsh-preset --dry-run writes nothing', async (t) => {
 });
 
 
+test('install-dsh-preset records the installed version marker', async (t) => {
+  const dshHome = await createDshHome(t);
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = dshHome;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.DSH_HOME;
+    } else {
+      process.env.DSH_HOME = previous;
+    }
+  });
+
+  await runInstallDshPreset([]);
+
+  const dest = join(dshHome, '.agent-presets', PRESET_ID);
+  const marker = JSON.parse(
+    await readFile(join(dest, '.cowork-flow-preset.json'), 'utf8')
+  );
+  const pkg = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+  assert.equal(marker.version, pkg.version);
+  assert.match(marker.installedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+
+test('install-dsh-preset warns when the installed version is stale', async (t) => {
+  const dshHome = await createDshHome(t);
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = dshHome;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.DSH_HOME;
+    } else {
+      process.env.DSH_HOME = previous;
+    }
+  });
+
+  await runInstallDshPreset([]);
+  const dest = join(dshHome, '.agent-presets', PRESET_ID);
+  await writeFile(
+    join(dest, '.cowork-flow-preset.json'),
+    '{"version":"0.0.1","installedAt":"2020-01-01T00:00:00.000Z"}\n',
+    'utf8'
+  );
+
+  const output = await captureConsole(() => runInstallDshPreset([]));
+
+  assert.match(output, /0\.0\.1/);
+  assert.match(output, /install-dsh-preset --force/);
+});
+
+
 test('install-dsh-preset resolves skills from the package template', async (t) => {
   const dshHome = await createDshHome(t);
   const previous = process.env.DSH_HOME;

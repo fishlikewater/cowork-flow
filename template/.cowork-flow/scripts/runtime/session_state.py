@@ -25,8 +25,9 @@ PROVENANCE_HOST_SESSION = "host_session"
 PROVENANCE_PROCESS_FALLBACK = "process_fallback"
 PROVENANCE_MISSING = "missing"
 FALLBACK_BINDING_BLOCKER = (
-    "session identity is process-fallback (shared); pass <task-dir> explicitly "
-    "or set COWORK_FLOW_CONTEXT_ID to a trusted session id"
+    "session identity is process-fallback (shared); set COWORK_FLOW_CONTEXT_ID "
+    "to the session value shown in the workflow-state header (or pass "
+    "<task-dir> explicitly when acting on an existing task)"
 )
 RUNTIME_CONTEXT_PROMPT_RE = re.compile(
     r"(?im)^\s*cowork_runtime_context_id\s*:\s*([A-Za-z0-9._-]+)\s*$"

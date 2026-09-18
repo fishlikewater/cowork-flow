@@ -67,10 +67,16 @@ spec 为无检查并进 doctor 报告，不炸流程。
 
 ## 归属与 sync 策略
 
-- **模板自带 spec**（`spec/backend/` 等随包分发）的 check 声明由
-  cowork-flow 上游维护，属 sync safe 资产——本地修改会被 sync 覆盖。
-- **用户自定义规范**请放自建 spec 文件（如 `spec/team-xxx.md` 或自建
-  子目录），sync 不触碰；check 声明随规范正文一起由用户维护。
+- **`spec/` 整体是 sync 保护前缀**：已存在的 spec 文件不会被 `sync`
+  覆盖——模板里 spec 的更新只对 `init` 新装生效，已安装项目的本地
+  内容不会被同步任务改写。
+- **具名例外**：`spec/contracts/` 下列入 `spec/runtime/host-assets.json`
+  的 `syncPolicy.safeFiles` 条目（本文件与 `workflow-state-templates.md`）
+  随 sync 更新，使契约修正能到达已安装项目；其余 spec 文件保持保护。
+- **声明由使用方维护**：模板自带的 spec 文件不含生效的 `checks:` 声明
+  ——模板无法预知项目命令，而命令缺失会归 `unchecked` 并阻断
+  `complete`。请把声明写进自建 spec 文件（如 `spec/team-xxx.md` 或
+  自建子目录），sync 不触碰，声明随规范正文一起由使用方维护。
 
 ## 宿主能力矩阵
 

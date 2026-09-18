@@ -143,4 +143,5 @@
 
 <!-- COWORK-FLOW:START -->
 项目流程以 `task next`、runtime gate、Skill command manifests 和 `.cowork-flow/spec/` 硬契约为准；不要维护第二套流程文档或 Skill 注册控制面。
+规范声明的检查以 `.cowork-flow/spec/contracts/spec-checks.md` 为准；交付或收口前运行 `./.cowork-flow/run spec-check`。
 <!-- COWORK-FLOW:END -->

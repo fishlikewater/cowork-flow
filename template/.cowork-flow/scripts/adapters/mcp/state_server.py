@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Read-only MCP stdio server exposing the cowork-flow fact layer.
 
-Stage 3 of docs/direction.md: any MCP client can query task facts without
+Fact-layer stage 3: any MCP client can query task facts without
 pulling the workflow into a prompt. Deliberately dependency-free — the MCP
 stdio transport is newline-delimited JSON-RPC 2.0, small enough to serve on
 the standard library while the ecosystem settles (see

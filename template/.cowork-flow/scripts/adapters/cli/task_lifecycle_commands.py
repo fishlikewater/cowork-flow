@@ -82,7 +82,9 @@ def _resolve_status_task_dir(
             print(
                 colored(
                     "Error: Session binding is process-fallback (shared); "
-                    "pass a task dir explicitly.",
+                    "set COWORK_FLOW_CONTEXT_ID to the session value shown "
+                    "in the workflow-state header, or pass a task dir "
+                    "explicitly.",
                     Colors.RED,
                 ),
                 file=sys.stderr,
@@ -368,7 +370,8 @@ def cmd_finish(args: argparse.Namespace) -> int:
         print(
             colored(
                 "Error: Refusing to clear a session binding resolved from "
-                "process-fallback identity; archive the task to clear it.",
+                "process-fallback identity; archive the task to clear it, or "
+                "set COWORK_FLOW_CONTEXT_ID to your own session identity.",
                 Colors.RED,
             ),
             file=sys.stderr,

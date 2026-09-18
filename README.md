@@ -12,6 +12,7 @@
 |---|---|
 | 任务流程 | `task next --json` 给出下一步 action，`task next --run` 只执行当前 action。 |
 | 事实接入 | `run state [task] --json` 事实视图；`run mcp-state` 无依赖 MCP 只读服务（`task_state` / `task_list` / `task_scope` / `task_specs`）供任何 MCP 客户端查询；`task scope` / `task specs` 为 CLI 同源事实命令。 |
+| 规范挂命令 | spec 首部 frontmatter 声明 `checks:` 命令，按编辑期/收口期执行；`run spec-check` 输出三态门禁（pass / violation / unchecked）。 |
 | 运行健康 | `doctor` 诊断 runtime、host assets、Skill replica 和任务 hygiene，不推进生命周期。 |
 | Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / DeepSeek Harness 资产和 obsolete 清理。 |
 | 批处理与讨论 | Batch 发布 Host action；Party Mode 只输出 advisory final facts。 |
@@ -25,7 +26,7 @@
 | 理解任务如何流转 | [任务流程](#任务流程) |
 | 处理故障或漂移 | [支持与故障诊断](#支持与故障诊断) |
 | 做发布前检查 | [发布](#发布)、[`CHANGELOG.md`](CHANGELOG.md) |
-| 了解项目方向与演进路线 | [`docs/direction.md`](docs/direction.md) |
+| 了解项目演进与版本内容 | [`CHANGELOG.md`](CHANGELOG.md) |
 | 接入到自己项目 | [接入原则](#接入原则) |
 
 ## 适用 / 不适用
@@ -68,7 +69,7 @@ cowork-flow install-dsh-hook
 
 # MCP 客户端接入（可选）：全局注册一次，任意项目查询任务事实；
 # 项目级 opt-in（如 claude-code 的 .mcp.json）与注册健康检测见
-# `run doctor`，各客户端配置样例见 docs/mcp-client-setup.md
+# `run doctor`；各客户端配置样例见下方「MCP 客户端接入」一节
 cowork-flow mcp-state
 
 # 维护者发布前检查
@@ -164,6 +165,32 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 - 默认查询 npm latest，发现新版本时执行 `npm install -g cowork-flow@latest`
 - `--dry-run` 只输出当前版本、最新版本和 `readiness=<json>`，其中 `update.wouldInstall` 表示是否会执行全局安装，不调用安装命令
 
+## MCP 客户端接入
+
+事实层以只读 MCP 服务（工具 `task_state` / `task_list`）提供给任意客户端。两种入口：
+
+- **全局（推荐）**：`cowork-flow mcp-state`（npm 全局 CLI 透传）。注册一次，所有 cowork-flow 项目通用——项目根由客户端启动时的 cwd 向上解析。
+- **项目级**：`<project>/.cowork-flow/run mcp-state`（不依赖全局安装，每项目一份配置）。
+
+stdio 注册样例：
+
+```toml
+# Codex（~/.codex/config.toml）
+[mcp_servers.cowork-flow]
+command = "cowork-flow"
+args = ["mcp-state"]
+```
+
+```json
+// OpenCode（~/.config/opencode/opencode.json）
+{"mcp": {"cowork-flow": {"type": "local", "command": ["cowork-flow", "mcp-state"], "enabled": true}}}
+```
+
+- **Claude Code**：`claude mcp add -s user cowork-flow -- cowork-flow mcp-state`（项目级 `.mcp.json` 写同构条目）。
+- **ZCode**：客户端设置的 MCP 服务器中添加同构 stdio 条目（命令 `cowork-flow`、参数 `mcp-state`）。
+
+项目级注册的健康检查由 `./.cowork-flow/run doctor` 报告。
+
 ## ZCode 插件
 
 ```bash
@@ -195,7 +222,7 @@ cowork-flow init ./my-project --platform dsh   # 项目资产：AGENTS.md + .age
 cowork-flow install-dsh-hook                   # 机器级：注册 hook 组合行（实时注入见下方说明）
 ```
 
-`install-dsh-hook` 把 `workflow-state.js` 插件作为 `insert:` patch 注册到 `$DSH_HOME/cordis.patch.yml`（未设置 `DSH_HOME` 时默认 `~/.dsh`），组合层面可被 `dsh --dump-config` 验证。经实测（DSH 0.1.1-rc.1），**agent 提示组装不收集 host 层 section**：该组合行不会在会话系统提示中产生 `<workflow-state>` 块。当前 DSH 版本下实时注入仍需预设方式（`install-dsh-preset`）；本命令保留为组合层面的幂等注册能力（卸载见下），待 DSH 支持 agent-scope patch / workspace 级组合后可直接生效（见 `docs/dsh-upstream-proposal.md`）。
+`install-dsh-hook` 把 `workflow-state.js` 插件作为 `insert:` patch 注册到 `$DSH_HOME/cordis.patch.yml`（未设置 `DSH_HOME` 时默认 `~/.dsh`），组合层面可被 `dsh --dump-config` 验证。经实测（DSH 0.1.1-rc.1），**agent 提示组装不收集 host 层 section**：该组合行不会在会话系统提示中产生 `<workflow-state>` 块。当前 DSH 版本下实时注入仍需预设方式（`install-dsh-preset`）；本命令保留为组合层面的幂等注册能力（卸载见下），待 DSH 支持 agent-scope patch / workspace 级组合后可直接生效。
 
 在未安装 cowork-flow 的项目里 hook 完全无感：JS 侧根目录预检直接短路——不注入内容、不启动 Python 进程。全局开关（环境变量）：`COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`。卸载：`cowork-flow install-dsh-hook --uninstall`（`--force` 同时删除插件文件）。
 
@@ -212,6 +239,8 @@ cowork-flow install-dsh-preset --dry-run  # 预览不写入
 ```
 
 安装到 `~/.dsh/.agent-presets/cowork-flow/`（`DSH_HOME` 存在时以其为准）：`agent.cordis.yml` + `preset.yml` + 全部流程技能。安装后在 DeepSeek Harness 中新建会话并选择 **Cowork Flow** 预设即可使用：persona 携带流程门禁规则，技能目录随预设挂载，不依赖项目本地副本。
+
+预设是**一次性安装的机器级资产**：它不随 `sync` 或 npm 更新。升级 cowork-flow 后需要重跑 `cowork-flow install-dsh-preset --force` 才会刷新（不带 `--force` 的重复执行是空操作，安装器会在版本不同时给出提示）。安装时会在预设目录写入 `.cowork-flow-preset.json` 版本标记；`./.cowork-flow/run doctor` 比对标记与项目 runtime 版本，过期或缺失时输出 warning 与更新命令。
 
 预设组合是部署 `standard` 预设的拷贝 + 最小改动（persona 流程规则、`skill-filesystem` 指向预设自带 `skills/`）；`cowork-flow init --platform dsh` 仍负责项目级资产（`AGENTS.md`、`.agents/skills/`、`.dsh/` 标记）。
 
@@ -254,6 +283,29 @@ flowchart TD
 
 Batch 使用任务图和持久化 Host action：运行 `task next <parent-task> --run --intent batch --auto --approved` 获取 `next_action`；Host 完成真实生命周期动作后继续通过 `task next` 导航，不暴露独立 batch 子命令。
 
+## 规范挂命令（spec-check）
+
+`.cowork-flow/spec/` 下的规范可在文件首部 frontmatter 声明检查命令；机制只执行声明、不解析规范正文——规则随规范同文件更新，天然同步。
+
+```markdown
+---
+checks:
+  - cmd: npm run lint --silent
+    files: "src/"        # 可选：目录前缀或扩展名（"*.ts"），逗号分隔
+    timeout: 60          # 可选：秒，默认 30，硬顶 120
+    when: both           # 可选：edit | lifecycle | both（默认 both）
+---
+```
+
+唯一执行器是 `./.cowork-flow/run spec-check`：
+
+- **三态语义**：`pass`（退出码 0）；`violation` 阻断 `task complete`；`unchecked`（命令缺失、解释器缺失、超时）同样阻断，需显式 `--allow-unchecked` 放行，豁免留痕进 `task.json`。unchecked 永不冒充 pass。
+- **两个相位**：`when: edit` 在编辑期就地执行（超时钳制 2.5 秒，违规输出单行提示；zcode/claude 有，opencode 明确降级），是 best-effort 提示不是门禁；收口期全量执行，未过项阻断状态推进。
+- **扫描范围**：`.cowork-flow/spec/` 下的 markdown；`contracts/`、`runtime/`、`schemas/` 三个机器自有子树不参与。
+- **模板不带生效声明**：模板无法预知项目命令，而命令缺失会归 `unchecked` 并阻断收口；请把声明写进自建 spec 文件（如 `spec/team-xxx.md`）。
+
+`task start` 后，绑定 spec 的章节索引（h2 标题树）随 stage-contract 注入，规范条目名常驻注意力。完整契约见 `.cowork-flow/spec/contracts/spec-checks.md`。
+
 ## 常用命令
 
 ```bash
@@ -273,6 +325,10 @@ Batch 使用任务图和持久化 Host action：运行 `task next <parent-task> 
 ./.cowork-flow/run task next <dir> --run
 ./.cowork-flow/run task next <dir> --run --intent review
 ./.cowork-flow/run task next <dir> --run --intent archive
+
+# 规范检查
+./.cowork-flow/run spec-check
+./.cowork-flow/run spec-check --phase lifecycle --json
 
 # 子代理
 ./.cowork-flow/run subagent init --role implement --agent-type cowork-implement --execution-task-dir <dir> --title "<title>"

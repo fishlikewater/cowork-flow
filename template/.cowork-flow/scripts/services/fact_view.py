@@ -3,7 +3,7 @@
 """Task fact view: one machine-readable aggregate of everything a session
 needs to know about a task.
 
-This is the fact-layer read entry (docs/direction.md, stage 1): task.json,
+This is the fact-layer read entry (fact-layer stage 1): task.json,
 decision-anchor essentials, plan binding, bound sessions, and the trusted
 state snapshot — assembled once so hosts, hooks, and tools stop re-deriving
 them from file conventions.
