@@ -11,7 +11,7 @@ import { shellRunner, skipWithoutShell } from './shell-capability.js';
 
 const execFileAsync = promisify(execFile);
 
-async function createReleaseProject(t) {
+async function createReleaseProject(t, options = {}) {
   const tempDir = await mkdtemp(join(tmpdir(), 'cowork-flow-release-project-'));
   t.after(async () => {
     await rm(tempDir, { recursive: true, force: true });
@@ -21,6 +21,12 @@ async function createReleaseProject(t) {
   await mkdir(join(repo, 'scripts'), { recursive: true });
   await mkdir(join(repo, 'bin'), { recursive: true });
   await mkdir(join(repo, 'template', '.cowork-flow'), { recursive: true });
+  // The self-instance marker only exists in this repository's own checkout;
+  // downstream installs have no .cowork-flow/.version next to the package.
+  if (options.selfVersion) {
+    await mkdir(join(repo, '.cowork-flow'), { recursive: true });
+    await writeFile(join(repo, '.cowork-flow', '.version'), '0.0.5\n', 'utf8');
+  }
   await writeFile(
     join(repo, 'scripts', 'release.sh'),
     await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8'),
@@ -365,6 +371,38 @@ test('release shell script accepts --no-publish ahead of the release type', asyn
     'git commit -m chore(release): 0.0.6',
     'git tag v0.0.6'
   ]);
+});
+
+test('release shell script keeps the self-instance version marker in step', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t, { selfVersion: true });
+
+  await execFileAsync(shellRunner, ['scripts/release.sh', 'minor'], {
+    cwd: repo,
+    env: fakeCommands.env,
+    encoding: 'utf8'
+  });
+
+  assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.1.0\n');
+  assert.equal(await readFile(join(repo, '.cowork-flow', '.version'), 'utf8'), '0.1.0\n');
+});
+
+test('release shell script leaves a missing self-instance marker alone', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t);
+
+  await execFileAsync(shellRunner, ['scripts/release.sh', 'minor'], {
+    cwd: repo,
+    env: fakeCommands.env,
+    encoding: 'utf8'
+  });
+
+  await assert.rejects(
+    readFile(join(repo, '.cowork-flow', '.version'), 'utf8'),
+    (error) => error.code === 'ENOENT'
+  );
 });
 
 test('release shell script still aborts when commit fails for a real reason', async (t) => {
