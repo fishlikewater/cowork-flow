@@ -50,6 +50,7 @@ Common commands:
   resume
   task
   state
+  spec-check
   get-context
   get-developer
   init-developer

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### DSH 预设过期检测
+
+- **版本标记**：`install-dsh-preset` 安装后在预设目录写入 `.cowork-flow-preset.json`（`version` + `installedAt`）；已安装且版本不同时，不带 `--force` 的重复执行输出过期提示与更新命令，而不是仅报 "already installed"。
+- **doctor 检测**：新增只读 advisory 检查 `check_dsh_preset`——预设缺失时不报告；无标记或标记不可读 → `PRESET-UNKNOWN-VERSION`；与项目 `.cowork-flow/.version` 不一致 → `PRESET-STALE`；两者都附 `install-dsh-preset --force` 提示，且不进入 doctor 的 error 集合（`ok` 不受影响）。
+- **背景**：预设不随 `sync`/npm 更新，此前升级路径只存在于 README 散文，用户可能长期停留在旧注入逻辑且没有任何提示；协议失败时该宿主的注入会静默降级为空输出。
+
+### 下游可发现性与文档权威性（spec-check）
+
+- **发现路径补齐**：`run` 帮助列出 `spec-check`；`AGENTS.md` 的 managed block（模板与根同块）加指针行；README 新增「规范挂命令」与「MCP 客户端接入」两节，能力表与常用命令同步。
+- **契约修正**：`spec/contracts/spec-checks.md` 的「归属与 sync 策略」改为与实际一致——`spec/` 是 sync 保护前缀，已安装项目不会被同步改写；具名例外是 `syncPolicy.safeFiles` 中的契约文件。该文件加入 `safeFiles`（同 `workflow-state-templates.md` 先例），使契约修正能到达已安装下游。
+- **fallback 自救路径**：`FALLBACK_BINDING_BLOCKER` 与两处 lifecycle 拒绝文案改为指向 workflow-state 头部的 `session` 属性（`COWORK_FLOW_CONTEXT_ID`），不再给出无任务可传的 `pass <task-dir>` 单一出路。
+- **悬空引用清理**：README 与模板脚本/spec 中指向已 untrack 的 `docs/` 的引用全部改写或内联（MCP 客户端配置要点保留在 README）。
+- **测试**：新增根/模板 managed block 字节相等与指针断言、fallback blocker 文案可执行性断言。
+- **已知合法副作用**：contract fingerprint 由 `d1d0e2536e8fa150` 更新为 `2dc34375d28f8103`（内容派生；`host-assets.json` 的 `safeFiles` 条目变更）。
+
 ## 1.4.0 - 2026-09-14
 
 ### Hook 会话身份绑定（fix(runtime)）

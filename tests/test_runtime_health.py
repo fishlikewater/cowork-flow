@@ -25,6 +25,76 @@ def _load_doctor():
     return module
 
 
+class DshPresetCheckTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.dsh_home = root / "dsh-home"
+        self.project = root / "project"
+        (self.project / ".cowork-flow").mkdir(parents=True)
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.5.0\n", encoding="utf-8"
+        )
+        self.preset_dir = self.dsh_home / ".agent-presets" / "cowork-flow"
+
+    def _check(self) -> list[dict[str, str]]:
+        with mock.patch.dict("os.environ", {"DSH_HOME": str(self.dsh_home)}):
+            return self.doctor.check_dsh_preset(self.project)
+
+    def test_absent_preset_is_silent(self) -> None:
+        self.assertEqual([], self._check())
+
+    def test_preset_without_marker_reports_unknown_version(self) -> None:
+        self.preset_dir.mkdir(parents=True)
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("PRESET-UNKNOWN-VERSION", issues[0]["code"])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("install-dsh-preset --force", issues[0]["commandHint"])
+
+    def test_unreadable_marker_reports_unknown_version(self) -> None:
+        self.preset_dir.mkdir(parents=True)
+        (self.preset_dir / ".cowork-flow-preset.json").write_text(
+            "not json", encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("PRESET-UNKNOWN-VERSION", issues[0]["code"])
+
+    def test_stale_marker_reports_with_update_hint(self) -> None:
+        self.preset_dir.mkdir(parents=True)
+        (self.preset_dir / ".cowork-flow-preset.json").write_text(
+            '{"version": "0.0.1", "installedAt": "2020-01-01T00:00:00.000Z"}',
+            encoding="utf-8",
+        )
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("PRESET-STALE", issues[0]["code"])
+        self.assertIn("0.0.1", issues[0]["message"])
+        self.assertIn("1.5.0", issues[0]["message"])
+        self.assertIn("install-dsh-preset --force", issues[0]["commandHint"])
+
+    def test_matching_version_is_silent(self) -> None:
+        self.preset_dir.mkdir(parents=True)
+        (self.preset_dir / ".cowork-flow-preset.json").write_text(
+            '{"version": "1.5.0"}', encoding="utf-8"
+        )
+        self.assertEqual([], self._check())
+
+    def test_preset_check_never_enters_doctor_errors(self) -> None:
+        self.preset_dir.mkdir(parents=True)
+        with mock.patch.dict("os.environ", {"DSH_HOME": str(self.dsh_home)}):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual("warning", result["issues"]["dshPreset"][0]["severity"])
+        for error in result["errors"]:
+            self.assertNotIn("dshPreset", str(error))
+
+
 class RuntimeHealthTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

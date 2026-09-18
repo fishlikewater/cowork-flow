@@ -87,6 +87,23 @@ class TaskNavigationTest(FlowScriptTestCase):
                 " ".join(str(blocker) for blocker in payload["blockers"]),
             )
 
+    def test_fallback_blocker_text_gives_an_actionable_recovery_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._seed_fallback_binding(root, "in_progress")
+
+            _, payload = self._run_cmd_next_json(
+                root,
+                env={"ZCODE_PROCESS_LABEL": "local-1"},
+                target=None,
+            )
+
+            blocker_text = " ".join(
+                str(blocker) for blocker in payload["blockers"]
+            )
+            self.assertIn("COWORK_FLOW_CONTEXT_ID", blocker_text)
+            self.assertIn("workflow-state", blocker_text)
+
     def test_cmd_next_json_explicit_dir_overrides_fallback_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

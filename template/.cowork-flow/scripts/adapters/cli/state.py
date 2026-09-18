@@ -4,7 +4,7 @@
 
 Assembles one machine-readable fact view per task (task.json, decision-anchor
 essentials, plan binding, bound sessions, trusted snapshot). See
-services/fact_view.py and docs/direction.md stage 1.
+services/fact_view.py and the fact-layer stage 1 design.
 """
 
 from __future__ import annotations

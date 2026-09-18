@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,7 +29,7 @@ from adapters.host.host_manifest import (
     load_host_manifest,
     validate_host_assets,
 )
-from infra.paths import get_repo_root
+from infra.paths import DIR_WORKFLOW, get_repo_root
 from infra.skill_manifest import SkillManifestError, action_owners, load_skill_manifests
 from infra.storage.operation_log import OperationLog
 from infra.storage.state_store import DEFAULT_STALE_LOCK_SECONDS, StateStore
@@ -727,6 +728,77 @@ def check_mcp_registration(repo_root: Path) -> list[dict[str, str]]:
     return issues
 
 
+def _dsh_preset_dir() -> Path:
+    base = os.environ.get("DSH_HOME") or str(Path.home() / ".dsh")
+    return Path(base) / ".agent-presets" / "cowork-flow"
+
+
+def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
+    """DSH preset freshness. Advisory only, and silent when the preset is
+    absent: it is a machine-level asset installed once, so it does not
+    update with npm or sync. Report an unknown or stale installed version
+    instead of assuming the injection logic matches this project."""
+    preset_dir = _dsh_preset_dir()
+    if not preset_dir.is_dir():
+        return []
+    marker = preset_dir / ".cowork-flow-preset.json"
+    if not marker.is_file():
+        return [
+            _issue(
+                code="PRESET-UNKNOWN-VERSION",
+                severity="warning",
+                path=str(marker),
+                message=(
+                    "DSH preset is installed without a version marker; its "
+                    "injection logic may predate the current release"
+                ),
+                command_hint="cowork-flow install-dsh-preset --force",
+                contract="runtime-health:dsh-preset",
+            )
+        ]
+    recorded: object = None
+    try:
+        recorded = json.loads(marker.read_text(encoding="utf-8")).get("version")
+    except (OSError, json.JSONDecodeError, ValueError, AttributeError):
+        recorded = None
+    if not isinstance(recorded, str) or not recorded:
+        return [
+            _issue(
+                code="PRESET-UNKNOWN-VERSION",
+                severity="warning",
+                path=str(marker),
+                message=(
+                    "DSH preset version marker is unreadable; its injection "
+                    "logic may predate the current release"
+                ),
+                command_hint="cowork-flow install-dsh-preset --force",
+                contract="runtime-health:dsh-preset",
+            )
+        ]
+    try:
+        project_version = (
+            repo_root / DIR_WORKFLOW / ".version"
+        ).read_text(encoding="utf-8").strip()
+    except OSError:
+        return []
+    if not project_version or recorded == project_version:
+        return []
+    return [
+        _issue(
+            code="PRESET-STALE",
+            severity="warning",
+            path=str(marker),
+            message=(
+                f"DSH preset was installed from {recorded} but this project "
+                f"runs {project_version}; the preset does not update with "
+                "sync or npm, so injection may lag the project runtime"
+            ),
+            command_hint="cowork-flow install-dsh-preset --force",
+            contract="runtime-health:dsh-preset",
+        )
+    ]
+
+
 def _all_check_result(repo_root: Path) -> dict[str, object]:
     host_issues = _host_issues(repo_root)
     runtime_errors = check_runtime(repo_root)
@@ -736,6 +808,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     session_hygiene_issues = check_session_hygiene(repo_root)
     spec_check_issues = check_spec_checks(repo_root)
     mcp_issues = check_mcp_registration(repo_root)
+    dsh_preset_issues = check_dsh_preset(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
         errors.append({"kind": "host_adapter", **issue})
@@ -758,6 +831,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "sessionHygiene": session_hygiene_issues,
             "specChecks": spec_check_issues,
             "mcpRegistration": mcp_issues,
+            "dshPreset": dsh_preset_issues,
         },
     }
 
@@ -773,6 +847,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
     _print_session_hygiene_issues(result["issues"]["sessionHygiene"])
     for issue in result["issues"]["mcpRegistration"]:
         print(f"MCP ({issue['status']}): {issue['message']}")
+    for issue in result["issues"]["dshPreset"]:
+        print(f"DSH preset ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
     if errors:
         for error in errors:
             print(f"ERROR: {error['message']}", file=sys.stderr)

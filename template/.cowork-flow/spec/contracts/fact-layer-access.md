@@ -2,7 +2,7 @@
 
 How external tools (MCP clients today, other ecosystem protocols as they
 converge) and agents on hosts without injection hooks read cowork-flow task
-facts. Stage 3 of `docs/direction.md`.
+facts. Fact-layer stage 3.
 
 ## Three channels, one fact layer
 

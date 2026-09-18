@@ -1,10 +1,12 @@
-import { cp, mkdir, rm, access } from 'node:fs/promises';
+import { cp, mkdir, rm, access, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
 import { packageRoot, templateRoot } from '../lib/paths.js';
+import { readPackageInfo } from '../lib/package-info.js';
 
 const PRESET_ID = 'cowork-flow';
+const MARKER_FILE = '.cowork-flow-preset.json';
 const PRESET_SRC = join(packageRoot, 'presets', 'dsh');
 const SKILLS_SRC = join(templateRoot, 'skills');
 
@@ -33,6 +35,17 @@ function getDshPresetRoot() {
 }
 
 
+async function readInstalledVersion(destDir) {
+  try {
+    const raw = await readFile(join(destDir, MARKER_FILE), 'utf8');
+    const parsed = JSON.parse(raw);
+    return typeof parsed.version === 'string' ? parsed.version : null;
+  } catch {
+    return null;
+  }
+}
+
+
 export async function runInstallDshPreset(args = []) {
   const { dryRun, force } = parseArgs(args);
 
@@ -53,9 +66,25 @@ export async function runInstallDshPreset(args = []) {
     return;
   }
 
+  const { version } = await readPackageInfo();
+
   if (!force && (await pathExists(destDir))) {
+    const installedVersion = await readInstalledVersion(destDir);
     console.log(`cowork-flow DSH preset already installed at ${destDir}`);
-    console.log('Use --force to overwrite.');
+    if (installedVersion === null) {
+      console.log(
+        `Installed version unknown (no ${MARKER_FILE}); current version is ${version}.`
+      );
+      console.log('Refresh it with: cowork-flow install-dsh-preset --force');
+    } else if (installedVersion !== version) {
+      console.log(
+        `Installed version ${installedVersion} differs from current version ${version}.`
+      );
+      console.log('The preset does not update with sync or npm; refresh it with:');
+      console.log('  cowork-flow install-dsh-preset --force');
+    } else {
+      console.log('Use --force to overwrite.');
+    }
     return;
   }
 
@@ -66,6 +95,11 @@ export async function runInstallDshPreset(args = []) {
 
   await cp(PRESET_SRC, destDir, { recursive: true });
   await cp(SKILLS_SRC, skillsDest, { recursive: true, force: true });
+  await writeFile(
+    join(destDir, MARKER_FILE),
+    `${JSON.stringify({ version, installedAt: new Date().toISOString() }, null, 2)}\n`,
+    'utf8'
+  );
 
   console.log(`✓ cowork-flow DSH preset installed to ${destDir}`);
   console.log('  Start a new DSH session and pick the "Cowork Flow" preset.');

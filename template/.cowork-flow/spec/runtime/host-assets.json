@@ -289,6 +289,7 @@
       ".cowork-flow/.version",
       ".cowork-flow/run",
       ".cowork-flow/run.cmd",
+      ".cowork-flow/spec/contracts/spec-checks.md",
       ".cowork-flow/spec/contracts/workflow-state-templates.md"
     ],
     "safePrefixes": [
