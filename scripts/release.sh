@@ -3,6 +3,7 @@ set -u
 
 RELEASE_TYPES="major minor patch premajor preminor prepatch prerelease"
 TEMPLATE_VERSION_FILE="template/.cowork-flow/.version"
+SELF_VERSION_FILE=".cowork-flow/.version"
 ZCODE_PLUGIN_JSON="template/.zcode/.zcode-plugin/plugin.json"
 
 usage() {
@@ -112,6 +113,14 @@ fi
 
 PACKAGE_VERSION=$(node -p "require('./package.json').version") || exit $?
 printf '%s\n' "$PACKAGE_VERSION" > "$TEMPLATE_VERSION_FILE" || exit $?
+
+# In this repository's own checkout the live runtime is a gitignored mirror of
+# template/. sync --force ran before the bump, so its marker would trail by one
+# version and doctor's distribution check would report drift until the next
+# source:refresh. Keep it in step here; installs without that file skip.
+if [ -f "$SELF_VERSION_FILE" ]; then
+  printf '%s\n' "$PACKAGE_VERSION" > "$SELF_VERSION_FILE" || exit $?
+fi
 
 # The changelog must already carry an entry for the version being released;
 # release:check (package tests) enforces the same on the current version.
