@@ -435,6 +435,41 @@ def _stage_contract_block(
         return None
 
 
+_APPLY_PATCH_FILE_RE = re.compile(
+    r"^\*\*\* (?:Update|Add|Delete) File: (.+?)\s*$", re.MULTILINE
+)
+
+
+def _extract_edited_paths(tool_input: Any) -> list[str]:
+    """Best-effort edited file paths from a PostToolUse tool_input payload.
+
+    Hosts differ: claude-code and zcode pass file_path, while codex's
+    apply_patch carries the paths inside the patch text. Returning every
+    extractable path keeps a multi-file patch from silently skipping
+    checks; deduplication keeps one edit from burning the throttle window
+    on the same file twice."""
+    if not isinstance(tool_input, dict):
+        return []
+    paths: list[str] = []
+    for key in ("file_path", "filePath", "path"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value.strip():
+            paths.append(value.strip())
+    for key in ("input", "patch", "patchText"):
+        text = tool_input.get(key)
+        if isinstance(text, str):
+            paths.extend(
+                match.strip() for match in _APPLY_PATCH_FILE_RE.findall(text)
+            )
+    seen: set[str] = set()
+    unique: list[str] = []
+    for path in paths:
+        if path not in seen:
+            seen.add(path)
+            unique.append(path)
+    return unique
+
+
 def spec_edit_warning(
     root: Path,
     hook_input: dict[str, Any],
@@ -461,16 +496,17 @@ def spec_edit_warning(
         return ""
     if not task_path or status not in STAGE_CONTRACT_STATES:
         return ""
-    tool_input = hook_input.get("tool_input")
-    file_path = (
-        tool_input.get("file_path") if isinstance(tool_input, dict) else None
-    )
-    if not isinstance(file_path, str) or not file_path.strip():
+    paths = _extract_edited_paths(hook_input.get("tool_input"))
+    if not paths:
         return ""
     try:
         from services.spec_check import run_edit_checks
 
-        return run_edit_checks(root, file_path)
+        for path in paths:
+            warning = run_edit_checks(root, path)
+            if warning:
+                return warning
+        return ""
     except Exception:
         return ""
 

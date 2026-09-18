@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 编辑期覆盖扩展（codex / opencode）
+
+- **codex**：`hooks.json` 注册 `PostToolUse`（matcher `apply_patch|Write|Edit`），编辑后违规经既有 `spec_only_post_tool_use` 通道（stderr + exit 2）反馈；运行时无需新增分支。
+- **opencode**：插件新增 `tool.execute.after` 钩子——`edit`/`write` 命中时调用 `run spec-check --phase edit --file <path> --throttled`，把非空单行结果追加到工具结果文本；2.5 秒超时，运行时不存在的静默且不阻断编辑。
+- **路径提取多形态**：PostToolUse 的路径提取兼容 `file_path`/`filePath`/`path` 与 codex `apply_patch` 补丁文本（`*** Update/Add/Delete File:` 行）；同一路径去重，避免重复消耗节流窗口。
+- **契约诚实化**：`spec-checks.md` 矩阵与 README 从"opencode 降级：无"改为准确表述——codex/opencode 已接编辑期，dsh 属"宿主支持（`tools/post-execute`）、项目未接线"，不是宿主能力缺失。
+- **实弹验收项（未在本地执行）**：codex 会话编辑后 stderr 反馈可见（需宿主 hook 信任批准）；opencode 会话 edit 后工具结果含单行警告。
+
 ### DSH 预设过期检测
 
 - **版本标记**：`install-dsh-preset` 安装后在预设目录写入 `.cowork-flow-preset.json`（`version` + `installedAt`）；已安装且版本不同时，不带 `--force` 的重复执行输出过期提示与更新命令，而不是仅报 "already installed"。
