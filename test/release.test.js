@@ -289,6 +289,84 @@ test('release shell script continues past a no-op commit on a clean tree', async
   ]);
 });
 
+test('release shell script skips npm publish under --no-publish', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t);
+
+  const result = await execFileAsync(
+    shellRunner,
+    ['scripts/release.sh', 'minor', '--no-publish'],
+    { cwd: repo, env: fakeCommands.env, encoding: 'utf8' }
+  );
+
+  assert.match(result.stdout, /> npm publish skipped \(--no-publish\)/);
+  assert.match(result.stdout, /tag v0\.1\.0 is local/);
+  assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.1.0\n');
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
+    'npm run test:all',
+    'npm version minor --no-git-tag-version',
+    'git add package.json package-lock.json template/.cowork-flow/.version',
+    'git commit -m chore(release): 0.1.0',
+    'git tag v0.1.0'
+  ]);
+});
+
+test('release shell script treats a repeated --no-publish as idempotent', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t);
+
+  const result = await execFileAsync(
+    shellRunner,
+    ['scripts/release.sh', '--no-publish', '--no-publish'],
+    { cwd: repo, env: fakeCommands.env, encoding: 'utf8' }
+  );
+
+  assert.match(result.stdout, /> npm publish skipped \(--no-publish\)/);
+  assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.0.6\n');
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
+    'npm run test:all',
+    'npm version patch --no-git-tag-version',
+    'git add package.json package-lock.json template/.cowork-flow/.version',
+    'git commit -m chore(release): 0.0.6',
+    'git tag v0.0.6'
+  ]);
+});
+
+test('release shell script accepts --no-publish ahead of the release type', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t);
+
+  const result = await execFileAsync(
+    shellRunner,
+    ['scripts/release.sh', '--no-publish', 'patch'],
+    { cwd: repo, env: fakeCommands.env, encoding: 'utf8' }
+  );
+
+  assert.match(result.stdout, /> npm publish skipped \(--no-publish\)/);
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
+    'npm run test:all',
+    'npm version patch --no-git-tag-version',
+    'git add package.json package-lock.json template/.cowork-flow/.version',
+    'git commit -m chore(release): 0.0.6',
+    'git tag v0.0.6'
+  ]);
+});
+
 test('release shell script still aborts when commit fails for a real reason', async (t) => {
   if (skipWithoutShell(t)) return;
   const fakeCommands = await createFakeCommands(t, {

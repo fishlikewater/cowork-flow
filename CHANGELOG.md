@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 - 2026-09-18
+
+### 发版开关 `--no-publish`
+
+- `scripts/release.sh` 新增 `--no-publish`：刷新、self-instance 镜像、双套测试门禁、版本 bump、changelog 校验、提交、tag 全部照常执行，只跳过最后的 `npm publish`，并提示 tag 仍是本地（后续走 `npm publish` 或 `gh release create v<v>` 触发 CI 通道）。不带该 flag 时行为逐项不变。
+- 参数解析改为逐个消费：`--no-publish` 位置无关且可重复；release-type 与 `--version` 仍互斥、最多出现一次，重复被拒。
+- 动机是既有的 CI 发布通道——tag 落地后由 `gh release create` 触发 publish.yml，而脚本此前只能一路 publish 到底。
 
 ### 编辑期覆盖扩展（codex / opencode / dsh）
 
