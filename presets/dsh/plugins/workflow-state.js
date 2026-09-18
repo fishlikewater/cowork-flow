@@ -22,6 +22,7 @@
 // falls back to running the navigator manually.
 
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
@@ -80,6 +81,44 @@ print(build_hook_context(
     ),
     session_start=full_digest,
 ))
+`;
+
+// The edit path sits on the finished tool result, so it gets a short leash:
+// a slow checker is dropped rather than delaying the edit the model already
+// made.
+const EDIT_TIMEOUT_MS = 2500;
+const EDIT_EXEC_OPTIONS = {
+  timeout: EDIT_TIMEOUT_MS,
+  windowsHide: true,
+  maxBuffer: 1024 * 1024,
+};
+
+// Editor-phase spec-check protocol: same root discovery, then the shared
+// edit-check entry so DSH sessions receive the single-line violation hint
+// the other hosts get from their PostToolUse hook. Always exits 0.
+const PYTHON_EDIT_PROTOCOL = `\
+import sys
+from pathlib import Path
+
+cwd = sys.argv[1]
+file_path = sys.argv[2]
+current = Path(cwd).resolve()
+root = None
+while True:
+    if (current / ".cowork-flow").is_dir():
+        root = current
+        break
+    if current == current.parent:
+        break
+    current = current.parent
+if root is None:
+    raise SystemExit(0)
+sys.path.insert(0, str(root / ".cowork-flow" / "scripts"))
+try:
+    from services.spec_check import run_edit_checks
+    print(run_edit_checks(root, file_path))
+except Exception:
+    pass
 `;
 
 // The first interpreter that ran the protocol successfully; a missing one is
@@ -234,6 +273,90 @@ export async function runWorkflowState(cwd, full = true) {
 }
 
 
+const EDIT_TOOL_NAMES = new Set(['write', 'edit']);
+
+
+/**
+ * Path of the file a finished tool call edited, or '' for anything else.
+ * DSH's fs tools expose `file_path`; other tool surfaces are ignored.
+ */
+export function editedFilePath(exec) {
+  const name = exec && typeof exec.name === 'string' ? exec.name : '';
+  if (!EDIT_TOOL_NAMES.has(name)) {
+    return '';
+  }
+  const args = exec && exec.arguments;
+  const value = args && typeof args === 'object' ? args.file_path : null;
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
+
+/**
+ * Editor-phase spec check for one edited file. Returns the single-line
+ * warning, or '' when there is nothing to say: no root, no interpreter, no
+ * declaration, a clean run, or a timeout. Never throws.
+ */
+export async function runEditSpecCheck(cwd, filePath) {
+  if (hooksDisabled() || !cwd || !filePath) {
+    return '';
+  }
+  const resolved = resolve(cwd);
+  if ((await findCoworkRoot(resolved)) === null) {
+    return '';
+  }
+  const attempt = (candidate) => new Promise((resolvePromise) => {
+    execFile(
+      candidate.command,
+      [...candidate.args, '-c', PYTHON_EDIT_PROTOCOL, cwd, filePath],
+      EDIT_EXEC_OPTIONS,
+      (error, stdout) => {
+        if (error) {
+          resolvePromise({ missing: error.code === 'ENOENT', output: '' });
+          return;
+        }
+        resolvePromise({ missing: false, output: stdout.trim() });
+      },
+    );
+  });
+  if (workingPython !== null) {
+    const result = await attempt(workingPython);
+    if (!result.missing) {
+      return result.output;
+    }
+    workingPython = null;
+  }
+  for (const candidate of discoverCandidates()) {
+    const result = await attempt(candidate);
+    if (result.missing) {
+      continue;
+    }
+    workingPython = candidate;
+    return result.output;
+  }
+  return '';
+}
+
+
+/**
+ * One identified user message carrying a plugin notice. DSH's own
+ * createUserMessage lives in a package this preset deliberately does not
+ * import, so the shape is built here with node's uuid.
+ */
+function specNoticeMessage(text) {
+  return {
+    id: randomUUID(),
+    role: 'user',
+    content: [{ type: 'text', text }],
+    source: {
+      kind: 'plugin',
+      plugin: 'cowork-flow',
+      form: 'notice',
+      summary: 'spec-check',
+    },
+  };
+}
+
+
 export function apply(ctx) {
   // One cache entry per agent: { text, inflight, queued, full }.
   // `full` records the digest shape the next refresh should use: session
@@ -289,6 +412,35 @@ export function apply(ctx) {
       return;
     }
     refresh(agent, false);
+  });
+
+  // Editor-phase spec-check: the tool already ran, so this only attaches
+  // context for the next request and never blocks the call. Waterfall order
+  // requires awaiting next() before merging downstream decisions.
+  ctx.on('tools/post-execute', async (exec, _result, next) => {
+    const downstream = await next();
+    const agent = exec && exec.agent;
+    const filePath = editedFilePath(exec);
+    if (!agent || !agent.cwd || !filePath) {
+      return downstream;
+    }
+    let warning = '';
+    try {
+      warning = await runEditSpecCheck(agent.cwd, filePath);
+    } catch {
+      warning = '';
+    }
+    if (!warning) {
+      return downstream;
+    }
+    const contexts = [
+      specNoticeMessage(warning),
+      ...((downstream && downstream.additionalContexts) || []),
+    ];
+    if (downstream && downstream.kind === 'block') {
+      return { ...downstream, additionalContexts: contexts };
+    }
+    return { ...(downstream || { kind: 'accept' }), additionalContexts: contexts };
   });
 
   ctx.effect(() => ctx.systemPrompt.section({

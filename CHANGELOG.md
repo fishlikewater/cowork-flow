@@ -2,13 +2,14 @@
 
 ## Unreleased
 
-### 编辑期覆盖扩展（codex / opencode）
+### 编辑期覆盖扩展（codex / opencode / dsh）
 
 - **codex**：`hooks.json` 注册 `PostToolUse`（matcher `apply_patch|Write|Edit`），编辑后违规经既有 `spec_only_post_tool_use` 通道（stderr + exit 2）反馈；运行时无需新增分支。
 - **opencode**：插件新增 `tool.execute.after` 钩子——`edit`/`write` 命中时调用 `run spec-check --phase edit --file <path> --throttled`，把非空单行结果追加到工具结果文本；2.5 秒超时，运行时不存在的静默且不阻断编辑。
+- **dsh**：预设插件注册 `tools/post-execute` waterfall——`write`/`edit` 命中时调同一 Python 协议（`run_edit_checks`），把单行告警作为 `additionalContexts` 附件送入下一轮请求；2.5 秒超时，无根/无解释器/协议异常一律静默。DSH 的 `tools/result` 只能观察不能回写，故走 post-execute 而非复用刷新监听。
 - **路径提取多形态**：PostToolUse 的路径提取兼容 `file_path`/`filePath`/`path` 与 codex `apply_patch` 补丁文本（`*** Update/Add/Delete File:` 行）；同一路径去重，避免重复消耗节流窗口。
-- **契约诚实化**：`spec-checks.md` 矩阵与 README 从"opencode 降级：无"改为准确表述——codex/opencode 已接编辑期，dsh 属"宿主支持（`tools/post-execute`）、项目未接线"，不是宿主能力缺失。
-- **实弹验收项（未在本地执行）**：codex 会话编辑后 stderr 反馈可见（需宿主 hook 信任批准）；opencode 会话 edit 后工具结果含单行警告。
+- **契约诚实化**：`spec-checks.md` 矩阵与 README 从"opencode 降级：无"改为准确表述——五个宿主全部覆盖，其中 zcode 仅主会话、dsh 经预设注入；此前的"降级"是项目未接线，不是宿主能力缺失。
+- **实弹验收项（未在本地执行）**：codex 会话编辑后 stderr 反馈可见（需宿主 hook 信任批准）；opencode 会话 edit 后工具结果含单行警告；dsh 会话编辑后下一轮上下文含 spec-check 通知。
 
 ### DSH 预设过期检测
 

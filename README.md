@@ -300,7 +300,7 @@ checks:
 唯一执行器是 `./.cowork-flow/run spec-check`：
 
 - **三态语义**：`pass`（退出码 0）；`violation` 阻断 `task complete`；`unchecked`（命令缺失、解释器缺失、超时）同样阻断，需显式 `--allow-unchecked` 放行，豁免留痕进 `task.json`。unchecked 永不冒充 pass。
-- **两个相位**：`when: edit` 在编辑期就地执行（超时钳制 2.5 秒，违规输出单行提示；zcode / claude-code / codex / opencode 已覆盖，dsh 待接线），是 best-effort 提示不是门禁；收口期全量执行，未过项阻断状态推进。
+- **两个相位**：`when: edit` 在编辑期就地执行（超时钳制 2.5 秒，违规输出单行提示；五个宿主均已覆盖，其中 zcode 仅主会话），是 best-effort 提示不是门禁；收口期全量执行，未过项阻断状态推进。
 - **扫描范围**：`.cowork-flow/spec/` 下的 markdown；`contracts/`、`runtime/`、`schemas/` 三个机器自有子树不参与。
 - **模板不带生效声明**：模板无法预知项目命令，而命令缺失会归 `unchecked` 并阻断收口；请把声明写进自建 spec 文件（如 `spec/team-xxx.md`）。
 

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { findCoworkRoot, isLifecycleCommand, runWorkflowState, resetWorkingPython } from '../presets/dsh/plugins/workflow-state.js';
+import { editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditSpecCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 // The workflow runtime under the repository root is a gitignored live
@@ -202,3 +202,55 @@ test('isLifecycleCommand recognises workflow lifecycle invocations', () => {
   assert.equal(isLifecycleCommand(null), false);
   assert.equal(isLifecycleCommand(42), false);
 });
+
+test('editedFilePath reads only fs edit tools carrying a file path', () => {
+  assert.equal(
+    editedFilePath({ name: 'write', arguments: { file_path: 'src/a.py' } }),
+    'src/a.py',
+  );
+  assert.equal(
+    editedFilePath({ name: 'edit', arguments: { file_path: 'src/a.py' } }),
+    'src/a.py',
+  );
+  assert.equal(editedFilePath({ name: 'bash', arguments: { command: 'ls' } }), '');
+  assert.equal(editedFilePath({ name: 'write', arguments: {} }), '');
+  assert.equal(editedFilePath({ name: 'write', arguments: { file_path: '   ' } }), '');
+  assert.equal(editedFilePath({}), '');
+  assert.equal(editedFilePath(undefined), '');
+});
+
+test('runEditSpecCheck stays silent outside a cowork-flow root', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-dsh-edit-'));
+  t.after(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  assert.equal(await runEditSpecCheck(dir, 'src/a.py'), '');
+});
+
+test('runEditSpecCheck reports a declared check for an edited file', async (t) => {
+  const root = await createWorkflowProject(t);
+  await writeFile(
+    join(root, '.cowork-flow', 'spec', 'edit-check.md'),
+    [
+      '---',
+      'checks:',
+      '  - cmd: sh -c "exit 1"',
+      '    files: "src/"',
+      '    when: edit',
+      '---',
+      '',
+      '# Edit check fixture',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  resetWorkingPython();
+
+  const warning = await runEditSpecCheck(root, 'src/a.py');
+
+  // Either a violation line or an unchecked line depending on platform
+  // tooling; both prove the protocol reached the shared executor.
+  assert.match(warning, /spec-check\[/);
+});
+
