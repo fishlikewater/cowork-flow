@@ -379,6 +379,7 @@ npm run release:check     # 发布信心门禁；当前等价于 test:all
 npm run release          # patch
 npm run release -- minor # minor
 npm run release -- --version 0.1.0  # 精确发布指定版本（跳过自动 bump）
+npm run release -- minor --no-publish  # 完整流程但跳过 npm publish（tag 留在本地）
 ```
 
 **发布流程：**
@@ -387,9 +388,9 @@ npm run release -- --version 0.1.0  # 精确发布指定版本（跳过自动 bu
 3. `npm version` 升级版本
 4. 同步版本到 `template/.cowork-flow/.version` 和 `template/.zcode/.zcode-plugin/plugin.json`
 5. `git commit` + `git tag`
-6. `npm publish`
+6. `npm publish`——走 CI 发布通道时改用 `--no-publish` 在此止步，交由下一步触发
 
-**CI 发布通道（推荐）：** `scripts/release.sh --version <v>` 打好 tag 后，`gh release create v<v>` 触发 `.github/workflows/publish.yml`——Ubuntu/Windows 双平台全量门禁通过后自动 `npm publish`（需仓库 secret `NPM_TOKEN`，权限：publish）。
+**CI 发布通道（推荐）：** `scripts/release.sh <release-type> --no-publish` 完成提交与打 tag（不本地 publish）后，先 `git push` 分支并 `git push origin v<v>` 把 tag 推上远端，再 `gh release create v<v>` 触发 `.github/workflows/publish.yml`——远端尚无该 tag 时，`gh release create` 会从默认分支最新提交自动建 tag，使门禁与发布落在错误的提交上。Ubuntu/Windows 双平台全量门禁通过后自动 `npm publish`（需仓库 secret `NPM_TOKEN`，权限：publish）。`--no-publish` 只是跳过最后一步，前置的镜像、门禁与版本同步与默认路径完全一致。
 
 - 发布说明维护在 `CHANGELOG.md`；发布前更新当前版本段落，并保留 `release:check` 和 `git diff --check` 证据。
 

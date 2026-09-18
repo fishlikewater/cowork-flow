@@ -6,30 +6,49 @@ TEMPLATE_VERSION_FILE="template/.cowork-flow/.version"
 ZCODE_PLUGIN_JSON="template/.zcode/.zcode-plugin/plugin.json"
 
 usage() {
-  echo "Usage: scripts/release.sh [release-type|--version <version>]" >&2
+  echo "Usage: scripts/release.sh [release-type|--version <version>] [--no-publish]" >&2
   echo "  release-type    one of: $RELEASE_TYPES (default: patch)" >&2
   echo "  --version <v>   publish exactly <v> instead of bumping" >&2
+  echo "  --no-publish    commit and tag the release without running npm publish" >&2
 }
 
 EXACT_VERSION=""
 RELEASE_TYPE="patch"
-if [ "$#" -gt 0 ]; then
+NO_PUBLISH=0
+# release-type and --version are mutually exclusive and at most one may appear;
+# --no-publish is a repeatable flag and may be given anywhere on the line.
+TARGET_SET=0
+
+while [ "$#" -gt 0 ]; do
   case "$1" in
+    --no-publish)
+      NO_PUBLISH=1
+      shift
+      ;;
     --version)
-      [ "$#" -eq 2 ] || {
+      [ "$#" -ge 2 ] || {
         echo "Expected --version to be followed by exactly one version" >&2
         usage
         exit 1
       }
+      [ "$TARGET_SET" -eq 0 ] || {
+        echo "Expected at most one release type or --version, received: $*" >&2
+        usage
+        exit 1
+      }
       EXACT_VERSION="$2"
+      TARGET_SET=1
+      shift 2
       ;;
     major|minor|patch|premajor|preminor|prepatch|prerelease)
-      [ "$#" -eq 1 ] || {
-        echo "Expected at most one release type, received: $*" >&2
+      [ "$TARGET_SET" -eq 0 ] || {
+        echo "Expected at most one release type or --version, received: $*" >&2
         usage
         exit 1
       }
       RELEASE_TYPE="$1"
+      TARGET_SET=1
+      shift
       ;;
     *)
       echo "Unsupported release type: $1" >&2
@@ -37,7 +56,7 @@ if [ "$#" -gt 0 ]; then
       exit 1
       ;;
   esac
-fi
+done
 
 if [ -n "$EXACT_VERSION" ]; then
   printf '%s' "$EXACT_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z][0-9A-Za-z.-]*)?$' || {
@@ -134,4 +153,9 @@ else
   run_step git tag "v$PACKAGE_VERSION" || exit $?
 fi
 
-run_step npm publish || exit $?
+if [ "$NO_PUBLISH" -eq 1 ]; then
+  echo "> npm publish skipped (--no-publish)"
+  echo "note: tag v$PACKAGE_VERSION is local; publish with 'npm publish' or 'gh release create v$PACKAGE_VERSION'"
+else
+  run_step npm publish || exit $?
+fi
