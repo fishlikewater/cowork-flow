@@ -196,6 +196,36 @@ class InjectEntryTest(unittest.TestCase):
             second_context, r'<contract-fingerprint value="[0-9a-f]{16}"/>'
         )
 
+    # -- session identity -------------------------------------------------------
+
+    def test_zcode_resolves_a_bare_generic_session_key(self) -> None:
+        # zcode's own session: the payload carries only the generic
+        # sessionId/session_id and no host session env var is set, so the
+        # identity can come only from the injected COWORK_FLOW_HOST plus the
+        # registry's key declaration for zcode.
+        for key in ("sessionId", "session_id"):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                self._make_project(root)
+                self._write_session(
+                    root, "zcode_s1", ".cowork-flow/tasks/09-01-demo"
+                )
+
+                data = self._run_json(root, {key: "s1"})
+
+            context = data["hookSpecificOutput"]["additionalContext"]
+            header = re.search(r"<workflow-state[^>]*>", context)
+            self.assertIsNotNone(header, context)
+            self.assertEqual(
+                {
+                    "task": ".cowork-flow/tasks/09-01-demo",
+                    "status": "in_progress",
+                    "source": "session",
+                    "session": "zcode_s1",
+                },
+                dict(re.findall(r'(\w+)="([^"]*)"', header.group(0))),
+            )
+
     # -- envelopes ------------------------------------------------------------
 
     def test_zcode_post_tool_use_edit_emits_additional_context_envelope(self) -> None:
@@ -878,6 +908,7 @@ def clean_hook_env() -> dict[str, str]:
     env = os.environ.copy()
     for name in (
         "COWORK_FLOW_CONTEXT_ID",
+        "COWORK_FLOW_HOST",
         "COWORK_FLOW_HOST_CONTEXT_KEY",
         "COWORK_FLOW_RUNTIME_CONTEXT_ID",
         "COWORK_FLOW_DISABLE_HOOKS",

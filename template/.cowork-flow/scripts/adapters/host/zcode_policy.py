@@ -109,22 +109,6 @@ def claim_after_lifecycle_bash(root: Path, hook_input: dict[str, Any]) -> None:
         pass
 
 
-def zcode_session_alias(data: dict[str, Any]) -> dict[str, Any]:
-    # Ported from the zcode hook's resolveSessionKey candidate order
-    # (env wins inside session_state; input aliases only fill the gap).
-    # Without this, a bare sessionId/session_id would resolve as a codex
-    # session and lose the session's own binding.
-    existing = data.get("zcode_session_id")
-    if isinstance(existing, str) and existing.strip():
-        return data
-    for key in ("ZCODE_SESSION_ID", "sessionId", "session_id"):
-        value = data.get(key)
-        if isinstance(value, str) and value.strip():
-            data["zcode_session_id"] = value
-            break
-    return data
-
-
 def rebind_hints(root: Path) -> str:
     """Port of the zcode hook's formatRebindHints: one-level task scan for
     bindable (non-completed) tasks, appended to no_task/missing bodies."""
@@ -275,7 +259,6 @@ POLICY = HostPolicy(
     host="zcode",
     digest_policy=ZCODE_DIGEST_POLICY,
     digest_warning_silent=True,
-    session_alias=zcode_session_alias,
     rebind_hints=rebind_hints,
     essential_files_warning=essential_files_warning,
     fallback_for_unbound=True,
