@@ -145,6 +145,15 @@ test('changelog carries an entry for the current package version', async () => {
 });
 
 
+test('line ending contract keeps javascript sources LF on every checkout', async () => {
+  const attributes = await readFile(join(packageRoot, '.gitattributes'), 'utf8');
+  // Without this pin a Windows checkout materializes CRLF copies, and the
+  // breakage only shows up as a shebang assertion failure on that checkout.
+  assert.match(attributes, /^\*\.js text eol=lf$/m);
+  assert.match(attributes, /^\*\.mjs text eol=lf$/m);
+});
+
+
 test('CI and publish workflows enforce Windows release confidence gates', async () => {
   const ci = await readFile(join(packageRoot, '.github/workflows/ci.yml'), 'utf8');
   const publish = (await readFile(join(packageRoot, '.github/workflows/publish.yml'), 'utf8'))

@@ -27,10 +27,18 @@
 
 - `presets/dsh/plugins/workflow-state.js` 的 `apply(ctx)` 此前零测试。新增用例覆盖：四个刷新事件的接线、section 注册（name/order）、无缓存时返回空文本、非编辑调用下 `tools/post-execute` 原样透传 downstream、非 cowork-flow 根目录静默降级——全部在 Windows 上真实执行。「刷新替换而非累积」用例按既有惯例在 Windows skip（宿主解释器限制）。
 
+### Windows 检出与行尾契约
+
+- 根因：`presets/kimi-code/hooks/cowork-flow-inject.mjs` 落在 `* text=auto` 下且未被 `.gitattributes` 钉行尾，Windows 全新检出（Git for Windows 默认 `core.autocrlf=true`，与 `windows-latest` 一致）把它写成 CRLF；`install-kimi-hook` 原样拷贝为全局 hook shim，于是 `test/kimi-hook.test.js` 的 `/^#!\/usr\/bin\/env node\n/` 断言失败，`test:fast` → `windows-core` 确定性红。
+- 修复：`.gitattributes` 为 `*.js`/`*.mjs` 声明 `text eol=lf`（与已钉的 `.py`/`.md`/`.json` 等一致）；`test/package.test.js` 新增行尾契约断言锁定该声明。
+- 为什么只在 Windows CI 可见：开发者工作区与 ubuntu 检出都是 LF，只有 Windows 全新检出是 CRLF。断言保持严格——CRLF shebang 的脚本在 POSIX 上无法直接执行，要修的是检出契约而不是判据。
+- 证据：全新检出实测踩中同一断言失败（`test:fast`）；仅把该文件规范化为 LF → 整条 `npm run test:windows:core` exit 0；Node 20.12.0 / 20.20.2 / 24.14.1 结果一致，与 Node 版本无关。
+
 ### 净变化
 
-- 运行时代码（`template/.cowork-flow/scripts` + `src`）：**+4 / −114，净 −110 行**；runtime 模块数 80 不变。
-- 全仓（含 2 个新文件 +162 行）：+365 / −200，净 **+165**；新增集中在 `tests/` 与 `test/`（DSH 接线用例 113、共享 fixture 119、收集守卫 43、CHANGELOG 40）。AC-006「净行数 ≤ 0」未达成；对已跟踪文件 `git diff --numstat` 汇总为 +203 / −200。
+- 运行时代码（`template/.cowork-flow/scripts` + `src`）：**+4 / −114，净 −110 行**；runtime 模块数 80 不变（行尾修复不涉及运行时代码）。
+- 本次门禁工作：`e262196` **+365 / −200**（含 2 个新文件 +162 行）、`7fa3f8b` +3 / −2，行尾修复为小改动（行尾声明 + 契约守卫 + 记账）；新增集中在 `tests/` 与 `test/`。**AC-006「净行数 ≤ 0」未达成**——三条口径都是新增大于删除。
+- 版本口径参考：自 1.5.0 发版提交 `a4b0bfc` 起，1.6.0 全部提交的净变化由本版本更早的宿主特性主导，不属本次门禁工作。
 - 契约指纹：registry 登记的契约文件与 `spec/runtime/host-assets.json` 均未改动，指纹不变。
 
 ### 平台差异与远端确认
@@ -38,7 +46,7 @@
 - Windows 上 `test:node:full` 的 skipped 明细新增 `dsh-home-patch` 的 7 条；这些用例在 ubuntu 发布门禁中真实执行。
 - POSIX-only：`a session refresh replaces the cached block instead of accumulating` 与既有 DSH 内容用例在本机（Windows）skip，未在本机执行。
 - 远端确认（提交 `e262196`，CI run 35503939861）：ubuntu job 首次执行 `release:check` **通过**——17 条此前只在发布时运行的 `release.test.js` POSIX 用例在 CI 上真实执行并全部通过。
-- 同一 run 的 `windows-core` 失败（步骤 `Run Windows core verification`，exit 1）。该 job 在改动前的 `aa0e34e` 上即为同样的失败，不是本次改动引入；同一条 `npm run test:windows:core` 在本机（Node 24.14.1）复现为 exit 0，CI 侧固定 Node 20，版本差是首要嫌疑。远端日志需仓库权限（API 返回 403），留待单独排查。
+- 同一 run 的 `windows-core` 失败（步骤 `Run Windows core verification`，exit 1）。该 job 在改动前的 `aa0e34e` 上即为同样的失败，不是本版本的功能改动引入；根因是行尾契约缺失，已在本版本修复（见「Windows 检出与行尾契约」），远端日志无需仓库权限即可复现——全新 `git clone` 即可稳定踩中。
 
 ## 1.5.0 - 2026-09-18
 
