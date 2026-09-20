@@ -120,14 +120,9 @@ class HostAdaptersTest(unittest.TestCase):
             "CLAUDE_CODE_SESSION_ID",
             "DSH_SESSION_ID",
         )
-        # adapters/host/zcode_policy.py keeps its own payload alias
-        # (zcode_session_alias); retiring that shim is a separate scope
-        # decision because it predates the declared-host channel. Any *new*
-        # file carrying a host session literal fails this test.
-        allowed = {
-            "runtime/host_identity.py",
-            "adapters/host/zcode_policy.py",
-        }
+        # The registry is the only module allowed to name a host session
+        # literal; any other file carrying one fails this test.
+        allowed = {"runtime/host_identity.py"}
         offenders: list[str] = []
         for path in sorted(SCRIPTS.rglob("*.py")):
             if "__pycache__" in path.parts:
