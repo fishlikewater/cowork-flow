@@ -119,6 +119,15 @@ class HostAdaptersTest(unittest.TestCase):
             "CLAUDE_SESSION_ID",
             "CLAUDE_CODE_SESSION_ID",
             "DSH_SESSION_ID",
+            "sessionID",
+            "thread_id",
+            "conversation_id",
+            "codex_session_id",
+            "codex_thread_id",
+            "zcode_session_id",
+            "opencode_session_id",
+            "claude_session_id",
+            "claude_code_session_id",
         )
         # The registry is the only module allowed to name a host session
         # literal; any other file carrying one fails this test.
