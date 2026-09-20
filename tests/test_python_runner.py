@@ -242,12 +242,14 @@ class PythonRunnerTest(unittest.TestCase):
 class RuntimePythonpathEnvTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        cls.added_scripts_path = str(SCRIPTS) not in sys.path
+        if cls.added_scripts_path:
+            sys.path.insert(0, str(SCRIPTS))
         cls.process = importlib.import_module("infra.process")
 
     @classmethod
     def tearDownClass(cls) -> None:
-        if str(SCRIPTS) in sys.path:
+        if cls.added_scripts_path and str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
 
     def test_prepends_scripts_dir_and_preserves_existing(self) -> None:

@@ -59,11 +59,10 @@ class HostAdaptersTest(unittest.TestCase):
     def setUp(self) -> None:
         if str(SCRIPTS) not in sys.path:
             sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         for name in (
             "adapters.host.inject",
             "adapters.host.workflow_state_hook",

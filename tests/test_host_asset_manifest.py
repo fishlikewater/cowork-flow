@@ -34,15 +34,15 @@ REQUIRED_HOST_NEUTRAL_CAPABILITIES = (
 
 class HostAssetManifestTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.host_manifest = importlib.import_module(
             "adapters.host.host_manifest"
         )
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         for module_name in (
             "adapters.host.host_manifest",
             "kernel",

@@ -15,7 +15,9 @@ ANCHOR_TEXT = "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- AC-001: Demo.
 
 class TaskContextServiceTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         context_module = importlib.import_module("services.task_context")
         self.TaskContextService = context_module.TaskContextService
@@ -27,8 +29,6 @@ class TaskContextServiceTest(unittest.TestCase):
         )
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         for module_name in (
             "services.task_context",
             "services.context_paths",

@@ -14,15 +14,15 @@ SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 
 class TaskTreeServiceTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         tree_module = importlib.import_module("services.task_tree")
         self.TaskTreeError = tree_module.TaskTreeError
         self.TaskTreeService = tree_module.TaskTreeService
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         for module_name in (
             "services.task_tree",
             "application",

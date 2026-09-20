@@ -19,8 +19,13 @@ PARTY_MODE_SCRIPT = ROOT / "template" / "skills" / "party-mode" / "scripts" / "p
 
 class PartyModeTestCase(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(TEMPLATE_SCRIPTS))
+        if str(TEMPLATE_SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(TEMPLATE_SCRIPTS))
+            self.addCleanup(sys.path.remove, str(TEMPLATE_SCRIPTS))
         self.addCleanup(self._cleanup_imports)
+        # party_mode_v2 adds its own directory on import; only recycle it when
+        # this setUp is what put it there.
+        self.added_script_dir = str(PARTY_MODE_SCRIPT.parent) not in sys.path
         self.config = importlib.import_module("infra.config")
         spec = importlib.util.spec_from_file_location("party_mode_v2", PARTY_MODE_SCRIPT)
         if spec is None or spec.loader is None:
@@ -32,10 +37,8 @@ class PartyModeTestCase(unittest.TestCase):
         self.party_action_contract = importlib.import_module("party_action_contract")
 
     def _cleanup_imports(self) -> None:
-        if str(TEMPLATE_SCRIPTS) in sys.path:
-            sys.path.remove(str(TEMPLATE_SCRIPTS))
         script_dir = str(PARTY_MODE_SCRIPT.parent)
-        if script_dir in sys.path:
+        if self.added_script_dir and script_dir in sys.path:
             sys.path.remove(script_dir)
         for module_name in (
             "party_action_contract",

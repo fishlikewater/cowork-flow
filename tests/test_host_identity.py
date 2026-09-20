@@ -21,13 +21,13 @@ MANIFEST = (
 
 class HostIdentityTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.host_identity = importlib.import_module("runtime.host_identity")
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         sys.modules.pop("runtime.host_identity", None)
 
     def test_registry_ids_match_host_asset_manifest(self) -> None:

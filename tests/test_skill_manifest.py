@@ -16,12 +16,14 @@ SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 class SkillManifestTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        cls.added_scripts_path = str(SCRIPTS) not in sys.path
+        if cls.added_scripts_path:
+            sys.path.insert(0, str(SCRIPTS))
         cls.module = importlib.import_module("infra.skill_manifest")
 
     @classmethod
     def tearDownClass(cls) -> None:
-        if str(SCRIPTS) in sys.path:
+        if cls.added_scripts_path and str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         sys.modules.pop("infra.skill_manifest", None)
 
