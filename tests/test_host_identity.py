@@ -63,6 +63,30 @@ class HostIdentityTest(unittest.TestCase):
             set(self.host_identity.ambiguous_input_keys()),
         )
 
+    def test_claude_declares_the_generic_session_key_without_owning_it(self) -> None:
+        # claude payloads carry session_id, so the row must declare it — but
+        # codex and zcode declare it too, so claude may never resolve it alone.
+        claude = self.host_identity.identity_for("claude-code")
+        self.assertEqual(
+            (
+                "CLAUDE_SESSION_ID",
+                "claude_session_id",
+                "CLAUDE_CODE_SESSION_ID",
+                "claude_code_session_id",
+                "session_id",
+            ),
+            claude.input_keys,
+        )
+        self.assertEqual(
+            (
+                "CLAUDE_SESSION_ID",
+                "claude_session_id",
+                "CLAUDE_CODE_SESSION_ID",
+                "claude_code_session_id",
+            ),
+            self.host_identity.sole_owned_input_keys("claude-code"),
+        )
+
     def test_host_specific_keys_have_a_single_owner(self) -> None:
         cases = (
             ("sessionID", "opencode"),

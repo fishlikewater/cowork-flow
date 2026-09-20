@@ -67,6 +67,7 @@ class ClaudeHooksTest(unittest.TestCase):
         env = os.environ.copy()
         for name in (
             "COWORK_FLOW_CONTEXT_ID",
+            "COWORK_FLOW_HOST",
             "COWORK_FLOW_HOST_CONTEXT_KEY",
             "COWORK_FLOW_RUNTIME_CONTEXT_ID",
             "COWORK_FLOW_DISABLE_HOOKS",
@@ -471,6 +472,38 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn('task=\".cowork-flow/tasks/06-03-demo\"', context)
         self.assertIn('status=\"in_progress\"', context)
         self.assertIn("action owner Skill", context)
+
+    def test_hook_resolves_a_bare_generic_session_id(self) -> None:
+        # The payload carries only the generic session_id and no host session
+        # env var is set, so the identity can come only from the host-declaring
+        # stamp inject.py adds for --host claude-code.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "06-03-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text('{"status": "in_progress"}\n', encoding="utf-8")
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "claude_demo-session.json").write_text(
+                '{"active_task_path": ".cowork-flow/tasks/06-03-demo"}\n',
+                encoding="utf-8",
+            )
+
+            data = self._run_hook(root, {"session_id": "demo-session"})
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        header = re.search(r"<workflow-state[^>]*>", context)
+        self.assertIsNotNone(header, context)
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/06-03-demo",
+                "status": "in_progress",
+                "source": "session",
+                "session": "claude_demo-session",
+            },
+            dict(re.findall(r'(\w+)="([^"]*)"', header.group(0))),
+        )
 
     def test_hook_resolves_active_task_from_claude_code_session_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

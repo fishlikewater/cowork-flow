@@ -89,7 +89,6 @@ class HostPolicy:
         "digest_policy",
         "digest_warning_silent",
         "session_start_event",
-        "session_alias",
         "preamble",
         "rebind_hints",
         "essential_files_warning",
@@ -105,7 +104,6 @@ class HostPolicy:
         digest_policy: str = DEFAULT_DIGEST_POLICY,
         digest_warning_silent: bool = False,
         session_start_event: str | None = "SessionStart",
-        session_alias: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         preamble: Callable[[Path], tuple[str, ...]] | None = None,
         rebind_hints: Callable[[Path], str] | None = None,
         essential_files_warning: Callable[[Path], str] | None = None,
@@ -118,7 +116,6 @@ class HostPolicy:
         self.digest_policy = digest_policy
         self.digest_warning_silent = digest_warning_silent
         self.session_start_event = session_start_event
-        self.session_alias = session_alias
         self.preamble = preamble
         self.rebind_hints = rebind_hints
         self.essential_files_warning = essential_files_warning

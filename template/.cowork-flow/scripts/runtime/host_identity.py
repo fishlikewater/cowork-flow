@@ -92,6 +92,7 @@ HOST_IDENTITIES: tuple[HostIdentity, ...] = (
             "claude_session_id",
             "CLAUDE_CODE_SESSION_ID",
             "claude_code_session_id",
+            "session_id",
         ),
         process_label_env=None,
     ),

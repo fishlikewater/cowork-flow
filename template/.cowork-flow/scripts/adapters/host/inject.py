@@ -198,8 +198,6 @@ def main(argv: list[str] | None = None) -> int:
     policy = resolve_policy(host)
 
     hook_input = _read_input()
-    if policy.session_alias is not None:
-        hook_input = policy.session_alias(hook_input)
     # The adapter states which host this payload came from, so the identity
     # resolver below never has to infer a host from key shapes.
     hook_input.setdefault(HOST_HINT_ENV, host)

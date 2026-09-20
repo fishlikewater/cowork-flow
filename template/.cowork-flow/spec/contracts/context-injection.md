@@ -76,11 +76,13 @@ host evidence only while a single host declares it:
 |---|---|---|
 | `sessionID` | opencode | yes |
 | `thread_id`, `conversation_id`, `*_session_id`, `*_SESSION_ID` | one each | yes |
-| `session_id` | codex, zcode | no |
+| `session_id` | codex, zcode, claude-code | no |
 | `sessionId` | opencode, zcode | no |
 
 A key becomes ambiguous the moment a second host lists it, so no one has to
-remember to re-file it.
+remember to re-file it. No host may rewrite payload keys to claim one either:
+a host's declared key list is the only reading rule, and the per-host payload
+aliases that predated this contract were retired.
 
 ### Declared-host channel
 

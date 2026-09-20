@@ -80,6 +80,7 @@ class CodexHooksTest(unittest.TestCase):
         env = os.environ.copy()
         for name in (
             "COWORK_FLOW_CONTEXT_ID",
+            "COWORK_FLOW_HOST",
             "COWORK_FLOW_HOST_CONTEXT_KEY",
             "COWORK_FLOW_RUNTIME_CONTEXT_ID",
             "COWORK_FLOW_DISABLE_HOOKS",
