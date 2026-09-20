@@ -14,6 +14,76 @@ SUBAGENT = ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" /
 
 
 class SubagentDispatchTest(unittest.TestCase):
+    def setUp(self) -> None:
+        # `subagent init` no longer guesses a host when the process carries no
+        # host evidence (AC-004). These dispatch tests assert codex-prefixed
+        # identities, so they declare a codex session the way a real one does.
+        os.environ["CODEX_SESSION_ID"] = "codex-dispatch-test"
+        self.addCleanup(os.environ.pop, "CODEX_SESSION_ID", None)
+
+    def test_init_without_host_evidence_fails_loudly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            env = {
+                key: value
+                for key, value in os.environ.items()
+                if not key.endswith(("_SESSION_ID", "_THREAD_ID"))
+            }
+            env.pop("COWORK_FLOW_HOST", None)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "init",
+                    "--title",
+                    "No host evidence",
+                    "--role",
+                    "research",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertIn("host is required", result.stderr)
+            for host_id in ("zcode", "opencode", "claude-code", "codex", "dsh"):
+                self.assertIn(host_id, result.stderr)
+
+    def test_init_rejects_an_unregistered_host(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow").mkdir()
+
+            env = {**os.environ, "COWORK_FLOW_HOST": "not-a-host"}
+            env.pop("CODEX_SESSION_ID", None)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "init",
+                    "--title",
+                    "Unknown host",
+                    "--role",
+                    "research",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+                env=env,
+            )
+
+            self.assertEqual(1, result.returncode)
+            self.assertIn("unknown host: not-a-host", result.stderr)
+            self.assertIn("codex", result.stderr)
+
     def test_init_writes_runtime_context_and_logical_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

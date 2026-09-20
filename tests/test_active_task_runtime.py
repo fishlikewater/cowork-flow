@@ -281,6 +281,55 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 self.active_task.resolve_context_key({"claude_code_session_id": "code-456"}),
             )
 
+    def test_context_key_generic_session_id_requires_declared_host(self) -> None:
+        # Regression lock: a bare session_id used to be claimed by whichever
+        # host row came first, so every new host risked stealing another
+        # host's sessions. No host evidence must mean no identity at all.
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIsNone(
+                self.active_task._resolve_input_context_key({"session_id": "sess-1"})
+            )
+            self.assertIsNone(
+                self.active_task._resolve_input_context_key({"sessionId": "sess-1"})
+            )
+
+    def test_declared_host_wins_for_generic_session_id(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                "codex_sess-1",
+                self.active_task._resolve_input_context_key(
+                    {"session_id": "sess-1", "COWORK_FLOW_HOST": "codex"}
+                ),
+            )
+            self.assertEqual(
+                "zcode_sess-1",
+                self.active_task._resolve_input_context_key(
+                    {"session_id": "sess-1", "COWORK_FLOW_HOST": "zcode"}
+                ),
+            )
+
+    def test_declared_host_from_environment_selects_the_prefix(self) -> None:
+        with patch.dict(os.environ, {"COWORK_FLOW_HOST": "zcode"}, clear=True):
+            self.assertEqual(
+                "zcode_sess-1",
+                self.active_task._resolve_input_context_key({"session_id": "sess-1"}),
+            )
+
+    def test_unknown_declared_host_fails_closed(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIsNone(
+                self.active_task._resolve_input_context_key(
+                    {"session_id": "sess-1", "COWORK_FLOW_HOST": "not-a-host"}
+                )
+            )
+
+    def test_sole_owned_key_still_resolves_without_host_evidence(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                "codex_thread-9",
+                self.active_task._resolve_input_context_key({"thread_id": "thread-9"}),
+            )
+
     def test_set_and_get_active_task_require_context_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

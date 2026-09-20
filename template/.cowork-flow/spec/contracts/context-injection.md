@@ -44,6 +44,78 @@ The opencode plugin has no ordinary-session injection channel: its
 the in-memory session set re-injects the full digest after a process restart
 (deliberate, see "Change guard").
 
+## Host identity resolution
+
+Every host's session identity facts live in ONE declaration,
+`runtime/host_identity.py` (`HOST_IDENTITIES`): the context-key prefix, the
+adapter label, the policy module, the per-session environment variables, the
+hook-payload keys, and the optional process label. `inject.py`,
+`workflow_state_hook.py`, `session_state.py` and `subagent.py` derive their
+tables from it. Adding a host is one row plus, optionally, its policy module.
+
+### Resolution order
+
+`resolve_context_key_with_provenance` resolves in this order; the first hit wins.
+
+| # | Source | Provenance |
+|---|---|---|
+| 1 | env `COWORK_FLOW_CONTEXT_ID` | `explicit` |
+| 2 | env, each host's `session_env` in registry order | `host_session` |
+| 3 | payload `COWORK_FLOW_CONTEXT_ID` / `cowork_flow_context_id` / `context_id` | `explicit` |
+| 4 | payload keys of the resolved host | `host_session` |
+| 5 | the host's `process_label_env` | `process_fallback` |
+| 6 | nothing matched | `missing` |
+
+### Key ownership is derived, not declared
+
+A host lists every payload key it may emit, ambiguous ones included; listing a
+key truthfully is what makes the derivation correct. A key resolves without
+host evidence only while a single host declares it:
+
+| Key | Declarers | Resolvable without host evidence |
+|---|---|---|
+| `sessionID` | opencode | yes |
+| `thread_id`, `conversation_id`, `*_session_id`, `*_SESSION_ID` | one each | yes |
+| `session_id` | codex, zcode | no |
+| `sessionId` | opencode, zcode | no |
+
+A key becomes ambiguous the moment a second host lists it, so no one has to
+remember to re-file it.
+
+### Declared-host channel
+
+`inject.py` stamps `COWORK_FLOW_HOST=<host id>` into the hook payload, taken
+from its required `--host` argument, before rendering; the resolver then never
+infers a host from key shapes. `COWORK_FLOW_HOST` may also be set in the
+environment for the Bash/CLI side. With a known host, every key that host
+declares is interpretable, ambiguous ones included. A declared host id that is
+not registered fails closed — no identity — and an unknown host never inherits
+another host's prefix. Callers that bypass `inject.py` (the dsh preset plugin,
+the opencode JS plugin) pass `hook_input` directly or stay on their own env
+identity.
+
+### Degradation invariant
+
+When no host evidence exists and the payload carries only ambiguous keys, the
+identity is `missing`; a host that cannot establish an identity degrades rather
+than borrowing another's. Locked by
+`tests/test_active_task_runtime.py::test_context_key_generic_session_id_requires_declared_host`
+(previously a bare `session_id` resolved as a codex session).
+
+### Prefix table
+
+Prefixes are the registry's `prefix` field and `platform_from_context_key`
+maps back through the same table (unknown prefix → `manual`). `claude-code`
+uses the prefix `claude`, a historical quirk preserved verbatim.
+`injects_context` marks the hosts that route through `inject.py` and is exactly
+the `--host` choice set; opencode is absent because its JS plugin renders
+context itself.
+
+Host ids are also mirrored in `.cowork-flow/spec/runtime/host-assets.json`,
+which owns asset layout. The two lists are locked together by
+`tests/test_host_identity.py::test_registry_ids_match_host_asset_manifest`;
+that mirror is the only remaining duplication and it is test-guarded.
+
 ## Event timing matrix
 
 Each host signals "session start" differently (or not at all). The digest

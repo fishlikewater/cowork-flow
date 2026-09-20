@@ -16,6 +16,13 @@ if __package__:
     from . import _bootstrap as _bootstrap  # noqa: F401
 else:
     import _bootstrap  # noqa: F401
+from runtime.host_identity import (
+    HostIdentity,
+    declared_host,
+    detect_host,
+    host_ids,
+    identity_for,
+)
 from runtime.session_state import (
     resolve_context_key,
     runtime_context_path,
@@ -66,27 +73,34 @@ def _next_id(base_dir: Path, title: str) -> str:
     return candidate
 
 
-def _detect_host() -> str:
-    env = os.environ
-    if env.get("CLAUDE_CODE_SESSION_ID") or env.get("CLAUDE_SESSION_ID"):
-        return "claude-code"
-    if env.get("CODEX_SESSION_ID") or env.get("CODEX_THREAD_ID"):
-        return "codex"
-    if env.get("ZCODE_SESSION_ID"):
-        return "zcode"
-    if env.get("OPENCODE_SESSION_ID"):
-        return "opencode"
-    return "codex"
+def _detect_host() -> str | None:
+    """The host whose per-session env var is present, or None.
+
+    None is the honest answer when this process carries no host evidence:
+    defaulting to another host would file this session's runtime context
+    under that host's identity.
+    """
+    return detect_host(os.environ)
 
 
-def _detect_adapter(host: str) -> str:
-    adapters = {
-        "claude-code": "claude-code.hooks",
-        "codex": "codex.spawn_agent",
-        "opencode": "opencode.task",
-        "zcode": "zcode.plugin",
-    }
-    return adapters.get(host, "codex.spawn_agent")
+def _resolve_host(host_id: str | None) -> HostIdentity:
+    """The host for this dispatch, or ValueError when it cannot be established.
+
+    Guessing another host would file this session's runtime context under that
+    host's identity, so a missing or unregistered host is refused instead.
+    """
+    resolved = host_id or declared_host(os.environ) or _detect_host()
+    if resolved is None:
+        raise ValueError(
+            "host is required when no session host is detectable; "
+            f"pass --host with one of: {', '.join(host_ids())}"
+        )
+    identity = identity_for(resolved)
+    if identity is None:
+        raise ValueError(
+            f"unknown host: {resolved}; known hosts: {', '.join(host_ids())}"
+        )
+    return identity
 
 
 def _host_context_prefix(host: str) -> str:
@@ -128,13 +142,14 @@ def cmd_init(args: argparse.Namespace) -> int:
     base_dir = subagent_contexts_dir(repo_root)
     runtime_context_id = _next_id(base_dir, args.title)
     task_dir = getattr(args, "execution_task_dir", None)
-    host = args.host or _detect_host()
-    adapter = args.adapter or _detect_adapter(host)
     try:
+        identity = _resolve_host(args.host)
+        adapter = args.adapter or identity.adapter
         agent_type, dispatch_kind = _resolve_agent_type(args.role, getattr(args, "agent_type", None))
     except ValueError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
+    host = identity.id
     if dispatch_kind == "formal" and not task_dir:
         print("Error: fixed agent dispatch requires --execution-task-dir", file=sys.stderr)
         return 1

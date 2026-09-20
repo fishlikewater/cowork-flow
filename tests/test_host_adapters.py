@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import importlib
 import json
+import re
+import sys
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 ENTRY_BOUNDARY = "entry" + "-boundary"
 LEGACY_DISPATCH = "COWORK_" + "DISPATCH_V1"
 LEGACY_ACK = "COWORK_" + "ACK"
@@ -52,6 +56,93 @@ def _parse_scalar(value: str) -> object:
 
 
 class HostAdaptersTest(unittest.TestCase):
+    def setUp(self) -> None:
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+        self.addCleanup(self._cleanup_imports)
+
+    def _cleanup_imports(self) -> None:
+        if str(SCRIPTS) in sys.path:
+            sys.path.remove(str(SCRIPTS))
+        for name in (
+            "adapters.host.inject",
+            "adapters.host.workflow_state_hook",
+            "runtime.host_identity",
+        ):
+            sys.modules.pop(name, None)
+
+    def test_inject_host_choices_derive_from_registry(self) -> None:
+        from runtime.host_identity import context_adapters
+
+        inject = importlib.import_module("adapters.host.inject")
+        self.assertEqual(context_adapters(), inject.HOST_ADAPTERS)
+        self.assertEqual(
+            {"claude-code", "codex", "dsh", "zcode"},
+            set(inject.HOST_ADAPTERS),
+        )
+        # opencode renders context from its own JS plugin, so it must not be
+        # an inject.py --host choice even though the registry knows it.
+        self.assertNotIn("opencode", inject.HOST_ADAPTERS)
+
+    def test_policy_modules_derive_from_registry(self) -> None:
+        from runtime.host_identity import host_ids, policy_modules
+
+        hook = importlib.import_module("adapters.host.workflow_state_hook")
+        declared = policy_modules()
+        self.assertEqual(
+            {
+                "zcode": "adapters.host.zcode_policy",
+                "claude-code": "adapters.host.claude_code_policy",
+                "codex": "adapters.host.codex_policy",
+            },
+            declared,
+        )
+        for host_id in host_ids():
+            with self.subTest(host=host_id):
+                self.assertEqual(
+                    declared.get(host_id),
+                    hook._host_policy_module(host_id),
+                )
+        # The declared module names really load: a registry pointing at a
+        # missing module would silently degrade to default_policy.
+        self.assertIsNotNone(hook.resolve_policy("codex").preamble)
+        self.assertEqual("dsh", hook.resolve_policy("dsh").host)
+
+    def test_host_session_literals_have_a_single_source(self) -> None:
+        literals = (
+            "COWORK_FLOW_HOST",
+            "CODEX_SESSION_ID",
+            "CODEX_THREAD_ID",
+            "ZCODE_SESSION_ID",
+            "ZCODE_PROCESS_LABEL",
+            "OPENCODE_SESSION_ID",
+            "CLAUDE_SESSION_ID",
+            "CLAUDE_CODE_SESSION_ID",
+            "DSH_SESSION_ID",
+        )
+        # adapters/host/zcode_policy.py keeps its own payload alias
+        # (zcode_session_alias); retiring that shim is a separate scope
+        # decision because it predates the declared-host channel. Any *new*
+        # file carrying a host session literal fails this test.
+        allowed = {
+            "runtime/host_identity.py",
+            "adapters/host/zcode_policy.py",
+        }
+        offenders: list[str] = []
+        for path in sorted(SCRIPTS.rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            relative = path.relative_to(SCRIPTS).as_posix()
+            if relative in allowed:
+                continue
+            source = path.read_text(encoding="utf-8")
+            for literal in literals:
+                # Word boundaries keep COWORK_FLOW_HOST from matching inside
+                # the unrelated COWORK_FLOW_HOST_CONTEXT_KEY.
+                if re.search(rf"\b{literal}\b", source):
+                    offenders.append(f"{relative}: {literal}")
+        self.assertEqual([], offenders)
+
     def test_adapter_schema_declares_capability_enum(self) -> None:
         for path in (
             ROOT / "template" / ".cowork-flow" / "spec" / "schemas" / "adapter.schema.json",
