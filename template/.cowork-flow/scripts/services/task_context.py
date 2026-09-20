@@ -10,14 +10,12 @@ from pathlib import Path
 from infra.files import read_text_utf8
 from infra.paths import FILE_TASK_JSON
 from services.context_discovery import (
-    detect_installed_platforms,
     discover_spec_files,
     get_check_context,
     get_debug_context,
     get_domain_skill_context,
     implement_spec_entries,
     is_skill_path,
-    skill_path,
 )
 from services.context_jsonl import (
     ContextJsonlEntry,

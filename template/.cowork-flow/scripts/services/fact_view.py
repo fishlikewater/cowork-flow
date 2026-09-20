@@ -203,7 +203,6 @@ def spec_entries_for_task(
     return dev_type, implement_spec_entries(repo_root, dev_type)
 
 
-STAGE_CONTRACT_STATES = ("in_progress", "review")
 STAGE_CONTRACT_SCOPE_LIMIT = 8
 STAGE_CONTRACT_SPECS_LIMIT = 4
 STAGE_CONTRACT_VERIFY_LIMIT = 3

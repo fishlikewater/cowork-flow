@@ -416,7 +416,7 @@ class HostAdaptersTest(unittest.TestCase):
             ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "subagent-dispatch.md",
         )
-        self.assertEqual(2, len(surfaces))
+        self.assertTrue(surfaces)
         for path in surfaces:
             text = path.read_text(encoding="utf-8")
             if path.name == "subagent-dispatch.md":
@@ -431,7 +431,7 @@ class HostAdaptersTest(unittest.TestCase):
     def test_opencode_assets_encode_fixed_agent_contract(self) -> None:
         for base in (ROOT / "template" / ".opencode",):
             agent_names = ("cowork-research", "cowork-implement", "cowork-check")
-            self.assertEqual(3, len(agent_names))
+            self.assertTrue(agent_names)
             for name in agent_names:
                 text = (base / "agents" / f"{name}.md").read_text(encoding="utf-8")
                 self.assertIn("mode: subagent", text)
@@ -547,7 +547,7 @@ class HostAdaptersTest(unittest.TestCase):
             ROOT / "template" / ".codex" / "hooks" / "inject-workflow-state.py",
             ROOT / "template" / ".claude" / "hooks" / "inject-workflow-state.py",
         )
-        self.assertEqual(2, len(hook_paths))
+        self.assertTrue(hook_paths)
         for hook_path in hook_paths:
             hook = hook_path.read_text(encoding="utf-8")
             self.assertIn(

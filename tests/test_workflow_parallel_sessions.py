@@ -243,7 +243,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             "services/lifecycle_checks.py": ("LifecycleCheckRunner", "Modified file not listed in implement.jsonl", "collect_changed_paths"),
             "infra/git_snapshot.py": ("collect_changed_files", "staged", "untracked"),
             "kernel/task_state.py": ("transition_blockers", "task next <task-dir> --run --intent review", "completed"),
-            "adapters/review/test_intent.py": ("validate_test_intent", "assert " + "True", "test_intent_review"),
+            "adapters/review/test_intent.py": ("classify_test_content", "assert " + "True", "BLOCK_MARKERS"),
         }
 
         common_root = ROOT / "template" / ".cowork-flow" / "scripts"

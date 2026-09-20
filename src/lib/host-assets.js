@@ -19,12 +19,6 @@ const REQUIRED_HOST_NEUTRAL_CAPABILITIES = [
   'file_write',
   'party_board_action'
 ];
-const REQUIRED_CAPABILITY_MATRIX_HOSTS = [
-  'codex',
-  'claude-code',
-  'opencode',
-  'zcode'
-];
 const CAPABILITY_STATUS_VALUES = [
   'native',
   'shim',
@@ -406,10 +400,7 @@ function validateCapabilityMatrix(matrix, allowed, platformIds) {
   if (!matrix.hosts || typeof matrix.hosts !== 'object' || Array.isArray(matrix.hosts)) {
     throw new Error('Host Asset Manifest capabilityMatrix.hosts must be an object');
   }
-  const requiredHosts = new Set([
-    ...REQUIRED_CAPABILITY_MATRIX_HOSTS,
-    ...platformIds
-  ]);
+  const requiredHosts = new Set([...platformIds]);
   for (const hostId of [...requiredHosts].sort()) {
     if (!matrix.hosts[hostId]) {
       throw new Error(`Host Asset Manifest capability matrix missing host: ${hostId}`);

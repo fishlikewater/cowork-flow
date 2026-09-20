@@ -18,9 +18,6 @@ class TestIntentTest(unittest.TestCase):
     def _cleanup_imports(self) -> None:
         sys.modules.pop("adapters.review.test_intent", None)
 
-    def test_validate_test_intent_no_longer_reads_task_evidence(self) -> None:
-        self.assertEqual([], self.test_intent.validate_test_intent(object(), object()))
-
     def test_classifier_blocks_shallow_assertions(self) -> None:
         content = (
             "import unittest\n\n"

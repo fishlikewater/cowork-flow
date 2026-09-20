@@ -125,14 +125,6 @@ def get_tasks_dir(repo_root: Path | None = None) -> Path:
     return repo_root / DIR_WORKFLOW / DIR_TASKS
 
 
-
-    try:
-        with file_path.open("r", encoding="utf-8") as f:
-            return sum(1 for _ in f)
-    except OSError:
-        return 0
-
-
 # =============================================================================
 # Task ID Generation
 # =============================================================================

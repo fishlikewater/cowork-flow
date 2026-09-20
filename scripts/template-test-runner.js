@@ -15,7 +15,8 @@ export const CORE_TEMPLATE_TEST_MODULES = Object.freeze([
   'tests.test_host_asset_manifest',
   'tests.test_skill_routing',
   'tests.test_task_navigation',
-  'tests.test_workflow_parallel_sessions'
+  'tests.test_workflow_parallel_sessions',
+  'tests.test_agents_managed_block'
 ]);
 
 const TEMPLATE_TEST_SUITES = new Set(['core', 'full']);

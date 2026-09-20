@@ -12,28 +12,6 @@ import ast
 import io
 import tokenize
 
-REPORT_FIELD = "test_intent_review"
-
-STRONG_ASSERT_MARKERS = (
-    "assertEqual",
-    "assertNotEqual",
-    "assertGreater",
-    "assertGreaterEqual",
-    "assertLess",
-    "assertLessEqual",
-    "assertRaises",
-    "assertRegex",
-)
-
-WEAK_ASSERT_MARKERS = (
-    "assertIsNotNone",
-    "assertIsInstance",
-    "assertIn(",
-    "assertNotIn(",
-    "assertTrue(",
-    "assertFalse(",
-)
-
 BLOCK_MARKERS = (
     "assert True",
     "assertTrue(True)",
@@ -45,15 +23,6 @@ BLOCK_MARKERS = (
     "call_count",
     "assert_not_called",
 )
-
-
-def validate_test_intent(*_args, **_kwargs) -> list[dict]:
-    """Return no lifecycle violations.
-
-    Test quality is reviewed from changed test files and verification output,
-    not from lifecycle gates or task-local evidence files.
-    """
-    return []
 
 
 def classify_test_content(content: str, test_name: str) -> str:

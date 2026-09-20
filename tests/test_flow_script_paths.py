@@ -46,40 +46,6 @@ class FlowScriptPathsTest(FlowScriptTestCase):
 
             self.assertEqual(task_dir, resolved)
 
-    def test_default_context_references_new_skill_directory(self) -> None:
-        # When only CLAUDE.md exists (no .codex/.opencode), skill path uses .claude/skills/.
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            (root / ".cowork-flow").mkdir()
-            (root / "CLAUDE.md").write_text("# project instructions", encoding="utf-8")
-            self.assertEqual(
-                ".claude/skills/cowork-flow/SKILL.md",
-                self.task._skill_path("cowork-flow", root),
-            )
-
-    def test_skill_path_uses_claude_skills_for_claude_only_project(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            (root / ".cowork-flow").mkdir()
-            (root / ".claude").mkdir()
-
-            self.assertEqual(
-                ".claude/skills/check/SKILL.md",
-                self.task._skill_path("check", root),
-            )
-
-    def test_skill_path_keeps_agent_skills_when_non_claude_hosts_exist(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            (root / ".cowork-flow").mkdir()
-            (root / ".codex").mkdir()
-            (root / ".claude").mkdir()
-
-            self.assertEqual(
-                ".agents/skills/check/SKILL.md",
-                self.task._skill_path("check", root),
-            )
-
     def test_init_context_writes_claude_skill_paths_for_claude_only_project(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

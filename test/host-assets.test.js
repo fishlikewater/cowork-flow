@@ -18,7 +18,8 @@ const INVALID_MANIFEST_FIXTURES = new Map([
   ['invalid-capability-status.json', /illegal host-neutral capability/i],
   ['invalid-capability-value.json', /capabilityValues/i],
   ['invalid-unsupported-without-fallback.json', /unsupported capability requires fallback/i],
-  ['invalid-unknown-field.json', /unknown field/i]
+  ['invalid-unknown-field.json', /unknown field/i],
+  ['invalid-missing-matrix-host.json', /missing host/i]
 ]);
 const ALL_MANIFEST_FIXTURES = [
   ...VALID_MANIFEST_FIXTURES,

@@ -354,7 +354,7 @@ def run_checks(
     """Run declared checks for one phase and return a JSON-ready report.
 
     phase: "edit" runs only edit-eligible declarations whose ``files`` match
-    ``changed_files`` (3s clamp); "lifecycle" runs every declaration honoring
+    ``changed_files`` (2.5s clamp); "lifecycle" runs every declaration honoring
     each ``files`` scope. Parse errors are reported but never block as
     violations — they surface through doctor.
     """

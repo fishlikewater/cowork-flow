@@ -19,13 +19,10 @@ from services.context_discovery import (
     get_implement_spec,
 )
 from services.task_context import (
-    detect_installed_platforms as _detect_installed_platforms,
     discover_spec_files as _discover_spec_files,
     get_check_context,
     get_debug_context,
-    is_skill_path as _is_skill_path,
     iter_jsonl_lines as _iter_jsonl_lines,
-    skill_path as _skill_path,
     write_jsonl as _write_jsonl,
 )
 from adapters.cli.task_archive_commands import cmd_archive
