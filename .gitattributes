@@ -11,6 +11,10 @@
 # Python
 *.py text eol=lf
 
+# JavaScript / ESM — always LF; a CRLF checkout breaks shebang-based shims
+*.js text eol=lf
+*.mjs text eol=lf
+
 # Version marker — release byte-compares it, keep LF everywhere
 *.version text eol=lf
 
