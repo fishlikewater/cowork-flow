@@ -28,12 +28,13 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-HOST_ADAPTERS = {
-    "zcode": "zcode.plugin",
-    "claude-code": "claude-code.hooks",
-    "codex": "codex.spawn_agent",
-    "dsh": "dsh.preset",
-}
+from runtime.host_identity import HOST_HINT_ENV, context_adapters
+
+
+# Hosts that route through this entry, taken from the single declaration in
+# runtime/host_identity.py. opencode is absent on purpose: its JS plugin
+# renders context itself, so it is not an --host choice here.
+HOST_ADAPTERS = context_adapters()
 
 NOT_INITIALIZED_BODY = (
     "<workflow-state>\n"
@@ -199,6 +200,9 @@ def main(argv: list[str] | None = None) -> int:
     hook_input = _read_input()
     if policy.session_alias is not None:
         hook_input = policy.session_alias(hook_input)
+    # The adapter states which host this payload came from, so the identity
+    # resolver below never has to infer a host from key shapes.
+    hook_input.setdefault(HOST_HINT_ENV, host)
     event_name = detect_event_name(hook_input)
     output_format_name = output_format()
     root = resolve_root(hook_input)

@@ -4,9 +4,9 @@
 This module is host-neutral: it renders the workflow facts and consumes a
 HostPolicy object for the per-host deltas (digest wording, preamble,
 edit warnings, unbound-session fallback). Host behaviors live in the
-per-host policy modules beside this file (zcode_policy.py,
-claude_code_policy.py, codex_policy.py); hosts without a module (dsh) run
-on default_policy().
+per-host policy modules listed by runtime/host_identity.py (zcode_policy.py,
+claude_code_policy.py, codex_policy.py); hosts without one (dsh, opencode)
+run on default_policy().
 """
 
 from __future__ import annotations
@@ -132,19 +132,24 @@ def default_policy(host: str = "generic") -> HostPolicy:
     return HostPolicy(host=host)
 
 
-# Host → policy module dispatch. Data-driven: adding a host is one row plus
-# its policy module; the neutral renderer never branches on host names.
-_HOST_POLICY_MODULES = {
-    "zcode": "adapters.host.zcode_policy",
-    "claude-code": "adapters.host.claude_code_policy",
-    "codex": "adapters.host.codex_policy",
-}
+def _host_policy_module(host: str) -> str | None:
+    """Host → policy module, from the single declaration in
+    runtime/host_identity.py.
+
+    Imported lazily because this module is also loaded standalone by tests,
+    by path, where the scripts root is not guaranteed on sys.path.
+    """
+    try:
+        from runtime.host_identity import policy_modules
+    except Exception:
+        return None
+    return policy_modules().get(host)
 
 
 def resolve_policy(host: str, policy: HostPolicy | None = None) -> HostPolicy:
     if policy is not None:
         return policy
-    module_name = _HOST_POLICY_MODULES.get(host)
+    module_name = _host_policy_module(host)
     if not module_name:
         return default_policy(host)
     try:

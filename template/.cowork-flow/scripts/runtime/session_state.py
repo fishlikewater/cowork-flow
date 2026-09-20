@@ -9,6 +9,17 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from infra.paths import DIR_WORKFLOW
+from runtime.host_identity import (
+    HOST_HINT_ENV,
+    HOST_IDENTITIES,
+    declared_host,
+    detect_host,
+    identity_for,
+    identity_for_prefix,
+    process_label_providers,
+    session_env_providers,
+    sole_owned_input_keys,
+)
 
 
 DIR_RUNTIME = ".runtime"
@@ -34,14 +45,6 @@ RUNTIME_CONTEXT_PROMPT_RE = re.compile(
 )
 HOST_CONTEXT_PROMPT_RE = re.compile(
     r"(?im)^\s*cowork_host_context_key\s*:\s*([A-Za-z0-9._-]+)\s*$"
-)
-# Process-label providers: hosts whose Bash spawns carry only a shared
-# process label (no per-session id). Data-driven like the env mapping tables
-# below — adding a host is one row, no host branches in this module. The
-# identity is process-level shared; consumers must treat it as
-# PROVENANCE_PROCESS_FALLBACK and degrade accordingly.
-PROCESS_LABEL_PROVIDERS: tuple[tuple[str, str], ...] = (
-    ("zcode", "ZCODE_PROCESS_LABEL"),
 )
 
 
@@ -89,7 +92,7 @@ def resolve_context_key_with_provenance(
     # process label so task start / session resolution succeeds once instead
     # of dropping to another host's identity. Process-level shared identity —
     # consumers must degrade per PROVENANCE_PROCESS_FALLBACK.
-    for prefix, env_name in PROCESS_LABEL_PROVIDERS:
+    for prefix, env_name in process_label_providers():
         process_label = os.environ.get(env_name)
         if process_label and process_label.strip():
             return (
@@ -110,15 +113,7 @@ def _resolve_env_context_key_with_provenance() -> tuple[str | None, str]:
     if explicit and explicit.strip():
         return _sanitize(explicit), PROVENANCE_EXPLICIT
 
-    for prefix, env_name in (
-        ("zcode", "ZCODE_SESSION_ID"),
-        ("opencode", "OPENCODE_SESSION_ID"),
-        ("claude", "CLAUDE_SESSION_ID"),
-        ("claude", "CLAUDE_CODE_SESSION_ID"),
-        ("codex", "CODEX_SESSION_ID"),
-        ("codex", "CODEX_THREAD_ID"),
-        ("dsh", "DSH_SESSION_ID"),
-    ):
+    for prefix, env_name in session_env_providers():
         context_key = _prefixed_context_key(prefix, os.environ.get(env_name))
         if context_key:
             return context_key, PROVENANCE_HOST_SESSION
@@ -129,6 +124,14 @@ def _resolve_env_context_key() -> str | None:
     return _resolve_env_context_key_with_provenance()[0]
 
 
+def _host_hint(values: Mapping[str, object] | None) -> str | None:
+    declared = declared_host(os.environ)
+    if declared:
+        return declared
+    value = _first_input_value(values, (HOST_HINT_ENV, "cowork_flow_host"))
+    return value.strip() if value else None
+
+
 def _resolve_input_context_key(values: Mapping[str, object] | None) -> str | None:
     explicit = _first_input_value(
         values,
@@ -137,30 +140,29 @@ def _resolve_input_context_key(values: Mapping[str, object] | None) -> str | Non
     if explicit:
         return _sanitize(explicit)
 
-    # 真实 zcode hook env 带 ZCODE_SESSION_ID：input 的 sessionId/session_id
-    # 归 zcode 前缀，避免被通用 key 误标成 opencode/codex；无 session 键直接短路。
-    if os.environ.get("ZCODE_SESSION_ID"):
-        zcode_session = _first_input_value(
-            values,
-            (
-                "ZCODE_SESSION_ID",
-                "zcode_session_id",
-                "sessionId",
-                "session_id",
-            ),
-        )
-        if zcode_session:
-            return _prefixed_context_key("zcode", zcode_session)
+    hint = _host_hint(values)
+    if hint is not None and identity_for(hint) is None:
+        # A declared host that is not registered fails closed: never fall back
+        # to guessing some other host's prefix.
         return None
+    host_id = hint if hint is not None else detect_host(os.environ)
 
-    for prefix, names in (
-        ("zcode", ("ZCODE_SESSION_ID", "zcode_session_id")),
-        ("opencode", ("OPENCODE_SESSION_ID", "opencode_session_id", "sessionID", "sessionId")),
-        ("claude", ("CLAUDE_SESSION_ID", "claude_session_id", "CLAUDE_CODE_SESSION_ID", "claude_code_session_id")),
-        ("codex", ("CODEX_SESSION_ID", "codex_session_id", "session_id")),
-        ("codex", ("CODEX_THREAD_ID", "codex_thread_id", "thread_id", "conversation_id")),
-    ):
-        context_key = _prefixed_context_key(prefix, _first_input_value(values, names))
+    if host_id is not None:
+        # Host known: every key it declares is interpretable, ambiguous ones
+        # included, because the caller stated whose payload this is.
+        identity = identity_for(host_id)
+        return _prefixed_context_key(
+            identity.prefix,
+            _first_input_value(values, identity.input_keys),
+        )
+
+    # No host evidence: only keys with a single declarer may resolve, so a
+    # generic key such as session_id can never pick a host on its own.
+    for identity in HOST_IDENTITIES:
+        context_key = _prefixed_context_key(
+            identity.prefix,
+            _first_input_value(values, sole_owned_input_keys(identity.id)),
+        )
         if context_key:
             return context_key
     return None
@@ -210,17 +212,9 @@ def _write_json(path: Path, data: dict) -> None:
 
 
 def platform_from_context_key(context_key: str) -> str:
-    if context_key.startswith("zcode_"):
-        return "zcode"
-    if context_key.startswith("codex_"):
-        return "codex"
-    if context_key.startswith("opencode_"):
-        return "opencode"
-    if context_key.startswith("claude_"):
-        return "claude-code"
-    if context_key.startswith("dsh_"):
-        return "dsh"
-    return "manual"
+    prefix, _separator, _remainder = context_key.partition("_")
+    identity = identity_for_prefix(prefix)
+    return identity.id if identity is not None else "manual"
 
 
 def resolve_runtime_context_id(values: Mapping[str, object] | None = None) -> str | None:
