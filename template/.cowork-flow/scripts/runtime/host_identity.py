@@ -114,6 +114,21 @@ HOST_IDENTITIES: tuple[HostIdentity, ...] = (
         ),
         process_label_env=None,
     ),
+    # Kimi Code registers UserPromptSubmit only (SessionStart/PostToolUse are
+    # observe-only: their stdout is dropped) and its Bash tool exports no
+    # session id, so the CLI side reads the injected session="kimi_<id>"
+    # header. The declared payload key is the generic one, shared with codex
+    # and claude-code, so ownership stays ambiguous by design.
+    HostIdentity(
+        id="kimi-code",
+        prefix="kimi",
+        adapter="kimi-code.hooks",
+        policy_module="adapters.host.kimi_code_policy",
+        injects_context=True,
+        session_env=(),
+        input_keys=("session_id",),
+        process_label_env=None,
+    ),
     # dsh resolves identity from DSH_SESSION_ID alone; its preset plugin passes
     # only {"cwd": ...} as hook input, so it declares no payload keys.
     HostIdentity(

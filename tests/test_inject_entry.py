@@ -226,6 +226,34 @@ class InjectEntryTest(unittest.TestCase):
                 dict(re.findall(r'(\w+)="([^"]*)"', header.group(0))),
             )
 
+    def test_kimi_code_resolves_a_generic_session_key_into_bare_text(self) -> None:
+        # Kimi Code declares session_id like codex and claude-code do, so the
+        # identity can come only from the injected declared-host hint plus the
+        # registry's key declaration for kimi-code. Its UserPromptSubmit hook
+        # stdout is appended to the prompt context verbatim, so the payload is
+        # the context text itself — no JSON envelope.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(root, "kimi_s1", ".cowork-flow/tasks/09-01-demo")
+
+            result = self._run_inject(root, {"session_id": "s1"}, host="kimi-code")
+
+        self.assertEqual("", result.stderr, result.stderr)
+        self.assertEqual(0, result.returncode, result.stderr)
+        header = re.search(r"<workflow-state[^>]*>", result.stdout)
+        self.assertIsNotNone(header, result.stdout)
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/09-01-demo",
+                "status": "in_progress",
+                "source": "session",
+                "session": "kimi_s1",
+            },
+            dict(re.findall(r'(\w+)="([^"]*)"', header.group(0))),
+        )
+        self.assertFalse(result.stdout.lstrip().startswith("{"))
+
     # -- envelopes ------------------------------------------------------------
 
     def test_zcode_post_tool_use_edit_emits_additional_context_envelope(self) -> None:

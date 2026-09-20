@@ -95,6 +95,143 @@ class DshPresetCheckTest(unittest.TestCase):
             self.assertNotIn("dshPreset", str(error))
 
 
+class KimiHookCheckTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.kimi_home = root / "kimi-home"
+        self.project = root / "project"
+        (self.project / ".cowork-flow").mkdir(parents=True)
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.5.0\n", encoding="utf-8"
+        )
+        self.config = self.kimi_home / "config.toml"
+        self.shim = self.kimi_home / "hooks" / "cowork-flow-inject.mjs"
+        self.marker = self.kimi_home / "hooks" / ".cowork-flow-kimi-hook.json"
+
+    def _check(self) -> list[dict[str, str]]:
+        with mock.patch.dict(
+            "os.environ", {"KIMI_CODE_HOME": str(self.kimi_home)}
+        ):
+            return self.doctor.check_kimi_hook(self.project)
+
+    def _install_block(self, command: str = 'command = "node shim.mjs"') -> None:
+        self.kimi_home.mkdir(parents=True, exist_ok=True)
+        self.config.write_text(
+            "[providers.moonshot]\n"
+            'api_key = "sk-test"\n'
+            "\n"
+            f"{self.doctor._HOOK_START_MARK}\n"
+            "[[hooks]]\n"
+            'event = "UserPromptSubmit"\n'
+            f"{command}\n"
+            "timeout = 30\n"
+            "# cowork-flow: kimi hook end.\n",
+            encoding="utf-8",
+        )
+
+    def _install_shim(self) -> None:
+        self.shim.parent.mkdir(parents=True, exist_ok=True)
+        self.shim.write_text("#!/usr/bin/env node\n", encoding="utf-8")
+
+    def _write_marker(self, payload: str) -> None:
+        self.marker.parent.mkdir(parents=True, exist_ok=True)
+        self.marker.write_text(payload, encoding="utf-8")
+
+    def test_home_without_config_is_silent(self) -> None:
+        self.assertEqual([], self._check())
+
+    def test_config_without_hook_reports_not_installed(self) -> None:
+        self.kimi_home.mkdir(parents=True)
+        self.config.write_text(
+            "[providers.moonshot]\n" 'api_key = "sk-test"\n', encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("HOOK-NOT-INSTALLED", issues[0]["code"])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("install-kimi-hook", issues[0]["commandHint"])
+
+    def test_registered_row_without_shim_reports_missing_shim(self) -> None:
+        self._install_block()
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("HOOK-SHIM-MISSING", issues[0]["code"])
+        self.assertIn("install-kimi-hook --force", issues[0]["commandHint"])
+
+    def test_installed_hook_without_marker_reports_unknown_version(self) -> None:
+        self._install_block()
+        self._install_shim()
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("HOOK-UNKNOWN-VERSION", issues[0]["code"])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("install-kimi-hook --force", issues[0]["commandHint"])
+
+    def test_unreadable_marker_reports_unknown_version(self) -> None:
+        self._install_block()
+        self._install_shim()
+        self._write_marker("not json")
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("HOOK-UNKNOWN-VERSION", issues[0]["code"])
+
+    def test_stale_marker_reports_with_update_hint(self) -> None:
+        self._install_block()
+        self._install_shim()
+        self._write_marker(
+            '{"version": "0.0.1", "installedAt": "2020-01-01T00:00:00.000Z"}'
+        )
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("HOOK-STALE", issues[0]["code"])
+        self.assertIn("0.0.1", issues[0]["message"])
+        self.assertIn("1.5.0", issues[0]["message"])
+        self.assertIn("install-kimi-hook --force", issues[0]["commandHint"])
+
+    def test_matching_version_is_silent(self) -> None:
+        self._install_block()
+        self._install_shim()
+        self._write_marker('{"version": "1.5.0"}')
+        self.assertEqual([], self._check())
+
+    def test_missing_project_version_is_silent(self) -> None:
+        self._install_block()
+        self._install_shim()
+        self._write_marker('{"version": "0.0.1"}')
+        (self.project / ".cowork-flow" / ".version").unlink()
+        self.assertEqual([], self._check())
+
+    def test_hook_check_never_enters_doctor_errors(self) -> None:
+        self._install_block()
+        with mock.patch.dict(
+            "os.environ",
+            {"KIMI_CODE_HOME": str(self.kimi_home), "DSH_HOME": str(self.kimi_home)},
+        ):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual("warning", result["issues"]["kimiHook"][0]["severity"])
+        for error in result["errors"]:
+            self.assertNotIn("kimiHook", str(error))
+        # An installed-but-unknown-version hook must not become fatal either.
+        self._install_shim()
+        self._write_marker("not json")
+        with mock.patch.dict(
+            "os.environ",
+            {"KIMI_CODE_HOME": str(self.kimi_home), "DSH_HOME": str(self.kimi_home)},
+        ):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual(
+            "HOOK-UNKNOWN-VERSION", result["issues"]["kimiHook"][0]["code"]
+        )
+        for error in result["errors"]:
+            self.assertNotIn("kimiHook", str(error))
+
+
 class RuntimeHealthTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

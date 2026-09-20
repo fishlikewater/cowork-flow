@@ -87,6 +87,21 @@
         "party_board_action": {
           "status": "experimental"
         }
+      },
+      "kimi-code": {
+        "task_action": {
+          "status": "native"
+        },
+        "subagent_dispatch": {
+          "status": "native"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "unsupported",
+          "fallback": "inline_or_manual"
+        }
       }
     }
   },
@@ -266,6 +281,39 @@
         "runtimeContextBinding": "shim",
         "runtimeContextCleanup": "native",
         "editScopeWarning": "plugin"
+      },
+      "commandTargets": []
+    },
+    {
+      "id": "kimi-code",
+      "displayName": "Kimi Code",
+      "aliases": [
+        "kimi",
+        "kimi-code"
+      ],
+      "detectAny": [
+        ".kimi-code"
+      ],
+      "assetPrefixes": [
+        ".kimi-code/",
+        ".cowork-flow/adapters/kimi-code/"
+      ],
+      "assetFiles": [],
+      "skillTarget": ".agents/skills",
+      "adapterPath": ".cowork-flow/adapters/kimi-code/adapter.yaml",
+      "capabilities": {
+        "dispatchSubagent": "native",
+        "freshChildContext": "native",
+        "sendFollowup": "native",
+        "waitChild": "native",
+        "listChildren": "native",
+        "cancelChild": "native",
+        "stateInjection": "shim",
+        "backgroundChild": "native",
+        "runtimeContextDispatch": "native",
+        "runtimeContextBinding": "shim",
+        "runtimeContextCleanup": "native",
+        "editScopeWarning": "unsupported"
       },
       "commandTargets": []
     }

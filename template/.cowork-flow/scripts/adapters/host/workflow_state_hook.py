@@ -96,6 +96,7 @@ class HostPolicy:
         "post_tool_use",
         "emit_indent",
         "emit_not_initialized",
+        "emit_text",
     )
 
     def __init__(
@@ -111,6 +112,7 @@ class HostPolicy:
         post_tool_use: Callable[[Path, dict[str, Any]], tuple[str, int]] | None = None,
         emit_indent: bool = False,
         emit_not_initialized: bool = False,
+        emit_text: bool = False,
     ) -> None:
         self.host = host
         self.digest_policy = digest_policy
@@ -123,6 +125,7 @@ class HostPolicy:
         self.post_tool_use = post_tool_use
         self.emit_indent = emit_indent
         self.emit_not_initialized = emit_not_initialized
+        self.emit_text = emit_text
 
 
 def default_policy(host: str = "generic") -> HostPolicy:

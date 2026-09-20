@@ -168,7 +168,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual(1, manifest.schema_version)
         self.assertEqual(
-            ("codex", "opencode", "claude-code", "dsh", "zcode"),
+            ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code"),
             manifest.platform_ids,
         )
         self.assertEqual(
@@ -176,13 +176,18 @@ class HostAssetManifestTest(unittest.TestCase):
             manifest.required_host_capabilities,
         )
         self.assertEqual(
-            ("claude-code", "codex", "dsh", "opencode", "zcode"),
+            ("claude-code", "codex", "dsh", "kimi-code", "opencode", "zcode"),
             tuple(sorted(manifest.capability_matrix)),
         )
         self.assertEqual("claude-code", manifest.resolve_alias("claude"))
         self.assertEqual("zcode", manifest.resolve_alias("zcode"))
+        self.assertEqual("kimi-code", manifest.resolve_alias("kimi"))
         self.assertEqual(".agents/skills", manifest.platform("codex").skill_target)
         self.assertEqual(".agents/skills", manifest.platform("dsh").skill_target)
+        self.assertEqual(
+            ".agents/skills",
+            manifest.platform("kimi-code").skill_target,
+        )
         self.assertEqual(
             ".cowork-flow/skills",
             manifest.platform("zcode").skill_target,
@@ -192,12 +197,27 @@ class HostAssetManifestTest(unittest.TestCase):
             manifest.platform("claude-code").skill_target,
         )
         self.assertEqual(
+            ".cowork-flow/adapters/kimi-code/adapter.yaml",
+            manifest.platform("kimi-code").adapter_path,
+        )
+        # Kimi Code hooks live in the user-level $KIMI_CODE_HOME/config.toml,
+        # so the platform declares no project-level command target.
+        self.assertEqual((), manifest.platform("kimi-code").command_targets)
+        self.assertEqual(
             "unsupported",
             manifest.host_capability("zcode", "file_write").status,
         )
         self.assertEqual(
             "project_root_init_or_sync",
             manifest.host_capability("zcode", "file_write").fallback,
+        )
+        self.assertEqual(
+            "unsupported",
+            manifest.host_capability("kimi-code", "party_board_action").status,
+        )
+        self.assertEqual(
+            "inline_or_manual",
+            manifest.host_capability("kimi-code", "party_board_action").fallback,
         )
         self.assertIn(
             ".cowork-flow/scripts/task.py",

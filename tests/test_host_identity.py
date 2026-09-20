@@ -122,6 +122,24 @@ class HostIdentityTest(unittest.TestCase):
     def test_dsh_declares_no_payload_keys(self) -> None:
         self.assertEqual((), self.host_identity.sole_owned_input_keys("dsh"))
 
+    def test_kimi_code_declares_the_generic_session_key_without_owning_it(
+        self,
+    ) -> None:
+        # Kimi Code hook payloads carry only the generic session_id, shared
+        # with codex and claude-code, so the row may declare it and still
+        # never resolve it alone. Its Bash tool exports no session id, so no
+        # env var may claim the host either.
+        kimi = self.host_identity.identity_for("kimi-code")
+        self.assertEqual("kimi", kimi.prefix)
+        self.assertEqual(("session_id",), kimi.input_keys)
+        self.assertEqual((), kimi.session_env)
+        self.assertEqual(
+            (), self.host_identity.sole_owned_input_keys("kimi-code")
+        )
+        self.assertEqual(
+            "kimi-code", self.host_identity.identity_for_prefix("kimi").id
+        )
+
     def test_adapter_labels_are_preserved(self) -> None:
         self.assertEqual(
             {
@@ -129,6 +147,7 @@ class HostIdentityTest(unittest.TestCase):
                 "claude-code": "claude-code.hooks",
                 "codex": "codex.spawn_agent",
                 "dsh": "dsh.preset",
+                "kimi-code": "kimi-code.hooks",
             },
             self.host_identity.context_adapters(),
         )

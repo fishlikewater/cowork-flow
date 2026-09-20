@@ -799,6 +799,107 @@ def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
     ]
 
 
+def _project_version(repo_root: Path) -> str:
+    try:
+        return (
+            repo_root / DIR_WORKFLOW / ".version"
+        ).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+_HOOK_START_MARK = "# cowork-flow: kimi hook start."
+_KIMI_HOOK_MARKER = ".cowork-flow-kimi-hook.json"
+_KIMI_HOOK_CONTRACT = "runtime-health:kimi-hook"
+
+
+def _kimi_home() -> Path:
+    return Path(os.environ.get("KIMI_CODE_HOME") or (Path.home() / ".kimi-code"))
+
+
+def _kimi_hook_warning(
+    code: str, path: Path, message: str, hint: str
+) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_KIMI_HOOK_CONTRACT,
+        )
+    ]
+
+
+def _marker_version(marker: Path) -> str | None:
+    try:
+        recorded = json.loads(marker.read_text(encoding="utf-8")).get("version")
+    except (OSError, json.JSONDecodeError, ValueError, AttributeError):
+        return None
+    return recorded if isinstance(recorded, str) and recorded else None
+
+
+def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
+    """Kimi Code hook health. Advisory only, and silent while Kimi Code is
+    not configured at all: the hook is a machine-level asset installed once
+    into the user-level config.toml, so it does not update with npm or sync.
+    Report an unknown or stale installed version instead of assuming the
+    injection logic matches this project."""
+    home = _kimi_home()
+    config = home / "config.toml"
+    try:
+        config_text = config.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    if _HOOK_START_MARK not in config_text:
+        return _kimi_hook_warning(
+            "HOOK-NOT-INSTALLED",
+            config,
+            "Kimi Code is configured but no cowork-flow hook is registered; "
+            "sessions inject no workflow context",
+            "cowork-flow install-kimi-hook",
+        )
+    shim = home / "hooks" / "cowork-flow-inject.mjs"
+    if not shim.is_file():
+        return _kimi_hook_warning(
+            "HOOK-SHIM-MISSING",
+            shim,
+            "config.toml registers the cowork-flow hook but its shim is "
+            "missing; the host runs a command that cannot start",
+            "cowork-flow install-kimi-hook --force",
+        )
+    marker = home / "hooks" / _KIMI_HOOK_MARKER
+    if not marker.is_file():
+        return _kimi_hook_warning(
+            "HOOK-UNKNOWN-VERSION",
+            marker,
+            "Kimi Code hook is installed without a version marker; its "
+            "injection logic may predate the current release",
+            "cowork-flow install-kimi-hook --force",
+        )
+    recorded = _marker_version(marker)
+    if recorded is None:
+        return _kimi_hook_warning(
+            "HOOK-UNKNOWN-VERSION",
+            marker,
+            "Kimi Code hook version marker is unreadable; its injection logic "
+            "may predate the current release",
+            "cowork-flow install-kimi-hook --force",
+        )
+    project_version = _project_version(repo_root)
+    if not project_version or recorded == project_version:
+        return []
+    return _kimi_hook_warning(
+        "HOOK-STALE",
+        marker,
+        f"Kimi Code hook was installed from {recorded} but this project runs "
+        f"{project_version}; the hook does not update with sync or npm, so "
+        "injection may lag the project runtime",
+        "cowork-flow install-kimi-hook --force",
+    )
+
+
 def _all_check_result(repo_root: Path) -> dict[str, object]:
     host_issues = _host_issues(repo_root)
     runtime_errors = check_runtime(repo_root)
@@ -809,6 +910,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     spec_check_issues = check_spec_checks(repo_root)
     mcp_issues = check_mcp_registration(repo_root)
     dsh_preset_issues = check_dsh_preset(repo_root)
+    kimi_hook_issues = check_kimi_hook(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
         errors.append({"kind": "host_adapter", **issue})
@@ -832,6 +934,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "specChecks": spec_check_issues,
             "mcpRegistration": mcp_issues,
             "dshPreset": dsh_preset_issues,
+            "kimiHook": kimi_hook_issues,
         },
     }
 
@@ -849,6 +952,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
         print(f"MCP ({issue['status']}): {issue['message']}")
     for issue in result["issues"]["dshPreset"]:
         print(f"DSH preset ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["kimiHook"]:
+        print(f"Kimi hook ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     if errors:

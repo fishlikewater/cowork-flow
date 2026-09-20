@@ -149,6 +149,10 @@ def _emit(
     output_format_name: str,
     policy: Any,
 ) -> None:
+    if policy.emit_text:
+        # Kimi Code appends the hook's stdout to the prompt context verbatim.
+        sys.stdout.write(context)
+        return
     if output_format_name == "cursor":
         payload: dict[str, Any] = {"additional_context": context}
     else:
