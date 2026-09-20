@@ -9,13 +9,13 @@ from tests.flow_test_support import SCRIPTS
 
 class TestIntentTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.test_intent = importlib.import_module("adapters.review.test_intent")
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         sys.modules.pop("adapters.review.test_intent", None)
 
     def test_validate_test_intent_no_longer_reads_task_evidence(self) -> None:

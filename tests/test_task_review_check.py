@@ -20,7 +20,9 @@ REVIEW_CHECK = ROOT / "template" / "skills" / "task-review" / "scripts" / "revie
 class TaskReviewCheckTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        cls.added_scripts_path = str(SCRIPTS) not in sys.path
+        if cls.added_scripts_path:
+            sys.path.insert(0, str(SCRIPTS))
         spec = importlib.util.spec_from_file_location("task_review_check_script", REVIEW_CHECK)
         if spec is None or spec.loader is None:
             raise AssertionError("cannot load review_check.py")
@@ -30,7 +32,7 @@ class TaskReviewCheckTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls) -> None:
-        if str(SCRIPTS) in sys.path:
+        if cls.added_scripts_path and str(SCRIPTS) in sys.path:
             sys.path.remove(str(SCRIPTS))
         for module_name in (
             "adapters.review.test_intent",

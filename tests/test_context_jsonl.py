@@ -13,7 +13,9 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "template" / ".cowork-flow" / "s
 
 class ContextJsonlCodecTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         module = importlib.import_module("services.context_jsonl")
         self.read_context_jsonl_entries = module.read_context_jsonl_entries
@@ -21,8 +23,6 @@ class ContextJsonlCodecTest(unittest.TestCase):
         self.iter_jsonl_lines = module.iter_jsonl_lines
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         sys.modules.pop("services.context_jsonl", None)
 
     def test_reader_preserves_line_numbers_raw_text_and_line_endings(self) -> None:

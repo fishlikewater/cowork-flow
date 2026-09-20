@@ -12,7 +12,9 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "template" / ".cowork-flow" / "s
 
 class ContextPathPolicyTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         module = importlib.import_module("services.context_paths")
         self.normalize_context_path = module.normalize_context_path
@@ -20,8 +22,6 @@ class ContextPathPolicyTest(unittest.TestCase):
         self.TaskContextError = module.TaskContextError
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         for module_name in (
             "services.context_paths",
             "infra.paths",

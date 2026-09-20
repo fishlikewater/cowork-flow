@@ -21,7 +21,9 @@ def _spec(root: Path, relative: str, text: str) -> Path:
 
 class SpecCheckTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         module = importlib.import_module("services.spec_check")
         self.run_checks = module.run_checks
@@ -30,8 +32,6 @@ class SpecCheckTest(unittest.TestCase):
         self.EDIT_PHASE_TIMEOUT = module.EDIT_PHASE_TIMEOUT
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         for module_name in (
             "services.spec_check",
             "infra.paths",

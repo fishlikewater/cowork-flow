@@ -20,7 +20,9 @@ SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 
 class FlowScriptTestCase(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.paths = importlib.import_module("infra.paths")
         self.task = importlib.import_module("adapters.cli.task")
@@ -28,8 +30,6 @@ class FlowScriptTestCase(unittest.TestCase):
         self.git_context = importlib.import_module("adapters.git.git_context")
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         for module_name in (
             "adapters.cli.task",
             "adapters.cli.task_archive_commands",

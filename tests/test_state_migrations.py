@@ -17,7 +17,9 @@ FIXTURES = ROOT / "tests" / "fixtures" / "migrations"
 
 class StateMigrationTest(unittest.TestCase):
     def setUp(self) -> None:
-        sys.path.insert(0, str(SCRIPTS))
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
         self.addCleanup(self._cleanup_imports)
         self.active_task = importlib.import_module("runtime.session_state")
         runtime_module = importlib.import_module(
@@ -30,8 +32,6 @@ class StateMigrationTest(unittest.TestCase):
         self.TaskRepository = repository_module.TaskRepository
 
     def _cleanup_imports(self) -> None:
-        if str(SCRIPTS) in sys.path:
-            sys.path.remove(str(SCRIPTS))
         for module_name in tuple(sys.modules):
             if module_name in {"services", "kernel", "adapters"} or module_name.startswith(
                 ("services.", "kernel.", "adapters.")
