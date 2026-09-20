@@ -102,6 +102,10 @@ test('matrix: project-level runner serves the full session', async (t) => {
 });
 
 test('matrix: global CLI walks up from a nested directory to the project runner', async (t) => {
+  // The PATH-resolved launcher is a shebang script (npm's shim), which node
+  // cannot exec on Windows — the same capability the project-runner case
+  // above gates on, so this shape is POSIX-only for the same reason.
+  if (skipWithoutShell(t)) return;
   const globalCli = await new Promise((resolveWhich) => {
     execFile('which', ['cowork-flow'], (error, stdout) => {
       resolveWhich(error ? null : stdout.trim());
