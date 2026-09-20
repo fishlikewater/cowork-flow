@@ -33,11 +33,12 @@
 - 全仓（含 2 个新文件 +162 行）：+365 / −200，净 **+165**；新增集中在 `tests/` 与 `test/`（DSH 接线用例 113、共享 fixture 119、收集守卫 43、CHANGELOG 40）。AC-006「净行数 ≤ 0」未达成；对已跟踪文件 `git diff --numstat` 汇总为 +203 / −200。
 - 契约指纹：registry 登记的契约文件与 `spec/runtime/host-assets.json` 均未改动，指纹不变。
 
-### 平台差异与未验证项
+### 平台差异与远端确认
 
 - Windows 上 `test:node:full` 的 skipped 明细新增 `dsh-home-patch` 的 7 条；这些用例在 ubuntu 发布门禁中真实执行。
 - POSIX-only：`a session refresh replaces the cached block instead of accumulating` 与既有 DSH 内容用例在本机（Windows）skip，未在本机执行。
-- 待远端确认：ubuntu CI 首次执行 `release:check`（此前只在发布时运行的 17 条 `release.test.js` POSIX 用例）——若失败即真实缺陷，不回退 CI 让门禁变绿。
+- 远端确认（提交 `e262196`，CI run 35503939861）：ubuntu job 首次执行 `release:check` **通过**——17 条此前只在发布时运行的 `release.test.js` POSIX 用例在 CI 上真实执行并全部通过。
+- 同一 run 的 `windows-core` 失败（步骤 `Run Windows core verification`，exit 1）。该 job 在改动前的 `aa0e34e` 上即为同样的失败，不是本次改动引入；同一条 `npm run test:windows:core` 在本机（Node 24.14.1）复现为 exit 0，CI 侧固定 Node 20，版本差是首要嫌疑。远端日志需仓库权限（API 返回 403），留待单独排查。
 
 ## 1.5.0 - 2026-09-18
 
