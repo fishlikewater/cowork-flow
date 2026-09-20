@@ -76,7 +76,7 @@ class HostAdaptersTest(unittest.TestCase):
         inject = importlib.import_module("adapters.host.inject")
         self.assertEqual(context_adapters(), inject.HOST_ADAPTERS)
         self.assertEqual(
-            {"claude-code", "codex", "dsh", "zcode"},
+            {"claude-code", "codex", "dsh", "kimi-code", "zcode"},
             set(inject.HOST_ADAPTERS),
         )
         # opencode renders context from its own JS plugin, so it must not be
@@ -93,6 +93,7 @@ class HostAdaptersTest(unittest.TestCase):
                 "zcode": "adapters.host.zcode_policy",
                 "claude-code": "adapters.host.claude_code_policy",
                 "codex": "adapters.host.codex_policy",
+                "kimi-code": "adapters.host.kimi_code_policy",
             },
             declared,
         )
@@ -106,6 +107,16 @@ class HostAdaptersTest(unittest.TestCase):
         # missing module would silently degrade to default_policy.
         self.assertIsNotNone(hook.resolve_policy("codex").preamble)
         self.assertEqual("dsh", hook.resolve_policy("dsh").host)
+        # Bare-text stdout is Kimi Code's transport contract alone; every
+        # other policy host keeps the JSON envelope.
+        self.assertEqual(
+            {"kimi-code"},
+            {
+                host_id
+                for host_id in declared
+                if hook.resolve_policy(host_id).emit_text
+            },
+        )
 
     def test_host_session_literals_have_a_single_source(self) -> None:
         literals = (
@@ -217,7 +228,7 @@ class HostAdaptersTest(unittest.TestCase):
             required,
         )
         self.assertEqual(
-            {"codex", "claude-code", "opencode", "zcode", "dsh"},
+            {"codex", "claude-code", "opencode", "zcode", "dsh", "kimi-code"},
             set(matrix["hosts"]),
         )
         for host, capabilities in matrix["hosts"].items():
@@ -238,7 +249,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code", "dsh"):
+            for host in ("codex", "opencode", "claude-code", "dsh", "kimi-code"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(1, adapter["schemaVersion"])
                 self.assertEqual(host, adapter["host"])
@@ -281,6 +292,12 @@ class HostAdaptersTest(unittest.TestCase):
                     self.assertEqual("shim", capabilities["runtimeContextBinding"])
                     self.assertEqual("shim", capabilities["runtimeContextCleanup"])
                     self.assertEqual("subagent", adapter["dispatch"]["primitive"])
+                if host == "kimi-code":
+                    self.assertEqual("subagent", adapter["dispatch"]["primitive"])
+                    self.assertEqual(".kimi-code/agents", adapter["dispatch"]["agentsPath"])
+                    self.assertEqual(".agents/skills", adapter["dispatch"]["skillsPath"])
+                    self.assertEqual("shim", capabilities["stateInjection"])
+                    self.assertEqual("unsupported", capabilities["editScopeWarning"])
 
     def test_party_mode_v2_action_schema_is_host_neutral(self) -> None:
         expected_actions = {
@@ -350,7 +367,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code", "dsh"):
+            for host in ("codex", "opencode", "claude-code", "dsh", "kimi-code"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(
                     "inline_or_manual",
@@ -379,6 +396,8 @@ class HostAdaptersTest(unittest.TestCase):
         self.assertEqual("native", party_capabilities["claude-code"]["status"])
         self.assertEqual("unsupported", party_capabilities["zcode"]["status"])
         self.assertEqual("inline_or_manual", party_capabilities["zcode"]["fallback"])
+        self.assertEqual("unsupported", party_capabilities["kimi-code"]["status"])
+        self.assertEqual("inline_or_manual", party_capabilities["kimi-code"]["fallback"])
 
     def test_party_mode_v2_template_assets_are_valid(self) -> None:
         paths = (

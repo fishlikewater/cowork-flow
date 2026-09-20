@@ -27,6 +27,7 @@ test('prints help when no command is provided', async () => {
   assert.match(io.stdout, /cowork-flow update/);
   assert.match(io.stdout, /cowork-flow sync/);
   assert.match(io.stdout, /cowork-flow source-refresh/);
+  assert.match(io.stdout, /cowork-flow install-kimi-hook \[--dry-run\] \[--force\] \[--uninstall\]/);
   assert.equal(io.stderr, '');
 });
 

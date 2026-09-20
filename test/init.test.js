@@ -254,6 +254,33 @@ test('init installs dsh-only assets when platform is dsh', async (t) => {
   assert.match(io.stdout, /created=/);
 });
 
+test('init installs kimi-code-only assets when platform is kimi-code', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main(['init', target, '--developer', 'kimi-user', '--platform', 'kimi'], { io });
+
+  assert.equal(code, 0, JSON.stringify({
+    stderr: io.stderr,
+    stdout: io.stdout,
+    target
+  }, null, 2));
+  assert.equal(await exists(join(target, 'AGENTS.md')), true);
+  assert.equal(await exists(join(target, '.kimi-code', 'agents', 'cowork-implement.md')), true);
+  assert.equal(await exists(join(target, '.kimi-code', 'agents', 'cowork-check.md')), true);
+  assert.equal(await exists(join(target, '.kimi-code', 'agents', 'cowork-research.md')), true);
+  assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'kimi-code', 'adapter.yaml')), true);
+  assert.equal(await exists(join(target, '.codex')), false);
+  assert.equal(await exists(join(target, '.claude')), false);
+  assert.equal(await exists(join(target, '.opencode')), false);
+  assert.equal(await exists(join(target, '.dsh')), false);
+  assert.equal(await exists(join(target, '.zcode')), false);
+  assert.equal(await exists(join(target, 'CLAUDE.md')), false);
+  assert.match(io.stdout, /Platforms: kimi-code/);
+  assert.match(io.stdout, /created=/);
+});
+
 test('installed Doctor passes for codex, claude-only, and multi-host projects', async (t) => {
   if (process.platform === 'win32') {
     t.skip('POSIX runner execution is covered on POSIX hosts');
@@ -447,10 +474,10 @@ test('init uses platform selector and then prompts for developer', async (t) => 
 
   assert.equal(code, 0);
   assert.match(selectorCalls[0].message, /Select platforms/);
-  assert.equal(selectorCalls[0].choices.length, 5);
+  assert.equal(selectorCalls[0].choices.length, 6);
   assert.deepEqual(
     selectorCalls[0].choices.map((choice) => choice.value),
-    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode']
+    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code']
   );
   assert.match(prompts[0], /Developer name/);
   assert.equal(await exists(join(target, '.codex')), false);

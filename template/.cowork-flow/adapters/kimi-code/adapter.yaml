@@ -1,0 +1,31 @@
+schemaVersion: 1
+host: kimi-code
+displayName: Kimi Code
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: native
+  waitChild: native
+  listChildren: native
+  cancelChild: native
+  stateInjection: shim
+  backgroundChild: native
+  runtimeContextDispatch: native
+  runtimeContextBinding: shim
+  runtimeContextCleanup: native
+  editScopeWarning: unsupported
+dispatch:
+  primitive: subagent
+  agentsPath: .kimi-code/agents
+  skillsPath: .agents/skills
+runtimeContext:
+  transport: prompt
+  promptKey: cowork_runtime_context_id
+  envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
+  metadataKey: cowork_runtime_context_id
+contracts:
+  dispatch: RUNTIME_CONTEXT_DISPATCH_V2
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual
+  whenRuntimeContextMissing: fail_closed

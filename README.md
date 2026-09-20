@@ -14,7 +14,7 @@
 | 事实接入 | `run state [task] --json` 事实视图；`run mcp-state` 无依赖 MCP 只读服务（`task_state` / `task_list` / `task_scope` / `task_specs`）供任何 MCP 客户端查询；`task scope` / `task specs` 为 CLI 同源事实命令。 |
 | 规范挂命令 | spec 首部 frontmatter 声明 `checks:` 命令，按编辑期/收口期执行；`run spec-check` 输出三态门禁（pass / violation / unchecked）。 |
 | 运行健康 | `doctor` 诊断 runtime、host assets、Skill replica 和任务 hygiene，不推进生命周期。 |
-| Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / DeepSeek Harness 资产和 obsolete 清理。 |
+| Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / Kimi Code / DeepSeek Harness 资产和 obsolete 清理。 |
 | 批处理与讨论 | Batch 发布 Host action；Party Mode 只输出 advisory final facts。 |
 | 发布准备 | `release:check`、`CHANGELOG.md`、`pack:check` 固定发布前证据。 |
 
@@ -76,7 +76,7 @@ cowork-flow mcp-state
 npm run release:check
 ```
 
-平台选项：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `all`（逗号分隔）
+平台选项：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `all`（逗号分隔）
 
 ## 仓库结构
 
@@ -90,6 +90,7 @@ template/
 ├── .opencode/                 # OpenCode agents / commands / plugins
 ├── .dsh/                      # DeepSeek Harness 标记（sync 检测 + 说明）
 ├── .zcode/                    # ⭐ ZCode 插件（hooks + skills + agents + scaffold instructions）
+├── .kimi-code/                # Kimi Code fixed agents（cowork-implement / check / research）
 └── .cowork-flow/
     ├── config.yaml            # 项目配置
     ├── scripts/               # Python 运行时
@@ -116,6 +117,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 |---|---|
 | `codex` / `opencode` | `.agents/skills/` |
 | `dsh` | `.agents/skills/` |
+| `kimi-code` | `.agents/skills/` |
 | `claude-code` | `.claude/skills/` |
 | `zcode` | `.cowork-flow/skills/`（内核 owner 解析用；系统提示层仍由 ZCode 插件单源提供，不重复加载） |
 
@@ -131,6 +133,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `install-zcode-plugin` | 安装 ZCode 插件到全局缓存 |
 | `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/`（整套 agent，可选） |
 | `install-dsh-hook` | 机器级注册 workflow-state hook 组合行到 `$DSH_HOME/cordis.patch.yml`（当前 DSH 的 agent 提示不收集 host 层 section，实时注入请用预设方式） |
+| `install-kimi-hook [--dry-run] [--force] [--uninstall]` | 机器级注册 UserPromptSubmit hook 到 `$KIMI_CODE_HOME/config.toml`（默认 `~/.kimi-code/`），向每个 Kimi Code 会话实时注入工作流上下文 |
 | `update [--dry-run]` | 升级 CLI 本身 |
 | `mcp-state` | 全局 MCP 事实入口：从 cwd 向上定位项目运行时并透传 `run mcp-state`（全局注册一次，所有 cowork-flow 项目通用） |
 
@@ -138,7 +141,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 
 | 选项 | 说明 |
 |---|---|
-| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `all` |
+| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `all` |
 | `--developer <n>` | 开发者名称 |
 | `--force` | 覆盖已有文件 |
 | `--dry-run` | 预览不写入 |
@@ -246,6 +249,22 @@ cowork-flow install-dsh-preset --dry-run  # 预览不写入
 
 预设内置 **workflow-state hook**（`plugins/workflow-state.js`）：DSH 原生等效于 Codex/Claude hook，向系统提示末尾注入与其它宿主同构的 `<workflow-state>` 块，每条用户消息刷新一次，并在生命周期命令（`task`/`subagent`/`resume`）执行完成后立即轮内刷新（替换语义，不累积）。项目无 `.cowork-flow` 根、缺少 Python 或设 `COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1` 时静默降级，由 AGENTS.md 门禁的运行导航器兜底。
 
+## Kimi Code hook
+
+```bash
+cowork-flow install-kimi-hook             # 安装（无条件覆盖）；--force 与不带旗标同义
+cowork-flow install-kimi-hook --dry-run   # 预览将写入的托管块，不写文件
+cowork-flow install-kimi-hook --uninstall # 卸载托管块、shim 与版本标记
+```
+
+安装写入用户级 Kimi Code home（`KIMI_CODE_HOME`，未设置时默认 `~/.kimi-code/`）：hook 脚本 `hooks/cowork-flow-inject.mjs`、版本标记 `hooks/.cowork-flow-kimi-hook.json`，并在 `config.toml` 追加一段由注释标记包裹的托管块——一条 `[[hooks]]`，`event = "UserPromptSubmit"`、`command`、`timeout = 30`，不写 `matcher`（即匹配每条提交的提示）。配置文件按文本编辑、不做 TOML 重排，托管块以外的用户内容原样保留；卸载只移除这段托管块和上面两个文件，`config.toml` 因此变空时一并删除。
+
+Kimi Code 只注册 `UserPromptSubmit` 一个事件：`SessionStart` / `PostToolUse` 等观察型事件的 stdout 会被宿主丢弃，无法注入内容。hook 的 stdout 就是注入正文，宿主把它追加进提示上下文；shim 在项目根目录预检失败（非 cowork-flow 项目）时直接短路，不启动 Python 进程，全局开关为 `COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`。
+
+> 安装或更新后需要**重启 Kimi Code 会话**（或重新加载配置）才会加载 hook。
+
+Kimi Code 的 Bash 工具不导出会话标识环境变量，CLI 侧身份只能取自注入头里的 `session="kimi_<id>"`，需要显式传 `COWORK_FLOW_CONTEXT_ID`（或 `COWORK_FLOW_HOST=kimi-code`）。`./.cowork-flow/run doctor` 把该 hook 的注册情况作为 warning 级项报告（`HOOK-NOT-INSTALLED` / `HOOK-SHIM-MISSING` / `HOOK-UNKNOWN-VERSION` / `HOOK-STALE`），不计入 errors。
+
 ## 任务流程
 
 ```
@@ -300,7 +319,7 @@ checks:
 唯一执行器是 `./.cowork-flow/run spec-check`：
 
 - **三态语义**：`pass`（退出码 0）；`violation` 阻断 `task complete`；`unchecked`（命令缺失、解释器缺失、超时）同样阻断，需显式 `--allow-unchecked` 放行，豁免留痕进 `task.json`。unchecked 永不冒充 pass。
-- **两个相位**：`when: edit` 在编辑期就地执行（超时钳制 2.5 秒，违规输出单行提示；五个宿主均已覆盖，其中 zcode 仅主会话），是 best-effort 提示不是门禁；收口期全量执行，未过项阻断状态推进。
+- **两个相位**：`when: edit` 在编辑期就地执行（超时钳制 2.5 秒，违规输出单行提示；具备编辑期 hook 的宿主均已覆盖，其中 zcode 仅主会话），是 best-effort 提示不是门禁；收口期全量执行，未过项阻断状态推进。
 - **扫描范围**：`.cowork-flow/spec/` 下的 markdown；`contracts/`、`runtime/`、`schemas/` 三个机器自有子树不参与。
 - **模板不带生效声明**：模板无法预知项目命令，而命令缺失会归 `unchecked` 并阻断收口；请把声明写进自建 spec 文件（如 `spec/team-xxx.md`）。
 

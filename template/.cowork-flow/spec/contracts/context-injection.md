@@ -6,7 +6,7 @@ digest shape rules (full block vs fingerprint line), and the fingerprint
 serialization norm. The workflow facts are rendered by ONE Python source —
 `adapters/host/inject.py` over `workflow_state_hook.py` +
 `services.fact_view.py` — consumed by the zcode transport shim (node),
-claude-code, codex, and dsh; the opencode JS plugin remains the one
+claude-code, codex, dsh, and kimi-code; the opencode JS plugin remains the one
 independent mirror, locked to the same bytes by cross-host behavior tests.
 
 This document is a meta-protocol: it describes the injection layer itself and
@@ -22,6 +22,12 @@ would make the digest self-referential).
 | claude-code | thin wrapper (`inject-workflow-state.py`) → `inject.py --host claude-code`, stdout JSON | same shape |
 | opencode | plugin `experimental.chat.system.transform` + `shell.env` | system-prompt section push / env object |
 | dsh | preset plugin system-prompt section | named section, replace semantics |
+| kimi-code | user-level `config.toml` (`$KIMI_CODE_HOME`, default `~/.kimi-code/`) `[[hooks]]` row on `UserPromptSubmit` → shim (`cowork-flow-inject.mjs`) → `inject.py --host kimi-code` | bare-text stdout appended to the prompt context, no `hookSpecificOutput` envelope |
+
+Kimi Code registers that one `UserPromptSubmit` row and nothing else: the
+other events — `SessionStart`, `PostToolUse` — are observe-only, their stdout
+is discarded, so only a blockable event can inject and `UserPromptSubmit` is
+the sole channel.
 
 The string block inside every transport follows the same shape: an optional
 runtime preamble, the contract digest (full block or fingerprint line, see
@@ -36,7 +42,7 @@ test-locked: the contract digest **fingerprint value** and the
 | Host | workflow-state emission | digest policy line wording |
 |---|---|---|
 | zcode | always (main + delegated) | `policy: repeat fingerprint every hook; read full spec files only before listed actions.` |
-| codex / claude-code / dsh (Python core) | always (main + delegated) | `policy: repeat this short digest every hook; read full spec files only before listed actions.` |
+| codex / claude-code / kimi-code / dsh (Python core) | always (main + delegated) | `policy: repeat this short digest every hook; read full spec files only before listed actions.` |
 | opencode | delegated subagent sessions only | `policy: repeat this short digest every plugin transform; read full spec files only before listed actions.` |
 
 The opencode plugin has no ordinary-session injection channel: its
@@ -76,7 +82,7 @@ host evidence only while a single host declares it:
 |---|---|---|
 | `sessionID` | opencode | yes |
 | `thread_id`, `conversation_id`, `*_session_id`, `*_SESSION_ID` | one each | yes |
-| `session_id` | codex, zcode, claude-code | no |
+| `session_id` | codex, zcode, claude-code, kimi-code | no |
 | `sessionId` | opencode, zcode | no |
 
 A key becomes ambiguous the moment a second host lists it, so no one has to
@@ -89,12 +95,15 @@ aliases that predated this contract were retired.
 `inject.py` stamps `COWORK_FLOW_HOST=<host id>` into the hook payload, taken
 from its required `--host` argument, before rendering; the resolver then never
 infers a host from key shapes. `COWORK_FLOW_HOST` may also be set in the
-environment for the Bash/CLI side. With a known host, every key that host
-declares is interpretable, ambiguous ones included. A declared host id that is
-not registered fails closed — no identity — and an unknown host never inherits
-another host's prefix. Callers that bypass `inject.py` (the dsh preset plugin,
-the opencode JS plugin) pass `hook_input` directly or stay on their own env
-identity.
+environment for the Bash/CLI side. Kimi Code has no such environment: its Bash
+tool exports no session variable and its hook payload carries only the generic
+`session_id`, so the CLI side reads the injected `session="kimi_<id>"` header
+and must pass `COWORK_FLOW_CONTEXT_ID` (or `COWORK_FLOW_HOST=kimi-code`)
+explicitly. With a known host, every key that host declares is interpretable,
+ambiguous ones included. A declared host id that is not registered fails
+closed — no identity — and an unknown host never inherits another host's
+prefix. Callers that bypass `inject.py` (the dsh preset plugin, the opencode
+JS plugin) pass `hook_input` directly or stay on their own env identity.
 
 ### Degradation invariant
 
@@ -131,6 +140,7 @@ event is the session state file probe.
 | opencode | none (transform only) | every prompt assembly | in-memory per-session set: first injection full, later fingerprint |
 | codex | none (`UserPromptSubmit` only) | — | session state file probe: no activation file → full; file present → fingerprint |
 | dsh | `agent/session-start`, `agent/inbox/claimed` | `tools/result` on lifecycle commands | refresh source: session-start events → full; tools/result → fingerprint |
+| kimi-code | none (`UserPromptSubmit` only) | — | session state file probe: no activation file → full; file present → fingerprint |
 
 ## Digest shape rules
 
@@ -150,8 +160,8 @@ Two shapes, both sha256-based:
    byte-identical everywhere.
 
 The `<workflow-state>` block is emitted independently of digest shape on
-zcode / codex / claude-code / dsh; the opencode line covers delegated
-subagent sessions only.
+zcode / codex / claude-code / dsh / kimi-code; the opencode line covers
+delegated subagent sessions only.
 
 ## Workflow-state structured header (stage 1)
 

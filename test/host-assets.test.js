@@ -140,17 +140,23 @@ test('default host registry exposes manifest platform behavior', async () => {
   const manifest = loadHostAssetManifest();
   const registry = createHostRegistry(manifest);
 
-  assert.deepEqual(registry.platformIds, ['codex', 'opencode', 'claude-code', 'dsh', 'zcode']);
+  assert.deepEqual(
+    registry.platformIds,
+    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code']
+  );
   assert.deepEqual(
     registry.parsePlatformSelection(['claude']),
     ['claude-code']
   );
   assert.deepEqual(registry.parsePlatformSelection(['zcode']), ['zcode']);
+  assert.deepEqual(registry.parsePlatformSelection(['kimi']), ['kimi-code']);
   assert.equal(registry.platformLabel('opencode'), 'OpenCode');
   assert.equal(registry.platformLabel('zcode'), 'ZCode');
+  assert.equal(registry.platformLabel('kimi-code'), 'Kimi Code');
   assert.equal(registry.skillDestination('claude-code'), '.claude/skills');
   assert.equal(registry.skillDestination('dsh'), '.agents/skills');
   assert.equal(registry.skillDestination('zcode'), '.cowork-flow/skills');
+  assert.equal(registry.skillDestination('kimi-code'), '.agents/skills');
   assert.deepEqual(
     registry.assetOwners('.cowork-flow/skills/cowork-flow/SKILL.md'),
     ['zcode']
@@ -158,6 +164,9 @@ test('default host registry exposes manifest platform behavior', async () => {
   assert.deepEqual(registry.assetOwners('.dsh/README.md'), ['dsh']);
   assert.equal(registry.shouldInclude('.dsh/README.md', ['codex']), false);
   assert.deepEqual(registry.parsePlatformSelection(['dsh']), ['dsh']);
+  // Kimi Code hooks live in the user-level $KIMI_CODE_HOME/config.toml, so the
+  // platform must declare no project-level command target at all.
+  assert.deepEqual(registry.platform('kimi-code').commandTargets, []);
   assert.equal(
     registry.shouldInclude('.codex/hooks.json', ['codex']),
     true
@@ -176,12 +185,32 @@ test('default host registry exposes manifest platform behavior', async () => {
     registry.assetOwners('.cowork-flow/adapters/zcode/adapter.yaml'),
     ['zcode']
   );
+  assert.deepEqual(
+    registry.assetOwners('.cowork-flow/adapters/kimi-code/adapter.yaml'),
+    ['kimi-code']
+  );
+  assert.deepEqual(
+    registry.assetOwners('.kimi-code/agents/cowork-implement.md'),
+    ['kimi-code']
+  );
   assert.equal(
     registry.shouldInclude('.cowork-flow/adapters/zcode/adapter.yaml', ['zcode']),
     true
   );
   assert.equal(
     registry.shouldInclude('.cowork-flow/adapters/zcode/adapter.yaml', ['codex']),
+    false
+  );
+  assert.equal(
+    registry.shouldInclude('.cowork-flow/adapters/kimi-code/adapter.yaml', ['kimi-code']),
+    true
+  );
+  assert.equal(
+    registry.shouldInclude('.kimi-code/agents/cowork-implement.md', ['kimi-code']),
+    true
+  );
+  assert.equal(
+    registry.shouldInclude('.kimi-code/agents/cowork-implement.md', ['codex']),
     false
   );
   assert.equal(
@@ -195,9 +224,17 @@ test('default host registry exposes manifest platform behavior', async () => {
     (candidate) => candidate.replaceAll('\\', '/') === '/tmp/fake-target/.zcode'
   );
   assert.deepEqual(detected, ['zcode']);
+  assert.deepEqual(
+    await registry.detectInstalledPlatforms(
+      '/tmp/fake-target',
+      (candidate) => candidate.replaceAll('\\', '/') === '/tmp/fake-target/.kimi-code'
+    ),
+    ['kimi-code']
+  );
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/config.yaml'), true);
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/run'), false);
   assert.equal(registry.isSafeSyncFile('.codex/hooks.json'), true);
+  assert.equal(registry.isSafeSyncFile('.kimi-code/agents/cowork-check.md'), true);
   assert.equal(registry.isManagedBlockFile('AGENTS.md'), true);
   assert.equal(
     registry.obsoleteSyncFiles().includes('.cowork-flow/workflow.md'),
@@ -212,6 +249,13 @@ test('default host registry exposes manifest platform behavior', async () => {
     {
       status: 'unsupported',
       fallback: 'project_root_init_or_sync'
+    }
+  );
+  assert.deepEqual(
+    registry.hostCapability('kimi-code', 'party_board_action'),
+    {
+      status: 'unsupported',
+      fallback: 'inline_or_manual'
     }
   );
 });
