@@ -21,6 +21,7 @@ INVALID_MANIFEST_FIXTURES = {
     "invalid-capability-value.json": r"capabilityValues",
     "invalid-unsupported-without-fallback.json": r"unsupported capability requires fallback",
     "invalid-unknown-field.json": r"unknown field",
+    "invalid-missing-matrix-host.json": r"missing host",
 }
 ALL_MANIFEST_FIXTURES = tuple(sorted((*VALID_MANIFEST_FIXTURES, *INVALID_MANIFEST_FIXTURES)))
 REQUIRED_HOST_NEUTRAL_CAPABILITIES = (

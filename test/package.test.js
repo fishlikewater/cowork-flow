@@ -164,6 +164,8 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
   assert.match(ci, /run: npm run test:windows:core/);
   assert.match(ci, /pip install "pytest>=8"/);
   assert.equal((ci.match(/python -m pytest -q/g) ?? []).length, 2);
+  // A pull request must exercise the same gate publish.yml runs before publish.
+  assert.match(ci, /run: npm run release:check/);
 
   const ubuntuVerify = jobBlock('verify-ubuntu');
   const windowsVerify = jobBlock('verify-windows');

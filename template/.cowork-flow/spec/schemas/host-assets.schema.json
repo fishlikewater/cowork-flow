@@ -178,14 +178,7 @@
           "type": "object",
           "additionalProperties": {
             "$ref": "#/$defs/hostNeutralCapabilitySet"
-          },
-          "required": [
-            "codex",
-            "claude-code",
-            "opencode",
-            "zcode",
-            "dsh"
-          ]
+          }
         }
       }
     },

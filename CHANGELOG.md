@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.6.0 - 2026-09-20
+
+### 门禁诚实化（收集一致 / 平台 skip / CI 同门禁）
+
+- **收集一致**：`tests/test_agents_managed_block.py` 的两条断言原为模块级函数，`python -m unittest`（发布门禁与 `test:template` 用的收集器）收集不到它们（实测 `Ran 0 tests`），只有 pytest 能看到。现移入 `unittest.TestCase`，并进入 `CORE_TEMPLATE_TEST_MODULES`（core 套件 176 → 178）。新增 `tests/test_test_collection.py` 守卫：`tests/` 下再出现对 unittest 不可见的模块级 `def test_*` 即失败。
+- **Windows 静默通过**：`test/dsh-home-patch.test.js` 此前在 win32 顶层 `process.exit(0)`，`node --test` 把整个文件记为**通过文件**（不进 skipped、不进 fail）。现改为 7 个用例带 `{ skip: <具体原因> }`，Windows 上如实计入 skipped。
+- **恒真断言**：`tests/test_host_adapters.py` 三处「断言自己刚写死的字面量长度」（`assertEqual(2, len(surfaces))` 等）改为非空断言——不再恒真，也不引入需要同步维护的数字。
+- **CI 与发布同门禁**：ubuntu job 不再分步跑 fast / integration / core，合并为一步 `npm run release:check`（与 publish.yml 完全相同的命令，`setup-python` 前置到它之前）；`test/package.test.js` 新增断言锁定该一致性。此前 `test:node:full` 与 `test:template:full` 两层只在发布时首次执行，PR 侧从不运行。
+
+### 宿主必需集合单源化
+
+- 删除 Python `host_manifest.REQUIRED_CAPABILITY_MATRIX_HOSTS` 与 JS 镜像常量：`capabilityMatrix.hosts` 的必需宿主集合改由 manifest 的 `platforms` 派生（`set(platform_ids)` / `new Set([...platformIds])`）。
+- 删除 `host-assets.schema.json` 中第三处宿主名枚举——它处于漂移状态（要求 5 家、含 `dsh`、缺 `kimi-code`，而数据是 6 家）。schema 只约束结构，宿主覆盖由运行时按数据校验。
+- 新增共享 fixture `tests/fixtures/host-manifest/invalid-missing-matrix-host.json`（平台已声明但矩阵缺条目），Python 与 JS 两侧都拒绝（`capability matrix missing host: codex`），证明常量删除后该规则仍生效。
+- `spec/runtime/index.md` 记录派生规则。
+
+### 死代码与文档漂移清理
+
+- 删除仅测试可达的 skill-path 链：`context_discovery` 的 `detect_installed_platforms`（手写 3 宿主）、`SKILL_REPLICA_DIR_BY_PLATFORM`、`skill_root`、`skill_path`，以及 `adapters/cli/task.py` 的三个未调用别名。该链在生产代码零调用，真实契约由 `infra/skill_manifest` 与 manifest 的 `skillTarget` 承担。
+- 删除 `infra/paths.py` 中 `return` 之后的孤儿 try 块（引用未定义的 `file_path`，为 2026-08-05 移除 journal 流程时遗留）。
+- 删除 `fact_view.STAGE_CONTRACT_STATES`（文件内零引用；活定义在 `workflow_state_hook`）、`lifecycle_checks` 两个零调用的 `*_blockers` 包装、`adapters/review/test_intent` 的恒空校验器 `validate_test_intent` 与三个未被读取的常量，以及断言其返回空的同义用例。
+- 文档对齐：README 保护文件描述与 `syncPolicy` 实际一致（两个 spec 例外文件 + `.developer`）；两处 spec-check 文案 3s → 2.5s；`spec/schemas/index.md` 补列 `host-assets.schema.json`；清理指向已 untrack `docs/` 的历史死链。
+
+### DSH 注入接线覆盖
+
+- `presets/dsh/plugins/workflow-state.js` 的 `apply(ctx)` 此前零测试。新增用例覆盖：四个刷新事件的接线、section 注册（name/order）、无缓存时返回空文本、非编辑调用下 `tools/post-execute` 原样透传 downstream、非 cowork-flow 根目录静默降级——全部在 Windows 上真实执行。「刷新替换而非累积」用例按既有惯例在 Windows skip（宿主解释器限制）。
+
+### 净变化
+
+- 运行时代码（`template/.cowork-flow/scripts` + `src`）：**+4 / −114，净 −110 行**；runtime 模块数 80 不变。
+- 全仓（含 2 个新文件 +162 行）：+365 / −200，净 **+165**；新增集中在 `tests/` 与 `test/`（DSH 接线用例 113、共享 fixture 119、收集守卫 43、CHANGELOG 40）。AC-006「净行数 ≤ 0」未达成；对已跟踪文件 `git diff --numstat` 汇总为 +203 / −200。
+- 契约指纹：registry 登记的契约文件与 `spec/runtime/host-assets.json` 均未改动，指纹不变。
+
+### 平台差异与未验证项
+
+- Windows 上 `test:node:full` 的 skipped 明细新增 `dsh-home-patch` 的 7 条；这些用例在 ubuntu 发布门禁中真实执行。
+- POSIX-only：`a session refresh replaces the cached block instead of accumulating` 与既有 DSH 内容用例在本机（Windows）skip，未在本机执行。
+- 待远端确认：ubuntu CI 首次执行 `release:check`（此前只在发布时运行的 17 条 `release.test.js` POSIX 用例）——若失败即真实缺陷，不回退 CI 让门禁变绿。
+
 ## 1.5.0 - 2026-09-18
 
 ### 发版开关 `--no-publish`
@@ -139,7 +178,7 @@
 
 > **版本内容错位说明**：npm registry 上的 1.0.0 tarball 发布于 2026-08-26（仅含发版脚本修复之前的代码）。1.0.0 段下述的里程碑描述以本 1.1.0 为其实际发布载体——阶段 0-3 的全部内容自本版本起进入 npm 分发。
 
-### 方向落地（阶段 0-3，详见 1.0.0 段与 docs/direction.md）
+### 方向落地（阶段 0-3，详见 1.0.0 段）
 
 - 阶段 0：README 定位改写为「运行时上下文与协作事实层」；注入协议契约 `spec/contracts/context-injection.md`；契约指纹序列化三线统一 + slim 全覆盖 + 跨 host 一致性测试。
 - 阶段 1：`run state [task] --json` 事实视图；`<workflow-state>` 属性事实头 + `<decision-anchor>` 决策要点注入（三线一致）。

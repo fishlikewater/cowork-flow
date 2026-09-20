@@ -33,7 +33,7 @@ def main() -> int:
         "--phase",
         choices=("edit", "lifecycle"),
         default="lifecycle",
-        help="edit: only declarations matching the given files (3s clamp); "
+        help="edit: only declarations matching the given files (2.5s clamp); "
         "lifecycle: every declaration honoring its files scope.",
     )
     parser.add_argument(

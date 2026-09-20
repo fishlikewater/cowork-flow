@@ -10,13 +10,11 @@ import { packageRoot } from '../src/lib/paths.js';
 const PLUGIN_SRC = join(packageRoot, 'presets', 'dsh', 'plugins', 'workflow-state.js');
 const MARK = '# cowork-flow: managed workflow-state-hook row. Run "cowork-flow install-dsh-hook" to change it.';
 
-if (process.platform === 'win32') {
-  // The spawned installer child crashes the node test runner's IPC channel
-  // on Windows ("Unable to deserialize cloned data"); DSH home installation
-  // has no Windows usage. Revisit if that changes.
-  console.log('skipped on windows: DSH home-patch runner IPC incompatibility');
-  process.exit(0);
-}
+// The spawned installer child crashes the node test runner's IPC channel on
+// Windows ("Unable to deserialize cloned data"); DSH home installation has no
+// Windows usage. Revisit if that changes.
+const windowsSkip = process.platform === 'win32'
+  && 'windows: installer child crashes the node test runner IPC channel (DSH home installation has no Windows usage)';
 
 
 async function withDshHome(t) {
@@ -55,7 +53,7 @@ function patchPath(home) {
 }
 
 
-test('install-dsh-hook installs the plugin and registers an insert row', async (t) => {
+test('install-dsh-hook installs the plugin and registers an insert row', { skip: windowsSkip }, async (t) => {
   const home = await withDshHome(t);
 
   await runInstallDshHook([]);
@@ -71,7 +69,7 @@ test('install-dsh-hook installs the plugin and registers an insert row', async (
 });
 
 
-test('install-dsh-hook is idempotent', async (t) => {
+test('install-dsh-hook is idempotent', { skip: windowsSkip }, async (t) => {
   const home = await withDshHome(t);
 
   await runInstallDshHook([]);
@@ -84,7 +82,7 @@ test('install-dsh-hook is idempotent', async (t) => {
 });
 
 
-test('install and uninstall preserve unrelated patch rows byte-for-byte', async (t) => {
+test('install and uninstall preserve unrelated patch rows byte-for-byte', { skip: windowsSkip }, async (t) => {
   const home = await withDshHome(t);
   const custom = [
     '- id: custom-persona',
@@ -104,7 +102,7 @@ test('install and uninstall preserve unrelated patch rows byte-for-byte', async 
 });
 
 
-test('uninstall removes the managed row and keeps the plugin file', async (t) => {
+test('uninstall removes the managed row and keeps the plugin file', { skip: windowsSkip }, async (t) => {
   const home = await withDshHome(t);
 
   await runInstallDshHook([]);
@@ -117,7 +115,7 @@ test('uninstall removes the managed row and keeps the plugin file', async (t) =>
 });
 
 
-test('uninstall --force also removes the plugin file', async (t) => {
+test('uninstall --force also removes the plugin file', { skip: windowsSkip }, async (t) => {
   const home = await withDshHome(t);
 
   await runInstallDshHook([]);
@@ -128,7 +126,7 @@ test('uninstall --force also removes the plugin file', async (t) => {
 });
 
 
-test('dry-run writes nothing', async (t) => {
+test('dry-run writes nothing', { skip: windowsSkip }, async (t) => {
   const home = await withDshHome(t);
 
   await runInstallDshHook(['--dry-run']);
@@ -144,7 +142,7 @@ test('dry-run writes nothing', async (t) => {
 });
 
 
-test('install rewrites an old-format managed block to the insert patch form', async (t) => {
+test('install rewrites an old-format managed block to the insert patch form', { skip: windowsSkip }, async (t) => {
   const home = await withDshHome(t);
   // Pre-fix formats wrote a bare row (modify semantics), which DSH skips with
   // "entry not found". Install must migrate the block to the id-less insert

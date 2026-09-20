@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditSpecCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
+import { apply, editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditSpecCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 // The workflow runtime under the repository root is a gitignored live
@@ -253,4 +253,116 @@ test('runEditSpecCheck reports a declared check for an edited file', async (t) =
   // tooling; both prove the protocol reached the shared executor.
   assert.match(warning, /spec-check\[/);
 });
+
+
+function createFakeCtx() {
+  const handlers = new Map();
+  let section;
+  const ctx = {
+    on(event, handler) {
+      handlers.set(event, handler);
+    },
+    effect(run) {
+      run();
+    },
+    systemPrompt: {
+      section(definition) {
+        section = definition;
+      }
+    }
+  };
+  return { ctx, handlers, section: () => section };
+}
+
+
+async function waitFor(check, label) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (check()) {
+      return;
+    }
+    await new Promise((resolve) => { setTimeout(resolve, 50); });
+  }
+  throw new Error('timed out waiting for ' + label);
+}
+
+
+test('apply wires every refresh event and registers the workflow-state section', () => {
+  const { ctx, handlers, section } = createFakeCtx();
+
+  apply(ctx);
+
+  assert.deepEqual(
+    [...handlers.keys()].sort(),
+    ['agent/inbox/claimed', 'agent/session-start', 'tools/post-execute', 'tools/result']
+  );
+  const definition = section();
+  assert.equal(definition.name, 'cowork-flow-workflow-state');
+  assert.equal(definition.order, 1000);
+  // No agent has been refreshed yet, so prompt assembly must get an empty
+  // section instead of an exception.
+  assert.equal(definition.text({ agent: { cwd: process.cwd() } }), '');
+  assert.equal(definition.text(undefined), '');
+});
+
+
+test('apply degrades silently when the session cwd is not a cowork-flow root', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-dsh-plain-'));
+  t.after(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+  const { ctx, handlers, section } = createFakeCtx();
+  apply(ctx);
+  const agent = { cwd: dir };
+
+  handlers.get('agent/session-start')({ agent });
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+
+  assert.equal(section().text({ agent }), '');
+});
+
+
+test('tools/post-execute returns the downstream decision untouched for non-edit calls', async () => {
+  const { ctx, handlers } = createFakeCtx();
+  apply(ctx);
+  const waterfall = handlers.get('tools/post-execute');
+  const downstream = { kind: 'block', additionalContexts: [{ text: 'downstream' }] };
+
+  const result = await waterfall(
+    { agent: { cwd: process.cwd() }, name: 'read', arguments: {} },
+    null,
+    async () => downstream
+  );
+
+  assert.deepEqual(result, downstream);
+});
+
+
+test(
+  'a session refresh replaces the cached block instead of accumulating',
+  // Windows' WindowsApps python3 stub runs but serves no protocol, which the
+  // interpreter discovery legitimately treats as "interpreter works, protocol
+  // failed". Real dsh injection on Windows needs its own fix (product side).
+  { skip: process.platform === 'win32' && 'windows python3 stub breaks discovery' },
+  async (t) => {
+    const project = await createWorkflowProject(t);
+    const { ctx, handlers, section } = createFakeCtx();
+    apply(ctx);
+    const agent = { cwd: project };
+    const sessionStart = handlers.get('agent/session-start');
+
+    sessionStart({ agent });
+    await waitFor(() => section().text({ agent }) !== '', 'first workflow-state block');
+    const first = section().text({ agent });
+    assert.match(first, /<cowork-runtime host="dsh"/);
+
+    sessionStart({ agent });
+    await new Promise((resolve) => { setTimeout(resolve, 500); });
+    const second = section().text({ agent });
+
+    // The refresh replaces the cached text; a regression that appends would
+    // leave two blocks in the next prompt assembly.
+    assert.equal((second.match(/<workflow-state/g) ?? []).length, 1);
+    assert.match(second, /<cowork-runtime host="dsh"/);
+  }
+);
 

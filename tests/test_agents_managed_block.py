@@ -7,6 +7,7 @@ receive a different rule set than the repository claims to ship.
 
 from __future__ import annotations
 
+import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,11 +22,18 @@ def _managed_block(relative_path: str) -> str:
     return content[start : end + len(END)]
 
 
-def test_root_and_template_managed_blocks_are_byte_identical() -> None:
-    assert _managed_block("AGENTS.md") == _managed_block("template/AGENTS.md")
+class AgentsManagedBlockTest(unittest.TestCase):
+    def test_root_and_template_managed_blocks_are_byte_identical(self) -> None:
+        self.assertEqual(
+            _managed_block("AGENTS.md"),
+            _managed_block("template/AGENTS.md"),
+        )
+
+    def test_managed_block_points_at_spec_check_contract(self) -> None:
+        block = _managed_block("template/AGENTS.md")
+        self.assertIn("spec/contracts/spec-checks.md", block)
+        self.assertIn("run spec-check", block)
 
 
-def test_managed_block_points_at_spec_check_contract() -> None:
-    block = _managed_block("template/AGENTS.md")
-    assert "spec/contracts/spec-checks.md" in block
-    assert "run spec-check" in block
+if __name__ == "__main__":
+    unittest.main()

@@ -3,7 +3,7 @@
 本目录存放 workflow runtime 直接读取的机器配置。
 
 - `contract-registry.json`: hook/plugin 注入 contract digest 的注册表。
-- `host-assets.json`: 宿主平台、资产归属、技能目标、同步保护策略和旧资产迁移清单的单源；结构由 `../schemas/host-assets.schema.json` 约束。
+- `host-assets.json`: 宿主平台、资产归属、技能目标、同步保护策略和旧资产迁移清单的单源；结构由 `../schemas/host-assets.schema.json` 约束。`capabilityMatrix.hosts` 必须覆盖 `platforms` 声明的每一个 id——必需宿主集合由平台数据派生，运行时不维护宿主名单常量。
 
 缺少或损坏的 runtime 文件不能静默放行关键流程能力。宿主插件可使用最小 fallback
 避免崩溃，但必须在 digest 中暴露 warning；doctor/tests 负责发现缺失。

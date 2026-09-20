@@ -23,7 +23,6 @@ REQUIRED_HOST_NEUTRAL_CAPABILITIES = (
     "file_write",
     "party_board_action",
 )
-REQUIRED_CAPABILITY_MATRIX_HOSTS = ("codex", "claude-code", "opencode", "zcode")
 CAPABILITY_STATUS_VALUES = (
     "native",
     "shim",
@@ -379,7 +378,7 @@ def _build_capability_matrix(
     hosts_raw = raw.get("hosts")
     if not isinstance(hosts_raw, dict) or not hosts_raw:
         raise HostManifestError("capabilityMatrix.hosts must be an object")
-    required_hosts = set(REQUIRED_CAPABILITY_MATRIX_HOSTS).union(platform_ids)
+    required_hosts = set(platform_ids)
     for host_id in sorted(required_hosts):
         if host_id not in hosts_raw:
             raise HostManifestError(f"capability matrix missing host: {host_id}")

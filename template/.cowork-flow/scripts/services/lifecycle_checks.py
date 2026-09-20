@@ -235,22 +235,6 @@ def _review_completion_issues(
     return issues
 
 
-def _review_completion_blockers(
-    repo_root: Path,
-    task_dir: Path,
-    *,
-    allow_spec_file_modifications: bool,
-) -> list[str]:
-    return [
-        issue.message
-        for issue in _review_completion_issues(
-            repo_root,
-            task_dir,
-            allow_spec_file_modifications=allow_spec_file_modifications,
-        )
-    ]
-
-
 def _protected_workflow_file_issues(changed_files: list[str]) -> list[LifecycleCheckIssue]:
     issues: list[LifecycleCheckIssue] = []
     for file_path in changed_files:
@@ -267,10 +251,6 @@ def _protected_workflow_file_issues(changed_files: list[str]) -> list[LifecycleC
                 )
             )
     return issues
-
-
-def _protected_workflow_file_blockers(changed_files: list[str]) -> list[str]:
-    return [issue.message for issue in _protected_workflow_file_issues(changed_files)]
 
 
 def _allowed_file_scope_issues(
