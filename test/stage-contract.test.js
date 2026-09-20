@@ -132,7 +132,12 @@ function runPythonBlock(root, caseDef) {
 import sys
 from pathlib import Path
 sys.path.insert(0, ${JSON.stringify(SCRIPTS)})
+from adapters.cli.encoding import configure_cli_encoding
 from adapters.host.workflow_state_hook import build_hook_context
+# The probe has to emit the bytes a real entry point emits: every CLI/MCP
+# entry configures stdio for UTF-8 on Windows, a bare \`python -c\` would
+# otherwise print through the console code page (GBK here).
+configure_cli_encoding()
 context = build_hook_context(
     Path(${JSON.stringify(root)}),
     ${hookInput},
