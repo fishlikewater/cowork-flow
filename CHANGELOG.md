@@ -9,6 +9,7 @@
 - 宿主资产以 Qoder 插件交付：`presets/qoder/`（`.qoder-plugin/plugin.json` + `hooks/hooks.json` + `hooks/inject-context.py` shim + 三个 fixed agent）。`.qoder/` 进入 `excludedPrefixes`，`init`/`sync` 不向项目写任何 Qoder 文件；平台检测改用 `.cowork-flow/adapters/qoder`。shim 按载荷 `cwd` 定位项目根后调用**项目自己的** `.cowork-flow/run`，不在插件缓存里留第二份注入逻辑。
 - 新命令 `cowork-flow install-qoder-plugin [--dry-run] [--force] [--uninstall]`：写插件缓存载荷（含安装时拷入的 `skills/` 与戳好的 manifest 版本）、幂等 upsert `plugins/installed_plugins_v2.json`、置 `settings.json` 的 `enabledPlugins`；未知键与他人条目一律保留。
 - doctor 新增 `check_qoder_plugin`（warning 级，五态诊断）；契约同步 `context-injection.md` 传输表、`spec-checks.md` 宿主矩阵（编辑期快跑六家）、`fact-layer-access.md` 注册表；README 增补「Qoder（插件形态）」小节与两频次边界。
+- `scripts/release.sh` 的插件清单戳版本从「zcode 单文件 if」改为遍历所有随包清单（zcode + qoder）并逐个加入 `git add`；`test/package.test.js` 断言每份清单版本等于包版本、且其路径出现在发布脚本里，防止新宿主清单在发布后与包版本漂移。
 - 能力声明按未实测项保持诚实：`stateInjection=plugin`、`runtimeContextBinding=shim`、`sendFollowup/listChildren/cancelChild=shim`、`editScopeWarning=unsupported`；Desktop/IDE 侧支持在文档标 unknown。
 
 ## 1.6.0 - 2026-09-20

@@ -126,13 +126,29 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
   assert.equal(packageLock.version, packageInfo.version);
   assert.equal(packageLock.packages[''].version, packageInfo.version);
-  const zcodePlugin = JSON.parse(
-    await readFile(join(packageRoot, 'template', '.zcode', '.zcode-plugin', 'plugin.json'), 'utf8')
-  );
-  assert.equal(
-    zcodePlugin.version,
-    packageInfo.version,
-    'zcode plugin version must track the package version (release.sh bumps it automatically)'
+  const pluginManifests = [
+    ['template/.zcode/.zcode-plugin/plugin.json', 'zcode'],
+    ['presets/qoder/.qoder-plugin/plugin.json', 'qoder']
+  ];
+  const releaseScript = await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8');
+  for (const [relativePath, host] of pluginManifests) {
+    const manifest = JSON.parse(
+      await readFile(join(packageRoot, ...relativePath.split('/')), 'utf8')
+    );
+    assert.equal(
+      manifest.version,
+      packageInfo.version,
+      `${host} plugin version must track the package version`
+    );
+    assert.ok(
+      releaseScript.includes(relativePath),
+      `scripts/release.sh must bump the ${host} plugin manifest at ${relativePath}`
+    );
+  }
+  assert.doesNotMatch(
+    releaseScript,
+    /ZCODE_PLUGIN_JSON=/,
+    'bumping must be one rule over every shipped manifest, not one variable per host'
   );
 });
 
