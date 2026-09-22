@@ -296,8 +296,10 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   await access(join(pluginRoot, manifest.skills, 'cowork-flow', 'SKILL.md'));
 
   const implementAgent = await readFile(join(pluginRoot, 'agents', 'cowork-implement.md'), 'utf8');
-  assert.match(implementAgent, /skills\/agent-dispatch\/SKILL\.md/);
-  assert.doesNotMatch(implementAgent, /\.agents\/skills/);
+  // Agent bodies point at the project's skill copy (the host's discovery path);
+  // the payload's own `skills/` is a host-side channel, not a body reference.
+  assert.match(implementAgent, /\.agents\/skills\/agent-dispatch\/SKILL\.md/);
+  assert.doesNotMatch(implementAgent, /`skills\//);
 });
 
 test('install-zcode-plugin writes local marketplace and known marketplace entry', async (t) => {

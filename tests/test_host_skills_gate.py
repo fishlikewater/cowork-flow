@@ -11,9 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 TEMPLATE = ROOT / "template"
 
-# Fixed-subagent bodies per platform, and where they live. Platforms whose
-# declaration is machine-scope (their host discovers skills inside a plugin
-# payload) are listed here with the payload-relative prefix they may reference.
+# Fixed-subagent bodies per platform, and where they live. Every host reads
+# skills from a project directory (`skillReadRoot`), so a body must reference
+# that root; a machine-level plugin copy is the host's own channel, never a path
+# our bodies point at.
 PLATFORM_AGENT_SOURCES = {
     "codex": (TEMPLATE / ".codex" / "agents", "*.toml"),
     "opencode": (TEMPLATE / ".opencode" / "agents", "*.md"),
@@ -21,10 +22,6 @@ PLATFORM_AGENT_SOURCES = {
     "kimi-code": (TEMPLATE / ".kimi-code" / "agents", "*.md"),
     "qoder": (ROOT / "presets" / "qoder" / "agents", "*.md"),
     "zcode": (ROOT / "presets" / "zcode" / "agents", "*.md"),
-}
-MACHINE_SCOPE_PREFIXES = {
-    # zcode resolves `skills/` inside the plugin payload it was installed into.
-    "zcode": ("skills/",),
 }
 # Declarations that are still carried by convention rather than by a local
 # probe. Adding a new unverified declaration must show up here on purpose.
@@ -79,36 +76,14 @@ class HostSkillsGateTest(unittest.TestCase):
             references = self._references(directory, pattern)
             self.assertNotEqual([], references, f"{platform_id}: no skill references found")
 
-            project_scope = [
-                discovery
-                for discovery in platform.skill_discovery
-                if discovery.scope == "project"
-            ]
-            if project_scope:
-                expected = f"{platform.skill_read_root}/"
-                self.assertEqual(
-                    [],
-                    [
-                        f"{path.name} references {reference} while this host "
-                        f"reads {expected}"
-                        for path, reference in references
-                        if not reference.startswith(expected)
-                    ],
-                    platform_id,
-                )
-                continue
-
-            prefixes = MACHINE_SCOPE_PREFIXES.get(platform_id)
-            self.assertIsNotNone(
-                prefixes,
-                f"{platform_id} is machine-scope; register its payload prefix",
-            )
+            expected = f"{platform.skill_read_root}/"
             self.assertEqual(
                 [],
                 [
-                    f"{path.name} references {reference}, which is outside {prefixes}"
+                    f"{path.name} references {reference} while this host "
+                    f"reads {expected}"
                     for path, reference in references
-                    if not any(reference.startswith(prefix) for prefix in prefixes)
+                    if not reference.startswith(expected)
                 ],
                 platform_id,
             )

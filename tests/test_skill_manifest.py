@@ -83,20 +83,40 @@ class SkillManifestTest(unittest.TestCase):
             )
 
     def test_skill_roots_include_cowork_flow_runtime_skills(self) -> None:
-        repo = Path("/unused")
-        self.assertIn(
-            repo / ".cowork-flow" / "skills",
-            self.module.skill_roots(repo),
+        # Replica candidates come from the manifest's skillReadRoot values, so
+        # the private `.cowork-flow/skills` root is a candidate only while a
+        # host still declares it (none does).
+        self.assertEqual(
+            (
+                ROOT / ".agents" / "skills",
+                ROOT / ".claude" / "skills",
+                ROOT / "skills",
+                ROOT / "template" / "skills",
+            ),
+            self.module.skill_roots(ROOT),
+        )
+
+        with patch.object(self.module, "_skill_read_roots", return_value=()):
+            fallback = self.module.skill_roots(ROOT)
+        self.assertEqual(
+            (
+                ROOT / ".agents" / "skills",
+                ROOT / ".claude" / "skills",
+                ROOT / ".cowork-flow" / "skills",
+            ),
+            fallback[:3],
         )
 
     def test_skill_path_falls_back_to_runtime_skills_only_when_heuristic_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo = Path(temp_dir)
+            # A leftover private replica is not a read root: rendering points at
+            # the declared root so the model reads what init/sync delivers.
             runtime_skill = repo / ".cowork-flow" / "skills" / "solo"
             runtime_skill.mkdir(parents=True)
             (runtime_skill / "SKILL.md").write_text("x", encoding="utf-8")
             self.assertEqual(
-                ".cowork-flow/skills/solo/SKILL.md",
+                ".agents/skills/solo/SKILL.md",
                 self.module._skill_path(repo, "solo"),
             )
 

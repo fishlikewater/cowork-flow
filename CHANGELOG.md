@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### 宿主声明基址统一、技能候选根派生与 zcode 技能根订正
+
+- **适配器路径声明**：`adapter.yaml` 的 `dispatch.*Path` 统一为"项目相对 + 存在性守卫"——删除 qoder 的 `presets/qoder/*`（包内相对，且 `skillsPath`/`commandsPath` 指向包内不存在的目录）、zcode 的 `.zcode/agents` 与 `.zcode/.zcode-plugin/plugin.json`（项目与包内都不存在），以及与 `host-assets.json` 的 `skillReadRoot` 重复的 `skillsPath`（claude-code / dsh / kimi-code）。新增守卫测试逐项断言 `template/<path>` 存在、拒绝 `presets/` 前缀与 `skillsPath` 键（负向验证：塞回旧值即红）。
+- **技能候选根**：`skill_roots()` / `_replica_precedence()` 的宿主副本根改由 manifest 的 `skillReadRoot` 按平台顺序去重派生，新增宿主 readRoot 自动纳入（合成 manifest 用例证明）；manifest 不可读时回退旧字面量；对当前 manifest 的派生顺序与旧行为逐项相等（测试钉住）。
+- **zcode 技能根订正**：ZCode 3.14.3 宿主 bundle（`app.asar` 的 `out/host/index.js`）实证 `SkillService.list` 枚举 `<workspace>/.zcode/skills` 与 `<workspace>/.agents/skills`（含祖先目录向上探测）、用户级 `~/.zcode/skills` 与 `~/.agents/skills`（仅桌面运行时）、插件载荷的 `skills` 组件（manifest 声明或 `<pluginRoot>/skills` 回退），且整个 bundle 内 `.cowork-flow` 0 命中——原 readRoot `.cowork-flow/skills` 属"声明已交付、宿主不可见"。readRoot 改为共享的 `.agents/skills`，discovery 补 project 通道（`.zcode/skills` 的同名优先与"我们不交付"记入证据），三个 fixed subagent 正文同步改址；`assetPrefixes` 去掉 `.cowork-flow/skills/`，`obsoleteFiles` 增加 16 条迁移项（旧项目 `sync` 时清理，实测删除且保留非 cowork-flow 目录）。
+- 门禁与分发：`tests/test_host_skills_gate.py` 删除 zcode 的 machine-scope 白名单例外（每个宿主的正文都必须指向自己的 readRoot）；`--platform zcode` 产出 `.agents/skills`（16 技能）且不再产出 `.cowork-flow/skills`；source checkout 的 live replica 由 3 份降为 2 份。
+
 ### 技能声明模型（readRoot + discovery）与防复发门禁
 
 - `host-assets.json` 的平台条目把含混的 `skillTarget` 拆成 `skillReadRoot`（我们读取的仓库内路径）与 `skillDiscovery[]`（宿主原生发现通道，带 `scope` / `gates` / `evidence`）。JSON schema、Python 与 JS 三个校验面同步，缺证据、scope 非法、project 条目与 `skillReadRoot` 不一致、machine 条目缺 `channel`、空 `skillDiscovery` 一律被拒。

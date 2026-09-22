@@ -259,6 +259,30 @@ test('init --platform qoder writes the adapter declaration and no .qoder directo
   assert.equal(await exists(join(target, '.codex')), false);
 });
 
+test('init --platform zcode writes the shared skill root and no legacy replica', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main([
+    'init',
+    target,
+    '--developer',
+    'zcode-user',
+    '--platform',
+    'zcode'
+  ], { io });
+
+  assert.equal(code, 0, io.stderr);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'zcode', 'adapter.yaml')), true);
+  // ZCode enumerates `.agents/skills` (host bundle-verified), so it shares the
+  // project copy instead of the private `.cowork-flow/skills` replica.
+  assert.equal(await exists(join(target, '.agents', 'skills', 'agent-dispatch', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'skills')), false);
+  assert.equal(await exists(join(target, '.zcode')), false);
+  assert.equal(await exists(join(target, '.claude')), false);
+  assert.equal(await exists(join(target, '.codex')), false);
+});
+
 test('init installs dsh-only assets when platform is dsh', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();

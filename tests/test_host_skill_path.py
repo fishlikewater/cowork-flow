@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import shutil
 import sys
@@ -74,12 +75,16 @@ class HostSkillPathTest(unittest.TestCase):
                 self.skill_manifest._skill_path(root, "task-review"),
             )
 
-    def test_zcode_project_renders_the_kernel_replica(self) -> None:
+    def test_zcode_reads_the_shared_agents_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = self._project(temp_dir, dirs=(".cowork-flow/skills",))
+            root = self._project(
+                temp_dir, dirs=(".agents/skills", ".cowork-flow/skills")
+            )
 
+            # `.cowork-flow/skills` is nobody's read root any more: the declared
+            # root wins even while a legacy replica is still on disk.
             self.assertEqual(
-                ".cowork-flow/skills/task-review/SKILL.md",
+                ".agents/skills/task-review/SKILL.md",
                 self.skill_manifest._skill_path(root, "task-review", host="zcode"),
             )
 
@@ -122,6 +127,60 @@ class HostSkillPathTest(unittest.TestCase):
         self.assertEqual(
             ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder"),
             tuple(roots),
+        )
+
+    def test_skill_roots_derive_from_the_manifest_in_platform_order(self) -> None:
+        roots = self.skill_manifest.skill_roots(TEMPLATE)
+
+        # Host replicas come from the manifest in platform order; the source
+        # checkout's own roots follow. `TEMPLATE/skills` doubles as the
+        # module-anchored source template, so it appears once.
+        self.assertEqual(
+            (
+                TEMPLATE / ".agents" / "skills",
+                TEMPLATE / ".claude" / "skills",
+                TEMPLATE / "skills",
+                TEMPLATE / "template" / "skills",
+            ),
+            roots,
+        )
+
+    def test_skill_roots_include_a_newly_declared_read_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._project(temp_dir, dirs=(".fake/skills",))
+            manifest_path = root / MANIFEST
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["platforms"][0]["skillReadRoot"] = ".fake/skills"
+            manifest["platforms"][0]["skillDiscovery"] = [
+                {
+                    "scope": "project",
+                    "path": ".fake/skills",
+                    "evidence": "verified: synthetic declaration for this test",
+                }
+            ]
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+
+            roots = self.skill_manifest.skill_roots(root)
+            # The first platform declared the new root, so it leads the host
+            # replicas: a host read root is picked up without touching this list.
+            self.assertEqual(root / ".fake" / "skills", roots[0])
+            self.assertIn(root / ".agents" / "skills", roots)
+
+    def test_skill_roots_fall_back_when_the_manifest_is_missing(self) -> None:
+        with patch.object(
+            self.skill_manifest, "_skill_read_roots", return_value=()
+        ):
+            roots = self.skill_manifest.skill_roots(TEMPLATE)
+
+        self.assertEqual(
+            (
+                TEMPLATE / ".agents" / "skills",
+                TEMPLATE / ".claude" / "skills",
+                TEMPLATE / ".cowork-flow" / "skills",
+            ),
+            roots[:3],
         )
 
 

@@ -304,16 +304,20 @@
         ".cowork-flow/adapters/zcode"
       ],
       "assetPrefixes": [
-        ".cowork-flow/adapters/zcode/",
-        ".cowork-flow/skills/"
+        ".cowork-flow/adapters/zcode/"
       ],
       "assetFiles": [],
-      "skillReadRoot": ".cowork-flow/skills",
+      "skillReadRoot": ".agents/skills",
       "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".agents/skills",
+          "evidence": "verified: zcode 3.14.3 宿主 bundle（app.asar /out/host/index.js）SkillService.list → 枚举 <workspace>/.zcode/skills 与 <workspace>/.agents/skills（含祖先目录向上探测），bundle 内 .cowork-flow 0 命中；同名技能时 .zcode/skills 优先，我们不交付该目录"
+        },
         {
           "scope": "machine",
           "channel": "plugin:skills",
-          "evidence": "verified: presets/zcode/.zcode-plugin/plugin.json 声明 skills 组件，插件载荷内含 skills/"
+          "evidence": "verified: bundle resolvePluginSkillRoots 读插件 manifest 的 skills 组件（字符串或数组，逐项 resolveInside），未声明时回退 <pluginRoot>/skills；presets/zcode/.zcode-plugin/plugin.json 声明 \"skills\": \"skills\"，实机 ~/.zcode/cli/plugins/installed_plugins.json 记录本插件载荷"
         }
       ],
       "adapterPath": ".cowork-flow/adapters/zcode/adapter.yaml",
@@ -554,7 +558,23 @@
       ".cowork-flow/scripts/adapters/cli/add_session.py",
       ".cowork-flow/workspace/index.md",
       ".cowork-flow/scripts/adapters/cli/change.py",
-      ".cowork-flow/changes/"
+      ".cowork-flow/changes/",
+      ".cowork-flow/skills/adversarial-review",
+      ".cowork-flow/skills/agent-dispatch",
+      ".cowork-flow/skills/batch-execution",
+      ".cowork-flow/skills/brainstorming",
+      ".cowork-flow/skills/cowork-flow",
+      ".cowork-flow/skills/cowork-flow-maintenance",
+      ".cowork-flow/skills/decision-audit",
+      ".cowork-flow/skills/failure-analysis",
+      ".cowork-flow/skills/game-design",
+      ".cowork-flow/skills/party-mode",
+      ".cowork-flow/skills/python-runtime-design",
+      ".cowork-flow/skills/runtime-health",
+      ".cowork-flow/skills/spec-sync",
+      ".cowork-flow/skills/task-planning",
+      ".cowork-flow/skills/task-review",
+      ".cowork-flow/skills/test-first"
     ]
   }
 }

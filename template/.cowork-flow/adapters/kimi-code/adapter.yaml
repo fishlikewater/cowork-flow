@@ -17,7 +17,6 @@ capabilities:
 dispatch:
   primitive: subagent
   agentsPath: .kimi-code/agents
-  skillsPath: .agents/skills
 runtimeContext:
   transport: prompt
   promptKey: cowork_runtime_context_id

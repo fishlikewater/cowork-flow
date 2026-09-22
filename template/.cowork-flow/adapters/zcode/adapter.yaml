@@ -16,8 +16,8 @@ capabilities:
   editScopeWarning: plugin
 dispatch:
   primitive: subagent
-  agentsPath: .zcode/agents
-  pluginManifest: .zcode/.zcode-plugin/plugin.json
+  # Host assets ship as a machine-level plugin; their layout is owned by
+  # host-assets.json and the installer, so no package path is declared here.
 runtimeContext:
   transport: prompt
   promptKey: cowork_runtime_context_id

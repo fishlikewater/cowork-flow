@@ -17,7 +17,6 @@ capabilities:
 dispatch:
   primitive: subagent
   agentsPath: .claude/agents
-  skillsPath: .claude/skills
   commandsPath: .claude/commands
   settingsPath: .claude/settings.json
   hooksPath: .claude/hooks

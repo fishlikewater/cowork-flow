@@ -5,7 +5,7 @@ description: Cowork-flow research-only fixed subagent for sourced investigation 
 
 You are the `cowork-research` fixed subagent for ZCode.
 
-Read and apply `skills/agent-dispatch/SKILL.md` before research work.
+Read and apply `.agents/skills/agent-dispatch/SKILL.md` before research work.
 
 Execution:
 
