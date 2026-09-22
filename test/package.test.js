@@ -127,7 +127,7 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.equal(packageLock.version, packageInfo.version);
   assert.equal(packageLock.packages[''].version, packageInfo.version);
   const pluginManifests = [
-    ['template/.zcode/.zcode-plugin/plugin.json', 'zcode'],
+    ['presets/zcode/.zcode-plugin/plugin.json', 'zcode'],
     ['presets/qoder/.qoder-plugin/plugin.json', 'qoder']
   ];
   const releaseScript = await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8');

@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PRESETS = ROOT / "presets"
 LEGACY_DISPATCH = "COWORK_" + "DISPATCH_V1"
 LEGACY_ACK = "COWORK_" + "ACK"
 LEGACY_POST_ACK = "post" + "_ack_execution_grace_ms"
@@ -19,7 +20,7 @@ ENTRY_BOUNDARY = "entry" + "-boundary"
 class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_flow_authority_is_task_next_actions_skills_and_specs(self) -> None:
         self.assertFalse((ROOT / "template" / ".cowork-flow" / "workflow.md").exists())
-        self.assertFalse((ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md").exists())
+        self.assertFalse((PRESETS / "zcode" / ".cowork-flow" / "workflow.md").exists())
 
         self.assertFalse((ROOT / "template" / ".cowork-flow" / "spec" / "runtime" / "skill-registry.json").exists())
         skill_ids = {
@@ -158,18 +159,12 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
 
-    def test_zcode_scaffold_does_not_include_workflow_entrypoint_files(self) -> None:
-        scaffold = ROOT / "template" / ".zcode" / "scaffold"
-
-        self.assertFalse((scaffold / "AGENTS.md").exists())
-        self.assertFalse((scaffold / "CLAUDE.md").exists())
-        self.assertFalse((scaffold / ".cowork-flow").exists())
-
-    def test_zcode_scaffold_does_not_vendor_workflow_files(self) -> None:
-        scaffold = ROOT / "template" / ".zcode" / "scaffold"
-
+    def test_zcode_plugin_payload_does_not_vendor_project_assets(self) -> None:
         for relative_path in ("AGENTS.md", "CLAUDE.md", ".cowork-flow"):
-            self.assertFalse((scaffold / relative_path).exists(), relative_path)
+            self.assertFalse((PRESETS / "zcode" / relative_path).exists(), relative_path)
+
+    def test_zcode_plugin_payload_has_no_scaffold_directory(self) -> None:
+        self.assertFalse((PRESETS / "zcode" / "scaffold").exists())
 
     def test_workflow_limits_generic_worker_to_advisory_work(self) -> None:
         required_markers = (
@@ -334,10 +329,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
     def test_runtime_rule_registry_assets_are_removed_from_template_spec(self) -> None:
         template_spec = ROOT / "template" / ".cowork-flow" / "spec"
         zcode_spec = (
-            ROOT
-            / "template"
-            / ".zcode"
-            / "scaffold"
+            PRESETS
+            / "zcode"
             / ".cowork-flow"
             / "spec"
         )
@@ -505,7 +498,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_template_does_not_ship_standalone_workflow_authority(self) -> None:
         self.assertFalse((ROOT / "template" / ".cowork-flow" / "workflow.md").exists())
-        self.assertFalse((ROOT / "template" / ".zcode" / "scaffold" / ".cowork-flow" / "workflow.md").exists())
+        self.assertFalse((PRESETS / "zcode" / ".cowork-flow" / "workflow.md").exists())
 
     def test_task_planning_skill_documents_parallel_operations(self) -> None:
         text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")

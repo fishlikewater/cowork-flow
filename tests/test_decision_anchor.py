@@ -71,9 +71,8 @@ class DecisionAnchorSchemaTest(unittest.TestCase):
             SCRIPTS / ".." / ".." / "spec" / "contracts" / "decision-anchor.md",
             ROOT / "template" / ".cowork-flow" / "spec" / "contracts" / "decision-anchor.md",
             ROOT
-            / "template"
-            / ".zcode"
-            / "scaffold"
+            / "presets"
+            / "zcode"
             / ".cowork-flow"
             / "spec"
             / "contracts"

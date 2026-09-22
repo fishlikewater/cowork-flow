@@ -131,7 +131,7 @@ grep -q "^## ${PACKAGE_VERSION} " CHANGELOG.md || {
 GIT_ADD_FILES="package.json package-lock.json $TEMPLATE_VERSION_FILE"
 # Every host plugin manifest shipped in the package carries the release version:
 # an installed payload must agree with the cache directory named after it.
-PLUGIN_MANIFEST_FILES="template/.zcode/.zcode-plugin/plugin.json presets/qoder/.qoder-plugin/plugin.json"
+PLUGIN_MANIFEST_FILES="presets/zcode/.zcode-plugin/plugin.json presets/qoder/.qoder-plugin/plugin.json"
 for PLUGIN_MANIFEST_FILE in $PLUGIN_MANIFEST_FILES; do
   if [ -f "$PLUGIN_MANIFEST_FILE" ]; then
     node -e "const fs=require('fs');const p='$PLUGIN_MANIFEST_FILE';const j=JSON.parse(fs.readFileSync(p));j.version='$PACKAGE_VERSION';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')" || exit $?
