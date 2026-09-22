@@ -134,7 +134,14 @@
         ".cowork-flow/adapters/codex/"
       ],
       "assetFiles": [],
-      "skillTarget": ".agents/skills",
+      "skillReadRoot": ".agents/skills",
+      "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".agents/skills",
+          "evidence": "assumed: Codex 约定 .agents/skills，本机未逐项验证"
+        }
+      ],
       "adapterPath": ".cowork-flow/adapters/codex/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native",
@@ -172,7 +179,14 @@
         ".cowork-flow/adapters/opencode/"
       ],
       "assetFiles": [],
-      "skillTarget": ".agents/skills",
+      "skillReadRoot": ".agents/skills",
+      "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".agents/skills",
+          "evidence": "assumed: OpenCode 约定 .agents/skills，本机未逐项验证"
+        }
+      ],
       "adapterPath": ".cowork-flow/adapters/opencode/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native",
@@ -209,7 +223,14 @@
       "assetFiles": [
         "CLAUDE.md"
       ],
-      "skillTarget": ".claude/skills",
+      "skillReadRoot": ".claude/skills",
+      "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".claude/skills",
+          "evidence": "assumed: Anthropic 文档声明 .claude/skills，本机未逐项验证"
+        }
+      ],
       "adapterPath": ".cowork-flow/adapters/claude-code/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native",
@@ -247,7 +268,14 @@
         ".cowork-flow/adapters/dsh/"
       ],
       "assetFiles": [],
-      "skillTarget": ".agents/skills",
+      "skillReadRoot": ".agents/skills",
+      "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".agents/skills",
+          "evidence": "assumed: DSH 预设挂载 .agents/skills，本机未逐项验证"
+        }
+      ],
       "adapterPath": ".cowork-flow/adapters/dsh/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native",
@@ -280,7 +308,14 @@
         ".cowork-flow/skills/"
       ],
       "assetFiles": [],
-      "skillTarget": ".cowork-flow/skills",
+      "skillReadRoot": ".cowork-flow/skills",
+      "skillDiscovery": [
+        {
+          "scope": "machine",
+          "channel": "plugin:skills",
+          "evidence": "verified: presets/zcode/.zcode-plugin/plugin.json 声明 skills 组件，插件载荷内含 skills/"
+        }
+      ],
       "adapterPath": ".cowork-flow/adapters/zcode/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native",
@@ -313,7 +348,14 @@
         ".cowork-flow/adapters/kimi-code/"
       ],
       "assetFiles": [],
-      "skillTarget": ".agents/skills",
+      "skillReadRoot": ".agents/skills",
+      "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".agents/skills",
+          "evidence": "assumed: Kimi Code 约定 .agents/skills，本机未逐项验证"
+        }
+      ],
       "adapterPath": ".cowork-flow/adapters/kimi-code/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native",
@@ -342,11 +384,21 @@
         ".cowork-flow/adapters/qoder"
       ],
       "assetPrefixes": [
-        ".cowork-flow/adapters/qoder/",
-        ".cowork-flow/skills/"
+        ".cowork-flow/adapters/qoder/"
       ],
       "assetFiles": [],
-      "skillTarget": ".cowork-flow/skills",
+      "skillReadRoot": ".agents/skills",
+      "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".agents/skills",
+          "gates": [
+            "trusted-folder",
+            "restart"
+          ],
+          "evidence": "verified: qoder-agent-sdk SkillCommandHandler.enumerate 第 6 项（loadFromAgentsDirectory 默认 true）；本机 ~/.agents/skills 的 archify/find-skills 在会话中可见"
+        }
+      ],
       "adapterPath": ".cowork-flow/adapters/qoder/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native",

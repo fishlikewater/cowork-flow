@@ -78,7 +78,17 @@ class HostAssetManifestTest(unittest.TestCase):
                 platform.id: {
                     "assetPrefixes": list(platform.asset_prefixes),
                     "assetFiles": list(platform.asset_files),
-                    "skillTarget": platform.skill_target,
+                    "skillReadRoot": platform.skill_read_root,
+                    "skillDiscovery": [
+                        {
+                            "scope": discovery.scope,
+                            "path": discovery.path,
+                            "channel": discovery.channel,
+                            "gates": list(discovery.gates),
+                            "evidence": discovery.evidence,
+                        }
+                        for discovery in platform.skill_discovery
+                    ],
                     "commandTargets": [
                         {
                             "config": target.config,
@@ -150,7 +160,11 @@ class HostAssetManifestTest(unittest.TestCase):
         self.assertEqual(["codex", "demo-host"], extra["platformIds"])
         self.assertEqual("demo-host", extra["aliasOwners"]["demo"])
         self.assertEqual(["AGENTS.md"], extra["assets"]["demo-host"]["assetFiles"])
-        self.assertEqual(".demo-host/skills", extra["assets"]["demo-host"]["skillTarget"])
+        self.assertEqual(".demo-host/skills", extra["assets"]["demo-host"]["skillReadRoot"])
+        self.assertEqual(
+            [{"scope": "project", "path": ".demo-host/skills", "channel": None, "gates": [], "evidence": "test fixture"}],
+            extra["assets"]["demo-host"]["skillDiscovery"],
+        )
         self.assertEqual(
             {
                 "config": ".demo-host/config.json",
@@ -183,19 +197,19 @@ class HostAssetManifestTest(unittest.TestCase):
         self.assertEqual("claude-code", manifest.resolve_alias("claude"))
         self.assertEqual("zcode", manifest.resolve_alias("zcode"))
         self.assertEqual("kimi-code", manifest.resolve_alias("kimi"))
-        self.assertEqual(".agents/skills", manifest.platform("codex").skill_target)
-        self.assertEqual(".agents/skills", manifest.platform("dsh").skill_target)
+        self.assertEqual(".agents/skills", manifest.platform("codex").skill_read_root)
+        self.assertEqual(".agents/skills", manifest.platform("dsh").skill_read_root)
         self.assertEqual(
             ".agents/skills",
-            manifest.platform("kimi-code").skill_target,
+            manifest.platform("kimi-code").skill_read_root,
         )
         self.assertEqual(
             ".cowork-flow/skills",
-            manifest.platform("zcode").skill_target,
+            manifest.platform("zcode").skill_read_root,
         )
         self.assertEqual(
             ".claude/skills",
-            manifest.platform("claude-code").skill_target,
+            manifest.platform("claude-code").skill_read_root,
         )
         self.assertEqual(
             ".cowork-flow/adapters/kimi-code/adapter.yaml",
@@ -206,10 +220,15 @@ class HostAssetManifestTest(unittest.TestCase):
         self.assertEqual((), manifest.platform("kimi-code").command_targets)
         # Qoder ships as a machine-level plugin: it owns no project-level
         # `.qoder/` asset (excluded) and declares no project command target.
-        self.assertEqual(
-            ".cowork-flow/skills",
-            manifest.platform("qoder").skill_target,
-        )
+        # Its project-level skill discovery is `.agents/skills` (SDK-verified),
+        # so reads and native discovery share one copy.
+        qoder = manifest.platform("qoder")
+        self.assertEqual(".agents/skills", qoder.skill_read_root)
+        self.assertEqual(1, len(qoder.skill_discovery))
+        self.assertEqual("project", qoder.skill_discovery[0].scope)
+        self.assertEqual(".agents/skills", qoder.skill_discovery[0].path)
+        self.assertEqual(("trusted-folder", "restart"), qoder.skill_discovery[0].gates)
+        self.assertTrue(qoder.skill_discovery[0].evidence.startswith("verified:"))
         self.assertEqual(
             ".cowork-flow/adapters/qoder/adapter.yaml",
             manifest.platform("qoder").adapter_path,
@@ -382,6 +401,144 @@ class HostAssetManifestTest(unittest.TestCase):
                 "unsupported capability requires fallback: zcode:file_write" in error
                 for error in errors
             ),
+            errors,
+        )
+
+    def test_schema_validator_and_data_declare_the_same_platform_fields(self) -> None:
+        schema = json.loads(
+            (
+                TEMPLATE
+                / ".cowork-flow"
+                / "spec"
+                / "schemas"
+                / "host-assets.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        raw = json.loads(
+            (
+                TEMPLATE
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "host-assets.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        platform_def = schema["$defs"]["platform"]
+        data_keys = set().union(*(set(platform) for platform in raw["platforms"]))
+        for platform in raw["platforms"]:
+            self.assertEqual(data_keys, set(platform), platform["id"])
+        self.assertEqual(set(platform_def["required"]), data_keys)
+        self.assertEqual(set(platform_def["properties"]), data_keys)
+        self.assertEqual(self.host_manifest.PLATFORM_KEYS, data_keys)
+
+        entry_def = schema["$defs"]["skillDiscoveryEntry"]
+        self.assertEqual(
+            self.host_manifest.SKILL_DISCOVERY_KEYS,
+            set(entry_def["properties"]),
+        )
+        self.assertEqual({"scope", "evidence"}, set(entry_def["required"]))
+        self.assertEqual(
+            self.host_manifest.SKILL_DISCOVERY_SCOPES,
+            set(entry_def["properties"]["scope"]["enum"]),
+        )
+
+    def _validate_mutated_manifest(self, mutate) -> list[str]:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "template"
+            shutil.copytree(TEMPLATE, template)
+            manifest_path = (
+                template
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "host-assets.json"
+            )
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            mutate(data)
+            manifest_path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            return self.host_manifest.validate_host_assets(template)
+
+    def _qoder_platform(self, data: dict) -> dict:
+        return next(
+            platform for platform in data["platforms"] if platform["id"] == "qoder"
+        )
+
+    def test_skill_discovery_requires_evidence(self) -> None:
+        def mutate(data: dict) -> None:
+            entry = self._qoder_platform(data)["skillDiscovery"][0]
+            entry["evidence"] = ""
+
+        errors = self._validate_mutated_manifest(mutate)
+
+        self.assertTrue(
+            any("skillDiscovery evidence must be a non-empty string" in error for error in errors),
+            errors,
+        )
+
+    def test_skill_discovery_rejects_unknown_scope(self) -> None:
+        def mutate(data: dict) -> None:
+            self._qoder_platform(data)["skillDiscovery"][0]["scope"] = "global"
+
+        errors = self._validate_mutated_manifest(mutate)
+
+        self.assertTrue(
+            any("skillDiscovery scope must be one of" in error for error in errors),
+            errors,
+        )
+
+    def test_skill_discovery_project_path_must_match_read_root(self) -> None:
+        def mutate(data: dict) -> None:
+            self._qoder_platform(data)["skillDiscovery"][0]["path"] = ".qoder/skills"
+
+        errors = self._validate_mutated_manifest(mutate)
+
+        self.assertTrue(
+            any(
+                "project skillDiscovery path must equal skillReadRoot" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_skill_discovery_machine_entry_requires_channel(self) -> None:
+        def mutate(data: dict) -> None:
+            entry = next(
+                platform
+                for platform in data["platforms"]
+                if platform["id"] == "zcode"
+            )["skillDiscovery"][0]
+            del entry["channel"]
+
+        errors = self._validate_mutated_manifest(mutate)
+
+        self.assertTrue(
+            any("machine skillDiscovery requires channel" in error for error in errors),
+            errors,
+        )
+
+    def test_skill_discovery_must_not_be_empty(self) -> None:
+        def mutate(data: dict) -> None:
+            self._qoder_platform(data)["skillDiscovery"] = []
+
+        errors = self._validate_mutated_manifest(mutate)
+
+        self.assertTrue(
+            any("skillDiscovery must be a non-empty array" in error for error in errors),
+            errors,
+        )
+
+    def test_skill_read_root_is_required(self) -> None:
+        def mutate(data: dict) -> None:
+            del self._qoder_platform(data)["skillReadRoot"]
+
+        errors = self._validate_mutated_manifest(mutate)
+
+        self.assertTrue(
+            any("skillReadRoot must be a non-empty string" in error for error in errors),
             errors,
         )
 

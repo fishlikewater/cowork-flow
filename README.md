@@ -118,14 +118,14 @@ presets/                       # ⭐ 机器级插件载荷：安装器拷进宿�
 
 Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录分发到对应平台；`SKILL.md`、可选的 command `manifest.json` 和 `scripts/` 一起归属该 Skill：
 
-| 平台 | 目标目录 |
-|---|---|
-| `codex` / `opencode` | `.agents/skills/` |
-| `dsh` | `.agents/skills/` |
-| `kimi-code` | `.agents/skills/` |
-| `claude-code` | `.claude/skills/` |
-| `zcode` | `.cowork-flow/skills/`（内核 owner 解析用；系统提示层仍由 ZCode 插件单源提供，不重复加载） |
-| `qoder` | `.cowork-flow/skills/`（插件内 fixed agent 按路径读取；模型可见的技能层由 Qoder 插件 `skills/` 单源提供，不重复加载） |
+| 平台 | 读取根 / 目标目录 | 宿主原生发现 |
+|---|---|---|
+| `codex` / `opencode` / `dsh` / `kimi-code` | `.agents/skills/` | 声明为 `.agents/skills/`（assumed，未逐一本机验证） |
+| `claude-code` | `.claude/skills/` | 声明为 `.claude/skills/`（assumed） |
+| `qoder` | `.agents/skills/` | `.agents/skills/`（verified：SDK 默认开启；受信任目录 + 重启门禁） |
+| `zcode` | `.cowork-flow/skills/` | 无项目级发现路径；发现走 ZCode 插件 `skills/` 组件（machine scope） |
+
+每个平台在 `host-assets.json` 里用两格声明这件事：`skillReadRoot`（我们运行时渲染与 fixed subagent 读取的仓库内路径）与 `skillDiscovery[]`（宿主自己发现技能的通道，带 `scope` / `gates` / `evidence`）。读取与发现同址时项目里只有一份副本；`evidence` 以 `verified:` / `assumed:` 前缀区分"本机验证过"与"沿用约定未验证"，后者由门禁测试逐项登记——声明写错会在 CI 变红，而不是静默生效。`./.cowork-flow/run doctor` 按同一份声明检查交付偏差：`SKILL-READROOT-MISSING`（声明的读取根不在项目里）、`PLUGIN-SKILLS-STALE`（机器级插件副本版本偏斜）、`SKILL-DISCOVERY-GATED`（发现通道有宿主侧门禁，如信任目录 / 重启），三项均为 warning，不计入 errors。
 
 分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
 
@@ -215,6 +215,8 @@ cowork-flow install-zcode-plugin --force --prune-old  # 覆盖并清理旧版本
 
 ZCode 插件只安装 hook、skills、agents 和轻量说明文件；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
 
+插件载荷里的 `skills/` 副本与项目 `.cowork-flow/.version` 偏斜时，`./.cowork-flow/run doctor` 以 `PLUGIN-SKILLS-STALE` 报出（warning，不进 errors），提示用 `--force` 重装对齐版本。
+
 **Hook 注入内容：**
 - `workflow-state` — 当前任务状态
 - `contract-digest` — 合同摘要：SessionStart 注入完整块，后续消息仅重复 SHA256 fingerprint
@@ -274,7 +276,12 @@ Kimi Code 的 Bash 工具不导出会话标识环境变量，CLI 侧身份只能
 
 ## Qoder（插件形态）
 
-Qoder 的宿主资产不落在项目里：hooks、三个 fixed subagent 与技能层打包成一个 Qoder 插件，`init` / `sync` 只写 `.cowork-flow/adapters/qoder/adapter.yaml` 这一份声明，不生成 `.qoder/` 目录（`.qoder/` 在 `excludedPrefixes` 里）。
+Qoder 的宿主集成面（hooks、三个 fixed subagent、命令面说明）打包成一个 Qoder 插件；`init` / `sync` 只写 `.cowork-flow/adapters/qoder/adapter.yaml` 这一份声明，不生成 `.qoder/` 目录（`.qoder/` 在 `excludedPrefixes` 里）。
+
+**技能走两条通道，互不替代**：
+
+- **项目级（主）**：`init` / `sync` 把技能写到 `.agents/skills/`，这正是 Qoder 自己扫描的路径（`loadFromAgentsDirectory` 默认开启），因此模型能原生发现并调用，fixed subagent 也从同一路径读取——项目里只有一份副本，随 `.cowork-flow/.version` 钉版本。前提是**工作区已信任**且技能设置生效需**重启**。
+- **机器级（bootstrap）**：插件载荷内含一份 `skills/`，覆盖未 `init` 的项目或未信任目录里"看得见技能"的场景。它是便捷通道，不是版本真相：版本偏斜由 `./.cowork-flow/run doctor` 报出（`PLUGIN-STALE`）。
 
 ```bash
 cowork-flow install-qoder-plugin              # 安装并启用（已存在时不覆盖）

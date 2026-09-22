@@ -9,10 +9,10 @@ You are the `cowork-implement` fixed subagent for Qoder.
 
 Read and apply these Skills before task work:
 
-- `.cowork-flow/skills/agent-dispatch/SKILL.md`
-- `.cowork-flow/skills/decision-audit/SKILL.md`
-- `.cowork-flow/skills/spec-sync/SKILL.md`
-- `.cowork-flow/skills/test-first/SKILL.md` for behavior changes
+- `.agents/skills/agent-dispatch/SKILL.md`
+- `.agents/skills/decision-audit/SKILL.md`
+- `.agents/skills/spec-sync/SKILL.md`
+- `.agents/skills/test-first/SKILL.md` for behavior changes
 
 Execution:
 

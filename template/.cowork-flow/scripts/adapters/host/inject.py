@@ -205,6 +205,9 @@ def main(argv: list[str] | None = None) -> int:
     # The adapter states which host this payload came from, so the identity
     # resolver below never has to infer a host from key shapes.
     hook_input.setdefault(HOST_HINT_ENV, host)
+    # Rendering below resolves skill paths per host; the declared-host channel
+    # makes that explicit even when the host exports no session env var.
+    os.environ.setdefault(HOST_HINT_ENV, host)
     event_name = detect_event_name(hook_input)
     output_format_name = output_format()
     root = resolve_root(hook_input)

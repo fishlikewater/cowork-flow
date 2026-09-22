@@ -374,6 +374,199 @@ class QoderPluginCheckTest(unittest.TestCase):
             self.assertNotIn("qoder-plugin", str(error))
 
 
+class SkillDeliveryCheckTest(unittest.TestCase):
+    """Skill delivery diagnostics: a declared read root that is not on disk, a
+    machine-level plugin copy from another release, and discovery channels that
+    stay gated. All three are advisory, so none may fail doctor."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.qoder_home = self.root / "qoder-home"
+        self.zcode_home = self.root / "zcode-home"
+        patcher = mock.patch.dict(
+            "os.environ",
+            {
+                "QODER_CONFIG_DIR": str(self.qoder_home),
+                "ZCODE_HOME": str(self.zcode_home),
+            },
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _project(self, platform: str | None, version: str = "1.6.0") -> Path:
+        root = self.root / f"project-{platform or 'bare'}"
+        manifest = root / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+        manifest.parent.mkdir(parents=True)
+        shutil.copy2(
+            TEMPLATE / ".cowork-flow" / "spec" / "runtime" / "host-assets.json", manifest
+        )
+        (root / ".cowork-flow" / ".version").write_text(version + "\n", encoding="utf-8")
+        if platform is not None:
+            adapter = root / ".cowork-flow" / "adapters" / platform
+            adapter.mkdir(parents=True)
+            (adapter / "adapter.yaml").write_text(
+                f"schemaVersion: 1\nhost: {platform}\n", encoding="utf-8"
+            )
+        return root
+
+    def _install_qoder_plugin(self, version: str) -> None:
+        payload = (
+            self.qoder_home / "plugins" / "cache" / "cowork-flow-local"
+            / "cowork-flow" / version
+        )
+        (payload / ".qoder-plugin").mkdir(parents=True)
+        (payload / ".qoder-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "cowork-flow", "version": version}), encoding="utf-8"
+        )
+        (payload / "hooks").mkdir()
+        for relative in ("hooks/hooks.json", "hooks/inject-context.py"):
+            (payload / relative).write_text("{}", encoding="utf-8")
+        (payload / "skills").mkdir()
+        registry = self.qoder_home / "plugins" / "installed_plugins_v2.json"
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "plugins": {
+                        "cowork-flow@cowork-flow-local": [
+                            {"scope": "user", "installPath": str(payload), "version": version}
+                        ]
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (self.qoder_home / "settings.json").write_text(
+            json.dumps({"enabledPlugins": {"cowork-flow@cowork-flow-local": True}}),
+            encoding="utf-8",
+        )
+
+    def _install_zcode_plugin(self, version: str, *, skills: bool = True) -> None:
+        payload = (
+            self.zcode_home / "cli" / "plugins" / "cache" / "cowork-flow-local"
+            / "cowork-flow" / version
+        )
+        payload.mkdir(parents=True)
+        if skills:
+            (payload / "skills").mkdir()
+        marketplace = (
+            self.zcode_home / "cli" / "plugins" / "marketplaces" / "cowork-flow-local"
+            / "marketplace.json"
+        )
+        marketplace.parent.mkdir(parents=True)
+        marketplace.write_text(
+            json.dumps(
+                {
+                    "name": "cowork-flow-local",
+                    "plugins": [
+                        {
+                            "name": "cowork-flow",
+                            "version": version,
+                            "source": {"source": "directory", "path": str(payload)},
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_project_without_a_selected_host_is_silent(self) -> None:
+        self.assertEqual([], self.doctor.check_skill_delivery(self._project(None)))
+
+    def test_missing_read_root_is_reported_with_the_sync_hint(self) -> None:
+        issues = self.doctor.check_skill_delivery(self._project("qoder"))
+        self.assertEqual(["SKILL-READROOT-MISSING"], [issue["code"] for issue in issues])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertEqual(".agents/skills", issues[0]["path"])
+        self.assertEqual("cowork-flow sync", issues[0]["commandHint"])
+
+    def test_delivered_skills_report_the_gated_discovery_reminder(self) -> None:
+        project = self._project("qoder")
+        (project / ".agents" / "skills").mkdir(parents=True)
+        issues = self.doctor.check_skill_delivery(project)
+        self.assertEqual(["SKILL-DISCOVERY-GATED"], [issue["code"] for issue in issues])
+        self.assertIn("trusted-folder", issues[0]["message"])
+        self.assertIn("restart", issues[0]["message"])
+        # Nothing to run: doctor cannot read host trust state, so this is a
+        # reminder about a host-side gate rather than a defect to repair.
+        self.assertEqual("", issues[0]["commandHint"])
+
+    def test_plugin_skills_from_another_release_reports_stale(self) -> None:
+        project = self._project("zcode")
+        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        self._install_zcode_plugin("1.5.0")
+        issues = self.doctor.check_skill_delivery(project)
+        self.assertEqual(["PLUGIN-SKILLS-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("1.5.0", issues[0]["message"])
+        self.assertIn("1.6.0", issues[0]["message"])
+        self.assertEqual("cowork-flow install-zcode-plugin --force", issues[0]["commandHint"])
+
+    def test_plugin_skills_at_the_project_version_is_silent(self) -> None:
+        project = self._project("zcode")
+        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        self._install_zcode_plugin("1.6.0")
+        self.assertEqual([], self.doctor.check_skill_delivery(project))
+
+    def test_plugin_without_a_skills_copy_is_silent(self) -> None:
+        project = self._project("zcode")
+        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        self._install_zcode_plugin("1.5.0", skills=False)
+        self.assertEqual([], self.doctor.check_skill_delivery(project))
+
+    def test_qoder_plugin_skew_stays_with_the_host_plugin_check(self) -> None:
+        project = self._project("qoder")
+        (project / ".agents" / "skills").mkdir(parents=True)
+        self._install_qoder_plugin("1.5.0")
+        self.assertEqual(
+            ["PLUGIN-STALE"],
+            [issue["code"] for issue in self.doctor.check_qoder_plugin(project)],
+        )
+        self.assertEqual(
+            ["SKILL-DISCOVERY-GATED"],
+            [issue["code"] for issue in self.doctor.check_skill_delivery(project)],
+        )
+
+    def test_skill_delivery_warnings_never_enter_doctor_errors(self) -> None:
+        project = self._project("zcode")
+        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        self._install_zcode_plugin("1.5.0")
+        result = self.doctor._all_check_result(project)
+        self.assertEqual(
+            ["PLUGIN-SKILLS-STALE"],
+            [issue["code"] for issue in result["issues"]["skillDelivery"]],
+        )
+        self.assertEqual(
+            ["warning"], [issue["severity"] for issue in result["issues"]["skillDelivery"]]
+        )
+        for error in result["errors"]:
+            self.assertNotIn("skill-delivery", str(error))
+
+    def test_text_output_prints_the_skill_delivery_section(self) -> None:
+        project = self._project("zcode")
+        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        self._install_zcode_plugin("1.5.0")
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
+            self.doctor._run_checks(project)
+        lines = stdout.getvalue().splitlines()
+        self.assertEqual(
+            [
+                "Skill delivery (PLUGIN-SKILLS-STALE): the zcode plugin ships a "
+                "skills copy from 1.5.0 but this project runs 1.6.0; a session "
+                "that loads the plugin copy reads skill text from another release",
+                "  fix: cowork-flow install-zcode-plugin --force",
+            ],
+            [line for line in lines if "Skill delivery" in line or "fix: cowork-flow install-zcode" in line],
+        )
+
+
 class RuntimeHealthTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

@@ -119,13 +119,13 @@ async function appendSkillFileActions(actions, {
   }
 }
 
-async function appendSkillTargetActions(actions, {
+async function appendSkillReadRootActions(actions, {
   targetDir,
-  skillTargets,
+  skillReadRoots,
   seen,
   sync = false
 }) {
-  const normalizedTargets = [...new Set(skillTargets.map(toTemplatePath))].sort();
+  const normalizedTargets = [...new Set(skillReadRoots.map(toTemplatePath))].sort();
   for (const skill of await listSkillDirs()) {
     const skillFiles = await listSkillFiles(skill);
     for (const destBase of normalizedTargets) {
@@ -177,7 +177,7 @@ function isSourceRefreshObsoleteFile(relativePath) {
     return false;
   }
   return normalized.startsWith('.cowork-flow/')
-    || hostRegistry.skillTargets.some((target) => normalized.startsWith(`${target}/`));
+    || hostRegistry.skillReadRoots.some((target) => normalized.startsWith(`${target}/`));
 }
 
 export async function buildInitPlan(targetDir, options = {}) {
@@ -319,9 +319,9 @@ export async function buildSourceCheckoutRefreshPlan(targetDir, options = {}) {
     }));
   }
 
-  await appendSkillTargetActions(actions, {
+  await appendSkillReadRootActions(actions, {
     targetDir,
-    skillTargets: options.skillTargets ?? hostRegistry.skillTargets,
+    skillReadRoots: options.skillReadRoots ?? hostRegistry.skillReadRoots,
     seen,
     sync: true
   });
@@ -451,8 +451,8 @@ function hostAssetOwners(relativePath) {
   const normalized = normalizeReportPath(relativePath);
   const owners = new Set(hostRegistry.assetOwners(normalized));
   for (const platform of hostRegistry.platforms) {
-    const skillTarget = platform.skillTarget ? normalizeReportPath(platform.skillTarget) : null;
-    if (skillTarget && normalized.startsWith(`${skillTarget}/`)) {
+    const skillReadRoot = platform.skillReadRoot ? normalizeReportPath(platform.skillReadRoot) : null;
+    if (skillReadRoot && normalized.startsWith(`${skillReadRoot}/`)) {
       owners.add(platform.id);
     }
   }

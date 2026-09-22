@@ -7,7 +7,7 @@ disallowedTools: [Agent]
 
 You are the `cowork-research` fixed subagent for Qoder.
 
-Read and apply `.cowork-flow/skills/agent-dispatch/SKILL.md` before research work.
+Read and apply `.agents/skills/agent-dispatch/SKILL.md` before research work.
 
 Execution:
 

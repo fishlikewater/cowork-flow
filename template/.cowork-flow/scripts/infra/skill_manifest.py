@@ -413,6 +413,7 @@ def context_entries(
     dev_type: str | None = None,
     paths: tuple[str, ...] = (),
     include_wildcard: bool = True,
+    host: str | None = None,
 ) -> list[dict[str, str]]:
     normalized_dev_type = (
         dev_type if isinstance(dev_type, str) else ""
@@ -436,7 +437,7 @@ def context_entries(
                 )
             ):
                 continue
-            skill_file = _skill_path(repo_root, manifest.skill)
+            skill_file = _skill_path(repo_root, manifest.skill, host=host)
             if skill_file in seen:
                 continue
             seen.add(skill_file)
@@ -463,18 +464,68 @@ def skill_command_scripts(
     return commands
 
 
-def _skill_path(repo_root: Path, skill: str) -> str:
+def _skill_path(repo_root: Path, skill: str, *, host: str | None = None) -> str:
+    """Render the skill file path under the host's declared read root.
+
+    Roots come from the host asset manifest (`skillReadRoot` per platform), so a
+    host reads from the same place it discovers skills. The active host is
+    resolved by the caller (services layer owns host identity).
+    """
+    root = _skill_read_root(repo_root, host=host)
+    return f"{root}/{skill}/SKILL.md"
+
+
+def _skill_read_root(repo_root: Path, *, host: str | None = None) -> str:
+    """The read root this project should render: host's own, else first present."""
     root = Path(repo_root)
-    if (root / ".claude").is_dir() and not (root / ".agents").is_dir():
-        candidate = f".claude/skills/{skill}/SKILL.md"
-    else:
-        candidate = f".agents/skills/{skill}/SKILL.md"
-    if (root / candidate).is_file():
-        return candidate
-    runtime_copy = root / ".cowork-flow" / "skills" / skill / "SKILL.md"
-    if runtime_copy.is_file():
-        return runtime_copy.relative_to(root).as_posix()
-    return candidate
+    roots = _skill_read_roots(root)
+    if not roots:
+        return ".cowork-flow/skills"
+    if host:
+        declared = next((value for key, value in roots if key == host), None)
+        if declared:
+            return declared
+    for _, value in roots:
+        if (root / value).is_dir():
+            return value
+    return roots[0][1]
+
+
+def _skill_read_roots(repo_root: Path) -> tuple[tuple[str, str], ...]:
+    """(platform_id, skillReadRoot) pairs in manifest order, or () if absent."""
+    root = Path(repo_root)
+    candidates = (
+        root / ".cowork-flow" / "spec" / "runtime" / "host-assets.json",
+        Path(__file__).resolve().parents[3]
+        / ".cowork-flow"
+        / "spec"
+        / "runtime"
+        / "host-assets.json",
+    )
+    for path in candidates:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        platforms = data.get("platforms") if isinstance(data, dict) else None
+        if not isinstance(platforms, list):
+            continue
+        roots: list[tuple[str, str]] = []
+        for platform in platforms:
+            if not isinstance(platform, dict):
+                continue
+            platform_id = platform.get("id")
+            read_root = platform.get("skillReadRoot")
+            if (
+                isinstance(platform_id, str)
+                and platform_id
+                and isinstance(read_root, str)
+                and read_root
+            ):
+                roots.append((platform_id, read_root.replace("\\", "/")))
+        if roots:
+            return tuple(roots)
+    return ()
 
 
 def action_metadata(repo_root: Path, action_id: str) -> SkillAction | None:

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from infra.quality_sources import quality_source_entries
@@ -13,6 +14,12 @@ from infra.paths import (
     DIR_WORKFLOW,
     get_repo_root,
 )
+from runtime.host_identity import declared_host, detect_host
+
+
+def active_host() -> str | None:
+    """The host this process runs under, from the declared channel or session env."""
+    return declared_host(os.environ) or detect_host(os.environ)
 
 
 def get_implement_base(repo_root: Path | None = None) -> list[dict]:
@@ -34,7 +41,7 @@ def get_implement_base(repo_root: Path | None = None) -> list[dict]:
             "reason": "Mandatory pre-coding checklist",
         },
     ]
-    entries.extend(context_entries(root, context="implement"))
+    entries.extend(context_entries(root, context="implement", host=active_host()))
     return entries
 
 
@@ -85,6 +92,7 @@ def get_domain_skill_context(
         dev_type=dev_type,
         paths=paths,
         include_wildcard=False,
+        host=active_host(),
     )
 
 
@@ -138,7 +146,9 @@ def discover_spec_files(repo_root: Path, dev_type: str) -> list[str]:
 
 
 def get_check_context(repo_root: Path, dev_type: str) -> list[dict]:
-    entries = context_entries(repo_root, context="check", dev_type=dev_type)
+    entries = context_entries(
+        repo_root, context="check", dev_type=dev_type, host=active_host()
+    )
     entries.sort(key=lambda entry: entry["file"])
     if dev_type == "spec":
         entries.extend(
@@ -157,4 +167,6 @@ def get_debug_context(
     repo_root: Path | None = None,
 ) -> list[dict]:
     root = Path(repo_root) if repo_root is not None else get_repo_root()
-    return context_entries(root, context="debug", dev_type=dev_type)
+    return context_entries(
+        root, context="debug", dev_type=dev_type, host=active_host()
+    )

@@ -123,10 +123,11 @@ test('qoder fixed agents bind tools, block nested dispatch, and skip mode claims
     assert.doesNotMatch(text, /^permissionMode:/m);
     assert.doesNotMatch(text, /^model:/m);
 
-    for (const [, skillName] of text.matchAll(/\.cowork-flow\/skills\/([^/]+)\/SKILL\.md/g)) {
+    for (const [, skillName] of text.matchAll(/\.agents\/skills\/([^/]+)\/SKILL\.md/g)) {
       await readFile(join(templateRoot, 'skills', skillName, 'SKILL.md'), 'utf8');
     }
-    assert.match(text, /\.cowork-flow\/skills\/agent-dispatch\/SKILL\.md/);
+    assert.match(text, /\.agents\/skills\/agent-dispatch\/SKILL\.md/);
+    assert.doesNotMatch(text, /\.cowork-flow\/skills/);
   }
 });
 

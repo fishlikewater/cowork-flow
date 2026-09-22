@@ -25,6 +25,7 @@ _add_runtime_scripts_path()
 
 from adapters.host.host_manifest import (
     HostManifestError,
+    HostPlatform,
     detect_installed_platforms,
     load_host_manifest,
     validate_host_assets,
@@ -191,16 +192,16 @@ def check_distribution(repo_root: Path) -> list[str]:
         installed_platforms = detect_installed_platforms(repo_root)
     except HostManifestError:
         installed_platforms = ()
-    skill_targets = {
-        host_manifest.platform(platform_id).skill_target
+    skill_roots = {
+        host_manifest.platform(platform_id).skill_read_root
         for platform_id in installed_platforms
-        if host_manifest.platform(platform_id).skill_target
+        if host_manifest.platform(platform_id).skill_read_root
     }
     skill_root = template / "skills"
     for source in _distribution_files(skill_root):
         relative = source.relative_to(skill_root)
-        for skill_target in sorted(skill_targets):
-            _same_file(source, repo_root / skill_target / relative, errors)
+        for skill_root_target in sorted(skill_roots):
+            _same_file(source, repo_root / skill_root_target / relative, errors)
     return errors
 
 
@@ -1009,6 +1010,155 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
     return []
 
 
+_SKILL_DELIVERY_CONTRACT = "runtime-health:skill-delivery"
+_PLUGIN_SKILLS_CHANNEL = "plugin:skills"
+# The Qoder plugin check already compares the machine plugin version with the
+# project and prints the same fix, so the skills channel stays quiet there.
+_PLUGIN_SKILLS_OWNED_BY_HOST_CHECK = frozenset({"qoder"})
+
+
+def _skill_delivery_warning(
+    code: str, path: str | Path, message: str, hint: str = ""
+) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_SKILL_DELIVERY_CONTRACT,
+        )
+    ]
+
+
+def _machine_plugin_payload(platform_id: str) -> Path | None:
+    """Payload root of a host's machine-level plugin, or None when that host
+    keeps no readable install. Mirrors where the install commands write."""
+    if platform_id == "qoder":
+        entry = _qoder_registry_entry(
+            _qoder_home() / "plugins" / "installed_plugins_v2.json"
+        )
+        payload = Path(str(entry.get("installPath") or "")) if entry else None
+        return payload if payload is not None and payload.is_dir() else None
+    if platform_id == "zcode":
+        home = Path(os.environ.get("ZCODE_HOME") or (Path.home() / ".zcode"))
+        marketplace = (
+            home
+            / "cli"
+            / "plugins"
+            / "marketplaces"
+            / "cowork-flow-local"
+            / "marketplace.json"
+        )
+        try:
+            data = json.loads(marketplace.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, ValueError):
+            return None
+        plugins = data.get("plugins") if isinstance(data, dict) else None
+        for plugin in plugins if isinstance(plugins, list) else ():
+            source = plugin.get("source") if isinstance(plugin, dict) else None
+            path = source.get("path") if isinstance(source, dict) else None
+            payload = Path(str(path)) if path else None
+            if payload is not None and payload.is_dir():
+                return payload
+        return None
+    return None
+
+
+def _machine_skills_issues(
+    platform_id: str, platform: HostPlatform, project_version: str
+) -> list[dict[str, str]]:
+    """Warnings for a host that discovers skills inside its machine-level
+    plugin: the gates that hide it, and a copy from another release."""
+    payload = _machine_plugin_payload(platform_id)
+    if payload is None:
+        return []
+    issues: list[dict[str, str]] = []
+    for entry in platform.skill_discovery:
+        if entry.scope != "machine":
+            continue
+        if entry.gates:
+            issues.extend(
+                _skill_delivery_warning(
+                    "SKILL-DISCOVERY-GATED",
+                    payload,
+                    f"{platform_id} discovers {entry.channel} only behind "
+                    f"{' + '.join(entry.gates)}; until then the skills it ships "
+                    "stay invisible to the host",
+                )
+            )
+        if (
+            entry.channel != _PLUGIN_SKILLS_CHANNEL
+            or platform_id in _PLUGIN_SKILLS_OWNED_BY_HOST_CHECK
+        ):
+            continue
+        skills = payload / "skills"
+        if not skills.is_dir() or not project_version or payload.name == project_version:
+            continue
+        issues.extend(
+            _skill_delivery_warning(
+                "PLUGIN-SKILLS-STALE",
+                skills,
+                f"the {platform_id} plugin ships a skills copy from "
+                f"{payload.name} but this project runs {project_version}; a "
+                "session that loads the plugin copy reads skill text from "
+                "another release",
+                f"cowork-flow install-{platform_id}-plugin --force",
+            )
+        )
+    return issues
+
+
+def check_skill_delivery(repo_root: Path) -> list[dict[str, str]]:
+    """Skill delivery diagnostics for the hosts this project selected: whether
+    each declared read root is on disk, whether a machine-level plugin copy
+    still matches the project release, and whether a declared discovery channel
+    sits behind host-side gates. Advisory only: doctor cannot read host trust
+    state, and a lagging copy is not a broken project."""
+    root = _distribution_root(repo_root)
+    try:
+        manifest = load_host_manifest(root)
+    except HostManifestError:
+        return []  # host adapter checks already report an unreadable manifest
+    try:
+        platforms = detect_installed_platforms(repo_root)
+    except HostManifestError:
+        return []
+    project_version = _project_version(repo_root)
+    issues: list[dict[str, str]] = []
+    for platform_id in platforms:
+        platform = manifest.platform(platform_id)
+        read_root = repo_root / platform.skill_read_root
+        delivered = read_root.is_dir()
+        if not delivered:
+            issues.extend(
+                _skill_delivery_warning(
+                    "SKILL-READROOT-MISSING",
+                    platform.skill_read_root,
+                    f"{platform_id} reads skills from {platform.skill_read_root}, "
+                    "but this project has no such directory, so sessions see no "
+                    "cowork-flow skills",
+                    "cowork-flow sync",
+                )
+            )
+        for entry in platform.skill_discovery:
+            # A reminder, not a verdict: host trust state is unreadable from
+            # here, and a missing read root is already reported above.
+            if entry.scope == "project" and entry.gates and delivered:
+                issues.extend(
+                    _skill_delivery_warning(
+                        "SKILL-DISCOVERY-GATED",
+                        platform.skill_read_root,
+                        f"{platform_id} discovers {entry.path} only behind "
+                        f"{' + '.join(entry.gates)}; until then the skills on "
+                        "disk stay invisible to the host",
+                    )
+                )
+        issues.extend(_machine_skills_issues(platform_id, platform, project_version))
+    return issues
+
+
 def _all_check_result(repo_root: Path) -> dict[str, object]:
     host_issues = _host_issues(repo_root)
     runtime_errors = check_runtime(repo_root)
@@ -1021,6 +1171,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     dsh_preset_issues = check_dsh_preset(repo_root)
     kimi_hook_issues = check_kimi_hook(repo_root)
     qoder_plugin_issues = check_qoder_plugin(repo_root)
+    skill_delivery_issues = check_skill_delivery(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
         errors.append({"kind": "host_adapter", **issue})
@@ -1046,6 +1197,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "dshPreset": dsh_preset_issues,
             "kimiHook": kimi_hook_issues,
             "qoderPlugin": qoder_plugin_issues,
+            "skillDelivery": skill_delivery_issues,
         },
     }
 
@@ -1071,6 +1223,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["qoderPlugin"]:
         print(f"Qoder plugin ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["skillDelivery"]:
+        print(f"Skill delivery ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     if errors:

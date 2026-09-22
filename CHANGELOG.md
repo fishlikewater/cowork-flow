@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 技能声明模型（readRoot + discovery）与防复发门禁
+
+- `host-assets.json` 的平台条目把含混的 `skillTarget` 拆成 `skillReadRoot`（我们读取的仓库内路径）与 `skillDiscovery[]`（宿主原生发现通道，带 `scope` / `gates` / `evidence`）。JSON schema、Python 与 JS 三个校验面同步，缺证据、scope 非法、project 条目与 `skillReadRoot` 不一致、machine 条目缺 `channel`、空 `skillDiscovery` 一律被拒。
+- **qoder 修正**：`skillReadRoot` 从 `.cowork-flow/skills` 改为 `.agents/skills`——后者才是 Qoder 自己扫描的路径（`SkillCommandHandler.enumerate` 第 6 项，`loadFromAgentsDirectory` 默认 `true`；本机 `~/.agents/skills` 的技能在会话中可见可证）。因此读取与发现同址、项目里只有一份副本，三个 fixed subagent 的技能路径同步改址。旧值在宿主 SDK 里 0 命中，属于"声明看起来已交付、宿主侧零发现"。
+- `_skill_path` 不再用 `.claude/skills` → `.agents/skills` → `.cowork-flow/skills` 的硬编码启发式：改由 manifest 驱动，先取活动宿主（`COWORK_FLOW_HOST` 或宿主 session env）的 `skillReadRoot`，否则取 manifest 顺序中首个真实存在的根。`inject.py` 渲染前把 `--host` 写进 `COWORK_FLOW_HOST`。
+- 文档订正：README 技能分发表改为"读取根 / 宿主原生发现"两列并说明 `verified:` / `assumed:` 证据约定；Qoder 小节改为**双通道**（项目级 `.agents/skills` 为主、插件 `skills/` 为 bootstrap），删除"插件是模型可见技能层唯一来源"的表述。
+- 防复发：`tests/test_host_skills_gate.py` 断言每个宿主 fixed subagent 正文的技能路径必须落在该宿主 `skillReadRoot` 下，并逐项登记 `assumed:` 声明；`tests/test_host_asset_manifest.py` 新增 schema/校验器/数据三面键集一致断言与六个坏声明用例。
+- doctor 新增 `check_skill_delivery`（warning 级，不进 errors）：`SKILL-READROOT-MISSING`（选中平台声明的读取根不在项目里）、`PLUGIN-SKILLS-STALE`（机器级插件载荷的 `skills/` 副本版本与项目 `.cowork-flow/.version` 偏斜；有专属插件检查的宿主如 qoder 由 `PLUGIN-STALE` 承担，不重复报）、`SKILL-DISCOVERY-GATED`（发现通道带宿主侧门禁，如 qoder 的信任目录 / 重启提醒）。
+
 ### 宿主插件载荷落点统一（zcode 迁出模板树）
 
 - `template/.zcode/` → `presets/zcode/`：机器级插件载荷统一落在 `presets/<host>/`（dsh、kimi-code hook、qoder 已在此），`template/` 只保留会落盘到生成项目的资产。`template/.zcode/` 本就进 `excludedPrefixes`、不进任何生成项目，搬移后 `package.json` 的 `files` 少一条冗余项，release 脚本的两份清单同址。

@@ -9,10 +9,10 @@ You are the `cowork-check` fixed subagent for Qoder.
 
 Read and apply these Skills before review work:
 
-- `.cowork-flow/skills/agent-dispatch/SKILL.md`
-- `.cowork-flow/skills/task-review/SKILL.md`
-- `.cowork-flow/skills/decision-audit/SKILL.md`
-- `.cowork-flow/skills/spec-sync/SKILL.md`
+- `.agents/skills/agent-dispatch/SKILL.md`
+- `.agents/skills/task-review/SKILL.md`
+- `.agents/skills/decision-audit/SKILL.md`
+- `.agents/skills/spec-sync/SKILL.md`
 
 Execution:
 
