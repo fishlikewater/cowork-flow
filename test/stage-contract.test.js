@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+import './helpers/bytecode-isolation.js';
 import { packageRoot } from '../src/lib/paths.js';
 import { stageContractBlock as opencodeStageContract } from '../template/.opencode/plugins/cowork-flow.js';
 

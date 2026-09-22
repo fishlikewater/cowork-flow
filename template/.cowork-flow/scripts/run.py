@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -83,10 +84,17 @@ def resolve_project_python_script(command: str) -> Path | None:
     return script_path if script_path.is_file() else None
 
 
-def run_python(args: list[str], *, pythonpath: Path | None = None) -> int:
-    env = None
+def run_python(
+    args: list[str],
+    *,
+    pythonpath: Path | None = None,
+    cache_bytecode: bool = True,
+) -> int:
+    env = os.environ.copy()
     if pythonpath is not None:
-        env = runtime_pythonpath_env(pythonpath)
+        env = runtime_pythonpath_env(pythonpath, cache_bytecode=cache_bytecode)
+    elif not cache_bytecode:
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
     completed = subprocess.run([sys.executable, *args], check=False, env=env)
     return int(completed.returncode)
 
@@ -100,7 +108,9 @@ def run_script(script_name: str, args: list[str]) -> int:
 
 
 def run_skill_script(script_path: Path, args: list[str]) -> int:
-    return run_python([str(script_path), *args], pythonpath=scripts_dir())
+    return run_python(
+        [str(script_path), *args], pythonpath=scripts_dir(), cache_bytecode=False
+    )
 
 
 def reject_context_flags_for(command_label: str) -> int:

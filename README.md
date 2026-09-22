@@ -104,6 +104,20 @@ presets/                       # ⭐ 机器级插件载荷：安装器拷进宿�
 └── dsh/                       # DSH agent 预设
 ```
 
+仓库自身的目录（不参与分发）：
+
+```
+src/                           # 分发层（Node CLI）：commands/ 子命令 + lib/ 计划与模板拷贝
+scripts/                       # 构建与发布：pack-check、release、模板测试运行器
+test/                          # Node 测试（node --test 收集本目录所有 .js），*.test.js 为主
+tests/                         # Python 测试（pytest / unittest），test_*.py + fixtures/
+.agents/ .claude/ .codex/ .cowork-flow/   # 源 checkout 的活实例（gitignored，由 npm run source:refresh 维护）
+```
+
+测试按语言分目录：`test/` 归 Node，`tests/` 归 Python。`node --test` 会收集 `test/` 下**所有** `.js`（不限 `*.test.js`，`test/helpers/` 里的辅助模块同样会被加载）；Python 侧按各自默认模式收集——pytest 收 `test_*.py` / `*_test.py`，unittest `discover` 收 `test*.py`。放在这些目录里的辅助文件必须保持无副作用。
+
+字节码隔离：`tests/__init__.py`（pytest 与 unittest 都会先导入的包）把 Python 字节码前缀指到 gitignored 的 `.tmp/pycache`——本进程设 `sys.pycache_prefix`，并通过 `PYTHONPYCACHEPREFIX` 传给子进程；Node 测试由 `test/helpers/bytecode-isolation.js` 做同一件事。技能脚本的子进程走另一条规则：`runtime_pythonpath_env(cache_bytecode=False)` 关掉字节码写入，`run.py` 与批处理入口（`batch_mode.py`）共用这一条——技能脚本低频、缓存收益可忽略，而它留下的 `__pycache__` 会落在脚本解析到的 runtime（源 checkout 里就是交付树）。`tests/test_no_legacy_template_paths.py` 有门禁断言钉住 `template/`、`presets/` 的零字节码状态。
+
 ## 架构与扩展点
 
 - **服务层**：任务创建、生命周期、归档、上下文、任务树和 runtime context 编排位于 `scripts/services/`；命令层只负责参数和输出适配。
