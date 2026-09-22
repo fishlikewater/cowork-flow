@@ -51,7 +51,14 @@ class FlowScriptPathsTest(FlowScriptTestCase):
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "06-05-demo"
             task_dir.mkdir(parents=True)
-            (root / ".claude").mkdir()
+            (root / ".claude" / "skills").mkdir(parents=True)
+            # A real project always carries the host asset manifest; skill path
+            # rendering reads each platform's declared skillReadRoot from it.
+            (root / ".cowork-flow" / "spec" / "runtime").mkdir(parents=True)
+            shutil.copy(
+                ROOT / "template" / ".cowork-flow" / "spec" / "runtime" / "host-assets.json",
+                root / ".cowork-flow" / "spec" / "runtime" / "host-assets.json",
+            )
 
             previous_cwd = Path.cwd()
             try:

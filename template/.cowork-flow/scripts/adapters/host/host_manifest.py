@@ -32,7 +32,9 @@ CAPABILITY_STATUS_VALUES = (
     "unsupported",
 )
 MANIFEST_KEYS = frozenset(("schemaVersion", "capabilityValues", "capabilityMatrix", "platforms", "excludedPrefixes", "syncPolicy"))
-PLATFORM_KEYS = frozenset(("id", "displayName", "aliases", "detectAny", "assetPrefixes", "assetFiles", "skillTarget", "adapterPath", "capabilities", "commandTargets"))
+PLATFORM_KEYS = frozenset(("id", "displayName", "aliases", "detectAny", "assetPrefixes", "assetFiles", "skillReadRoot", "skillDiscovery", "adapterPath", "capabilities", "commandTargets"))
+SKILL_DISCOVERY_KEYS = frozenset(("scope", "path", "channel", "gates", "evidence"))
+SKILL_DISCOVERY_SCOPES = frozenset(("project", "machine"))
 SYNC_POLICY_KEYS = frozenset(("protectedFiles", "protectedPrefixes", "safeFiles", "safePrefixes", "managedBlockFiles", "obsoleteFiles"))
 COMMAND_TARGET_KEYS = frozenset(("config", "format", "target"))
 COMMAND_TARGET_FORMATS = frozenset(("json", "toml", "yaml"))
@@ -57,6 +59,23 @@ class CapabilityDeclaration:
 
 
 @dataclass(frozen=True)
+class SkillDiscovery:
+    """One channel through which the host itself discovers skills.
+
+    scope "project" means a repository path (path must equal the platform's
+    skillReadRoot: we read from the same place the host looks). scope
+    "machine" means a host-level channel such as a plugin component, which
+    init/sync cannot write.
+    """
+
+    scope: str
+    evidence: str
+    path: str | None
+    channel: str | None
+    gates: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class HostPlatform:
     id: str
     display_name: str
@@ -64,7 +83,8 @@ class HostPlatform:
     detect_any: tuple[str, ...]
     asset_prefixes: tuple[str, ...]
     asset_files: tuple[str, ...]
-    skill_target: str | None
+    skill_read_root: str
+    skill_discovery: tuple[SkillDiscovery, ...]
     adapter_path: str
     capabilities: dict[str, str]
     command_targets: tuple[CommandTarget, ...]
@@ -429,11 +449,14 @@ def _build_platform(raw: dict[str, Any], allowed: set[str]) -> HostPlatform:
     if not isinstance(command_targets_raw, list):
         raise HostManifestError(f"platform {platform_id} commandTargets must be an array")
     command_targets = tuple(_build_command_target(item, platform_id) for item in command_targets_raw)
-    skill_target = raw.get("skillTarget")
-    if skill_target is not None:
-        if not isinstance(skill_target, str) or not skill_target.strip():
-            raise HostManifestError(f"platform {platform_id} skillTarget must be a string or null")
-        skill_target = skill_target.strip()
+    skill_read_root = _required_string(raw, "skillReadRoot")
+    skill_discovery_raw = raw.get("skillDiscovery")
+    if not isinstance(skill_discovery_raw, list) or not skill_discovery_raw:
+        raise HostManifestError(f"platform {platform_id} skillDiscovery must be a non-empty array")
+    skill_discovery = tuple(
+        _build_skill_discovery(item, platform_id, skill_read_root)
+        for item in skill_discovery_raw
+    )
     return HostPlatform(
         id=platform_id,
         display_name=_required_string(raw, "displayName"),
@@ -441,10 +464,65 @@ def _build_platform(raw: dict[str, Any], allowed: set[str]) -> HostPlatform:
         detect_any=_string_tuple(raw.get("detectAny"), f"{platform_id}.detectAny"),
         asset_prefixes=_string_tuple(raw.get("assetPrefixes"), f"{platform_id}.assetPrefixes"),
         asset_files=_string_tuple(raw.get("assetFiles"), f"{platform_id}.assetFiles"),
-        skill_target=skill_target,
+        skill_read_root=skill_read_root,
+        skill_discovery=skill_discovery,
         adapter_path=_required_string(raw, "adapterPath"),
         capabilities=normalized_capabilities,
         command_targets=command_targets,
+    )
+
+
+def _build_skill_discovery(
+    raw: object,
+    platform_id: str,
+    skill_read_root: str,
+) -> SkillDiscovery:
+    if not isinstance(raw, dict):
+        raise HostManifestError(f"platform {platform_id} skillDiscovery entries must be objects")
+    _reject_unknown_fields(raw, SKILL_DISCOVERY_KEYS, "skillDiscovery")
+    scope = raw.get("scope")
+    if scope not in SKILL_DISCOVERY_SCOPES:
+        raise HostManifestError(
+            f"platform {platform_id} skillDiscovery scope must be one of "
+            f"{sorted(SKILL_DISCOVERY_SCOPES)}"
+        )
+    evidence = raw.get("evidence")
+    if not isinstance(evidence, str) or not evidence.strip():
+        raise HostManifestError(
+            f"platform {platform_id} skillDiscovery evidence must be a non-empty string"
+        )
+    path = raw.get("path")
+    channel = raw.get("channel")
+    if scope == "project":
+        if not isinstance(path, str) or not path.strip():
+            raise HostManifestError(
+                f"platform {platform_id} project skillDiscovery requires path"
+            )
+        if path.strip() != skill_read_root:
+            raise HostManifestError(
+                f"platform {platform_id} project skillDiscovery path must equal "
+                f"skillReadRoot ({skill_read_root})"
+            )
+        if channel is not None:
+            raise HostManifestError(
+                f"platform {platform_id} project skillDiscovery must not declare channel"
+            )
+    else:
+        if not isinstance(channel, str) or not channel.strip():
+            raise HostManifestError(
+                f"platform {platform_id} machine skillDiscovery requires channel"
+            )
+        if path is not None:
+            raise HostManifestError(
+                f"platform {platform_id} machine skillDiscovery must not declare path"
+            )
+    gates_raw = raw.get("gates", [])
+    return SkillDiscovery(
+        scope=scope,
+        evidence=evidence.strip(),
+        path=path.strip() if isinstance(path, str) else None,
+        channel=channel.strip() if isinstance(channel, str) else None,
+        gates=_string_tuple(gates_raw, f"{platform_id}.skillDiscovery.gates", unique=True),
     )
 
 def _required_string(raw: dict[str, Any], key: str) -> str:

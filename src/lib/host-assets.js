@@ -45,11 +45,14 @@ const PLATFORM_KEYS = [
   'detectAny',
   'assetPrefixes',
   'assetFiles',
-  'skillTarget',
+  'skillReadRoot',
+  'skillDiscovery',
   'adapterPath',
   'capabilities',
   'commandTargets'
 ];
+const SKILL_DISCOVERY_KEYS = ['scope', 'evidence', 'path', 'channel', 'gates'];
+const SKILL_DISCOVERY_SCOPES = ['project', 'machine'];
 const SYNC_POLICY_KEYS = [
   'protectedFiles',
   'protectedPrefixes',
@@ -100,9 +103,9 @@ export function createHostRegistry(manifest) {
   const assetPrefixes = unique(
     platforms.flatMap((platform) => platform.assetPrefixes)
   );
-  const skillTargets = unique(
+  const skillReadRoots = unique(
     platforms
-      .map((platform) => platform.skillTarget)
+      .map((platform) => platform.skillReadRoot)
       .filter(
         (value) => typeof value === 'string' && value.length > 0
       )
@@ -179,7 +182,7 @@ export function createHostRegistry(manifest) {
     return safeFiles.has(normalized)
       || syncPolicy.safePrefixes.some((prefix) => normalized.startsWith(prefix))
       || assetPrefixes.some((prefix) => normalized.startsWith(prefix))
-      || skillTargets.some((target) => normalized.startsWith(`${target}/`))
+      || skillReadRoots.some((target) => normalized.startsWith(`${target}/`))
       || normalized.endsWith('/.gitkeep');
   }
 
@@ -225,7 +228,7 @@ export function createHostRegistry(manifest) {
     capabilityMatrix,
     syncPolicy,
     assetPrefixes,
-    skillTargets,
+    skillReadRoots,
     parsePlatformSelection,
     shouldInclude,
     assetOwners,
@@ -240,7 +243,7 @@ export function createHostRegistry(manifest) {
       return capabilityMatrix.hosts[hostId]?.[capability] ?? null;
     },
     skillDestination(platformId) {
-      return byId.get(platformId)?.skillTarget ?? null;
+      return byId.get(platformId)?.skillReadRoot ?? null;
     },
     isKnownPlatformAsset,
     isSafeSyncFile,
@@ -327,12 +330,13 @@ function validatePlatform(platform, allowed, seenPlatformIds, aliases) {
   validateStringArray(platform.detectAny, `Host platform ${platform.id} detectAny`);
   validateStringArray(platform.assetPrefixes, `Host platform ${platform.id} assetPrefixes`);
   validateStringArray(platform.assetFiles, `Host platform ${platform.id} assetFiles`);
-  if (platform.skillTarget !== null && typeof platform.skillTarget !== 'string') {
-    throw new Error(`Host platform ${platform.id} skillTarget must be a string or null`);
+  if (platform.skillReadRoot !== null && typeof platform.skillReadRoot !== 'string') {
+    throw new Error(`Host platform ${platform.id} skillReadRoot must be a string or null`);
   }
-  if (typeof platform.skillTarget === 'string' && platform.skillTarget.length === 0) {
-    throw new Error(`Host platform ${platform.id} skillTarget must be a non-empty string or null`);
+  if (typeof platform.skillReadRoot === 'string' && platform.skillReadRoot.length === 0) {
+    throw new Error(`Host platform ${platform.id} skillReadRoot must be a non-empty string or null`);
   }
+  validateSkillDiscovery(platform);
   validateRequiredString(platform.adapterPath, `Host platform ${platform.id} adapterPath`);
   validatePlatformCapabilities(platform, allowed);
   if (!Array.isArray(platform.commandTargets)) {
@@ -343,8 +347,49 @@ function validatePlatform(platform, allowed, seenPlatformIds, aliases) {
   }
 }
 
-function validatePlatformCapabilities(platform, allowed) {
-  if (!platform.capabilities || typeof platform.capabilities !== 'object' || Array.isArray(platform.capabilities)) {
+function validateSkillDiscovery(platform) {
+  const entries = platform.skillDiscovery;
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error(`Host platform ${platform.id} skillDiscovery must be a non-empty array`);
+  }
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new Error(`Host platform ${platform.id} skillDiscovery entries must be objects`);
+    }
+    assertKnownKeys(entry, SKILL_DISCOVERY_KEYS, `Host platform ${platform.id} skillDiscovery`);
+    if (!SKILL_DISCOVERY_SCOPES.includes(entry.scope)) {
+      throw new Error(
+        `Host platform ${platform.id} skillDiscovery scope must be ${SKILL_DISCOVERY_SCOPES.join(' or ')}`
+      );
+    }
+    validateRequiredString(entry.evidence, `Host platform ${platform.id} skillDiscovery evidence`);
+    if (entry.gates !== undefined) {
+      validateStringArray(entry.gates, `Host platform ${platform.id} skillDiscovery gates`);
+    }
+    if (entry.scope === 'project') {
+      validateRequiredString(entry.path, `Host platform ${platform.id} project skillDiscovery path`);
+      if (entry.path !== platform.skillReadRoot) {
+        throw new Error(
+          `Host platform ${platform.id} project skillDiscovery path must equal skillReadRoot (${platform.skillReadRoot})`
+        );
+      }
+      if (entry.channel !== undefined) {
+        throw new Error(
+          `Host platform ${platform.id} project skillDiscovery must not declare channel`
+        );
+      }
+    } else {
+      validateRequiredString(entry.channel, `Host platform ${platform.id} machine skillDiscovery channel`);
+      if (entry.path !== undefined) {
+        throw new Error(
+          `Host platform ${platform.id} machine skillDiscovery must not declare path`
+        );
+      }
+    }
+  }
+}
+
+function validatePlatformCapabilities(platform, allowed) {  if (!platform.capabilities || typeof platform.capabilities !== 'object' || Array.isArray(platform.capabilities)) {
     throw new Error(`Host platform ${platform.id} capabilities must be an object`);
   }
   if (Object.keys(platform.capabilities).length === 0) {

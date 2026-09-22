@@ -249,7 +249,10 @@ test('init --platform qoder writes the adapter declaration and no .qoder directo
 
   assert.equal(code, 0, io.stderr);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'qoder', 'adapter.yaml')), true);
-  assert.equal(await exists(join(target, '.cowork-flow', 'skills', 'agent-dispatch', 'SKILL.md')), true);
+  // Qoder reads and discovers skills at `.agents/skills`, so one copy serves
+  // both; the kernel-side replica is not written for qoder.
+  assert.equal(await exists(join(target, '.agents', 'skills', 'agent-dispatch', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'skills')), false);
   assert.equal(await exists(join(target, '.qoder')), false);
   // Other hosts' assets must not ride along when only qoder is selected.
   assert.equal(await exists(join(target, '.claude')), false);

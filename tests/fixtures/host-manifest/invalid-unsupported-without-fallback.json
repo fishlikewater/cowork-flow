@@ -92,7 +92,14 @@
         ".codex/"
       ],
       "assetFiles": [],
-      "skillTarget": ".agents/skills",
+      "skillReadRoot": ".agents/skills",
+      "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".agents/skills",
+          "evidence": "test fixture"
+        }
+      ],
       "adapterPath": ".cowork-flow/adapters/codex/adapter.yaml",
       "capabilities": {
         "dispatchSubagent": "native"

@@ -54,7 +54,8 @@ function registryContractSummary(registry) {
       {
         assetPrefixes: platform.assetPrefixes,
         assetFiles: platform.assetFiles,
-        skillTarget: platform.skillTarget,
+        skillReadRoot: platform.skillReadRoot,
+        skillDiscovery: platform.skillDiscovery,
         commandTargets: platform.commandTargets
       }
     ])),
@@ -125,7 +126,10 @@ test('valid host manifest fixtures expose normalized registry summaries', () => 
   assert.deepEqual(extra.platformIds, ['codex', 'demo-host']);
   assert.equal(extra.aliasOwners.demo, 'demo-host');
   assert.deepEqual(extra.assets['demo-host'].assetFiles, ['AGENTS.md']);
-  assert.equal(extra.assets['demo-host'].skillTarget, '.demo-host/skills');
+  assert.equal(extra.assets['demo-host'].skillReadRoot, '.demo-host/skills');
+  assert.deepEqual(extra.assets['demo-host'].skillDiscovery, [
+    { scope: 'project', path: '.demo-host/skills', evidence: 'test fixture' }
+  ]);
   assert.deepEqual(extra.assets['demo-host'].commandTargets[0], {
     config: '.demo-host/config.json',
     format: 'json',
@@ -158,12 +162,12 @@ test('default host registry exposes manifest platform behavior', async () => {
   assert.equal(registry.skillDestination('dsh'), '.agents/skills');
   assert.equal(registry.skillDestination('zcode'), '.cowork-flow/skills');
   assert.equal(registry.skillDestination('kimi-code'), '.agents/skills');
-  // zcode and qoder share the kernel-side skill replica target: both hosts get
-  // their model-facing skill layer from a machine-level plugin, so the project
-  // copy exists for owner resolution only.
+  // Only zcode reads from the kernel-side replica: its host-side skills come
+  // from a machine-level plugin, so the project copy exists for reads only.
+  // Qoder reads `.agents/skills` — the same path its own skill discovery uses.
   assert.deepEqual(
     registry.assetOwners('.cowork-flow/skills/cowork-flow/SKILL.md'),
-    ['zcode', 'qoder']
+    ['zcode']
   );
   assert.deepEqual(registry.assetOwners('.dsh/README.md'), ['dsh']);
   assert.equal(registry.shouldInclude('.dsh/README.md', ['codex']), false);
@@ -223,7 +227,16 @@ test('default host registry exposes manifest platform behavior', async () => {
   );
   assert.deepEqual(registry.parsePlatformSelection(['qoder-cli']), ['qoder']);
   assert.equal(registry.platformLabel('qoder'), 'Qoder');
-  assert.equal(registry.skillDestination('qoder'), '.cowork-flow/skills');
+  assert.equal(registry.skillDestination('qoder'), '.agents/skills');
+  assert.deepEqual(registry.platform('qoder').skillDiscovery, [
+    {
+      scope: 'project',
+      path: '.agents/skills',
+      gates: ['trusted-folder', 'restart'],
+      evidence: registry.platform('qoder').skillDiscovery[0].evidence
+    }
+  ]);
+  assert.match(registry.platform('qoder').skillDiscovery[0].evidence, /^verified:/);
   assert.deepEqual(registry.platform('qoder').commandTargets, []);
   // Qoder ships hooks/agents/commands inside a machine-level plugin, so nothing
   // under `.qoder/` may reach a project even when qoder is the selected platform.
@@ -247,6 +260,10 @@ test('default host registry exposes manifest platform behavior', async () => {
   );
   assert.equal(
     registry.shouldInclude('.cowork-flow/skills/agent-dispatch/SKILL.md', ['qoder']),
+    false
+  );
+  assert.equal(
+    registry.shouldInclude('.cowork-flow/skills/agent-dispatch/SKILL.md', ['zcode']),
     true
   );
   const detected = await registry.detectInstalledPlatforms(
@@ -320,7 +337,10 @@ test('a simulated platform is added by manifest data only', () => {
     detectAny: ['.demo-host'],
     assetPrefixes: ['.demo-host/'],
     assetFiles: [],
-    skillTarget: '.demo-host/skills',
+    skillReadRoot: '.demo-host/skills',
+    skillDiscovery: [
+      { scope: 'project', path: '.demo-host/skills', evidence: 'simulated platform' }
+    ],
     adapterPath: '.cowork-flow/adapters/demo-host/adapter.yaml',
     capabilities: {
       dispatchSubagent: 'external'
@@ -387,7 +407,7 @@ test('active public skills are not obsolete sync targets', () => {
   const obsoleteFiles = new Set(registry.syncPolicy.obsoleteFiles);
 
   for (const skillId of templateSkillIds()) {
-    for (const target of registry.skillTargets) {
+    for (const target of registry.skillReadRoots) {
       assert.equal(
         obsoleteFiles.has(`${target}/${skillId}`),
         false,
@@ -399,5 +419,60 @@ test('active public skills are not obsolete sync targets', () => {
         skillId
       );
     }
+  }
+});
+
+test('host registry rejects malformed skill declarations', () => {
+  const platformById = (manifest, id) =>
+    manifest.platforms.find((platform) => platform.id === id);
+  const cases = [
+    [
+      'empty evidence',
+      (manifest) => {
+        platformById(manifest, 'qoder').skillDiscovery[0].evidence = '';
+      },
+      /skillDiscovery evidence/i
+    ],
+    [
+      'unknown scope',
+      (manifest) => {
+        platformById(manifest, 'qoder').skillDiscovery[0].scope = 'global';
+      },
+      /skillDiscovery scope/i
+    ],
+    [
+      'project path differs from readRoot',
+      (manifest) => {
+        platformById(manifest, 'qoder').skillDiscovery[0].path = '.qoder/skills';
+      },
+      /must equal skillReadRoot/i
+    ],
+    [
+      'machine entry without channel',
+      (manifest) => {
+        delete platformById(manifest, 'zcode').skillDiscovery[0].channel;
+      },
+      /machine skillDiscovery channel/i
+    ],
+    [
+      'empty discovery array',
+      (manifest) => {
+        platformById(manifest, 'qoder').skillDiscovery = [];
+      },
+      /skillDiscovery must be a non-empty array/i
+    ],
+    [
+      'missing readRoot',
+      (manifest) => {
+        delete platformById(manifest, 'qoder').skillReadRoot;
+      },
+      /skillReadRoot/i
+    ]
+  ];
+
+  for (const [label, mutate, expected] of cases) {
+    const manifest = loadHostAssetManifest();
+    mutate(manifest);
+    assert.throws(() => createHostRegistry(manifest), expected, label);
   }
 });
