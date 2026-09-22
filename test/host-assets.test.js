@@ -446,14 +446,21 @@ test('host registry rejects malformed skill declarations', () => {
       /must equal skillReadRoot/i
     ],
     [
-      'machine entry without channel',
+      'machine scope is no longer a declared discovery channel',
       (manifest) => {
-        const entry = platformById(manifest, 'zcode').skillDiscovery.find(
-          (candidate) => candidate.scope === 'machine'
-        );
-        delete entry.channel;
+        platformById(manifest, 'zcode').skillDiscovery.push({
+          scope: 'machine',
+          evidence: 'verified: synthetic machine channel for this test'
+        });
       },
-      /machine skillDiscovery channel/i
+      /skillDiscovery scope/i
+    ],
+    [
+      'channel is no longer a discovery field',
+      (manifest) => {
+        platformById(manifest, 'qoder').skillDiscovery[0].channel = 'plugin:skills';
+      },
+      /skillDiscovery unknown field/i
     ],
     [
       'empty discovery array',

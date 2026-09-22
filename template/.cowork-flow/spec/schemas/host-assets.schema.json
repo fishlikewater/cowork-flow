@@ -213,13 +213,13 @@
       "additionalProperties": false,
       "required": [
         "scope",
-        "evidence"
+        "evidence",
+        "path"
       ],
       "properties": {
         "scope": {
           "enum": [
-            "project",
-            "machine"
+            "project"
           ]
         },
         "evidence": {
@@ -230,60 +230,10 @@
           "type": "string",
           "minLength": 1
         },
-        "channel": {
-          "type": "string",
-          "minLength": 1
-        },
         "gates": {
           "$ref": "#/$defs/stringList"
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "required": [
-              "scope"
-            ],
-            "properties": {
-              "scope": {
-                "const": "project"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "path"
-            ],
-            "not": {
-              "required": [
-                "channel"
-              ]
-            }
-          }
-        },
-        {
-          "if": {
-            "required": [
-              "scope"
-            ],
-            "properties": {
-              "scope": {
-                "const": "machine"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "channel"
-            ],
-            "not": {
-              "required": [
-                "path"
-              ]
-            }
-          }
-        }
-      ]
+      }
     },
     "platform": {
       "type": "object",

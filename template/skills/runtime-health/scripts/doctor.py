@@ -1011,10 +1011,6 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
 
 
 _SKILL_DELIVERY_CONTRACT = "runtime-health:skill-delivery"
-_PLUGIN_SKILLS_CHANNEL = "plugin:skills"
-# The Qoder plugin check already compares the machine plugin version with the
-# project and prints the same fix, so the skills channel stays quiet there.
-_PLUGIN_SKILLS_OWNED_BY_HOST_CHECK = frozenset({"qoder"})
 
 
 def _skill_delivery_warning(
@@ -1066,56 +1062,33 @@ def _machine_plugin_payload(platform_id: str) -> Path | None:
     return None
 
 
-def _machine_skills_issues(
-    platform_id: str, platform: HostPlatform, project_version: str
-) -> list[dict[str, str]]:
-    """Warnings for a host that discovers skills inside its machine-level
-    plugin: the gates that hide it, and a copy from another release."""
+def _legacy_machine_skills_issues(platform_id: str) -> list[dict[str, str]]:
+    """Warnings for a host whose machine-level plugin still carries a skills
+    copy: skills now ship with the project only, so a payload copy is a
+    leftover that may also come from another release."""
     payload = _machine_plugin_payload(platform_id)
     if payload is None:
         return []
-    issues: list[dict[str, str]] = []
-    for entry in platform.skill_discovery:
-        if entry.scope != "machine":
-            continue
-        if entry.gates:
-            issues.extend(
-                _skill_delivery_warning(
-                    "SKILL-DISCOVERY-GATED",
-                    payload,
-                    f"{platform_id} discovers {entry.channel} only behind "
-                    f"{' + '.join(entry.gates)}; until then the skills it ships "
-                    "stay invisible to the host",
-                )
-            )
-        if (
-            entry.channel != _PLUGIN_SKILLS_CHANNEL
-            or platform_id in _PLUGIN_SKILLS_OWNED_BY_HOST_CHECK
-        ):
-            continue
-        skills = payload / "skills"
-        if not skills.is_dir() or not project_version or payload.name == project_version:
-            continue
-        issues.extend(
-            _skill_delivery_warning(
-                "PLUGIN-SKILLS-STALE",
-                skills,
-                f"the {platform_id} plugin ships a skills copy from "
-                f"{payload.name} but this project runs {project_version}; a "
-                "session that loads the plugin copy reads skill text from "
-                "another release",
-                f"cowork-flow install-{platform_id}-plugin --force",
-            )
-        )
-    return issues
+    skills = payload / "skills"
+    if not skills.is_dir():
+        return []
+    return _skill_delivery_warning(
+        "PLUGIN-SKILLS-LEGACY",
+        skills,
+        f"the {platform_id} plugin payload still carries a skills copy from "
+        f"{payload.name}; skills now ship with the project only, so the payload "
+        "copy is redundant and may come from another release",
+        f"cowork-flow install-{platform_id}-plugin --force",
+    )
 
 
 def check_skill_delivery(repo_root: Path) -> list[dict[str, str]]:
     """Skill delivery diagnostics for the hosts this project selected: whether
-    each declared read root is on disk, whether a machine-level plugin copy
-    still matches the project release, and whether a declared discovery channel
-    sits behind host-side gates. Advisory only: doctor cannot read host trust
-    state, and a lagging copy is not a broken project."""
+    each declared read root is on disk, whether a machine-level plugin payload
+    still carries a skills copy it should no longer ship, and whether a
+    declared discovery channel sits behind host-side gates. Advisory only:
+    doctor cannot read host trust state, and a leftover copy is not a broken
+    project."""
     root = _distribution_root(repo_root)
     try:
         manifest = load_host_manifest(root)
@@ -1125,7 +1098,6 @@ def check_skill_delivery(repo_root: Path) -> list[dict[str, str]]:
         platforms = detect_installed_platforms(repo_root)
     except HostManifestError:
         return []
-    project_version = _project_version(repo_root)
     issues: list[dict[str, str]] = []
     for platform_id in platforms:
         platform = manifest.platform(platform_id)
@@ -1155,7 +1127,7 @@ def check_skill_delivery(repo_root: Path) -> list[dict[str, str]]:
                         "disk stay invisible to the host",
                     )
                 )
-        issues.extend(_machine_skills_issues(platform_id, platform, project_version))
+        issues.extend(_legacy_machine_skills_issues(platform_id))
     return issues
 
 

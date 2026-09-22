@@ -83,7 +83,6 @@ class HostAssetManifestTest(unittest.TestCase):
                         {
                             "scope": discovery.scope,
                             "path": discovery.path,
-                            "channel": discovery.channel,
                             "gates": list(discovery.gates),
                             "evidence": discovery.evidence,
                         }
@@ -162,7 +161,7 @@ class HostAssetManifestTest(unittest.TestCase):
         self.assertEqual(["AGENTS.md"], extra["assets"]["demo-host"]["assetFiles"])
         self.assertEqual(".demo-host/skills", extra["assets"]["demo-host"]["skillReadRoot"])
         self.assertEqual(
-            [{"scope": "project", "path": ".demo-host/skills", "channel": None, "gates": [], "evidence": "test fixture"}],
+            [{"scope": "project", "path": ".demo-host/skills", "gates": [], "evidence": "test fixture"}],
             extra["assets"]["demo-host"]["skillDiscovery"],
         )
         self.assertEqual(
@@ -261,17 +260,17 @@ class HostAssetManifestTest(unittest.TestCase):
             manifest.sync_policy.obsolete_files,
         )
 
-    def test_zcode_declares_the_shared_skill_root_and_plugin_channel(self) -> None:
+    def test_zcode_declares_the_shared_skill_root_only(self) -> None:
         manifest = self.host_manifest.load_host_manifest(TEMPLATE)
         # ZCode reads skills from the shared `.agents/skills` (host bundle
-        # verified), not from the private `.cowork-flow/skills` its enumerator
-        # never looks at; the plugin payload keeps its own skills channel.
+        # verified); skills ship with the project only, so the plugin payload
+        # declares no channel of its own.
         zcode = manifest.platform("zcode")
         self.assertEqual(".agents/skills", zcode.skill_read_root)
         self.assertEqual((".cowork-flow/adapters/zcode/",), zcode.asset_prefixes)
         self.assertEqual(
-            [("project", ".agents/skills"), ("machine", "plugin:skills")],
-            [(entry.scope, entry.path or entry.channel) for entry in zcode.skill_discovery],
+            [("project", ".agents/skills")],
+            [(entry.scope, entry.path) for entry in zcode.skill_discovery],
         )
         for entry in zcode.skill_discovery:
             self.assertTrue(entry.evidence.startswith("verified:"))
@@ -469,7 +468,7 @@ class HostAssetManifestTest(unittest.TestCase):
             self.host_manifest.SKILL_DISCOVERY_KEYS,
             set(entry_def["properties"]),
         )
-        self.assertEqual({"scope", "evidence"}, set(entry_def["required"]))
+        self.assertEqual({"scope", "evidence", "path"}, set(entry_def["required"]))
         self.assertEqual(
             self.host_manifest.SKILL_DISCOVERY_SCOPES,
             set(entry_def["properties"]["scope"]["enum"]),
@@ -530,29 +529,29 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertTrue(
             any(
-                "project skillDiscovery path must equal skillReadRoot" in error
+                "skillDiscovery path must equal skillReadRoot" in error
                 for error in errors
             ),
             errors,
         )
 
-    def test_skill_discovery_machine_entry_requires_channel(self) -> None:
+    def test_skill_discovery_rejects_the_machine_scope(self) -> None:
         def mutate(data: dict) -> None:
-            entry = next(
-                entry
-                for entry in next(
-                    platform
-                    for platform in data["platforms"]
-                    if platform["id"] == "zcode"
-                )["skillDiscovery"]
-                if entry["scope"] == "machine"
+            next(
+                platform
+                for platform in data["platforms"]
+                if platform["id"] == "zcode"
+            )["skillDiscovery"].append(
+                {
+                    "scope": "machine",
+                    "evidence": "verified: synthetic machine channel for this test",
+                }
             )
-            del entry["channel"]
 
         errors = self._validate_mutated_manifest(mutate)
 
         self.assertTrue(
-            any("machine skillDiscovery requires channel" in error for error in errors),
+            any("skillDiscovery scope must be" in error for error in errors),
             errors,
         )
 

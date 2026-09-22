@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 技能单一来源：移除全部机器级技能副本
+
+- **三处载荷不再交付技能**：`install-zcode-plugin` / `install-qoder-plugin` / `install-dsh-preset` 删除把 `template/skills` 拷进载荷的路径（含 dry-run 输出行与存在性检查），两份 `plugin.json` 去掉 `skills` 组件，dsh 的 `agent.cordis.yml` 移除 `skill-filesystem` 的 `customSkillDirs`（组件行保留——它提供按 rank 的工作区发现：`<projectRoot>/.dsh/skills` 100、`<projectRoot>/.agents/skills` 200、用户根 400/500，依据 `@deepseek-ai/dsh-skill-filesystem` 的默认根表），`preset.yml` 描述同步订正。技能自此只由项目级 `init` / `sync` 交付。
+- **动机（实测）**：ZCode 按技能文件 realpath 去重、**不按技能名**，项目 `.agents/skills` 与插件载荷 `skills/` 的同名技能会并列进入技能列表，并在 `buildPromptContext` 按名激活时**双份注入正文**；dsh 的技能注册表则按名与 scope 分层遮蔽（"最近层直接赢得重名"、"项目提供方可覆盖运行时技能"），preset 副本只作未 init 项目的兜底。技能与项目 runtime 强耦合（16 个技能中 12 个正文引用 `./.cowork-flow/run ...` / `COWORK_FLOW_*` / `.cowork-flow/spec`），故机器级不能承担权威来源。
+- **machine discovery 语义收口**：zcode 的 `plugin:skills` 条目删除后该语义零消费者，按"不留死代码"纪律一并删除——schema 的 `skillDiscoveryEntry` 收敛为"仓库内路径 + 必填 `path`"，Python / JS 校验面同步去掉 `channel` 与 machine 分支，坏声明负向用例覆盖 machine scope 与 `channel` 字段（均被拒）。
+- **doctor 迁移提示**：`check_skill_delivery` 的 `PLUGIN-SKILLS-STALE`（版本偏斜）改为 `PLUGIN-SKILLS-LEGACY`——检测到载荷仍带 `skills/` 即提示 `cowork-flow install-<host>-plugin --force`（重装先 `rm -rf` 再拷，顺带清理），不再比较版本；`SKILL-READROOT-MISSING` 与 `SKILL-DISCOVERY-GATED` 语义不变。
+- **升级动作**：已装旧插件的机器重跑 `cowork-flow install-zcode-plugin --force` / `install-qoder-plugin --force` 即清掉载荷里的技能副本（doctor 以 `PLUGIN-SKILLS-LEGACY` 报出时按提示执行）；dsh 预设不随 npm / `sync` 更新，且预设版本标记相同时 doctor 不会告警，请直接重跑 `cowork-flow install-dsh-preset --force`。
+- 已知代价（有意接受）：未 `init` 的项目不再有任何 cowork-flow 技能；qoder 在未受信任目录中看不到技能（其发现门禁未变）。
+
 ### 宿主声明基址统一、技能候选根派生与 zcode 技能根订正
 
 - **适配器路径声明**：`adapter.yaml` 的 `dispatch.*Path` 统一为"项目相对 + 存在性守卫"——删除 qoder 的 `presets/qoder/*`（包内相对，且 `skillsPath`/`commandsPath` 指向包内不存在的目录）、zcode 的 `.zcode/agents` 与 `.zcode/.zcode-plugin/plugin.json`（项目与包内都不存在），以及与 `host-assets.json` 的 `skillReadRoot` 重复的 `skillsPath`（claude-code / dsh / kimi-code）。新增守卫测试逐项断言 `template/<path>` 存在、拒绝 `presets/` 前缀与 `skillsPath` 键（负向验证：塞回旧值即红）。

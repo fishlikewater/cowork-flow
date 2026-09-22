@@ -125,7 +125,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `qoder` | `.agents/skills/` | `.agents/skills/`（verified：SDK 默认开启；受信任目录 + 重启门禁） |
 | `zcode` | `.agents/skills/` | `.agents/skills/` 与 `.zcode/skills/`（verified：宿主 bundle 的 `SkillService.list` 枚举 `<workspace>/.zcode/skills`、`<workspace>/.agents/skills`，含祖先目录向上探测，同名时 `.zcode/skills` 优先；我们只交付共享的 `.agents/skills/`） |
 
-每个平台在 `host-assets.json` 里用两格声明这件事：`skillReadRoot`（我们运行时渲染与 fixed subagent 读取的仓库内路径）与 `skillDiscovery[]`（宿主自己发现技能的通道，带 `scope` / `gates` / `evidence`）。读取与发现同址时项目里只有一份副本；`evidence` 以 `verified:` / `assumed:` 前缀区分"本机验证过"与"沿用约定未验证"，后者由门禁测试逐项登记——声明写错会在 CI 变红，而不是静默生效。`./.cowork-flow/run doctor` 按同一份声明检查交付偏差：`SKILL-READROOT-MISSING`（声明的读取根不在项目里）、`PLUGIN-SKILLS-STALE`（机器级插件副本版本偏斜）、`SKILL-DISCOVERY-GATED`（发现通道有宿主侧门禁，如信任目录 / 重启），三项均为 warning，不计入 errors。
+每个平台在 `host-assets.json` 里用两格声明这件事：`skillReadRoot`（我们运行时渲染与 fixed subagent 读取的仓库内路径）与 `skillDiscovery[]`（宿主自己发现该路径的通道，带 `scope` / `gates` / `evidence`）。读取与发现同址时项目里只有一份副本，且机器级载荷（插件、preset）一律不再携带技能副本；`evidence` 以 `verified:` / `assumed:` 前缀区分"本机验证过"与"沿用约定未验证"，后者由门禁测试逐项登记——声明写错会在 CI 变红，而不是静默生效。`./.cowork-flow/run doctor` 按同一份声明检查交付偏差：`SKILL-READROOT-MISSING`（声明的读取根不在项目里）、`PLUGIN-SKILLS-LEGACY`（插件载荷仍带旧技能副本，重装即清理）、`SKILL-DISCOVERY-GATED`（发现通道有宿主侧门禁，如信任目录 / 重启），三项均为 warning，不计入 errors。
 
 分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
 
@@ -213,11 +213,11 @@ cowork-flow install-zcode-plugin --force --prune-old  # 覆盖并清理旧版本
 
 安装新版本时，marketplace 中只保留一个 `cowork-flow` entry 并指向最新版本目录；旧版本缓存默认保留，避免正在运行的 ZCode session 仍引用旧插件根目录。需要清理旧版本时显式传 `--prune-old`。
 
-ZCode 插件只安装 hook、skills、agents 和轻量说明文件；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
+ZCode 插件只安装 hook、agents 和轻量说明文件；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
 
-**技能走两条通道**：项目级（主）由 `init` / `sync` 写到 `.agents/skills/`，这正是 ZCode 自己枚举的路径之一（另一条是 `.zcode/skills/`，同名优先，我们不交付），fixed subagent 也从同一路径读取；机器级（bootstrap）是插件载荷里的 `skills/`（manifest 的 `skills` 组件，未声明时回退 `<pluginRoot>/skills`），覆盖未 `init` 的项目。
+**技能只走项目通道**：`init` / `sync` 写到 `.agents/skills/`，这正是 ZCode 自己枚举的路径之一（另一条是 `.zcode/skills/`，同名优先，我们不交付），fixed subagent 也从同一路径读取。插件载荷不再携带 `skills/`：ZCode 同时枚举项目根与插件根且不按技能名去重，载荷里再放一份会让同名技能以两份身份进入技能列表、并在激活时双份注入正文。
 
-插件载荷里的 `skills/` 副本与项目 `.cowork-flow/.version` 偏斜时，`./.cowork-flow/run doctor` 以 `PLUGIN-SKILLS-STALE` 报出（warning，不进 errors），提示用 `--force` 重装对齐版本。
+旧版本插件载荷残留的 `skills/` 副本由 `./.cowork-flow/run doctor` 以 `PLUGIN-SKILLS-LEGACY` 报出（warning，不进 errors），提示用 `--force` 重装清理。
 
 **Hook 注入内容：**
 - `workflow-state` — 当前任务状态
@@ -252,11 +252,11 @@ cowork-flow install-dsh-preset --force    # 覆盖已安装
 cowork-flow install-dsh-preset --dry-run  # 预览不写入
 ```
 
-安装到 `~/.dsh/.agent-presets/cowork-flow/`（`DSH_HOME` 存在时以其为准）：`agent.cordis.yml` + `preset.yml` + 全部流程技能。安装后在 DeepSeek Harness 中新建会话并选择 **Cowork Flow** 预设即可使用：persona 携带流程门禁规则，技能目录随预设挂载，不依赖项目本地副本。
+安装到 `~/.dsh/.agent-presets/cowork-flow/`（`DSH_HOME` 存在时以其为准）：`agent.cordis.yml` + `preset.yml` + `plugins/`。安装后在 DeepSeek Harness 中新建会话并选择 **Cowork Flow** 预设即可使用：persona 携带流程门禁规则，技能由项目级 `.agents/skills/` 提供（`skill-filesystem` 的工作区根，rank 200），预设不再携带技能副本。
 
 预设是**一次性安装的机器级资产**：它不随 `sync` 或 npm 更新。升级 cowork-flow 后需要重跑 `cowork-flow install-dsh-preset --force` 才会刷新（不带 `--force` 的重复执行是空操作，安装器会在版本不同时给出提示）。安装时会在预设目录写入 `.cowork-flow-preset.json` 版本标记；`./.cowork-flow/run doctor` 比对标记与项目 runtime 版本，过期或缺失时输出 warning 与更新命令。
 
-预设组合是部署 `standard` 预设的拷贝 + 最小改动（persona 流程规则、`skill-filesystem` 指向预设自带 `skills/`）；`cowork-flow init --platform dsh` 仍负责项目级资产（`AGENTS.md`、`.agents/skills/`、`.dsh/` 标记）。
+预设组合是部署 `standard` 预设的拷贝 + 最小改动（persona 流程规则；`skill-filesystem` 组件保持默认根，从工作区 `.agents/skills/` 发现技能）；`cowork-flow init --platform dsh` 仍负责项目级资产（`AGENTS.md`、`.agents/skills/`、`.dsh/` 标记）。
 
 预设内置 **workflow-state hook**（`plugins/workflow-state.js`）：DSH 原生等效于 Codex/Claude hook，向系统提示末尾注入与其它宿主同构的 `<workflow-state>` 块，每条用户消息刷新一次，并在生命周期命令（`task`/`subagent`/`resume`）执行完成后立即轮内刷新（替换语义，不累积）。项目无 `.cowork-flow` 根、缺少 Python 或设 `COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1` 时静默降级，由 AGENTS.md 门禁的运行导航器兜底。
 
@@ -280,10 +280,7 @@ Kimi Code 的 Bash 工具不导出会话标识环境变量，CLI 侧身份只能
 
 Qoder 的宿主集成面（hooks、三个 fixed subagent、命令面说明）打包成一个 Qoder 插件；`init` / `sync` 只写 `.cowork-flow/adapters/qoder/adapter.yaml` 这一份声明，不生成 `.qoder/` 目录（`.qoder/` 在 `excludedPrefixes` 里）。
 
-**技能走两条通道，互不替代**：
-
-- **项目级（主）**：`init` / `sync` 把技能写到 `.agents/skills/`，这正是 Qoder 自己扫描的路径（`loadFromAgentsDirectory` 默认开启），因此模型能原生发现并调用，fixed subagent 也从同一路径读取——项目里只有一份副本，随 `.cowork-flow/.version` 钉版本。前提是**工作区已信任**且技能设置生效需**重启**。
-- **机器级（bootstrap）**：插件载荷内含一份 `skills/`，覆盖未 `init` 的项目或未信任目录里"看得见技能"的场景。它是便捷通道，不是版本真相：版本偏斜由 `./.cowork-flow/run doctor` 报出（`PLUGIN-STALE`）。
+**技能只走项目通道**：`init` / `sync` 把技能写到 `.agents/skills/`，这正是 Qoder 自己扫描的路径（`loadFromAgentsDirectory` 默认开启），因此模型能原生发现并调用，fixed subagent 也从同一路径读取——项目里只有一份副本，随 `.cowork-flow/.version` 钉版本。前提是**工作区已信任**且技能设置生效需**重启**；插件载荷不再携带 `skills/`，未 `init` 或未受信任的项目因此看不到 cowork-flow 技能。
 
 ```bash
 cowork-flow install-qoder-plugin              # 安装并启用（已存在时不覆盖）
@@ -297,7 +294,7 @@ cowork-flow install-qoder-plugin --uninstall  # 卸载：只回收 cowork-flow �
 - **插件每机一次**：换机器或升级 cowork-flow 后要重装。
 - **`init` 每项目一次**：未 `init` 的项目里装了插件也不会注入——hook 入口按载荷 `cwd` 向上找不到 `.cowork-flow` 时直接 exit 0（静默）。同事克隆仓库后需要各自执行一次 `install-qoder-plugin`。
 
-安装写入 `$QODER_CONFIG_DIR`（未设置时 `~/.qoder`）：插件载荷 `plugins/cache/cowork-flow-local/cowork-flow/<version>/`（含 `.qoder-plugin/plugin.json`、`hooks/`、`agents/`、安装时拷入的 `skills/`）、注册表 `plugins/installed_plugins_v2.json` 的 `cowork-flow@cowork-flow-local` 条目、`settings.json` 的 `enabledPlugins` 开关。写入一律保留未知键与其他插件条目。
+安装写入 `$QODER_CONFIG_DIR`（未设置时 `~/.qoder`）：插件载荷 `plugins/cache/cowork-flow-local/cowork-flow/<version>/`（含 `.qoder-plugin/plugin.json`、`hooks/`、`agents/`）、注册表 `plugins/installed_plugins_v2.json` 的 `cowork-flow@cowork-flow-local` 条目、`settings.json` 的 `enabledPlugins` 开关。写入一律保留未知键与其他插件条目。
 
 > 该注册表文件不在 Qoder 公开文档里，格式可能随版本变化。`./.cowork-flow/run doctor` 把它作为 warning 级项报告（`PLUGIN-NOT-INSTALLED` / `PLUGIN-PAYLOAD-MISSING` / `PLUGIN-PAYLOAD-INCOMPLETE` / `PLUGIN-DISABLED` / `PLUGIN-STALE`），不计入 errors；官方等价路径是 `qoder plugins install <目录>`，临时验证也可用 `--plugin-dir <目录>`。
 

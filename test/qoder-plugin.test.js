@@ -98,7 +98,8 @@ test('qoder plugin manifest declares only components that ship', async () => {
   );
   assert.equal(manifest.hooks, 'hooks/hooks.json');
   assert.equal(manifest.agents, 'agents');
-  assert.equal(manifest.skills, 'skills');
+  // Skills ship with the project copy (init/sync); the payload declares none.
+  assert.equal(manifest.skills, undefined);
   // commands/settings are declared by nothing here: no commands/ dir ships, and
   // Qoder ignores every settings key except `agent`.
   assert.equal(manifest.commands, undefined);
@@ -228,7 +229,7 @@ test('install-qoder-plugin writes payload, registry entry and enable flag', asyn
     );
     await readFile(join(installPath, 'hooks', 'hooks.json'), 'utf8');
     await readFile(join(installPath, 'agents', 'cowork-implement.md'), 'utf8');
-    await readFile(join(installPath, 'skills', 'agent-dispatch', 'SKILL.md'), 'utf8');
+    await assert.rejects(access(join(installPath, 'skills')));
 
     const registry = await readJson(join(home, 'plugins', 'installed_plugins_v2.json'));
     const entries = registry.plugins[PLUGIN_KEY];

@@ -376,8 +376,8 @@ class QoderPluginCheckTest(unittest.TestCase):
 
 class SkillDeliveryCheckTest(unittest.TestCase):
     """Skill delivery diagnostics: a declared read root that is not on disk, a
-    machine-level plugin copy from another release, and discovery channels that
-    stay gated. All three are advisory, so none may fail doctor."""
+    machine-level plugin payload that still carries a skills copy, and discovery
+    channels that stay gated. All three are advisory, so none may fail doctor."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -498,21 +498,21 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         # reminder about a host-side gate rather than a defect to repair.
         self.assertEqual("", issues[0]["commandHint"])
 
-    def test_plugin_skills_from_another_release_reports_stale(self) -> None:
+    def test_plugin_payload_still_carrying_skills_is_reported_as_legacy(self) -> None:
         project = self._project("zcode")
         (project / ".agents" / "skills").mkdir(parents=True)
         self._install_zcode_plugin("1.5.0")
         issues = self.doctor.check_skill_delivery(project)
-        self.assertEqual(["PLUGIN-SKILLS-STALE"], [issue["code"] for issue in issues])
+        self.assertEqual(["PLUGIN-SKILLS-LEGACY"], [issue["code"] for issue in issues])
         self.assertIn("1.5.0", issues[0]["message"])
-        self.assertIn("1.6.0", issues[0]["message"])
         self.assertEqual("cowork-flow install-zcode-plugin --force", issues[0]["commandHint"])
 
-    def test_plugin_skills_at_the_project_version_is_silent(self) -> None:
+    def test_a_payload_copy_is_reported_even_at_the_project_version(self) -> None:
         project = self._project("zcode")
         (project / ".agents" / "skills").mkdir(parents=True)
         self._install_zcode_plugin("1.6.0")
-        self.assertEqual([], self.doctor.check_skill_delivery(project))
+        issues = self.doctor.check_skill_delivery(project)
+        self.assertEqual(["PLUGIN-SKILLS-LEGACY"], [issue["code"] for issue in issues])
 
     def test_plugin_without_a_skills_copy_is_silent(self) -> None:
         project = self._project("zcode")
@@ -528,8 +528,10 @@ class SkillDeliveryCheckTest(unittest.TestCase):
             ["PLUGIN-STALE"],
             [issue["code"] for issue in self.doctor.check_qoder_plugin(project)],
         )
+        # The plugin version skew stays with the plugin check; what the delivery
+        # check reports is the payload's leftover skills copy.
         self.assertEqual(
-            ["SKILL-DISCOVERY-GATED"],
+            ["SKILL-DISCOVERY-GATED", "PLUGIN-SKILLS-LEGACY"],
             [issue["code"] for issue in self.doctor.check_skill_delivery(project)],
         )
 
@@ -539,7 +541,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         self._install_zcode_plugin("1.5.0")
         result = self.doctor._all_check_result(project)
         self.assertEqual(
-            ["PLUGIN-SKILLS-STALE"],
+            ["PLUGIN-SKILLS-LEGACY"],
             [issue["code"] for issue in result["issues"]["skillDelivery"]],
         )
         self.assertEqual(
@@ -558,9 +560,10 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         lines = stdout.getvalue().splitlines()
         self.assertEqual(
             [
-                "Skill delivery (PLUGIN-SKILLS-STALE): the zcode plugin ships a "
-                "skills copy from 1.5.0 but this project runs 1.6.0; a session "
-                "that loads the plugin copy reads skill text from another release",
+                "Skill delivery (PLUGIN-SKILLS-LEGACY): the zcode plugin payload "
+                "still carries a skills copy from 1.5.0; skills now ship with the "
+                "project only, so the payload copy is redundant and may come from "
+                "another release",
                 "  fix: cowork-flow install-zcode-plugin --force",
             ],
             [line for line in lines if "Skill delivery" in line or "fix: cowork-flow install-zcode" in line],
