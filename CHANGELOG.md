@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Qoder 宿主适配（插件形态）
+
+- 新增平台 `qoder`：`host-assets.json` 平台条目 + `capabilityMatrix` 行 + `.cowork-flow/adapters/qoder/adapter.yaml`，宿主身份在 `runtime/host_identity.py` 登记一行（prefix `qoder`、adapter `qoder.hooks`、`QODER_SESSION_ID`）。注入信封与 claude-code 同形，因此 `inject.py::_emit` 与 `HostPolicy` 零改动。
+- `adapters/host/qoder_policy.py`：Qoder 的 `PostToolUse` 不是可阻断事件，编辑期告警改走 exit 0 + `additionalContext`（claude-code/codex 用 stderr + exit 2）。
+- 宿主资产以 Qoder 插件交付：`presets/qoder/`（`.qoder-plugin/plugin.json` + `hooks/hooks.json` + `hooks/inject-context.py` shim + 三个 fixed agent）。`.qoder/` 进入 `excludedPrefixes`，`init`/`sync` 不向项目写任何 Qoder 文件；平台检测改用 `.cowork-flow/adapters/qoder`。shim 按载荷 `cwd` 定位项目根后调用**项目自己的** `.cowork-flow/run`，不在插件缓存里留第二份注入逻辑。
+- 新命令 `cowork-flow install-qoder-plugin [--dry-run] [--force] [--uninstall]`：写插件缓存载荷（含安装时拷入的 `skills/` 与戳好的 manifest 版本）、幂等 upsert `plugins/installed_plugins_v2.json`、置 `settings.json` 的 `enabledPlugins`；未知键与他人条目一律保留。
+- doctor 新增 `check_qoder_plugin`（warning 级，五态诊断）；契约同步 `context-injection.md` 传输表、`spec-checks.md` 宿主矩阵（编辑期快跑六家）、`fact-layer-access.md` 注册表；README 增补「Qoder（插件形态）」小节与两频次边界。
+- 能力声明按未实测项保持诚实：`stateInjection=plugin`、`runtimeContextBinding=shim`、`sendFollowup/listChildren/cancelChild=shim`、`editScopeWarning=unsupported`；Desktop/IDE 侧支持在文档标 unknown。
+
 ## 1.6.0 - 2026-09-20
 
 ### 门禁诚实化（收集一致 / 平台 skip / CI 同门禁）

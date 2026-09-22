@@ -88,8 +88,9 @@ spec 为无检查并进 doctor 报告，不炸流程。
 | opencode | 有 | 有（插件 `tool.execute.after` 单行追加到工具结果） | 有 |
 | dsh | 有（预设注入） | 有（预设插件 `tools/post-execute` → `additionalContexts`） | 有 |
 | kimi-code | 有（UserPromptSubmit hook → `inject.py --host kimi-code`） | 无（未注册 PostToolUse；观察型事件 stdout 被丢弃） | 有 |
+| qoder | 有（插件 hook → `inject.py --host qoder`） | 有（`PostToolUse` 非阻断事件，告警走 `additionalContext`、exit 0） | 有 |
 
-zcode / codex / claude-code 经 Python 单源共享 `run_edit_checks`；opencode 在插件内以 CLI 拉取同一执行器（`run spec-check --phase edit --throttled`），dsh 经预设插件的 `tools/post-execute` 调同一 Python 协议——具备编辑期快跑的五家共享同一节流状态与三态语义，不各自实现检查逻辑；kimi-code 只走收口强制与子代理自查。
+zcode / codex / claude-code 经 Python 单源共享 `run_edit_checks`；opencode 在插件内以 CLI 拉取同一执行器（`run spec-check --phase edit --throttled`），dsh 经预设插件的 `tools/post-execute` 调同一 Python 协议，qoder 经插件 hook 的 `PostToolUse` 调同一执行器（该事件在 Qoder 不可阻断，告警以 `additionalContext` 随 exit 0 返回，而非 claude-code/codex 的 stderr + exit 2）——具备编辑期快跑的六家共享同一节流状态与三态语义，不各自实现检查逻辑；kimi-code 只走收口强制与子代理自查。
 
 **delegated 子代理编辑期缺口（zcode 实测，2026-09-09 两轮）**：ZCode 的插件
 hook 只在主会话工具流上派发（事件模型七事件均挂主会话；子代理是独立内部

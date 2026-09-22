@@ -102,6 +102,20 @@
           "status": "unsupported",
           "fallback": "inline_or_manual"
         }
+      },
+      "qoder": {
+        "task_action": {
+          "status": "native"
+        },
+        "subagent_dispatch": {
+          "status": "native"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "native"
+        }
       }
     }
   },
@@ -316,11 +330,45 @@
         "editScopeWarning": "unsupported"
       },
       "commandTargets": []
+    },
+    {
+      "id": "qoder",
+      "displayName": "Qoder",
+      "aliases": [
+        "qoder",
+        "qoder-cli"
+      ],
+      "detectAny": [
+        ".cowork-flow/adapters/qoder"
+      ],
+      "assetPrefixes": [
+        ".cowork-flow/adapters/qoder/",
+        ".cowork-flow/skills/"
+      ],
+      "assetFiles": [],
+      "skillTarget": ".cowork-flow/skills",
+      "adapterPath": ".cowork-flow/adapters/qoder/adapter.yaml",
+      "capabilities": {
+        "dispatchSubagent": "native",
+        "freshChildContext": "native",
+        "sendFollowup": "shim",
+        "waitChild": "native",
+        "listChildren": "shim",
+        "cancelChild": "shim",
+        "stateInjection": "plugin",
+        "backgroundChild": "native",
+        "runtimeContextDispatch": "native",
+        "runtimeContextBinding": "shim",
+        "runtimeContextCleanup": "native",
+        "editScopeWarning": "unsupported"
+      },
+      "commandTargets": []
     }
   ],
   "excludedPrefixes": [
     "skills/",
-    ".zcode/"
+    ".zcode/",
+    ".qoder/"
   ],
   "syncPolicy": {
     "protectedFiles": [

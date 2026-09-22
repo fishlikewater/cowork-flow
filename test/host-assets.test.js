@@ -143,7 +143,7 @@ test('default host registry exposes manifest platform behavior', async () => {
 
   assert.deepEqual(
     registry.platformIds,
-    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code']
+    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code', 'qoder']
   );
   assert.deepEqual(
     registry.parsePlatformSelection(['claude']),
@@ -158,9 +158,12 @@ test('default host registry exposes manifest platform behavior', async () => {
   assert.equal(registry.skillDestination('dsh'), '.agents/skills');
   assert.equal(registry.skillDestination('zcode'), '.cowork-flow/skills');
   assert.equal(registry.skillDestination('kimi-code'), '.agents/skills');
+  // zcode and qoder share the kernel-side skill replica target: both hosts get
+  // their model-facing skill layer from a machine-level plugin, so the project
+  // copy exists for owner resolution only.
   assert.deepEqual(
     registry.assetOwners('.cowork-flow/skills/cowork-flow/SKILL.md'),
-    ['zcode']
+    ['zcode', 'qoder']
   );
   assert.deepEqual(registry.assetOwners('.dsh/README.md'), ['dsh']);
   assert.equal(registry.shouldInclude('.dsh/README.md', ['codex']), false);
@@ -218,6 +221,34 @@ test('default host registry exposes manifest platform behavior', async () => {
     registry.shouldInclude('.zcode/hooks/inject-context.js', ['zcode']),
     false
   );
+  assert.deepEqual(registry.parsePlatformSelection(['qoder-cli']), ['qoder']);
+  assert.equal(registry.platformLabel('qoder'), 'Qoder');
+  assert.equal(registry.skillDestination('qoder'), '.cowork-flow/skills');
+  assert.deepEqual(registry.platform('qoder').commandTargets, []);
+  // Qoder ships hooks/agents/commands inside a machine-level plugin, so nothing
+  // under `.qoder/` may reach a project even when qoder is the selected platform.
+  assert.equal(registry.shouldInclude('.qoder/settings.json', ['qoder']), false);
+  assert.equal(
+    registry.shouldInclude('.qoder/agents/cowork-implement.md', ['qoder']),
+    false
+  );
+  assert.equal(registry.isSafeSyncFile('.qoder/settings.json'), false);
+  assert.deepEqual(
+    registry.assetOwners('.cowork-flow/adapters/qoder/adapter.yaml'),
+    ['qoder']
+  );
+  assert.equal(
+    registry.shouldInclude('.cowork-flow/adapters/qoder/adapter.yaml', ['qoder']),
+    true
+  );
+  assert.equal(
+    registry.shouldInclude('.cowork-flow/adapters/qoder/adapter.yaml', ['codex']),
+    false
+  );
+  assert.equal(
+    registry.shouldInclude('.cowork-flow/skills/agent-dispatch/SKILL.md', ['qoder']),
+    true
+  );
   const detected = await registry.detectInstalledPlatforms(
     '/tmp/fake-target',
     // path.join is platform-specific; compare with separators normalized so
@@ -231,6 +262,17 @@ test('default host registry exposes manifest platform behavior', async () => {
       (candidate) => candidate.replaceAll('\\', '/') === '/tmp/fake-target/.kimi-code'
     ),
     ['kimi-code']
+  );
+  // Qoder is detected through its adapter declaration, never through a
+  // project-level `.qoder/` directory the user may own for unrelated reasons.
+  assert.deepEqual(
+    await registry.detectInstalledPlatforms(
+      '/tmp/fake-target',
+      (candidate) =>
+        candidate.replaceAll('\\', '/') ===
+        '/tmp/fake-target/.cowork-flow/adapters/qoder'
+    ),
+    ['qoder']
   );
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/config.yaml'), true);
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/run'), false);
@@ -259,6 +301,13 @@ test('default host registry exposes manifest platform behavior', async () => {
       fallback: 'inline_or_manual'
     }
   );
+  for (const action of registry.capabilityMatrix.required) {
+    assert.equal(
+      registry.hostCapability('qoder', action).status,
+      'native',
+      `qoder must declare ${action} natively`
+    );
+  }
 });
 
 

@@ -900,6 +900,115 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
     )
 
 
+_QODER_PLUGIN_CONTRACT = "runtime-health:qoder-plugin"
+QODER_PLUGIN_KEY = "cowork-flow@cowork-flow-local"
+
+
+def _qoder_warning(code: str, path: Path, message: str, hint: str) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_QODER_PLUGIN_CONTRACT,
+        )
+    ]
+
+
+def _qoder_home() -> Path:
+    configured = (os.environ.get("QODER_CONFIG_DIR") or "").strip()
+    return Path(configured) if configured else Path.home() / ".qoder"
+
+
+def _qoder_registry_entry(registry_path: Path) -> dict[str, object] | None:
+    """The first registry entry cowork-flow owns, or None.
+
+    Qoder documents this file's shape nowhere, so an unreadable or unexpected
+    file is reported as "not installed" rather than trusted.
+    """
+    try:
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    plugins = registry.get("plugins") if isinstance(registry, dict) else None
+    entries = plugins.get(QODER_PLUGIN_KEY) if isinstance(plugins, dict) else None
+    if isinstance(entries, list) and entries and isinstance(entries[0], dict):
+        return entries[0]
+    return None
+
+
+def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
+    """Qoder plugin health. Advisory, and silent while the project never
+    selected the Qoder host: the plugin is a machine-level asset installed once
+    into `~/.qoder/plugins`, so it never updates through sync or npm."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "qoder" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
+
+    home = _qoder_home()
+    registry_path = home / "plugins" / "installed_plugins_v2.json"
+    entry = _qoder_registry_entry(registry_path)
+    if entry is None:
+        return _qoder_warning(
+            "PLUGIN-NOT-INSTALLED",
+            registry_path,
+            "this project declares the Qoder host, but cowork-flow is not "
+            "registered in the Qoder plugin cache, so Qoder sessions inject no "
+            "workflow context; loading also needs a Qoder restart and a "
+            "trusted workspace",
+            "cowork-flow install-qoder-plugin",
+        )
+
+    install_path = Path(str(entry.get("installPath") or ""))
+    if not (install_path / ".qoder-plugin" / "plugin.json").is_file():
+        return _qoder_warning(
+            "PLUGIN-PAYLOAD-MISSING",
+            install_path / ".qoder-plugin" / "plugin.json",
+            f"the Qoder plugin registry points at {install_path}, but no "
+            "manifest is on disk there; the host cannot load a missing payload",
+            "cowork-flow install-qoder-plugin --force",
+        )
+    for relative in ("hooks/hooks.json", "hooks/inject-context.py"):
+        if not (install_path / relative).is_file():
+            return _qoder_warning(
+                "PLUGIN-PAYLOAD-INCOMPLETE",
+                install_path / relative,
+                "the installed Qoder plugin has no hook payload, so every hook "
+                "command it declares fails to start",
+                "cowork-flow install-qoder-plugin --force",
+            )
+
+    settings_path = home / "settings.json"
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        settings = {}
+    enabled = settings.get("enabledPlugins") if isinstance(settings, dict) else None
+    if not isinstance(enabled, dict) or enabled.get(QODER_PLUGIN_KEY) is not True:
+        return _qoder_warning(
+            "PLUGIN-DISABLED",
+            settings_path,
+            'the Qoder plugin is installed but not enabled '
+            f'(`enabledPlugins["{QODER_PLUGIN_KEY}"]`); no hook fires',
+            "cowork-flow install-qoder-plugin --force",
+        )
+
+    recorded = str(entry.get("version") or "")
+    project_version = _project_version(repo_root)
+    if project_version and recorded != project_version:
+        return _qoder_warning(
+            "PLUGIN-STALE",
+            registry_path,
+            f"the Qoder plugin was installed from {recorded or 'an unknown version'} "
+            f"but this project runs {project_version}; the plugin does not update "
+            "with sync or npm, so injection may lag the project runtime",
+            "cowork-flow install-qoder-plugin --force",
+        )
+    return []
+
+
 def _all_check_result(repo_root: Path) -> dict[str, object]:
     host_issues = _host_issues(repo_root)
     runtime_errors = check_runtime(repo_root)
@@ -911,6 +1020,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     mcp_issues = check_mcp_registration(repo_root)
     dsh_preset_issues = check_dsh_preset(repo_root)
     kimi_hook_issues = check_kimi_hook(repo_root)
+    qoder_plugin_issues = check_qoder_plugin(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
         errors.append({"kind": "host_adapter", **issue})
@@ -935,6 +1045,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "mcpRegistration": mcp_issues,
             "dshPreset": dsh_preset_issues,
             "kimiHook": kimi_hook_issues,
+            "qoderPlugin": qoder_plugin_issues,
         },
     }
 
@@ -956,6 +1067,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["kimiHook"]:
         print(f"Kimi hook ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["qoderPlugin"]:
+        print(f"Qoder plugin ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     if errors:
