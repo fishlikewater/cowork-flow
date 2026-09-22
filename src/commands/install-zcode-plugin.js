@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 
 import { readPackageInfo } from '../lib/package-info.js';
-import { templateRoot } from '../lib/paths.js';
+import { packageRoot, templateRoot } from '../lib/paths.js';
 
 const ZCODE_MARKETPLACE = 'cowork-flow-local';
 const LEGACY_ZCODE_MARKETPLACE = 'zcode-plugins-official';
@@ -192,7 +192,7 @@ async function pruneOldVersions(cacheRoot, currentVersion) {
 
 export async function runInstallZCodePlugin(args = []) {
   const { dryRun, force, pruneOld } = parseArgs(args);
-  const pluginSrc = join(templateRoot, ".zcode");
+  const pluginSrc = join(packageRoot, 'presets', 'zcode');
   const skillsSrc = join(templateRoot, "skills");
   const { version } = await readPackageInfo();
   const manifest = (await readJsonSafe(join(pluginSrc, '.zcode-plugin', 'plugin.json'))) || {};
@@ -238,7 +238,7 @@ export async function runInstallZCodePlugin(args = []) {
     await rm(destDir, { recursive: true, force: true });
   }
 
-  // Copy plugin runtime (.zcode-plugin/, hooks/, runtime/, scaffold/) from .zcode/
+  // Copy plugin runtime (.zcode-plugin/, hooks/, runtime/, scaffold/) from presets/zcode/
   await cp(pluginSrc, destDir, { recursive: true });
 
   // ZCode may apply plugin scaffold files to each workspace folder. Keep
@@ -246,7 +246,7 @@ export async function runInstallZCodePlugin(args = []) {
   await rm(join(destDir, "scaffold", ".cowork-flow"), { recursive: true, force: true });
 
   // Sync canonical scripts from main template (single source of truth).
-  // The .zcode/hooks/runtime/scripts/ copy is stale; overwrite with the
+  // The presets/zcode/hooks/runtime/scripts/ copy is stale; overwrite with the
   // authoritative version from template/.cowork-flow/scripts/.
   const mainScriptsSrc = join(templateRoot, ".cowork-flow", "scripts");
   const pluginScriptsDest = join(destDir, "hooks", "runtime", "scripts");

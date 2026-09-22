@@ -99,8 +99,8 @@ print(contract_fingerprint(Path(${JSON.stringify(root)}), contracts))
 function fingerprintFromZcodeHook(root) {
   const hook = join(
     packageRoot,
-    'template',
-    '.zcode',
+    'presets',
+    'zcode',
     'hooks',
     'inject-context.js'
   );

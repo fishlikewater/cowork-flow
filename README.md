@@ -89,14 +89,19 @@ template/
 ├── .claude/                   # Claude Code settings / agents / hooks
 ├── .opencode/                 # OpenCode agents / commands / plugins
 ├── .dsh/                      # DeepSeek Harness 标记（sync 检测 + 说明）
-├── .zcode/                    # ⭐ ZCode 插件（hooks + skills + agents + scaffold instructions）
 ├── .kimi-code/                # Kimi Code fixed agents（cowork-implement / check / research）
 └── .cowork-flow/
     ├── config.yaml            # 项目配置
     ├── scripts/               # Python 运行时
     ├── spec/                  # 规范文档（contracts / schemas / guides）
     ├── plans/                 # 实现计划
-    ├── tasks/                 # 任务目录
+    └── tasks/                 # 任务目录
+
+presets/                       # ⭐ 机器级插件载荷：安装器拷进宿主配置目录，不落项目
+├── zcode/                     # ZCode 插件（hooks + agents + .zcode-plugin/plugin.json）
+├── qoder/                     # Qoder 插件（hooks + agents + .qoder-plugin/plugin.json）
+├── kimi-code/                 # Kimi Code hook shim
+└── dsh/                       # DSH agent 预设
 ```
 
 ## 架构与扩展点
@@ -429,7 +434,7 @@ npm run release -- minor --no-publish  # 完整流程但跳过 npm publish（tag
 1. `npm run release:check`、`git diff --check`
 2. 稳定性变更使用 `COWORK_TEMPLATE_TEST_REPEAT=3` 和固定 `COWORK_TEMPLATE_TEST_SEED` 重复运行 `npm run test:template:full`
 3. `npm version` 升级版本
-4. 同步版本到 `template/.cowork-flow/.version` 和 `template/.zcode/.zcode-plugin/plugin.json`
+4. 同步版本到 `template/.cowork-flow/.version` 和宿主插件清单（`presets/<host>/*-plugin/plugin.json`）
 5. `git commit` + `git tag`
 6. `npm publish`——走 CI 发布通道时改用 `--no-publish` 在此止步，交由下一步触发
 

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 import { runInstallZCodePlugin } from '../src/commands/install-zcode-plugin.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
-import { templateRoot } from '../src/lib/paths.js';
+import { packageRoot, templateRoot } from '../src/lib/paths.js';
 
 const LOCAL_MARKETPLACE = 'cowork-flow-local';
 const OFFICIAL_MARKETPLACE = 'zcode-plugins-official';
@@ -71,13 +71,13 @@ async function pathExists(path) {
 }
 
 function runZCodeHook(input, options = {}) {
-  const result = spawnSync(process.execPath, [join(templateRoot, '.zcode', 'hooks', 'inject-context.js')], {
+  const result = spawnSync(process.execPath, [join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.js')], {
     cwd: options.cwd || process.cwd(),
     input: `${JSON.stringify(input)}\n`,
     encoding: 'utf8',
     env: {
       ...process.env,
-      ZCODE_PLUGIN_ROOT: join(templateRoot, '.zcode'),
+      ZCODE_PLUGIN_ROOT: join(packageRoot, 'presets', 'zcode'),
       ZCODE_PROJECT_DIR: '',
       COWORK_FLOW_RUNTIME_CONTEXT_ID: ''
     }
@@ -87,7 +87,7 @@ function runZCodeHook(input, options = {}) {
 }
 
 test('zcode scaffold source does not commit workflow bootstrap files', async () => {
-  const sourceScaffold = join(templateRoot, '.zcode', 'scaffold');
+  const sourceScaffold = join(packageRoot, 'presets', 'zcode', 'scaffold');
 
   for (const relativePath of ['.cowork-flow', 'AGENTS.md', 'CLAUDE.md']) {
     await assert.rejects(access(join(sourceScaffold, relativePath)));
@@ -95,7 +95,7 @@ test('zcode scaffold source does not commit workflow bootstrap files', async () 
 });
 
 test('zcode hook config uses process executor with args', async () => {
-  const hooksConfig = await readJson(join(templateRoot, '.zcode', 'hooks', 'hooks.json'));
+  const hooksConfig = await readJson(join(packageRoot, 'presets', 'zcode', 'hooks', 'hooks.json'));
   for (const eventName of ['SessionStart', 'UserPromptSubmit', 'PostToolUse']) {
     const hook = hooksConfig.hooks[eventName][0].hooks[0];
     assert.equal(hook.type, 'process');
@@ -105,7 +105,7 @@ test('zcode hook config uses process executor with args', async () => {
 });
 
 test('zcode PostToolUse matcher covers every edit-capable tool', async () => {
-  const hooksConfig = await readJson(join(templateRoot, '.zcode', 'hooks', 'hooks.json'));
+  const hooksConfig = await readJson(join(packageRoot, 'presets', 'zcode', 'hooks', 'hooks.json'));
   const matchers = hooksConfig.hooks.PostToolUse.map((entry) => entry.matcher);
   for (const tool of ['Edit', 'Write', 'MultiEdit', 'Bash']) {
     assert.ok(

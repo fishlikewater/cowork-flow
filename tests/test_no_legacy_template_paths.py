@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
+PRESETS = ROOT / "presets"
 FORBIDDEN_PATTERNS = (
     "OpenSpec",
     "." + "tre" + "llis",
@@ -78,7 +79,7 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             TEMPLATE / ".cowork-flow" / "scripts",
             TEMPLATE / ".cowork-flow" / "spec" / "contracts" / "workflow-state-templates.md",
             TEMPLATE / ".cowork-flow" / "spec" / "references" / "definition-of-done.md",
-            TEMPLATE / ".zcode" / "scaffold" / "AGENTS.md",
+            PRESETS / "zcode" / "agents",
         )
         suffixes = {".md", ".py", ".toml"}
         offenders: list[str] = []

@@ -10,7 +10,6 @@
     "bin",
     "src",
     "template",
-    "template/.zcode",
     "presets",
     "README.md",
     "CHANGELOG.md",

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### 宿主插件载荷落点统一（zcode 迁出模板树）
+
+- `template/.zcode/` → `presets/zcode/`：机器级插件载荷统一落在 `presets/<host>/`（dsh、kimi-code hook、qoder 已在此），`template/` 只保留会落盘到生成项目的资产。`template/.zcode/` 本就进 `excludedPrefixes`、不进任何生成项目，搬移后 `package.json` 的 `files` 少一条冗余项，release 脚本的两份清单同址。
+- 安装等价性实测：搬迁前后各在隔离 `ZCODE_HOME` 执行 `install-zcode-plugin --force`，产物树 226 条 `sha256` 指纹逐行相等（仅 `known_marketplaces.json` 的 `addedAt`/`lastUpdated` 墙钟字段掩码）；1 字节负向对照可被检出。
+- 计划外引用面修正：Python 测试用 `ROOT / "template" / ".zcode"` 拼接、README 结构图写作裸 `.zcode/`，字符串 grep 均不可见。前者改为指向真实载荷并升级为可失败的守卫（`presets/zcode` 下出现 `AGENTS.md`/`CLAUDE.md`/`.cowork-flow`/`scaffold` 即红，已负向验证），后者删除并补上此前缺失的 `presets/` 目录树。
+
 ### Qoder 宿主适配（插件形态）
 
 - 新增平台 `qoder`：`host-assets.json` 平台条目 + `capabilityMatrix` 行 + `.cowork-flow/adapters/qoder/adapter.yaml`，宿主身份在 `runtime/host_identity.py` 登记一行（prefix `qoder`、adapter `qoder.hooks`、`QODER_SESSION_ID`）。注入信封与 claude-code 同形，因此 `inject.py::_emit` 与 `HostPolicy` 零改动。
