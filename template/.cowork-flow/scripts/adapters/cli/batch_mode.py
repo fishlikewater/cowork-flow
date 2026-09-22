@@ -45,7 +45,9 @@ def _run_batch_action(
     # Inject the runtime scripts dir via PYTHONPATH before spawning (shared
     # bootstrap with run.py) so the child resolves the same runtime this
     # adapter came from instead of relying on the ambient path.
-    env = runtime_pythonpath_env()
+    # `cache_bytecode=False` is the same skill-script rule run.py applies: in a
+    # source checkout the resolved runtime is the shipped `template/` tree.
+    env = runtime_pythonpath_env(cache_bytecode=False)
     try:
         completed = subprocess.run(
             [sys.executable, str(script), *args],

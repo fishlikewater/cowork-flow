@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 交付树字节码隔离（测试与技能命令不再写 __pycache__）
+
+- 交付树（`template/**`、`presets/**`）此前持续被 Python 字节码污染，累积了 16 个 `__pycache__` 目录 / 90 个 `.pyc`。两条来源：`python -m pytest`（本地直跑与 CI 的 Python 段）无任何防护；技能命令（如 `doctor`）在源 checkout 里解析到 `template/.cowork-flow/scripts` 并 import 它。`scripts/template-test-runner.js` 的 `PYTHONDONTWRITEBYTECODE` 只覆盖 npm 入口。
+- 测试侧：`tests/__init__.py`（pytest 与 unittest 都会先导入的包）把字节码前缀指到 gitignored 的 `.tmp/pycache`——本进程设 `sys.pycache_prefix`，并通过 `PYTHONPYCACHEPREFIX` 传给子进程；Node 测试由 `test/helpers/bytecode-isolation.js` 做同一件事（进程级环境变量，覆盖它 spawn 的 hook/python 子进程）。只设解释器内变量不够：子进程不继承，实测交付树仍被写入 89 项。
+- 运行时侧：技能脚本子进程统一关掉字节码写入——`runtime_pythonpath_env(cache_bytecode=False)` 由 `run.py` 的 `run_skill_script` 与批处理入口 `batch_mode.py` 共用（两条 spawn 路径由独立检查各发现一次）。技能命令是低频入口，缓存收益可忽略（实测 `doctor` 冷/热启动差约 90ms），而它留下的 `__pycache__` 会落在技能脚本解析到的 runtime——源 checkout 里就是交付树。高频命令（`task`、`spec-check`、`mcp-state`）仍走默认分支，缓存行为不变。
+- 门禁：`tests/test_no_legacy_template_paths.py` 新增断言，`template/`、`presets/` 下出现 `__pycache__` 或 `*.pyc` 即失败（负向验证：放回一个 `.pyc` 变红）；现存污染已清理。
+- README「仓库结构」补仓库自身布局，以及 `node --test` 收集 `test/**` 全部 `.js`（含辅助模块）、Python 侧按 pytest `test_*.py` / unittest `test*.py` 收集的目录约定。
+
 ### 技能单一来源：移除全部机器级技能副本
 
 - **三处载荷不再交付技能**：`install-zcode-plugin` / `install-qoder-plugin` / `install-dsh-preset` 删除把 `template/skills` 拷进载荷的路径（含 dry-run 输出行与存在性检查），两份 `plugin.json` 去掉 `skills` 组件，dsh 的 `agent.cordis.yml` 移除 `skill-filesystem` 的 `customSkillDirs`（组件行保留——它提供按 rank 的工作区发现：`<projectRoot>/.dsh/skills` 100、`<projectRoot>/.agents/skills` 200、用户根 400/500，依据 `@deepseek-ai/dsh-skill-filesystem` 的默认根表），`preset.yml` 描述同步订正。技能自此只由项目级 `init` / `sync` 交付。

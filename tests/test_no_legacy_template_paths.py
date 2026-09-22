@@ -171,6 +171,29 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
 
         self.assertEqual([], offenders)
 
+    def test_shipped_trees_carry_no_python_bytecode(self) -> None:
+        """Local test runs must not leave bytecode in shipped trees.
+
+        The delivery filters are blacklist-shaped, so a stray ``__pycache__``
+        under ``template/`` or ``presets/`` sits one filter edit away from
+        reaching user projects. Bytecode belongs in the ``.tmp`` prefix that
+        ``tests/conftest.py`` points at, never next to shipped sources.
+        """
+        offenders: list[str] = []
+
+        for root in (TEMPLATE, PRESETS):
+            for path in root.rglob("*"):
+                if path.is_dir() and path.name == "__pycache__":
+                    offenders.append(f"{path.relative_to(ROOT)}/")
+                elif (
+                    path.is_file()
+                    and path.suffix == ".pyc"
+                    and "__pycache__" not in path.parts
+                ):
+                    offenders.append(str(path.relative_to(ROOT)))
+
+        self.assertEqual([], offenders)
+
 
 if __name__ == "__main__":
     unittest.main()

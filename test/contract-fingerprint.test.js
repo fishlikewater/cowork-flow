@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 
+import './helpers/bytecode-isolation.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 const NODE = process.execPath;
