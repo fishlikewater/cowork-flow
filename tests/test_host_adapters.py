@@ -290,11 +290,9 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertEqual("cowork_runtime_context_id", runtime_context["metadataKey"])
                 self.assertEqual("fail_closed", adapter["fallback"]["whenRuntimeContextMissing"])
                 if host == "claude-code":
-                    self.assertEqual(".claude/skills", adapter["dispatch"]["skillsPath"])
                     self.assertEqual(".claude/settings.json", adapter["dispatch"]["settingsPath"])
                     self.assertEqual(".claude/hooks", adapter["dispatch"]["hooksPath"])
                 if host == "dsh":
-                    self.assertEqual(".agents/skills", adapter["dispatch"]["skillsPath"])
                     self.assertEqual("AGENTS.md", adapter["dispatch"]["memoryPath"])
                     self.assertEqual("external", capabilities["stateInjection"])
                     self.assertEqual("shim", capabilities["runtimeContextBinding"])
@@ -303,23 +301,41 @@ class HostAdaptersTest(unittest.TestCase):
                 if host == "kimi-code":
                     self.assertEqual("subagent", adapter["dispatch"]["primitive"])
                     self.assertEqual(".kimi-code/agents", adapter["dispatch"]["agentsPath"])
-                    self.assertEqual(".agents/skills", adapter["dispatch"]["skillsPath"])
                     self.assertEqual("shim", capabilities["stateInjection"])
                     self.assertEqual("unsupported", capabilities["editScopeWarning"])
                 if host == "qoder":
                     self.assertEqual("subagent", adapter["dispatch"]["primitive"])
                     # Qoder host assets live in the machine-level plugin payload,
                     # so no dispatch path may point at a project directory.
-                    self.assertEqual(
-                        "presets/qoder/agents", adapter["dispatch"]["agentsPath"]
-                    )
-                    self.assertEqual(
-                        "presets/qoder/hooks", adapter["dispatch"]["hooksPath"]
-                    )
                     self.assertEqual("AGENTS.md", adapter["dispatch"]["memoryPath"])
                     self.assertEqual("plugin", capabilities["stateInjection"])
                     self.assertEqual("shim", capabilities["runtimeContextBinding"])
                     self.assertEqual("unsupported", capabilities["editScopeWarning"])
+
+    def test_adapter_dispatch_paths_are_project_relative_and_exist(self) -> None:
+        """dispatch.*Path names where a host's assets live inside a generated
+        project, so the value must exist in the template that generates
+        projects. Package-relative payload locations belong to host-assets.json
+        and the installers, and skill roots have exactly one declaration
+        (`skillReadRoot`), so neither may reappear here."""
+        template = ROOT / "template"
+        adapters_root = template / ".cowork-flow" / "adapters"
+        offenders: list[str] = []
+        for path in sorted(adapters_root.glob("*/adapter.yaml")):
+            dispatch = parse_simple_yaml(path).get("dispatch") or {}
+            for key, value in dispatch.items():
+                if not key.endswith("Path"):
+                    continue
+                if key == "skillsPath":
+                    offenders.append(
+                        f"{path.parent.name}: {key}={value} (skill roots belong to "
+                        "host-assets.json skillReadRoot)"
+                    )
+                elif str(value).startswith("presets/"):
+                    offenders.append(f"{path.parent.name}: {key}={value} (package-relative)")
+                elif not (template / str(value)).exists():
+                    offenders.append(f"{path.parent.name}: {key}={value} (missing in template)")
+        self.assertEqual([], offenders)
 
     def test_party_mode_v2_action_schema_is_host_neutral(self) -> None:
         expected_actions = {

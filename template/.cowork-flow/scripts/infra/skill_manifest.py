@@ -72,12 +72,29 @@ def _reject_unknown_fields(
         )
 
 
+# Host replica roots used when the host manifest cannot be read; the manifest
+# is the source of truth, this only keeps a broken checkout navigable.
+_FALLBACK_HOST_SKILL_ROOTS = (".agents/skills", ".claude/skills", ".cowork-flow/skills")
+
+
+def _host_skill_roots(repo_root: Path) -> tuple[Path, ...]:
+    """Host skill replicas this project may hold, in manifest platform order."""
+    root = Path(repo_root)
+    declared = [value for _, value in _skill_read_roots(root)] or list(
+        _FALLBACK_HOST_SKILL_ROOTS
+    )
+    ordered: list[Path] = []
+    for value in declared:
+        candidate = root / value
+        if candidate not in ordered:
+            ordered.append(candidate)
+    return tuple(ordered)
+
+
 def skill_roots(repo_root: Path) -> tuple[Path, ...]:
     root = Path(repo_root)
     roots = [
-        root / ".agents" / "skills",
-        root / ".claude" / "skills",
-        root / ".cowork-flow" / "skills",
+        *_host_skill_roots(root),
         root / "skills",
         root / "template" / "skills",
     ]
@@ -320,9 +337,7 @@ def _replica_precedence(repo_root: Path, manifest: SkillManifest) -> tuple[int, 
         root / "template" / "skills",
         source_template,
         root / "skills",
-        root / ".agents" / "skills",
-        root / ".claude" / "skills",
-        root / ".cowork-flow" / "skills",
+        *_host_skill_roots(root),
     )
     manifest_path = manifest.path.resolve()
     for index, candidate in enumerate(ordered_roots):

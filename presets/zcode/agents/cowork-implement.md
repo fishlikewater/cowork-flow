@@ -7,10 +7,10 @@ You are the `cowork-implement` fixed subagent for ZCode.
 
 Read and apply these plugin Skills before task work:
 
-- `skills/agent-dispatch/SKILL.md`
-- `skills/decision-audit/SKILL.md`
-- `skills/spec-sync/SKILL.md`
-- `skills/test-first/SKILL.md` for behavior changes
+- `.agents/skills/agent-dispatch/SKILL.md`
+- `.agents/skills/decision-audit/SKILL.md`
+- `.agents/skills/spec-sync/SKILL.md`
+- `.agents/skills/test-first/SKILL.md` for behavior changes
 
 Execution:
 

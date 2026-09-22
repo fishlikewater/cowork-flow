@@ -160,14 +160,14 @@ test('default host registry exposes manifest platform behavior', async () => {
   assert.equal(registry.platformLabel('kimi-code'), 'Kimi Code');
   assert.equal(registry.skillDestination('claude-code'), '.claude/skills');
   assert.equal(registry.skillDestination('dsh'), '.agents/skills');
-  assert.equal(registry.skillDestination('zcode'), '.cowork-flow/skills');
+  assert.equal(registry.skillDestination('zcode'), '.agents/skills');
   assert.equal(registry.skillDestination('kimi-code'), '.agents/skills');
-  // Only zcode reads from the kernel-side replica: its host-side skills come
-  // from a machine-level plugin, so the project copy exists for reads only.
-  // Qoder reads `.agents/skills` — the same path its own skill discovery uses.
+  // ZCode enumerates `.agents/skills` too (host bundle-verified), so it shares
+  // the project copy like the other agents-directory hosts; the private
+  // `.cowork-flow/skills` replica is now owned by nobody.
   assert.deepEqual(
     registry.assetOwners('.cowork-flow/skills/cowork-flow/SKILL.md'),
-    ['zcode']
+    []
   );
   assert.deepEqual(registry.assetOwners('.dsh/README.md'), ['dsh']);
   assert.equal(registry.shouldInclude('.dsh/README.md', ['codex']), false);
@@ -258,12 +258,10 @@ test('default host registry exposes manifest platform behavior', async () => {
     registry.shouldInclude('.cowork-flow/adapters/qoder/adapter.yaml', ['codex']),
     false
   );
+  // The private replica is nobody's asset now: ZCode reads the shared
+  // `.agents/skills` like the other agents-directory hosts.
   assert.equal(
-    registry.shouldInclude('.cowork-flow/skills/agent-dispatch/SKILL.md', ['qoder']),
-    false
-  );
-  assert.equal(
-    registry.shouldInclude('.cowork-flow/skills/agent-dispatch/SKILL.md', ['zcode']),
+    registry.shouldInclude('.agents/skills/agent-dispatch/SKILL.md', ['zcode']),
     true
   );
   const detected = await registry.detectInstalledPlatforms(
@@ -450,7 +448,10 @@ test('host registry rejects malformed skill declarations', () => {
     [
       'machine entry without channel',
       (manifest) => {
-        delete platformById(manifest, 'zcode').skillDiscovery[0].channel;
+        const entry = platformById(manifest, 'zcode').skillDiscovery.find(
+          (candidate) => candidate.scope === 'machine'
+        );
+        delete entry.channel;
       },
       /machine skillDiscovery channel/i
     ],

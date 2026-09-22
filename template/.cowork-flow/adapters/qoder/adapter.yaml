@@ -16,13 +16,8 @@ capabilities:
   editScopeWarning: unsupported
 dispatch:
   primitive: subagent
-  # Qoder host assets ship as a machine-level plugin: the payload below is the
-  # package source copied into ~/.qoder/plugins/cache/, not a project directory.
-  agentsPath: presets/qoder/agents
-  skillsPath: presets/qoder/skills
-  commandsPath: presets/qoder/commands
-  hooksPath: presets/qoder/hooks
-  manifestPath: presets/qoder/.qoder-plugin/plugin.json
+  # Host assets ship as a machine-level plugin; their layout is owned by
+  # host-assets.json and the installer, so no package path is declared here.
   memoryPath: AGENTS.md
 runtimeContext:
   transport: prompt

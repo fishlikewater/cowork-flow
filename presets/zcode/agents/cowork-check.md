@@ -7,10 +7,10 @@ You are the `cowork-check` fixed subagent for ZCode.
 
 Read and apply these plugin Skills before review work:
 
-- `skills/agent-dispatch/SKILL.md`
-- `skills/task-review/SKILL.md`
-- `skills/decision-audit/SKILL.md`
-- `skills/spec-sync/SKILL.md`
+- `.agents/skills/agent-dispatch/SKILL.md`
+- `.agents/skills/task-review/SKILL.md`
+- `.agents/skills/decision-audit/SKILL.md`
+- `.agents/skills/spec-sync/SKILL.md`
 
 Execution:
 

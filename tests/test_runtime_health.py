@@ -500,7 +500,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_plugin_skills_from_another_release_reports_stale(self) -> None:
         project = self._project("zcode")
-        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        (project / ".agents" / "skills").mkdir(parents=True)
         self._install_zcode_plugin("1.5.0")
         issues = self.doctor.check_skill_delivery(project)
         self.assertEqual(["PLUGIN-SKILLS-STALE"], [issue["code"] for issue in issues])
@@ -510,13 +510,13 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_plugin_skills_at_the_project_version_is_silent(self) -> None:
         project = self._project("zcode")
-        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        (project / ".agents" / "skills").mkdir(parents=True)
         self._install_zcode_plugin("1.6.0")
         self.assertEqual([], self.doctor.check_skill_delivery(project))
 
     def test_plugin_without_a_skills_copy_is_silent(self) -> None:
         project = self._project("zcode")
-        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        (project / ".agents" / "skills").mkdir(parents=True)
         self._install_zcode_plugin("1.5.0", skills=False)
         self.assertEqual([], self.doctor.check_skill_delivery(project))
 
@@ -535,7 +535,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_skill_delivery_warnings_never_enter_doctor_errors(self) -> None:
         project = self._project("zcode")
-        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        (project / ".agents" / "skills").mkdir(parents=True)
         self._install_zcode_plugin("1.5.0")
         result = self.doctor._all_check_result(project)
         self.assertEqual(
@@ -550,7 +550,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_text_output_prints_the_skill_delivery_section(self) -> None:
         project = self._project("zcode")
-        (project / ".cowork-flow" / "skills").mkdir(parents=True)
+        (project / ".agents" / "skills").mkdir(parents=True)
         self._install_zcode_plugin("1.5.0")
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):

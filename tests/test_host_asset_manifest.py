@@ -204,7 +204,7 @@ class HostAssetManifestTest(unittest.TestCase):
             manifest.platform("kimi-code").skill_read_root,
         )
         self.assertEqual(
-            ".cowork-flow/skills",
+            ".agents/skills",
             manifest.platform("zcode").skill_read_root,
         )
         self.assertEqual(
@@ -259,6 +259,38 @@ class HostAssetManifestTest(unittest.TestCase):
         self.assertIn(
             ".cowork-flow/scripts/task.py",
             manifest.sync_policy.obsolete_files,
+        )
+
+    def test_zcode_declares_the_shared_skill_root_and_plugin_channel(self) -> None:
+        manifest = self.host_manifest.load_host_manifest(TEMPLATE)
+        # ZCode reads skills from the shared `.agents/skills` (host bundle
+        # verified), not from the private `.cowork-flow/skills` its enumerator
+        # never looks at; the plugin payload keeps its own skills channel.
+        zcode = manifest.platform("zcode")
+        self.assertEqual(".agents/skills", zcode.skill_read_root)
+        self.assertEqual((".cowork-flow/adapters/zcode/",), zcode.asset_prefixes)
+        self.assertEqual(
+            [("project", ".agents/skills"), ("machine", "plugin:skills")],
+            [(entry.scope, entry.path or entry.channel) for entry in zcode.skill_discovery],
+        )
+        for entry in zcode.skill_discovery:
+            self.assertTrue(entry.evidence.startswith("verified:"))
+
+    def test_legacy_skill_replica_is_migrated_by_sync(self) -> None:
+        manifest = self.host_manifest.load_host_manifest(TEMPLATE)
+        obsolete = set(manifest.sync_policy.obsolete_files)
+
+        # `.cowork-flow/skills` stopped being a read root, so the shipped
+        # skills must be listed for deletion in projects that still have them.
+        self.assertEqual(
+            [],
+            [
+                f".cowork-flow/skills/{skill}"
+                for skill in sorted(
+                    path.name for path in (TEMPLATE / "skills").iterdir() if path.is_dir()
+                )
+                if f".cowork-flow/skills/{skill}" not in obsolete
+            ],
         )
 
     def test_semantic_validation_accepts_repository_assets(self) -> None:
@@ -507,10 +539,14 @@ class HostAssetManifestTest(unittest.TestCase):
     def test_skill_discovery_machine_entry_requires_channel(self) -> None:
         def mutate(data: dict) -> None:
             entry = next(
-                platform
-                for platform in data["platforms"]
-                if platform["id"] == "zcode"
-            )["skillDiscovery"][0]
+                entry
+                for entry in next(
+                    platform
+                    for platform in data["platforms"]
+                    if platform["id"] == "zcode"
+                )["skillDiscovery"]
+                if entry["scope"] == "machine"
+            )
             del entry["channel"]
 
         errors = self._validate_mutated_manifest(mutate)

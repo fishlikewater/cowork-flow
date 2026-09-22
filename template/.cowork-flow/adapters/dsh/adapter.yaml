@@ -16,7 +16,6 @@ capabilities:
   editScopeWarning: unsupported
 dispatch:
   primitive: subagent
-  skillsPath: .agents/skills
   memoryPath: AGENTS.md
 runtimeContext:
   transport: prompt
