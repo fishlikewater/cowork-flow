@@ -1,10 +1,12 @@
 # The `cowork-flow` agent preset: the standard coding agent plus the
 # cowork-flow workflow framework (task gate, planning, fixed subagents, skills).
 #
-# This file is a copy of the deployment's `standard` preset with two changes:
-# the persona carries cowork-flow operating rules, and `skill-filesystem`
-# points at this preset's own `skills/` directory (installed alongside by
-# `cowork-flow install-dsh-preset`).
+# This file is a copy of the deployment's `standard` preset with one change:
+# the persona carries cowork-flow operating rules; `skill-filesystem` keeps the
+# workspace default roots (`<projectRoot>/.dsh/skills` rank 100,
+# `<projectRoot>/.agents/skills` rank 200) plus the user roots, so skills come
+# from the project copy that `cowork-flow init` / `sync` delivers — this preset
+# ships none of its own.
 #
 # The `dsh` host adapter lives in the cowork-flow repository
 # (template/.cowork-flow/adapters/dsh/adapter.yaml) and declares this preset's
@@ -56,16 +58,13 @@
 
 # ── skills ──────────────────────────────────────────────────────────────────
 
-# The skill REGISTRY lives in the host composition and is layered per scope:
-# these rows register into THIS preset's layer of it. `skill-filesystem`
-# contributes the cowork-flow skills shipped with this preset (`customSkillDirs`,
-# resolved against the preset's own directory via `baseUrl`) on top of the
-# local-root discovery for the current workspace.
+# The skill REGISTRY lives in the host composition and is layered per scope.
+# `skill-filesystem` discovers skills from the workspace's own roots
+# (`<projectRoot>/.dsh/skills` at rank 100, `<projectRoot>/.agents/skills` at
+# rank 200) plus the user roots, so cowork-flow skills come from the project
+# copy that `init`/`sync` delivers — the preset ships none of its own.
 - id: skill-filesystem
   name: '@deepseek-ai/dsh-skill-filesystem'
-  config:
-    customSkillDirs:
-      - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('skills/', baseUrl))"
 
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'

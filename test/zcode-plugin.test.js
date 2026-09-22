@@ -279,7 +279,6 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
     await assert.rejects(access(join(installedScaffold, relativePath)));
   }
   await access(join(pluginRoot, 'hooks', 'inject-context.js'));
-  await access(join(pluginRoot, 'skills', 'cowork-flow', 'SKILL.md'));
   await access(join(pluginRoot, 'agents', 'cowork-implement.md'));
   await access(join(pluginRoot, 'agents', 'cowork-check.md'));
   await access(join(pluginRoot, 'agents', 'cowork-research.md'));
@@ -287,17 +286,19 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   const manifest = await readJson(join(pluginRoot, '.zcode-plugin', 'plugin.json'));
   assert.equal(manifest.hooks, 'hooks/hooks.json');
   assert.equal(manifest.agents, 'agents');
-  assert.equal(manifest.skills, 'skills');
+  // Skills belong to the project copy only: ZCode enumerates the project root
+  // and the plugin root without name-based dedup, so a payload copy would show
+  // up as a second same-named skill.
+  assert.equal(manifest.skills, undefined);
 
   await access(join(pluginRoot, manifest.hooks));
   await access(join(pluginRoot, manifest.agents, 'cowork-implement.md'));
   await access(join(pluginRoot, manifest.agents, 'cowork-check.md'));
   await access(join(pluginRoot, manifest.agents, 'cowork-research.md'));
-  await access(join(pluginRoot, manifest.skills, 'cowork-flow', 'SKILL.md'));
+  await assert.rejects(access(join(pluginRoot, 'skills')));
 
   const implementAgent = await readFile(join(pluginRoot, 'agents', 'cowork-implement.md'), 'utf8');
-  // Agent bodies point at the project's skill copy (the host's discovery path);
-  // the payload's own `skills/` is a host-side channel, not a body reference.
+  // Agent bodies point at the project's skill copy (the host's discovery path).
   assert.match(implementAgent, /\.agents\/skills\/agent-dispatch\/SKILL\.md/);
   assert.doesNotMatch(implementAgent, /`skills\//);
 });

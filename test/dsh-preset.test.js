@@ -1,31 +1,13 @@
 import assert from 'node:assert/strict';
-import { access, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { runInstallDshPreset } from '../src/commands/install-dsh-preset.js';
-import { packageRoot, templateRoot } from '../src/lib/paths.js';
+import { packageRoot } from '../src/lib/paths.js';
 
 const PRESET_ID = 'cowork-flow';
-const EXPECTED_SKILL_DIRS = [
-  'adversarial-review',
-  'agent-dispatch',
-  'batch-execution',
-  'brainstorming',
-  'cowork-flow',
-  'cowork-flow-maintenance',
-  'decision-audit',
-  'failure-analysis',
-  'game-design',
-  'party-mode',
-  'python-runtime-design',
-  'runtime-health',
-  'spec-sync',
-  'task-planning',
-  'task-review',
-  'test-first'
-];
 
 
 async function pathExists(target) {
@@ -62,7 +44,7 @@ async function captureConsole(fn) {
 }
 
 
-test('install-dsh-preset copies preset and skills into the DSH root', async (t) => {
+test('install-dsh-preset copies the preset into the DSH root without skills', async (t) => {
   const dshHome = await createDshHome(t);
   const previous = process.env.DSH_HOME;
   process.env.DSH_HOME = dshHome;
@@ -88,24 +70,17 @@ test('install-dsh-preset copies preset and skills into the DSH root', async (t) 
   assert.match(presetMeta, /name: Cowork Flow/);
   assert.match(presetMeta, /description:/);
 
-  assert.match(installed, /customSkillDirs/);
-  assert.match(installed, /new URL\('skills\/', baseUrl\)/);
+  assert.match(installed, /id: skill-filesystem/);
+  // Skills come from the project copy that init/sync delivers; the preset
+  // registers no root of its own.
+  assert.doesNotMatch(installed, /customSkillDirs/);
   assert.match(installed, /0\.1 编码前强制门禁/);
   assert.match(installed, /subagent bind \/ close/);
   assert.match(installed, /id: workflow-state-hook/);
   assert.match(installed, /name: '\.\/plugins\/workflow-state\.js'/);
   assert.equal(await pathExists(join(dest, 'plugins', 'workflow-state.js')), true);
 
-  const skills = join(dest, 'skills');
-  assert.equal(await pathExists(join(skills, 'cowork-flow', 'SKILL.md')), true);
-  assert.equal(await pathExists(join(skills, 'party-mode', 'scripts', 'party_mode_v2.py')), true);
-
-  const installedSkillDirs = (await readdir(skills, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-  assert.deepEqual(installedSkillDirs, [...EXPECTED_SKILL_DIRS].sort());
-  assert.equal(await pathExists(join(skills, 'start')), false);
+  assert.equal(await pathExists(join(dest, 'skills')), false);
 });
 
 
@@ -152,7 +127,7 @@ test('install-dsh-preset --force overwrites an existing preset', async (t) => {
 
   const presetMeta = await readFile(join(dest, 'preset.yml'), 'utf8');
   assert.match(presetMeta, /name: Cowork Flow/);
-  assert.equal(await pathExists(join(dest, 'skills', 'cowork-flow', 'SKILL.md')), true);
+  assert.equal(await pathExists(join(dest, 'skills')), false);
 });
 
 
@@ -223,25 +198,4 @@ test('install-dsh-preset warns when the installed version is stale', async (t) =
 
   assert.match(output, /0\.0\.1/);
   assert.match(output, /install-dsh-preset --force/);
-});
-
-
-test('install-dsh-preset resolves skills from the package template', async (t) => {
-  const dshHome = await createDshHome(t);
-  const previous = process.env.DSH_HOME;
-  process.env.DSH_HOME = dshHome;
-  t.after(() => {
-    if (previous === undefined) {
-      delete process.env.DSH_HOME;
-    } else {
-      process.env.DSH_HOME = previous;
-    }
-  });
-
-  await runInstallDshPreset([]);
-
-  const dest = join(dshHome, '.agent-presets', PRESET_ID);
-  const installedSkill = await readFile(join(dest, 'skills', 'cowork-flow', 'SKILL.md'), 'utf8');
-  const templateSkill = await readFile(join(templateRoot, 'skills', 'cowork-flow', 'SKILL.md'), 'utf8');
-  assert.equal(installedSkill, templateSkill);
 });

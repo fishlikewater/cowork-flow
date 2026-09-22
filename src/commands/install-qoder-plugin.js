@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { readPackageInfo } from '../lib/package-info.js';
-import { packageRoot, templateRoot } from '../lib/paths.js';
+import { packageRoot } from '../lib/paths.js';
 
 const QODER_MARKETPLACE = 'cowork-flow-local';
 const PLUGIN_NAME = 'cowork-flow';
@@ -153,17 +153,12 @@ export async function runInstallQoderPlugin(args = []) {
   }
 
   const pluginSrc = join(packageRoot, 'presets', 'qoder');
-  const skillsSrc = join(templateRoot, 'skills');
   if (!(await pathExists(pluginSrc))) {
     throw new Error(`Qoder plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
-  }
-  if (!(await pathExists(skillsSrc))) {
-    throw new Error(`Skills source missing at ${skillsSrc}. Reinstall cowork-flow.`);
   }
 
   console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow Qoder plugin:`);
   console.log(`  Plugin: ${pluginSrc} -> ${target.installPath}`);
-  console.log(`  Skills: ${skillsSrc} -> ${join(target.installPath, 'skills')}`);
 
   if (!dryRun && (await pathExists(target.installPath)) && !force) {
     console.log(`cowork-flow Qoder plugin already installed at ${target.installPath}`);
@@ -181,10 +176,6 @@ export async function runInstallQoderPlugin(args = []) {
   await mkdir(target.cacheRoot, { recursive: true });
   await rm(target.installPath, { recursive: true, force: true });
   await cp(pluginSrc, target.installPath, { recursive: true });
-  // plugin.json's "skills" component resolves inside the plugin payload, so the
-  // canonical template skills are copied in at install time instead of being
-  // duplicated into the repository.
-  await cp(skillsSrc, join(target.installPath, 'skills'), { recursive: true, force: true });
   await stampManifest(target.installPath, version);
   // Registry and enable flag come last: a half-copied payload must never be
   // advertised as installed.

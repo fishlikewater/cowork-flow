@@ -193,17 +193,12 @@ async function pruneOldVersions(cacheRoot, currentVersion) {
 export async function runInstallZCodePlugin(args = []) {
   const { dryRun, force, pruneOld } = parseArgs(args);
   const pluginSrc = join(packageRoot, 'presets', 'zcode');
-  const skillsSrc = join(templateRoot, "skills");
   const { version } = await readPackageInfo();
   const manifest = (await readJsonSafe(join(pluginSrc, '.zcode-plugin', 'plugin.json'))) || {};
 
   if (!(await pathExists(pluginSrc))) {
     throw new Error(`ZCode plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
   }
-  if (!(await pathExists(skillsSrc))) {
-    throw new Error(`Skills source missing at ${skillsSrc}. Reinstall cowork-flow.`);
-  }
-
   const pluginsRoot = getZCodePluginsRoot();
   const cacheRoot = await getZCodeCacheDir();
   const destDir = join(cacheRoot, version);
@@ -211,7 +206,6 @@ export async function runInstallZCodePlugin(args = []) {
   if (dryRun) {
     console.log(`[dry-run] Would install ZCode plugin:`);
     console.log(`  Plugin: ${pluginSrc} -> ${destDir}`);
-    console.log(`  Skills: ${skillsSrc} -> ${join(destDir, 'skills')}`);
     console.log(`  Marketplace source: ${join(pluginsRoot, 'cache', 'marketplaces', ZCODE_MARKETPLACE, 'marketplace.json')}`);
     console.log(`  Active marketplace: ${join(pluginsRoot, 'marketplaces', ZCODE_MARKETPLACE, 'marketplace.json')}`);
     console.log(`  Known marketplaces: ${join(pluginsRoot, 'known_marketplaces.json')}`);
@@ -253,9 +247,6 @@ export async function runInstallZCodePlugin(args = []) {
   if (await pathExists(mainScriptsSrc)) {
     await cp(mainScriptsSrc, pluginScriptsDest, { recursive: true, force: true });
   }
-
-  // Copy canonical skills into the plugin cache so plugin.json "skills" resolves.
-  await cp(skillsSrc, join(destDir, "skills"), { recursive: true, force: true });
 
   await updateMarketplace(pluginsRoot, cacheRoot, version, manifest);
   await updateKnownMarketplaces(pluginsRoot);

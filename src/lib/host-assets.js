@@ -51,8 +51,8 @@ const PLATFORM_KEYS = [
   'capabilities',
   'commandTargets'
 ];
-const SKILL_DISCOVERY_KEYS = ['scope', 'evidence', 'path', 'channel', 'gates'];
-const SKILL_DISCOVERY_SCOPES = ['project', 'machine'];
+const SKILL_DISCOVERY_KEYS = ['scope', 'evidence', 'path', 'gates'];
+const SKILL_DISCOVERY_SCOPES = ['project'];
 const SYNC_POLICY_KEYS = [
   'protectedFiles',
   'protectedPrefixes',
@@ -366,25 +366,11 @@ function validateSkillDiscovery(platform) {
     if (entry.gates !== undefined) {
       validateStringArray(entry.gates, `Host platform ${platform.id} skillDiscovery gates`);
     }
-    if (entry.scope === 'project') {
-      validateRequiredString(entry.path, `Host platform ${platform.id} project skillDiscovery path`);
-      if (entry.path !== platform.skillReadRoot) {
-        throw new Error(
-          `Host platform ${platform.id} project skillDiscovery path must equal skillReadRoot (${platform.skillReadRoot})`
-        );
-      }
-      if (entry.channel !== undefined) {
-        throw new Error(
-          `Host platform ${platform.id} project skillDiscovery must not declare channel`
-        );
-      }
-    } else {
-      validateRequiredString(entry.channel, `Host platform ${platform.id} machine skillDiscovery channel`);
-      if (entry.path !== undefined) {
-        throw new Error(
-          `Host platform ${platform.id} machine skillDiscovery must not declare path`
-        );
-      }
+    validateRequiredString(entry.path, `Host platform ${platform.id} skillDiscovery path`);
+    if (entry.path !== platform.skillReadRoot) {
+      throw new Error(
+        `Host platform ${platform.id} skillDiscovery path must equal skillReadRoot (${platform.skillReadRoot})`
+      );
     }
   }
 }

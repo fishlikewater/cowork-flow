@@ -33,8 +33,8 @@ CAPABILITY_STATUS_VALUES = (
 )
 MANIFEST_KEYS = frozenset(("schemaVersion", "capabilityValues", "capabilityMatrix", "platforms", "excludedPrefixes", "syncPolicy"))
 PLATFORM_KEYS = frozenset(("id", "displayName", "aliases", "detectAny", "assetPrefixes", "assetFiles", "skillReadRoot", "skillDiscovery", "adapterPath", "capabilities", "commandTargets"))
-SKILL_DISCOVERY_KEYS = frozenset(("scope", "path", "channel", "gates", "evidence"))
-SKILL_DISCOVERY_SCOPES = frozenset(("project", "machine"))
+SKILL_DISCOVERY_KEYS = frozenset(("scope", "path", "gates", "evidence"))
+SKILL_DISCOVERY_SCOPES = frozenset(("project",))
 SYNC_POLICY_KEYS = frozenset(("protectedFiles", "protectedPrefixes", "safeFiles", "safePrefixes", "managedBlockFiles", "obsoleteFiles"))
 COMMAND_TARGET_KEYS = frozenset(("config", "format", "target"))
 COMMAND_TARGET_FORMATS = frozenset(("json", "toml", "yaml"))
@@ -60,18 +60,17 @@ class CapabilityDeclaration:
 
 @dataclass(frozen=True)
 class SkillDiscovery:
-    """One channel through which the host itself discovers skills.
+    """A repository path through which the host discovers skills.
 
-    scope "project" means a repository path (path must equal the platform's
-    skillReadRoot: we read from the same place the host looks). scope
-    "machine" means a host-level channel such as a plugin component, which
-    init/sync cannot write.
+    `path` must equal the platform's skillReadRoot: we read from the same place
+    the host looks, so the project copy is the only source. Machine-level
+    channels (plugin payloads, presets) are deliberately absent — skills ship
+    with the project, and host plugins must not carry a second copy.
     """
 
     scope: str
     evidence: str
-    path: str | None
-    channel: str | None
+    path: str
     gates: tuple[str, ...]
 
 
@@ -492,36 +491,20 @@ def _build_skill_discovery(
             f"platform {platform_id} skillDiscovery evidence must be a non-empty string"
         )
     path = raw.get("path")
-    channel = raw.get("channel")
-    if scope == "project":
-        if not isinstance(path, str) or not path.strip():
-            raise HostManifestError(
-                f"platform {platform_id} project skillDiscovery requires path"
-            )
-        if path.strip() != skill_read_root:
-            raise HostManifestError(
-                f"platform {platform_id} project skillDiscovery path must equal "
-                f"skillReadRoot ({skill_read_root})"
-            )
-        if channel is not None:
-            raise HostManifestError(
-                f"platform {platform_id} project skillDiscovery must not declare channel"
-            )
-    else:
-        if not isinstance(channel, str) or not channel.strip():
-            raise HostManifestError(
-                f"platform {platform_id} machine skillDiscovery requires channel"
-            )
-        if path is not None:
-            raise HostManifestError(
-                f"platform {platform_id} machine skillDiscovery must not declare path"
-            )
+    if not isinstance(path, str) or not path.strip():
+        raise HostManifestError(
+            f"platform {platform_id} skillDiscovery requires path"
+        )
+    if path.strip() != skill_read_root:
+        raise HostManifestError(
+            f"platform {platform_id} skillDiscovery path must equal "
+            f"skillReadRoot ({skill_read_root})"
+        )
     gates_raw = raw.get("gates", [])
     return SkillDiscovery(
         scope=scope,
         evidence=evidence.strip(),
-        path=path.strip() if isinstance(path, str) else None,
-        channel=channel.strip() if isinstance(channel, str) else None,
+        path=path.strip(),
         gates=_string_tuple(gates_raw, f"{platform_id}.skillDiscovery.gates", unique=True),
     )
 
