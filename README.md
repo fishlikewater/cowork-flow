@@ -76,7 +76,7 @@ cowork-flow mcp-state
 npm run release:check
 ```
 
-平台选项：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `all`（逗号分隔）
+平台选项：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `qoder` / `all`（逗号分隔）
 
 ## 仓库结构
 
@@ -120,6 +120,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `kimi-code` | `.agents/skills/` |
 | `claude-code` | `.claude/skills/` |
 | `zcode` | `.cowork-flow/skills/`（内核 owner 解析用；系统提示层仍由 ZCode 插件单源提供，不重复加载） |
+| `qoder` | `.cowork-flow/skills/`（插件内 fixed agent 按路径读取；模型可见的技能层由 Qoder 插件 `skills/` 单源提供，不重复加载） |
 
 分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
 
@@ -131,6 +132,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `sync <path> [--dry-run]` | 同步已初始化项目的模板和技能 |
 | `source-refresh [path] [--dry-run]` | 维护者刷新 source checkout 的 ignored live runtime 与 Host Skill replica |
 | `install-zcode-plugin` | 安装 ZCode 插件到全局缓存 |
+| `install-qoder-plugin [--dry-run] [--force] [--uninstall]` | 机器级安装 cowork-flow Qoder 插件到 `~/.qoder/plugins/cache/`，注册 `installed_plugins_v2.json` 并置 `enabledPlugins` 开关 |
 | `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/`（整套 agent，可选） |
 | `install-dsh-hook` | 机器级注册 workflow-state hook 组合行到 `$DSH_HOME/cordis.patch.yml`（当前 DSH 的 agent 提示不收集 host 层 section，实时注入请用预设方式） |
 | `install-kimi-hook [--dry-run] [--force] [--uninstall]` | 机器级注册 UserPromptSubmit hook 到 `$KIMI_CODE_HOME/config.toml`（默认 `~/.kimi-code/`），向每个 Kimi Code 会话实时注入工作流上下文 |
@@ -141,7 +143,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 
 | 选项 | 说明 |
 |---|---|
-| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `all` |
+| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `qoder` / `all` |
 | `--developer <n>` | 开发者名称 |
 | `--force` | 覆盖已有文件 |
 | `--dry-run` | 预览不写入 |
@@ -264,6 +266,28 @@ Kimi Code 只注册 `UserPromptSubmit` 一个事件：`SessionStart` / `PostTool
 > 安装或更新后需要**重启 Kimi Code 会话**（或重新加载配置）才会加载 hook。
 
 Kimi Code 的 Bash 工具不导出会话标识环境变量，CLI 侧身份只能取自注入头里的 `session="kimi_<id>"`，需要显式传 `COWORK_FLOW_CONTEXT_ID`（或 `COWORK_FLOW_HOST=kimi-code`）。`./.cowork-flow/run doctor` 把该 hook 的注册情况作为 warning 级项报告（`HOOK-NOT-INSTALLED` / `HOOK-SHIM-MISSING` / `HOOK-UNKNOWN-VERSION` / `HOOK-STALE`），不计入 errors。
+
+## Qoder（插件形态）
+
+Qoder 的宿主资产不落在项目里：hooks、三个 fixed subagent 与技能层打包成一个 Qoder 插件，`init` / `sync` 只写 `.cowork-flow/adapters/qoder/adapter.yaml` 这一份声明，不生成 `.qoder/` 目录（`.qoder/` 在 `excludedPrefixes` 里）。
+
+```bash
+cowork-flow install-qoder-plugin              # 安装并启用（已存在时不覆盖）
+cowork-flow install-qoder-plugin --dry-run    # 预览将写入的载荷、注册表条目与开关
+cowork-flow install-qoder-plugin --force      # 覆盖重装（重写插件缓存内容）
+cowork-flow install-qoder-plugin --uninstall  # 卸载：只回收 cowork-flow 自己的条目与缓存目录
+```
+
+两个频次边界，缺一不可：
+
+- **插件每机一次**：换机器或升级 cowork-flow 后要重装。
+- **`init` 每项目一次**：未 `init` 的项目里装了插件也不会注入——hook 入口按载荷 `cwd` 向上找不到 `.cowork-flow` 时直接 exit 0（静默）。同事克隆仓库后需要各自执行一次 `install-qoder-plugin`。
+
+安装写入 `$QODER_CONFIG_DIR`（未设置时 `~/.qoder`）：插件载荷 `plugins/cache/cowork-flow-local/cowork-flow/<version>/`（含 `.qoder-plugin/plugin.json`、`hooks/`、`agents/`、安装时拷入的 `skills/`）、注册表 `plugins/installed_plugins_v2.json` 的 `cowork-flow@cowork-flow-local` 条目、`settings.json` 的 `enabledPlugins` 开关。写入一律保留未知键与其他插件条目。
+
+> 该注册表文件不在 Qoder 公开文档里，格式可能随版本变化。`./.cowork-flow/run doctor` 把它作为 warning 级项报告（`PLUGIN-NOT-INSTALLED` / `PLUGIN-PAYLOAD-MISSING` / `PLUGIN-PAYLOAD-INCOMPLETE` / `PLUGIN-DISABLED` / `PLUGIN-STALE`），不计入 errors；官方等价路径是 `qoder plugins install <目录>`，临时验证也可用 `--plugin-dir <目录>`。
+
+Qoder 侧的三条外部前提：hook 载荷需**重启 Qoder** 才加载（IDE 无热重载）；**未信任的工作区**不加载项目 hooks/agents/`AGENTS.md`；Desktop 的 Custom Agents 文档标注需 Business 版，因此 `.cowork-flow/run` 之外不要假设插件子代理在桌面端一定可用。`PostToolUse` 在 Qoder 不是可阻断事件，编辑期规范告警以 `additionalContext` 随 exit 0 返回。
 
 ## 任务流程
 

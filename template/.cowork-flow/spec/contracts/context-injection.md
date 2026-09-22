@@ -6,7 +6,7 @@ digest shape rules (full block vs fingerprint line), and the fingerprint
 serialization norm. The workflow facts are rendered by ONE Python source —
 `adapters/host/inject.py` over `workflow_state_hook.py` +
 `services.fact_view.py` — consumed by the zcode transport shim (node),
-claude-code, codex, dsh, and kimi-code; the opencode JS plugin remains the one
+claude-code, codex, dsh, kimi-code, and qoder; the opencode JS plugin remains the one
 independent mirror, locked to the same bytes by cross-host behavior tests.
 
 This document is a meta-protocol: it describes the injection layer itself and
@@ -23,6 +23,7 @@ would make the digest self-referential).
 | opencode | plugin `experimental.chat.system.transform` + `shell.env` | system-prompt section push / env object |
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 | kimi-code | user-level `config.toml` (`$KIMI_CODE_HOME`, default `~/.kimi-code/`) `[[hooks]]` row on `UserPromptSubmit` → shim (`cowork-flow-inject.mjs`) → `inject.py --host kimi-code` | bare-text stdout appended to the prompt context, no `hookSpecificOutput` envelope |
+| qoder | machine-level plugin `hooks/hooks.json` (`${QODER_PLUGIN_ROOT}/hooks/inject-context.py`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}`; `PostToolUse` is not blockable there, so the edit advisory rides `additionalContext` on exit 0 |
 
 Kimi Code registers that one `UserPromptSubmit` row and nothing else: the
 other events — `SessionStart`, `PostToolUse` — are observe-only, their stdout
@@ -42,7 +43,7 @@ test-locked: the contract digest **fingerprint value** and the
 | Host | workflow-state emission | digest policy line wording |
 |---|---|---|
 | zcode | always (main + delegated) | `policy: repeat fingerprint every hook; read full spec files only before listed actions.` |
-| codex / claude-code / kimi-code / dsh (Python core) | always (main + delegated) | `policy: repeat this short digest every hook; read full spec files only before listed actions.` |
+| codex / claude-code / kimi-code / dsh / qoder (Python core) | always (main + delegated) | `policy: repeat this short digest every hook; read full spec files only before listed actions.` |
 | opencode | delegated subagent sessions only | `policy: repeat this short digest every plugin transform; read full spec files only before listed actions.` |
 
 The opencode plugin has no ordinary-session injection channel: its

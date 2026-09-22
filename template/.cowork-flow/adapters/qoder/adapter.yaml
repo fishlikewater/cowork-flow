@@ -1,0 +1,37 @@
+schemaVersion: 1
+host: qoder
+displayName: Qoder
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: shim
+  waitChild: native
+  listChildren: shim
+  cancelChild: shim
+  stateInjection: plugin
+  backgroundChild: native
+  runtimeContextDispatch: native
+  runtimeContextBinding: shim
+  runtimeContextCleanup: native
+  editScopeWarning: unsupported
+dispatch:
+  primitive: subagent
+  # Qoder host assets ship as a machine-level plugin: the payload below is the
+  # package source copied into ~/.qoder/plugins/cache/, not a project directory.
+  agentsPath: presets/qoder/agents
+  skillsPath: presets/qoder/skills
+  commandsPath: presets/qoder/commands
+  hooksPath: presets/qoder/hooks
+  manifestPath: presets/qoder/.qoder-plugin/plugin.json
+  memoryPath: AGENTS.md
+runtimeContext:
+  transport: prompt
+  promptKey: cowork_runtime_context_id
+  envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
+  metadataKey: cowork_runtime_context_id
+contracts:
+  dispatch: RUNTIME_CONTEXT_DISPATCH_V2
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual
+  whenRuntimeContextMissing: fail_closed

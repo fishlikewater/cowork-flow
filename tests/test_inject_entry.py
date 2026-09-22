@@ -158,6 +158,42 @@ class InjectEntryTest(unittest.TestCase):
             context,
         )
 
+    def test_qoder_session_start_uses_json_envelope_and_python_core_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_json(
+                root, {"hook_event_name": "SessionStart"}, host="qoder"
+            )
+
+        envelope = data["hookSpecificOutput"]
+        self.assertEqual("SessionStart", envelope["hookEventName"])
+        context = envelope["additionalContext"]
+        self.assertIn(PYTHON_CORE_POLICY_LINE, context)
+        self.assertIn(
+            '<cowork-runtime host="qoder" adapter="qoder.hooks">',
+            context,
+        )
+
+    def test_qoder_resolves_generic_session_key_only_when_host_declared(self) -> None:
+        # Qoder payloads carry the generic session_id, so resolution must come
+        # from the declared host plus QODER_SESSION_ID, never from key shape.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(root, "qoder_s1", ".cowork-flow/tasks/09-01-demo")
+
+            data = self._run_json(
+                root,
+                {"hook_event_name": "UserPromptSubmit", "session_id": "s1"},
+                host="qoder",
+                env_extra={"QODER_SESSION_ID": "s1"},
+            )
+
+        context = data["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(".cowork-flow/tasks/09-01-demo", context)
+
     def test_zcode_user_prompt_gets_fingerprint_not_full_digest(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -523,6 +559,74 @@ class InjectEntryTest(unittest.TestCase):
         self.assertEqual("", result.stdout.strip())
         self.assertEqual(1, len(result.stderr.strip().splitlines()))
         self.assertIn("backend/edit-gate.md", result.stderr)
+
+    def _make_failing_edit_gate(self, root: Path) -> None:
+        spec_dir = root / ".cowork-flow" / "spec" / "backend"
+        spec_dir.mkdir(parents=True, exist_ok=True)
+        (spec_dir / "edit-gate.md").write_text(
+            "---\n"
+            "checks:\n"
+            f"  - cmd: \"{sys.executable}\" -c \"import sys; print('boom'); sys.exit(1)\"\n"
+            "    when: edit\n"
+            "    files: src/\n"
+            "---\n\n# gate\n",
+            encoding="utf-8",
+        )
+
+    def test_qoder_post_tool_use_spec_violation_uses_additional_context_exit_0(
+        self,
+    ) -> None:
+        # Qoder's PostToolUse is not a blockable event: exit 2 is ignored there,
+        # so the edit advisory must arrive as additionalContext on exit 0.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(
+                root, "qoder_s1", ".cowork-flow/tasks/09-01-demo"
+            )
+            self._make_failing_edit_gate(root)
+
+            result = self._run_inject(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Edit",
+                    "tool_input": {"file_path": "src/a.py"},
+                    "session_id": "s1",
+                },
+                host="qoder",
+                env_extra={"QODER_SESSION_ID": "s1"},
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("", result.stderr)
+        envelope = json.loads(result.stdout)["hookSpecificOutput"]
+        self.assertEqual("PostToolUse", envelope["hookEventName"])
+        self.assertIn("backend/edit-gate.md", envelope["additionalContext"])
+
+    def test_qoder_post_tool_use_without_violation_stays_silent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(
+                root, "qoder_s1", ".cowork-flow/tasks/09-01-demo"
+            )
+
+            result = self._run_inject(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Edit",
+                    "tool_input": {"file_path": "README.md"},
+                    "session_id": "s1",
+                },
+                host="qoder",
+                env_extra={"QODER_SESSION_ID": "s1"},
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("", result.stderr)
+        self.assertEqual("", result.stdout.strip())
 
     # -- not initialized ------------------------------------------------------
 

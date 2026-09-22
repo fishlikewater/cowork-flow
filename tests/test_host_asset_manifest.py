@@ -169,7 +169,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual(1, manifest.schema_version)
         self.assertEqual(
-            ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code"),
+            ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder"),
             manifest.platform_ids,
         )
         self.assertEqual(
@@ -177,7 +177,7 @@ class HostAssetManifestTest(unittest.TestCase):
             manifest.required_host_capabilities,
         )
         self.assertEqual(
-            ("claude-code", "codex", "dsh", "kimi-code", "opencode", "zcode"),
+            ("claude-code", "codex", "dsh", "kimi-code", "opencode", "qoder", "zcode"),
             tuple(sorted(manifest.capability_matrix)),
         )
         self.assertEqual("claude-code", manifest.resolve_alias("claude"))
@@ -204,6 +204,23 @@ class HostAssetManifestTest(unittest.TestCase):
         # Kimi Code hooks live in the user-level $KIMI_CODE_HOME/config.toml,
         # so the platform declares no project-level command target.
         self.assertEqual((), manifest.platform("kimi-code").command_targets)
+        # Qoder ships as a machine-level plugin: it owns no project-level
+        # `.qoder/` asset (excluded) and declares no project command target.
+        self.assertEqual(
+            ".cowork-flow/skills",
+            manifest.platform("qoder").skill_target,
+        )
+        self.assertEqual(
+            ".cowork-flow/adapters/qoder/adapter.yaml",
+            manifest.platform("qoder").adapter_path,
+        )
+        self.assertEqual(
+            (".cowork-flow/adapters/qoder",),
+            manifest.platform("qoder").detect_any,
+        )
+        self.assertEqual((), manifest.platform("qoder").command_targets)
+        self.assertEqual("qoder", manifest.resolve_alias("qoder-cli"))
+        self.assertIn(".qoder/", manifest.excluded_prefixes)
         self.assertEqual(
             "unsupported",
             manifest.host_capability("zcode", "file_write").status,

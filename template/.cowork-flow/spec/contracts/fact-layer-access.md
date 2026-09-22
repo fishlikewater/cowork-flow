@@ -69,6 +69,7 @@ queries. Session-bound facts remain the hook/CLI channels' responsibility.
 | codex | `~/.codex/config.toml` `[mcp_servers.cowork-flow]` | project config cannot enable user-approval-gated capabilities — use the global tier |
 | opencode | `opencode.json` `mcp` entry | — |
 | kimi-code | user config `~/.kimi-code/mcp.json` (`$KIMI_CODE_HOME/mcp.json`) `mcpServers` entry, shared across projects | `.kimi-code/mcp.json` `mcpServers` entry, effective for that repository; a same-name entry overrides the user-level one |
+| qoder | user `~/.qoder/settings.json` (`$QODER_CONFIG_DIR`) `mcpServers` entry, shared across projects | `<project>/.qoder/settings.json` `mcpServers` entry; cowork-flow writes no project `.qoder/` (host assets ship in the plugin), so the global tier is the supported path |
 
 `run doctor` reports the registration state (project entry present, absent,
 or duplicated across tiers) as an advisory, read-only health item. Registering

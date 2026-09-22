@@ -1,0 +1,50 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${QODER_PLUGIN_ROOT}/hooks/inject-context.py"
+            ],
+            "timeout": 30,
+            "statusMessage": "cowork-flow: 注入工作流状态"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${QODER_PLUGIN_ROOT}/hooks/inject-context.py"
+            ],
+            "timeout": 30,
+            "statusMessage": "cowork-flow: 注入工作流状态"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python",
+            "args": [
+              "${QODER_PLUGIN_ROOT}/hooks/inject-context.py"
+            ],
+            "timeout": 30,
+            "statusMessage": "cowork-flow: 规范自查"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -140,6 +140,28 @@ class HostIdentityTest(unittest.TestCase):
             "kimi-code", self.host_identity.identity_for_prefix("kimi").id
         )
 
+    def test_qoder_row_owns_only_its_prefixed_keys(self) -> None:
+        # Qoder hook payloads also carry the generic session_id, so the row may
+        # declare it and still never resolve it alone. Its two prefixed keys stay
+        # exclusive, and QODER_SESSION_ID is the only Bash-side host evidence.
+        qoder = self.host_identity.identity_for("qoder")
+        self.assertEqual("qoder", qoder.prefix)
+        self.assertEqual("qoder.hooks", qoder.adapter)
+        self.assertTrue(qoder.injects_context)
+        self.assertEqual(("QODER_SESSION_ID",), qoder.session_env)
+        self.assertEqual(
+            ("QODER_SESSION_ID", "qoder_session_id"),
+            self.host_identity.sole_owned_input_keys("qoder"),
+        )
+        self.assertEqual(
+            "qoder",
+            self.host_identity.detect_host({"QODER_SESSION_ID": "s1"}),
+        )
+        self.assertIsNone(self.host_identity.detect_host({"session_id": "s1"}))
+        self.assertEqual(
+            "qoder", self.host_identity.identity_for_prefix("qoder").id
+        )
+
     def test_adapter_labels_are_preserved(self) -> None:
         self.assertEqual(
             {
@@ -148,6 +170,7 @@ class HostIdentityTest(unittest.TestCase):
                 "codex": "codex.spawn_agent",
                 "dsh": "dsh.preset",
                 "kimi-code": "kimi-code.hooks",
+                "qoder": "qoder.hooks",
             },
             self.host_identity.context_adapters(),
         )

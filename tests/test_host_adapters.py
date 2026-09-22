@@ -76,7 +76,7 @@ class HostAdaptersTest(unittest.TestCase):
         inject = importlib.import_module("adapters.host.inject")
         self.assertEqual(context_adapters(), inject.HOST_ADAPTERS)
         self.assertEqual(
-            {"claude-code", "codex", "dsh", "kimi-code", "zcode"},
+            {"claude-code", "codex", "dsh", "kimi-code", "qoder", "zcode"},
             set(inject.HOST_ADAPTERS),
         )
         # opencode renders context from its own JS plugin, so it must not be
@@ -94,6 +94,7 @@ class HostAdaptersTest(unittest.TestCase):
                 "claude-code": "adapters.host.claude_code_policy",
                 "codex": "adapters.host.codex_policy",
                 "kimi-code": "adapters.host.kimi_code_policy",
+                "qoder": "adapters.host.qoder_policy",
             },
             declared,
         )
@@ -117,6 +118,13 @@ class HostAdaptersTest(unittest.TestCase):
                 if hook.resolve_policy(host_id).emit_text
             },
         )
+        # Qoder's PostToolUse is not blockable, so its advisory must ride the
+        # envelope: a policy callable plus exit-0 transport, not the stderr/exit
+        # 2 path claude-code and codex share.
+        qoder_policy = hook.resolve_policy("qoder")
+        self.assertIsNotNone(qoder_policy.post_tool_use)
+        self.assertEqual("SessionStart", qoder_policy.session_start_event)
+        self.assertFalse(qoder_policy.emit_text)
 
     def test_host_session_literals_have_a_single_source(self) -> None:
         literals = (
@@ -228,7 +236,7 @@ class HostAdaptersTest(unittest.TestCase):
             required,
         )
         self.assertEqual(
-            {"codex", "claude-code", "opencode", "zcode", "dsh", "kimi-code"},
+            {"codex", "claude-code", "opencode", "qoder", "zcode", "dsh", "kimi-code"},
             set(matrix["hosts"]),
         )
         for host, capabilities in matrix["hosts"].items():
@@ -249,7 +257,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code", "dsh", "kimi-code"):
+            for host in ("codex", "opencode", "claude-code", "dsh", "kimi-code", "qoder"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(1, adapter["schemaVersion"])
                 self.assertEqual(host, adapter["host"])
@@ -297,6 +305,20 @@ class HostAdaptersTest(unittest.TestCase):
                     self.assertEqual(".kimi-code/agents", adapter["dispatch"]["agentsPath"])
                     self.assertEqual(".agents/skills", adapter["dispatch"]["skillsPath"])
                     self.assertEqual("shim", capabilities["stateInjection"])
+                    self.assertEqual("unsupported", capabilities["editScopeWarning"])
+                if host == "qoder":
+                    self.assertEqual("subagent", adapter["dispatch"]["primitive"])
+                    # Qoder host assets live in the machine-level plugin payload,
+                    # so no dispatch path may point at a project directory.
+                    self.assertEqual(
+                        "presets/qoder/agents", adapter["dispatch"]["agentsPath"]
+                    )
+                    self.assertEqual(
+                        "presets/qoder/hooks", adapter["dispatch"]["hooksPath"]
+                    )
+                    self.assertEqual("AGENTS.md", adapter["dispatch"]["memoryPath"])
+                    self.assertEqual("plugin", capabilities["stateInjection"])
+                    self.assertEqual("shim", capabilities["runtimeContextBinding"])
                     self.assertEqual("unsupported", capabilities["editScopeWarning"])
 
     def test_party_mode_v2_action_schema_is_host_neutral(self) -> None:
@@ -367,7 +389,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code", "dsh", "kimi-code"):
+            for host in ("codex", "opencode", "claude-code", "dsh", "kimi-code", "qoder"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(
                     "inline_or_manual",

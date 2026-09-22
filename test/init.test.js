@@ -227,7 +227,33 @@ test('init copies all selected host platforms', async (t) => {
   assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
   assert.equal(await exists(join(target, '.dsh', 'README.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'dsh', 'adapter.yaml')), true);
+  // Qoder ships its host assets inside a machine-level plugin: even `all` must
+  // not leave a project-level .qoder/ behind, only the adapter declaration.
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'qoder', 'adapter.yaml')), true);
+  assert.equal(await exists(join(target, '.qoder')), false);
   assert.match(io.stdout, /Platforms: codex, opencode, claude-code, dsh/);
+});
+
+test('init --platform qoder writes the adapter declaration and no .qoder directory', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main([
+    'init',
+    target,
+    '--developer',
+    'qoder-user',
+    '--platform',
+    'qoder'
+  ], { io });
+
+  assert.equal(code, 0, io.stderr);
+  assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'qoder', 'adapter.yaml')), true);
+  assert.equal(await exists(join(target, '.cowork-flow', 'skills', 'agent-dispatch', 'SKILL.md')), true);
+  assert.equal(await exists(join(target, '.qoder')), false);
+  // Other hosts' assets must not ride along when only qoder is selected.
+  assert.equal(await exists(join(target, '.claude')), false);
+  assert.equal(await exists(join(target, '.codex')), false);
 });
 
 test('init installs dsh-only assets when platform is dsh', async (t) => {
@@ -474,10 +500,10 @@ test('init uses platform selector and then prompts for developer', async (t) => 
 
   assert.equal(code, 0);
   assert.match(selectorCalls[0].message, /Select platforms/);
-  assert.equal(selectorCalls[0].choices.length, 6);
+  assert.equal(selectorCalls[0].choices.length, 7);
   assert.deepEqual(
     selectorCalls[0].choices.map((choice) => choice.value),
-    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code']
+    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code', 'qoder']
   );
   assert.match(prompts[0], /Developer name/);
   assert.equal(await exists(join(target, '.codex')), false);

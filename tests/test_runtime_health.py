@@ -232,6 +232,148 @@ class KimiHookCheckTest(unittest.TestCase):
             self.assertNotIn("kimiHook", str(error))
 
 
+class QoderPluginCheckTest(unittest.TestCase):
+    """Qoder plugin diagnostics. The plugin is a machine-level asset, so the
+    check must stay silent for projects that never selected the Qoder host and
+    must never turn a lagging install into a hard error."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.qoder_home = root / "qoder-home"
+        self.project = root / "project"
+        (self.project / ".cowork-flow" / "adapters" / "qoder").mkdir(parents=True)
+        (self.project / ".cowork-flow" / "adapters" / "qoder" / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: qoder\n", encoding="utf-8"
+        )
+        (self.project / ".cowork-flow" / ".version").write_text("1.5.0\n", encoding="utf-8")
+        self.version = "1.5.0"
+        self.install_path = (
+            self.qoder_home
+            / "plugins"
+            / "cache"
+            / "cowork-flow-local"
+            / "cowork-flow"
+            / self.version
+        )
+
+    def _check(self) -> list[dict[str, str]]:
+        with mock.patch.dict("os.environ", {"QODER_CONFIG_DIR": str(self.qoder_home)}):
+            return self.doctor.check_qoder_plugin(self.project)
+
+    def _write_payload(self, *, shim: bool = True, hooks_config: bool = True) -> None:
+        (self.install_path / ".qoder-plugin").mkdir(parents=True, exist_ok=True)
+        (self.install_path / ".qoder-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "cowork-flow", "version": self.version}), encoding="utf-8"
+        )
+        (self.install_path / "hooks").mkdir(parents=True, exist_ok=True)
+        if hooks_config:
+            (self.install_path / "hooks" / "hooks.json").write_text(
+                json.dumps({"hooks": {}}), encoding="utf-8"
+            )
+        if shim:
+            (self.install_path / "hooks" / "inject-context.py").write_text(
+                "# shim\n", encoding="utf-8"
+            )
+
+    def _write_registry(self, install_path: Path | None = None) -> None:
+        registry = self.qoder_home / "plugins" / "installed_plugins_v2.json"
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "plugins": {
+                        "cowork-flow@cowork-flow-local": [
+                            {"scope": "user", "installPath": str(install_path or self.install_path),
+                             "version": self.version}
+                        ]
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    def _write_settings(self, enabled: bool | None) -> None:
+        plugins = {"someone-else@their-market": True}
+        if enabled is not None:
+            plugins["cowork-flow@cowork-flow-local"] = enabled
+        (self.qoder_home / "settings.json").write_text(
+            json.dumps({"enabledPlugins": plugins, "mcpServers": {"docs": {}}}, indent=2),
+            encoding="utf-8",
+        )
+
+    def _install(self, *, version: str | None = None, enabled: bool | None = True) -> None:
+        self._write_payload()
+        self._write_registry()
+        self._write_settings(enabled)
+        if version is not None:
+            registry = self.qoder_home / "plugins" / "installed_plugins_v2.json"
+            data = json.loads(registry.read_text(encoding="utf-8"))
+            data["plugins"]["cowork-flow@cowork-flow-local"][0]["version"] = version
+            registry.write_text(json.dumps(data), encoding="utf-8")
+
+    def test_project_without_qoder_adapter_is_silent(self) -> None:
+        (self.project / ".cowork-flow" / "adapters" / "qoder" / "adapter.yaml").unlink()
+        self.assertEqual([], self._check())
+
+    def test_declared_host_without_registry_reports_not_installed(self) -> None:
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("PLUGIN-NOT-INSTALLED", issues[0]["code"])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("install-qoder-plugin", issues[0]["commandHint"])
+
+    def test_registry_pointing_at_missing_payload_reports_payload_missing(self) -> None:
+        self._write_registry()
+        issues = self._check()
+        self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
+
+    def test_payload_without_hook_shim_reports_incomplete(self) -> None:
+        self._write_payload(shim=False)
+        self._write_registry()
+        self._write_settings(True)
+        issues = self._check()
+        self.assertEqual(["PLUGIN-PAYLOAD-INCOMPLETE"], [issue["code"] for issue in issues])
+
+    def test_installed_but_disabled_reports_disabled_and_keeps_other_plugins(self) -> None:
+        self._write_payload()
+        self._write_registry()
+        self._write_settings(False)
+        issues = self._check()
+        self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in issues])
+
+    def test_healthy_install_reports_nothing(self) -> None:
+        self._install()
+        self.assertEqual([], self._check())
+
+    def test_stale_plugin_version_reports_stale(self) -> None:
+        self._install(version="1.4.0")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("1.4.0", issues[0]["message"])
+
+    def test_unreadable_registry_is_reported_as_not_installed(self) -> None:
+        registry = self.qoder_home / "plugins" / "installed_plugins_v2.json"
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text("{ broken", encoding="utf-8")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
+
+    def test_plugin_check_never_enters_doctor_errors(self) -> None:
+        with mock.patch.dict("os.environ", {"QODER_CONFIG_DIR": str(self.qoder_home)}):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual("PLUGIN-NOT-INSTALLED", result["issues"]["qoderPlugin"][0]["code"])
+        for error in result["errors"]:
+            self.assertNotIn("qoder-plugin", str(error))
+
+
 class RuntimeHealthTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
