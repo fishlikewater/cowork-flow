@@ -178,15 +178,28 @@ test('package metadata exposes release script and synchronized lockfile version'
 });
 
 
-test('changelog carries an entry for the current package version', async () => {
+test('changelog carries a Keep a Changelog entry for the current package version', async () => {
   const packageInfo = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
   const changelog = await readFile(join(packageRoot, 'CHANGELOG.md'), 'utf8');
+  const releaseScript = await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8');
   // Versions are dotted digits; escape dots for the anchored section header.
   const escaped = packageInfo.version.split('.').join('\.');
   assert.match(
     changelog,
-    new RegExp('^## ' + escaped + ' ', 'm'),
-    'CHANGELOG.md must start a section for the current version so release.sh can pass its post-bump gate'
+    new RegExp('^## \\[' + escaped + '\\] ', 'm'),
+    'CHANGELOG.md must start a bracketed section for the current version (Keep a Changelog)'
+  );
+
+  // release.sh greps that same heading before it commits. Bracket one side only
+  // and the gate matches nothing while still exiting 0, so take the pattern
+  // from the script and run it against the real changelog instead of writing
+  // the format out twice.
+  const gate = releaseScript.match(/grep -q "([^"]+)" CHANGELOG\.md/);
+  assert.ok(gate, 'release.sh must grep CHANGELOG.md for the version heading');
+  assert.match(
+    changelog,
+    new RegExp(gate[1].replace('${PACKAGE_VERSION}', escaped), 'm'),
+    `CHANGELOG.md must carry a heading the release gate (${gate[1]}) can find`
   );
 });
 

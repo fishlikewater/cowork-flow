@@ -56,7 +56,7 @@ async function createReleaseProject(t, options = {}) {
   // targets (0.0.7, 0.0.5 already at current) are all covered.
   await writeFile(
     join(repo, 'CHANGELOG.md'),
-    '# Changelog\n\n## 0.1.0 - placeholder\n\nplaceholder\n\n## 0.0.7 - placeholder\n\nplaceholder\n\n## 0.0.5 - placeholder\n\nplaceholder\n\n## 0.0.6 - placeholder\n\nplaceholder\n',
+    '# Changelog\n\n## [0.1.0] - placeholder\n\nplaceholder\n\n## [0.0.7] - placeholder\n\nplaceholder\n\n## [0.0.5] - placeholder\n\nplaceholder\n\n## [0.0.6] - placeholder\n\nplaceholder\n',
     'utf8'
   );
   return repo;

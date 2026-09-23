@@ -202,7 +202,7 @@ const WIRE_FORMAT_MARKERS = [
   '# cowork-flow: kimi hook start. Managed by "cowork-flow install-kimi-hook"; edits inside this block are replaced.'
 ];
 
-const SCANNED_ROOTS = ['src', 'template', 'presets', 'tests', 'test'];
+const SCANNED_ROOTS = ['src', 'template', 'presets', 'tests', 'test', 'docs'];
 const SCANNED_EXTENSIONS = new Set(['.js', '.mjs', '.py', '.md', '.json', '.yaml', '.yml', '.toml']);
 // Config formats carry guidance in comments too (a YAML comment naming the
 // command), so they join markdown in the bare-name pass. JSON does not: it has
