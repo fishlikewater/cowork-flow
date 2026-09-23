@@ -64,6 +64,17 @@
 
 ### Changed
 
+#### 工程化补齐（开源协作文件、CI 覆盖显式化、发布防呆）
+
+- **新增 `.editorconfig`**：编码、行尾、末尾换行、尾空白与分语言缩进的单一声明，与 `.gitattributes` 对齐——`.cmd`/`.bat` 显式声明 `crlf`（`.gitattributes` 把这两类钉为 CRLF，漏掉就会在 Windows 上写出与仓库契约相反的副本）。不接格式化 runner（D7 未引入 lint 工具链），因此它只是声明。
+- **新增 `SECURITY.md`**：只维护最新 minor、私密上报渠道（GitHub Security Advisories）、7 行攻击面表（写入目标项目 / 写入宿主配置目录 / 转发宿主 CLI / 宿主 hook 与注入脚本 / 事实层 / 技能脚本 / `cwf self update` 的供应链面），以及 4 条不在范围内的说明。
+- **新增 `.github/PULL_REQUEST_TEMPLATE.md` 与 `.github/ISSUE_TEMPLATE/{bug_report,feature_request,config}.yml`**：PR 检查清单与 `CONTRIBUTING.md` 的「PR 前置检查」逐条一致；bug 表单必填宿主、cowork-flow 版本、操作系统、复现步骤与预期/实际，并要求附 `doctor --all --json` 输出；`config.yml` 把使用问题指向 README / `docs/hosts.md`、把安全漏洞指向私密渠道。
+- **新增 `.github/dependabot.yml`**：只声明 `github-actions` 生态（weekly）。仓库零运行时依赖、零 devDependency，唯一存在版本漂移的生态就是两个 workflow 里引用的 action，声明 npm 生态只会产生空转 PR。
+- **CI 覆盖显式化**：`test:fast` 纳入 `contract-fingerprint` / `stage-contract`；`test:windows:core` 在 PR 桶之后追加 5 个 Windows 相关套件（`dsh-home-patch`、`dsh-hook`、`dsh-preset`、`mcp-client-matrix`、`mcp-state-command`），把此前「只在 `test:node:full` 里跑」的 8 个套件中的 7 个搬进 PR 的 Windows 路径。新增门禁要求每个套件都落在某个桶里、或带理由登记为 POSIX-only，并锁住「只有 `test:integration` 允许是 name-pattern 子集」。该桶只执行 `init` / `sync` 的 **2/43** 条用例，其余 41 条仍只在 ubuntu 全量里跑——这是既有限制，本批把它写明而不是继续隐含。
+- **`package-lock.json` 与 `package.json` 同步**：补上 Batch 3 新增的 `cwf` 二进制，并把门禁从「version 两处」扩到 `name` / `license` / `engines` / `bin`。实测 `npm ci` 对这份漂移**是容忍的**（新旧 lockfile 都 exit 0），所以它此前不会以任何形式报错——只能靠门禁发现。
+- **`scripts/release.sh` 新增 `--dry-run`**：跑完 `source:refresh` → AGENTS.md 检查 → `sync --force` → pytest → `test:all` 后打印计划并 `exit 0`。它会**真的**执行 `sync --force`（`--help` 里写明），只是不改版本文件、不提交、不打 tag、不发布；CHANGELOG 门禁无法在 dry-run 里检查（目标版本要等 bump 才知道），输出里显式说明这一点。另外，CHANGELOG 门禁失败时不再只打一行错误，而是打印「标题该改成什么」与「怎么撤销已经发生的 bump」两条可执行命令——该门禁在 bump 之后执行，失败会留下半发布的工作树。
+- 升级动作：无需动作。`--dry-run` 是新增开关，默认路径未变——用同一套桩环境对 `HEAD` 的脚本与本版脚本跑了 6 种参数形态（无参、`minor`、`--no-publish`、`--version <新版本>`、`--version <当前版本>`、`prerelease`），命令日志、stdout、stderr 与执行后的文件树逐字节相同。
+
 #### 文档面重构（README 用户向重写 + 恢复 `docs/` + Keep a Changelog）
 
 - **README 547 → 196 行**：删掉两份重复命令清单中的一份（原 `## 常用命令` 的独有命令并入 `## CLI 命令` 之后），八个宿主的机器级安装细节、仓库结构与运行时分层、发布流程改为一行链接。新增 `docs/`（`index.md` / `architecture.md` / `hosts.md` / `release.md`）并**随 npm 发布**——README 是 npm 上的首页，不随包发布会让其中 5 个相对链接在 registry 页面上 404。宿主图标契约（codex `interface.logo` / `brandColor`、zcode marketplace `icon` 必须绝对 https、qoder 无图标键）落在 `docs/hosts.md`，未新增 spec 契约文件：spec 树是 workflow runtime 契约层，没有运行时读者消费插件打包元数据。

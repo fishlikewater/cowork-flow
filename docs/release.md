@@ -26,7 +26,10 @@ npm run release          # patch
 npm run release -- minor # minor
 npm run release -- --version 0.1.0  # 精确发布指定版本（跳过自动 bump）
 npm run release -- minor --no-publish  # 完整流程但跳过 npm publish（tag 留在本地）
+npm run release -- --dry-run  # 跑完整前置检查后停在版本 bump 之前
 ```
+
+`--dry-run` 会真的执行 `source:refresh` 与 `sync --force`（刷新 gitignored 的自实例副本，并临时覆盖 `AGENTS.md` 后从 HEAD 恢复），只是不改版本文件、不提交、不打 tag、不发布——它是「发布前把前置检查真跑一遍」的入口。CHANGELOG 门禁无法在 dry-run 里检查：目标版本要等 bump 才知道。
 
 **发布流程：**
 
@@ -37,7 +40,7 @@ npm run release -- minor --no-publish  # 完整流程但跳过 npm publish（tag
 5. `git commit` + `git tag`
 6. `npm publish`——走 CI 发布通道时改用 `--no-publish` 在此止步，交由下一步触发
 
-发布说明维护在 `CHANGELOG.md`；发布前更新当前版本段落，并保留 `release:check` 和 `git diff --check` 证据。`scripts/release.sh` 在 bump 前会校验 CHANGELOG 已有该版本段落（`grep -q "^## \[${PACKAGE_VERSION}\] "`），`test/release.test.js` 用假仓库真跑一遍这个门禁。
+发布说明维护在 `CHANGELOG.md`；发布前更新当前版本段落，并保留 `release:check` 和 `git diff --check` 证据。`scripts/release.sh` 会校验 CHANGELOG 已有该版本段落（`grep -q "^## \[${PACKAGE_VERSION}\] "`），`test/release.test.js` 用假仓库真跑一遍这个门禁。该门禁在 bump **之后**执行（目标版本要等 npm 算出来），所以失败时脚本会打印撤销 bump 的具体命令（`git checkout -- package.json package-lock.json template/.cowork-flow/.version` 再 `npm run source:refresh`）。
 
 **CI 发布通道（推荐）：** `scripts/release.sh <release-type> --no-publish` 完成提交与打 tag（不本地 publish）后，先 `git push` 分支并 `git push origin v<v>` 把 tag 推上远端，再 `gh release create v<v>` 触发 `.github/workflows/publish.yml`——远端尚无该 tag 时，`gh release create` 会从默认分支最新提交自动建 tag，使门禁与发布落在错误的提交上。Ubuntu/Windows 双平台全量门禁通过后自动 `npm publish`（需仓库 secret `NPM_TOKEN`，权限：publish）。`--no-publish` 只是跳过最后一步，前置的镜像、门禁与版本同步与默认路径完全一致。
 

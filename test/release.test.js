@@ -188,6 +188,85 @@ test('release shell script defaults to patch and syncs template version before p
   ]);
 });
 
+test('release shell script stops before the bump under --dry-run', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t, { selfVersion: true });
+
+  const result = await execFileAsync(shellRunner, ['scripts/release.sh', '--dry-run'], {
+    cwd: repo,
+    env: fakeCommands.env,
+    encoding: 'utf8'
+  });
+
+  assert.match(result.stdout, /dry run: pre-flight passed, stopping before the version bump/);
+  assert.match(result.stdout, /would stage\s+: package\.json package-lock\.json template\/\.cowork-flow\/\.version/);
+  assert.match(result.stdout, /would update\s+: \.cowork-flow\/\.version/);
+  assert.match(result.stdout, /would publish\s+: yes \(npm publish\)/);
+  // The changelog gate runs after the bump, so a dry run must not imply it passed.
+  assert.match(result.stdout, /CHANGELOG entry gate runs after the bump, so it was not checked/);
+
+  // The pre-flight is real, so it is logged; everything past it is not.
+  assert.deepEqual(await readCommands(fakeCommands.logPath), [
+    'npm run source:refresh',
+    'git diff --quiet -- AGENTS.md',
+    'git diff --quiet -- AGENTS.md',
+    'python3 -m pytest tests/ -q',
+    'npm run test:all'
+  ]);
+  assert.equal(JSON.parse(await readFile(join(repo, 'package.json'), 'utf8')).version, '0.0.5');
+  assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.0.5\n');
+  assert.equal(await readFile(join(repo, '.cowork-flow', '.version'), 'utf8'), '0.0.5\n');
+});
+
+test('release shell script reports --no-publish and the release target in a dry run', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t);
+
+  const result = await execFileAsync(shellRunner, ['scripts/release.sh', 'minor', '--no-publish', '--dry-run'], {
+    cwd: repo,
+    env: fakeCommands.env,
+    encoding: 'utf8'
+  });
+
+  assert.match(result.stdout, /release target\s+: minor/);
+  assert.match(result.stdout, /would publish\s+: no \(--no-publish\)/);
+  // A downstream install has no self-instance marker, so it must not be promised.
+  assert.doesNotMatch(result.stdout, /would update/);
+});
+
+// The bump runs before the gate, so a missing changelog entry leaves the tree
+// half-released. The note is the recovery path; without it the maintainer has
+// to work out which files the bump already touched.
+test('release shell script explains how to undo a bump the changelog gate rejected', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t, { selfVersion: true });
+
+  await assert.rejects(
+    execFileAsync(shellRunner, ['scripts/release.sh', '--version', '0.0.9'], {
+      cwd: repo,
+      env: fakeCommands.env,
+      encoding: 'utf8'
+    }),
+    (error) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /no entry for version 0\.0\.9/);
+      assert.match(error.stderr, /rename '## \[Unreleased\]' to '## \[0\.0\.9\] - \d{4}-\d{2}-\d{2}'/);
+      assert.match(error.stderr, /git checkout -- package\.json package-lock\.json template\/\.cowork-flow\/\.version/);
+      return true;
+    }
+  );
+
+  assert.equal(JSON.parse(await readFile(join(repo, 'package.json'), 'utf8')).version, '0.0.9');
+  const commands = await readCommands(fakeCommands.logPath);
+  assert.deepEqual(
+    commands.filter((line) => /^git (commit|tag)/.test(line) || line === 'npm publish'),
+    []
+  );
+});
+
 test('release shell script accepts explicit npm version type', async (t) => {
   if (skipWithoutShell(t)) return;
   const fakeCommands = await createFakeCommands(t);

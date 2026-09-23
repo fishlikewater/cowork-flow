@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 怎么用 / 装不上
+    url: https://github.com/fishlikewater/cowork-flow/blob/dev/README.md
+    about: 先看 README 的快速开始与 CLI 命令；逐宿主的安装目录与前提在 docs/hosts.md
+  - name: 安全漏洞
+    url: https://github.com/fishlikewater/cowork-flow/security/advisories/new
+    about: 私密上报，不要开公开 issue

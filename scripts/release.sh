@@ -4,25 +4,39 @@ set -u
 RELEASE_TYPES="major minor patch premajor preminor prepatch prerelease"
 TEMPLATE_VERSION_FILE="template/.cowork-flow/.version"
 SELF_VERSION_FILE=".cowork-flow/.version"
+# Files the release commit carries and the host manifests it stamps. Declared
+# here rather than next to their use so --dry-run can report them without
+# reaching the mutating section.
+GIT_ADD_FILES="package.json package-lock.json $TEMPLATE_VERSION_FILE"
+PLUGIN_MANIFEST_FILES="presets/zcode/.zcode-plugin/plugin.json presets/qoder/.qoder-plugin/plugin.json presets/codex/.codex-plugin/plugin.json"
 
 usage() {
-  echo "Usage: scripts/release.sh [release-type|--version <version>] [--no-publish]" >&2
+  echo "Usage: scripts/release.sh [release-type|--version <version>] [--no-publish] [--dry-run]" >&2
   echo "  release-type    one of: $RELEASE_TYPES (default: patch)" >&2
   echo "  --version <v>   publish exactly <v> instead of bumping" >&2
   echo "  --no-publish    commit and tag the release without running npm publish" >&2
+  echo "  --dry-run       run the whole pre-flight, then stop before the version bump" >&2
+  echo "                  (source:refresh and sync --force still run for real; no" >&2
+  echo "                  version file, commit, tag or publish is touched)" >&2
 }
 
 EXACT_VERSION=""
 RELEASE_TYPE="patch"
 NO_PUBLISH=0
+DRY_RUN=0
 # release-type and --version are mutually exclusive and at most one may appear;
-# --no-publish is a repeatable flag and may be given anywhere on the line.
+# --no-publish and --dry-run are repeatable flags and may be given anywhere on
+# the line.
 TARGET_SET=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --no-publish)
       NO_PUBLISH=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
       shift
       ;;
     --version)
@@ -99,6 +113,39 @@ fi
 python3 -m pytest tests/ -q || python -m pytest tests/ -q || exit $?
 
 run_step npm run test:all || exit $?
+
+# Everything above is the real pre-flight; everything below mutates the tree,
+# so --dry-run stops here. The CHANGELOG gate cannot run before the bump (the
+# target version does not exist until npm computes it), so it is reported as
+# not-yet-checked rather than silently skipped.
+if [ "$DRY_RUN" -eq 1 ]; then
+  # Mirror the staging rule below: a shipped manifest that exists is appended to
+  # GIT_ADD_FILES, so a dry run that only echoed the base list would understate
+  # what the release commit carries.
+  WOULD_STAGE="$GIT_ADD_FILES"
+  for MANIFEST in $PLUGIN_MANIFEST_FILES; do
+    if [ -f "$MANIFEST" ]; then
+      WOULD_STAGE="$WOULD_STAGE $MANIFEST"
+    fi
+  done
+  echo "dry run: pre-flight passed, stopping before the version bump"
+  echo "  release target : ${EXACT_VERSION:-$RELEASE_TYPE}"
+  echo "  would stage    : $WOULD_STAGE"
+  if [ -f "$SELF_VERSION_FILE" ]; then
+    echo "  would update   : $SELF_VERSION_FILE"
+  fi
+  echo "  would stamp    : $PLUGIN_MANIFEST_FILES"
+  echo "  would commit   : chore(release): <new version>"
+  echo "  would tag      : v<new version>"
+  if [ "$NO_PUBLISH" -eq 1 ]; then
+    echo "  would publish  : no (--no-publish)"
+  else
+    echo "  would publish  : yes (npm publish)"
+  fi
+  echo "note: the CHANGELOG entry gate runs after the bump, so it was not checked."
+  exit 0
+fi
+
 if [ -n "$EXACT_VERSION" ]; then
   CURRENT_VERSION=$(node -p "require('./package.json').version") || exit $?
   if [ "$CURRENT_VERSION" != "$EXACT_VERSION" ]; then
@@ -126,13 +173,15 @@ fi
 # Keep a Changelog brackets the version, so the heading is `## [1.2.3] - date`.
 grep -q "^## \[${PACKAGE_VERSION}\] " CHANGELOG.md || {
   echo "error: CHANGELOG.md has no entry for version ${PACKAGE_VERSION}" >&2
+  echo "note: rename '## [Unreleased]' to '## [${PACKAGE_VERSION}] - $(date +%Y-%m-%d)' and add the version link." >&2
+  echo "note: the version bump already ran; undo it before retrying:" >&2
+  echo "  git checkout -- $GIT_ADD_FILES" >&2
+  echo "  npm run source:refresh   # re-mirrors the gitignored self-instance version marker" >&2
   exit 1
 }
 
-GIT_ADD_FILES="package.json package-lock.json $TEMPLATE_VERSION_FILE"
 # Every host plugin manifest shipped in the package carries the release version:
 # an installed payload must agree with the cache directory named after it.
-PLUGIN_MANIFEST_FILES="presets/zcode/.zcode-plugin/plugin.json presets/qoder/.qoder-plugin/plugin.json presets/codex/.codex-plugin/plugin.json"
 for PLUGIN_MANIFEST_FILE in $PLUGIN_MANIFEST_FILES; do
   if [ -f "$PLUGIN_MANIFEST_FILE" ]; then
     node -e "const fs=require('fs');const p='$PLUGIN_MANIFEST_FILE';const j=JSON.parse(fs.readFileSync(p));j.version='$PACKAGE_VERSION';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')" || exit $?

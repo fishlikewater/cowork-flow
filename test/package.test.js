@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -127,7 +127,12 @@ test('package metadata exposes release script and synchronized lockfile version'
 
   assert.equal(packageInfo.scripts.release, 'sh scripts/release.sh');
   assert.equal(packageInfo.scripts['release:check'], 'npm run test:all');
-  assert.equal(packageInfo.scripts['test:windows:core'], 'npm run test:fast && npm run test:integration && npm run pack:check && npm run test:template');
+  // The Windows job is the PR buckets plus the suites only test:node:full
+  // would otherwise reach; which files those are is asserted by the CI-bucket
+  // test below, so this pins the composition and not a copy of the list.
+  const windowsCore = packageInfo.scripts['test:windows:core'];
+  assert.match(windowsCore, /^npm run test:fast && npm run test:integration && node --test /);
+  assert.match(windowsCore, / && npm run pack:check && npm run test:template$/);
   assert.match(packageInfo.scripts['test:all'], /npm run test:node:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run test:template:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
@@ -141,6 +146,21 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.equal(packageInfo.scripts['source:refresh:dry-run'], 'node bin/cowork-flow.js dev refresh --dry-run');
   assert.equal(packageLock.version, packageInfo.version);
   assert.equal(packageLock.packages[''].version, packageInfo.version);
+  // The lockfile records the package identity npm resolves from, and it had
+  // drifted: Batch 3 added the `cwf` binary and only package.json learned about
+  // it. `npm ci` tolerates the disagreement, so nothing failed and nothing
+  // reported it — this assertion is the only thing that keeps the two in step.
+  const rootPackage = packageLock.packages[''];
+  assert.equal(packageLock.name, packageInfo.name);
+  assert.equal(rootPackage.name, packageInfo.name);
+  assert.equal(rootPackage.license, packageInfo.license);
+  assert.deepEqual(rootPackage.engines, packageInfo.engines);
+  assert.deepEqual(
+    rootPackage.bin,
+    Object.fromEntries(
+      Object.entries(packageInfo.bin).map(([name, target]) => [name, target.replace(/^\.\//, '')])
+    )
+  );
   // Derived from the host asset manifest: the declaration is the single source
   // for which payloads exist and what their manifests are called, so a renamed
   // or added payload cannot leave the release stamping behind.
@@ -250,4 +270,103 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
   assert.match(publishJob, /needs: \[verify-ubuntu, verify-windows\]/);
   assert.match(publishJob, /NPM_TOKEN/);
   assert.equal((publish.match(/NPM_TOKEN/g) ?? []).length, 1);
+});
+
+
+// `test:node:full` runs everything, so an unlisted file still runs on ubuntu
+// through release:check. The Windows PR job is the hole: it runs test:fast +
+// test:integration, so a suite nobody names loses Windows coverage until
+// publish time. This gate keeps every suite named by some bucket, or exempted
+// with a reason.
+//
+// It does NOT claim per-case Windows coverage. Naming a file is not running all
+// of it: test:integration carries --test-name-pattern, so it executes 2 of the
+// 43 cases in init.test.js + sync.test.js, and the other 41 only run in the
+// ubuntu full pass. The patterned-bucket assertion below keeps that partial
+// bucket from spreading.
+test('every node test suite is assigned to a CI bucket', async () => {
+  const packageInfo = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+
+  // Suites, not every module under test/: helpers/ and fixtures/ are support
+  // code that node loads without defining tests. Walked recursively so a nested
+  // suite cannot hide, and across the extensions node collects.
+  const SUITE = /\.test\.(?:js|mjs|cjs)$/;
+  const files = [];
+  const walk = async (dir, prefix) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (entry.name === 'helpers' || entry.name === 'fixtures') continue;
+        await walk(join(dir, entry.name), `${prefix}${entry.name}/`);
+      } else if (SUITE.test(entry.name)) {
+        files.push(`test/${prefix}${entry.name}`);
+      }
+    }
+  };
+  await walk(join(packageRoot, 'test'), '');
+  assert.ok(files.length > 0, 'test/ must still hold node suites');
+
+  const scriptFiles = (script) =>
+    packageInfo.scripts[script].match(/test\/[\w./-]+\.test\.(?:js|mjs|cjs)/g) ?? [];
+
+  // Exemptions need a reason on the line, so widening this list is a decision
+  // rather than a quiet edit. Every entry below skips on Windows by
+  // construction; the full run's skip count is what shows that.
+  const POSIX_ONLY = new Map([
+    ['test/release.test.js', 'drives scripts/release.sh; its cases skip without a POSIX shell runner']
+  ]);
+  // Windows-sensitive suites: they exercise host installers and spawn-based
+  // plumbing, which is where Windows breakage actually shows up.
+  const WINDOWS_EXTRAS = [
+    'test/dsh-home-patch.test.js',
+    'test/dsh-hook.test.js',
+    'test/dsh-preset.test.js',
+    'test/mcp-client-matrix.test.js',
+    'test/mcp-state-command.test.js'
+  ];
+
+  const fast = scriptFiles('test:fast');
+  const integration = scriptFiles('test:integration');
+  const windowsCore = scriptFiles('test:windows:core');
+  const buckets = [...fast, ...integration, ...windowsCore];
+  const assigned = new Set(buckets);
+
+  assert.deepEqual(
+    windowsCore.filter((file) => !fast.includes(file) && !integration.includes(file)),
+    WINDOWS_EXTRAS,
+    'the Windows job must not shrink back to the two PR buckets'
+  );
+  // A renamed file leaves a dangling entry that nothing else reports.
+  assert.deepEqual(
+    buckets.filter((file) => !files.includes(file)),
+    [],
+    'every test suite named in an npm script must exist'
+  );
+  assert.deepEqual(
+    [...POSIX_ONLY.keys()].filter((file) => !files.includes(file)),
+    [],
+    'every POSIX-only exemption must name a suite that exists'
+  );
+  assert.deepEqual(
+    [...POSIX_ONLY.values()].filter((reason) => reason.trim().length === 0),
+    [],
+    'every POSIX-only exemption needs a reason'
+  );
+  assert.deepEqual(
+    files.filter((file) => !assigned.has(file) && !POSIX_ONLY.has(file)),
+    [],
+    'assign each test suite to test:fast, test:integration or test:windows:core'
+  );
+  assert.deepEqual(
+    [...POSIX_ONLY.keys()].filter((file) => assigned.has(file)),
+    [],
+    'a POSIX-only suite must not also claim a Windows bucket'
+  );
+  // A second patterned bucket would mean another set of cases silently dropped
+  // out of the Windows PR path.
+  assert.deepEqual(
+    ['test:fast', 'test:integration', 'test:windows:core']
+      .filter((script) => packageInfo.scripts[script].includes('--test-name-pattern')),
+    ['test:integration'],
+    'test:integration is the only bucket allowed to run a name-pattern subset'
+  );
 });

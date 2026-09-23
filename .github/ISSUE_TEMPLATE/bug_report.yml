@@ -1,0 +1,66 @@
+name: Bug 报告
+description: 某个命令、门禁或宿主接入的行为与文档或预期不符
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先跑一次 `./.cowork-flow/run doctor --all --json`，它通常会直接指出问题所在。
+
+        安全漏洞不要走这里，用 [SECURITY.md](https://github.com/fishlikewater/cowork-flow/blob/dev/SECURITY.md) 里的私密渠道上报。
+  - type: input
+    id: version
+    attributes:
+      label: cowork-flow 版本
+      description: "`cwf --version` 的输出"
+      placeholder: "1.6.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: 宿主
+      description: 与具体宿主无关就选最后一项
+      options:
+        - Codex
+        - Claude Code
+        - OpenCode
+        - ZCode
+        - Qoder
+        - Kimi Code
+        - DeepSeek Harness
+        - 与宿主无关
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: 操作系统
+      placeholder: "Windows 11 / macOS 15 / Ubuntu 24.04"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从空目录或干净 checkout 开始的最小步骤
+      placeholder: |
+        1. npx cowork-flow project init ./demo --platform codex
+        2. cwf host add codex
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 预期与实际
+      description: 你期望发生什么，实际发生了什么（贴原始输出，不要复述）
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: doctor 输出
+      description: "`./.cowork-flow/run doctor --all --json` 的输出，去掉个人信息"
+      render: json
+    validations:
+      required: false

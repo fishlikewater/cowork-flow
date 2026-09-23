@@ -10,6 +10,7 @@ import { packageRoot } from '../src/lib/paths.js';
 const DOC_FILES = [
   'README.md',
   'CONTRIBUTING.md',
+  'SECURITY.md',
   'CHANGELOG.md',
   'docs/index.md',
   'docs/architecture.md',
