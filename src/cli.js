@@ -6,6 +6,7 @@ import { runInit } from './commands/init.js';
 import { runInstallDshHook } from './commands/install-dsh-hook.js';
 import { runInstallDshPreset } from './commands/install-dsh-preset.js';
 import { runInstallKimiHook } from './commands/install-kimi-hook.js';
+import { runInstallCodexPlugin } from './commands/install-codex-plugin.js';
 import { runInstallZCodePlugin } from './commands/install-zcode-plugin.js';
 import { runInstallQoderPlugin } from './commands/install-qoder-plugin.js';
 import { runMcpState } from './commands/mcp-state.js';
@@ -20,6 +21,7 @@ Usage:
   cowork-flow init [target] --platform <codex|opencode|claude-code|all> [--developer <name>] [--dry-run] [--force]
   cowork-flow install-zcode-plugin [--dry-run] [--force] [--prune-old]
   cowork-flow install-qoder-plugin [--dry-run] [--force] [--uninstall]
+  cowork-flow install-codex-plugin [--dry-run] [--force] [--uninstall]
   cowork-flow install-dsh-preset [--dry-run] [--force]
   cowork-flow install-dsh-hook [--dry-run] [--force] [--uninstall]
   cowork-flow install-kimi-hook [--dry-run] [--force] [--uninstall]
@@ -199,6 +201,10 @@ export async function main(argv = process.argv.slice(2), options = {}) {
 
     if (command === 'install-qoder-plugin') {
       return await runInstallQoderPlugin(args);
+    }
+
+    if (command === 'install-codex-plugin') {
+      return await runInstallCodexPlugin(args);
     }
 
     if (command === 'install-dsh-preset') {

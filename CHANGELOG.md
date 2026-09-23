@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Codex 插件接入（只带引导技能，agents 与 hook 留在项目级）
+
+- **新增 `cowork-flow install-codex-plugin [--dry-run] [--force] [--uninstall]`**：把 `presets/codex/` 写进稳定 marketplace 源 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`（`.agents/plugins/marketplace.json` + `plugins/cowork-flow/`），再委托官方 CLI 执行 `codex plugin marketplace add` + `codex plugin add cowork-flow@cowork-flow-local` 完成注册与启用。**不手写 `config.toml`**：注册状态属于 codex，安装器只生成纯 JSON + 目录拷贝的源；CLI 探测顺序 `COWORK_FLOW_CODEX` → `PATH` → `<CODEX_HOME>/plugins/.plugin-appserver/codex(.exe)`，都没找到时仍备好源目录并打印两条手动命令；npm 全局安装的 `codex.cmd` 走 shell 调用时按 token 加引号（用户目录含空格也可用），真实可执行文件不走 shell。已注册的 marketplace 根与安装器计算值比较时做路径归一化（剥 `\\?\` 前缀、大小写不敏感）——codex 会回写自己规范化的拼写，原始字符串比较会让每次重跑都误报冲突。`--uninstall` 走 `plugin remove` + `marketplace remove`（未注册时该命令返回 1，按幂等卸载容忍）再删源目录。
+- **agents 不可插件化（运行时实证）**：探针任务 `09-23-codex-plugin-probe` 用双向坏文件对照证明 Codex 不解析插件根 `agents/`——同一份未闭合 TOML 放项目级 `.codex/agents/` 被 `codex doctor --json` 报 `Ignoring malformed agent role definition`，放插件根则零报错；辅证是官方文档布局与概念页的组件清单均无 agents、官方插件实例无 `agents/` 目录、官方脚手架 `create_basic_plugin.py` 无 `--with-agents`。因此三个 fixed subagent 与 hook 保持项目级交付，插件只带技能。
+- **载荷**：`presets/codex/.codex-plugin/plugin.json`（`"skills": "./skills/"`）+ `presets/codex/skills/cowork-flow-bootstrap/SKILL.md`，与 zcode / qoder 载荷字节一致（三家 sha256 相同）。`scripts/release.sh` 的 `PLUGIN_MANIFEST_FILES` 加入 codex 清单，`test/package.test.js` 的宿主清单表同步覆盖版本同步与发布脚本覆盖。
+- **doctor 新增 `check_codex_plugin`**：`PLUGIN-NOT-INSTALLED`（项目声明 codex 宿主但 `config.toml` 没有 cowork-flow marketplace）、`PLUGIN-PAYLOAD-MISSING`（注册的源目录缺 `.codex-plugin/plugin.json`）、`PLUGIN-DISABLED`（缺 `[plugins."cowork-flow@cowork-flow-local"] enabled = true`），全部 warning 不进 errors；`_machine_plugin_payload` 增加 codex 分支，载荷仍带与项目同名技能副本时复用 `PLUGIN-SKILLS-LEGACY`。
+- **受限 TOML 解析**：`_codex_config_sections` 只读 `[marketplaces.cowork-flow-local]` 与 `[plugins."cowork-flow@cowork-flow-local"]` 两个平坦段（引号可选、其余 section 与键一律不读）。CI 的 Python 下限是 3.10（`.github/workflows/ci.yml`），没有 `tomllib`，为两格声明引入 TOML 依赖不划算；这是本任务 plan 的 Deviation Condition 分支，已记录在任务 decision-anchor。
+- **声明订正**：`host-assets.json` 里 codex 的 `skillDiscovery` 证据由 `assumed:` 升为 `verified:`（探针任务的 `codex debug prompt-input` skill roots 表列出 `<cwd>/.agents/skills`）；`tests/test_host_skills_gate.py` 的 `ASSUMED_DISCOVERY` 门禁同步移除 codex 条目，README 技能分发表随之拆分。
+- **幂等性实测**（决定安装器策略）：`marketplace add` 重复执行返回 0（"already added"）；`plugin add` 重复执行返回 0；源目录版本从 0.0.1 升到 0.0.2 后再次 `plugin add` 会物化新版本并删除旧版本目录（`ls` 只剩 `0.0.2`）；`plugin list --json -m <未注册的 marketplace>` 返回空列表且退出码 0。安装器据此按"注册状态 + 已装版本"决定是否重跑 add。
+- 升级动作：`cowork-flow install-codex-plugin` 一次即完成接入；升级 cowork-flow 后重跑同一命令（版本变化会自动重物化），要强制刷新加 `--force`。
+
 ### 插件携带 bootstrap 引导技能（zcode / qoder）
 
 - **两家插件载荷各带一个新名技能**：`presets/{zcode,qoder}/skills/cowork-flow-bootstrap/SKILL.md`，两份 `plugin.json` 声明 `"skills": "skills"`。该技能只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow init`，检测到项目 runtime 时退让给项目级 `cowork-flow` 技能；它不带 `manifest.json`，不进入 runtime 的 action / command / context 路由，也不参与技能副本 parity。项目级 16 个技能的交付、`skillReadRoot`、init 分发与 fixed subagent 的技能路径全部不变。

@@ -1010,6 +1010,112 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
     return []
 
 
+_CODEX_PLUGIN_CONTRACT = "runtime-health:codex-plugin"
+CODEX_PLUGIN_KEY = "cowork-flow@cowork-flow-local"
+_CODEX_MARKETPLACE = "cowork-flow-local"
+
+
+def _codex_warning(code: str, path: Path, message: str, hint: str) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_CODEX_PLUGIN_CONTRACT,
+        )
+    ]
+
+
+def _codex_home() -> Path:
+    configured = (os.environ.get("CODEX_HOME") or "").strip()
+    return Path(configured) if configured else Path.home() / ".codex"
+
+
+def _codex_config_sections(config_path: Path) -> dict[str, dict[str, str]]:
+    """Flat key/value pairs for the two sections cowork-flow owns.
+
+    The CI floor is Python 3.10, which has no tomllib, and a TOML dependency is
+    not worth two flat sections: every other line and section stays unread.
+    """
+    try:
+        text = config_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    wanted = {
+        f"marketplaces.{_CODEX_MARKETPLACE}",
+        f"plugins.{CODEX_PLUGIN_KEY}",
+    }
+    sections: dict[str, dict[str, str]] = {}
+    current: dict[str, str] | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            name = line[1:-1].strip().replace('"', "")
+            current = sections.setdefault(name, {}) if name in wanted else None
+            continue
+        if current is None or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        current[key.strip().strip('"').strip("'")] = value.strip().strip('"').strip("'")
+    return sections
+
+
+def _codex_marketplace_source() -> str:
+    """Marketplace source path registered in the Codex config, or ""."""
+    sections = _codex_config_sections(_codex_home() / "config.toml")
+    return sections.get(f"marketplaces.{_CODEX_MARKETPLACE}", {}).get("source", "")
+
+
+def check_codex_plugin(repo_root: Path) -> list[dict[str, str]]:
+    """Codex plugin health. Advisory, and silent while the project never
+    selected the Codex host: the plugin is a machine-level asset registered in
+    `~/.codex/config.toml`, so it never updates through sync or npm."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "codex" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
+
+    config_path = _codex_home() / "config.toml"
+    sections = _codex_config_sections(config_path)
+    marketplace = sections.get(f"marketplaces.{_CODEX_MARKETPLACE}")
+    if not marketplace:
+        return _codex_warning(
+            "PLUGIN-NOT-INSTALLED",
+            config_path,
+            "this project declares the Codex host, but cowork-flow's marketplace "
+            "is not registered in the Codex config, so Codex sessions see no "
+            "cowork-flow plugin Skills",
+            "cowork-flow install-codex-plugin",
+        )
+
+    source = marketplace.get("source", "")
+    payload = (Path(source) / "plugins" / "cowork-flow") if source else None
+    if payload is None or not (payload / ".codex-plugin" / "plugin.json").is_file():
+        return _codex_warning(
+            "PLUGIN-PAYLOAD-MISSING",
+            payload if payload is not None else config_path,
+            f"the Codex marketplace is registered from {source or 'an unknown path'}, "
+            "but no plugin manifest is on disk there; the host cannot load a "
+            "missing payload",
+            "cowork-flow install-codex-plugin --force",
+        )
+
+    plugin = sections.get(f"plugins.{CODEX_PLUGIN_KEY}")
+    if not plugin or plugin.get("enabled") != "true":
+        return _codex_warning(
+            "PLUGIN-DISABLED",
+            config_path,
+            "the Codex plugin is registered but not enabled "
+            f'(`[plugins."{CODEX_PLUGIN_KEY}"] enabled = true`), so its Skills '
+            "stay invisible to sessions",
+            "cowork-flow install-codex-plugin --force",
+        )
+    return []
+
+
 _SKILL_DELIVERY_CONTRACT = "runtime-health:skill-delivery"
 
 
@@ -1059,6 +1165,12 @@ def _machine_plugin_payload(platform_id: str) -> Path | None:
             if payload is not None and payload.is_dir():
                 return payload
         return None
+    if platform_id == "codex":
+        source = _codex_marketplace_source()
+        if not source:
+            return None
+        payload = Path(source) / "plugins" / "cowork-flow"
+        return payload if payload.is_dir() else None
     return None
 
 
@@ -1167,6 +1279,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     dsh_preset_issues = check_dsh_preset(repo_root)
     kimi_hook_issues = check_kimi_hook(repo_root)
     qoder_plugin_issues = check_qoder_plugin(repo_root)
+    codex_plugin_issues = check_codex_plugin(repo_root)
     skill_delivery_issues = check_skill_delivery(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
@@ -1193,6 +1306,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "dshPreset": dsh_preset_issues,
             "kimiHook": kimi_hook_issues,
             "qoderPlugin": qoder_plugin_issues,
+            "codexPlugin": codex_plugin_issues,
             "skillDelivery": skill_delivery_issues,
         },
     }
@@ -1219,6 +1333,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["qoderPlugin"]:
         print(f"Qoder plugin ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["codexPlugin"]:
+        print(f"Codex plugin ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["skillDelivery"]:

@@ -374,6 +374,129 @@ class QoderPluginCheckTest(unittest.TestCase):
             self.assertNotIn("qoder-plugin", str(error))
 
 
+class CodexPluginCheckTest(unittest.TestCase):
+    """Codex plugin diagnostics. The plugin is a machine-level asset registered in
+    `~/.codex/config.toml`, so the check must stay silent for projects that never
+    selected the Codex host and must never turn a lagging install into a hard
+    error."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.codex_home = root / "codex-home"
+        self.project = root / "project"
+        (self.project / ".cowork-flow" / "adapters" / "codex").mkdir(parents=True)
+        (self.project / ".cowork-flow" / "adapters" / "codex" / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: codex\n", encoding="utf-8"
+        )
+        (self.project / ".cowork-flow" / ".version").write_text("1.6.0\n", encoding="utf-8")
+        self.source = self.codex_home / "plugins" / "marketplaces" / "cowork-flow-local"
+        self.config = self.codex_home / "config.toml"
+
+    def _check(self) -> list[dict[str, str]]:
+        with mock.patch.dict("os.environ", {"CODEX_HOME": str(self.codex_home)}):
+            return self.doctor.check_codex_plugin(self.project)
+
+    def _write_config(self, *, source: str | None = None, enabled: bool | None = True) -> None:
+        lines = [
+            'model = "gpt-5"',
+            "",
+            "[features]",
+            "plugins = true",
+            "",
+            '[plugins."someone-else@their-market"]',
+            "enabled = false",
+        ]
+        if source is not None:
+            lines += [
+                "",
+                "[marketplaces.cowork-flow-local]",
+                'source_type = "local"',
+                f"source = '{source}'",
+            ]
+        if enabled is not None:
+            lines += [
+                "",
+                '[plugins."cowork-flow@cowork-flow-local"]',
+                f"enabled = {str(enabled).lower()}",
+            ]
+        self.config.parent.mkdir(parents=True, exist_ok=True)
+        self.config.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _write_payload(self) -> None:
+        manifest = self.source / "plugins" / "cowork-flow" / ".codex-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(
+            json.dumps({"name": "cowork-flow", "version": "1.6.0"}), encoding="utf-8"
+        )
+
+    def _install(self, *, enabled: bool | None = True) -> None:
+        self._write_payload()
+        self._write_config(source=str(self.source), enabled=enabled)
+
+    def test_project_without_codex_adapter_is_silent(self) -> None:
+        (self.project / ".cowork-flow" / "adapters" / "codex" / "adapter.yaml").unlink()
+        self.assertEqual([], self._check())
+
+    def test_declared_host_without_marketplace_reports_not_installed(self) -> None:
+        issues = self._check()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertEqual("cowork-flow install-codex-plugin", issues[0]["commandHint"])
+
+    def test_registered_marketplace_without_payload_reports_payload_missing(self) -> None:
+        self._write_config(source=str(self.source))
+        issues = self._check()
+        self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
+
+    def test_installed_but_disabled_reports_disabled(self) -> None:
+        self._install(enabled=False)
+        issues = self._check()
+        self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in issues])
+
+    def test_installed_without_an_enable_entry_reports_disabled(self) -> None:
+        self._install(enabled=None)
+        issues = self._check()
+        self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in issues])
+
+    def test_healthy_install_reports_nothing(self) -> None:
+        self._install()
+        self.assertEqual([], self._check())
+
+    def test_unreadable_config_is_reported_as_not_installed(self) -> None:
+        self.config.parent.mkdir(parents=True, exist_ok=True)
+        self.config.write_text("{ broken", encoding="utf-8")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
+
+    def test_quoted_marketplace_section_is_read(self) -> None:
+        # Codex quotes a marketplace name only when it needs to; both forms must
+        # resolve to the same section.
+        self._write_payload()
+        self._write_config()
+        self.config.write_text(
+            self.config.read_text(encoding="utf-8").replace(
+                "[marketplaces.cowork-flow-local]",
+                '[marketplaces."cowork-flow-local"]',
+            )
+            + f"\n[marketplaces.cowork-flow-local]\nsource = '{self.source}'\n",
+            encoding="utf-8",
+        )
+        self.assertEqual([], self._check())
+
+    def test_plugin_check_never_enters_doctor_errors(self) -> None:
+        with mock.patch.dict("os.environ", {"CODEX_HOME": str(self.codex_home)}):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual("PLUGIN-NOT-INSTALLED", result["issues"]["codexPlugin"][0]["code"])
+        for error in result["errors"]:
+            self.assertNotIn("codex-plugin", str(error))
+
+
 class SkillDeliveryCheckTest(unittest.TestCase):
     """Skill delivery diagnostics: a declared read root that is not on disk, a
     machine-level plugin payload that still carries a copy of a project Skill,
@@ -390,11 +513,13 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.qoder_home = self.root / "qoder-home"
         self.zcode_home = self.root / "zcode-home"
+        self.codex_home = self.root / "codex-home"
         patcher = mock.patch.dict(
             "os.environ",
             {
                 "QODER_CONFIG_DIR": str(self.qoder_home),
                 "ZCODE_HOME": str(self.zcode_home),
+                "CODEX_HOME": str(self.codex_home),
             },
         )
         patcher.start()
@@ -499,6 +624,34 @@ class SkillDeliveryCheckTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _install_codex_plugin(
+        self, version: str, *, skill_names: tuple[str, ...] = ("task-review",)
+    ) -> None:
+        source = self.codex_home / "plugins" / "marketplaces" / "cowork-flow-local"
+        payload = source / "plugins" / "cowork-flow"
+        (payload / ".codex-plugin").mkdir(parents=True)
+        (payload / ".codex-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "cowork-flow", "version": version}), encoding="utf-8"
+        )
+        for name in skill_names:
+            skill_dir = payload / "skills" / name
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("---\n---\n", encoding="utf-8")
+        (self.codex_home / "config.toml").write_text(
+            "\n".join(
+                [
+                    "[marketplaces.cowork-flow-local]",
+                    'source_type = "local"',
+                    f"source = '{source}'",
+                    "",
+                    '[plugins."cowork-flow@cowork-flow-local"]',
+                    "enabled = true",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
     def test_project_without_a_selected_host_is_silent(self) -> None:
         self.assertEqual([], self.doctor.check_skill_delivery(self._project(None)))
 
@@ -548,6 +701,22 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         project = self._project("zcode")
         self._project_skills(project, "task-review")
         self._install_zcode_plugin("1.6.0", skill_names=("cowork-flow-bootstrap",))
+        self.assertEqual([], self.doctor.check_skill_delivery(project))
+
+    def test_codex_payload_still_carrying_skills_is_reported_as_legacy(self) -> None:
+        project = self._project("codex")
+        (project / ".codex").mkdir()
+        self._project_skills(project, "task-review")
+        self._install_codex_plugin("1.5.0")
+        issues = self.doctor.check_skill_delivery(project)
+        self.assertEqual(["PLUGIN-SKILLS-LEGACY"], [issue["code"] for issue in issues])
+        self.assertEqual("cowork-flow install-codex-plugin --force", issues[0]["commandHint"])
+
+    def test_codex_payload_bootstrap_skill_is_not_reported_as_legacy(self) -> None:
+        project = self._project("codex")
+        (project / ".codex").mkdir()
+        self._project_skills(project, "task-review")
+        self._install_codex_plugin("1.6.0", skill_names=("cowork-flow-bootstrap",))
         self.assertEqual([], self.doctor.check_skill_delivery(project))
 
     def test_qoder_plugin_skew_stays_with_the_host_plugin_check(self) -> None:

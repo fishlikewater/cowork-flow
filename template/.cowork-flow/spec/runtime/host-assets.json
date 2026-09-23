@@ -139,7 +139,7 @@
         {
           "scope": "project",
           "path": ".agents/skills",
-          "evidence": "assumed: Codex 约定 .agents/skills，本机未逐项验证"
+          "evidence": "verified: 探针任务 09-23-codex-plugin-probe：codex 0.155.0-alpha.16 的 debug prompt-input skill roots 表列出 <cwd>/.agents/skills"
         }
       ],
       "adapterPath": ".cowork-flow/adapters/codex/adapter.yaml",
