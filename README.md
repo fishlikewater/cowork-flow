@@ -41,13 +41,13 @@
 
 ```bash
 # 初始化到新项目
-npx cowork-flow init ./my-project --platform codex --developer <your-name>
+npx cowork-flow project init ./my-project --platform codex --developer <your-name>
 
 # 预览同步计划（不写文件）
-cowork-flow sync ./my-project --dry-run
+cwf project sync ./my-project --dry-run
 
 # 同步已初始化项目
-cowork-flow sync ./my-project
+cwf project sync ./my-project
 
 # 维护者：预览本仓库 source checkout live runtime / Skill replica 刷新
 npm run source:refresh:dry-run
@@ -56,27 +56,29 @@ npm run source:refresh:dry-run
 npm run source:refresh
 
 # 预览 CLI 更新（不安装）
-cowork-flow update --dry-run
+cwf self update --dry-run
 
 # 安装 ZCode 插件（可选）
-cowork-flow install-zcode-plugin
+cwf host add zcode
 
 # 安装 DSH 预设（可选，整套 agent）
-cowork-flow install-dsh-preset
+cwf host add dsh --component preset
 
 # 机器级安装实时 workflow-state 注入（推荐：不换预设，任意 DSH 会话生效）
-cowork-flow install-dsh-hook
+cwf host add dsh --component hook
 
 # MCP 客户端接入（可选）：全局注册一次，任意项目查询任务事实；
 # 项目级 opt-in（如 claude-code 的 .mcp.json）与注册健康检测见
 # `run doctor`；各客户端配置样例见下方「MCP 客户端接入」一节
-cowork-flow mcp-state
+cwf mcp serve
 
 # 维护者发布前检查
 npm run release:check
 ```
 
 平台选项：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `qoder` / `all`（逗号分隔）
+
+CLI 有两个等价的可执行名：`cwf`（短）与 `cowork-flow`（全名）。`cwf host list` 查看各宿主、它的机器级组件以及本项目是否选中；`cwf --help` 列出全部命令与旧名对照。
 
 ## 仓库结构
 
@@ -147,30 +149,71 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 
 ## CLI 命令
 
+CLI 提供两个等价的可执行名：`cwf`（推荐，简短）与 `cowork-flow`（全名，与包名一致）。命令按名词分组，`cwf <组> <命令> --help` 打印该层用法。
+
 | 命令 | 说明 |
 |---|---|
-| `init <path>` | 初始化项目模板 |
-| `sync <path> [--dry-run]` | 同步已初始化项目的模板和技能 |
-| `source-refresh [path] [--dry-run]` | 维护者刷新 source checkout 的 ignored live runtime 与 Host Skill replica |
-| `install-zcode-plugin` | 安装 ZCode 插件到全局缓存 |
-| `install-qoder-plugin [--dry-run] [--force] [--uninstall]` | 机器级安装 cowork-flow Qoder 插件到 `~/.qoder/plugins/cache/`，注册 `installed_plugins_v2.json` 并置 `enabledPlugins` 开关 |
-| `install-codex-plugin [--dry-run] [--force] [--uninstall]` | 机器级接入 Codex：写稳定 marketplace 源到 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`，再委托 `codex plugin marketplace add` + `codex plugin add` 注册与启用（不手写 `config.toml`） |
-| `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/`（整套 agent，可选） |
-| `install-dsh-hook` | 机器级注册 workflow-state hook 组合行到 `$DSH_HOME/cordis.patch.yml`（当前 DSH 的 agent 提示不收集 host 层 section，实时注入请用预设方式） |
-| `install-kimi-hook [--dry-run] [--uninstall]` | 机器级注册 UserPromptSubmit hook 到 `$KIMI_CODE_HOME/config.toml`（默认 `~/.kimi-code/`），向每个 Kimi Code 会话实时注入工作流上下文 |
-| `update [--dry-run]` | 升级 CLI 本身 |
-| `mcp-state` | 全局 MCP 事实入口：从 cwd 向上定位项目运行时并透传 `run mcp-state`（全局注册一次，所有 cowork-flow 项目通用） |
+| `cwf project init [path] --platform <p> [--developer <n>] [--dry-run] [--force]` | 初始化项目模板 |
+| `cwf project sync [path] [--dry-run] [--force]` | 同步已初始化项目的模板和技能 |
+| `cwf host add <host> [--component <name>] [--dry-run] [--force] [--prune-old]` | 机器级接入一个宿主（组件见下表） |
+| `cwf host remove <host> [--component <name>] [--dry-run] [--force]` | 拆掉 `host add` 装的东西；幂等，未安装也算成功。`--force` 只对 dsh 的 hook 有意义（托管行之外再删插件文件），kimi-code 的 hook 不接受它 |
+| `cwf host list [path] [--json]` | 列出声明的宿主、机器级组件，以及本项目是否选中（看 adapter 是否落盘） |
+| `cwf self update [--dry-run]` | 升级 CLI 本身 |
+| `cwf dev refresh [path] [--dry-run]` | 维护者刷新 source checkout 的 ignored live runtime 与 Host Skill replica |
+| `cwf mcp serve` | 全局 MCP 事实入口：从 cwd 向上定位项目运行时并透传 `run mcp-state` |
 
-### init 选项
+`cwf --help` 列全部命令与旧名对照，`cwf <组> --help` 列该组命令，`cwf <组> <命令> --help` 列该命令的旗标与示例；`--help` 优先于其它旗标，任何一层都不会真的执行命令。
+
+### 宿主与机器级组件
+
+| 宿主 | 组件 | `host add` 的默认组件 |
+|---|---|---|
+| `codex` | `plugin` | `plugin` |
+| `zcode` | `plugin` | `plugin` |
+| `qoder` | `plugin` | `plugin` |
+| `dsh` | `preset`、`hook` | `preset` |
+| `kimi-code` | `hook` | `hook` |
+
+`opencode` 与 `claude-code` 是声明宿主，但没有机器级组件——它们的资产完全由 `project init` / `project sync` 交付，`host add opencode` 是用法错误。宿主别名同样可用（如 `claude`、`kimi`、`qoder-cli`，见 Host Asset Manifest 的 `aliases`）。
+
+`host add <host> --uninstall` 与 `host remove <host>` 是同一条路径，保留前者只为让旧命令名能被原样重写。`host list` 只报"声明与项目选中"；机器安装是否健康（载荷缺失、版本过期、技能重复）由 `./.cowork-flow/run doctor` 负责。
+
+### 退出码
+
+| 码 | 含义 |
+|---|---|
+| `0` | 成功 |
+| `1` | 操作失败（目标未初始化、网络不可用、宿主 CLI 报错……） |
+| `2` | 用法错误（未知命令、未知旗标、多余的位置参数、缺参数、未知宿主或组件、未知平台） |
+
+### 旧命令名
+
+3 个名字是**永久别名**：`init`、`sync`，以及 `mcp-state`——后者已写进大量 MCP 客户端配置（仓库外固化），改名会让已注册的客户端静默失联。其余 8 个是 **shim**：仍然可用、stdout 不变，只在 stderr 多一行迁移提示，两个 minor 版本后移除。
+
+| 旧名 | 新名 |
+|---|---|
+| `init` | `cwf project init`（永久） |
+| `sync` | `cwf project sync`（永久） |
+| `mcp-state` | `cwf mcp serve`（永久） |
+| `update` | `cwf self update` |
+| `source-refresh` | `cwf dev refresh` |
+| `install-zcode-plugin` | `cwf host add zcode` |
+| `install-qoder-plugin` | `cwf host add qoder` |
+| `install-codex-plugin` | `cwf host add codex` |
+| `install-dsh-preset` | `cwf host add dsh --component preset` |
+| `install-dsh-hook` | `cwf host add dsh --component hook` |
+| `install-kimi-hook` | `cwf host add kimi-code` |
+
+### project init 选项
 
 | 选项 | 说明 |
 |---|---|
-| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `qoder` / `all` |
+| `--platform <p>` | 平台：`codex` / `opencode` / `claude-code` / `dsh` / `zcode` / `kimi-code` / `qoder` / `all`；可重复或用逗号分隔 |
 | `--developer <n>` | 开发者名称 |
 | `--force` | 覆盖已有文件 |
 | `--dry-run` | 预览不写入 |
 
-### sync 行为
+### project sync 行为
 
 - **自动识别**已安装 host 目录，只同步对应平台资产
 - **Skills** 从 `template/skills/` 按平台分发
@@ -180,14 +223,14 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 - **Dry-run readiness**：`sync --dry-run` 只构建计划并输出 `readiness=<json>`，不写文件或事务状态；字段包含 `wouldCopy`、`wouldSkipProtected`、`wouldRemoveObsolete`、`hostAssetRefresh`、`pendingRecovery`、`warnings`
 - `--force` 整文件覆盖保护文件
 
-### source-refresh 行为
+### dev refresh 行为
 
 - **用途**：仅面向 cowork-flow 源码 checkout 维护者；以 `template/.cowork-flow/` 和 `template/skills/` 为唯一 tracked 分发源，刷新 ignored 的根 `.cowork-flow/`、`.agents/skills/`、`.claude/skills/` 受管副本
 - **保护边界**：不覆盖 `.cowork-flow/tasks/`、`.cowork-flow/plans/`、`.cowork-flow/.runtime/`、`.cowork-flow/.developer`、`.cowork-flow/config.yaml` 和自定义 Skill
 - **事务语义**：复用 Asset Plan / plan applier，失败时回滚；`.cowork-flow/.version` 保持 version-last，并复制 template 版本文件的原始内容
 - **常用命令**：`npm run source:refresh:dry-run` 只预览；`npm run source:refresh` 应用后再运行 `./.cowork-flow/run doctor --all --json`
 
-### update 行为
+### self update 行为
 
 - 默认查询 npm latest，发现新版本时执行 `npm install -g cowork-flow@latest`
 - `--dry-run` 只输出当前版本、最新版本和 `readiness=<json>`，其中 `update.wouldInstall` 表示是否会执行全局安装，不调用安装命令
@@ -196,43 +239,44 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 
 事实层以只读 MCP 服务（工具 `task_state` / `task_list`）提供给任意客户端。两种入口：
 
-- **全局（推荐）**：`cowork-flow mcp-state`（npm 全局 CLI 透传）。注册一次，所有 cowork-flow 项目通用——项目根由客户端启动时的 cwd 向上解析。
+- **全局（推荐）**：`cwf mcp serve`（npm 全局 CLI 透传）。注册一次，所有 cowork-flow 项目通用——项目根由客户端启动时的 cwd 向上解析。
 - **项目级**：`<project>/.cowork-flow/run mcp-state`（不依赖全局安装，每项目一份配置）。
 
-stdio 注册样例：
+stdio 注册样例（`cwf` 与 `cowork-flow` 是同一个入口；旧的 `cowork-flow mcp-state` 拼写仍然有效，已写进配置的用户无需改动）：
 
 ```toml
 # Codex（~/.codex/config.toml）
 [mcp_servers.cowork-flow]
-command = "cowork-flow"
-args = ["mcp-state"]
+command = "cwf"
+args = ["mcp", "serve"]
 ```
 
 ```json
 // OpenCode（~/.config/opencode/opencode.json）
-{"mcp": {"cowork-flow": {"type": "local", "command": ["cowork-flow", "mcp-state"], "enabled": true}}}
+{"mcp": {"cowork-flow": {"type": "local", "command": ["cwf", "mcp", "serve"], "enabled": true}}}
 ```
 
-- **Claude Code**：`claude mcp add -s user cowork-flow -- cowork-flow mcp-state`（项目级 `.mcp.json` 写同构条目）。
-- **ZCode**：客户端设置的 MCP 服务器中添加同构 stdio 条目（命令 `cowork-flow`、参数 `mcp-state`）。
+- **Claude Code**：`claude mcp add -s user cowork-flow -- cwf mcp serve`（项目级 `.mcp.json` 写同构条目）。
+- **ZCode**：客户端设置的 MCP 服务器中添加同构 stdio 条目（命令 `cwf`、参数 `mcp serve`；旧拼写 `cowork-flow mcp-state` 仍然有效）。
 
 项目级注册的健康检查由 `./.cowork-flow/run doctor` 报告。
 
 ## ZCode 插件
 
 ```bash
-cowork-flow install-zcode-plugin     # 安装
-cowork-flow install-zcode-plugin --force  # 覆盖已安装
-cowork-flow install-zcode-plugin --force --prune-old  # 覆盖并清理旧版本缓存
+cwf host add zcode     # 安装
+cwf host add zcode --force  # 覆盖已安装
+cwf host add zcode --force --prune-old  # 覆盖并清理旧版本缓存
+cwf host remove zcode  # 卸载：删缓存目录、两个 marketplace 副本与 known_marketplaces 条目
 ```
 
 安装到 `~/.zcode/cli/plugins/cache/cowork-flow-local/cowork-flow/<version>/`。安装器会同时写入稳定 marketplace source：`~/.zcode/cli/plugins/cache/marketplaces/cowork-flow-local/marketplace.json`，以及 ZCode 当前使用的活动副本：`~/.zcode/cli/plugins/marketplaces/cowork-flow-local/marketplace.json`。`known_marketplaces.json` 指向稳定 source 目录，避免 ZCode 刷新活动副本时删除自己的 source。
 
 安装新版本时，marketplace 中只保留一个 `cowork-flow` entry 并指向最新版本目录；旧版本缓存默认保留，避免正在运行的 ZCode session 仍引用旧插件根目录。需要清理旧版本时显式传 `--prune-old`。
 
-ZCode 插件安装 hook、agents 和一个引导技能；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
+ZCode 插件安装 hook、agents 和一个引导技能；`.cowork-flow/` 流程文件仍由显式 `cwf project init` / `cwf project sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
 
-**项目技能走项目通道，插件只带引导技能**：16 个项目技能由 `init` / `sync` 写到 `.agents/skills/`，这正是 ZCode 自己枚举的路径之一（另一条是 `.zcode/skills/`，同名优先，我们不交付），fixed subagent 也从同一路径读取。插件载荷另带 `skills/cowork-flow-bootstrap/`——一个只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow init` 的新名技能，让插件在未初始化目录里也能给出入口。载荷技能名必须与项目技能名零交集：ZCode 同时枚举项目根与插件根且不按技能名去重，同名技能会以两份身份进入技能列表、并在激活时双份注入正文（两家插件测试把这条固化为门禁）。
+**项目技能走项目通道，插件只带引导技能**：16 个项目技能由 `init` / `sync` 写到 `.agents/skills/`，这正是 ZCode 自己枚举的路径之一（另一条是 `.zcode/skills/`，同名优先，我们不交付），fixed subagent 也从同一路径读取。插件载荷另带 `skills/cowork-flow-bootstrap/`——一个只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow project init` 的新名技能，让插件在未初始化目录里也能给出入口。载荷技能名必须与项目技能名零交集：ZCode 同时枚举项目根与插件根且不按技能名去重，同名技能会以两份身份进入技能列表、并在激活时双份注入正文（两家插件测试把这条固化为门禁）。
 
 载荷里出现**与项目同名**的技能副本时，`./.cowork-flow/run doctor` 以 `PLUGIN-SKILLS-LEGACY` 报出（warning，不进 errors），提示用 `--force` 重装清理；只带 bootstrap 的载荷不告警。
 
@@ -249,41 +293,44 @@ ZCode 插件安装 hook、agents 和一个引导技能；`.cowork-flow/` 流程�
 ## DSH 接入
 
 ```bash
-cowork-flow init ./my-project --platform dsh   # 项目资产：AGENTS.md + .agents/skills/ + .dsh 标记
-cowork-flow install-dsh-hook                   # 机器级：注册 hook 组合行（实时注入见下方说明）
+cwf project init ./my-project --platform dsh   # 项目资产：AGENTS.md + .agents/skills/ + .dsh 标记
+cwf host add dsh --component hook                   # 机器级：注册 hook 组合行（实时注入见下方说明）
 ```
 
-`install-dsh-hook` 把 `workflow-state.js` 插件作为 `insert:` patch 注册到 `$DSH_HOME/cordis.patch.yml`（未设置 `DSH_HOME` 时默认 `~/.dsh`），组合层面可被 `dsh --dump-config` 验证。经实测（DSH 0.1.1-rc.1），**agent 提示组装不收集 host 层 section**：该组合行不会在会话系统提示中产生 `<workflow-state>` 块。当前 DSH 版本下实时注入仍需预设方式（`install-dsh-preset`）；本命令保留为组合层面的幂等注册能力（卸载见下），待 DSH 支持 agent-scope patch / workspace 级组合后可直接生效。
+`cwf host add dsh --component hook` 把 `workflow-state.js` 插件作为 `insert:` patch 注册到 `$DSH_HOME/cordis.patch.yml`（未设置 `DSH_HOME` 时默认 `~/.dsh`），组合层面可被 `dsh --dump-config` 验证。经实测（DSH 0.1.1-rc.1），**agent 提示组装不收集 host 层 section**：该组合行不会在会话系统提示中产生 `<workflow-state>` 块。当前 DSH 版本下实时注入仍需预设方式（`cwf host add dsh --component preset`）；本命令保留为组合层面的幂等注册能力（卸载见下），待 DSH 支持 agent-scope patch / workspace 级组合后可直接生效。
 
-在未安装 cowork-flow 的项目里 hook 完全无感：JS 侧根目录预检直接短路——不注入内容、不启动 Python 进程。全局开关（环境变量）：`COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`。卸载：`cowork-flow install-dsh-hook --uninstall`（`--force` 同时删除插件文件）。
+在未安装 cowork-flow 的项目里 hook 完全无感：JS 侧根目录预检直接短路——不注入内容、不启动 Python 进程。全局开关（环境变量）：`COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`。卸载：`cwf host remove dsh --component hook`（`--force` 同时删除插件文件）。
 
 > 安装或更新后需要**重启 DSH**（`cordis.patch.yml` 在启动时组合，新增/变更不会被热加载）。
 
-> 使用预设（`install-dsh-preset`）时无需再运行 `install-dsh-hook`——预设已内置同一 hook。
+> 使用预设（`cwf host add dsh --component preset`）时无需再运行 `cwf host add dsh --component hook`——预设已内置同一 hook。
 
 ## DSH 预设
 
 ```bash
-cowork-flow install-dsh-preset            # 安装
-cowork-flow install-dsh-preset --force    # 覆盖已安装
-cowork-flow install-dsh-preset --dry-run  # 预览不写入
+cwf host add dsh --component preset            # 安装
+cwf host add dsh --component preset --force    # 覆盖已安装
+cwf host add dsh --component preset --dry-run  # 预览不写入
+cwf host remove dsh --component preset         # 卸载（幂等）
 ```
 
 安装到 `~/.dsh/.agent-presets/cowork-flow/`（`DSH_HOME` 存在时以其为准）：`agent.cordis.yml` + `preset.yml` + `plugins/`。安装后在 DeepSeek Harness 中新建会话并选择 **Cowork Flow** 预设即可使用：persona 携带流程门禁规则，技能由项目级 `.agents/skills/` 提供（`skill-filesystem` 的工作区根，rank 200），预设不再携带技能副本。
 
-预设是**一次性安装的机器级资产**：它不随 `sync` 或 npm 更新。升级 cowork-flow 后需要重跑 `cowork-flow install-dsh-preset --force` 才会刷新（不带 `--force` 的重复执行是空操作，安装器会在版本不同时给出提示）。安装时会在预设目录写入 `.cowork-flow-preset.json` 版本标记；`./.cowork-flow/run doctor` 比对标记与项目 runtime 版本，过期或缺失时输出 warning 与更新命令。
+预设是**一次性安装的机器级资产**：它不随 `sync` 或 npm 更新。升级 cowork-flow 后需要重跑 `cwf host add dsh --component preset --force` 才会刷新（不带 `--force` 的重复执行是空操作，安装器会在版本不同时给出提示）。安装时会在预设目录写入 `.cowork-flow-preset.json` 版本标记；`./.cowork-flow/run doctor` 比对标记与项目 runtime 版本，过期或缺失时输出 warning 与更新命令。
 
-预设组合是部署 `standard` 预设的拷贝 + 最小改动（persona 流程规则；`skill-filesystem` 组件保持默认根，从工作区 `.agents/skills/` 发现技能）；`cowork-flow init --platform dsh` 仍负责项目级资产（`AGENTS.md`、`.agents/skills/`、`.dsh/` 标记）。
+预设组合是部署 `standard` 预设的拷贝 + 最小改动（persona 流程规则；`skill-filesystem` 组件保持默认根，从工作区 `.agents/skills/` 发现技能）；`cwf project init --platform dsh` 仍负责项目级资产（`AGENTS.md`、`.agents/skills/`、`.dsh/` 标记）。
 
 预设内置 **workflow-state hook**（`plugins/workflow-state.js`）：DSH 原生等效于 Codex/Claude hook，向系统提示末尾注入与其它宿主同构的 `<workflow-state>` 块，每条用户消息刷新一次，并在生命周期命令（`task`/`subagent`/`resume`）执行完成后立即轮内刷新（替换语义，不累积）。项目无 `.cowork-flow` 根、缺少 Python 或设 `COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1` 时静默降级，由 AGENTS.md 门禁的运行导航器兜底。
 
 ## Kimi Code hook
 
 ```bash
-cowork-flow install-kimi-hook             # 安装（无条件覆盖，无 --force）
-cowork-flow install-kimi-hook --dry-run   # 预览将写入的托管块，不写文件
-cowork-flow install-kimi-hook --uninstall # 卸载托管块、shim 与版本标记
+cwf host add kimi-code             # 安装（无条件覆盖）
+cwf host add kimi-code --dry-run   # 预览将写入的托管块，不写文件
+cwf host remove kimi-code          # 卸载托管块、shim 与版本标记
 ```
+
+这个 hook 没有 `--force`：安装总是重写 shim 与托管块，一个只会重跑同样写入的旗标是空操作，因此被移除而不是留成静默忽略（`cwf host add kimi-code --force` 会以用法错误退出）。
 
 安装写入用户级 Kimi Code home（`KIMI_CODE_HOME`，未设置时默认 `~/.kimi-code/`）：hook 脚本 `hooks/cowork-flow-inject.mjs`、版本标记 `hooks/.cowork-flow-kimi-hook.json`，并在 `config.toml` 追加一段由注释标记包裹的托管块——一条 `[[hooks]]`，`event = "UserPromptSubmit"`、`command`、`timeout = 30`，不写 `matcher`（即匹配每条提交的提示）。配置文件按文本编辑、不做 TOML 重排，托管块以外的用户内容原样保留；卸载只移除这段托管块和上面两个文件，`config.toml` 因此变空时一并删除。
 
@@ -297,19 +344,19 @@ Kimi Code 的 Bash 工具不导出会话标识环境变量，CLI 侧身份只能
 
 Qoder 的宿主集成面（hooks、三个 fixed subagent、命令面说明）打包成一个 Qoder 插件；`init` / `sync` 只写 `.cowork-flow/adapters/qoder/adapter.yaml` 这一份声明，不生成 `.qoder/` 目录（`.qoder/` 在 `excludedPrefixes` 里）。
 
-**项目技能只走项目通道，插件只带引导技能**：`init` / `sync` 把技能写到 `.agents/skills/`，这正是 Qoder 自己扫描的路径（`loadFromAgentsDirectory` 默认开启），因此模型能原生发现并调用，fixed subagent 也从同一路径读取——项目里只有一份副本，随 `.cowork-flow/.version` 钉版本。前提是**工作区已信任**且技能设置生效需**重启**。插件载荷另带 `skills/cowork-flow-bootstrap/`——一个只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow init` 的新名技能，让未 `init` 的仓库也有入口；载荷技能名与项目技能名零交集，同名副本由 doctor 报 `PLUGIN-SKILLS-LEGACY`。
+**项目技能只走项目通道，插件只带引导技能**：`init` / `sync` 把技能写到 `.agents/skills/`，这正是 Qoder 自己扫描的路径（`loadFromAgentsDirectory` 默认开启），因此模型能原生发现并调用，fixed subagent 也从同一路径读取——项目里只有一份副本，随 `.cowork-flow/.version` 钉版本。前提是**工作区已信任**且技能设置生效需**重启**。插件载荷另带 `skills/cowork-flow-bootstrap/`——一个只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow project init` 的新名技能，让未 `init` 的仓库也有入口；载荷技能名与项目技能名零交集，同名副本由 doctor 报 `PLUGIN-SKILLS-LEGACY`。
 
 ```bash
-cowork-flow install-qoder-plugin              # 安装并启用（已存在时不覆盖）
-cowork-flow install-qoder-plugin --dry-run    # 预览将写入的载荷、注册表条目与开关
-cowork-flow install-qoder-plugin --force      # 覆盖重装（重写插件缓存内容）
-cowork-flow install-qoder-plugin --uninstall  # 卸载：只回收 cowork-flow 自己的条目与缓存目录
+cwf host add qoder              # 安装并启用（已存在时不覆盖）
+cwf host add qoder --dry-run    # 预览将写入的载荷、注册表条目与开关
+cwf host add qoder --force      # 覆盖重装（重写插件缓存内容）
+cwf host remove qoder           # 卸载：只回收 cowork-flow 自己的条目与缓存目录
 ```
 
 两个频次边界，缺一不可：
 
 - **插件每机一次**：换机器或升级 cowork-flow 后要重装。
-- **`init` 每项目一次**：未 `init` 的项目里装了插件也不会注入——hook 入口按载荷 `cwd` 向上找不到 `.cowork-flow` 时直接 exit 0（静默）。同事克隆仓库后需要各自执行一次 `install-qoder-plugin`。
+- **`init` 每项目一次**：未 `init` 的项目里装了插件也不会注入——hook 入口按载荷 `cwd` 向上找不到 `.cowork-flow` 时直接 exit 0（静默）。同事克隆仓库后需要各自执行一次 `cwf host add qoder`。
 
 安装写入 `$QODER_CONFIG_DIR`（未设置时 `~/.qoder`）：插件载荷 `plugins/cache/cowork-flow-local/cowork-flow/<version>/`（含 `.qoder-plugin/plugin.json`、`hooks/`、`agents/`）、注册表 `plugins/installed_plugins_v2.json` 的 `cowork-flow@cowork-flow-local` 条目、`settings.json` 的 `enabledPlugins` 开关。写入一律保留未知键与其他插件条目。
 
@@ -322,10 +369,10 @@ Qoder 侧的三条外部前提：hook 载荷需**重启 Qoder** 才加载（IDE 
 Codex 的插件格式只有 skills / hooks / mcp / assets 四类组件，**没有 agents**：同样一份语法错误的 agent 定义放在项目级 `.codex/agents/` 会被 `codex doctor` 报 `Ignoring malformed agent role definition`，放进插件根则零报错（探针任务 `09-23-codex-plugin-probe`，双向对照）。因此三个 fixed subagent（`.codex/agents/*.toml`）与 hook（`.codex/hooks.json`）**继续由项目级 `init` / `sync` 交付**，插件只承担引导技能。
 
 ```bash
-cowork-flow install-codex-plugin              # 写 marketplace 源并委托 codex CLI 注册 / 启用
-cowork-flow install-codex-plugin --dry-run    # 预览源目录与将执行的 CLI 命令
-cowork-flow install-codex-plugin --force      # 同版本也重新注册（重物化插件缓存）
-cowork-flow install-codex-plugin --uninstall  # 卸载：remove 插件与 marketplace，再删源目录
+cwf host add codex              # 写 marketplace 源并委托 codex CLI 注册 / 启用
+cwf host add codex --dry-run    # 预览源目录与将执行的 CLI 命令
+cwf host add codex --force      # 同版本也重新注册（重物化插件缓存）
+cwf host remove codex           # 卸载：remove 插件与 marketplace，再删源目录
 ```
 
 安装器把载荷写进稳定 marketplace 源 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`（未设置 `CODEX_HOME` 时 `~/.codex`）：`.agents/plugins/marketplace.json` + `plugins/cowork-flow/`。**`config.toml` 始终由 codex CLI 自己写**——安装器只执行 `codex plugin marketplace add <源目录>` 与 `codex plugin add cowork-flow@cowork-flow-local`，不手拼 TOML（写坏了用户无法回退）。CLI 探测顺序：`COWORK_FLOW_CODEX` → `PATH` 上的 `codex` → `<CODEX_HOME>/plugins/.plugin-appserver/codex(.exe)`；都没找到时仍准备好源目录并打印两条手动命令。

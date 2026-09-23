@@ -721,7 +721,7 @@ def check_mcp_registration(repo_root: Path) -> list[dict[str, str]]:
                 "status": "absent",
                 "message": (
                     "fact layer not registered: register globally with "
-                    "`cowork-flow mcp-state`, or add a project .mcp.json "
+                    "`cwf mcp serve`, or add a project .mcp.json "
                     "(see spec/contracts/fact-layer-access.md)"
                 ),
             }
@@ -753,7 +753,7 @@ def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
                     "DSH preset is installed without a version marker; its "
                     "injection logic may predate the current release"
                 ),
-                command_hint="cowork-flow install-dsh-preset --force",
+                command_hint="cwf host add dsh --component preset --force",
                 contract="runtime-health:dsh-preset",
             )
         ]
@@ -772,7 +772,7 @@ def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
                     "DSH preset version marker is unreadable; its injection "
                     "logic may predate the current release"
                 ),
-                command_hint="cowork-flow install-dsh-preset --force",
+                command_hint="cwf host add dsh --component preset --force",
                 contract="runtime-health:dsh-preset",
             )
         ]
@@ -794,7 +794,7 @@ def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
                 f"runs {project_version}; the preset does not update with "
                 "sync or npm, so injection may lag the project runtime"
             ),
-            command_hint="cowork-flow install-dsh-preset --force",
+            command_hint="cwf host add dsh --component preset --force",
             contract="runtime-health:dsh-preset",
         )
     ]
@@ -859,7 +859,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             config,
             "Kimi Code is configured but no cowork-flow hook is registered; "
             "sessions inject no workflow context",
-            "cowork-flow install-kimi-hook",
+            "cwf host add kimi-code",
         )
     shim = home / "hooks" / "cowork-flow-inject.mjs"
     if not shim.is_file():
@@ -868,7 +868,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             shim,
             "config.toml registers the cowork-flow hook but its shim is "
             "missing; the host runs a command that cannot start",
-            "cowork-flow install-kimi-hook",
+            "cwf host add kimi-code",
         )
     marker = home / "hooks" / _KIMI_HOOK_MARKER
     if not marker.is_file():
@@ -877,7 +877,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             marker,
             "Kimi Code hook is installed without a version marker; its "
             "injection logic may predate the current release",
-            "cowork-flow install-kimi-hook",
+            "cwf host add kimi-code",
         )
     recorded = _marker_version(marker)
     if recorded is None:
@@ -886,7 +886,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             marker,
             "Kimi Code hook version marker is unreadable; its injection logic "
             "may predate the current release",
-            "cowork-flow install-kimi-hook",
+            "cwf host add kimi-code",
         )
     project_version = _project_version(repo_root)
     if not project_version or recorded == project_version:
@@ -897,7 +897,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
         f"Kimi Code hook was installed from {recorded} but this project runs "
         f"{project_version}; the hook does not update with sync or npm, so "
         "injection may lag the project runtime",
-        "cowork-flow install-kimi-hook",
+        "cwf host add kimi-code",
     )
 
 
@@ -971,7 +971,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
             "registered in the Qoder plugin cache, so Qoder sessions inject no "
             "workflow context; loading also needs a Qoder restart and a "
             "trusted workspace",
-            "cowork-flow install-qoder-plugin",
+            "cwf host add qoder",
         )
 
     install_path = Path(str(entry.get("installPath") or ""))
@@ -982,7 +982,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
             install_path / manifest_relative,
             f"the Qoder plugin registry points at {install_path}, but no "
             "manifest is on disk there; the host cannot load a missing payload",
-            "cowork-flow install-qoder-plugin --force",
+            "cwf host add qoder --force",
         )
     for relative in ("hooks/hooks.json", "hooks/inject-context.py"):
         if not (install_path / relative).is_file():
@@ -991,7 +991,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
                 install_path / relative,
                 "the installed Qoder plugin has no hook payload, so every hook "
                 "command it declares fails to start",
-                "cowork-flow install-qoder-plugin --force",
+                "cwf host add qoder --force",
             )
 
     settings_path = home / "settings.json"
@@ -1006,7 +1006,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
             settings_path,
             'the Qoder plugin is installed but not enabled '
             f'(`enabledPlugins["{QODER_PLUGIN_KEY}"]`); no hook fires',
-            "cowork-flow install-qoder-plugin --force",
+            "cwf host add qoder --force",
         )
 
     recorded = str(entry.get("version") or "")
@@ -1018,7 +1018,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
             f"the Qoder plugin was installed from {recorded or 'an unknown version'} "
             f"but this project runs {project_version}; the plugin does not update "
             "with sync or npm, so injection may lag the project runtime",
-            "cowork-flow install-qoder-plugin --force",
+            "cwf host add qoder --force",
         )
     return []
 
@@ -1101,7 +1101,7 @@ def check_codex_plugin(repo_root: Path) -> list[dict[str, str]]:
             "this project declares the Codex host, but cowork-flow's marketplace "
             "is not registered in the Codex config, so Codex sessions see no "
             "cowork-flow plugin Skills",
-            "cowork-flow install-codex-plugin",
+            "cwf host add codex",
         )
 
     source = marketplace.get("source", "")
@@ -1114,7 +1114,7 @@ def check_codex_plugin(repo_root: Path) -> list[dict[str, str]]:
             f"the Codex marketplace is registered from {source or 'an unknown path'}, "
             "but no plugin manifest is on disk there; the host cannot load a "
             "missing payload",
-            "cowork-flow install-codex-plugin --force",
+            "cwf host add codex --force",
         )
 
     plugin = sections.get(f"plugins.{CODEX_PLUGIN_KEY}")
@@ -1125,7 +1125,7 @@ def check_codex_plugin(repo_root: Path) -> list[dict[str, str]]:
             "the Codex plugin is registered but not enabled "
             f'(`[plugins."{CODEX_PLUGIN_KEY}"] enabled = true`), so its Skills '
             "stay invisible to sessions",
-            "cowork-flow install-codex-plugin --force",
+            "cwf host add codex --force",
         )
     return []
 
@@ -1226,7 +1226,7 @@ def _legacy_machine_skills_issues(
         f"({', '.join(replicas)}) from {payload.name}; project Skills ship with "
         "the project only, so the payload copy is redundant and may come from "
         "another release",
-        f"cowork-flow install-{platform_id}-plugin --force",
+        f"cwf host add {platform_id} --force",
     )
 
 
@@ -1259,7 +1259,7 @@ def check_skill_delivery(repo_root: Path) -> list[dict[str, str]]:
                     f"{platform_id} reads skills from {platform.skill_read_root}, "
                     "but this project has no such directory, so sessions see no "
                     "cowork-flow skills",
-                    "cowork-flow sync",
+                    "cwf project sync",
                 )
             )
         for entry in platform.skill_discovery:

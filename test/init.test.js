@@ -369,7 +369,7 @@ test('init rejects removed both platform alias', async (t) => {
 
   const code = await main(['init', target, '--developer', 'removed-user', '--platform', 'both'], { io });
 
-  assert.equal(code, 1);
+  assert.equal(code, 2);
   assert.equal(await exists(target), false);
   assert.match(io.stderr, /Unsupported platform: both/);
 });
@@ -489,7 +489,7 @@ test('init fails without a platform in non-interactive mode', async (t) => {
 
   const code = await main(['init', target, '--developer', 'codex'], { io, prompt: null });
 
-  assert.equal(code, 1);
+  assert.equal(code, 2);
   assert.equal(await exists(target), false);
   assert.match(io.stderr, /Platform selection required/);
   assert.match(io.stderr, /--platform codex\|opencode\|claude-code\|dsh/);
@@ -501,7 +501,7 @@ test('init fails without a developer in non-interactive mode', async (t) => {
 
   const code = await main(['init', target, '--platform', 'codex'], { io, prompt: null });
 
-  assert.equal(code, 1);
+  assert.equal(code, 2);
   assert.equal(await exists(target), false);
   assert.match(io.stderr, /Developer name required/);
   assert.match(io.stderr, /--developer <name>/);

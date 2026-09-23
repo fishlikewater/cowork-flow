@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### CLI 命令面改为名词分组（`cwf` 短名 + 命令注册表）
+
+- **11 个平铺命令收进 5 个名词组**：`project init` / `project sync`、`host add` / `host remove` / `host list`、`self update`、`dev refresh`、`mcp serve`。主二进制新增 `cwf`，与 `cowork-flow` 是同一入口（`package.json` 的 `bin` 两键同值）。帮助文本由 `src/commands/registry.js` 的命令注册表生成，`src/cli.js` 只剩解析与派发——此前帮助常量与 `if (command === ...)` 链是第二份事实源，已经漂移（帮助里写死 3 个平台，实际 7 个）。
+- **旧名全部保留，分两类**：`init` / `sync` / `mcp-state` 是**永久别名**（`mcp-state` 已写进大量 MCP 客户端配置，仓库外固化，硬改名会让已注册客户端静默失联）；其余 8 个是 **shim**，stdout 不变，只在 stderr 多一行迁移提示，两个 minor 版本后移除。shim 只做 argv 前缀重写（`install-dsh-hook` → `host add dsh --component hook`），不做参数改写之外的事。
+- **新增 `host add` / `host remove` / `host list`**：`host add <host> [--component <name>]` 按宿主的机器级组件表派发到对应安装器（codex / zcode / qoder 只有 `plugin`；dsh 有 `preset` 与 `hook`，默认 `preset`；kimi-code 只有 `hook`）；`host remove <host>` 是幂等卸载；`host list [--json]` 输出声明宿主、机器级组件与本项目是否选中（看 adapter 是否落盘）。`host add --uninstall` 与 `host remove` 同路径，保留只为让旧名能被原样重写。
+- **补齐两条卸载路径**：`install-zcode-plugin --uninstall`（删缓存目录与 per-marketplace 缓存根、两个 marketplace 副本目录、`known_marketplaces.json` 里属于 cowork-flow 的条目，不动用户自己的 marketplace）与 `install-dsh-preset --uninstall`（删预设目录，不动 `.agent-presets/` 下别人的预设）。两条都幂等，未安装时报明并成功。dsh 的 hook 组件沿用既有 `--uninstall` 语义：移除托管行，插件文件需再加 `--force`（README 已写明）；qoder / codex / kimi 各自的卸载语义不变。
+- **退出码契约 0/1/2**：`2` = 用法错误（未知命令、未知旗标、多余的位置参数、缺参数、未知宿主/组件/平台），`1` = 操作失败，`0` = 成功。所有命令的旗标解析都改走同一个 `src/lib/cli-flags.js`（无新依赖），因此"叫错了"和"做失败了"在全命令面一致：六个安装器此前用 `args.includes(...)` 扫描已知旗标、静默忽略其余（`--forcee` 会让命令"照常执行"，现在报 `Unknown option`）；`init` / `sync` / `dev refresh` 此前是"最后一个位置参数胜出"（`init a b` 会静默以 `b` 为目标），现在报 `Unexpected argument`；`self update` 的未知参数从 `Unknown update option` 改为统一的 `Unknown option`。
+- **全层 `--help`**：`cwf --help`、`cwf <组> --help`、`cwf <组> <命令> --help`、`cwf help [路径]` 都打印该层用法且不执行命令；`--help` 优先于其它旗标。裸组名（`cwf host`）打印该组命令。
+- **新增门禁** `test/cli-registry.test.js`：注册表里每个命令/别名都能解析；帮助由注册表渲染（改注册表即改帮助）；宿主的机器级组件表与 `host-assets.json` **双向绑定**（组件表只出现在声明宿主上，"有 `payload` 的宿主"与"有 `plugin` 组件的宿主"必须是同一集合）；`host add` 的帮助覆盖所有安装器声明的旗标；仓库内不再出现指向 shim 的提示（两个托管块标记串按"wire format"豁免，并有独立用例钉住它们逐字节未变——它们已写进用户机器文件，改了会让既有安装的托管块不再被识别）。
+- **全仓命令名同步**：doctor 的 20 余条 `commandHint`、README 命令表与各宿主小节、`spec/contracts/fact-layer-access.md` 的 MCP 注册矩阵、`presets/dsh/agent.cordis.yml` 注释、三份 bootstrap 技能正文（保持逐字节一致）、`template/.dsh/README.md`、npm scripts（`source:refresh` 改用 `dev refresh`）。`npx cowork-flow <子命令>` 保留包名形式：`npx cwf` 会被 npx 当成另一个包名。
+- **不改的东西**：工作流内核语义与门禁、技能正文的协作规则、`./.cowork-flow/run mcp-state`（项目级 runner 的键，与 npm CLI 命名空间无关）、两个托管块标记串、各命令的业务行为（目录布局、幂等策略、`--dry-run` 输出行）。
+
 ### 宿主载荷声明与适配统一
 
 - **`host-assets.json` 新增 `payload` 描述符**：每个平台条目声明"这个宿主有没有机器级插件载荷、载荷在包内哪里、清单叫什么"（codex / zcode / qoder 为 `{source, manifest}`，其余四家为 `null`）。此前这些事实只散落在三个安装器与 doctor 里，新增宿主要动哪些地方只能通读代码。描述符**不放机器级安装路径**（`$ZCODE_HOME/...`、注册表名、marker 名）：这个文件随 init 交付进项目，项目侧解析不了 npm 包与用户 home 的布局。schema、JS `PLATFORM_KEYS`、Python `PLATFORM_KEYS` 三处校验面与全部 fixture 同步；既有的"字段一致性门禁"先红后绿，确认新字段被覆盖。

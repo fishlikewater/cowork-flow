@@ -20,7 +20,7 @@ workflow entry `./.cowork-flow/run`).
 Tell the user this repository has no cowork-flow runtime, then offer:
 
 ```bash
-npx cowork-flow init .
+npx cowork-flow project init .
 ```
 
 After init the project carries its own Skills (`.agents/skills/`), the task

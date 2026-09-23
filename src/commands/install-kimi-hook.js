@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 
 import { packageRoot } from '../lib/paths.js';
 import { readPackageInfo } from '../lib/package-info.js';
+import { parseFlags } from '../lib/cli-flags.js';
 
 const SHIM_NAME = 'cowork-flow-inject.mjs';
 const SHIM_SRC = join(packageRoot, 'presets', 'kimi-code', 'hooks', SHIM_NAME);
@@ -11,16 +12,24 @@ const MARKER_FILE = '.cowork-flow-kimi-hook.json';
 const HOOK_EVENT = 'UserPromptSubmit';
 // Kimi Code's own hook default; kept explicit so an edit is visible here.
 const HOOK_TIMEOUT = 30;
+// Written into the user's own config.toml, so this string is a wire format: it
+// is how an existing install is recognised for idempotent replacement. Changing
+// it would make every installed block unrecognisable and append a second one.
 const MANAGED_START = '# cowork-flow: kimi hook start. Managed by "cowork-flow install-kimi-hook"; edits inside this block are replaced.';
 const MANAGED_END = '# cowork-flow: kimi hook end.';
 
+// Declared so `host add`/`host remove` can render the flags this installer
+// accepts without keeping a second copy of the list. No --force: installing
+// always rewrites the shim and its managed block, so a flag that only re-ran
+// the same writes would be a no-op.
+export const FLAGS = ['--dry-run', '--uninstall'];
 
-// No --force: installing always rewrites the shim and its managed block, so a
-// flag that only re-ran the same writes would be a no-op.
+
 function parseArgs(args) {
+  const { flags } = parseFlags(args, { boolean: FLAGS });
   return {
-    dryRun: args.includes('--dry-run'),
-    uninstall: args.includes('--uninstall')
+    dryRun: Boolean(flags['--dry-run']),
+    uninstall: Boolean(flags['--uninstall'])
   };
 }
 

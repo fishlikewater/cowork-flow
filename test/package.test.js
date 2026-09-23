@@ -128,6 +128,14 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.match(packageInfo.scripts['test:all'], /npm run test:node:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run test:template:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
+  // Both names are the same entry point, so whichever one a user types runs
+  // the same CLI.
+  assert.deepEqual(packageInfo.bin, {
+    cwf: './bin/cowork-flow.js',
+    'cowork-flow': './bin/cowork-flow.js'
+  });
+  assert.equal(packageInfo.scripts['source:refresh'], 'node bin/cowork-flow.js dev refresh');
+  assert.equal(packageInfo.scripts['source:refresh:dry-run'], 'node bin/cowork-flow.js dev refresh --dry-run');
   assert.equal(packageLock.version, packageInfo.version);
   assert.equal(packageLock.packages[''].version, packageInfo.version);
   // Derived from the host asset manifest: the declaration is the single source

@@ -6,17 +6,24 @@ import { readPackageInfo } from '../lib/package-info.js';
 import { templateRoot } from '../lib/paths.js';
 import { pluginManifest, readPluginMetadata } from '../lib/plugin-metadata.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
+import { parseFlags } from '../lib/cli-flags.js';
 
 const ZCODE_MARKETPLACE = 'cowork-flow-local';
 const LEGACY_ZCODE_MARKETPLACE = 'zcode-plugins-official';
 const PLUGIN_NAME = 'cowork-flow';
 const LOCAL_MARKETPLACE_DESCRIPTION = 'Local marketplace registration for cowork-flow during local development.';
 
+// Declared so `host add`/`host remove` can render the flags this installer
+// accepts without keeping a second copy of the list.
+export const FLAGS = ['--dry-run', '--force', '--prune-old', '--uninstall'];
+
 function parseArgs(args) {
+  const { flags } = parseFlags(args, { boolean: FLAGS });
   return {
-    dryRun: args.includes('--dry-run'),
-    force: args.includes('--force'),
-    pruneOld: args.includes('--prune-old')
+    dryRun: Boolean(flags['--dry-run']),
+    force: Boolean(flags['--force']),
+    pruneOld: Boolean(flags['--prune-old']),
+    uninstall: Boolean(flags['--uninstall'])
   };
 }
 
@@ -194,8 +201,65 @@ async function pruneOldVersions(cacheRoot, currentVersion) {
   return removed;
 }
 
+// ZCode owns every one of these files, but the entries inside them are ours:
+// the marketplace files and the known-marketplaces registry each carry exactly
+// one cowork-flow entry, so uninstall removes that entry and leaves whatever
+// else the user registered in place.
+//
+// `cache/<marketplace>/` is the per-marketplace cache root, named after the
+// marketplace we registered and written by nobody else, so it goes too — an
+// empty directory left behind is a directory the user has to wonder about.
+async function uninstall(pluginsRoot, cacheRoot, dryRun) {
+  const { activeMarketplacePath, sourceMarketplacePath } = marketplacePaths(pluginsRoot);
+  const activeMarketplaceDir = dirname(activeMarketplacePath);
+  const sourceMarketplaceDir = dirname(sourceMarketplacePath);
+  const marketplaceCacheDir = dirname(cacheRoot);
+  const knownPath = join(pluginsRoot, 'known_marketplaces.json');
+
+  if (dryRun) {
+    console.log('[dry-run] Would remove cowork-flow ZCode plugin:');
+    console.log(`  Cache: ${marketplaceCacheDir}`);
+    console.log(`  Marketplace source: ${sourceMarketplaceDir}`);
+    console.log(`  Active marketplace: ${activeMarketplaceDir}`);
+    console.log(`  Known marketplaces entry: ${knownPath} -> ${ZCODE_MARKETPLACE}`);
+    return 0;
+  }
+
+  const known = await readJsonSafe(knownPath);
+  let droppedKnownEntry = false;
+  if (known && Array.isArray(known.marketplaces)) {
+    const kept = known.marketplaces.filter((marketplace) => marketplace.id !== ZCODE_MARKETPLACE);
+    if (kept.length !== known.marketplaces.length) {
+      known.marketplaces = kept;
+      await writeJsonAtomic(knownPath, known);
+      droppedKnownEntry = true;
+    }
+  }
+
+  const hadCache = await pathExists(cacheRoot);
+  await rm(cacheRoot, { recursive: true, force: true });
+  await rm(marketplaceCacheDir, { recursive: true, force: true });
+  await rm(sourceMarketplaceDir, { recursive: true, force: true });
+  await rm(activeMarketplaceDir, { recursive: true, force: true });
+
+  console.log(
+    hadCache || droppedKnownEntry
+      ? `✓ cowork-flow ZCode plugin uninstalled (${ZCODE_MARKETPLACE})`
+      : `cowork-flow ZCode plugin was not installed; nothing to remove under ${pluginsRoot}`
+  );
+  console.log('  Restart ZCode to drop the plugin from its list.');
+  return 0;
+}
+
 export async function runInstallZCodePlugin(args = []) {
-  const { dryRun, force, pruneOld } = parseArgs(args);
+  const { dryRun, force, pruneOld, uninstall: remove } = parseArgs(args);
+  const pluginsRoot = getZCodePluginsRoot();
+  const cacheRoot = await getZCodeCacheDir();
+
+  if (remove) {
+    return await uninstall(pluginsRoot, cacheRoot, dryRun);
+  }
+
   const { sourceDir: pluginSrc, manifest } = pluginPayload('zcode');
   const { version } = await readPackageInfo();
   const metadata = await readPluginMetadata();
@@ -203,8 +267,6 @@ export async function runInstallZCodePlugin(args = []) {
   if (!(await pathExists(pluginSrc))) {
     throw new Error(`ZCode plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
   }
-  const pluginsRoot = getZCodePluginsRoot();
-  const cacheRoot = await getZCodeCacheDir();
   const destDir = join(cacheRoot, version);
 
   if (dryRun) {

@@ -91,10 +91,42 @@ test('mcp-state passthrough fails clearly outside a cowork-flow project', async 
   );
 });
 
-test('mcp-state is wired into the CLI dispatch', async (t) => {
-  const cliSource = await import('node:fs/promises').then((fs) =>
-    fs.readFile(join(packageRoot, 'src', 'cli.js'), 'utf8')
+test('mcp-state is wired into the CLI dispatch', async () => {
+  const { ALIASES, COMMANDS } = await import('../src/commands/registry.js');
+
+  assert.ok(
+    COMMANDS.some((entry) => entry.path.join(' ') === 'mcp serve'),
+    'the registry declares no `mcp serve` command'
   );
-  assert.match(cliSource, /command === 'mcp-state'/);
-  assert.match(cliSource, /runMcpState/);
+  const alias = ALIASES.find((entry) => entry.name === 'mcp-state');
+  assert.ok(alias, 'the registry declares no mcp-state alias');
+  // Permanent: this spelling is already written into users' MCP client configs.
+  assert.equal(alias.permanent, true);
+  assert.deepEqual(alias.command, ['mcp', 'serve']);
+});
+
+// The new spelling has to reach the project runner with the runner's own
+// subcommand key, which is unrelated to the npm CLI's naming.
+test('mcp serve passes the runner key through under the new spelling', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const { project } = await createProjectWithFakeRunner(
+    t,
+    'printf \'{"jsonrpc":"2.0","id":1,"method":"probe"}\\n\'\n'
+    + 'printf \'args: %s\\n\' "$*" >&2\n'
+  );
+
+  const result = await new Promise((resolveRun) => {
+    execFile(
+      process.execPath,
+      [cliEntry, 'mcp', 'serve'],
+      { cwd: project, encoding: 'utf8' },
+      (error, stdout, stderr) => {
+        resolveRun({ error, stdout, stderr, code: error ? error.code : 0 });
+      }
+    );
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /"method":"probe"/);
+  assert.match(result.stderr, /args: mcp-state/);
 });
