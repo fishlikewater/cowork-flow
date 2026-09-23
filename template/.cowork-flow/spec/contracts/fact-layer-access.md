@@ -35,10 +35,12 @@ Command: `./.cowork-flow/run mcp-state` (stdio, one JSON-RPC message per
 line; notifications are never answered; unknown methods return `-32601`;
 stderr is kept log-only).
 
-Global registration: `cowork-flow mcp-state` (npm CLI) resolves the nearest
+Global registration: `cwf mcp serve` (npm CLI) resolves the nearest
 `.cowork-flow/` from the client's cwd and execs that project's runner with
 inherited stdio. Outside a project the passthrough fails with a clear error;
-inside one, nested subdirectories resolve to the project root.
+inside one, nested subdirectories resolve to the project root. The legacy
+spelling `cowork-flow mcp-state` is a permanent alias: registrations written
+before the rename keep working and must not be broken.
 
 Server info: `cowork-flow-facts`. On `initialize` the server echoes the
 client's requested `protocolVersion` (falling back to `2025-06-18`).
@@ -64,8 +66,8 @@ queries. Session-bound facts remain the hook/CLI channels' responsibility.
 
 | Host | Global (supported default) | Project-level opt-in |
 |---|---|---|
-| claude-code | `claude mcp add cowork-flow -- cowork-flow mcp-state` | `.mcp.json` with an `mcpServers` entry |
-| zcode | user config `mcp.servers.cowork-flow = {command: cowork-flow, args: [mcp-state]}` | plugin format has no MCP field — use the global tier |
+| claude-code | `claude mcp add cowork-flow -- cwf mcp serve` | `.mcp.json` with an `mcpServers` entry |
+| zcode | user config `mcp.servers.cowork-flow = {command: cwf, args: [mcp, serve]}` | plugin format has no MCP field — use the global tier |
 | codex | `~/.codex/config.toml` `[mcp_servers.cowork-flow]` | project config cannot enable user-approval-gated capabilities — use the global tier |
 | opencode | `opencode.json` `mcp` entry | — |
 | kimi-code | user config `~/.kimi-code/mcp.json` (`$KIMI_CODE_HOME/mcp.json`) `mcpServers` entry, shared across projects | `.kimi-code/mcp.json` `mcpServers` entry, effective for that repository; a same-name entry overrides the user-level one |

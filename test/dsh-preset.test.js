@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -197,5 +197,58 @@ test('install-dsh-preset warns when the installed version is stale', async (t) =
   const output = await captureConsole(() => runInstallDshPreset([]));
 
   assert.match(output, /0\.0\.1/);
-  assert.match(output, /install-dsh-preset --force/);
+  assert.match(output, /cwf host add dsh --component preset --force/);
+});
+
+
+test('install-dsh-preset --uninstall removes the preset and is idempotent', async (t) => {
+  const dshHome = await createDshHome(t);
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = dshHome;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.DSH_HOME;
+    } else {
+      process.env.DSH_HOME = previous;
+    }
+  });
+
+  await runInstallDshPreset([]);
+  const presetsRoot = join(dshHome, '.agent-presets');
+  const dest = join(presetsRoot, PRESET_ID);
+  // A neighbouring preset is the user's own state; removing ours must leave it.
+  const other = join(presetsRoot, 'user-preset');
+  await mkdir(other, { recursive: true });
+  await writeFile(join(other, 'preset.yml'), 'mine\n', 'utf8');
+
+  const output = await captureConsole(() => runInstallDshPreset(['--uninstall']));
+
+  assert.match(output, /removed from/);
+  assert.equal(await pathExists(dest), false);
+  assert.equal(await pathExists(other), true);
+
+  const again = await captureConsole(() => runInstallDshPreset(['--uninstall']));
+  assert.match(again, /was not installed/);
+});
+
+
+test('install-dsh-preset --uninstall --dry-run removes nothing', async (t) => {
+  const dshHome = await createDshHome(t);
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = dshHome;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.DSH_HOME;
+    } else {
+      process.env.DSH_HOME = previous;
+    }
+  });
+
+  await runInstallDshPreset([]);
+  const dest = join(dshHome, '.agent-presets', PRESET_ID);
+
+  const output = await captureConsole(() => runInstallDshPreset(['--uninstall', '--dry-run']));
+
+  assert.match(output, /Would uninstall DSH preset/);
+  assert.equal(await pathExists(dest), true);
 });

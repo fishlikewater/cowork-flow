@@ -13,48 +13,33 @@ import {
   parsePlatformSelection,
   platformLabel
 } from '../lib/platforms.js';
+import { parseFlags, UsageError } from '../lib/cli-flags.js';
+
+// Host selection is validated in the manifest layer, which reports a plain
+// Error. Re-thrown as a usage error here so "you named a host that does not
+// exist" exits with the same code as every other argv mistake.
+function parsePlatformSelectionOrUsage(values) {
+  try {
+    return parsePlatformSelection(values);
+  } catch (error) {
+    throw new UsageError(error instanceof Error ? error.message : String(error));
+  }
+}
 
 function parseInitArgs(args) {
-  const options = {
-    developer: null,
-    dryRun: false,
-    force: false,
-    platforms: [],
-    target: process.cwd()
+  const { flags, positionals } = parseFlags(args, {
+    boolean: ['--dry-run', '--force'],
+    value: ['--platform', '--platforms', '--developer'],
+    repeatable: ['--platform', '--platforms'],
+    positional: { min: 0, max: 1, name: '[target]' }
+  });
+  return {
+    developer: flags['--developer'] ?? null,
+    dryRun: Boolean(flags['--dry-run']),
+    force: Boolean(flags['--force']),
+    platforms: [...(flags['--platform'] ?? []), ...(flags['--platforms'] ?? [])],
+    target: positionals[0] === undefined ? process.cwd() : resolve(positionals[0])
   };
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === '--dry-run') {
-      options.dryRun = true;
-    } else if (arg === '--force') {
-      options.force = true;
-    } else if (arg === '--platform' || arg === '--platforms') {
-      const value = args[index + 1];
-      if (!value || value.startsWith('--')) {
-        throw new Error('Missing value for --platform');
-      }
-      options.platforms.push(value);
-      index += 1;
-    } else if (arg.startsWith('--platform=')) {
-      options.platforms.push(arg.slice('--platform='.length));
-    } else if (arg.startsWith('--platforms=')) {
-      options.platforms.push(arg.slice('--platforms='.length));
-    } else if (arg === '--developer') {
-      const value = args[index + 1];
-      if (!value || value.startsWith('--')) {
-        throw new Error('Missing value for --developer');
-      }
-      options.developer = value;
-      index += 1;
-    } else if (arg.startsWith('--developer=')) {
-      options.developer = arg.slice('--developer='.length);
-    } else if (arg.startsWith('--')) {
-      throw new Error(`Unknown init option: ${arg}`);
-    } else {
-      options.target = resolve(arg);
-    }
-  }
-  return options;
 }
 
 async function pathExists(path) {
@@ -72,10 +57,10 @@ async function pathExists(path) {
 function normalizeDeveloperName(value) {
   const name = String(value ?? '').trim();
   if (!name) {
-    throw new Error('Developer name required. Run: cowork-flow init <target> --developer <name>');
+    throw new UsageError('Developer name required. Run: cwf project init <target> --developer <name>');
   }
   if (/[\\/]/.test(name)) {
-    throw new Error('Developer name must not contain path separators');
+    throw new UsageError('Developer name must not contain path separators');
   }
   return name;
 }
@@ -110,7 +95,7 @@ async function resolveDeveloperName(options, prompt) {
 
 async function resolvePlatforms(options, selectPlatforms) {
   if (options.platforms.length > 0) {
-    return parsePlatformSelection(options.platforms);
+    return parsePlatformSelectionOrUsage(options.platforms);
   }
 
   let selected = null;
@@ -124,7 +109,7 @@ async function resolvePlatforms(options, selectPlatforms) {
       defaultSelected: ['codex']
     });
   }
-  return parsePlatformSelection(selected);
+  return parsePlatformSelectionOrUsage(selected);
 }
 
 

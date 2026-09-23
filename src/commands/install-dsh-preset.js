@@ -4,16 +4,23 @@ import { homedir } from 'node:os';
 
 import { packageRoot } from '../lib/paths.js';
 import { readPackageInfo } from '../lib/package-info.js';
+import { parseFlags } from '../lib/cli-flags.js';
 
 const PRESET_ID = 'cowork-flow';
 const MARKER_FILE = '.cowork-flow-preset.json';
 const PRESET_SRC = join(packageRoot, 'presets', 'dsh');
 
+// Declared so `host add`/`host remove` can render the flags this installer
+// accepts without keeping a second copy of the list.
+export const FLAGS = ['--dry-run', '--force', '--uninstall'];
+
 
 function parseArgs(args) {
+  const { flags } = parseFlags(args, { boolean: FLAGS });
   return {
-    dryRun: args.includes('--dry-run'),
-    force: args.includes('--force')
+    dryRun: Boolean(flags['--dry-run']),
+    force: Boolean(flags['--force']),
+    uninstall: Boolean(flags['--uninstall'])
   };
 }
 
@@ -46,12 +53,29 @@ async function readInstalledVersion(destDir) {
 
 
 export async function runInstallDshPreset(args = []) {
-  const { dryRun, force } = parseArgs(args);
+  const { dryRun, force, uninstall } = parseArgs(args);
+
+  const destDir = join(getDshPresetRoot(), PRESET_ID);
+
+  if (uninstall) {
+    if (dryRun) {
+      console.log('[dry-run] Would uninstall DSH preset:');
+      console.log(`  Remove: ${destDir}`);
+      return;
+    }
+    const installed = await pathExists(destDir);
+    await rm(destDir, { recursive: true, force: true });
+    console.log(
+      installed
+        ? `✓ cowork-flow DSH preset removed from ${destDir}`
+        : `cowork-flow DSH preset was not installed at ${destDir}; nothing to remove`
+    );
+    return;
+  }
 
   if (!(await pathExists(PRESET_SRC))) {
     throw new Error(`DSH preset source missing at ${PRESET_SRC}. Reinstall cowork-flow.`);
   }
-  const destDir = join(getDshPresetRoot(), PRESET_ID);
 
   if (dryRun) {
     console.log('[dry-run] Would install DSH preset:');
@@ -68,13 +92,13 @@ export async function runInstallDshPreset(args = []) {
       console.log(
         `Installed version unknown (no ${MARKER_FILE}); current version is ${version}.`
       );
-      console.log('Refresh it with: cowork-flow install-dsh-preset --force');
+      console.log('Refresh it with: cwf host add dsh --component preset --force');
     } else if (installedVersion !== version) {
       console.log(
         `Installed version ${installedVersion} differs from current version ${version}.`
       );
       console.log('The preset does not update with sync or npm; refresh it with:');
-      console.log('  cowork-flow install-dsh-preset --force');
+      console.log('  cwf host add dsh --component preset --force');
     } else {
       console.log('Use --force to overwrite.');
     }

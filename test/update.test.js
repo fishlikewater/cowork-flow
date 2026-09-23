@@ -148,5 +148,5 @@ test('update rejects removed flags', async () => {
     readPackageInfo: async () => ({ version: '0.3.10' }),
     fetchLatestVersion: async () => '0.3.11',
     runGlobalInstall: async () => 0
-  }), /Unknown update option: --global/);
+  }), /Unknown option: --global/);
 });

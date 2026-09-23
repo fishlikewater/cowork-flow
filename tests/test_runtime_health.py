@@ -55,7 +55,7 @@ class DshPresetCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("PRESET-UNKNOWN-VERSION", issues[0]["code"])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertIn("install-dsh-preset --force", issues[0]["commandHint"])
+        self.assertIn("cwf host add dsh --component preset --force", issues[0]["commandHint"])
 
     def test_unreadable_marker_reports_unknown_version(self) -> None:
         self.preset_dir.mkdir(parents=True)
@@ -77,7 +77,7 @@ class DshPresetCheckTest(unittest.TestCase):
         self.assertEqual("PRESET-STALE", issues[0]["code"])
         self.assertIn("0.0.1", issues[0]["message"])
         self.assertIn("1.5.0", issues[0]["message"])
-        self.assertIn("install-dsh-preset --force", issues[0]["commandHint"])
+        self.assertIn("cwf host add dsh --component preset --force", issues[0]["commandHint"])
 
     def test_matching_version_is_silent(self) -> None:
         self.preset_dir.mkdir(parents=True)
@@ -155,14 +155,14 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-NOT-INSTALLED", issues[0]["code"])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertIn("install-kimi-hook", issues[0]["commandHint"])
+        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
 
     def test_registered_row_without_shim_reports_missing_shim(self) -> None:
         self._install_block()
         issues = self._check()
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-SHIM-MISSING", issues[0]["code"])
-        self.assertIn("install-kimi-hook", issues[0]["commandHint"])
+        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
 
     def test_installed_hook_without_marker_reports_unknown_version(self) -> None:
         self._install_block()
@@ -171,7 +171,7 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-UNKNOWN-VERSION", issues[0]["code"])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertIn("install-kimi-hook", issues[0]["commandHint"])
+        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
 
     def test_unreadable_marker_reports_unknown_version(self) -> None:
         self._install_block()
@@ -192,7 +192,7 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual("HOOK-STALE", issues[0]["code"])
         self.assertIn("0.0.1", issues[0]["message"])
         self.assertIn("1.5.0", issues[0]["message"])
-        self.assertIn("install-kimi-hook", issues[0]["commandHint"])
+        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
 
     def test_matching_version_is_silent(self) -> None:
         self._install_block()
@@ -330,7 +330,7 @@ class QoderPluginCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("PLUGIN-NOT-INSTALLED", issues[0]["code"])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertIn("install-qoder-plugin", issues[0]["commandHint"])
+        self.assertIn("cwf host add qoder", issues[0]["commandHint"])
 
     def test_registry_pointing_at_missing_payload_reports_payload_missing(self) -> None:
         self._write_registry()
@@ -485,7 +485,7 @@ class CodexPluginCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertEqual("cowork-flow install-codex-plugin", issues[0]["commandHint"])
+        self.assertEqual("cwf host add codex", issues[0]["commandHint"])
 
     def _write_host_manifest(self, manifest_relative: str) -> None:
         """Deliver the host asset manifest with codex's declared payload manifest
@@ -733,7 +733,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         self.assertEqual(["SKILL-READROOT-MISSING"], [issue["code"] for issue in issues])
         self.assertEqual("warning", issues[0]["severity"])
         self.assertEqual(".agents/skills", issues[0]["path"])
-        self.assertEqual("cowork-flow sync", issues[0]["commandHint"])
+        self.assertEqual("cwf project sync", issues[0]["commandHint"])
 
     def test_delivered_skills_report_the_gated_discovery_reminder(self) -> None:
         project = self._project("qoder")
@@ -753,7 +753,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         issues = self.doctor.check_skill_delivery(project)
         self.assertEqual(["PLUGIN-SKILLS-LEGACY"], [issue["code"] for issue in issues])
         self.assertIn("1.5.0", issues[0]["message"])
-        self.assertEqual("cowork-flow install-zcode-plugin --force", issues[0]["commandHint"])
+        self.assertEqual("cwf host add zcode --force", issues[0]["commandHint"])
 
     def test_a_payload_copy_is_reported_even_at_the_project_version(self) -> None:
         project = self._project("zcode")
@@ -783,7 +783,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         self._install_codex_plugin("1.5.0")
         issues = self.doctor.check_skill_delivery(project)
         self.assertEqual(["PLUGIN-SKILLS-LEGACY"], [issue["code"] for issue in issues])
-        self.assertEqual("cowork-flow install-codex-plugin --force", issues[0]["commandHint"])
+        self.assertEqual("cwf host add codex --force", issues[0]["commandHint"])
 
     def test_codex_payload_bootstrap_skill_is_not_reported_as_legacy(self) -> None:
         project = self._project("codex")
@@ -836,9 +836,9 @@ class SkillDeliveryCheckTest(unittest.TestCase):
                 "still carries project Skill copies (task-review) from 1.5.0; "
                 "project Skills ship with the project only, so the payload copy "
                 "is redundant and may come from another release",
-                "  fix: cowork-flow install-zcode-plugin --force",
+                "  fix: cwf host add zcode --force",
             ],
-            [line for line in lines if "Skill delivery" in line or "fix: cowork-flow install-zcode" in line],
+            [line for line in lines if "Skill delivery" in line or "fix: cwf host add zcode" in line],
         )
 
 

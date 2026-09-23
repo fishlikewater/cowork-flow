@@ -23,7 +23,7 @@ const PYTHONPATH = join(packageRoot, 'template', '.cowork-flow', 'scripts');
 // Client-equivalent launch matrix: every MCP client starts the server as a
 // stdio command from some cwd. Two shapes cover it:
 //   1. project runner -> <project>/.cowork-flow/run mcp-state
-//   2. global CLI      -> cowork-flow mcp-state  (PATH-resolved, walk-up root)
+//   2. global CLI      -> cwf mcp serve  (PATH-resolved, walk-up root)
 // Both must answer initialize + tools/list identically.
 
 async function runSession(command, args, cwd, env = process.env) {

@@ -22,16 +22,16 @@ DSH 侧无需其它配置：`AGENTS.md` 作为工作区指令、`.agents/skills/
 
 `init` / `sync` 只交付项目资产；
 
-**现状说明（实测 DSH 0.1.1-rc.1）**：`install-dsh-hook` 以 `insert:` patch 注册的组合行可被 `dsh --dump-config` 验证，但 agent 提示组装不收集 host 层 section，**不会**在会话中产生 `<workflow-state>` 块。实时注入当前只能通过预设方式（`install-dsh-preset` 的预设内置同一插件）。以下命令保留为组合层面的幂等注册能力，待 DSH 支持 agent-scope patch / workspace 组合后可直接生效：
+**现状说明（实测 DSH 0.1.1-rc.1）**：`cwf host add dsh --component hook` 以 `insert:` patch 注册的组合行可被 `dsh --dump-config` 验证，但 agent 提示组装不收集 host 层 section，**不会**在会话中产生 `<workflow-state>` 块。实时注入当前只能通过预设方式（`cwf host add dsh --component preset` 的预设内置同一插件）。以下命令保留为组合层面的幂等注册能力，待 DSH 支持 agent-scope patch / workspace 组合后可直接生效：
 
 ```bash
-cowork-flow install-dsh-hook              # 安装到 $DSH_HOME/cordis.patch.yml（默认 ~/.dsh）
-cowork-flow install-dsh-hook --dry-run    # 预览，不写文件
-cowork-flow install-dsh-hook --uninstall  # 卸载；--force 同时删除插件文件
+cwf host add dsh --component hook            # 安装到 $DSH_HOME/cordis.patch.yml（默认 ~/.dsh）
+cwf host add dsh --component hook --dry-run  # 预览，不写文件
+cwf host remove dsh --component hook         # 卸载托管行（插件文件另加 --force）
 ```
 
 - 组合层面注册（`dsh --dump-config` 可见）；`cordis.patch.yml` 在启动时组合，安装/更新后需**重启 DSH**；当前 DSH 版本该行对 agent 提示不产生注入（见上）。
 - 无 `.cowork-flow` 根的项目零开销跳过：插件 JS 预检短路，不注入内容、不启动 Python。
 - 全局开关（环境变量）：`COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`。
-- 使用预设（`install-dsh-preset`）时无需再运行本命令——预设已内置同一 hook。
+- 使用预设（`cwf host add dsh --component preset`）时无需再运行本命令——预设已内置同一 hook。
 

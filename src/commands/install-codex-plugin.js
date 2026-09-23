@@ -7,17 +7,23 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { readPackageInfo } from '../lib/package-info.js';
 import { readPluginMetadata } from '../lib/plugin-metadata.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
+import { parseFlags } from '../lib/cli-flags.js';
 
 const MARKETPLACE_NAME = 'cowork-flow-local';
 const PLUGIN_NAME = 'cowork-flow';
 const PLUGIN_KEY = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
 const MARKETPLACE_MANIFEST = join('.agents', 'plugins', 'marketplace.json');
 
+// Declared so `host add`/`host remove` can render the flags this installer
+// accepts without keeping a second copy of the list.
+export const FLAGS = ['--dry-run', '--force', '--uninstall'];
+
 function parseArgs(args) {
+  const { flags } = parseFlags(args, { boolean: FLAGS });
   return {
-    dryRun: args.includes('--dry-run'),
-    force: args.includes('--force'),
-    uninstall: args.includes('--uninstall')
+    dryRun: Boolean(flags['--dry-run']),
+    force: Boolean(flags['--force']),
+    uninstall: Boolean(flags['--uninstall'])
   };
 }
 

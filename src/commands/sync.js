@@ -10,21 +10,18 @@ import {
 } from '../lib/copy-template.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { formatPlatformList } from '../lib/platforms.js';
+import { parseFlags } from '../lib/cli-flags.js';
 
 function parseSyncArgs(args) {
-  const options = { dryRun: false, force: false, target: process.cwd() };
-  for (const arg of args) {
-    if (arg === '--dry-run') {
-      options.dryRun = true;
-    } else if (arg === '--force') {
-      options.force = true;
-    } else if (arg.startsWith('--')) {
-      throw new Error(`Unknown sync option: ${arg}`);
-    } else {
-      options.target = resolve(arg);
-    }
-  }
-  return options;
+  const { flags, positionals } = parseFlags(args, {
+    boolean: ['--dry-run', '--force'],
+    positional: { min: 0, max: 1, name: '[target]' }
+  });
+  return {
+    dryRun: Boolean(flags['--dry-run']),
+    force: Boolean(flags['--force']),
+    target: positionals[0] === undefined ? process.cwd() : resolve(positionals[0])
+  };
 }
 
 export async function runSync(args, { io, fileSystem }) {

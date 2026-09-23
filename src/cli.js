@@ -2,36 +2,19 @@ import { stdin as input, stdout as output } from 'node:process';
 import { emitKeypressEvents } from 'node:readline';
 import { createInterface } from 'node:readline/promises';
 
-import { runInit } from './commands/init.js';
-import { runInstallDshHook } from './commands/install-dsh-hook.js';
-import { runInstallDshPreset } from './commands/install-dsh-preset.js';
-import { runInstallKimiHook } from './commands/install-kimi-hook.js';
-import { runInstallCodexPlugin } from './commands/install-codex-plugin.js';
-import { runInstallZCodePlugin } from './commands/install-zcode-plugin.js';
-import { runInstallQoderPlugin } from './commands/install-qoder-plugin.js';
-import { runMcpState } from './commands/mcp-state.js';
-import { runSourceRefresh } from './commands/source-refresh.js';
-import { runSync } from './commands/sync.js';
-import { runUpdate } from './commands/update.js';
+import { UsageError } from './lib/cli-flags.js';
 import { readPackageInfo } from './lib/package-info.js';
+import {
+  aliasNotice,
+  groupFor,
+  helpPath,
+  renderHelp,
+  resolve
+} from './commands/registry.js';
 
-const HELP = `cowork-flow
-
-Usage:
-  cowork-flow init [target] --platform <codex|opencode|claude-code|all> [--developer <name>] [--dry-run] [--force]
-  cowork-flow install-zcode-plugin [--dry-run] [--force] [--prune-old]
-  cowork-flow install-qoder-plugin [--dry-run] [--force] [--uninstall]
-  cowork-flow install-codex-plugin [--dry-run] [--force] [--uninstall]
-  cowork-flow install-dsh-preset [--dry-run] [--force]
-  cowork-flow install-dsh-hook [--dry-run] [--force] [--uninstall]
-  cowork-flow install-kimi-hook [--dry-run] [--uninstall]
-  cowork-flow update
-  cowork-flow sync [target] [--dry-run] [--force]
-  cowork-flow source-refresh [target] [--dry-run]
-  cowork-flow mcp-state
-  cowork-flow --version
-  cowork-flow --help
-`;
+// A usage error is the caller's mistake and gets its own exit code; a failed
+// operation stays 1. Success is 0.
+export const EXIT_USAGE = 2;
 
 function defaultIo() {
   return {
@@ -165,68 +148,47 @@ export async function main(argv = process.argv.slice(2), options = {}) {
   const selectPlatforms = Object.hasOwn(options, 'selectPlatforms')
     ? options.selectPlatforms
     : defaultSelectPlatforms;
-  const [command, ...args] = argv;
 
   try {
-    if (!command || command === '--help' || command === '-h') {
-      io.writeOut(HELP);
+    // Asking for help is an explicit intent that outranks everything else in
+    // argv, so it is answered before any command is resolved or run.
+    if (argv.includes('--help') || argv.includes('-h')) {
+      io.writeOut(renderHelp(helpPath(argv)));
       return 0;
     }
 
-    if (command === '--version' || command === '-v') {
+    if (argv.length === 0) {
+      io.writeOut(renderHelp([]));
+      return 0;
+    }
+
+    if (argv[0] === '--version' || argv[0] === '-v') {
       const packageInfo = await readPackageInfo();
       io.writeOut(`${packageInfo.version}\n`);
       return 0;
     }
 
-    if (command === 'init') {
-      return await runInit(args, { io, prompt, selectPlatforms });
+    if (argv[0] === 'help') {
+      io.writeOut(renderHelp(helpPath(argv)));
+      return 0;
     }
 
-    if (command === 'sync') {
-      return await runSync(args, { io });
+    // A bare group names no action: answer with that group's commands instead
+    // of an error, which is what the caller is about to ask for anyway.
+    if (argv.length === 1 && groupFor(argv[0])) {
+      io.writeOut(renderHelp([argv[0]]));
+      return 0;
     }
 
-    if (command === 'source-refresh') {
-      return await runSourceRefresh(args, { io });
+    const { command, args, alias } = resolve(argv);
+    if (alias !== null && !alias.permanent) {
+      io.writeErr(aliasNotice(alias));
     }
-
-    if (command === 'update') {
-      return await runUpdate(args, { io });
-    }
-
-    if (command === 'install-zcode-plugin') {
-      return await runInstallZCodePlugin(args);
-    }
-
-    if (command === 'install-qoder-plugin') {
-      return await runInstallQoderPlugin(args);
-    }
-
-    if (command === 'install-codex-plugin') {
-      return await runInstallCodexPlugin(args);
-    }
-
-    if (command === 'install-dsh-preset') {
-      return await runInstallDshPreset(args);
-    }
-
-    if (command === 'install-dsh-hook') {
-      return await runInstallDshHook(args);
-    }
-
-    if (command === 'install-kimi-hook') {
-      return await runInstallKimiHook(args);
-    }
-
-    if (command === 'mcp-state') {
-      return await runMcpState(args);
-    }
-
-    io.writeErr(`Unknown command: ${command}\n`);
-    return 1;
+    // Installers that finish quietly return nothing; `main` always answers with
+    // an exit code.
+    return (await command.run(args, { io, prompt, selectPlatforms })) ?? 0;
   } catch (error) {
     io.writeErr(`${error instanceof Error ? error.message : String(error)}\n`);
-    return 1;
+    return error instanceof UsageError ? EXIT_USAGE : 1;
   }
 }

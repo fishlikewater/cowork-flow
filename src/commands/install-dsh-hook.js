@@ -3,17 +3,26 @@ import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
 import { packageRoot } from '../lib/paths.js';
+import { parseFlags } from '../lib/cli-flags.js';
 
 const PLUGIN_SRC = join(packageRoot, 'presets', 'dsh', 'plugins', 'workflow-state.js');
 const ROW_ID = 'workflow-state-hook';
+// Written into the user's own patch file, so this string is a wire format: it is
+// how an existing install is recognised for idempotent replacement. Changing it
+// would make every installed row unrecognisable and append a second one.
 const MANAGED_MARK = '# cowork-flow: managed workflow-state-hook row. Run "cowork-flow install-dsh-hook" to change it.';
+
+// Declared so `host add`/`host remove` can render the flags this installer
+// accepts without keeping a second copy of the list.
+export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
 function parseArgs(args) {
+  const { flags } = parseFlags(args, { boolean: FLAGS });
   return {
-    dryRun: args.includes('--dry-run'),
-    force: args.includes('--force'),
-    uninstall: args.includes('--uninstall')
+    dryRun: Boolean(flags['--dry-run']),
+    force: Boolean(flags['--force']),
+    uninstall: Boolean(flags['--uninstall'])
   };
 }
 
@@ -215,11 +224,11 @@ export async function runInstallDshHook(args = []) {
   console.log('  Registered insert row "' + ROW_ID + '" in ' + patchFile + (changed === false ? ' (already up to date)' : ''));
   console.log('  Restart DSH for the composition to load (installed at boot-time).');
   console.log('  Note: current DSH builds compose this row but do not surface host-level sections');
-  console.log('  in agent prompts; use "cowork-flow install-dsh-preset" for real-time injection.');
+  console.log('  in agent prompts; use "cwf host add dsh --component preset" for real-time injection.');
 
   const presetComposition = join(home, '.agent-presets', 'cowork-flow', 'agent.cordis.yml');
   if (await pathExists(presetComposition)) {
     console.log('  Note: the cowork-flow agent preset is also installed and already bundles this hook.');
-    console.log('  Keep only one to avoid duplicate injection: remove the preset, or run "cowork-flow install-dsh-hook --uninstall".');
+    console.log('  Keep only one to avoid duplicate injection: remove the preset, or run "cwf host remove dsh --component hook".');
   }
 }

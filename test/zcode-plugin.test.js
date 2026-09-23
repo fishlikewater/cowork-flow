@@ -71,6 +71,20 @@ async function pathExists(path) {
   }
 }
 
+async function captureConsole(fn) {
+  const lines = [];
+  const original = console.log;
+  console.log = (...args) => {
+    lines.push(args.join(' '));
+  };
+  try {
+    await fn();
+  } finally {
+    console.log = original;
+  }
+  return lines.join('\n');
+}
+
 function runZCodeHook(input, options = {}) {
   const result = spawnSync(process.execPath, [join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.js')], {
     cwd: options.cwd || process.cwd(),
@@ -536,6 +550,100 @@ test('install-zcode-plugin removes legacy official marketplace entry', async (t)
     officialMarketplace.plugins.some((plugin) => plugin.name === 'zcode-guide'),
     true
   );
+});
+
+test('install-zcode-plugin --uninstall removes only cowork-flow state and is idempotent', async (t) => {
+  const zcodeHome = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-home-'));
+  const originalZCodeHome = process.env.ZCODE_HOME;
+  process.env.ZCODE_HOME = zcodeHome;
+  t.after(async () => {
+    if (originalZCodeHome === undefined) {
+      delete process.env.ZCODE_HOME;
+    } else {
+      process.env.ZCODE_HOME = originalZCodeHome;
+    }
+    await rm(zcodeHome, { recursive: true, force: true });
+  });
+
+  const knownPath = join(zcodeHome, 'cli', 'plugins', 'known_marketplaces.json');
+  await mkdir(join(knownPath, '..'), { recursive: true });
+  // The user's own marketplace registration lives in the same file: uninstall
+  // may drop our entry and nothing else.
+  await writeFile(
+    knownPath,
+    JSON.stringify({
+      version: 1,
+      marketplaces: [
+        {
+          id: OFFICIAL_MARKETPLACE,
+          source: { source: 'url', url: 'https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json' },
+          name: OFFICIAL_MARKETPLACE
+        }
+      ]
+    }, null, 2),
+    'utf8'
+  );
+
+  // Another marketplace's state is the user's own and must survive: its cache,
+  // its marketplace source, and its active marketplace copy.
+  const otherMarketplaceCache = join(zcodeHome, 'cli', 'plugins', 'cache', 'other-market');
+  await mkdir(otherMarketplaceCache, { recursive: true });
+  await writeFile(join(otherMarketplaceCache, 'marker.txt'), 'mine\n', 'utf8');
+  const otherSourceDir = join(zcodeHome, 'cli', 'plugins', 'cache', 'marketplaces', 'other-market');
+  await mkdir(otherSourceDir, { recursive: true });
+  await writeFile(join(otherSourceDir, 'marketplace.json'), '{}\n', 'utf8');
+  const otherActiveDir = join(zcodeHome, 'cli', 'plugins', 'marketplaces', 'other-market');
+  await mkdir(otherActiveDir, { recursive: true });
+  await writeFile(join(otherActiveDir, 'marketplace.json'), '{}\n', 'utf8');
+
+  await runInstallZCodePlugin(['--force']);
+  const cacheRoot = localCacheRoot(zcodeHome);
+  const marketplaceCacheDir = join(zcodeHome, 'cli', 'plugins', 'cache', LOCAL_MARKETPLACE);
+  assert.equal(await pathExists(cacheRoot), true);
+  assert.equal(await pathExists(join(localMarketplaceDir(zcodeHome), 'marketplace.json')), true);
+
+  await runInstallZCodePlugin(['--uninstall']);
+
+  assert.equal(await pathExists(cacheRoot), false);
+  // The per-marketplace cache root is ours too: an empty leftover directory is
+  // something the user has to wonder about.
+  assert.equal(await pathExists(marketplaceCacheDir), false);
+  assert.equal(await pathExists(join(otherMarketplaceCache, 'marker.txt')), true);
+  assert.equal(await pathExists(join(otherSourceDir, 'marketplace.json')), true);
+  assert.equal(await pathExists(join(otherActiveDir, 'marketplace.json')), true);
+  assert.equal(await pathExists(localMarketplaceDir(zcodeHome)), false);
+  assert.equal(await pathExists(localMarketplaceSourceDir(zcodeHome)), false);
+  const known = await readJson(knownPath);
+  assert.equal(known.marketplaces.some((entry) => entry.id === LOCAL_MARKETPLACE), false);
+  assert.equal(known.marketplaces.some((entry) => entry.id === OFFICIAL_MARKETPLACE), true);
+
+  // Running it again on an already-clean home reports and succeeds.
+  await runInstallZCodePlugin(['--uninstall']);
+  assert.equal(await pathExists(cacheRoot), false);
+  assert.equal(await pathExists(join(otherMarketplaceCache, 'marker.txt')), true);
+});
+
+test('install-zcode-plugin --uninstall --dry-run removes nothing', async (t) => {
+  const zcodeHome = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-home-'));
+  const originalZCodeHome = process.env.ZCODE_HOME;
+  process.env.ZCODE_HOME = zcodeHome;
+  t.after(async () => {
+    if (originalZCodeHome === undefined) {
+      delete process.env.ZCODE_HOME;
+    } else {
+      process.env.ZCODE_HOME = originalZCodeHome;
+    }
+    await rm(zcodeHome, { recursive: true, force: true });
+  });
+
+  await runInstallZCodePlugin(['--force']);
+  const cacheRoot = localCacheRoot(zcodeHome);
+
+  const output = await captureConsole(() => runInstallZCodePlugin(['--uninstall', '--dry-run']));
+
+  assert.match(output, /Would remove cowork-flow ZCode plugin/);
+  assert.equal(await pathExists(cacheRoot), true);
+  assert.equal(await pathExists(join(localMarketplaceDir(zcodeHome), 'marketplace.json')), true);
 });
 
 test('zcode scaffold cannot create workflow files in module directories', async (t) => {

@@ -144,7 +144,7 @@ export function createHostRegistry(manifest) {
     }
     if (selected.size === 0) {
       throw new Error(
-        `Platform selection required. Run: cowork-flow init <target> --platform ${platformIds.join('|')}`
+        `Platform selection required. Run: cwf project init <target> --platform ${platformIds.join('|')}`
       );
     }
     return platformIds.filter((platformId) => selected.has(platformId));
@@ -233,6 +233,12 @@ export function createHostRegistry(manifest) {
     detectInstalledPlatforms,
     platform(platformId) {
       return byId.get(platformId) ?? null;
+    },
+    // One alias token to one platform id. `parsePlatformSelection` is the
+    // multi-value entry point — it expands `all` and splits comma lists — which
+    // is the wrong shape for commands that act on exactly one host.
+    platformIdFor(token) {
+      return aliases.get(String(token ?? '').toLowerCase()) ?? null;
     },
     platformLabel(platformId) {
       return byId.get(platformId)?.displayName ?? platformId;

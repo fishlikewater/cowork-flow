@@ -8,18 +8,17 @@ import {
   summarizePlan
 } from '../lib/copy-template.js';
 
+import { parseFlags } from '../lib/cli-flags.js';
+
 function parseSourceRefreshArgs(args) {
-  const options = { dryRun: false, target: process.cwd() };
-  for (const arg of args) {
-    if (arg === '--dry-run') {
-      options.dryRun = true;
-    } else if (arg.startsWith('--')) {
-      throw new Error(`Unknown source-refresh option: ${arg}`);
-    } else {
-      options.target = resolve(arg);
-    }
-  }
-  return options;
+  const { flags, positionals } = parseFlags(args, {
+    boolean: ['--dry-run'],
+    positional: { min: 0, max: 1, name: '[target]' }
+  });
+  return {
+    dryRun: Boolean(flags['--dry-run']),
+    target: positionals[0] === undefined ? process.cwd() : resolve(positionals[0])
+  };
 }
 
 export async function runSourceRefresh(args, { io, fileSystem } = {}) {

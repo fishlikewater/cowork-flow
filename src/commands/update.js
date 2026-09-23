@@ -4,17 +4,11 @@ import {
   readPackageInfo,
   runGlobalInstall
 } from '../lib/package-info.js';
+import { parseFlags } from '../lib/cli-flags.js';
 
 function parseUpdateArgs(args) {
-  const options = { dryRun: false };
-  for (const arg of args) {
-    if (arg === '--dry-run') {
-      options.dryRun = true;
-    } else {
-      throw new Error(`Unknown update option: ${arg}`);
-    }
-  }
-  return options;
+  const { flags } = parseFlags(args, { boolean: ['--dry-run'] });
+  return { dryRun: Boolean(flags['--dry-run']) };
 }
 
 function buildUpdateReadinessReport({ current, latest, installCommand, wouldInstall, warnings = [] }) {
