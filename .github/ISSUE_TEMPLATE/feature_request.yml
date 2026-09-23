@@ -1,0 +1,40 @@
+name: 功能建议
+description: 提出一个新能力或对现有行为的改进
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先说清要解决的具体问题。这个项目刻意保持小：零运行时依赖，宿主差异只落在 adapters 与 `template/.<host>/`，所以「再加一层抽象」这类建议通常会被拒。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 你现在遇到的具体场景，不是抽象需求
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你设想的做法
+      description: 如果有具体的命令形态或文件落点，写出来
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 试过的替代方案
+      description: 为什么现有命令或配置解决不了
+    validations:
+      required: false
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 涉及面
+      options:
+        - CLI 命令
+        - 宿主接入（插件 / 预设 / hook）
+        - 工作流与门禁
+        - 文档
+        - 其他
+    validations:
+      required: true

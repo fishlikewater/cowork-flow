@@ -1,0 +1,18 @@
+# https://editorconfig.org — 编辑器侧的声明，行尾必须与 .gitattributes 保持一致，
+# 否则会在 Windows 上写出与仓库契约不符的副本（见 CHANGELOG 1.6.0 的行尾契约修复）。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Batch files — .gitattributes pins these to CRLF on purpose.
+[*.{cmd,bat}]
+end_of_line = crlf
+
+[*.py]
+indent_size = 4

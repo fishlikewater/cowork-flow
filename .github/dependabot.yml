@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # 这个仓库零运行时依赖、零 devDependency，唯一存在版本漂移的生态就是
+  # workflow 里引用的 action（actions/checkout、actions/setup-node…）。
+  # 声明 npm 生态只会产生空转的 PR。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
