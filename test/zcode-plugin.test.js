@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { runInstallZCodePlugin } from '../src/commands/install-zcode-plugin.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { packageRoot, templateRoot } from '../src/lib/paths.js';
-import { readPluginMetadata } from '../src/lib/plugin-metadata.js';
+import { marketplaceIconUrl, readPluginMetadata } from '../src/lib/plugin-metadata.js';
 
 const LOCAL_MARKETPLACE = 'cowork-flow-local';
 const OFFICIAL_MARKETPLACE = 'zcode-plugins-official';
@@ -380,6 +380,11 @@ test('install-zcode-plugin writes local marketplace and known marketplace entry'
   assert.equal(entry.category, metadata.marketplaceCategory);
   assert.equal(entry.displayName, metadata.displayName);
   assert.deepEqual(entry.author, { name: metadata.author.name, url: metadata.author.url });
+  // What lands on the user's machine is what matters: zcode's client keeps the
+  // icon only when it is an absolute https URL and silently drops anything else,
+  // so an install that wrote a relative path would look fine and show no icon.
+  assert.equal(entry.icon, marketplaceIconUrl(metadata));
+  assert.ok(entry.icon.startsWith('https://'), `zcode drops a non-https icon: ${entry.icon}`);
   assert.deepEqual(entry.source, {
     source: 'directory',
     path: pluginRoot.replaceAll('\\', '/')

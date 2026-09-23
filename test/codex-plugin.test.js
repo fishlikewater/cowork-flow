@@ -278,6 +278,12 @@ test('install-codex-plugin materializes the marketplace and delegates registrati
   assert.equal(installedManifest.version, version);
   await access(join(pluginTarget(home), 'skills', BOOTSTRAP_SKILL, 'SKILL.md'));
   await assert.rejects(access(join(pluginTarget(home), 'agents')));
+  // codex resolves interface.logo against the plugin root, so the mark has to
+  // survive the copy into $CODEX_HOME — a manifest naming a file the payload
+  // does not carry renders as a broken image with no error anywhere.
+  await access(
+    join(pluginTarget(home), ...installedManifest.interface.logo.replace('./', '').split('/'))
+  );
 
   assert.deepEqual(mutations(await readLog(log)), [
     `plugin marketplace add ${root}`,

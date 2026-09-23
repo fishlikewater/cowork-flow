@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 
 import { readPackageInfo } from '../lib/package-info.js';
 import { templateRoot } from '../lib/paths.js';
-import { pluginManifest, readPluginMetadata } from '../lib/plugin-metadata.js';
+import { marketplaceIconUrl, pluginManifest, readPluginMetadata } from '../lib/plugin-metadata.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 import { parseFlags } from '../lib/cli-flags.js';
 
@@ -98,6 +98,7 @@ async function updateMarketplace(pluginsRoot, cacheRoot, version, metadata) {
     category: metadata.marketplaceCategory,
     description: manifest.description,
     displayName: metadata.displayName,
+    icon: marketplaceIconUrl(metadata),
     license: manifest.license,
     name: PLUGIN_NAME,
     source: {

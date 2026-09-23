@@ -27,6 +27,11 @@
   "category": "Developer Tools",
   "marketplaceCategory": "developer-tools",
   "brandColor": "#2563EB",
+  "icon": {
+    "source": "assets/icon.svg",
+    "raster": "assets/icon.png"
+  },
+  "defaultBranch": "dev",
   "hosts": {
     "codex": {
       "label": "Codex"

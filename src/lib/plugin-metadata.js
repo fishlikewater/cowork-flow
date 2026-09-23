@@ -24,6 +24,27 @@ export function hostDescription(metadata, host) {
   return `${metadata.description}将 cowork-flow 的完整工作流带入 ${hostLabel(metadata, host)}。`;
 }
 
+// ZCode only renders a marketplace icon when the value is an absolute https URL
+// (its client keeps the string only if `icon.startsWith('https://')`, and drops
+// anything else without a warning), so the icon has to be fetched from somewhere
+// public rather than read out of the payload. Deriving the URL keeps the repo
+// and the branch stated once instead of hardcoded a fourth time.
+export function marketplaceIconUrl(metadata) {
+  const { repository, defaultBranch, icon } = metadata;
+  const prefix = 'https://github.com/';
+  if (typeof repository !== 'string' || !repository.startsWith(prefix)) {
+    throw new Error(`plugin metadata repository is not a GitHub URL: ${repository}`);
+  }
+  if (typeof defaultBranch !== 'string' || defaultBranch.length === 0) {
+    throw new Error('plugin metadata declares no defaultBranch to pin the icon URL to');
+  }
+  if (typeof icon?.raster !== 'string' || icon.raster.length === 0) {
+    throw new Error('plugin metadata declares no icon.raster to publish');
+  }
+  const raw = 'https://raw.githubusercontent.com/' + repository.slice(prefix.length);
+  return `${raw}/${defaultBranch}/${icon.raster}`;
+}
+
 export function pluginManifest(metadata, host, version) {
   const base = {
     name: metadata.name,
@@ -47,7 +68,13 @@ export function pluginManifest(metadata, host, version) {
         longDescription: metadata.longDescription,
         developerName: author.name,
         category: metadata.category,
-        websiteURL: metadata.homepage
+        websiteURL: metadata.homepage,
+        // codex resolves these against the plugin root, and the payload is
+        // copied into $CODEX_HOME on its own, so the mark ships inside it.
+        // brandColor is the same value the raster is baked from, so the mark
+        // and the surrounding UI cannot disagree.
+        logo: './assets/logo.svg',
+        brandColor: metadata.brandColor
       }
     };
   }
