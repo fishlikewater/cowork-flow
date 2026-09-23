@@ -139,7 +139,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `qoder` | `.agents/skills/` | `.agents/skills/`（verified：SDK 默认开启；受信任目录 + 重启门禁） |
 | `zcode` | `.agents/skills/` | `.agents/skills/` 与 `.zcode/skills/`（verified：宿主 bundle 的 `SkillService.list` 枚举 `<workspace>/.zcode/skills`、`<workspace>/.agents/skills`，含祖先目录向上探测，同名时 `.zcode/skills` 优先；我们只交付共享的 `.agents/skills/`） |
 
-每个平台在 `host-assets.json` 里用两格声明这件事：`skillReadRoot`（我们运行时渲染与 fixed subagent 读取的仓库内路径）与 `skillDiscovery[]`（宿主自己发现该路径的通道，带 `scope` / `gates` / `evidence`）。读取与发现同址时项目里只有一份副本，且机器级载荷（插件、preset）一律不再携带技能副本；`evidence` 以 `verified:` / `assumed:` 前缀区分"本机验证过"与"沿用约定未验证"，后者由门禁测试逐项登记——声明写错会在 CI 变红，而不是静默生效。`./.cowork-flow/run doctor` 按同一份声明检查交付偏差：`SKILL-READROOT-MISSING`（声明的读取根不在项目里）、`PLUGIN-SKILLS-LEGACY`（插件载荷仍带旧技能副本，重装即清理）、`SKILL-DISCOVERY-GATED`（发现通道有宿主侧门禁，如信任目录 / 重启），三项均为 warning，不计入 errors。
+每个平台在 `host-assets.json` 里用两格声明这件事：`skillReadRoot`（我们运行时渲染与 fixed subagent 读取的仓库内路径）与 `skillDiscovery[]`（宿主自己发现该路径的通道，带 `scope` / `gates` / `evidence`）。读取与发现同址时项目里只有一份副本，且机器级载荷（插件、preset）不再携带项目技能副本——插件只额外携带一个新名引导技能 `cowork-flow-bootstrap`；`evidence` 以 `verified:` / `assumed:` 前缀区分"本机验证过"与"沿用约定未验证"，后者由门禁测试逐项登记——声明写错会在 CI 变红，而不是静默生效。`./.cowork-flow/run doctor` 按同一份声明检查交付偏差：`SKILL-READROOT-MISSING`（声明的读取根不在项目里）、`PLUGIN-SKILLS-LEGACY`（插件载荷仍带与项目同名的技能副本，重装即清理）、`SKILL-DISCOVERY-GATED`（发现通道有宿主侧门禁，如信任目录 / 重启），三项均为 warning，不计入 errors。
 
 分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
 
@@ -227,11 +227,11 @@ cowork-flow install-zcode-plugin --force --prune-old  # 覆盖并清理旧版本
 
 安装新版本时，marketplace 中只保留一个 `cowork-flow` entry 并指向最新版本目录；旧版本缓存默认保留，避免正在运行的 ZCode session 仍引用旧插件根目录。需要清理旧版本时显式传 `--prune-old`。
 
-ZCode 插件只安装 hook、agents 和轻量说明文件；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
+ZCode 插件安装 hook、agents 和一个引导技能；`.cowork-flow/` 流程文件仍由显式 `cowork-flow init` / `cowork-flow sync` 在项目根目录管理。插件不会通过 scaffold 创建 `.cowork-flow/`，因此不会在多模块项目的模块目录重复落盘流程文件。
 
-**技能只走项目通道**：`init` / `sync` 写到 `.agents/skills/`，这正是 ZCode 自己枚举的路径之一（另一条是 `.zcode/skills/`，同名优先，我们不交付），fixed subagent 也从同一路径读取。插件载荷不再携带 `skills/`：ZCode 同时枚举项目根与插件根且不按技能名去重，载荷里再放一份会让同名技能以两份身份进入技能列表、并在激活时双份注入正文。
+**项目技能走项目通道，插件只带引导技能**：16 个项目技能由 `init` / `sync` 写到 `.agents/skills/`，这正是 ZCode 自己枚举的路径之一（另一条是 `.zcode/skills/`，同名优先，我们不交付），fixed subagent 也从同一路径读取。插件载荷另带 `skills/cowork-flow-bootstrap/`——一个只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow init` 的新名技能，让插件在未初始化目录里也能给出入口。载荷技能名必须与项目技能名零交集：ZCode 同时枚举项目根与插件根且不按技能名去重，同名技能会以两份身份进入技能列表、并在激活时双份注入正文（两家插件测试把这条固化为门禁）。
 
-旧版本插件载荷残留的 `skills/` 副本由 `./.cowork-flow/run doctor` 以 `PLUGIN-SKILLS-LEGACY` 报出（warning，不进 errors），提示用 `--force` 重装清理。
+载荷里出现**与项目同名**的技能副本时，`./.cowork-flow/run doctor` 以 `PLUGIN-SKILLS-LEGACY` 报出（warning，不进 errors），提示用 `--force` 重装清理；只带 bootstrap 的载荷不告警。
 
 **Hook 注入内容：**
 - `workflow-state` — 当前任务状态
@@ -294,7 +294,7 @@ Kimi Code 的 Bash 工具不导出会话标识环境变量，CLI 侧身份只能
 
 Qoder 的宿主集成面（hooks、三个 fixed subagent、命令面说明）打包成一个 Qoder 插件；`init` / `sync` 只写 `.cowork-flow/adapters/qoder/adapter.yaml` 这一份声明，不生成 `.qoder/` 目录（`.qoder/` 在 `excludedPrefixes` 里）。
 
-**技能只走项目通道**：`init` / `sync` 把技能写到 `.agents/skills/`，这正是 Qoder 自己扫描的路径（`loadFromAgentsDirectory` 默认开启），因此模型能原生发现并调用，fixed subagent 也从同一路径读取——项目里只有一份副本，随 `.cowork-flow/.version` 钉版本。前提是**工作区已信任**且技能设置生效需**重启**；插件载荷不再携带 `skills/`，未 `init` 或未受信任的项目因此看不到 cowork-flow 技能。
+**项目技能只走项目通道，插件只带引导技能**：`init` / `sync` 把技能写到 `.agents/skills/`，这正是 Qoder 自己扫描的路径（`loadFromAgentsDirectory` 默认开启），因此模型能原生发现并调用，fixed subagent 也从同一路径读取——项目里只有一份副本，随 `.cowork-flow/.version` 钉版本。前提是**工作区已信任**且技能设置生效需**重启**。插件载荷另带 `skills/cowork-flow-bootstrap/`——一个只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow init` 的新名技能，让未 `init` 的仓库也有入口；载荷技能名与项目技能名零交集，同名副本由 doctor 报 `PLUGIN-SKILLS-LEGACY`。
 
 ```bash
 cowork-flow install-qoder-plugin              # 安装并启用（已存在时不覆盖）

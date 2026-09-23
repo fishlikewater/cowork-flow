@@ -376,8 +376,9 @@ class QoderPluginCheckTest(unittest.TestCase):
 
 class SkillDeliveryCheckTest(unittest.TestCase):
     """Skill delivery diagnostics: a declared read root that is not on disk, a
-    machine-level plugin payload that still carries a skills copy, and discovery
-    channels that stay gated. All three are advisory, so none may fail doctor."""
+    machine-level plugin payload that still carries a copy of a project Skill,
+    and discovery channels that stay gated. All three are advisory, so none may
+    fail doctor."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -415,7 +416,16 @@ class SkillDeliveryCheckTest(unittest.TestCase):
             )
         return root
 
-    def _install_qoder_plugin(self, version: str) -> None:
+    def _project_skills(self, project: Path, *names: str) -> None:
+        """Deliver project Skill copies under the host's read root."""
+        for name in names:
+            skill_dir = project / ".agents" / "skills" / name
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            (skill_dir / "SKILL.md").write_text("---\n---\n", encoding="utf-8")
+
+    def _install_qoder_plugin(
+        self, version: str, *, skill_names: tuple[str, ...] = ("task-review",)
+    ) -> None:
         payload = (
             self.qoder_home / "plugins" / "cache" / "cowork-flow-local"
             / "cowork-flow" / version
@@ -427,7 +437,10 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         (payload / "hooks").mkdir()
         for relative in ("hooks/hooks.json", "hooks/inject-context.py"):
             (payload / relative).write_text("{}", encoding="utf-8")
-        (payload / "skills").mkdir()
+        for name in skill_names:
+            skill_dir = payload / "skills" / name
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text("---\n---\n", encoding="utf-8")
         registry = self.qoder_home / "plugins" / "installed_plugins_v2.json"
         registry.parent.mkdir(parents=True, exist_ok=True)
         registry.write_text(
@@ -448,14 +461,23 @@ class SkillDeliveryCheckTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def _install_zcode_plugin(self, version: str, *, skills: bool = True) -> None:
+    def _install_zcode_plugin(
+        self,
+        version: str,
+        *,
+        skills: bool = True,
+        skill_names: tuple[str, ...] = ("task-review",),
+    ) -> None:
         payload = (
             self.zcode_home / "cli" / "plugins" / "cache" / "cowork-flow-local"
             / "cowork-flow" / version
         )
         payload.mkdir(parents=True)
         if skills:
-            (payload / "skills").mkdir()
+            for name in skill_names:
+                skill_dir = payload / "skills" / name
+                skill_dir.mkdir(parents=True)
+                (skill_dir / "SKILL.md").write_text("---\n---\n", encoding="utf-8")
         marketplace = (
             self.zcode_home / "cli" / "plugins" / "marketplaces" / "cowork-flow-local"
             / "marketplace.json"
@@ -500,7 +522,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_plugin_payload_still_carrying_skills_is_reported_as_legacy(self) -> None:
         project = self._project("zcode")
-        (project / ".agents" / "skills").mkdir(parents=True)
+        self._project_skills(project, "task-review")
         self._install_zcode_plugin("1.5.0")
         issues = self.doctor.check_skill_delivery(project)
         self.assertEqual(["PLUGIN-SKILLS-LEGACY"], [issue["code"] for issue in issues])
@@ -509,7 +531,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_a_payload_copy_is_reported_even_at_the_project_version(self) -> None:
         project = self._project("zcode")
-        (project / ".agents" / "skills").mkdir(parents=True)
+        self._project_skills(project, "task-review")
         self._install_zcode_plugin("1.6.0")
         issues = self.doctor.check_skill_delivery(project)
         self.assertEqual(["PLUGIN-SKILLS-LEGACY"], [issue["code"] for issue in issues])
@@ -520,16 +542,24 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         self._install_zcode_plugin("1.5.0", skills=False)
         self.assertEqual([], self.doctor.check_skill_delivery(project))
 
+    def test_payload_bootstrap_skill_is_not_reported_as_legacy(self) -> None:
+        # The payload's bootstrap guide has no project counterpart, so it is an
+        # expected payload Skill rather than a leftover copy.
+        project = self._project("zcode")
+        self._project_skills(project, "task-review")
+        self._install_zcode_plugin("1.6.0", skill_names=("cowork-flow-bootstrap",))
+        self.assertEqual([], self.doctor.check_skill_delivery(project))
+
     def test_qoder_plugin_skew_stays_with_the_host_plugin_check(self) -> None:
         project = self._project("qoder")
-        (project / ".agents" / "skills").mkdir(parents=True)
+        self._project_skills(project, "task-review")
         self._install_qoder_plugin("1.5.0")
         self.assertEqual(
             ["PLUGIN-STALE"],
             [issue["code"] for issue in self.doctor.check_qoder_plugin(project)],
         )
         # The plugin version skew stays with the plugin check; what the delivery
-        # check reports is the payload's leftover skills copy.
+        # check reports is the payload's leftover copy of a project Skill.
         self.assertEqual(
             ["SKILL-DISCOVERY-GATED", "PLUGIN-SKILLS-LEGACY"],
             [issue["code"] for issue in self.doctor.check_skill_delivery(project)],
@@ -537,7 +567,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_skill_delivery_warnings_never_enter_doctor_errors(self) -> None:
         project = self._project("zcode")
-        (project / ".agents" / "skills").mkdir(parents=True)
+        self._project_skills(project, "task-review")
         self._install_zcode_plugin("1.5.0")
         result = self.doctor._all_check_result(project)
         self.assertEqual(
@@ -552,7 +582,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_text_output_prints_the_skill_delivery_section(self) -> None:
         project = self._project("zcode")
-        (project / ".agents" / "skills").mkdir(parents=True)
+        self._project_skills(project, "task-review")
         self._install_zcode_plugin("1.5.0")
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
@@ -561,9 +591,9 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         self.assertEqual(
             [
                 "Skill delivery (PLUGIN-SKILLS-LEGACY): the zcode plugin payload "
-                "still carries a skills copy from 1.5.0; skills now ship with the "
-                "project only, so the payload copy is redundant and may come from "
-                "another release",
+                "still carries project Skill copies (task-review) from 1.5.0; "
+                "project Skills ship with the project only, so the payload copy "
+                "is redundant and may come from another release",
                 "  fix: cowork-flow install-zcode-plugin --force",
             ],
             [line for line in lines if "Skill delivery" in line or "fix: cowork-flow install-zcode" in line],

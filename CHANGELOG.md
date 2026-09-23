@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 插件携带 bootstrap 引导技能（zcode / qoder）
+
+- **两家插件载荷各带一个新名技能**：`presets/{zcode,qoder}/skills/cowork-flow-bootstrap/SKILL.md`，两份 `plugin.json` 声明 `"skills": "skills"`。该技能只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow init`，检测到项目 runtime 时退让给项目级 `cowork-flow` 技能；它不带 `manifest.json`，不进入 runtime 的 action / command / context 路由，也不参与技能副本 parity。项目级 16 个技能的交付、`skillReadRoot`、init 分发与 fixed subagent 的技能路径全部不变。
+- **载荷技能名必须与项目技能名零交集**：ZCode 与 Qoder 都按技能文件 realpath 去重、不按技能名，同名副本会双份进入技能列表；两家插件测试新增门禁——遍历载荷技能目录名逐个断言 `template/skills/<name>` 不存在（负向验证：把项目技能塞回载荷即红）。
+- **doctor 语义收窄**：`PLUGIN-SKILLS-LEGACY` 从"载荷有 `skills/` 即告警"改为"载荷含**与项目同名**的技能副本才告警"，消息列出副本名；只带 bootstrap 的载荷静默（新增用例覆盖）。`SKILL-READROOT-MISSING` / `SKILL-DISCOVERY-GATED` 不变。
+- **qoder 清单字段实证**：Qoder 0.3.4 的 `@qoder-ai/qoder-agent-sdk` worker bundle 里，插件清单 schema 声明 `skills` 字段（`qoder-worker-runtime.obf.mjs` 的 `nza` shape，类型为路径或路径数组），组件发现另有 `skills/` 目录约定；ZCode 3.14.3 的 `SkillService.list` 同样支持"manifest 声明或 `<pluginRoot>/skills` 回退"。
+- 升级动作：重跑 `cowork-flow install-zcode-plugin --force` / `install-qoder-plugin --force` 即带上引导技能。
+
 ### 交付树字节码隔离（测试与技能命令不再写 __pycache__）
 
 - 交付树（`template/**`、`presets/**`）此前持续被 Python 字节码污染，累积了 16 个 `__pycache__` 目录 / 90 个 `.pyc`。两条来源：`python -m pytest`（本地直跑与 CI 的 Python 段）无任何防护；技能命令（如 `doctor`）在源 checkout 里解析到 `template/.cowork-flow/scripts` 并 import 它。`scripts/template-test-runner.js` 的 `PYTHONDONTWRITEBYTECODE` 只覆盖 npm 入口。
@@ -17,7 +25,7 @@
 - **machine discovery 语义收口**：zcode 的 `plugin:skills` 条目删除后该语义零消费者，按"不留死代码"纪律一并删除——schema 的 `skillDiscoveryEntry` 收敛为"仓库内路径 + 必填 `path`"，Python / JS 校验面同步去掉 `channel` 与 machine 分支，坏声明负向用例覆盖 machine scope 与 `channel` 字段（均被拒）。
 - **doctor 迁移提示**：`check_skill_delivery` 的 `PLUGIN-SKILLS-STALE`（版本偏斜）改为 `PLUGIN-SKILLS-LEGACY`——检测到载荷仍带 `skills/` 即提示 `cowork-flow install-<host>-plugin --force`（重装先 `rm -rf` 再拷，顺带清理），不再比较版本；`SKILL-READROOT-MISSING` 与 `SKILL-DISCOVERY-GATED` 语义不变。
 - **升级动作**：已装旧插件的机器重跑 `cowork-flow install-zcode-plugin --force` / `install-qoder-plugin --force` 即清掉载荷里的技能副本（doctor 以 `PLUGIN-SKILLS-LEGACY` 报出时按提示执行）；dsh 预设不随 npm / `sync` 更新，且预设版本标记相同时 doctor 不会告警，请直接重跑 `cowork-flow install-dsh-preset --force`。
-- 已知代价（有意接受）：未 `init` 的项目不再有任何 cowork-flow 技能；qoder 在未受信任目录中看不到技能（其发现门禁未变）。
+- 已知代价（有意接受）：未 `init` 的项目不再有任何 cowork-flow 技能（后由插件引导技能 `cowork-flow-bootstrap` 部分补上，见本文件 Unreleased 顶部条目）；qoder 在未受信任目录中看不到技能（其发现门禁未变）。
 
 ### 宿主声明基址统一、技能候选根派生与 zcode 技能根订正
 
