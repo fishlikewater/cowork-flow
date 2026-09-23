@@ -577,6 +577,60 @@ class HostAssetManifestTest(unittest.TestCase):
             errors,
         )
 
+    def _codex_platform(self, data: dict) -> dict:
+        return next(
+            platform for platform in data["platforms"] if platform["id"] == "codex"
+        )
+
+    def test_payload_declarations_match_the_package_layout(self) -> None:
+        manifest = self.host_manifest.load_host_manifest(TEMPLATE)
+        declared = [platform for platform in manifest.platforms if platform.payload]
+
+        self.assertEqual(
+            [platform.id for platform in declared],
+            ["codex", "zcode", "qoder"],
+        )
+        for platform in declared:
+            payload = platform.payload
+            self.assertTrue(
+                (ROOT / payload.source).is_dir(),
+                f"{platform.id} payload source {payload.source} must exist in the package",
+            )
+            self.assertTrue(payload.manifest, platform.id)
+            self.assertTrue(
+                (ROOT / payload.source / payload.manifest).is_file(),
+                f"{platform.id} payload manifest {payload.manifest} must exist",
+            )
+        self.assertIsNone(manifest.platform("opencode").payload)
+        self.assertIsNone(manifest.platform("dsh").payload)
+
+    def test_payload_rejects_malformed_declarations(self) -> None:
+        mutations = (
+            (lambda data: self._codex_platform(data).__setitem__("payload", "presets/codex"),
+             "platform codex payload must be null or an object"),
+            (lambda data: self._codex_platform(data).pop("payload"),
+             "platform codex payload must be null or an object"),
+            (lambda data: self._codex_platform(data).__setitem__(
+                "payload", {"manifest": ".codex-plugin/plugin.json"}),
+             "platform codex payload.source must be a non-empty string"),
+            (lambda data: self._codex_platform(data).__setitem__(
+                "payload", {"source": "presets/codex", "skills": "skills"}),
+             "platform codex payload unknown field: skills"),
+            # An explicit null manifest must be rejected like any other bad
+            # value: the JS validator and the schema both reject it, and only a
+            # missing key means "this payload carries no manifest".
+            (lambda data: self._codex_platform(data).__setitem__(
+                "payload", {"source": "presets/codex", "manifest": None}),
+             "platform codex payload.manifest must be a non-empty string"),
+        )
+        for mutate, expected in mutations:
+            with self.subTest(expected=expected):
+                errors = self._validate_mutated_manifest(mutate)
+                self.assertTrue(
+                    any(expected in error for error in errors),
+                    errors,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

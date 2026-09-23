@@ -274,7 +274,7 @@ test('a stale managed block is rewritten in place', async (t) => {
   assert.notEqual(tampered, installed);
   await writeFile(join(home, 'config.toml'), tampered, 'utf8');
 
-  const result = await install(t, home, ['--force']);
+  const result = await install(t, home);
 
   assert.match(result.stdout, /block updated/);
   const config = await readConfig(home);

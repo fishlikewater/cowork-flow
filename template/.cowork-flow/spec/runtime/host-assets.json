@@ -163,7 +163,11 @@
           "format": "json",
           "target": ".codex/hooks/inject-workflow-state.py"
         }
-      ]
+      ],
+      "payload": {
+        "source": "presets/codex",
+        "manifest": ".codex-plugin/plugin.json"
+      }
     },
     {
       "id": "opencode",
@@ -202,7 +206,8 @@
         "runtimeContextCleanup": "native",
         "editScopeWarning": "unsupported"
       },
-      "commandTargets": []
+      "commandTargets": [],
+      "payload": null
     },
     {
       "id": "claude-code",
@@ -252,7 +257,8 @@
           "format": "json",
           "target": ".claude/hooks/inject-workflow-state.py"
         }
-      ]
+      ],
+      "payload": null
     },
     {
       "id": "dsh",
@@ -291,7 +297,8 @@
         "runtimeContextCleanup": "shim",
         "editScopeWarning": "unsupported"
       },
-      "commandTargets": []
+      "commandTargets": [],
+      "payload": null
     },
     {
       "id": "zcode",
@@ -330,7 +337,11 @@
         "runtimeContextCleanup": "native",
         "editScopeWarning": "plugin"
       },
-      "commandTargets": []
+      "commandTargets": [],
+      "payload": {
+        "source": "presets/zcode",
+        "manifest": ".zcode-plugin/plugin.json"
+      }
     },
     {
       "id": "kimi-code",
@@ -370,7 +381,8 @@
         "runtimeContextCleanup": "native",
         "editScopeWarning": "unsupported"
       },
-      "commandTargets": []
+      "commandTargets": [],
+      "payload": null
     },
     {
       "id": "qoder",
@@ -413,7 +425,11 @@
         "runtimeContextCleanup": "native",
         "editScopeWarning": "unsupported"
       },
-      "commandTargets": []
+      "commandTargets": [],
+      "payload": {
+        "source": "presets/qoder",
+        "manifest": ".qoder-plugin/plugin.json"
+      }
     }
   ],
   "excludedPrefixes": [
@@ -535,11 +551,9 @@
       ".cowork-flow/scripts/common/validate_coding_standards.py",
       ".cowork-flow/scripts/common/validate_implementation.py",
       ".cowork-flow/scripts/common/validate_rules.py",
-      ".cowork-flow/scripts/doctor.py",
       ".cowork-flow/scripts/get_context.py",
       ".cowork-flow/scripts/get_developer.py",
       ".cowork-flow/scripts/init_developer.py",
-      ".cowork-flow/scripts/party_mode_v2.py",
       ".cowork-flow/scripts/project_context.py",
       ".cowork-flow/scripts/resume.py",
       ".cowork-flow/scripts/subagent.py",

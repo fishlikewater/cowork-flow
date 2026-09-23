@@ -126,7 +126,8 @@
           "format": "toml",
           "target": ".codex/agents/cowork-implement.toml"
         }
-      ]
+      ],
+      "payload": null
     },
     {
       "id": "demo-host",
@@ -162,7 +163,11 @@
           "format": "json",
           "target": ".demo-host/agents/cowork-implement.md"
         }
-      ]
+      ],
+      "payload": {
+        "source": "presets/demo-host",
+        "manifest": ".demo-host-plugin/plugin.json"
+      }
     }
   ],
   "excludedPrefixes": [

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { templateRoot } from './paths.js';
+import { packageRoot, templateRoot } from './paths.js';
 
 
 export const hostAssetManifestPath = process.env.COWORK_FLOW_HOST_ASSET_MANIFEST
@@ -30,6 +30,7 @@ const CAPABILITY_STATUS_VALUES = [
 const CAPABILITY_DECLARATION_KEYS = ['status', 'fallback'];
 const COMMAND_TARGET_KEYS = ['config', 'format', 'target'];
 const COMMAND_TARGET_FORMATS = ['json', 'toml', 'yaml'];
+const PAYLOAD_KEYS = ['source', 'manifest'];
 const MANIFEST_KEYS = [
   'schemaVersion',
   'capabilityValues',
@@ -49,7 +50,8 @@ const PLATFORM_KEYS = [
   'skillDiscovery',
   'adapterPath',
   'capabilities',
-  'commandTargets'
+  'commandTargets',
+  'payload'
 ];
 const SKILL_DISCOVERY_KEYS = ['scope', 'evidence', 'path', 'gates'];
 const SKILL_DISCOVERY_SCOPES = ['project'];
@@ -173,10 +175,6 @@ export function createHostRegistry(manifest) {
       .map((platform) => platform.id);
   }
 
-  function isKnownPlatformAsset(relativePath) {
-    return assetOwners(relativePath).length > 0;
-  }
-
   function isSafeSyncFile(relativePath) {
     const normalized = normalizePath(relativePath);
     return safeFiles.has(normalized)
@@ -245,7 +243,18 @@ export function createHostRegistry(manifest) {
     skillDestination(platformId) {
       return byId.get(platformId)?.skillReadRoot ?? null;
     },
-    isKnownPlatformAsset,
+    // A payload declaration names a directory inside the package, so the
+    // absolute source directory is resolved here rather than in every installer.
+    platformPayload(platformId) {
+      const payload = byId.get(platformId)?.payload;
+      if (!payload) {
+        return null;
+      }
+      return {
+        sourceDir: join(packageRoot, ...payload.source.split('/')),
+        manifest: payload.manifest ?? null
+      };
+    },
     isSafeSyncFile,
     isProtectedSyncFile,
     isManagedBlockFile,
@@ -345,6 +354,24 @@ function validatePlatform(platform, allowed, seenPlatformIds, aliases) {
   for (const target of platform.commandTargets) {
     validateCommandTarget(target, platform.id);
   }
+  validatePlatformPayload(platform);
+}
+
+function validatePlatformPayload(platform) {
+  const payload = platform.payload;
+  if (payload === null) {
+    return;
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error(
+      `Host platform ${platform.id} payload must be null or an object`
+    );
+  }
+  assertKnownKeys(payload, PAYLOAD_KEYS, `Host platform ${platform.id} payload`);
+  validateRequiredString(payload.source, `Host platform ${platform.id} payload.source`);
+  if (payload.manifest !== undefined) {
+    validateRequiredString(payload.manifest, `Host platform ${platform.id} payload.manifest`);
+  }
 }
 
 function validateSkillDiscovery(platform) {
@@ -375,7 +402,8 @@ function validateSkillDiscovery(platform) {
   }
 }
 
-function validatePlatformCapabilities(platform, allowed) {  if (!platform.capabilities || typeof platform.capabilities !== 'object' || Array.isArray(platform.capabilities)) {
+function validatePlatformCapabilities(platform, allowed) {
+  if (!platform.capabilities || typeof platform.capabilities !== 'object' || Array.isArray(platform.capabilities)) {
     throw new Error(`Host platform ${platform.id} capabilities must be an object`);
   }
   if (Object.keys(platform.capabilities).length === 0) {

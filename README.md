@@ -14,7 +14,7 @@
 | 事实接入 | `run state [task] --json` 事实视图；`run mcp-state` 无依赖 MCP 只读服务（`task_state` / `task_list` / `task_scope` / `task_specs`）供任何 MCP 客户端查询；`task scope` / `task specs` 为 CLI 同源事实命令。 |
 | 规范挂命令 | spec 首部 frontmatter 声明 `checks:` 命令，按编辑期/收口期执行；`run spec-check` 输出三态门禁（pass / violation / unchecked）。 |
 | 运行健康 | `doctor` 诊断 runtime、host assets、Skill replica 和任务 hygiene，不推进生命周期。 |
-| Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / Kimi Code / DeepSeek Harness 资产和 obsolete 清理。 |
+| Host 分发 | Host Asset Manifest 驱动 Codex / OpenCode / Claude Code / ZCode / Kimi Code / DeepSeek Harness / Qoder 的资产、插件载荷与 obsolete 清理。 |
 | 批处理与讨论 | Batch 发布 Host action；Party Mode 只输出 advisory final facts。 |
 | 发布准备 | `release:check`、`CHANGELOG.md`、`pack:check` 固定发布前证据。 |
 
@@ -157,7 +157,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `install-codex-plugin [--dry-run] [--force] [--uninstall]` | 机器级接入 Codex：写稳定 marketplace 源到 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`，再委托 `codex plugin marketplace add` + `codex plugin add` 注册与启用（不手写 `config.toml`） |
 | `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/`（整套 agent，可选） |
 | `install-dsh-hook` | 机器级注册 workflow-state hook 组合行到 `$DSH_HOME/cordis.patch.yml`（当前 DSH 的 agent 提示不收集 host 层 section，实时注入请用预设方式） |
-| `install-kimi-hook [--dry-run] [--force] [--uninstall]` | 机器级注册 UserPromptSubmit hook 到 `$KIMI_CODE_HOME/config.toml`（默认 `~/.kimi-code/`），向每个 Kimi Code 会话实时注入工作流上下文 |
+| `install-kimi-hook [--dry-run] [--uninstall]` | 机器级注册 UserPromptSubmit hook 到 `$KIMI_CODE_HOME/config.toml`（默认 `~/.kimi-code/`），向每个 Kimi Code 会话实时注入工作流上下文 |
 | `update [--dry-run]` | 升级 CLI 本身 |
 | `mcp-state` | 全局 MCP 事实入口：从 cwd 向上定位项目运行时并透传 `run mcp-state`（全局注册一次，所有 cowork-flow 项目通用） |
 
@@ -280,7 +280,7 @@ cowork-flow install-dsh-preset --dry-run  # 预览不写入
 ## Kimi Code hook
 
 ```bash
-cowork-flow install-kimi-hook             # 安装（无条件覆盖）；--force 与不带旗标同义
+cowork-flow install-kimi-hook             # 安装（无条件覆盖，无 --force）
 cowork-flow install-kimi-hook --dry-run   # 预览将写入的托管块，不写文件
 cowork-flow install-kimi-hook --uninstall # 卸载托管块、shim 与版本标记
 ```

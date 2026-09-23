@@ -32,7 +32,7 @@ CAPABILITY_STATUS_VALUES = (
     "unsupported",
 )
 MANIFEST_KEYS = frozenset(("schemaVersion", "capabilityValues", "capabilityMatrix", "platforms", "excludedPrefixes", "syncPolicy"))
-PLATFORM_KEYS = frozenset(("id", "displayName", "aliases", "detectAny", "assetPrefixes", "assetFiles", "skillReadRoot", "skillDiscovery", "adapterPath", "capabilities", "commandTargets"))
+PLATFORM_KEYS = frozenset(("id", "displayName", "aliases", "detectAny", "assetPrefixes", "assetFiles", "skillReadRoot", "skillDiscovery", "adapterPath", "capabilities", "commandTargets", "payload"))
 SKILL_DISCOVERY_KEYS = frozenset(("scope", "path", "gates", "evidence"))
 SKILL_DISCOVERY_SCOPES = frozenset(("project",))
 SYNC_POLICY_KEYS = frozenset(("protectedFiles", "protectedPrefixes", "safeFiles", "safePrefixes", "managedBlockFiles", "obsoleteFiles"))
@@ -75,6 +75,21 @@ class SkillDiscovery:
 
 
 @dataclass(frozen=True)
+class Payload:
+    """The machine-level plugin payload this host installs, if any.
+
+    `source` is a directory inside the npm package; `manifest` is the plugin
+    manifest path relative to it, or None when the payload carries no manifest
+    (dsh presets and kimi hooks are installed by path, not by manifest). Machine
+    install locations are installer concerns and are deliberately not declared
+    here: this file ships into the project, which cannot resolve them.
+    """
+
+    source: str
+    manifest: str | None
+
+
+@dataclass(frozen=True)
 class HostPlatform:
     id: str
     display_name: str
@@ -87,6 +102,7 @@ class HostPlatform:
     adapter_path: str
     capabilities: dict[str, str]
     command_targets: tuple[CommandTarget, ...]
+    payload: Payload | None
 
 
 @dataclass(frozen=True)
@@ -468,6 +484,39 @@ def _build_platform(raw: dict[str, Any], allowed: set[str]) -> HostPlatform:
         adapter_path=_required_string(raw, "adapterPath"),
         capabilities=normalized_capabilities,
         command_targets=command_targets,
+        payload=_build_payload(raw, platform_id),
+    )
+
+
+def _build_payload(raw: dict[str, Any], platform_id: str) -> Payload | None:
+    payload = raw.get("payload")
+    if payload is None:
+        if "payload" not in raw:
+            raise HostManifestError(
+                f"platform {platform_id} payload must be null or an object"
+            )
+        return None
+    if not isinstance(payload, dict):
+        raise HostManifestError(f"platform {platform_id} payload must be null or an object")
+    unknown = set(payload) - {"source", "manifest"}
+    if unknown:
+        raise HostManifestError(
+            f"platform {platform_id} payload unknown field: {sorted(unknown)[0]}"
+        )
+    # An explicit null manifest is rejected, matching the JS validator and the
+    # schema: `manifest` is optional, but when the key is present it must name a
+    # file. Only the key's absence means "this payload carries no manifest".
+    manifest: str | None = None
+    if "manifest" in payload:
+        raw_manifest = payload["manifest"]
+        if not isinstance(raw_manifest, str) or not raw_manifest:
+            raise HostManifestError(
+                f"platform {platform_id} payload.manifest must be a non-empty string"
+            )
+        manifest = raw_manifest
+    return Payload(
+        source=_required_string(payload, "source", label=f"platform {platform_id} payload"),
+        manifest=manifest,
     )
 
 
@@ -508,10 +557,11 @@ def _build_skill_discovery(
         gates=_string_tuple(gates_raw, f"{platform_id}.skillDiscovery.gates", unique=True),
     )
 
-def _required_string(raw: dict[str, Any], key: str) -> str:
+def _required_string(raw: dict[str, Any], key: str, *, label: str | None = None) -> str:
     value = raw.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise HostManifestError(f"{key} must be a non-empty string")
+        qualified = f"{label}.{key}" if label else key
+        raise HostManifestError(f"{qualified} must be a non-empty string")
     return value.strip()
 
 

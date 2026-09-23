@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { promisify } from 'node:util';
 
 import { npmCommandOptions } from '../src/lib/package-info.js';
+import { loadHostAssetManifest } from '../src/lib/host-assets.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 const execFileAsync = promisify(execFile);
@@ -129,11 +130,20 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
   assert.equal(packageLock.version, packageInfo.version);
   assert.equal(packageLock.packages[''].version, packageInfo.version);
-  const pluginManifests = [
-    ['presets/zcode/.zcode-plugin/plugin.json', 'zcode'],
-    ['presets/qoder/.qoder-plugin/plugin.json', 'qoder'],
-    ['presets/codex/.codex-plugin/plugin.json', 'codex']
-  ];
+  // Derived from the host asset manifest: the declaration is the single source
+  // for which payloads exist and what their manifests are called, so a renamed
+  // or added payload cannot leave the release stamping behind.
+  const pluginManifests = loadHostAssetManifest()
+    .platforms
+    .filter((platform) => platform.payload?.manifest)
+    .map((platform) => [
+      `${platform.payload.source}/${platform.payload.manifest}`,
+      platform.id
+    ]);
+  assert.deepEqual(
+    pluginManifests.map(([, host]) => host),
+    ['codex', 'zcode', 'qoder']
+  );
   const releaseScript = await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8');
   for (const [relativePath, host] of pluginManifests) {
     const manifest = JSON.parse(
@@ -176,6 +186,11 @@ test('line ending contract keeps javascript sources LF on every checkout', async
   // breakage only shows up as a shebang assertion failure on that checkout.
   assert.match(attributes, /^\*\.js text eol=lf$/m);
   assert.match(attributes, /^\*\.mjs text eol=lf$/m);
+  // The POSIX runner needs a root-anchored line per copy: a pattern containing
+  // "/" is resolved against this file's directory, so `.cowork-flow/run` never
+  // matched the template copy that init writes into projects.
+  assert.match(attributes, /^\.cowork-flow\/run text eol=lf$/m);
+  assert.match(attributes, /^template\/\.cowork-flow\/run text eol=lf$/m);
 });
 
 

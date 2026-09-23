@@ -162,7 +162,7 @@ class KimiHookCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-SHIM-MISSING", issues[0]["code"])
-        self.assertIn("install-kimi-hook --force", issues[0]["commandHint"])
+        self.assertIn("install-kimi-hook", issues[0]["commandHint"])
 
     def test_installed_hook_without_marker_reports_unknown_version(self) -> None:
         self._install_block()
@@ -171,7 +171,7 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-UNKNOWN-VERSION", issues[0]["code"])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertIn("install-kimi-hook --force", issues[0]["commandHint"])
+        self.assertIn("install-kimi-hook", issues[0]["commandHint"])
 
     def test_unreadable_marker_reports_unknown_version(self) -> None:
         self._install_block()
@@ -192,7 +192,7 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual("HOOK-STALE", issues[0]["code"])
         self.assertIn("0.0.1", issues[0]["message"])
         self.assertIn("1.5.0", issues[0]["message"])
-        self.assertIn("install-kimi-hook --force", issues[0]["commandHint"])
+        self.assertIn("install-kimi-hook", issues[0]["commandHint"])
 
     def test_matching_version_is_silent(self) -> None:
         self._install_block()
@@ -266,9 +266,11 @@ class QoderPluginCheckTest(unittest.TestCase):
         with mock.patch.dict("os.environ", {"QODER_CONFIG_DIR": str(self.qoder_home)}):
             return self.doctor.check_qoder_plugin(self.project)
 
-    def _write_payload(self, *, shim: bool = True, hooks_config: bool = True) -> None:
+    def _write_payload(
+        self, *, shim: bool = True, hooks_config: bool = True, manifest: str = "plugin.json"
+    ) -> None:
         (self.install_path / ".qoder-plugin").mkdir(parents=True, exist_ok=True)
-        (self.install_path / ".qoder-plugin" / "plugin.json").write_text(
+        (self.install_path / ".qoder-plugin" / manifest).write_text(
             json.dumps({"name": "cowork-flow", "version": self.version}), encoding="utf-8"
         )
         (self.install_path / "hooks").mkdir(parents=True, exist_ok=True)
@@ -334,6 +336,42 @@ class QoderPluginCheckTest(unittest.TestCase):
         self._write_registry()
         issues = self._check()
         self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
+
+    def _write_host_manifest(self, manifest_relative: str) -> None:
+        """Deliver the host asset manifest with qoder's declared payload manifest
+        renamed, so the check can be observed following the declaration."""
+        data = json.loads(
+            (
+                TEMPLATE / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+            ).read_text(encoding="utf-8")
+        )
+        qoder = next(item for item in data["platforms"] if item["id"] == "qoder")
+        qoder["payload"]["manifest"] = manifest_relative
+        target = (
+            self.project / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+        )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+    def test_payload_manifest_path_follows_the_declaration(self) -> None:
+        # The declaration is the only place naming the payload manifest: a
+        # payload carrying exactly the declared name is healthy, and the same
+        # payload is reported missing once the declaration points elsewhere.
+        self._write_host_manifest(".qoder-plugin/plugin-alt.json")
+        self._write_payload(manifest="plugin-alt.json")
+        self._write_registry()
+        self._write_settings(True)
+        self.assertEqual([], self._check())
+
+        self._write_host_manifest(".qoder-plugin/plugin.json")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
+        self.assertTrue(
+            str(issues[0]["path"]).endswith("plugin.json"),
+            issues[0]["path"],
+        )
 
     def test_payload_without_hook_shim_reports_incomplete(self) -> None:
         self._write_payload(shim=False)
@@ -428,10 +466,10 @@ class CodexPluginCheckTest(unittest.TestCase):
         self.config.parent.mkdir(parents=True, exist_ok=True)
         self.config.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    def _write_payload(self) -> None:
-        manifest = self.source / "plugins" / "cowork-flow" / ".codex-plugin" / "plugin.json"
-        manifest.parent.mkdir(parents=True, exist_ok=True)
-        manifest.write_text(
+    def _write_payload(self, manifest: str = ".codex-plugin/plugin.json") -> None:
+        path = self.source / "plugins" / "cowork-flow" / Path(manifest)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
             json.dumps({"name": "cowork-flow", "version": "1.6.0"}), encoding="utf-8"
         )
 
@@ -448,6 +486,41 @@ class CodexPluginCheckTest(unittest.TestCase):
         self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
         self.assertEqual("warning", issues[0]["severity"])
         self.assertEqual("cowork-flow install-codex-plugin", issues[0]["commandHint"])
+
+    def _write_host_manifest(self, manifest_relative: str) -> None:
+        """Deliver the host asset manifest with codex's declared payload manifest
+        renamed, so the check can be observed following the declaration."""
+        data = json.loads(
+            (
+                TEMPLATE / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+            ).read_text(encoding="utf-8")
+        )
+        codex = next(item for item in data["platforms"] if item["id"] == "codex")
+        codex["payload"]["manifest"] = manifest_relative
+        target = (
+            self.project / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+        )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+    def test_payload_manifest_path_follows_the_declaration(self) -> None:
+        # A payload carrying exactly the declared manifest name is healthy; the
+        # same payload is reported missing once the declaration points elsewhere.
+        self._write_host_manifest(".codex-plugin/plugin-alt.json")
+        self._write_payload(".codex-plugin/plugin-alt.json")
+        self._write_config(source=str(self.source))
+        self.assertEqual([], self._check())
+
+        self._write_host_manifest(".codex-plugin/plugin.json")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
+        # codex reports the payload directory, not the manifest path.
+        self.assertTrue(
+            str(issues[0]["path"]).endswith("cowork-flow"),
+            issues[0]["path"],
+        )
 
     def test_registered_marketplace_without_payload_reports_payload_missing(self) -> None:
         self._write_config(source=str(self.source))

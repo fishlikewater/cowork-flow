@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### 宿主载荷声明与适配统一
+
+- **`host-assets.json` 新增 `payload` 描述符**：每个平台条目声明"这个宿主有没有机器级插件载荷、载荷在包内哪里、清单叫什么"（codex / zcode / qoder 为 `{source, manifest}`，其余四家为 `null`）。此前这些事实只散落在三个安装器与 doctor 里，新增宿主要动哪些地方只能通读代码。描述符**不放机器级安装路径**（`$ZCODE_HOME/...`、注册表名、marker 名）：这个文件随 init 交付进项目，项目侧解析不了 npm 包与用户 home 的布局。schema、JS `PLATFORM_KEYS`、Python `PLATFORM_KEYS` 三处校验面与全部 fixture 同步；既有的"字段一致性门禁"先红后绿，确认新字段被覆盖。
+- **`payload` 必填键的两侧语义对齐**：显式 `null` 的 `manifest` 在 JS 与 Python 都按"非法值"拒绝（只有缺键才表示"无 manifest"）——否则一份清单会被 doctor 判合法、却让所有 JS 命令在导入期崩溃。
+- **三个插件安装器改读描述符**：`install-{codex,zcode,qoder}-plugin` 不再硬编码 `presets/<host>` 与清单名，改由 `src/lib/plugin-payload.js` 的 `pluginPayload(host)` 解析；新增门禁断言三个安装器源码里不再出现 `presets` 路径字面量（负向验证：还原旧写法即红）。
+- **安装期版本盖章对齐**：此前只有 qoder 与 codex 给已装载荷的清单盖章版本，zcode 不盖——从 checkout 安装的 zcode 载荷会保留源清单里的发布版本号。现在三家统一走 `stampPayloadManifest()`（保留键顺序、两空格缩进、尾换行，与 `scripts/release.sh` 同形，写临时文件后 rename）。`test/plugin-payload.test.js` 覆盖版本改写、键序、字节形状与无 `.tmp` 残留，并断言三个安装器确实调用共享助手——只靠"已装版本等于包版本"是假通过，因为源清单版本本来就等于包版本。
+- **doctor 改读描述符**：qoder 与 codex 插件检查的清单相对路径取自声明，不再硬编码；声明读不到时退回原字面量（`doctor` 的告警码集合不变）。两条路径各有测试，负向验证：把 doctor 改回硬编码即红。
+- **失效路径清理**：删除 `src/lib/platforms.js` 的三个零消费者导出与 `src/lib/host-assets.js` 的 `isKnownPlatformAsset`；删除 `install-kimi-hook` 解析后从不使用的 `--force`（README、CLI 帮助文本与 doctor 的修复提示同步）；`.gitattributes` 把 POSIX 运行器行尾钉到交付副本——`.cowork-flow/run` 这个含 `/` 的模式被锚定在仓库根，只匹配 gitignored 的自实例副本，`template/.cowork-flow/run` 一直是 `eol: unspecified`，Windows checkout 会materialize 成 CRLF 并被 `init` 写进用户项目；两个工作树副本已转为纯 LF，并删掉重复的 `*.toml` 行。
+- **文档与残留**：`spec/runtime/index.md` 的 `host-assets.json` 职责补上 `payload` 声明；`spec/contracts/index.md` 补齐 4 份现存合同（`context-injection` / `decision-anchor` / `error-output-as-data` / `fact-layer-access`）；`config.yaml` 的 hook 示例不再指向并不存在的 `scripts/on_task_event.py`，改为注明"用你自己的脚本路径"；`obsoleteFiles` 去重（123 → 121）；删除零引用的一次性样本 `test-rules-demo/` 与空目录 `data/`；README 的 Host 分发表补上漏掉的 Qoder。
+- 升级动作：升级 cowork-flow 后重跑 `install-<host>-plugin --force` 即让已装载荷带上盖章版本；本批不改任何命令名、安装布局与退出码。
+
 ### 插件身份元数据单一来源（作者名订正 + 三家清单字段补齐）
 
 - **新增 `presets/plugin-meta.json`（唯一身份来源）与 `src/lib/plugin-metadata.js`（投影模块）**：displayName、简介/长简介、作者、homepage、repository、license、keywords、category 只写一份，投影出 codex / zcode / qoder 三份 `plugin.json` 与两家 marketplace 条目字段。此前同样的信息散落在三份清单、两个安装器与 `package.json` 里，改一处就会漂移。
