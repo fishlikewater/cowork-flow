@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { runInstallZCodePlugin } from '../src/commands/install-zcode-plugin.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { packageRoot, templateRoot } from '../src/lib/paths.js';
+import { readPluginMetadata } from '../src/lib/plugin-metadata.js';
 
 const LOCAL_MARKETPLACE = 'cowork-flow-local';
 const OFFICIAL_MARKETPLACE = 'zcode-plugins-official';
@@ -344,6 +345,7 @@ test('install-zcode-plugin writes local marketplace and known marketplace entry'
   await runInstallZCodePlugin(['--force']);
 
   const pluginRoot = await installedPluginRoot(zcodeHome);
+  const metadata = await readPluginMetadata();
   const marketplacePath = join(localMarketplaceDir(zcodeHome), 'marketplace.json');
   const marketplaceSourcePath = join(localMarketplaceSourceDir(zcodeHome), 'marketplace.json');
   const marketplace = await readJson(marketplacePath);
@@ -356,7 +358,9 @@ test('install-zcode-plugin writes local marketplace and known marketplace entry'
   assert.equal(marketplace.version, 1);
   assert.ok(entry);
   assert.equal(entry.cachePath, undefined);
-  assert.equal(entry.category, 'developer-tools');
+  assert.equal(entry.category, metadata.marketplaceCategory);
+  assert.equal(entry.displayName, metadata.displayName);
+  assert.deepEqual(entry.author, { name: metadata.author.name, url: metadata.author.url });
   assert.deepEqual(entry.source, {
     source: 'directory',
     path: pluginRoot.replaceAll('\\', '/')
