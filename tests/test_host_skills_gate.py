@@ -26,7 +26,6 @@ PLATFORM_AGENT_SOURCES = {
 # Declarations that are still carried by convention rather than by a local
 # probe. Adding a new unverified declaration must show up here on purpose.
 ASSUMED_DISCOVERY = {
-    "codex": ".agents/skills",
     "opencode": ".agents/skills",
     "claude-code": ".claude/skills",
     "dsh": ".agents/skills",

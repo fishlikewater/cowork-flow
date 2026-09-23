@@ -100,6 +100,7 @@ template/
 presets/                       # ⭐ 机器级插件载荷：安装器拷进宿主配置目录，不落项目
 ├── zcode/                     # ZCode 插件（hooks + agents + .zcode-plugin/plugin.json）
 ├── qoder/                     # Qoder 插件（hooks + agents + .qoder-plugin/plugin.json）
+├── codex/                     # Codex 插件（.codex-plugin/plugin.json + 引导技能；agents/hook 留在项目级）
 ├── kimi-code/                 # Kimi Code hook shim
 └── dsh/                       # DSH agent 预设
 ```
@@ -134,7 +135,8 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 
 | 平台 | 读取根 / 目标目录 | 宿主原生发现 |
 |---|---|---|
-| `codex` / `opencode` / `dsh` / `kimi-code` | `.agents/skills/` | 声明为 `.agents/skills/`（assumed，未逐一本机验证） |
+| `codex` | `.agents/skills/` | `.agents/skills/`（verified：探针任务 `09-23-codex-plugin-probe` 的 `codex debug prompt-input` skill roots 表列出 `<cwd>/.agents/skills`） |
+| `opencode` / `dsh` / `kimi-code` | `.agents/skills/` | 声明为 `.agents/skills/`（assumed，未逐一本机验证） |
 | `claude-code` | `.claude/skills/` | 声明为 `.claude/skills/`（assumed） |
 | `qoder` | `.agents/skills/` | `.agents/skills/`（verified：SDK 默认开启；受信任目录 + 重启门禁） |
 | `zcode` | `.agents/skills/` | `.agents/skills/` 与 `.zcode/skills/`（verified：宿主 bundle 的 `SkillService.list` 枚举 `<workspace>/.zcode/skills`、`<workspace>/.agents/skills`，含祖先目录向上探测，同名时 `.zcode/skills` 优先；我们只交付共享的 `.agents/skills/`） |
@@ -152,6 +154,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | `source-refresh [path] [--dry-run]` | 维护者刷新 source checkout 的 ignored live runtime 与 Host Skill replica |
 | `install-zcode-plugin` | 安装 ZCode 插件到全局缓存 |
 | `install-qoder-plugin [--dry-run] [--force] [--uninstall]` | 机器级安装 cowork-flow Qoder 插件到 `~/.qoder/plugins/cache/`，注册 `installed_plugins_v2.json` 并置 `enabledPlugins` 开关 |
+| `install-codex-plugin [--dry-run] [--force] [--uninstall]` | 机器级接入 Codex：写稳定 marketplace 源到 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`，再委托 `codex plugin marketplace add` + `codex plugin add` 注册与启用（不手写 `config.toml`） |
 | `install-dsh-preset` | 安装 DSH agent 预设到 `~/.dsh/.agent-presets/cowork-flow/`（整套 agent，可选） |
 | `install-dsh-hook` | 机器级注册 workflow-state hook 组合行到 `$DSH_HOME/cordis.patch.yml`（当前 DSH 的 agent 提示不收集 host 层 section，实时注入请用预设方式） |
 | `install-kimi-hook [--dry-run] [--force] [--uninstall]` | 机器级注册 UserPromptSubmit hook 到 `$KIMI_CODE_HOME/config.toml`（默认 `~/.kimi-code/`），向每个 Kimi Code 会话实时注入工作流上下文 |
@@ -313,6 +316,29 @@ cowork-flow install-qoder-plugin --uninstall  # 卸载：只回收 cowork-flow �
 > 该注册表文件不在 Qoder 公开文档里，格式可能随版本变化。`./.cowork-flow/run doctor` 把它作为 warning 级项报告（`PLUGIN-NOT-INSTALLED` / `PLUGIN-PAYLOAD-MISSING` / `PLUGIN-PAYLOAD-INCOMPLETE` / `PLUGIN-DISABLED` / `PLUGIN-STALE`），不计入 errors；官方等价路径是 `qoder plugins install <目录>`，临时验证也可用 `--plugin-dir <目录>`。
 
 Qoder 侧的三条外部前提：hook 载荷需**重启 Qoder** 才加载（IDE 无热重载）；**未信任的工作区**不加载项目 hooks/agents/`AGENTS.md`；Desktop 的 Custom Agents 文档标注需 Business 版，因此 `.cowork-flow/run` 之外不要假设插件子代理在桌面端一定可用。`PostToolUse` 在 Qoder 不是可阻断事件，编辑期规范告警以 `additionalContext` 随 exit 0 返回。
+
+## Codex（插件形态）
+
+Codex 的插件格式只有 skills / hooks / mcp / assets 四类组件，**没有 agents**：同样一份语法错误的 agent 定义放在项目级 `.codex/agents/` 会被 `codex doctor` 报 `Ignoring malformed agent role definition`，放进插件根则零报错（探针任务 `09-23-codex-plugin-probe`，双向对照）。因此三个 fixed subagent（`.codex/agents/*.toml`）与 hook（`.codex/hooks.json`）**继续由项目级 `init` / `sync` 交付**，插件只承担引导技能。
+
+```bash
+cowork-flow install-codex-plugin              # 写 marketplace 源并委托 codex CLI 注册 / 启用
+cowork-flow install-codex-plugin --dry-run    # 预览源目录与将执行的 CLI 命令
+cowork-flow install-codex-plugin --force      # 同版本也重新注册（重物化插件缓存）
+cowork-flow install-codex-plugin --uninstall  # 卸载：remove 插件与 marketplace，再删源目录
+```
+
+安装器把载荷写进稳定 marketplace 源 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`（未设置 `CODEX_HOME` 时 `~/.codex`）：`.agents/plugins/marketplace.json` + `plugins/cowork-flow/`。**`config.toml` 始终由 codex CLI 自己写**——安装器只执行 `codex plugin marketplace add <源目录>` 与 `codex plugin add cowork-flow@cowork-flow-local`，不手拼 TOML（写坏了用户无法回退）。CLI 探测顺序：`COWORK_FLOW_CODEX` → `PATH` 上的 `codex` → `<CODEX_HOME>/plugins/.plugin-appserver/codex(.exe)`；都没找到时仍准备好源目录并打印两条手动命令。
+
+源目录被**就地引用**（`plugin list --json` 的 `marketplaceSource.source` 指向它），所以位置长期稳定；`plugin add` 把载荷整目录拷进 `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`，重复执行幂等，版本变化时重物化并清掉旧版本目录——这也是升级路径。
+
+**项目技能只走项目通道，插件只带引导技能**：`init` / `sync` 把 16 个技能写到 `.agents/skills/`，这是 Codex 枚举的项目级技能根（本机 `debug prompt-input` 的 skill roots 表实证）；插件载荷另带 `skills/cowork-flow-bootstrap/`，与 zcode / qoder 载荷逐字一致——`test/codex-plugin.test.js` 把"三家字节一致"和"载荷技能名与项目技能名零交集"固化为门禁，并断言载荷根不长出 `agents/`。
+
+Codex 侧插件检查（warning，不进 errors）：`PLUGIN-NOT-INSTALLED`（未在 `config.toml` 注册 marketplace）、`PLUGIN-PAYLOAD-MISSING`（注册的源目录里没有插件清单）、`PLUGIN-DISABLED`（缺 `[plugins."cowork-flow@cowork-flow-local"] enabled = true`）；载荷仍带与项目同名的技能副本时复用 `PLUGIN-SKILLS-LEGACY`。
+
+> doctor 只解析 `config.toml` 里 `[marketplaces.cowork-flow-local]` 与 `[plugins."cowork-flow@cowork-flow-local"]` 两个平坦段，其余内容原样不读——CI 的 Python 3.10 没有 `tomllib`，为两格引入 TOML 依赖不划算。
+
+外部前提：插件 Skills 需**新会话**才加载；`codex plugin add` 之后由 codex 自动启用（无需另设开关）。
 
 ## 任务流程
 

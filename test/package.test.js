@@ -73,6 +73,8 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('presets/qoder/hooks/hooks.json'), true);
   assert.equal(files.has('presets/qoder/hooks/inject-context.py'), true);
   assert.equal(files.has('presets/qoder/agents/cowork-implement.md'), true);
+  assert.equal(files.has('presets/codex/.codex-plugin/plugin.json'), true);
+  assert.equal(files.has('presets/codex/skills/cowork-flow-bootstrap/SKILL.md'), true);
   assert.equal(files.has('template/.claude/skills/start/SKILL.md'), false);
   assert.equal(files.has('template/.claude/skills/' + 'entry' + '-boundary/SKILL.md'), false);
   assert.equal(files.has('template/.opencode/agents/cowork-implement.md'), true);
@@ -128,7 +130,8 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.equal(packageLock.packages[''].version, packageInfo.version);
   const pluginManifests = [
     ['presets/zcode/.zcode-plugin/plugin.json', 'zcode'],
-    ['presets/qoder/.qoder-plugin/plugin.json', 'qoder']
+    ['presets/qoder/.qoder-plugin/plugin.json', 'qoder'],
+    ['presets/codex/.codex-plugin/plugin.json', 'codex']
   ];
   const releaseScript = await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8');
   for (const [relativePath, host] of pluginManifests) {
