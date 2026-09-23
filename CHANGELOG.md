@@ -1,8 +1,15 @@
 # Changelog
 
-## Unreleased
+本项目所有值得记录的变更都写在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-### 品牌 mark 与宿主图标接线
+发布流程会校验本文件已存在待发布版本段落（`scripts/release.sh` 的 `grep -q "^## \[${PACKAGE_VERSION}\] "`）：发版前先把 `## [Unreleased]` 改成 `## [<version>] - <date>` 并补上对应的版本链接。
+
+## [Unreleased]
+
+### Added
+
+#### 品牌 mark 与宿主图标接线
+
 
 - **新增唯一品牌源 `assets/icon.svg`**（24×24 网格、单色 `currentColor`、无外部引用）与从它导出的 `assets/icon.png`（512×512 透明底）。源刻意不带颜色：品牌色只写在 `presets/plugin-meta.json` 的 `brandColor`，两个派生物都从那里上色，所以图标和插件界面不可能各说各话。
 - **新增 `scripts/export-icons.mjs`（dev-only，`npm run icons:export`）**：从源重新导出 `assets/icon.png` 并同步 codex 载荷内的副本。不引入任何依赖，改用机器上已有的 Edge/Chrome 无头渲染（`COWORK_FLOW_BROWSER` 可覆盖）；找不到浏览器时以非零码退出并打印替代做法，**不静默跳过**——静默跳过会留下一个没有任何测试能发现的过期栅格。产物先写同盘临时文件再 rename 发布（`%TEMP%` 与仓库常不同盘，跨盘 rename 会 `EXDEV`；而 Chromium 的 `--screenshot` 遇到非 `.png` 后缀会「成功」但什么都不写）。
@@ -12,7 +19,62 @@
 - **门禁**（每条都做过负向验证：改坏即红）：codex 载荷副本 == 源 + `brandColor` 代换；`assets/icon.png` 解码后必须带 alpha 通道、有透明底、图形不顶到画布边缘、且占比最大的实心色恰是 `brandColor`（只断言「是个 512×512 的 PNG」挡不住用别的图替换它——测试里没有渲染器可以重新出图，所以改成解码后按内容判定）；三份清单的图标键集合 == 显式支持表（codex `{logo, brandColor}`、zcode `{}`、qoder `{}`；这条与「清单逐字节等于投影」不同源：把不支持的键写进投影再同步清单，字节相等仍然成立，只有这条会红）；zcode 条目 `icon` 为 `https://` 且等于推导值；真装后 codex 载荷内 `interface.logo` 指向的文件存在、zcode 条目写进用户机器的 `icon` 是 https。
 - 升级动作：升级 cowork-flow 后重跑 `cwf host add codex --force` / `cwf host add zcode --force` 即带上图标字段；`qoder` 无变化。本批不改任何命令行为与安装布局。
 
-### CLI 命令面改为名词分组（`cwf` 短名 + 命令注册表）
+#### 插件身份元数据单一来源（作者名订正 + 三家清单字段补齐）
+
+
+- **新增 `presets/plugin-meta.json`（唯一身份来源）与 `src/lib/plugin-metadata.js`（投影模块）**：displayName、简介/长简介、作者、homepage、repository、license、keywords、category 只写一份，投影出 codex / zcode / qoder 三份 `plugin.json` 与两家 marketplace 条目字段。此前同样的信息散落在三份清单、两个安装器与 `package.json` 里，改一处就会漂移。
+- **清单一致性由测试守，不靠生成脚本**：`test/plugin-metadata.test.js` 断言三份清单**逐字节等于**投影结果（手改清单即红）。实测：把 codex 清单的 `interface.displayName` 改成 `CoworkFlow` 会让门禁由 6 passed 变 4 passed / 2 failed，还原即绿。`scripts/release.sh` 盖章版本用 `JSON.parse` + `JSON.stringify(j, null, 2) + '\n'`，与投影序列化同形且保留键顺序，所以发布后门禁仍成立。
+- **作者名错拼订正**：作者名此前在两处被写错（`LICENSE` 与 `install-zcode-plugin` 硬编码的 marketplace 条目作者兜底），现统一为 `fishlikewater`。新增仓库级错拼门禁扫描 `git ls-files`；索引覆盖不到身份源文件时（源码导出没有自己的 `.git`，或新文件尚未 `git add`）回退到 npm 白名单遍历，避免"看起来跑过、实际什么都没扫"。实测该门禁实现中途即为红，报出这两处遗留点，修掉才转绿。
+- **codex 清单补 `interface`**（displayName / shortDescription / longDescription / developerName / category / websiteURL），marketplace 条目补 `policy: {installation: "AVAILABLE", authentication: "ON_INSTALL"}` 与 `category`，marketplace 顶层补 `interface.displayName`。策略枚举取自 codex 自身的插件编写指南，且本机重装后 `codex plugin list --json` 回读出 `installPolicy: "AVAILABLE"` / `authPolicy: "ON_INSTALL"`——是宿主接受并回写的值，不是猜的。
+- **zcode marketplace 条目补 `displayName` / `category` / `author{name,url}` / `license`**（此前只有英文 description 与错拼作者名）；qoder 清单补 `displayName` / `homepage` / `repository` / `keywords` / `author{name,email,url}`。qoder 的清单 schema 没有 `icon`/`logo` 键，不写死键——图标按各宿主真实支持的字段接（见后续批次）。
+- **`package.json` 补 `author` / `keywords` / `repository` / `bugs` / `homepage`**，与元数据源逐项相等；`LICENSE` 年份作者订正。新增 `test/plugin-metadata.test.js` 到 `test:fast`，`test/package.test.js` 断言 `presets/plugin-meta.json` 进入 npm 包内容。
+- 本批不改任何命令行为与载荷内容：`install-codex-plugin` / `install-zcode-plugin` 的输出与安装位置不变，只是清单字段改由元数据源生成。
+
+#### Codex 插件接入（只带引导技能，agents 与 hook 留在项目级）
+
+
+- **新增 `cowork-flow install-codex-plugin [--dry-run] [--force] [--uninstall]`**：把 `presets/codex/` 写进稳定 marketplace 源 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`（`.agents/plugins/marketplace.json` + `plugins/cowork-flow/`），再委托官方 CLI 执行 `codex plugin marketplace add` + `codex plugin add cowork-flow@cowork-flow-local` 完成注册与启用。**不手写 `config.toml`**：注册状态属于 codex，安装器只生成纯 JSON + 目录拷贝的源；CLI 探测顺序 `COWORK_FLOW_CODEX` → `PATH` → `<CODEX_HOME>/plugins/.plugin-appserver/codex(.exe)`，都没找到时仍备好源目录并打印两条手动命令；npm 全局安装的 `codex.cmd` 走 shell 调用时按 token 加引号（用户目录含空格也可用），真实可执行文件不走 shell。已注册的 marketplace 根与安装器计算值比较时做路径归一化（剥 `\\?\` 前缀、大小写不敏感）——codex 会回写自己规范化的拼写，原始字符串比较会让每次重跑都误报冲突。`--uninstall` 走 `plugin remove` + `marketplace remove`（未注册时该命令返回 1，按幂等卸载容忍）再删源目录。
+- **agents 不可插件化（运行时实证）**：探针任务 `09-23-codex-plugin-probe` 用双向坏文件对照证明 Codex 不解析插件根 `agents/`——同一份未闭合 TOML 放项目级 `.codex/agents/` 被 `codex doctor --json` 报 `Ignoring malformed agent role definition`，放插件根则零报错；辅证是官方文档布局与概念页的组件清单均无 agents、官方插件实例无 `agents/` 目录、官方脚手架 `create_basic_plugin.py` 无 `--with-agents`。因此三个 fixed subagent 与 hook 保持项目级交付，插件只带技能。
+- **载荷**：`presets/codex/.codex-plugin/plugin.json`（`"skills": "./skills/"`）+ `presets/codex/skills/cowork-flow-bootstrap/SKILL.md`，与 zcode / qoder 载荷字节一致（三家 sha256 相同）。`scripts/release.sh` 的 `PLUGIN_MANIFEST_FILES` 加入 codex 清单，`test/package.test.js` 的宿主清单表同步覆盖版本同步与发布脚本覆盖。
+- **doctor 新增 `check_codex_plugin`**：`PLUGIN-NOT-INSTALLED`（项目声明 codex 宿主但 `config.toml` 没有 cowork-flow marketplace）、`PLUGIN-PAYLOAD-MISSING`（注册的源目录缺 `.codex-plugin/plugin.json`）、`PLUGIN-DISABLED`（缺 `[plugins."cowork-flow@cowork-flow-local"] enabled = true`），全部 warning 不进 errors；`_machine_plugin_payload` 增加 codex 分支，载荷仍带与项目同名技能副本时复用 `PLUGIN-SKILLS-LEGACY`。
+- **受限 TOML 解析**：`_codex_config_sections` 只读 `[marketplaces.cowork-flow-local]` 与 `[plugins."cowork-flow@cowork-flow-local"]` 两个平坦段（引号可选、其余 section 与键一律不读）。CI 的 Python 下限是 3.10（`.github/workflows/ci.yml`），没有 `tomllib`，为两格声明引入 TOML 依赖不划算；这是本任务 plan 的 Deviation Condition 分支，已记录在任务 decision-anchor。
+- **声明订正**：`host-assets.json` 里 codex 的 `skillDiscovery` 证据由 `assumed:` 升为 `verified:`（探针任务的 `codex debug prompt-input` skill roots 表列出 `<cwd>/.agents/skills`）；`tests/test_host_skills_gate.py` 的 `ASSUMED_DISCOVERY` 门禁同步移除 codex 条目，README 技能分发表随之拆分。
+- **幂等性实测**（决定安装器策略）：`marketplace add` 重复执行返回 0（"already added"）；`plugin add` 重复执行返回 0；源目录版本从 0.0.1 升到 0.0.2 后再次 `plugin add` 会物化新版本并删除旧版本目录（`ls` 只剩 `0.0.2`）；`plugin list --json -m <未注册的 marketplace>` 返回空列表且退出码 0。安装器据此按"注册状态 + 已装版本"决定是否重跑 add。
+- 升级动作：`cowork-flow install-codex-plugin` 一次即完成接入；升级 cowork-flow 后重跑同一命令（版本变化会自动重物化），要强制刷新加 `--force`。
+
+#### 插件携带 bootstrap 引导技能（zcode / qoder）
+
+
+- **两家插件载荷各带一个新名技能**：`presets/{zcode,qoder}/skills/cowork-flow-bootstrap/SKILL.md`，两份 `plugin.json` 声明 `"skills": "skills"`。该技能只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow init`，检测到项目 runtime 时退让给项目级 `cowork-flow` 技能；它不带 `manifest.json`，不进入 runtime 的 action / command / context 路由，也不参与技能副本 parity。项目级 16 个技能的交付、`skillReadRoot`、init 分发与 fixed subagent 的技能路径全部不变。
+- **载荷技能名必须与项目技能名零交集**：ZCode 与 Qoder 都按技能文件 realpath 去重、不按技能名，同名副本会双份进入技能列表；两家插件测试新增门禁——遍历载荷技能目录名逐个断言 `template/skills/<name>` 不存在（负向验证：把项目技能塞回载荷即红）。
+- **doctor 语义收窄**：`PLUGIN-SKILLS-LEGACY` 从"载荷有 `skills/` 即告警"改为"载荷含**与项目同名**的技能副本才告警"，消息列出副本名；只带 bootstrap 的载荷静默（新增用例覆盖）。`SKILL-READROOT-MISSING` / `SKILL-DISCOVERY-GATED` 不变。
+- **qoder 清单字段实证**：Qoder 0.3.4 的 `@qoder-ai/qoder-agent-sdk` worker bundle 里，插件清单 schema 声明 `skills` 字段（`qoder-worker-runtime.obf.mjs` 的 `nza` shape，类型为路径或路径数组），组件发现另有 `skills/` 目录约定；ZCode 3.14.3 的 `SkillService.list` 同样支持"manifest 声明或 `<pluginRoot>/skills` 回退"。
+- 升级动作：重跑 `cowork-flow install-zcode-plugin --force` / `install-qoder-plugin --force` 即带上引导技能。
+
+#### Qoder 宿主适配（插件形态）
+
+
+- 新增平台 `qoder`：`host-assets.json` 平台条目 + `capabilityMatrix` 行 + `.cowork-flow/adapters/qoder/adapter.yaml`，宿主身份在 `runtime/host_identity.py` 登记一行（prefix `qoder`、adapter `qoder.hooks`、`QODER_SESSION_ID`）。注入信封与 claude-code 同形，因此 `inject.py::_emit` 与 `HostPolicy` 零改动。
+- `adapters/host/qoder_policy.py`：Qoder 的 `PostToolUse` 不是可阻断事件，编辑期告警改走 exit 0 + `additionalContext`（claude-code/codex 用 stderr + exit 2）。
+- 宿主资产以 Qoder 插件交付：`presets/qoder/`（`.qoder-plugin/plugin.json` + `hooks/hooks.json` + `hooks/inject-context.py` shim + 三个 fixed agent）。`.qoder/` 进入 `excludedPrefixes`，`init`/`sync` 不向项目写任何 Qoder 文件；平台检测改用 `.cowork-flow/adapters/qoder`。shim 按载荷 `cwd` 定位项目根后调用**项目自己的** `.cowork-flow/run`，不在插件缓存里留第二份注入逻辑。
+- 新命令 `cowork-flow install-qoder-plugin [--dry-run] [--force] [--uninstall]`：写插件缓存载荷（含安装时拷入的 `skills/` 与戳好的 manifest 版本）、幂等 upsert `plugins/installed_plugins_v2.json`、置 `settings.json` 的 `enabledPlugins`；未知键与他人条目一律保留。
+- doctor 新增 `check_qoder_plugin`（warning 级，五态诊断）；契约同步 `context-injection.md` 传输表、`spec-checks.md` 宿主矩阵（编辑期快跑六家）、`fact-layer-access.md` 注册表；README 增补「Qoder（插件形态）」小节与两频次边界。
+- `scripts/release.sh` 的插件清单戳版本从「zcode 单文件 if」改为遍历所有随包清单（zcode + qoder）并逐个加入 `git add`；`test/package.test.js` 断言每份清单版本等于包版本、且其路径出现在发布脚本里，防止新宿主清单在发布后与包版本漂移。
+- 能力声明按未实测项保持诚实：`stateInjection=plugin`、`runtimeContextBinding=shim`、`sendFollowup/listChildren/cancelChild=shim`、`editScopeWarning=unsupported`；Desktop/IDE 侧支持在文档标 unknown。
+
+### Changed
+
+#### 文档面重构（README 用户向重写 + 恢复 `docs/` + Keep a Changelog）
+
+- **README 547 → 196 行**：删掉两份重复命令清单中的一份（原 `## 常用命令` 的独有命令并入 `## CLI 命令` 之后），八个宿主的机器级安装细节、仓库结构与运行时分层、发布流程改为一行链接。新增 `docs/`（`index.md` / `architecture.md` / `hosts.md` / `release.md`）并**随 npm 发布**——README 是 npm 上的首页，不随包发布会让其中 5 个相对链接在 registry 页面上 404。宿主图标契约（codex `interface.logo` / `brandColor`、zcode marketplace `icon` 必须绝对 https、qoder 无图标键）落在 `docs/hosts.md`，未新增 spec 契约文件：spec 树是 workflow runtime 契约层，没有运行时读者消费插件打包元数据。
+- **新增 `CONTRIBUTING.md`**（环境要求、测试分层、改宿主适配要动的 7 个位置与 4 条硬约束、提交信息惯例、PR 前置检查），同样随 npm 发布。
+- **CHANGELOG 改为 Keep a Changelog**：标题改为 `## [Unreleased]` / `## [x.y.z] - <date>`，`[Unreleased]` 按 Added/Changed/Fixed/Removed 归类（原 12 个批次小节降为 `#### ` 保留原名与全部条目），尾部补 18 条版本链接，文件以换行结尾（此前结尾无换行）。**历史段正文未动**，只改标题格式并补链接。标题格式有三处耦合，本批同批更新：`scripts/release.sh` 的 `grep -q "^## \[${PACKAGE_VERSION}\] "`、`test/package.test.js` 的版本段断言、`test/release.test.js` 假仓库的 CHANGELOG 内容——现在断言从 `release.sh` 里抽出 grep 模式再喂给真 CHANGELOG，只有一边加方括号会让门禁匹配不到却仍 exit 0。
+- **新增门禁 `test/docs.test.js`**（进 `test:fast`）：文档相对链接可解析（含 reference 定义与带 title 的链接）、`docs/**` 每份都被 `docs/index.md` 链接、README 不含已迁出章节的残留标题（按标题文本比对，忽略层级）、npm 发布集合覆盖 README 的全部根级文档链接、CHANGELOG 的 Keep a Changelog 结构（方括号标题 + 日期 + 每版本有链接定义 + Unreleased 分类合法 + 单尾换行）。`test/cli-registry.test.js` 的「已退休命令名」扫描与 `test/plugin-metadata.test.js` 的错拼扫描各自把 `docs` 纳入扫描面（后者另加 `CONTRIBUTING.md`）——两者都已成为随包发布的文档面。
+- **事实不丢的核对方式**（可复现）：从 `git show HEAD:README.md` 抽 6 类 token——`./.cowork-flow/run <子命令>`、宿主 id、仓库路径、环境变量、doctor 告警码、`npm run <script>`——逐项断言存在于新 README + `docs/**` + `CONTRIBUTING.md`，六类 missing 全为 0；`[Unreleased]` 的 75 条条目按行集合比对完全相等。搬迁中修掉一处写错的分层事实（`services/`/`runtime/`/`infra/` 属于 `template/.cowork-flow/scripts/`，`src/` 只有 `commands/` 与 `lib/`）。
+- 升级动作：无需动作。命令行为、命令名、安装布局、宿主清单字段与 workflow 内核语义均未改动，`dependencies` / `devDependencies` 仍为空。
+
+#### CLI 命令面改为名词分组（`cwf` 短名 + 命令注册表）
+
 
 - **11 个平铺命令收进 5 个名词组**：`project init` / `project sync`、`host add` / `host remove` / `host list`、`self update`、`dev refresh`、`mcp serve`。主二进制新增 `cwf`，与 `cowork-flow` 是同一入口（`package.json` 的 `bin` 两键同值）。帮助文本由 `src/commands/registry.js` 的命令注册表生成，`src/cli.js` 只剩解析与派发——此前帮助常量与 `if (command === ...)` 链是第二份事实源，已经漂移（帮助里写死 3 个平台，实际 7 个）。
 - **旧名全部保留，分两类**：`init` / `sync` / `mcp-state` 是**永久别名**（`mcp-state` 已写进大量 MCP 客户端配置，仓库外固化，硬改名会让已注册客户端静默失联）；其余 8 个是 **shim**，stdout 不变，只在 stderr 多一行迁移提示，两个 minor 版本后移除。shim 只做 argv 前缀重写（`install-dsh-hook` → `host add dsh --component hook`），不做参数改写之外的事。
@@ -24,7 +86,8 @@
 - **全仓命令名同步**：doctor 的 20 余条 `commandHint`、README 命令表与各宿主小节、`spec/contracts/fact-layer-access.md` 的 MCP 注册矩阵、`presets/dsh/agent.cordis.yml` 注释、三份 bootstrap 技能正文（保持逐字节一致）、`template/.dsh/README.md`、npm scripts（`source:refresh` 改用 `dev refresh`）。`npx cowork-flow <子命令>` 保留包名形式：`npx cwf` 会被 npx 当成另一个包名。
 - **不改的东西**：工作流内核语义与门禁、技能正文的协作规则、`./.cowork-flow/run mcp-state`（项目级 runner 的键，与 npm CLI 命名空间无关）、两个托管块标记串、各命令的业务行为（目录布局、幂等策略、`--dry-run` 输出行）。
 
-### 宿主载荷声明与适配统一
+#### 宿主载荷声明与适配统一
+
 
 - **`host-assets.json` 新增 `payload` 描述符**：每个平台条目声明"这个宿主有没有机器级插件载荷、载荷在包内哪里、清单叫什么"（codex / zcode / qoder 为 `{source, manifest}`，其余四家为 `null`）。此前这些事实只散落在三个安装器与 doctor 里，新增宿主要动哪些地方只能通读代码。描述符**不放机器级安装路径**（`$ZCODE_HOME/...`、注册表名、marker 名）：这个文件随 init 交付进项目，项目侧解析不了 npm 包与用户 home 的布局。schema、JS `PLATFORM_KEYS`、Python `PLATFORM_KEYS` 三处校验面与全部 fixture 同步；既有的"字段一致性门禁"先红后绿，确认新字段被覆盖。
 - **`payload` 必填键的两侧语义对齐**：显式 `null` 的 `manifest` 在 JS 与 Python 都按"非法值"拒绝（只有缺键才表示"无 manifest"）——否则一份清单会被 doctor 判合法、却让所有 JS 命令在导入期崩溃。
@@ -35,60 +98,8 @@
 - **文档与残留**：`spec/runtime/index.md` 的 `host-assets.json` 职责补上 `payload` 声明；`spec/contracts/index.md` 补齐 4 份现存合同（`context-injection` / `decision-anchor` / `error-output-as-data` / `fact-layer-access`）；`config.yaml` 的 hook 示例不再指向并不存在的 `scripts/on_task_event.py`，改为注明"用你自己的脚本路径"；`obsoleteFiles` 去重（123 → 121）；删除零引用的一次性样本 `test-rules-demo/` 与空目录 `data/`；README 的 Host 分发表补上漏掉的 Qoder。
 - 升级动作：升级 cowork-flow 后重跑 `install-<host>-plugin --force` 即让已装载荷带上盖章版本；本批不改任何命令名、安装布局与退出码。
 
-### 插件身份元数据单一来源（作者名订正 + 三家清单字段补齐）
+#### 技能声明模型（readRoot + discovery）与防复发门禁
 
-- **新增 `presets/plugin-meta.json`（唯一身份来源）与 `src/lib/plugin-metadata.js`（投影模块）**：displayName、简介/长简介、作者、homepage、repository、license、keywords、category 只写一份，投影出 codex / zcode / qoder 三份 `plugin.json` 与两家 marketplace 条目字段。此前同样的信息散落在三份清单、两个安装器与 `package.json` 里，改一处就会漂移。
-- **清单一致性由测试守，不靠生成脚本**：`test/plugin-metadata.test.js` 断言三份清单**逐字节等于**投影结果（手改清单即红）。实测：把 codex 清单的 `interface.displayName` 改成 `CoworkFlow` 会让门禁由 6 passed 变 4 passed / 2 failed，还原即绿。`scripts/release.sh` 盖章版本用 `JSON.parse` + `JSON.stringify(j, null, 2) + '\n'`，与投影序列化同形且保留键顺序，所以发布后门禁仍成立。
-- **作者名错拼订正**：作者名此前在两处被写错（`LICENSE` 与 `install-zcode-plugin` 硬编码的 marketplace 条目作者兜底），现统一为 `fishlikewater`。新增仓库级错拼门禁扫描 `git ls-files`；索引覆盖不到身份源文件时（源码导出没有自己的 `.git`，或新文件尚未 `git add`）回退到 npm 白名单遍历，避免"看起来跑过、实际什么都没扫"。实测该门禁实现中途即为红，报出这两处遗留点，修掉才转绿。
-- **codex 清单补 `interface`**（displayName / shortDescription / longDescription / developerName / category / websiteURL），marketplace 条目补 `policy: {installation: "AVAILABLE", authentication: "ON_INSTALL"}` 与 `category`，marketplace 顶层补 `interface.displayName`。策略枚举取自 codex 自身的插件编写指南，且本机重装后 `codex plugin list --json` 回读出 `installPolicy: "AVAILABLE"` / `authPolicy: "ON_INSTALL"`——是宿主接受并回写的值，不是猜的。
-- **zcode marketplace 条目补 `displayName` / `category` / `author{name,url}` / `license`**（此前只有英文 description 与错拼作者名）；qoder 清单补 `displayName` / `homepage` / `repository` / `keywords` / `author{name,email,url}`。qoder 的清单 schema 没有 `icon`/`logo` 键，不写死键——图标按各宿主真实支持的字段接（见后续批次）。
-- **`package.json` 补 `author` / `keywords` / `repository` / `bugs` / `homepage`**，与元数据源逐项相等；`LICENSE` 年份作者订正。新增 `test/plugin-metadata.test.js` 到 `test:fast`，`test/package.test.js` 断言 `presets/plugin-meta.json` 进入 npm 包内容。
-- 本批不改任何命令行为与载荷内容：`install-codex-plugin` / `install-zcode-plugin` 的输出与安装位置不变，只是清单字段改由元数据源生成。
-
-### Codex 插件接入（只带引导技能，agents 与 hook 留在项目级）
-
-- **新增 `cowork-flow install-codex-plugin [--dry-run] [--force] [--uninstall]`**：把 `presets/codex/` 写进稳定 marketplace 源 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`（`.agents/plugins/marketplace.json` + `plugins/cowork-flow/`），再委托官方 CLI 执行 `codex plugin marketplace add` + `codex plugin add cowork-flow@cowork-flow-local` 完成注册与启用。**不手写 `config.toml`**：注册状态属于 codex，安装器只生成纯 JSON + 目录拷贝的源；CLI 探测顺序 `COWORK_FLOW_CODEX` → `PATH` → `<CODEX_HOME>/plugins/.plugin-appserver/codex(.exe)`，都没找到时仍备好源目录并打印两条手动命令；npm 全局安装的 `codex.cmd` 走 shell 调用时按 token 加引号（用户目录含空格也可用），真实可执行文件不走 shell。已注册的 marketplace 根与安装器计算值比较时做路径归一化（剥 `\\?\` 前缀、大小写不敏感）——codex 会回写自己规范化的拼写，原始字符串比较会让每次重跑都误报冲突。`--uninstall` 走 `plugin remove` + `marketplace remove`（未注册时该命令返回 1，按幂等卸载容忍）再删源目录。
-- **agents 不可插件化（运行时实证）**：探针任务 `09-23-codex-plugin-probe` 用双向坏文件对照证明 Codex 不解析插件根 `agents/`——同一份未闭合 TOML 放项目级 `.codex/agents/` 被 `codex doctor --json` 报 `Ignoring malformed agent role definition`，放插件根则零报错；辅证是官方文档布局与概念页的组件清单均无 agents、官方插件实例无 `agents/` 目录、官方脚手架 `create_basic_plugin.py` 无 `--with-agents`。因此三个 fixed subagent 与 hook 保持项目级交付，插件只带技能。
-- **载荷**：`presets/codex/.codex-plugin/plugin.json`（`"skills": "./skills/"`）+ `presets/codex/skills/cowork-flow-bootstrap/SKILL.md`，与 zcode / qoder 载荷字节一致（三家 sha256 相同）。`scripts/release.sh` 的 `PLUGIN_MANIFEST_FILES` 加入 codex 清单，`test/package.test.js` 的宿主清单表同步覆盖版本同步与发布脚本覆盖。
-- **doctor 新增 `check_codex_plugin`**：`PLUGIN-NOT-INSTALLED`（项目声明 codex 宿主但 `config.toml` 没有 cowork-flow marketplace）、`PLUGIN-PAYLOAD-MISSING`（注册的源目录缺 `.codex-plugin/plugin.json`）、`PLUGIN-DISABLED`（缺 `[plugins."cowork-flow@cowork-flow-local"] enabled = true`），全部 warning 不进 errors；`_machine_plugin_payload` 增加 codex 分支，载荷仍带与项目同名技能副本时复用 `PLUGIN-SKILLS-LEGACY`。
-- **受限 TOML 解析**：`_codex_config_sections` 只读 `[marketplaces.cowork-flow-local]` 与 `[plugins."cowork-flow@cowork-flow-local"]` 两个平坦段（引号可选、其余 section 与键一律不读）。CI 的 Python 下限是 3.10（`.github/workflows/ci.yml`），没有 `tomllib`，为两格声明引入 TOML 依赖不划算；这是本任务 plan 的 Deviation Condition 分支，已记录在任务 decision-anchor。
-- **声明订正**：`host-assets.json` 里 codex 的 `skillDiscovery` 证据由 `assumed:` 升为 `verified:`（探针任务的 `codex debug prompt-input` skill roots 表列出 `<cwd>/.agents/skills`）；`tests/test_host_skills_gate.py` 的 `ASSUMED_DISCOVERY` 门禁同步移除 codex 条目，README 技能分发表随之拆分。
-- **幂等性实测**（决定安装器策略）：`marketplace add` 重复执行返回 0（"already added"）；`plugin add` 重复执行返回 0；源目录版本从 0.0.1 升到 0.0.2 后再次 `plugin add` 会物化新版本并删除旧版本目录（`ls` 只剩 `0.0.2`）；`plugin list --json -m <未注册的 marketplace>` 返回空列表且退出码 0。安装器据此按"注册状态 + 已装版本"决定是否重跑 add。
-- 升级动作：`cowork-flow install-codex-plugin` 一次即完成接入；升级 cowork-flow 后重跑同一命令（版本变化会自动重物化），要强制刷新加 `--force`。
-
-### 插件携带 bootstrap 引导技能（zcode / qoder）
-
-- **两家插件载荷各带一个新名技能**：`presets/{zcode,qoder}/skills/cowork-flow-bootstrap/SKILL.md`，两份 `plugin.json` 声明 `"skills": "skills"`。该技能只在仓库没有 `.cowork-flow/` 时引导 `npx cowork-flow init`，检测到项目 runtime 时退让给项目级 `cowork-flow` 技能；它不带 `manifest.json`，不进入 runtime 的 action / command / context 路由，也不参与技能副本 parity。项目级 16 个技能的交付、`skillReadRoot`、init 分发与 fixed subagent 的技能路径全部不变。
-- **载荷技能名必须与项目技能名零交集**：ZCode 与 Qoder 都按技能文件 realpath 去重、不按技能名，同名副本会双份进入技能列表；两家插件测试新增门禁——遍历载荷技能目录名逐个断言 `template/skills/<name>` 不存在（负向验证：把项目技能塞回载荷即红）。
-- **doctor 语义收窄**：`PLUGIN-SKILLS-LEGACY` 从"载荷有 `skills/` 即告警"改为"载荷含**与项目同名**的技能副本才告警"，消息列出副本名；只带 bootstrap 的载荷静默（新增用例覆盖）。`SKILL-READROOT-MISSING` / `SKILL-DISCOVERY-GATED` 不变。
-- **qoder 清单字段实证**：Qoder 0.3.4 的 `@qoder-ai/qoder-agent-sdk` worker bundle 里，插件清单 schema 声明 `skills` 字段（`qoder-worker-runtime.obf.mjs` 的 `nza` shape，类型为路径或路径数组），组件发现另有 `skills/` 目录约定；ZCode 3.14.3 的 `SkillService.list` 同样支持"manifest 声明或 `<pluginRoot>/skills` 回退"。
-- 升级动作：重跑 `cowork-flow install-zcode-plugin --force` / `install-qoder-plugin --force` 即带上引导技能。
-
-### 交付树字节码隔离（测试与技能命令不再写 __pycache__）
-
-- 交付树（`template/**`、`presets/**`）此前持续被 Python 字节码污染，累积了 16 个 `__pycache__` 目录 / 90 个 `.pyc`。两条来源：`python -m pytest`（本地直跑与 CI 的 Python 段）无任何防护；技能命令（如 `doctor`）在源 checkout 里解析到 `template/.cowork-flow/scripts` 并 import 它。`scripts/template-test-runner.js` 的 `PYTHONDONTWRITEBYTECODE` 只覆盖 npm 入口。
-- 测试侧：`tests/__init__.py`（pytest 与 unittest 都会先导入的包）把字节码前缀指到 gitignored 的 `.tmp/pycache`——本进程设 `sys.pycache_prefix`，并通过 `PYTHONPYCACHEPREFIX` 传给子进程；Node 测试由 `test/helpers/bytecode-isolation.js` 做同一件事（进程级环境变量，覆盖它 spawn 的 hook/python 子进程）。只设解释器内变量不够：子进程不继承，实测交付树仍被写入 89 项。
-- 运行时侧：技能脚本子进程统一关掉字节码写入——`runtime_pythonpath_env(cache_bytecode=False)` 由 `run.py` 的 `run_skill_script` 与批处理入口 `batch_mode.py` 共用（两条 spawn 路径由独立检查各发现一次）。技能命令是低频入口，缓存收益可忽略（实测 `doctor` 冷/热启动差约 90ms），而它留下的 `__pycache__` 会落在技能脚本解析到的 runtime——源 checkout 里就是交付树。高频命令（`task`、`spec-check`、`mcp-state`）仍走默认分支，缓存行为不变。
-- 门禁：`tests/test_no_legacy_template_paths.py` 新增断言，`template/`、`presets/` 下出现 `__pycache__` 或 `*.pyc` 即失败（负向验证：放回一个 `.pyc` 变红）；现存污染已清理。
-- README「仓库结构」补仓库自身布局，以及 `node --test` 收集 `test/**` 全部 `.js`（含辅助模块）、Python 侧按 pytest `test_*.py` / unittest `test*.py` 收集的目录约定。
-
-### 技能单一来源：移除全部机器级技能副本
-
-- **三处载荷不再交付技能**：`install-zcode-plugin` / `install-qoder-plugin` / `install-dsh-preset` 删除把 `template/skills` 拷进载荷的路径（含 dry-run 输出行与存在性检查），两份 `plugin.json` 去掉 `skills` 组件，dsh 的 `agent.cordis.yml` 移除 `skill-filesystem` 的 `customSkillDirs`（组件行保留——它提供按 rank 的工作区发现：`<projectRoot>/.dsh/skills` 100、`<projectRoot>/.agents/skills` 200、用户根 400/500，依据 `@deepseek-ai/dsh-skill-filesystem` 的默认根表），`preset.yml` 描述同步订正。技能自此只由项目级 `init` / `sync` 交付。
-- **动机（实测）**：ZCode 按技能文件 realpath 去重、**不按技能名**，项目 `.agents/skills` 与插件载荷 `skills/` 的同名技能会并列进入技能列表，并在 `buildPromptContext` 按名激活时**双份注入正文**；dsh 的技能注册表则按名与 scope 分层遮蔽（"最近层直接赢得重名"、"项目提供方可覆盖运行时技能"），preset 副本只作未 init 项目的兜底。技能与项目 runtime 强耦合（16 个技能中 12 个正文引用 `./.cowork-flow/run ...` / `COWORK_FLOW_*` / `.cowork-flow/spec`），故机器级不能承担权威来源。
-- **machine discovery 语义收口**：zcode 的 `plugin:skills` 条目删除后该语义零消费者，按"不留死代码"纪律一并删除——schema 的 `skillDiscoveryEntry` 收敛为"仓库内路径 + 必填 `path`"，Python / JS 校验面同步去掉 `channel` 与 machine 分支，坏声明负向用例覆盖 machine scope 与 `channel` 字段（均被拒）。
-- **doctor 迁移提示**：`check_skill_delivery` 的 `PLUGIN-SKILLS-STALE`（版本偏斜）改为 `PLUGIN-SKILLS-LEGACY`——检测到载荷仍带 `skills/` 即提示 `cowork-flow install-<host>-plugin --force`（重装先 `rm -rf` 再拷，顺带清理），不再比较版本；`SKILL-READROOT-MISSING` 与 `SKILL-DISCOVERY-GATED` 语义不变。
-- **升级动作**：已装旧插件的机器重跑 `cowork-flow install-zcode-plugin --force` / `install-qoder-plugin --force` 即清掉载荷里的技能副本（doctor 以 `PLUGIN-SKILLS-LEGACY` 报出时按提示执行）；dsh 预设不随 npm / `sync` 更新，且预设版本标记相同时 doctor 不会告警，请直接重跑 `cowork-flow install-dsh-preset --force`。
-- 已知代价（有意接受）：未 `init` 的项目不再有任何 cowork-flow 技能（后由插件引导技能 `cowork-flow-bootstrap` 部分补上，见本文件 Unreleased 顶部条目）；qoder 在未受信任目录中看不到技能（其发现门禁未变）。
-
-### 宿主声明基址统一、技能候选根派生与 zcode 技能根订正
-
-- **适配器路径声明**：`adapter.yaml` 的 `dispatch.*Path` 统一为"项目相对 + 存在性守卫"——删除 qoder 的 `presets/qoder/*`（包内相对，且 `skillsPath`/`commandsPath` 指向包内不存在的目录）、zcode 的 `.zcode/agents` 与 `.zcode/.zcode-plugin/plugin.json`（项目与包内都不存在），以及与 `host-assets.json` 的 `skillReadRoot` 重复的 `skillsPath`（claude-code / dsh / kimi-code）。新增守卫测试逐项断言 `template/<path>` 存在、拒绝 `presets/` 前缀与 `skillsPath` 键（负向验证：塞回旧值即红）。
-- **技能候选根**：`skill_roots()` / `_replica_precedence()` 的宿主副本根改由 manifest 的 `skillReadRoot` 按平台顺序去重派生，新增宿主 readRoot 自动纳入（合成 manifest 用例证明）；manifest 不可读时回退旧字面量；对当前 manifest 的派生顺序与旧行为逐项相等（测试钉住）。
-- **zcode 技能根订正**：ZCode 3.14.3 宿主 bundle（`app.asar` 的 `out/host/index.js`）实证 `SkillService.list` 枚举 `<workspace>/.zcode/skills` 与 `<workspace>/.agents/skills`（含祖先目录向上探测）、用户级 `~/.zcode/skills` 与 `~/.agents/skills`（仅桌面运行时）、插件载荷的 `skills` 组件（manifest 声明或 `<pluginRoot>/skills` 回退），且整个 bundle 内 `.cowork-flow` 0 命中——原 readRoot `.cowork-flow/skills` 属"声明已交付、宿主不可见"。readRoot 改为共享的 `.agents/skills`，discovery 补 project 通道（`.zcode/skills` 的同名优先与"我们不交付"记入证据），三个 fixed subagent 正文同步改址；`assetPrefixes` 去掉 `.cowork-flow/skills/`，`obsoleteFiles` 增加 16 条迁移项（旧项目 `sync` 时清理，实测删除且保留非 cowork-flow 目录）。
-- 门禁与分发：`tests/test_host_skills_gate.py` 删除 zcode 的 machine-scope 白名单例外（每个宿主的正文都必须指向自己的 readRoot）；`--platform zcode` 产出 `.agents/skills`（16 技能）且不再产出 `.cowork-flow/skills`；source checkout 的 live replica 由 3 份降为 2 份。
-
-### 技能声明模型（readRoot + discovery）与防复发门禁
 
 - `host-assets.json` 的平台条目把含混的 `skillTarget` 拆成 `skillReadRoot`（我们读取的仓库内路径）与 `skillDiscovery[]`（宿主原生发现通道，带 `scope` / `gates` / `evidence`）。JSON schema、Python 与 JS 三个校验面同步，缺证据、scope 非法、project 条目与 `skillReadRoot` 不一致、machine 条目缺 `channel`、空 `skillDiscovery` 一律被拒。
 - **qoder 修正**：`skillReadRoot` 从 `.cowork-flow/skills` 改为 `.agents/skills`——后者才是 Qoder 自己扫描的路径（`SkillCommandHandler.enumerate` 第 6 项，`loadFromAgentsDirectory` 默认 `true`；本机 `~/.agents/skills` 的技能在会话中可见可证）。因此读取与发现同址、项目里只有一份副本，三个 fixed subagent 的技能路径同步改址。旧值在宿主 SDK 里 0 命中，属于"声明看起来已交付、宿主侧零发现"。
@@ -97,23 +108,45 @@
 - 防复发：`tests/test_host_skills_gate.py` 断言每个宿主 fixed subagent 正文的技能路径必须落在该宿主 `skillReadRoot` 下，并逐项登记 `assumed:` 声明；`tests/test_host_asset_manifest.py` 新增 schema/校验器/数据三面键集一致断言与六个坏声明用例。
 - doctor 新增 `check_skill_delivery`（warning 级，不进 errors）：`SKILL-READROOT-MISSING`（选中平台声明的读取根不在项目里）、`PLUGIN-SKILLS-STALE`（机器级插件载荷的 `skills/` 副本版本与项目 `.cowork-flow/.version` 偏斜；有专属插件检查的宿主如 qoder 由 `PLUGIN-STALE` 承担，不重复报）、`SKILL-DISCOVERY-GATED`（发现通道带宿主侧门禁，如 qoder 的信任目录 / 重启提醒）。
 
-### 宿主插件载荷落点统一（zcode 迁出模板树）
+#### 宿主插件载荷落点统一（zcode 迁出模板树）
+
 
 - `template/.zcode/` → `presets/zcode/`：机器级插件载荷统一落在 `presets/<host>/`（dsh、kimi-code hook、qoder 已在此），`template/` 只保留会落盘到生成项目的资产。`template/.zcode/` 本就进 `excludedPrefixes`、不进任何生成项目，搬移后 `package.json` 的 `files` 少一条冗余项，release 脚本的两份清单同址。
 - 安装等价性实测：搬迁前后各在隔离 `ZCODE_HOME` 执行 `install-zcode-plugin --force`，产物树 226 条 `sha256` 指纹逐行相等（仅 `known_marketplaces.json` 的 `addedAt`/`lastUpdated` 墙钟字段掩码）；1 字节负向对照可被检出。
 - 计划外引用面修正：Python 测试用 `ROOT / "template" / ".zcode"` 拼接、README 结构图写作裸 `.zcode/`，字符串 grep 均不可见。前者改为指向真实载荷并升级为可失败的守卫（`presets/zcode` 下出现 `AGENTS.md`/`CLAUDE.md`/`.cowork-flow`/`scaffold` 即红，已负向验证），后者删除并补上此前缺失的 `presets/` 目录树。
 
-### Qoder 宿主适配（插件形态）
+### Fixed
 
-- 新增平台 `qoder`：`host-assets.json` 平台条目 + `capabilityMatrix` 行 + `.cowork-flow/adapters/qoder/adapter.yaml`，宿主身份在 `runtime/host_identity.py` 登记一行（prefix `qoder`、adapter `qoder.hooks`、`QODER_SESSION_ID`）。注入信封与 claude-code 同形，因此 `inject.py::_emit` 与 `HostPolicy` 零改动。
-- `adapters/host/qoder_policy.py`：Qoder 的 `PostToolUse` 不是可阻断事件，编辑期告警改走 exit 0 + `additionalContext`（claude-code/codex 用 stderr + exit 2）。
-- 宿主资产以 Qoder 插件交付：`presets/qoder/`（`.qoder-plugin/plugin.json` + `hooks/hooks.json` + `hooks/inject-context.py` shim + 三个 fixed agent）。`.qoder/` 进入 `excludedPrefixes`，`init`/`sync` 不向项目写任何 Qoder 文件；平台检测改用 `.cowork-flow/adapters/qoder`。shim 按载荷 `cwd` 定位项目根后调用**项目自己的** `.cowork-flow/run`，不在插件缓存里留第二份注入逻辑。
-- 新命令 `cowork-flow install-qoder-plugin [--dry-run] [--force] [--uninstall]`：写插件缓存载荷（含安装时拷入的 `skills/` 与戳好的 manifest 版本）、幂等 upsert `plugins/installed_plugins_v2.json`、置 `settings.json` 的 `enabledPlugins`；未知键与他人条目一律保留。
-- doctor 新增 `check_qoder_plugin`（warning 级，五态诊断）；契约同步 `context-injection.md` 传输表、`spec-checks.md` 宿主矩阵（编辑期快跑六家）、`fact-layer-access.md` 注册表；README 增补「Qoder（插件形态）」小节与两频次边界。
-- `scripts/release.sh` 的插件清单戳版本从「zcode 单文件 if」改为遍历所有随包清单（zcode + qoder）并逐个加入 `git add`；`test/package.test.js` 断言每份清单版本等于包版本、且其路径出现在发布脚本里，防止新宿主清单在发布后与包版本漂移。
-- 能力声明按未实测项保持诚实：`stateInjection=plugin`、`runtimeContextBinding=shim`、`sendFollowup/listChildren/cancelChild=shim`、`editScopeWarning=unsupported`；Desktop/IDE 侧支持在文档标 unknown。
+#### 交付树字节码隔离（测试与技能命令不再写 __pycache__）
 
-## 1.6.0 - 2026-09-20
+
+- 交付树（`template/**`、`presets/**`）此前持续被 Python 字节码污染，累积了 16 个 `__pycache__` 目录 / 90 个 `.pyc`。两条来源：`python -m pytest`（本地直跑与 CI 的 Python 段）无任何防护；技能命令（如 `doctor`）在源 checkout 里解析到 `template/.cowork-flow/scripts` 并 import 它。`scripts/template-test-runner.js` 的 `PYTHONDONTWRITEBYTECODE` 只覆盖 npm 入口。
+- 测试侧：`tests/__init__.py`（pytest 与 unittest 都会先导入的包）把字节码前缀指到 gitignored 的 `.tmp/pycache`——本进程设 `sys.pycache_prefix`，并通过 `PYTHONPYCACHEPREFIX` 传给子进程；Node 测试由 `test/helpers/bytecode-isolation.js` 做同一件事（进程级环境变量，覆盖它 spawn 的 hook/python 子进程）。只设解释器内变量不够：子进程不继承，实测交付树仍被写入 89 项。
+- 运行时侧：技能脚本子进程统一关掉字节码写入——`runtime_pythonpath_env(cache_bytecode=False)` 由 `run.py` 的 `run_skill_script` 与批处理入口 `batch_mode.py` 共用（两条 spawn 路径由独立检查各发现一次）。技能命令是低频入口，缓存收益可忽略（实测 `doctor` 冷/热启动差约 90ms），而它留下的 `__pycache__` 会落在技能脚本解析到的 runtime——源 checkout 里就是交付树。高频命令（`task`、`spec-check`、`mcp-state`）仍走默认分支，缓存行为不变。
+- 门禁：`tests/test_no_legacy_template_paths.py` 新增断言，`template/`、`presets/` 下出现 `__pycache__` 或 `*.pyc` 即失败（负向验证：放回一个 `.pyc` 变红）；现存污染已清理。
+- README「仓库结构」补仓库自身布局，以及 `node --test` 收集 `test/**` 全部 `.js`（含辅助模块）、Python 侧按 pytest `test_*.py` / unittest `test*.py` 收集的目录约定。
+
+#### 宿主声明基址统一、技能候选根派生与 zcode 技能根订正
+
+
+- **适配器路径声明**：`adapter.yaml` 的 `dispatch.*Path` 统一为"项目相对 + 存在性守卫"——删除 qoder 的 `presets/qoder/*`（包内相对，且 `skillsPath`/`commandsPath` 指向包内不存在的目录）、zcode 的 `.zcode/agents` 与 `.zcode/.zcode-plugin/plugin.json`（项目与包内都不存在），以及与 `host-assets.json` 的 `skillReadRoot` 重复的 `skillsPath`（claude-code / dsh / kimi-code）。新增守卫测试逐项断言 `template/<path>` 存在、拒绝 `presets/` 前缀与 `skillsPath` 键（负向验证：塞回旧值即红）。
+- **技能候选根**：`skill_roots()` / `_replica_precedence()` 的宿主副本根改由 manifest 的 `skillReadRoot` 按平台顺序去重派生，新增宿主 readRoot 自动纳入（合成 manifest 用例证明）；manifest 不可读时回退旧字面量；对当前 manifest 的派生顺序与旧行为逐项相等（测试钉住）。
+- **zcode 技能根订正**：ZCode 3.14.3 宿主 bundle（`app.asar` 的 `out/host/index.js`）实证 `SkillService.list` 枚举 `<workspace>/.zcode/skills` 与 `<workspace>/.agents/skills`（含祖先目录向上探测）、用户级 `~/.zcode/skills` 与 `~/.agents/skills`（仅桌面运行时）、插件载荷的 `skills` 组件（manifest 声明或 `<pluginRoot>/skills` 回退），且整个 bundle 内 `.cowork-flow` 0 命中——原 readRoot `.cowork-flow/skills` 属"声明已交付、宿主不可见"。readRoot 改为共享的 `.agents/skills`，discovery 补 project 通道（`.zcode/skills` 的同名优先与"我们不交付"记入证据），三个 fixed subagent 正文同步改址；`assetPrefixes` 去掉 `.cowork-flow/skills/`，`obsoleteFiles` 增加 16 条迁移项（旧项目 `sync` 时清理，实测删除且保留非 cowork-flow 目录）。
+- 门禁与分发：`tests/test_host_skills_gate.py` 删除 zcode 的 machine-scope 白名单例外（每个宿主的正文都必须指向自己的 readRoot）；`--platform zcode` 产出 `.agents/skills`（16 技能）且不再产出 `.cowork-flow/skills`；source checkout 的 live replica 由 3 份降为 2 份。
+
+### Removed
+
+#### 技能单一来源：移除全部机器级技能副本
+
+
+- **三处载荷不再交付技能**：`install-zcode-plugin` / `install-qoder-plugin` / `install-dsh-preset` 删除把 `template/skills` 拷进载荷的路径（含 dry-run 输出行与存在性检查），两份 `plugin.json` 去掉 `skills` 组件，dsh 的 `agent.cordis.yml` 移除 `skill-filesystem` 的 `customSkillDirs`（组件行保留——它提供按 rank 的工作区发现：`<projectRoot>/.dsh/skills` 100、`<projectRoot>/.agents/skills` 200、用户根 400/500，依据 `@deepseek-ai/dsh-skill-filesystem` 的默认根表），`preset.yml` 描述同步订正。技能自此只由项目级 `init` / `sync` 交付。
+- **动机（实测）**：ZCode 按技能文件 realpath 去重、**不按技能名**，项目 `.agents/skills` 与插件载荷 `skills/` 的同名技能会并列进入技能列表，并在 `buildPromptContext` 按名激活时**双份注入正文**；dsh 的技能注册表则按名与 scope 分层遮蔽（"最近层直接赢得重名"、"项目提供方可覆盖运行时技能"），preset 副本只作未 init 项目的兜底。技能与项目 runtime 强耦合（16 个技能中 12 个正文引用 `./.cowork-flow/run ...` / `COWORK_FLOW_*` / `.cowork-flow/spec`），故机器级不能承担权威来源。
+- **machine discovery 语义收口**：zcode 的 `plugin:skills` 条目删除后该语义零消费者，按"不留死代码"纪律一并删除——schema 的 `skillDiscoveryEntry` 收敛为"仓库内路径 + 必填 `path`"，Python / JS 校验面同步去掉 `channel` 与 machine 分支，坏声明负向用例覆盖 machine scope 与 `channel` 字段（均被拒）。
+- **doctor 迁移提示**：`check_skill_delivery` 的 `PLUGIN-SKILLS-STALE`（版本偏斜）改为 `PLUGIN-SKILLS-LEGACY`——检测到载荷仍带 `skills/` 即提示 `cowork-flow install-<host>-plugin --force`（重装先 `rm -rf` 再拷，顺带清理），不再比较版本；`SKILL-READROOT-MISSING` 与 `SKILL-DISCOVERY-GATED` 语义不变。
+- **升级动作**：已装旧插件的机器重跑 `cowork-flow install-zcode-plugin --force` / `install-qoder-plugin --force` 即清掉载荷里的技能副本（doctor 以 `PLUGIN-SKILLS-LEGACY` 报出时按提示执行）；dsh 预设不随 npm / `sync` 更新，且预设版本标记相同时 doctor 不会告警，请直接重跑 `cowork-flow install-dsh-preset --force`。
+- 已知代价（有意接受）：未 `init` 的项目不再有任何 cowork-flow 技能（后由插件引导技能 `cowork-flow-bootstrap` 部分补上，见本文件 Unreleased 顶部条目）；qoder 在未受信任目录中看不到技能（其发现门禁未变）。
+
+## [1.6.0] - 2026-09-20
 
 ### 门禁诚实化（收集一致 / 平台 skip / CI 同门禁）
 
@@ -161,7 +194,7 @@
 - 远端确认（提交 `e262196`，CI run 35503939861）：ubuntu job 首次执行 `release:check` **通过**——17 条此前只在发布时运行的 `release.test.js` POSIX 用例在 CI 上真实执行并全部通过。
 - 同一 run 的 `windows-core` 失败（步骤 `Run Windows core verification`，exit 1）。该 job 在改动前的 `aa0e34e` 上即为同样的失败，不是本版本的功能改动引入；根因是行尾契约缺失，已在本版本修复（见「Windows 检出与行尾契约」），远端日志无需仓库权限即可复现——全新 `git clone` 即可稳定踩中。
 
-## 1.5.0 - 2026-09-18
+## [1.5.0] - 2026-09-18
 
 ### 发版开关 `--no-publish`
 
@@ -193,7 +226,7 @@
 - **测试**：新增根/模板 managed block 字节相等与指针断言、fallback blocker 文案可执行性断言。
 - **已知合法副作用**：contract fingerprint 由 `d1d0e2536e8fa150` 更新为 `2dc34375d28f8103`（内容派生；`host-assets.json` 的 `safeFiles` 条目变更）。
 
-## 1.4.0 - 2026-09-14
+## [1.4.0] - 2026-09-14
 
 ### Hook 会话身份绑定（fix(runtime)）
 
@@ -205,7 +238,7 @@
 - **MCP 拒绝隐式冒认**：`task_state` / `task_scope` / `task_list` 在不可信身份下拒绝隐式解析（`identity-untrusted`），不再冒认 process-fallback 任务；CLI `FALLBACK_BINDING_BLOCKER` 语义不变（回归护栏锁定）。
 - 契约文档 context-injection.md 同步记录 session 属性与回退语义；新增 pytest 396 行覆盖（active_task_runtime / inject_entry / mcp_state_server / workflow_state_hook）。
 
-## 1.3.0 - 2026-09-09
+## [1.3.0] - 2026-09-09
 
 ### 跨宿主适配通用化（注入单源化 + MCP 重定位）
 
@@ -238,7 +271,7 @@
 
 - 同步 `--force` 自实例镜像时带 AGENTS.md 定制守卫（脏树预检、sync 后从 HEAD 还原）；pytest services 门禁前置到 `test:all` 之前；`.gitattributes` 将 `*.version` 钉为 LF（fingerprint 字节比对前提）。
 
-## 1.2.0 - 2026-09-08
+## [1.2.0] - 2026-09-08
 
 ### 规范挂命令（spec 约束前移）
 
@@ -253,13 +286,13 @@
 
 配套：spec-check CLI（`--phase/--file/--json/--verbose/--throttled`）、`--allow-unchecked` 收口旗标、架构拓扑保持 services 层无 CLI 关注点。
 
-## 1.1.4 - 2026-08-31
+## [1.1.4] - 2026-08-31
 
 ### 修复
 
 - **Windows 启动修复**：`mcp-state` 子进程在 Windows 平台改为经 `cmd.exe` 启动（`shell: true`），与 npm shims 的启动方式保持一致——绕过 Node 24+ 直接 spawn `.cmd` 文件（如 `cowork-flow.cmd` 的 shell 入口）时抛出的 EINVAL 错误。
 
-## 1.1.3 - 2026-08-30
+## [1.1.3] - 2026-08-30
 
 > **版本内容载体说明**：1.1.1（守卫修复批次）与 1.1.2（Review 基线 diff）章节内容随本 1.1.3 首次进入 npm 分发——三个批次同属一个发布周期，章节按批次序号记录，包内容以最新版本号为载体（与 1.1.0 承载 1.0.0 章节内容同一惯例）。
 
@@ -272,7 +305,7 @@
 - **CI 修复（delegated 注入崩溃）**：zcode delegated 分支不再以空输入对象重新发现项目根（`findProjectRoot({})`），改为复用 main 已解析的工作流根——在无 `.cowork-flow/` 的目录（干净 checkout、非项目目录）触发 delegated prompt 不再 `join(null)` 崩溃；对应的注入测试显式指定 spawn 工作目录，消除对测试运行 cwd 的隐式依赖（干净 checkout 下此前必红，实测 dev 推送 CI 双平台失败）。
 - **CI 修复（Windows git 降级）**：`git` 二进制不可用（PATH 缺失/未安装）时 `_run_git_command` 捕获 OSError 按 rc!=0 降级——`current_head` 视为无头（不写 baseline）、变更集收集降级 status-only，`task start` 不再崩溃（Windows 的 CreateProcess 在 PATH 缺失时不回退，清空环境的会话测试此前必红；macOS execvp 有默认 PATH 兜底故本地绿）。
 
-## 1.1.2 - 2026-08-30
+## [1.1.2] - 2026-08-30
 
 ### Review 基线 diff（堵住提交绕行面）
 
@@ -281,7 +314,7 @@
 - **降级语义**：无 git 仓库 / HEAD 不存在 / 基线缺失 / diff 失败（如 rebase 孤儿化）→ 降级 status-only，与旧行为一致，不产生错误 blocker。
 - **契约重开**：task-review SKILL 输入语义写明基线变更集与降级行为；已审查任务的增量重审聚焦自基线以来的变化，证据要求不变。
 
-## 1.1.1 - 2026-08-30
+## [1.1.1] - 2026-08-30
 
 ### 守卫修复批次（对抗评审后落地）
 
@@ -296,7 +329,7 @@
 - dev_type 畸形值（非字符串）在 task_specs 中按缺省降级；spec 指针忽略 directory 条目；normalizeScopePath 带 trim；zcode 生命周期刷新正则对齐 dsh（task|subagent|resume）。
 - 契约文档如实化：context-injection.md 不再声称三线结构恒等/always emitted，改为差异表 + 矩阵锁定范围 + 残余缺口清单（matcher 依赖 ZCode 运行时工具名、JS 过滤为规则移植）。
 
-## 1.1.0 - 2026-08-29
+## [1.1.0] - 2026-08-29
 
 > **版本内容错位说明**：npm registry 上的 1.0.0 tarball 发布于 2026-08-26（仅含发版脚本修复之前的代码）。1.0.0 段下述的里程碑描述以本 1.1.0 为其实际发布载体——阶段 0-3 的全部内容自本版本起进入 npm 分发。
 
@@ -308,7 +341,7 @@
 - 阶段 3：`run mcp-state` 无依赖 MCP stdio 只读服务（`task_state` / `task_list`）+ `spec/contracts/fact-layer-access.md` 接入契约。
 - MCP 全局入口：`cowork-flow mcp-state` 透传命令——MCP 客户端全局注册一次即可服务所有 cowork-flow 项目。
 
-## 1.0.0 - 2026-08-26
+## [1.0.0] - 2026-08-26
 
 首个稳定主线发布：核心流程契约、会话模型与宿主矩阵在此版本冻结，后续改动进入语义化版本约束。
 
@@ -333,7 +366,7 @@
 - 实现阶段守卫三件套：MCP `task_scope`/`task_specs` 只读工具（越界判定与规范清单，宿主无关、Python 单源）；`<stage-contract>` 实现契约块三线注入（编辑白名单/规范入口/门禁预告/任务自声明验证命令，≤1200 字符，跨宿主逐字相等测试锁定）；zcode 编辑越界实时警告（PostToolUse Edit/Write/MultiEdit 短路径，能力矩阵声明 `editScopeWarning`，其余宿主 fallback 到静态预告）。
 - MCP 全局入口：npm CLI 新增 `cowork-flow mcp-state` 透传命令——从 cwd 向上定位最近 `.cowork-flow/` 并以继承 stdio exec 该项目的 `run mcp-state`；MCP 客户端全局注册一次（`cowork-flow mcp-state`）即可服务所有 cowork-flow 项目，无需逐项目配置。
 
-## 0.0.52 - 2026-08-26
+## [0.0.52] - 2026-08-26
 
 ### ZCode 宿主与 hook 体验
 
@@ -352,7 +385,7 @@
 
 - AGENTS.md 0.1 明确注入块优先、勿重复运行导航器；README 平台清单与技能分发表同步 zcode。
 
-## 0.0.51 - 2026-08-15
+## [0.0.51] - 2026-08-15
 
 ### DSH host 接入
 
@@ -371,13 +404,13 @@
 - 共享 PYTHONPATH bootstrap；批量动作与 codex hook 在 Windows 通过 cmd wrapper 运行。
 - CI 在 Ubuntu/Windows 双平台跑全量 pytest；发布流程先同步 Skill replicas 再过全量门禁。
 
-## 0.0.50 - 2026-08-10
+## [0.0.50] - 2026-08-10
 
 ### 文档
 
 - task-review 技能把用户自定义 spec 明确为绑定义务（binding obligations）。
 
-## 0.0.49 - 2026-08-08
+## [0.0.49] - 2026-08-08
 
 ### 计划与任务
 
@@ -394,7 +427,7 @@
 
 - 增加 Windows 发布信心门禁；发布验证测试稳定化。
 
-## 0.0.48 - 2026-08-05
+## [0.0.48] - 2026-08-05
 
 ### 运行时与流程
 
@@ -415,4 +448,23 @@
 
 - README 项目概览刷新、任务流程图；产品故障排查 playbook；changelog 发布就绪说明。
 
-## 0.0.47 - 2026-08-05
+## [0.0.47] - 2026-08-05
+
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.1.4...v1.2.0
+[1.1.4]: https://github.com/fishlikewater/cowork-flow/compare/v1.1.3...v1.1.4
+[1.1.3]: https://github.com/fishlikewater/cowork-flow/compare/v1.1.2...v1.1.3
+[1.1.2]: https://github.com/fishlikewater/cowork-flow/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/fishlikewater/cowork-flow/compare/v0.0.52...v1.0.0
+[0.0.52]: https://github.com/fishlikewater/cowork-flow/compare/v0.0.51...v0.0.52
+[0.0.51]: https://github.com/fishlikewater/cowork-flow/compare/v0.0.50...v0.0.51
+[0.0.50]: https://github.com/fishlikewater/cowork-flow/compare/v0.0.49...v0.0.50
+[0.0.49]: https://github.com/fishlikewater/cowork-flow/compare/v0.0.48...v0.0.49
+[0.0.48]: https://github.com/fishlikewater/cowork-flow/compare/v0.0.47...v0.0.48
+[0.0.47]: https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47

@@ -86,8 +86,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
                 for snippet in removed_command_snippets:
                     self.assertNotIn(snippet, text)
 
-    def test_readme_describes_current_runtime_layout(self) -> None:
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    def test_public_docs_describe_current_runtime_layout(self) -> None:
+        # The runtime layering is internal implementation detail, so it lives in
+        # docs/architecture.md rather than the README; the guard follows the
+        # prose instead of pinning it to one file.
+        docs = [
+            ROOT / "README.md",
+            ROOT / "docs" / "architecture.md",
+        ]
+        text = "".join(path.read_text(encoding="utf-8") for path in docs)
         required_markers = (
             "scripts/services/",
             "scripts/infra/storage/",
@@ -104,11 +111,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
         self.assertEqual(
             [],
-            [marker for marker in required_markers if marker not in readme],
+            [marker for marker in required_markers if marker not in text],
         )
         self.assertEqual(
             [],
-            [marker for marker in stale_markers if marker in readme],
+            [marker for marker in stale_markers if marker in text],
         )
 
     def test_workflow_state_templates_are_externalized(self) -> None:

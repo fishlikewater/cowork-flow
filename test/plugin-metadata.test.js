@@ -26,8 +26,10 @@ const HOST_ICON_KEYS = {
 const ICON_KEY_PATTERN = /^(brandColor|brandColorDark|composerIcon|heroImage|icon|icons|logo|logoDark|screenshots)$/;
 // Built from parts so this file can be scanned by the misspelling gate below.
 const RETIRED_AUTHOR = ['fisk', 'likewater'].join('');
-const SCAN_ROOTS = ['bin', 'presets', 'src', 'template'];
-const SCAN_FILES = ['CHANGELOG.md', 'LICENSE', 'README.md', 'package.json'];
+// The docs are a shipped surface too (package.json `files`), so the retired
+// spelling has to stay out of them and not only out of the code.
+const SCAN_ROOTS = ['bin', 'docs', 'presets', 'src', 'template'];
+const SCAN_FILES = ['CHANGELOG.md', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'package.json'];
 
 function manifestPath(host, relative) {
   return join(packageRoot, 'presets', host, ...relative.split('/'));

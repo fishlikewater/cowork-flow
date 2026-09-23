@@ -123,7 +123,8 @@ fi
 
 # The changelog must already carry an entry for the version being released;
 # release:check (package tests) enforces the same on the current version.
-grep -q "^## ${PACKAGE_VERSION} " CHANGELOG.md || {
+# Keep a Changelog brackets the version, so the heading is `## [1.2.3] - date`.
+grep -q "^## \[${PACKAGE_VERSION}\] " CHANGELOG.md || {
   echo "error: CHANGELOG.md has no entry for version ${PACKAGE_VERSION}" >&2
   exit 1
 }
