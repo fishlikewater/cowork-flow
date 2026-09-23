@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 品牌 mark 与宿主图标接线
+
+- **新增唯一品牌源 `assets/icon.svg`**（24×24 网格、单色 `currentColor`、无外部引用）与从它导出的 `assets/icon.png`（512×512 透明底）。源刻意不带颜色：品牌色只写在 `presets/plugin-meta.json` 的 `brandColor`，两个派生物都从那里上色，所以图标和插件界面不可能各说各话。
+- **新增 `scripts/export-icons.mjs`（dev-only，`npm run icons:export`）**：从源重新导出 `assets/icon.png` 并同步 codex 载荷内的副本。不引入任何依赖，改用机器上已有的 Edge/Chrome 无头渲染（`COWORK_FLOW_BROWSER` 可覆盖）；找不到浏览器时以非零码退出并打印替代做法，**不静默跳过**——静默跳过会留下一个没有任何测试能发现的过期栅格。产物先写同盘临时文件再 rename 发布（`%TEMP%` 与仓库常不同盘，跨盘 rename 会 `EXDEV`；而 Chromium 的 `--screenshot` 遇到非 `.png` 后缀会「成功」但什么都不写）。
+- **codex 清单接 `interface.logo` 与 `interface.brandColor`**：codex 的相对路径以插件根为基准、载荷会被整目录拷进 `$CODEX_HOME`，因此 mark 以逐字节投影的形式落在 `presets/codex/assets/logo.svg`。`composerIcon` / `screenshots` / `capabilities` / `defaultPrompt` 一律不写——没有内容可填时不写占位。
+- **zcode marketplace 条目接 `icon`**：由 `plugin-meta.json` 的 `repository` + 新增 `defaultBranch` + `icon.raster` 推导出 `https://raw.githubusercontent.com/<repo>/<branch>/assets/icon.png`。这不是审美选择而是硬约束：zcode 客户端只在 `icon.startsWith('https://')` 时保留该值，**其余一律静默丢弃并回退默认图标**（`app.asar` 内 `vL`/`yL` 两个函数），相对路径在 UI 上表现为「没有图标」且不报任何错。仓库未推送该分支时 URL 404，同样只是回退默认图标，不会破坏安装。
+- **qoder 及其余四家不写任何图标字段**：qoder 的 agent 插件清单没有图标键（组件发现清单只有 `commands`/`skills`/`agents`/`hooks`/`output-styles`/`workflows`/`bin`/`.mcp.json`/`mcp.json`），写未知键等于给宿主不支持的字段塞值。
+- **门禁**（每条都做过负向验证：改坏即红）：codex 载荷副本 == 源 + `brandColor` 代换；`assets/icon.png` 解码后必须带 alpha 通道、有透明底、图形不顶到画布边缘、且占比最大的实心色恰是 `brandColor`（只断言「是个 512×512 的 PNG」挡不住用别的图替换它——测试里没有渲染器可以重新出图，所以改成解码后按内容判定）；三份清单的图标键集合 == 显式支持表（codex `{logo, brandColor}`、zcode `{}`、qoder `{}`；这条与「清单逐字节等于投影」不同源：把不支持的键写进投影再同步清单，字节相等仍然成立，只有这条会红）；zcode 条目 `icon` 为 `https://` 且等于推导值；真装后 codex 载荷内 `interface.logo` 指向的文件存在、zcode 条目写进用户机器的 `icon` 是 https。
+- 升级动作：升级 cowork-flow 后重跑 `cwf host add codex --force` / `cwf host add zcode --force` 即带上图标字段；`qoder` 无变化。本批不改任何命令行为与安装布局。
+
 ### CLI 命令面改为名词分组（`cwf` 短名 + 命令注册表）
 
 - **11 个平铺命令收进 5 个名词组**：`project init` / `project sync`、`host add` / `host remove` / `host list`、`self update`、`dev refresh`、`mcp serve`。主二进制新增 `cwf`，与 `cowork-flow` 是同一入口（`package.json` 的 `bin` 两键同值）。帮助文本由 `src/commands/registry.js` 的命令注册表生成，`src/cli.js` 只剩解析与派发——此前帮助常量与 `if (command === ...)` 链是第二份事实源，已经漂移（帮助里写死 3 个平台，实际 7 个）。

@@ -51,6 +51,7 @@
     "test:template": "node scripts/run-template-tests.js --suite core",
     "test:template:full": "node scripts/run-template-tests.js --suite full",
     "pack:check": "node scripts/pack-check.js",
+    "icons:export": "node scripts/export-icons.mjs",
     "source:refresh:dry-run": "node bin/cowork-flow.js dev refresh --dry-run",
     "source:refresh": "node bin/cowork-flow.js dev refresh",
     "test:all": "npm run test:node:full && npm run test:template:full && npm run pack:check",

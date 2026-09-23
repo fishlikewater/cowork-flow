@@ -23,6 +23,10 @@ template/.cowork-flow/run text eol=lf
 # Version marker — release byte-compares it, keep LF everywhere
 *.version text eol=lf
 
+# Brand mark — the payload copy is byte-compared against the source, and the
+# source is fetched over https by the zcode marketplace entry
+*.svg text eol=lf
+
 # Config
 *.yaml text eol=lf
 *.yml text eol=lf

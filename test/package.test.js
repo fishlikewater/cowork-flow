@@ -77,6 +77,9 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('presets/plugin-meta.json'), true);
   assert.equal(files.has('presets/codex/.codex-plugin/plugin.json'), true);
   assert.equal(files.has('presets/codex/skills/cowork-flow-bootstrap/SKILL.md'), true);
+  // codex resolves interface.logo relative to the plugin root, so the mark has
+  // to be inside the payload the host copies — not merely somewhere in the repo.
+  assert.equal(files.has('presets/codex/assets/logo.svg'), true);
   assert.equal(files.has('template/.claude/skills/start/SKILL.md'), false);
   assert.equal(files.has('template/.claude/skills/' + 'entry' + '-boundary/SKILL.md'), false);
   assert.equal(files.has('template/.opencode/agents/cowork-implement.md'), true);
