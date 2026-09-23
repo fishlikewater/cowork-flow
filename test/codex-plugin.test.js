@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { runInstallCodexPlugin } from '../src/commands/install-codex-plugin.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { packageRoot, templateRoot } from '../src/lib/paths.js';
+import { readPluginMetadata } from '../src/lib/plugin-metadata.js';
 
 const HOSTS = ['zcode', 'qoder', 'codex'];
 const BOOTSTRAP_SKILL = 'cowork-flow-bootstrap';
@@ -257,10 +258,18 @@ test('install-codex-plugin materializes the marketplace and delegates registrati
   await runInstallCodexPlugin([]);
 
   const root = marketplaceRoot(home);
+  const metadata = await readPluginMetadata();
   const manifest = await readJson(join(root, '.agents', 'plugins', 'marketplace.json'));
   assert.equal(manifest.name, MARKETPLACE_NAME);
+  assert.equal(manifest.interface.displayName, `${metadata.displayName} (local)`);
+  // codex validates every entry: an explicit install/auth policy and a category.
   assert.deepEqual(manifest.plugins, [
-    { name: 'cowork-flow', source: { source: 'local', path: './plugins/cowork-flow' } }
+    {
+      name: 'cowork-flow',
+      source: { source: 'local', path: './plugins/cowork-flow' },
+      policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+      category: metadata.category
+    }
   ]);
 
   // The payload is stamped with the release version: an installed payload must

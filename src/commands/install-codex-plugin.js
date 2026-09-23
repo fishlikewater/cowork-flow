@@ -6,6 +6,7 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 
 import { readPackageInfo } from '../lib/package-info.js';
 import { packageRoot } from '../lib/paths.js';
+import { readPluginMetadata } from '../lib/plugin-metadata.js';
 
 const MARKETPLACE_NAME = 'cowork-flow-local';
 const PLUGIN_NAME = 'cowork-flow';
@@ -54,12 +55,21 @@ function cacheRoot(home) {
   return join(home, 'plugins', 'cache', MARKETPLACE_NAME, PLUGIN_NAME);
 }
 
-function marketplaceManifest() {
+// codex validates marketplace entries: every plugin entry carries an explicit
+// installation/authentication policy and a category, and the marketplace's own
+// display name lives in the top-level interface object (codex.exe plugin
+// authoring guide, verified against the official plugin instances).
+function marketplaceManifest(metadata) {
   return {
     name: MARKETPLACE_NAME,
-    interface: { displayName: 'cowork-flow (local)' },
+    interface: { displayName: `${metadata.displayName} (local)` },
     plugins: [
-      { name: PLUGIN_NAME, source: { source: 'local', path: `./plugins/${PLUGIN_NAME}` } }
+      {
+        name: PLUGIN_NAME,
+        source: { source: 'local', path: `./plugins/${PLUGIN_NAME}` },
+        policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+        category: metadata.category
+      }
     ]
   };
 }
@@ -179,7 +189,7 @@ async function stampManifest(target, version) {
 // The marketplace root is referenced in place by codex (no copy), so it has to
 // stay where it is across upgrades; the payload is rewritten and the manifest
 // goes last, so a half-copied plugin is never discoverable.
-async function materializeMarketplace({ home, pluginSrc, version }) {
+async function materializeMarketplace({ home, pluginSrc, version, metadata }) {
   const root = marketplaceRoot(home);
   const target = pluginTarget(home);
   await mkdir(dirname(join(root, MARKETPLACE_MANIFEST)), { recursive: true });
@@ -188,7 +198,7 @@ async function materializeMarketplace({ home, pluginSrc, version }) {
   await stampManifest(target, version);
   await writeFile(
     join(root, MARKETPLACE_MANIFEST),
-    JSON.stringify(marketplaceManifest(), null, 2) + '\n',
+    JSON.stringify(marketplaceManifest(metadata), null, 2) + '\n',
     'utf8'
   );
   return root;
@@ -239,6 +249,7 @@ export async function runInstallCodexPlugin(args = []) {
   const { dryRun, force, uninstall: remove } = parseArgs(args);
   const home = codexHome();
   const { version } = await readPackageInfo();
+  const metadata = await readPluginMetadata();
   const cli = await findCodexCli(home);
 
   if (remove) {
@@ -262,7 +273,7 @@ export async function runInstallCodexPlugin(args = []) {
     return 0;
   }
 
-  await materializeMarketplace({ home, pluginSrc, version });
+  await materializeMarketplace({ home, pluginSrc, version, metadata });
 
   if (!cli) {
     manualInstructions(root);

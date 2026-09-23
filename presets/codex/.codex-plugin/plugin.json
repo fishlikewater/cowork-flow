@@ -3,8 +3,33 @@
   "version": "1.6.0",
   "description": "AI 协作工作流引擎：任务生命周期、子代理调度、门禁与状态注入。将 cowork-flow 的完整工作流带入 Codex。",
   "author": {
-    "name": "fisklikewater"
+    "name": "fishlikewater",
+    "email": "fishlikewater@126.com",
+    "url": "https://github.com/fishlikewater"
   },
+  "homepage": "https://github.com/fishlikewater/cowork-flow",
+  "repository": "https://github.com/fishlikewater/cowork-flow",
   "license": "MIT",
-  "skills": "./skills/"
+  "keywords": [
+    "ai-agent",
+    "workflow",
+    "task-lifecycle",
+    "subagents",
+    "codex",
+    "claude-code",
+    "opencode",
+    "zcode",
+    "qoder",
+    "kimi-code",
+    "dsh"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Cowork Flow",
+    "shortDescription": "AI 协作工作流引擎：任务生命周期、子代理调度、门禁与状态注入。",
+    "longDescription": "cowork-flow 给 AI 编码宿主的 agent 提供可执行的工作流：任务生命周期、决策记录、规范契约与独立检查。安装后任务状态由运行时统一维护，多个宿主的会话从同一份事实起步。",
+    "developerName": "fishlikewater",
+    "category": "Developer Tools",
+    "websiteURL": "https://github.com/fishlikewater/cowork-flow"
+  }
 }

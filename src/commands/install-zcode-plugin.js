@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 
 import { readPackageInfo } from '../lib/package-info.js';
 import { packageRoot, templateRoot } from '../lib/paths.js';
+import { pluginManifest, readPluginMetadata } from '../lib/plugin-metadata.js';
 
 const ZCODE_MARKETPLACE = 'cowork-flow-local';
 const LEGACY_ZCODE_MARKETPLACE = 'zcode-plugins-official';
@@ -64,7 +65,7 @@ function marketplacePaths(pluginsRoot) {
   };
 }
 
-async function updateMarketplace(pluginsRoot, cacheRoot, version, manifest = {}) {
+async function updateMarketplace(pluginsRoot, cacheRoot, version, metadata) {
   const { activeMarketplacePath, sourceMarketplacePath } = marketplacePaths(pluginsRoot);
   const market = (await readJsonSafe(sourceMarketplacePath))
     || (await readJsonSafe(activeMarketplacePath))
@@ -75,6 +76,7 @@ async function updateMarketplace(pluginsRoot, cacheRoot, version, manifest = {})
       version: 1
     };
   const pluginPath = normalizedPath(join(cacheRoot, version));
+  const manifest = pluginManifest(metadata, 'zcode', version);
 
   market.name = ZCODE_MARKETPLACE;
   market.description = market.description || LOCAL_MARKETPLACE_DESCRIPTION;
@@ -84,10 +86,11 @@ async function updateMarketplace(pluginsRoot, cacheRoot, version, manifest = {})
   }
 
   const entry = {
-    author: manifest.author || { name: 'fisklikewater' },
-    category: 'developer-tools',
-    description: manifest.description || 'cowork-flow task lifecycle, hooks, skills, and fixed subagents for ZCode.',
-    license: manifest.license || 'MIT',
+    author: manifest.author,
+    category: metadata.marketplaceCategory,
+    description: manifest.description,
+    displayName: metadata.displayName,
+    license: manifest.license,
     name: PLUGIN_NAME,
     source: {
       source: 'directory',
@@ -194,7 +197,7 @@ export async function runInstallZCodePlugin(args = []) {
   const { dryRun, force, pruneOld } = parseArgs(args);
   const pluginSrc = join(packageRoot, 'presets', 'zcode');
   const { version } = await readPackageInfo();
-  const manifest = (await readJsonSafe(join(pluginSrc, '.zcode-plugin', 'plugin.json'))) || {};
+  const metadata = await readPluginMetadata();
 
   if (!(await pathExists(pluginSrc))) {
     throw new Error(`ZCode plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
@@ -213,7 +216,7 @@ export async function runInstallZCodePlugin(args = []) {
   }
 
   if (!force && (await pathExists(destDir))) {
-    await updateMarketplace(pluginsRoot, cacheRoot, version, manifest);
+    await updateMarketplace(pluginsRoot, cacheRoot, version, metadata);
     await updateKnownMarketplaces(pluginsRoot);
     await removeLegacyMarketplaceEntry(pluginsRoot);
     if (pruneOld) {
@@ -248,7 +251,7 @@ export async function runInstallZCodePlugin(args = []) {
     await cp(mainScriptsSrc, pluginScriptsDest, { recursive: true, force: true });
   }
 
-  await updateMarketplace(pluginsRoot, cacheRoot, version, manifest);
+  await updateMarketplace(pluginsRoot, cacheRoot, version, metadata);
   await updateKnownMarketplaces(pluginsRoot);
   await removeLegacyMarketplaceEntry(pluginsRoot);
   if (pruneOld) {

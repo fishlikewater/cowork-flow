@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { runInstallQoderPlugin } from '../src/commands/install-qoder-plugin.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { templateRoot } from '../src/lib/paths.js';
+import { readPluginMetadata } from '../src/lib/plugin-metadata.js';
 
 const PLUGIN_KEY = 'cowork-flow@cowork-flow-local';
 const FOREIGN_PLUGIN_KEY = 'someone-else@their-market';
@@ -89,6 +90,7 @@ test('qoder PostToolUse matcher only names tools Qoder exposes', async () => {
 test('qoder plugin manifest declares only components that ship', async () => {
   const manifest = await readJson(join(pluginRoot, '.qoder-plugin', 'plugin.json'));
   const pkg = await readJson(join(templateRoot, '..', 'package.json'));
+  const metadata = await readPluginMetadata();
 
   assert.equal(manifest.name, 'cowork-flow');
   assert.equal(
@@ -106,6 +108,15 @@ test('qoder plugin manifest declares only components that ship', async () => {
   // Qoder ignores every settings key except `agent`.
   assert.equal(manifest.commands, undefined);
   assert.equal(manifest.settings, undefined);
+  // Identity fields the qoder manifest schema supports (SDK bundle: name,
+  // version, displayName, description, author, homepage, repository, license,
+  // keywords). It has no icon field, so none is declared.
+  assert.equal(manifest.displayName, metadata.displayName);
+  assert.equal(manifest.homepage, metadata.homepage);
+  assert.equal(manifest.repository, metadata.repository);
+  assert.deepEqual(manifest.keywords, metadata.keywords);
+  assert.equal(manifest.icon, undefined);
+  assert.equal(manifest.logo, undefined);
 
   await readFile(join(pluginRoot, 'hooks', 'hooks.json'), 'utf8');
   for (const agent of FIXED_AGENTS) {

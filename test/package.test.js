@@ -73,6 +73,7 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('presets/qoder/hooks/hooks.json'), true);
   assert.equal(files.has('presets/qoder/hooks/inject-context.py'), true);
   assert.equal(files.has('presets/qoder/agents/cowork-implement.md'), true);
+  assert.equal(files.has('presets/plugin-meta.json'), true);
   assert.equal(files.has('presets/codex/.codex-plugin/plugin.json'), true);
   assert.equal(files.has('presets/codex/skills/cowork-flow-bootstrap/SKILL.md'), true);
   assert.equal(files.has('template/.claude/skills/start/SKILL.md'), false);

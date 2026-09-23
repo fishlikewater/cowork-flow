@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 插件身份元数据单一来源（作者名订正 + 三家清单字段补齐）
+
+- **新增 `presets/plugin-meta.json`（唯一身份来源）与 `src/lib/plugin-metadata.js`（投影模块）**：displayName、简介/长简介、作者、homepage、repository、license、keywords、category 只写一份，投影出 codex / zcode / qoder 三份 `plugin.json` 与两家 marketplace 条目字段。此前同样的信息散落在三份清单、两个安装器与 `package.json` 里，改一处就会漂移。
+- **清单一致性由测试守，不靠生成脚本**：`test/plugin-metadata.test.js` 断言三份清单**逐字节等于**投影结果（手改清单即红）。实测：把 codex 清单的 `interface.displayName` 改成 `CoworkFlow` 会让门禁由 6 passed 变 4 passed / 2 failed，还原即绿。`scripts/release.sh` 盖章版本用 `JSON.parse` + `JSON.stringify(j, null, 2) + '\n'`，与投影序列化同形且保留键顺序，所以发布后门禁仍成立。
+- **作者名错拼订正**：作者名此前在两处被写错（`LICENSE` 与 `install-zcode-plugin` 硬编码的 marketplace 条目作者兜底），现统一为 `fishlikewater`。新增仓库级错拼门禁扫描 `git ls-files`；索引覆盖不到身份源文件时（源码导出没有自己的 `.git`，或新文件尚未 `git add`）回退到 npm 白名单遍历，避免"看起来跑过、实际什么都没扫"。实测该门禁实现中途即为红，报出这两处遗留点，修掉才转绿。
+- **codex 清单补 `interface`**（displayName / shortDescription / longDescription / developerName / category / websiteURL），marketplace 条目补 `policy: {installation: "AVAILABLE", authentication: "ON_INSTALL"}` 与 `category`，marketplace 顶层补 `interface.displayName`。策略枚举取自 codex 自身的插件编写指南，且本机重装后 `codex plugin list --json` 回读出 `installPolicy: "AVAILABLE"` / `authPolicy: "ON_INSTALL"`——是宿主接受并回写的值，不是猜的。
+- **zcode marketplace 条目补 `displayName` / `category` / `author{name,url}` / `license`**（此前只有英文 description 与错拼作者名）；qoder 清单补 `displayName` / `homepage` / `repository` / `keywords` / `author{name,email,url}`。qoder 的清单 schema 没有 `icon`/`logo` 键，不写死键——图标按各宿主真实支持的字段接（见后续批次）。
+- **`package.json` 补 `author` / `keywords` / `repository` / `bugs` / `homepage`**，与元数据源逐项相等；`LICENSE` 年份作者订正。新增 `test/plugin-metadata.test.js` 到 `test:fast`，`test/package.test.js` 断言 `presets/plugin-meta.json` 进入 npm 包内容。
+- 本批不改任何命令行为与载荷内容：`install-codex-plugin` / `install-zcode-plugin` 的输出与安装位置不变，只是清单字段改由元数据源生成。
+
 ### Codex 插件接入（只带引导技能，agents 与 hook 留在项目级）
 
 - **新增 `cowork-flow install-codex-plugin [--dry-run] [--force] [--uninstall]`**：把 `presets/codex/` 写进稳定 marketplace 源 `$CODEX_HOME/plugins/marketplaces/cowork-flow-local/`（`.agents/plugins/marketplace.json` + `plugins/cowork-flow/`），再委托官方 CLI 执行 `codex plugin marketplace add` + `codex plugin add cowork-flow@cowork-flow-local` 完成注册与启用。**不手写 `config.toml`**：注册状态属于 codex，安装器只生成纯 JSON + 目录拷贝的源；CLI 探测顺序 `COWORK_FLOW_CODEX` → `PATH` → `<CODEX_HOME>/plugins/.plugin-appserver/codex(.exe)`，都没找到时仍备好源目录并打印两条手动命令；npm 全局安装的 `codex.cmd` 走 shell 调用时按 token 加引号（用户目录含空格也可用），真实可执行文件不走 shell。已注册的 marketplace 根与安装器计算值比较时做路径归一化（剥 `\\?\` 前缀、大小写不敏感）——codex 会回写自己规范化的拼写，原始字符串比较会让每次重跑都误报冲突。`--uninstall` 走 `plugin remove` + `marketplace remove`（未注册时该命令返回 1，按幂等卸载容忍）再删源目录。
