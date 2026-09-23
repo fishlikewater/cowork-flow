@@ -285,6 +285,11 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   await access(join(pluginRoot, 'agents', 'cowork-research.md'));
 
   const manifest = await readJson(join(pluginRoot, '.zcode-plugin', 'plugin.json'));
+  // The cache directory is named after the package version, so the installer
+  // stamps the payload manifest to match; without that a payload installed from
+  // a checkout keeps whatever version its source manifest carried.
+  const { version } = await readPackageInfo();
+  assert.equal(manifest.version, version);
   assert.equal(manifest.hooks, 'hooks/hooks.json');
   assert.equal(manifest.agents, 'agents');
   // The payload carries bootstrap guidance only; project Skills still ship with

@@ -1,12 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { access, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 
 import { readPackageInfo } from '../lib/package-info.js';
-import { packageRoot } from '../lib/paths.js';
 import { readPluginMetadata } from '../lib/plugin-metadata.js';
+import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 
 const MARKETPLACE_NAME = 'cowork-flow-local';
 const PLUGIN_NAME = 'cowork-flow';
@@ -27,14 +27,6 @@ async function pathExists(target) {
     return true;
   } catch {
     return false;
-  }
-}
-
-async function readJsonSafe(path) {
-  try {
-    return JSON.parse(await readFile(path, 'utf8'));
-  } catch {
-    return null;
   }
 }
 
@@ -176,26 +168,16 @@ function readCodexState(cli) {
   };
 }
 
-async function stampManifest(target, version) {
-  const manifestPath = join(target, '.codex-plugin', 'plugin.json');
-  const manifest = await readJsonSafe(manifestPath);
-  if (!manifest) {
-    throw new Error(`Codex plugin manifest missing or unreadable: ${manifestPath}`);
-  }
-  manifest.version = version;
-  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
-}
-
 // The marketplace root is referenced in place by codex (no copy), so it has to
 // stay where it is across upgrades; the payload is rewritten and the manifest
 // goes last, so a half-copied plugin is never discoverable.
-async function materializeMarketplace({ home, pluginSrc, version, metadata }) {
+async function materializeMarketplace({ home, pluginSrc, manifest, version, metadata }) {
   const root = marketplaceRoot(home);
   const target = pluginTarget(home);
   await mkdir(dirname(join(root, MARKETPLACE_MANIFEST)), { recursive: true });
   await rm(target, { recursive: true, force: true });
   await cp(pluginSrc, target, { recursive: true });
-  await stampManifest(target, version);
+  await stampPayloadManifest(target, manifest, version);
   await writeFile(
     join(root, MARKETPLACE_MANIFEST),
     JSON.stringify(marketplaceManifest(metadata), null, 2) + '\n',
@@ -256,7 +238,7 @@ export async function runInstallCodexPlugin(args = []) {
     return uninstall({ home, cli, dryRun });
   }
 
-  const pluginSrc = join(packageRoot, 'presets', 'codex');
+  const { sourceDir: pluginSrc, manifest } = pluginPayload('codex');
   if (!(await pathExists(pluginSrc))) {
     throw new Error(`Codex plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
   }
@@ -273,7 +255,7 @@ export async function runInstallCodexPlugin(args = []) {
     return 0;
   }
 
-  await materializeMarketplace({ home, pluginSrc, version, metadata });
+  await materializeMarketplace({ home, pluginSrc, manifest, version, metadata });
 
   if (!cli) {
     manualInstructions(root);

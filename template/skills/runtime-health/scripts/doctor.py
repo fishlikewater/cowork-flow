@@ -868,7 +868,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             shim,
             "config.toml registers the cowork-flow hook but its shim is "
             "missing; the host runs a command that cannot start",
-            "cowork-flow install-kimi-hook --force",
+            "cowork-flow install-kimi-hook",
         )
     marker = home / "hooks" / _KIMI_HOOK_MARKER
     if not marker.is_file():
@@ -877,7 +877,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             marker,
             "Kimi Code hook is installed without a version marker; its "
             "injection logic may predate the current release",
-            "cowork-flow install-kimi-hook --force",
+            "cowork-flow install-kimi-hook",
         )
     recorded = _marker_version(marker)
     if recorded is None:
@@ -886,7 +886,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             marker,
             "Kimi Code hook version marker is unreadable; its injection logic "
             "may predate the current release",
-            "cowork-flow install-kimi-hook --force",
+            "cowork-flow install-kimi-hook",
         )
     project_version = _project_version(repo_root)
     if not project_version or recorded == project_version:
@@ -897,7 +897,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
         f"Kimi Code hook was installed from {recorded} but this project runs "
         f"{project_version}; the hook does not update with sync or npm, so "
         "injection may lag the project runtime",
-        "cowork-flow install-kimi-hook --force",
+        "cowork-flow install-kimi-hook",
     )
 
 
@@ -940,6 +940,18 @@ def _qoder_registry_entry(registry_path: Path) -> dict[str, object] | None:
     return None
 
 
+def _payload_manifest(platform_id: str, repo_root: Path) -> str | None:
+    """Plugin manifest path inside a host's payload, taken from the host asset
+    manifest declaration. Returns None when the declaration cannot be read, so a
+    caller falls back to its own literal instead of skipping the check."""
+    try:
+        manifest = load_host_manifest(_distribution_root(repo_root))
+        platform = manifest.platform(platform_id)
+    except HostManifestError:
+        return None
+    return platform.payload.manifest if platform.payload else None
+
+
 def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
     """Qoder plugin health. Advisory, and silent while the project never
     selected the Qoder host: the plugin is a machine-level asset installed once
@@ -963,10 +975,11 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
         )
 
     install_path = Path(str(entry.get("installPath") or ""))
-    if not (install_path / ".qoder-plugin" / "plugin.json").is_file():
+    manifest_relative = _payload_manifest("qoder", repo_root) or ".qoder-plugin/plugin.json"
+    if not (install_path / manifest_relative).is_file():
         return _qoder_warning(
             "PLUGIN-PAYLOAD-MISSING",
-            install_path / ".qoder-plugin" / "plugin.json",
+            install_path / manifest_relative,
             f"the Qoder plugin registry points at {install_path}, but no "
             "manifest is on disk there; the host cannot load a missing payload",
             "cowork-flow install-qoder-plugin --force",
@@ -1093,7 +1106,8 @@ def check_codex_plugin(repo_root: Path) -> list[dict[str, str]]:
 
     source = marketplace.get("source", "")
     payload = (Path(source) / "plugins" / "cowork-flow") if source else None
-    if payload is None or not (payload / ".codex-plugin" / "plugin.json").is_file():
+    manifest_relative = _payload_manifest("codex", repo_root) or ".codex-plugin/plugin.json"
+    if payload is None or not (payload / manifest_relative).is_file():
         return _codex_warning(
             "PLUGIN-PAYLOAD-MISSING",
             payload if payload is not None else config_path,

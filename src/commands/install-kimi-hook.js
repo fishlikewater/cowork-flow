@@ -15,10 +15,11 @@ const MANAGED_START = '# cowork-flow: kimi hook start. Managed by "cowork-flow i
 const MANAGED_END = '# cowork-flow: kimi hook end.';
 
 
+// No --force: installing always rewrites the shim and its managed block, so a
+// flag that only re-ran the same writes would be a no-op.
 function parseArgs(args) {
   return {
     dryRun: args.includes('--dry-run'),
-    force: args.includes('--force'),
     uninstall: args.includes('--uninstall')
   };
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -7,6 +7,7 @@ import {
   createHostRegistry,
   loadHostAssetManifest
 } from '../src/lib/host-assets.js';
+import { packageRoot } from '../src/lib/paths.js';
 
 
 const TEMPLATE_SKILLS_DIR = new URL('../template/skills/', import.meta.url);
@@ -343,7 +344,8 @@ test('a simulated platform is added by manifest data only', () => {
     capabilities: {
       dispatchSubagent: 'external'
     },
-    commandTargets: []
+    commandTargets: [],
+    payload: { source: 'presets/demo-host', manifest: '.demo-host-plugin/plugin.json' }
   });
   manifest.capabilityMatrix.hosts['demo-host'] = {
     task_action: {
@@ -383,6 +385,98 @@ test('a simulated platform is added by manifest data only', () => {
       status: 'unsupported',
       fallback: 'inline_or_manual'
     }
+  );
+  assert.deepEqual(
+    registry.platformPayload('demo-host'),
+    {
+      sourceDir: join(packageRoot, 'presets', 'demo-host'),
+      manifest: '.demo-host-plugin/plugin.json'
+    }
+  );
+});
+
+
+test('declared payloads resolve to directories the package really ships', () => {
+  const manifest = loadHostAssetManifest();
+  const registry = createHostRegistry(manifest);
+  const declared = manifest.platforms.filter((platform) => platform.payload);
+
+  // Every other host installs a preset or a hook, not a plugin payload; a new
+  // entry here without a matching presets/ directory must fail below.
+  assert.deepEqual(
+    declared.map((platform) => platform.id),
+    ['codex', 'zcode', 'qoder']
+  );
+  for (const platform of declared) {
+    const payload = registry.platformPayload(platform.id);
+    assert.equal(payload.sourceDir, join(packageRoot, 'presets', platform.id));
+    assert.ok(
+      existsSync(join(payload.sourceDir, ...payload.manifest.split('/'))),
+      `${platform.id} declares ${payload.manifest}, which must exist inside ${platform.payload.source}`
+    );
+  }
+  assert.equal(registry.platformPayload('opencode'), null);
+  assert.equal(registry.platformPayload('dsh'), null);
+});
+
+
+test('plugin installers locate their payload through the declaration', () => {
+  const manifest = loadHostAssetManifest();
+  for (const host of ['codex', 'zcode', 'qoder']) {
+    const installer = readFileSync(
+      join(packageRoot, 'src', 'commands', `install-${host}-plugin.js`),
+      'utf8'
+    );
+    // Comments may name the shipped directory; the code must not, in any
+    // quoting style (a template literal would slip past a quoted-literal match).
+    assert.doesNotMatch(
+      installer.replace(/^\s*\/\/.*$/gm, ''),
+      /presets/,
+      `install-${host}-plugin.js must resolve its payload directory from the declaration`
+    );
+    assert.match(installer, /pluginPayload\(/);
+    assert.ok(
+      manifest.platforms.find((platform) => platform.id === host).payload.manifest,
+      `${host} must declare the manifest its installer stamps`
+    );
+  }
+});
+
+
+test('host registry rejects malformed payload declarations', () => {
+  const manifest = loadHostAssetManifest();
+  const withCodexPayload = (payload) => {
+    const broken = structuredClone(manifest);
+    const codex = broken.platforms.find((platform) => platform.id === 'codex');
+    if (payload === undefined) {
+      delete codex.payload;
+    } else {
+      codex.payload = payload;
+    }
+    return broken;
+  };
+
+  assert.throws(
+    () => createHostRegistry(withCodexPayload('presets/codex')),
+    /platform codex payload must be null or an object/
+  );
+  assert.throws(
+    () => createHostRegistry(withCodexPayload(undefined)),
+    /platform codex payload must be null or an object/
+  );
+  assert.throws(
+    () => createHostRegistry(withCodexPayload({ manifest: '.codex-plugin/plugin.json' })),
+    /platform codex payload\.source must be a non-empty string/
+  );
+  assert.throws(
+    () => createHostRegistry(withCodexPayload({ source: 'presets/codex', skills: 'skills' })),
+    /platform codex payload unknown field: skills/
+  );
+  // An explicit null manifest is a bad value, not "no manifest": only the
+  // missing key means the payload carries none.
+  assert.throws(
+    () => createHostRegistry(withCodexPayload({ source: 'presets/codex', manifest: null })),
+    /platform codex payload\.manifest must be a non-empty string/
   );
 });
 

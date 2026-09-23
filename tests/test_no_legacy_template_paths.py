@@ -177,7 +177,7 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         The delivery filters are blacklist-shaped, so a stray ``__pycache__``
         under ``template/`` or ``presets/`` sits one filter edit away from
         reaching user projects. Bytecode belongs in the ``.tmp`` prefix that
-        ``tests/conftest.py`` points at, never next to shipped sources.
+        ``tests/__init__.py`` points at, never next to shipped sources.
         """
         offenders: list[str] = []
 

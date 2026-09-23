@@ -24,7 +24,7 @@ Usage:
   cowork-flow install-codex-plugin [--dry-run] [--force] [--uninstall]
   cowork-flow install-dsh-preset [--dry-run] [--force]
   cowork-flow install-dsh-hook [--dry-run] [--force] [--uninstall]
-  cowork-flow install-kimi-hook [--dry-run] [--force] [--uninstall]
+  cowork-flow install-kimi-hook [--dry-run] [--uninstall]
   cowork-flow update
   cowork-flow sync [target] [--dry-run] [--force]
   cowork-flow source-refresh [target] [--dry-run]

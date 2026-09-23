@@ -110,7 +110,8 @@
           "format": "toml",
           "target": ".codex/agents/cowork-implement.toml"
         }
-      ]
+      ],
+      "payload": null
     }
   ],
   "excludedPrefixes": [

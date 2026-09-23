@@ -42,13 +42,15 @@ party_mode_v2:
 # Commands use simple executable plus arguments and run without a shell.
 # No shell pipes, redirects, or command chaining (|, >, &&).
 # Hook failures print a warning but do not block the main operation.
+# The script below is the caller's own: point these lines at a script you ship
+# in this repository, or delete the block.
 #
 # hooks:
 #   after_create:
-#     - "python scripts/on_task_event.py after_create"
+#     - "python .cowork-flow/scripts/hooks/on_task_event.py after_create"
 #   after_start:
-#     - "python scripts/on_task_event.py after_start"
+#     - "python .cowork-flow/scripts/hooks/on_task_event.py after_start"
 #   after_finish:
-#     - "python scripts/on_task_event.py after_finish"
+#     - "python .cowork-flow/scripts/hooks/on_task_event.py after_finish"
 #   after_archive:
-#     - "python scripts/on_task_event.py after_archive"
+#     - "python .cowork-flow/scripts/hooks/on_task_event.py after_archive"

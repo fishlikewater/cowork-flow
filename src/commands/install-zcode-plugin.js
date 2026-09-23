@@ -3,8 +3,9 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 
 import { readPackageInfo } from '../lib/package-info.js';
-import { packageRoot, templateRoot } from '../lib/paths.js';
+import { templateRoot } from '../lib/paths.js';
 import { pluginManifest, readPluginMetadata } from '../lib/plugin-metadata.js';
+import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 
 const ZCODE_MARKETPLACE = 'cowork-flow-local';
 const LEGACY_ZCODE_MARKETPLACE = 'zcode-plugins-official';
@@ -195,7 +196,7 @@ async function pruneOldVersions(cacheRoot, currentVersion) {
 
 export async function runInstallZCodePlugin(args = []) {
   const { dryRun, force, pruneOld } = parseArgs(args);
-  const pluginSrc = join(packageRoot, 'presets', 'zcode');
+  const { sourceDir: pluginSrc, manifest } = pluginPayload('zcode');
   const { version } = await readPackageInfo();
   const metadata = await readPluginMetadata();
 
@@ -250,6 +251,11 @@ export async function runInstallZCodePlugin(args = []) {
   if (await pathExists(mainScriptsSrc)) {
     await cp(mainScriptsSrc, pluginScriptsDest, { recursive: true, force: true });
   }
+
+  // The cache directory is named after the package version, so the installed
+  // manifest is stamped to match; a payload installed from a checkout would
+  // otherwise keep whatever version its source manifest carried.
+  await stampPayloadManifest(destDir, manifest, version);
 
   await updateMarketplace(pluginsRoot, cacheRoot, version, metadata);
   await updateKnownMarketplaces(pluginsRoot);

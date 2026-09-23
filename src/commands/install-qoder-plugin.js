@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { readPackageInfo } from '../lib/package-info.js';
-import { packageRoot } from '../lib/paths.js';
+import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 
 const QODER_MARKETPLACE = 'cowork-flow-local';
 const PLUGIN_NAME = 'cowork-flow';
@@ -106,16 +106,6 @@ async function enablePlugin(paths, dryRun) {
   await writeJsonAtomic(paths.settings, settings);
 }
 
-async function stampManifest(installPath, version) {
-  const manifestPath = join(installPath, '.qoder-plugin', 'plugin.json');
-  const manifest = await readJsonSafe(manifestPath);
-  if (!manifest) {
-    throw new Error(`Qoder plugin manifest missing or unreadable: ${manifestPath}`);
-  }
-  manifest.version = version;
-  await writeJsonAtomic(manifestPath, manifest);
-}
-
 async function uninstall(paths, dryRun) {
   const registry = await readJsonSafe(paths.registry);
   const owned = registry?.plugins?.[PLUGIN_KEY];
@@ -152,7 +142,7 @@ export async function runInstallQoderPlugin(args = []) {
     return uninstall(target, dryRun);
   }
 
-  const pluginSrc = join(packageRoot, 'presets', 'qoder');
+  const { sourceDir: pluginSrc, manifest } = pluginPayload('qoder');
   if (!(await pathExists(pluginSrc))) {
     throw new Error(`Qoder plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
   }
@@ -176,7 +166,7 @@ export async function runInstallQoderPlugin(args = []) {
   await mkdir(target.cacheRoot, { recursive: true });
   await rm(target.installPath, { recursive: true, force: true });
   await cp(pluginSrc, target.installPath, { recursive: true });
-  await stampManifest(target.installPath, version);
+  await stampPayloadManifest(target.installPath, manifest, version);
   // Registry and enable flag come last: a half-copied payload must never be
   // advertised as installed.
   await updateRegistry(target, version, now, false);

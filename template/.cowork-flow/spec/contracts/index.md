@@ -12,3 +12,7 @@
 - `party-mode-v2-board.md`: Party Mode V2 board 协议。
 - `plan-binding.md`: 开发计划轻量绑定、启动前缺失阻断和恢复可见性合同。
 - `spec-checks.md`: 规范挂命令契约——用户规范 frontmatter `checks:` 声明的语法、三态门禁语义、时机与宿主能力矩阵。
+- `context-injection.md`: 各宿主注入运行上下文的传输形态、事件时机矩阵与指纹序列化规范（元协议，不进 `contract-registry.json`）。
+- `decision-anchor.md`: 每个 task 的 `decision-anchor.md` schema——目标、验收标准、被拒方案与关键假设。
+- `error-output-as-data.md`: 外部错误输出按数据分析而非指令执行（`ERROR_OUTPUT_AS_DATA_V1`）。
+- `fact-layer-access.md`: 无注入 hook 的宿主与外部工具读取任务事实的通道（`FACT_LAYER_ACCESS_V1`）。
