@@ -1062,22 +1062,44 @@ def _machine_plugin_payload(platform_id: str) -> Path | None:
     return None
 
 
-def _legacy_machine_skills_issues(platform_id: str) -> list[dict[str, str]]:
-    """Warnings for a host whose machine-level plugin still carries a skills
-    copy: skills now ship with the project only, so a payload copy is a
-    leftover that may also come from another release."""
+def _legacy_machine_skills_issues(
+    platform_id: str, project_skills: Path | None
+) -> list[dict[str, str]]:
+    """Warnings for a host whose machine-level plugin still carries a copy of a
+    Skill this project also ships. The payload is bootstrap-only, so a
+    same-named copy is a leftover that may come from another release; a payload
+    Skill the project does not ship (the bootstrap guide) is expected and stays
+    silent."""
     payload = _machine_plugin_payload(platform_id)
     if payload is None:
         return []
     skills = payload / "skills"
     if not skills.is_dir():
         return []
+    names: set[str] = set()
+    if project_skills is not None:
+        try:
+            names = {
+                entry.name
+                for entry in project_skills.iterdir()
+                if (entry / "SKILL.md").is_file()
+            }
+        except OSError:
+            names = set()
+    replicas = sorted(
+        entry.name
+        for entry in skills.iterdir()
+        if (entry / "SKILL.md").is_file() and entry.name in names
+    )
+    if not replicas:
+        return []
     return _skill_delivery_warning(
         "PLUGIN-SKILLS-LEGACY",
         skills,
-        f"the {platform_id} plugin payload still carries a skills copy from "
-        f"{payload.name}; skills now ship with the project only, so the payload "
-        "copy is redundant and may come from another release",
+        f"the {platform_id} plugin payload still carries project Skill copies "
+        f"({', '.join(replicas)}) from {payload.name}; project Skills ship with "
+        "the project only, so the payload copy is redundant and may come from "
+        "another release",
         f"cowork-flow install-{platform_id}-plugin --force",
     )
 
@@ -1085,7 +1107,7 @@ def _legacy_machine_skills_issues(platform_id: str) -> list[dict[str, str]]:
 def check_skill_delivery(repo_root: Path) -> list[dict[str, str]]:
     """Skill delivery diagnostics for the hosts this project selected: whether
     each declared read root is on disk, whether a machine-level plugin payload
-    still carries a skills copy it should no longer ship, and whether a
+    still carries a copy of a Skill this project ships, and whether a
     declared discovery channel sits behind host-side gates. Advisory only:
     doctor cannot read host trust state, and a leftover copy is not a broken
     project."""
@@ -1127,7 +1149,9 @@ def check_skill_delivery(repo_root: Path) -> list[dict[str, str]]:
                         "disk stay invisible to the host",
                     )
                 )
-        issues.extend(_legacy_machine_skills_issues(platform_id))
+        issues.extend(
+            _legacy_machine_skills_issues(platform_id, read_root if delivered else None)
+        )
     return issues
 
 

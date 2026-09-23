@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -98,8 +98,10 @@ test('qoder plugin manifest declares only components that ship', async () => {
   );
   assert.equal(manifest.hooks, 'hooks/hooks.json');
   assert.equal(manifest.agents, 'agents');
-  // Skills ship with the project copy (init/sync); the payload declares none.
-  assert.equal(manifest.skills, undefined);
+  // The payload carries bootstrap guidance only; project Skills still ship with
+  // the project copy (init/sync). Qoder enumerates the project and payload Skill
+  // roots, so payload Skill names must stay disjoint from template/skills/.
+  assert.equal(manifest.skills, 'skills');
   // commands/settings are declared by nothing here: no commands/ dir ships, and
   // Qoder ignores every settings key except `agent`.
   assert.equal(manifest.commands, undefined);
@@ -229,7 +231,14 @@ test('install-qoder-plugin writes payload, registry entry and enable flag', asyn
     );
     await readFile(join(installPath, 'hooks', 'hooks.json'), 'utf8');
     await readFile(join(installPath, 'agents', 'cowork-implement.md'), 'utf8');
-    await assert.rejects(access(join(installPath, 'skills')));
+    const payloadSkills = join(installPath, 'skills');
+    await readFile(join(payloadSkills, 'cowork-flow-bootstrap', 'SKILL.md'), 'utf8');
+    for (const name of await readdir(payloadSkills)) {
+      await assert.rejects(
+        access(join(templateRoot, 'skills', name)),
+        `payload Skill ${name} must not shadow a project Skill`
+      );
+    }
 
     const registry = await readJson(join(home, 'plugins', 'installed_plugins_v2.json'));
     const entries = registry.plugins[PLUGIN_KEY];

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
@@ -286,16 +286,24 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   const manifest = await readJson(join(pluginRoot, '.zcode-plugin', 'plugin.json'));
   assert.equal(manifest.hooks, 'hooks/hooks.json');
   assert.equal(manifest.agents, 'agents');
-  // Skills belong to the project copy only: ZCode enumerates the project root
-  // and the plugin root without name-based dedup, so a payload copy would show
-  // up as a second same-named skill.
-  assert.equal(manifest.skills, undefined);
+  // The payload carries bootstrap guidance only; project Skills still ship with
+  // the project copy. ZCode enumerates the project root and the plugin root
+  // without name-based dedup, so payload Skill names must stay disjoint from
+  // template/skills/ — a same-named payload copy would surface as a duplicate.
+  assert.equal(manifest.skills, 'skills');
 
   await access(join(pluginRoot, manifest.hooks));
   await access(join(pluginRoot, manifest.agents, 'cowork-implement.md'));
   await access(join(pluginRoot, manifest.agents, 'cowork-check.md'));
   await access(join(pluginRoot, manifest.agents, 'cowork-research.md'));
-  await assert.rejects(access(join(pluginRoot, 'skills')));
+  const payloadSkills = join(pluginRoot, manifest.skills);
+  await access(join(payloadSkills, 'cowork-flow-bootstrap', 'SKILL.md'));
+  for (const name of await readdir(payloadSkills)) {
+    await assert.rejects(
+      access(join(templateRoot, 'skills', name)),
+      `payload Skill ${name} must not shadow a project Skill`
+    );
+  }
 
   const implementAgent = await readFile(join(pluginRoot, 'agents', 'cowork-implement.md'), 'utf8');
   // Agent bodies point at the project's skill copy (the host's discovery path).
