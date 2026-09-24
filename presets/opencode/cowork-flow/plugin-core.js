@@ -9,8 +9,17 @@
 // (~/.config/opencode/), so the adapter's relative import resolves in both.
 
 import { spawn } from "node:child_process"
-import { createHash } from "node:crypto"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { createHash, randomUUID } from "node:crypto"
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -282,18 +291,97 @@ function resolveHostContextKey(input) {
   return match ? sanitize(match[1]) : null
 }
 
-function readJson(path) {
+function readJsonDocument(path) {
   try {
     const data = JSON.parse(readFileSync(path, "utf8"))
-    return data && typeof data === "object" && !Array.isArray(data) ? data : null
-  } catch {
-    return null
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return { exists: true, invalid: true, data: null, revision: 0 }
+    }
+    const metadata = data._state
+    const revision =
+      metadata &&
+      Number.isInteger(metadata.revision) &&
+      metadata.revision >= 0
+        ? metadata.revision
+        : 0
+    return { exists: true, invalid: false, data, revision }
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return { exists: false, invalid: false, data: null, revision: 0 }
+    }
+    return { exists: true, invalid: true, data: null, revision: 0 }
   }
 }
 
-function writeJson(path, data) {
+function readJson(path) {
+  const document = readJsonDocument(path)
+  return document.invalid ? null : document.data
+}
+
+function sleepSync(milliseconds) {
+  const buffer = new Int32Array(new SharedArrayBuffer(4))
+  Atomics.wait(buffer, 0, 0, milliseconds)
+}
+
+function acquireSessionLock(path) {
+  const lockPath = `${path}.lock`
+  const deadline = Date.now() + 5000
+  while (true) {
+    try {
+      const handle = openSync(lockPath, "wx", 0o600)
+      writeFileSync(
+        handle,
+        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+        "utf8"
+      )
+      return { handle, lockPath }
+    } catch (error) {
+      if (error?.code !== "EEXIST" || Date.now() >= deadline) {
+        throw error
+      }
+      sleepSync(10)
+    }
+  }
+}
+
+function writeJson(path, data, { expectedRevision = null } = {}) {
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, "utf8")
+  const lock = acquireSessionLock(path)
+  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
+  try {
+    const current = readJsonDocument(path)
+    if (current.invalid) {
+      throw new Error(`refusing to overwrite invalid session state: ${path}`)
+    }
+    const revision = expectedRevision === null ? current.revision : expectedRevision
+    if (current.revision !== revision) {
+      throw new Error(`session state changed while writing: ${path}`)
+    }
+    const persisted = { ...data }
+    delete persisted._state
+    persisted._state = {
+      schema_version: 1,
+      revision: current.revision + 1,
+      operation_id: `opencode-session-${randomUUID()}`,
+    }
+    writeFileSync(temporary, `${JSON.stringify(persisted, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    })
+    renameSync(temporary, path)
+  } finally {
+    try {
+      unlinkSync(temporary)
+    } catch {
+      // The temporary file may already have been renamed.
+    }
+    closeSync(lock.handle)
+    try {
+      unlinkSync(lock.lockPath)
+    } catch {
+      // A failed cleanup must not mask the original write error.
+    }
+  }
 }
 
 function nowIso() {
@@ -319,7 +407,23 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
   if (typeof context.task_dir === "string" && context.task_dir.trim()) {
     session.active_task_path = context.task_dir.trim()
   }
-  writeJson(resolve(root, ".cowork-flow", ".runtime", "sessions", `${contextKey}.json`), session)
+  const sessionPath = resolve(
+    root,
+    ".cowork-flow",
+    ".runtime",
+    "sessions",
+    `${contextKey}.json`
+  )
+  const contextPath = resolve(
+    root,
+    ".cowork-flow",
+    ".runtime",
+    "subagents",
+    `${runtimeContextId}.json`
+  )
+  const sessionRevision = readJsonDocument(sessionPath).revision
+  const contextRevision = readJsonDocument(contextPath).revision
+  writeJson(sessionPath, session, { expectedRevision: sessionRevision })
   const updated = {
     ...context,
     status: "bound",
@@ -327,7 +431,7 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
     bound_at: context.bound_at || nowIso(),
     last_seen_at: nowIso(),
   }
-  writeJson(resolve(root, ".cowork-flow", ".runtime", "subagents", `${runtimeContextId}.json`), updated)
+  writeJson(contextPath, updated, { expectedRevision: contextRevision })
   return updated
 }
 

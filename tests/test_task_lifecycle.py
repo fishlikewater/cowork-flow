@@ -395,6 +395,23 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self.assertTrue(rerun.ok)
             self.assertEqual("LIFECYCLE-IDEMPOTENT", rerun.code)
 
+    def test_start_readiness_fails_closed_when_readiness_module_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            policy = importlib.import_module("services.lifecycle_policy")
+
+            with patch.dict(sys.modules, {"services.readiness": None}):
+                failure = policy.start_readiness_failure(root, task_dir)
+
+            self.assertIsNotNone(failure)
+            self.assertEqual("TASK-READINESS-001", failure.code)
+            self.assertTrue(
+                any("readiness check unavailable" in blocker for blocker in failure.blockers)
+            )
+
     def test_start_readiness_policy_reports_missing_anchor_without_terminal_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -420,10 +437,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self._write_task(task_dir, "in_progress")
             execution = importlib.import_module("runtime.execution_context")
             context = execution.ExecutionContext(
-                mode=execution.MODE_WORKER,
-                assignment="impl",
-                task_dir=str(task_dir),
-                prompt_file="prompt.md",
+                mode=execution.MODE_COORDINATOR,
             )
             check_runner = self._check_runner()
             service = self.TaskLifecycleService(root, check_runner=check_runner)
@@ -431,6 +445,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             result = service.review(
                 task_dir,
                 execution_context=context,
+                allow_spec_file_modifications=False,
             )
 
             self.assertTrue(result.ok)
@@ -439,6 +454,27 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self.assertFalse(
                 check_runner.calls[0][2]["allow_spec_file_modifications"]
             )
+
+    def test_worker_execution_context_cannot_mutate_task_lifecycle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            execution = importlib.import_module("runtime.execution_context")
+            context = execution.ExecutionContext(
+                mode=execution.MODE_WORKER,
+                assignment="implementation",
+                task_dir=str(task_dir),
+                prompt_file="prompt.md",
+            )
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            result = service.start(task_dir, execution_context=context)
+
+            self.assertFalse(result.ok)
+            self.assertEqual("TASK-EXECUTION-001", result.code)
+            self.assertEqual("planning", self._status(task_dir))
 
     def test_preflight_failure_stops_before_check_and_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -568,6 +604,40 @@ class TaskLifecycleServiceTest(unittest.TestCase):
 
 
 class TaskLifecycleTransactionTest(TaskLifecycleServiceTest):
+    def test_retry_after_manual_state_rollback_rewrites_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(
+                os.environ,
+                {"COWORK_FLOW_CONTEXT_ID": "main"},
+                clear=True,
+            ):
+                first = service.start(task_dir)
+                self.assertTrue(first.ok)
+                self.assertEqual("in_progress", self._status(task_dir))
+
+                repository_module = importlib.import_module("services.task_repository")
+                repository = repository_module.TaskRepository(root)
+                current = repository.load_snapshot(task_dir)
+                rolled_back = dict(current.data)
+                rolled_back["status"] = "planning"
+                repository.replace(
+                    task_dir,
+                    rolled_back,
+                    expected_revision=current.revision,
+                    operation_id="manual-test-rollback",
+                )
+
+                second = service.start(task_dir)
+
+            self.assertTrue(second.ok, second.blockers)
+            self.assertEqual("in_progress", self._status(task_dir))
+
     def test_crash_between_session_and_task_write_recovers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Union
+from uuid import uuid4
 
 from infra.paths import DIR_WORKFLOW
 from infra.storage.unit_of_work import (
@@ -16,7 +18,10 @@ from infra.storage.unit_of_work import (
     UnitOfWork,
     UnitOfWorkError,
 )
-from runtime.session_state import build_active_task_session
+from runtime.session_state import (
+    build_active_task_session,
+    is_delegated_session,
+)
 from infra.git_snapshot import current_head
 from services.lifecycle_checks import LifecycleCheckResult, LifecycleCheckRunner
 from services.lifecycle_policy import (
@@ -122,6 +127,7 @@ class TaskLifecycleService:
         preflight: Preflight | None = None,
         executor: str | None = None,
         takeover: bool = False,
+        execution_context: object | None = None,
     ) -> LifecycleResult:
         return self.execute(
             START_STAGE,
@@ -129,6 +135,7 @@ class TaskLifecycleService:
             preflight=preflight,
             executor=executor,
             takeover=takeover,
+            execution_context=execution_context,
         )
 
     def review(
@@ -201,6 +208,19 @@ class TaskLifecycleService:
             return checked
         check_result = checked
 
+        if self._delegated_mutation_request(execution_context):
+            return self._failure(
+                stage,
+                task_dir,
+                "TASK-EXECUTION-001",
+                title="Delegated execution cannot mutate task lifecycle",
+                blockers=(
+                    "delegated execution context cannot mutate main-session "
+                    "task lifecycle state",
+                ),
+                check_result=check_result,
+            )
+
         executor_failure = self._check_executor(
             stage,
             task_dir,
@@ -239,6 +259,17 @@ class TaskLifecycleService:
             execution_policy=execution_policy,
             executor=executor,
         )
+
+    def _delegated_mutation_request(self, execution_context: object | None) -> bool:
+        if execution_context is not None and (
+            bool(getattr(execution_context, "is_worker", False))
+            or bool(getattr(execution_context, "is_subagent", False))
+        ):
+            return True
+        try:
+            return is_delegated_session(self.repo_root)
+        except Exception:
+            return True
 
     def _prepare_transition(
         self,
@@ -513,6 +544,7 @@ class TaskLifecycleService:
                 allow_spec_file_modifications=(
                     execution_policy.allow_spec_file_modifications
                 ),
+                allow_unchecked_specs=execution_policy.allow_unchecked_specs,
                 execution_policy=execution_policy,
             )
         else:
@@ -646,19 +678,43 @@ class TaskLifecycleService:
             return None
         persisted = dict(task_data)
         persisted["executor"] = resolved
-        identity = (
-            str(task_dir.resolve()),
-            str(task_data.get("createdAt") or ""),
-            resolved,
+        try:
+            current_task = self.repository.load_snapshot(task_dir)
+        except TaskRepositoryError as error:
+            return self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-UOW-001",
+                title=f"task metadata could not be re-read before takeover: {error.detail}",
+            )
+        if current_task.data != task_data:
+            return self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-UOW-001",
+                title="task metadata changed before takeover; retry from fresh state",
+            )
+        identity = "|".join(
+            (
+                str(task_dir.resolve()),
+                str(task_data.get("createdAt") or ""),
+                resolved,
+                str(current_task.revision),
+                uuid4().hex,
+            )
         )
-        digest = hashlib.sha256("|".join(identity).encode("utf-8")).hexdigest()[:16]
+        digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
         unit = UnitOfWork(
             self.repo_root,
             operation_id=f"task-{stage.name}-takeover-{digest}",
             kind=f"task-lifecycle-{stage.name}-takeover",
             fault_injector=self.fault_injector,
         )
-        unit.replace(self.repository.task_json_path(task_dir), persisted)
+        unit.replace(
+            self.repository.task_json_path(task_dir),
+            persisted,
+            expected_revision=current_task.revision,
+        )
         try:
             unit.commit()
         except UnitOfWorkError as error:
@@ -724,7 +780,30 @@ class TaskLifecycleService:
         session_state: object | None,
         check_result: object,
     ) -> LifecycleResult | None:
-        operation_id = self._operation_id(stage, task_dir, task_data)
+        try:
+            current_task = self.repository.load_snapshot(task_dir)
+        except TaskRepositoryError as error:
+            return self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-UOW-001",
+                title=f"task metadata could not be re-read before commit: {error.detail}",
+                check_result=check_result,
+            )
+        if current_task.data != task_data:
+            return self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-UOW-001",
+                title="task metadata changed before commit; retry from fresh state",
+                check_result=check_result,
+            )
+        operation_id = self._operation_id(
+            stage,
+            task_dir,
+            task_data,
+            task_revision=current_task.revision,
+        )
         unit = UnitOfWork(
             self.repo_root,
             operation_id=operation_id,
@@ -736,6 +815,7 @@ class TaskLifecycleService:
         unit.replace(
             self.repository.task_json_path(task_dir),
             persisted,
+            expected_revision=current_task.revision,
         )
         unit.replace(
             self.repo_root
@@ -828,13 +908,27 @@ class TaskLifecycleService:
         stage: LifecycleStage,
         task_dir: Path,
         task_data: dict,
+        *,
+        task_revision: int | None = None,
     ) -> str:
+        # A new attempt gets a new identity. Recovery is driven by the
+        # operation log, so deterministic reuse would let a manual rollback
+        # inherit an older committed result.
+        task_fingerprint = json.dumps(
+            task_data,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         identity = "|".join(
             (
                 str(task_dir.resolve()),
                 str(task_data.get("createdAt") or ""),
                 str(task_data.get("status") or ""),
                 stage.target_status,
+                str(task_revision if task_revision is not None else "unknown"),
+                task_fingerprint,
+                uuid4().hex,
             )
         )
         digest = hashlib.sha256(

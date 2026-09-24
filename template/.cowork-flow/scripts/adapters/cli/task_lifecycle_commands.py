@@ -250,6 +250,7 @@ def _report_start_success(
 def cmd_start(args: argparse.Namespace) -> int:
     """Set the active task for this session."""
     repo_root = get_repo_root()
+    execution_context = execution_context_from_namespace(args)
     task_input = args.dir
     if not task_input:
         print(
@@ -272,6 +273,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         full_path,
         executor=getattr(args, "executor", None),
         takeover=bool(getattr(args, "takeover", False)),
+        execution_context=execution_context,
     )
     if not result.ok:
         return _report_start_failure(result)
@@ -304,6 +306,8 @@ def cmd_review(args: argparse.Namespace) -> int:
                 "Lifecycle checks blocked review",
                 result.blockers,
             )
+        if result.title:
+            return _report_lifecycle_preflight(result)
         if result.repository_error is not None:
             return _report_lifecycle_repository_error(result)
         return 1
@@ -347,6 +351,8 @@ def cmd_complete(args: argparse.Namespace) -> int:
                 "Lifecycle checks blocked completion",
                 result.blockers,
             )
+        if result.title:
+            return _report_lifecycle_preflight(result)
         if result.repository_error is not None:
             return _report_lifecycle_repository_error(result)
         return 1

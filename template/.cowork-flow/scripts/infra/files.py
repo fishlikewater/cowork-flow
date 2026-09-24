@@ -15,13 +15,9 @@ def read_json_file(path: Path) -> dict | None:
     except FileNotFoundError:
         return None
     except (json.JSONDecodeError, OSError):
-        # Corrupt/unreadable — remove to avoid orphan state, then report missing
+        # A read-only query must never destroy an authoritative document.
         import sys
-        print(f"Warning: Corrupt JSON cleaned up: {path}", file=sys.stderr)
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        print(f"Warning: Corrupt JSON preserved: {path}", file=sys.stderr)
         return None
 
 

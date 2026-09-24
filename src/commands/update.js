@@ -59,7 +59,8 @@ export async function runUpdate(args, deps = {}) {
       })));
     }
     io.writeOut(`Unable to query npm latest. Run: ${installCommand}\n`);
-    return 0;
+    io.writeOut('Manual follow-up required; automatic update was not completed.\n');
+    return 1;
   }
 
   io.writeOut(`current=${current}\n`);

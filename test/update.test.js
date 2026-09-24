@@ -122,7 +122,7 @@ test('update returns install exit code when global install fails', async () => {
   assert.match(io.stdout, /latest=0\.3\.11/);
 });
 
-test('update degrades to manual command when latest query fails', async () => {
+test('update returns failure when latest query requires manual follow-up', async () => {
   const io = createIo();
 
   const code = await runUpdate([], {
@@ -134,9 +134,10 @@ test('update degrades to manual command when latest query fails', async () => {
     runGlobalInstall: async () => 0
   });
 
-  assert.equal(code, 0);
+  assert.equal(code, 1);
   assert.match(io.stdout, /current=0\.3\.10/);
   assert.match(io.stdout, /npm install -g cowork-flow@latest/);
+  assert.match(io.stdout, /automatic update was not completed/i);
   assert.match(io.stderr, /registry offline/);
 });
 

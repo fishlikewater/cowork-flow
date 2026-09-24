@@ -14,6 +14,7 @@ from runtime.session_state import (
     FALLBACK_BINDING_BLOCKER,
     PROVENANCE_PROCESS_FALLBACK,
     get_active_task,
+    is_delegated_session,
 )
 from services.readiness import task_readiness_blockers
 from services.task_repository import TaskRepository, TaskRepositoryError
@@ -284,10 +285,16 @@ def _print_blockers(blockers: list[str]) -> None:
         print(f"  - {blocker}")
 
 
-def _routing_context(args) -> str:
+def _routing_context(args, repo_root: Path | None = None) -> str:
     execution_context = execution_context_from_namespace(args)
     if execution_context.is_worker or execution_context.is_subagent:
         return "delegated"
+    if repo_root is not None:
+        try:
+            if is_delegated_session(repo_root):
+                return "delegated"
+        except Exception:
+            return "delegated"
     return "main"
 
 
@@ -309,7 +316,7 @@ def build_navigation_payload(
     payload = route_request(
         status=status,
         intent=intent,
-        context=_routing_context(args),
+        context=_routing_context(args, root),
         blockers=blockers,
         active_target=active_target,
         task_path=task_path,

@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from collections.abc import Mapping
 from pathlib import Path
+from uuid import uuid4
 
 from infra.paths import DIR_WORKFLOW
+from infra.storage.state_store import StateStore, StateStoreError
 from runtime.host_identity import (
     HOST_HINT_ENV,
     HOST_IDENTITIES,
@@ -202,13 +204,27 @@ def _read_json(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _write_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Atomic: write to temp then os.replace
-    json_text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
-    tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-    tmp_path.write_text(json_text, encoding="utf-8")
-    os.replace(tmp_path, path)
+def _write_json(
+    path: Path,
+    data: dict,
+    *,
+    expected_revision: int | None = None,
+) -> None:
+    """Persist a session with the same CAS/lock protocol as workflow state."""
+    store = StateStore()
+    snapshot = store.load(path, missing_ok=True)
+    persisted = dict(data)
+    persisted.pop("_state", None)
+    store.replace(
+        path,
+        persisted,
+        expected_revision=(
+            snapshot.revision
+            if expected_revision is None
+            else expected_revision
+        ),
+        operation_id=f"session-{path.name}-{uuid4().hex}",
+    )
 
 
 def platform_from_context_key(context_key: str) -> str:
@@ -388,12 +404,45 @@ def is_main_session(repo_root: Path, values: Mapping[str, object] | None = None)
     )
 
 
+def is_delegated_session(
+    repo_root: Path,
+    values: Mapping[str, object] | None = None,
+) -> bool:
+    """Return whether the current session is bound to delegated work."""
+    context_key, _provenance = resolve_context_key_with_provenance(values)
+    if not context_key:
+        return False
+    if context_key.startswith("subagent_"):
+        return True
+    path = _session_path(repo_root, context_key)
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return True
+    if not isinstance(data, dict):
+        return True
+    return (
+        data.get(FIELD_SCOPE) == SCOPE_SUBAGENT
+        or bool(data.get(FIELD_RUNTIME_CONTEXT_ID))
+    )
+
+
 def clear_active_task(repo_root: Path) -> ActiveTask:
     active = get_active_task(repo_root)
     if active.context_key:
+        path = _session_path(repo_root, active.context_key)
+        store = StateStore()
         try:
-            _session_path(repo_root, active.context_key).unlink()
-        except OSError:
+            snapshot = store.load(path, missing_ok=True)
+            if snapshot.exists:
+                store.delete(
+                    path,
+                    expected_revision=snapshot.revision,
+                    operation_id=f"session-clear-{path.name}-{uuid4().hex}",
+                )
+        except StateStoreError:
             pass
     return active
 
@@ -404,13 +453,20 @@ def clear_task_from_sessions(repo_root: Path, task_path: str) -> int:
     if not root.is_dir():
         return 0
     normalized = task_path.replace("\\", "/")
+    store = StateStore()
     for path in root.glob("*.json"):
-        data = _read_json(path)
-        if data.get(FIELD_ACTIVE_TASK_PATH) == normalized:
+        try:
+            snapshot = store.load(path)
+        except StateStoreError:
+            continue
+        if snapshot.data.get(FIELD_ACTIVE_TASK_PATH) == normalized:
             try:
-                path.unlink()
-            except OSError:
-                pass
-            else:
-                cleared += 1
+                store.delete(
+                    path,
+                    expected_revision=snapshot.revision,
+                    operation_id=f"session-clear-{path.name}-{uuid4().hex}",
+                )
+            except StateStoreError:
+                continue
+            cleared += 1
     return cleared

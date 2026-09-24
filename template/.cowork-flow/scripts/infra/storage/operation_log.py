@@ -107,6 +107,8 @@ class OperationLog:
                         else 0
                     ),
                     "error": record.get("error"),
+                    "rolled_back": record.get("rolled_back"),
+                    "rollback_error": record.get("rollback_error"),
                 }
             )
         return tuple(facts)

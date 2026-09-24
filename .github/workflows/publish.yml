@@ -5,16 +5,25 @@ on:
     types:
       - published
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Existing release tag to publish (for example v1.6.0)"
+        required: true
+        type: string
 
 jobs:
   verify-ubuntu:
+    if: github.event_name == 'release' || inputs.ref != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
-      - name: Checkout
+      - name: Checkout release ref
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.ref }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,13 +43,17 @@ jobs:
         run: npm run release:check
 
   verify-windows:
+    if: github.event_name == 'release' || inputs.ref != ''
     runs-on: windows-latest
     permissions:
       contents: read
 
     steps:
-      - name: Checkout
+      - name: Checkout release ref
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.ref }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -61,13 +74,59 @@ jobs:
 
   publish:
     needs: [verify-ubuntu, verify-windows]
+    if: github.event_name == 'release' || inputs.ref != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
-      - name: Checkout
+      - name: Checkout release ref
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.ref }}
+          fetch-depth: 0
+
+      - name: Verify release provenance
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DISPATCH_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            release_tag="$RELEASE_TAG"
+          else
+            release_tag="${DISPATCH_REF#refs/tags/}"
+          fi
+          if [[ "$release_tag" != v* ]]; then
+            echo "release ref must be an existing v-prefixed tag" >&2
+            exit 1
+          fi
+          release_ref="refs/tags/$release_tag"
+          if [[ "$release_ref" != refs/tags/v* ]]; then
+            echo "release ref must resolve to refs/tags/v<version>" >&2
+            exit 1
+          fi
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "v${package_version}" != "$release_tag" ]]; then
+            echo "package version ${package_version} does not match release tag ${release_tag}" >&2
+            exit 1
+          fi
+          template_version="$(tr -d '\r\n' < template/.cowork-flow/.version)"
+          if [[ "$template_version" != "$package_version" ]]; then
+            echo "template version ${template_version} does not match package version ${package_version}" >&2
+            exit 1
+          fi
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo "release checkout is not clean" >&2
+            git status --short >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse "${release_ref}^{commit}")" ]]; then
+            echo "checked out commit does not match ${release_tag}" >&2
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

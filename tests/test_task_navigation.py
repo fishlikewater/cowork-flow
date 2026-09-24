@@ -396,6 +396,69 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual("in_progress", task_data["status"])
             self.assertIn("Active session task set", stdout.getvalue())
 
+    def test_bound_subagent_session_cannot_run_start_action(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+            (task_dir / "task.json").write_text(
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(ANCHOR_TEXT, encoding="utf-8")
+            for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+                (task_dir / name).write_text(
+                    '{"file": "AGENTS.md"}\n',
+                    encoding="utf-8",
+                )
+            self._write_session_task(
+                root,
+                context_key="child",
+                scope="subagent",
+                runtime_context_id="rtx_child",
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ,
+                    {"COWORK_FLOW_CONTEXT_ID": "child"},
+                    clear=True,
+                ):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_next(
+                            argparse.Namespace(
+                                dir=".cowork-flow/tasks/05-19-demo",
+                                json=False,
+                                run=True,
+                                intent="implement",
+                                auto=False,
+                                approved=False,
+                                title=None,
+                                slug=None,
+                                assignee=None,
+                                priority="P2",
+                                description=None,
+                                parent=None,
+                                from_plan=None,
+                                commit=False,
+                            )
+                        )
+            finally:
+                os.chdir(previous_cwd)
+
+            task_data = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertNotEqual(0, result)
+            self.assertEqual("planning", task_data["status"])
+            self.assertIn("delegated", stderr.getvalue().lower())
+
     def test_task_next_run_blocks_non_runnable_implementation_action(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

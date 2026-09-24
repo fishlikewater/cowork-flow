@@ -343,6 +343,50 @@ class ActiveTaskRuntimeTest(unittest.TestCase):
                 )
                 self.assertIsNone(self.active_task.get_active_task(root).task_path)
 
+    def test_bound_subagent_session_is_detected_as_delegated(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sessions = self.active_task.sessions_dir(root)
+            sessions.mkdir(parents=True)
+            (sessions / "child.json").write_text(
+                json.dumps(
+                    {
+                        "scope": "subagent",
+                        "runtime_context_id": "rtx_child",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {"COWORK_FLOW_CONTEXT_ID": "child"},
+                clear=True,
+            ):
+                self.assertTrue(self.active_task.is_delegated_session(root))
+
+    def test_session_write_uses_revision_compare_and_swap(self) -> None:
+        state_store_module = importlib.import_module("infra.storage.state_store")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = self.active_task.sessions_dir(root) / "main.json"
+            store = state_store_module.StateStore()
+            first = store.replace(
+                path,
+                {"active_task_path": "first"},
+                expected_revision=0,
+                operation_id="session-seed",
+            )
+
+            with self.assertRaises(state_store_module.StateStoreError):
+                self.active_task._write_json(
+                    path,
+                    {"active_task_path": "stale-writer"},
+                    expected_revision=first.revision - 1,
+                )
+
+            self.assertEqual("first", store.load(path).data["active_task_path"])
+
     def test_set_get_and_clear_active_task_for_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
