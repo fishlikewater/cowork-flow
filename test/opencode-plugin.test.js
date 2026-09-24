@@ -319,4 +319,8 @@ test("the config hook registers the payload skills directory, and only when it e
   const malformed = { skills: "not-an-object" }
   await payloadHooks.config(malformed)
   assert.deepEqual(malformed.skills.paths, [registered[0]])
+
+  // The host is not contractually obliged to hand a config at all.
+  await payloadHooks.config(undefined)
+  await payloadHooks.config(null)
 })

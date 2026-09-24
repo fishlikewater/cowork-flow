@@ -9,7 +9,18 @@ import { readPackageInfo } from '../src/lib/package-info.js';
 import { packageRoot, templateRoot } from '../src/lib/paths.js';
 import { readPluginMetadata } from '../src/lib/plugin-metadata.js';
 
-const HOSTS = ['zcode', 'qoder', 'codex', 'claude-code'];
+// Where each payload keeps its skills/ directory. opencode's payload nests it
+// under the namespaced directory the host never scans (its plugin file and that
+// directory are the only two things the payload may contain), so the relative
+// path differs even though the Skill inside is the same file.
+const HOSTS = ['zcode', 'qoder', 'codex', 'claude-code', 'opencode'];
+const HOST_SKILLS_ROOT = {
+  zcode: 'skills',
+  qoder: 'skills',
+  codex: 'skills',
+  'claude-code': 'skills',
+  opencode: 'cowork-flow/skills'
+};
 const BOOTSTRAP_SKILL = 'cowork-flow-bootstrap';
 const MARKETPLACE_NAME = 'cowork-flow-local';
 const PLUGIN_KEY = 'cowork-flow@cowork-flow-local';
@@ -91,6 +102,11 @@ process.exit(2);
 
 function hostPluginRoot(host) {
   return join(packageRoot, 'presets', host);
+}
+
+
+function hostSkillsRoot(host) {
+  return join(hostPluginRoot(host), ...HOST_SKILLS_ROOT[host].split('/'));
 }
 
 function marketplaceRoot(codexHome) {
@@ -227,7 +243,7 @@ test('codex plugin payload carries the bootstrap Skill and no agents', async () 
 test('bootstrap Skill payload is byte-identical across hosts', async () => {
   const contents = await Promise.all(
     HOSTS.map((host) =>
-      readFile(join(hostPluginRoot(host), 'skills', BOOTSTRAP_SKILL, 'SKILL.md'), 'utf8')
+      readFile(join(hostSkillsRoot(host), BOOTSTRAP_SKILL, 'SKILL.md'), 'utf8')
     )
   );
 
@@ -238,7 +254,7 @@ test('bootstrap Skill payload is byte-identical across hosts', async () => {
 
 test('payload Skill names stay disjoint from project Skills', async () => {
   for (const host of HOSTS) {
-    const skillsRoot = join(hostPluginRoot(host), 'skills');
+    const skillsRoot = hostSkillsRoot(host);
     const names = await readdir(skillsRoot);
 
     assert.ok(names.includes(BOOTSTRAP_SKILL), `${host} payload must ship the bootstrap Skill`);
