@@ -44,6 +44,9 @@
     },
     "claude-code": {
       "label": "Claude Code"
+    },
+    "kimi-code": {
+      "label": "Kimi Code"
     }
   }
 }

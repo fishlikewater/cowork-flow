@@ -98,7 +98,7 @@ test('every plugin installer stamps its payload through the shared helper', asyn
   // stamping the source directory instead of the installed copy satisfies both
   // the helper and the version assertion, because the shipped version is the
   // package version by construction.
-  for (const host of ['claude-code', 'codex', 'zcode', 'qoder']) {
+  for (const host of ['claude-code', 'kimi-code', 'codex', 'zcode', 'qoder']) {
     const installer = await readFile(
       join(packageRoot, 'src', 'commands', `install-${host}-plugin.js`),
       'utf8'

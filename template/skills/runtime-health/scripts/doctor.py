@@ -1201,6 +1201,122 @@ def check_opencode_plugin(repo_root: Path) -> list[dict[str, str]]:
     return []
 
 
+_KIMI_PLUGIN_CONTRACT = "runtime-health:kimi-code-plugin"
+_KIMI_PLUGIN_NAME = "cowork-flow"
+_KIMI_PLUGIN_MANIFEST = ".kimi-plugin/plugin.json"
+_KIMI_PLUGIN_SKILL = "skills/cowork-flow-bootstrap/SKILL.md"
+
+
+def _kimi_plugin_warning(
+    code: str, path: Path, message: str, hint: str
+) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_KIMI_PLUGIN_CONTRACT,
+        )
+    ]
+
+
+def _kimi_plugin_record(home: Path) -> dict | None:
+    """The registry entry for cowork-flow, or None. Kimi Code keeps one record per
+    plugin in plugins/installed.json; an unreadable or unexpected file means the
+    same thing to this check as an absent record."""
+    try:
+        data = json.loads(
+            (home / "plugins" / "installed.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    plugins = data.get("plugins") if isinstance(data, dict) else None
+    if not isinstance(plugins, list):
+        return None
+    for entry in plugins:
+        if isinstance(entry, dict) and entry.get("id") == _KIMI_PLUGIN_NAME:
+            return entry
+    return None
+
+
+def check_kimi_code_plugin(repo_root: Path) -> list[dict[str, str]]:
+    """Kimi Code plugin health. Advisory, and silent while the project never
+    selected the Kimi Code host.
+
+    The plugin is a machine-level asset, and Kimi Code installs it from the TUI:
+    `cwf host add kimi-code` materializes a stable source directory, and the user
+    runs `/plugins install <dir>` once. So "materialized but not registered" is a
+    normal, expected state rather than a mistake, and this check names it as
+    such."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "kimi-code" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
+
+    home = _kimi_home()
+    record = _kimi_plugin_record(home)
+    if record is None:
+        return _kimi_plugin_warning(
+            "PLUGIN-NOT-INSTALLED",
+            home / "plugins" / "installed.json",
+            "this project declares the Kimi Code host, but cowork-flow is not "
+            "registered as a Kimi Code plugin, so sessions load no cowork-flow "
+            "plugin Skill",
+            "cwf host add kimi-code",
+        )
+    if record.get("enabled") is False:
+        return _kimi_plugin_warning(
+            "PLUGIN-DISABLED",
+            home / "plugins" / "installed.json",
+            "the cowork-flow Kimi Code plugin is installed but disabled, so its "
+            "bootstrap Skill never loads",
+            "/plugins enable cowork-flow",
+        )
+
+    recorded_root = str(record.get("root") or "")
+    root = Path(recorded_root) if recorded_root else home / "plugins" / "managed" / _KIMI_PLUGIN_NAME
+    for relative in (_KIMI_PLUGIN_MANIFEST, _KIMI_PLUGIN_SKILL):
+        if not (root / relative).is_file():
+            return _kimi_plugin_warning(
+                "PLUGIN-PAYLOAD-INCOMPLETE",
+                root / relative,
+                f"the installed Kimi Code plugin is missing {relative}, so it "
+                "cannot load the bootstrap Skill",
+                "/plugins remove cowork-flow, then /plugins install "
+                + str(home / "plugins" / "sources" / _KIMI_PLUGIN_NAME),
+            )
+
+    try:
+        recorded_version = json.loads(
+            (root / _KIMI_PLUGIN_MANIFEST).read_text(encoding="utf-8")
+        ).get("version")
+    except (OSError, json.JSONDecodeError, ValueError, AttributeError):
+        recorded_version = None
+    project_version = _project_version(repo_root)
+    if project_version and recorded_version != project_version:
+        return _kimi_plugin_warning(
+            "PLUGIN-STALE",
+            root / _KIMI_PLUGIN_MANIFEST,
+            f"the Kimi Code plugin was installed from "
+            f"{recorded_version or 'an unknown version'} but this project runs "
+            f"{project_version}; the plugin does not update with sync or npm",
+            "cwf host add kimi-code --force, then /plugins install "
+            + str(home / "plugins" / "sources" / _KIMI_PLUGIN_NAME),
+        )
+
+    source = home / "plugins" / "sources" / _KIMI_PLUGIN_NAME
+    if not source.is_dir():
+        return _kimi_plugin_warning(
+            "PLUGIN-SOURCES-MISSING",
+            source,
+            "the Kimi Code plugin is registered but the source directory it was "
+            "installed from is gone, so reinstalling it would fail",
+            "cwf host add kimi-code",
+        )
+    return []
+
+
 _CODEX_PLUGIN_CONTRACT = "runtime-health:codex-plugin"
 CODEX_PLUGIN_KEY = "cowork-flow@cowork-flow-local"
 _CODEX_MARKETPLACE = "cowork-flow-local"
@@ -1474,6 +1590,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     codex_plugin_issues = check_codex_plugin(repo_root)
     claude_code_plugin_issues = check_claude_code_plugin(repo_root)
     opencode_plugin_issues = check_opencode_plugin(repo_root)
+    kimi_code_plugin_issues = check_kimi_code_plugin(repo_root)
     skill_delivery_issues = check_skill_delivery(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
@@ -1503,6 +1620,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "codexPlugin": codex_plugin_issues,
             "claudeCodePlugin": claude_code_plugin_issues,
             "opencodePlugin": opencode_plugin_issues,
+            "kimiCodePlugin": kimi_code_plugin_issues,
             "skillDelivery": skill_delivery_issues,
         },
     }
@@ -1541,6 +1659,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["opencodePlugin"]:
         print(f"OpenCode plugin ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["kimiCodePlugin"]:
+        print(f"Kimi Code plugin ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["skillDelivery"]:

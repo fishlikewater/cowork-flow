@@ -91,7 +91,7 @@ test('host add sends each host to its own installer', async (t) => {
     { argv: ['codex'], expect: /Codex plugin/ },
     { argv: ['zcode'], expect: /ZCode plugin/ },
     { argv: ['qoder'], expect: /Qoder plugin/ },
-    { argv: ['kimi-code'], expect: /Kimi Code context hook/ }
+    { argv: ['kimi-code'], expect: /Kimi Code plugin source/ },
   ];
   for (const { argv, expect } of cases) {
     const output = await captureConsole(() => runHostAdd([...argv, '--dry-run']));
@@ -123,7 +123,7 @@ test('host add accepts a host alias and the --component=<value> form', async (t)
   assert.match(alias, /Would install workflow-state hook/);
 
   const kimiAlias = await captureConsole(() => runHostAdd(['kimi', '--dry-run']));
-  assert.match(kimiAlias, /Kimi Code context hook/);
+  assert.match(kimiAlias, /Kimi Code plugin source/);
 });
 
 test('host remove reaches the uninstall path of every component', async (t) => {
@@ -144,7 +144,7 @@ test('host remove reaches the uninstall path of every component', async (t) => {
     { argv: ['codex'], expect: /Would run: codex plugin remove/ },
     { argv: ['zcode'], expect: /Would remove cowork-flow ZCode plugin/ },
     { argv: ['qoder'], expect: /Would remove cowork-flow@cowork-flow-local/ },
-    { argv: ['kimi-code'], expect: /Would uninstall Kimi Code context hook/ },
+    { argv: ['kimi-code'], expect: /cowork-flow Kimi Code plugin source was not installed/ },
     { argv: ['dsh', '--component', 'preset'], expect: /Would uninstall DSH preset/ },
     { argv: ['dsh', '--component', 'hook'], expect: /Would uninstall workflow-state hook/ }
   ];
@@ -264,14 +264,17 @@ test('every installer rejects an unknown flag instead of ignoring it', async (t)
   }
 });
 
-// kimi-code has no --force: installing always rewrites the shim and its block,
-// so the flag was removed rather than kept as a no-op.
+// The kimi-code hook has no --force: installing always rewrites the shim and its
+// block, so the flag was removed rather than kept as a no-op. It is now reached
+// through --component, since the host's default component is the plugin.
 test('an installer rejects a flag it does not have', async (t) => {
   const home = await createTempDir(t, 'cowork-flow-host-noforce-');
   useEnv(t, { KIMI_CODE_HOME: join(home, 'kimi') });
 
   const io = createIo();
-  const output = await captureConsole(() => main(['host', 'add', 'kimi-code', '--force'], { io }));
+  const output = await captureConsole(
+    () => main(['host', 'add', 'kimi-code', '--component', 'hook', '--force'], { io })
+  );
 
   assert.equal(io.stderr, 'Unknown option: --force\n');
   assert.equal(output, '');
@@ -286,7 +289,7 @@ test('legacy host command names run the same code as the new ones', async (t) =>
   const shims = [
     { legacy: 'install-dsh-preset', modern: ['host', 'add', 'dsh', '--component', 'preset'] },
     { legacy: 'install-dsh-hook', modern: ['host', 'add', 'dsh', '--component', 'hook'] },
-    { legacy: 'install-kimi-hook', modern: ['host', 'add', 'kimi-code'] }
+    { legacy: 'install-kimi-hook', modern: ['host', 'add', 'kimi-code', '--component', 'hook'] }
   ];
   for (const { legacy, modern } of shims) {
     const io = createIo();

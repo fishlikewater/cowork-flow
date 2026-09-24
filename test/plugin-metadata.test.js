@@ -11,6 +11,7 @@ import { marketplaceIconUrl, pluginManifest, readPluginMetadata } from '../src/l
 
 const HOST_MANIFESTS = [
   ['claude-code', '.claude-plugin/plugin.json'],
+  ['kimi-code', '.kimi-plugin/plugin.json'],
   ['codex', '.codex-plugin/plugin.json'],
   ['zcode', '.zcode-plugin/plugin.json'],
   ['qoder', '.qoder-plugin/plugin.json']
@@ -22,6 +23,7 @@ const HOST_MANIFESTS = [
 // claude-code's skills-directory manifest schema has none either.
 const HOST_ICON_KEYS = {
   'claude-code': [],
+  'kimi-code': [],
   codex: ['brandColor', 'logo'],
   zcode: [],
   qoder: []
@@ -373,6 +375,24 @@ test('claude-code manifest declares the skills directory and nothing it cannot r
     assert.equal(manifest[key], undefined, `claude-code manifest must not declare ${key}`);
   }
   await access(join(packageRoot, 'presets', 'claude-code', 'skills', 'cowork-flow-bootstrap', 'SKILL.md'));
+});
+
+test('kimi-code manifest declares the session-start Skill and nothing it cannot read', async () => {
+  const metadata = await readPluginMetadata();
+  const manifest = await readManifest('kimi-code', '.kimi-plugin/plugin.json');
+
+  assert.equal(manifest.displayName, metadata.displayName);
+  assert.equal(manifest.repository, metadata.repository);
+  assert.deepEqual(manifest.keywords, metadata.keywords);
+  assert.equal(manifest.skills, 'skills');
+  assert.deepEqual(manifest.sessionStart, { skill: 'cowork-flow-bootstrap' });
+  // Injection stays with the config.toml hook route and the fixed subagents stay
+  // project-level (plugin agents have the lowest priority), so neither belongs
+  // in this manifest. The schema has no icon key.
+  for (const key of ['hooks', 'agents', 'icon', 'logo']) {
+    assert.equal(manifest[key], undefined, `kimi-code manifest must not declare ${key}`);
+  }
+  await access(join(packageRoot, 'presets', 'kimi-code', 'skills', 'cowork-flow-bootstrap', 'SKILL.md'));
 });
 
 test('zcode manifest carries the fields zcode reads', async () => {

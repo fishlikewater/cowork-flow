@@ -241,13 +241,49 @@ cwf host remove dsh --component preset         # 卸载（幂等）
 
 ## Kimi Code
 
+Kimi Code 有两个机器级组件，默认装插件；`hook` 是不装插件时的兜底。
+
 ```bash
-cwf host add kimi-code             # 安装（无条件覆盖）
-cwf host add kimi-code --dry-run   # 预览将写入的托管块，不写文件
-cwf host remove kimi-code          # 卸载托管块、shim 与版本标记
+cwf host add kimi-code                        # 默认：物化插件源目录并打印安装指令
+cwf host add kimi-code --dry-run              # 预览落点与将打印的指令，不写文件
+cwf host add kimi-code --force                # 覆盖同名外来目录
+cwf host remove kimi-code                     # 删插件源目录
+cwf host add kimi-code --component hook       # 兜底：只装 context 注入 hook
+cwf host remove kimi-code --component hook    # 拆掉 hook
 ```
 
-这个 hook 没有 `--force`：安装总是重写 shim 与托管块，一个只会重跑同样写入的旗标是空操作，因此被移除而不是留成静默忽略（`cwf host add kimi-code --force` 会以用法错误退出）。
+### 插件组件（默认）
+
+Kimi Code 的插件安装**只有 TUI**——`kimi` 命令没有 plugins 子命令（子命令只有 login/acp/web/install-desktop/doctor/export/migrate/upgrade/vis/provider），只能 `/plugins install <本地目录|zip URL|GitHub URL>`。所以安装器做它唯一能可靠做完的事：把载荷物化到一个**稳定源目录** `$KIMI_CODE_HOME/plugins/sources/cowork-flow/`，然后打印
+
+```
+/plugins install <该目录绝对路径>
+```
+
+让用户在 Kimi 里执行一次并 `/reload`。源目录位置必须长期稳定：注册表记录的是"从哪里装的"，宿主每次重装都回读它。
+
+**为什么打印指令而不是直写注册表。** 本次从宿主自己的代码里把记录形状取证到位了（桌面版 1.0.3 的 `resources/app.asar` 内含 `packages/agent-core-v2/src/app/plugin/store.ts`）：
+
+| 事实 | 取证函数 |
+|---|---|
+| 源解析只认 GitHub URL / `http(s)` zip / **绝对路径**（相对路径直接报 `Plugin root must be an absolute path`） | `resolveInstallSource` |
+| 本地源先 `realpath` 且必须是目录，再**整目录拷进** `$KIMI_CODE_HOME/plugins/managed/<id>/`（staging + rename，旧目录移走再删） | `normalizeInstallRoot` / `copyPluginToManagedRoot` |
+| `id = manifest.name.toLowerCase()` | `normalizePluginId` |
+| 注册表 `plugins/installed.json`（`version: 1`）每条记录只落 `{id, root, source, enabled, installedAt, updatedAt, originalSource, capabilities, github}`；本地首次安装 `capabilities`/`github` 为 `undefined` 不落盘，`source` 为 `"local-path"`；`state`/`skillCount`/`manifest`/`diagnostics` 不落盘、`load()` 时重算 | `persist` / `recordFrom` / `materialize` |
+
+形状已知，但宿主的 `install()` 同时承担 realpath 校验、清单解析与 diagnostics、以及 staging + rename 的原子替换。在安装器里重实现这三步等于把宿主私有逻辑抄第二份且没有兼容性承诺——与 codex 侧"不手写 `config.toml`、委托官方 CLI"是同一条理由。取证结果记在这里，将来宿主开放 CLI 子命令时直写有据可循。
+
+**载荷只带引导技能。** 清单声明 `skills` 与 `sessionStart.skill: cowork-flow-bootstrap`——后者是插件在**没有 cowork-flow runtime 的仓库**里唯一有用的部分（会话启动时加载引导技能）。不带 `hooks`：插件 hook 的 cwd 是插件根，现有 shim 靠 cwd 定位项目根的方式会静默失效，而 config.toml 那条链路已经交付注入，再带一份有双份注入风险。不带 `agents`：插件 agent 优先级**最低**（用户级/extra/项目级/`--agent-file` 都赢它），项目级 `.kimi-code/agents/` 已交付三个 fixed subagent，插件再带一份必被盖过。清单 schema 也没有图标字段。
+
+**卸载语义照抄宿主**：`/plugins remove cowork-flow` 只删注册表记录，托管副本与源目录都留在盘上。`cwf host remove kimi-code` 删我们物化的源目录，并打印"宿主侧还要你自己清"的提示——不假装清干净了。
+
+Kimi Code 侧插件检查（warning，不进 errors）：`PLUGIN-NOT-INSTALLED`（注册表里没有 cowork-flow 记录——**刚 `host add` 完还没跑 `/plugins install` 就是这个状态**，属正常中间态）、`PLUGIN-DISABLED`、`PLUGIN-PAYLOAD-INCOMPLETE`（记录在但托管副本缺清单或引导技能）、`PLUGIN-STALE`（副本清单版本 ≠ 本项目 `.cowork-flow/.version`）、`PLUGIN-SOURCES-MISSING`（已注册但源目录不在，重装会失败）。项目未声明 kimi-code 宿主时静默。
+
+未验证项（诚实边界）：`sessionStart.skill` 的实际注入效果（本机无 CLI，无法脚本化验证）、插件与项目级同名技能的优先级、插件 hook 在插件根 cwd 下的实际 payload 形状（本批不带 hooks，故不影响）。
+
+### hook 组件（兜底）
+
+这个 hook 没有 `--force`：安装总是重写 shim 与托管块，一个只会重跑同样写入的旗标是空操作，因此被移除而不是留成静默忽略（`cwf host add kimi-code --component hook --force` 会以用法错误退出）。
 
 安装写入用户级 Kimi Code home（`KIMI_CODE_HOME`，未设置时默认 `~/.kimi-code/`）：hook 脚本 `hooks/cowork-flow-inject.mjs`、版本标记 `hooks/.cowork-flow-kimi-hook.json`，并在 `config.toml` 追加一段由注释标记包裹的托管块——一条 `[[hooks]]`，`event = "UserPromptSubmit"`、`command`、`timeout = 30`，不写 `matcher`（即匹配每条提交的提示）。配置文件按文本编辑、不做 TOML 重排，托管块以外的用户内容原样保留；卸载只移除这段托管块和上面两个文件，`config.toml` 因此变空时一并删除。
 

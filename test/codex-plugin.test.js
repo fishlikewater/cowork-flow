@@ -13,13 +13,14 @@ import { readPluginMetadata } from '../src/lib/plugin-metadata.js';
 // under the namespaced directory the host never scans (its plugin file and that
 // directory are the only two things the payload may contain), so the relative
 // path differs even though the Skill inside is the same file.
-const HOSTS = ['zcode', 'qoder', 'codex', 'claude-code', 'opencode'];
+const HOSTS = ['zcode', 'qoder', 'codex', 'claude-code', 'opencode', 'kimi-code'];
 const HOST_SKILLS_ROOT = {
   zcode: 'skills',
   qoder: 'skills',
   codex: 'skills',
   'claude-code': 'skills',
-  opencode: 'cowork-flow/skills'
+  opencode: 'cowork-flow/skills',
+  'kimi-code': 'skills'
 };
 const BOOTSTRAP_SKILL = 'cowork-flow-bootstrap';
 const MARKETPLACE_NAME = 'cowork-flow-local';

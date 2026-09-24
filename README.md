@@ -30,7 +30,7 @@ npx cowork-flow project init ./my-project --platform codex --developer <your-nam
 cwf project sync ./my-project --dry-run
 cwf project sync ./my-project
 
-# 机器级接入宿主（可选；不装则只用项目级资产）：codex / opencode / claude-code / zcode / qoder 插件、dsh 预设、kimi-code hook
+# 机器级接入宿主（可选；不装则只用项目级资产）：codex / opencode / claude-code / zcode / qoder / kimi-code 插件、dsh 预设
 cwf host add codex
 cwf host add dsh
 
@@ -76,7 +76,7 @@ cwf self update
 | `install-codex-plugin` | `cwf host add codex` |
 | `install-dsh-preset` | `cwf host add dsh --component preset` |
 | `install-dsh-hook` | `cwf host add dsh --component hook` |
-| `install-kimi-hook` | `cwf host add kimi-code` |
+| `install-kimi-hook` | `cwf host add kimi-code --component hook` |
 
 ### project init 选项
 
@@ -145,7 +145,7 @@ Batch、doctor、Party Mode 都是主线旁路能力：它们可以提供事实�
 | OpenCode | `.opencode/` + `.agents/skills/` | `plugin`（只带引导技能，由插件自注册；hook 与 agents 留在项目级） | `plugin` |
 | ZCode | `.agents/skills/` | `plugin`（hook + agents + 引导技能） | `plugin` |
 | Qoder | `.agents/skills/` | `plugin`（hook + agents + 引导技能） | `plugin` |
-| Kimi Code | `.kimi-code/` + `.agents/skills/` | `hook` | `hook` |
+| Kimi Code | `.kimi-code/` + `.agents/skills/` | `plugin`（只带引导技能，安装需在 Kimi 内跑一次 `/plugins install`）、`hook`（不装插件时的兜底） | `plugin` |
 | DeepSeek Harness | `.dsh/` + `.agents/skills/` | `preset`（整套 agent）、`hook` | `preset` |
 
 逐宿主的安装目录、命令、外部前提、doctor 故障码与图标字段见 [docs/hosts.md](docs/hosts.md)。
