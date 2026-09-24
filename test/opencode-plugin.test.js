@@ -3,8 +3,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
+import { pathToFileURL } from "node:url"
 
+import { packageRoot } from "../src/lib/paths.js"
 import { CoworkFlowPlugin } from "../template/.opencode/plugins/cowork-flow.js"
+
+const PLUGIN_MODULE = pathToFileURL(
+  join(packageRoot, "template", ".opencode", "plugins", "cowork-flow.js")
+).href
 
 async function createRegistryRepo(t) {
   const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-plugin-"))
@@ -222,4 +228,39 @@ test("tool.execute.after preserves tool output when the runtime is absent", asyn
     { output: "original" }
   )
   assert.equal(output.output, "original")
+})
+
+// opencode walks every export of a plugin module and calls each one as a plugin
+// factory, then iterates the returned hooks objects. A non-function export
+// throws inside that loop, and a factory that returns undefined or null makes
+// the later `hook["event"]?.(...)` read crash — either way the whole host dies
+// during bootstrap, which is what a helper exported for unit tests used to do.
+test("opencode plugin module exports only callable factories that return objects", async () => {
+  const module = await import(PLUGIN_MODULE)
+  const names = Object.keys(module)
+  assert.ok(names.length > 0, "the plugin module must export at least one factory")
+
+  const input = {
+    client: {},
+    project: {},
+    worktree: null,
+    directory: packageRoot,
+    serverUrl: "http://localhost:4096",
+    $: () => {}
+  }
+  for (const name of names) {
+    const factory = module[name]
+    assert.equal(
+      typeof factory,
+      "function",
+      `export ${name} is not a function; opencode calls every export as a plugin factory`
+    )
+    const hooks = await factory(input)
+    assert.equal(
+      typeof hooks,
+      "object",
+      `export ${name} returned ${hooks === null ? "null" : typeof hooks}; the host iterates the returned hooks object`
+    )
+    assert.notEqual(hooks, null, `export ${name} returned null`)
+  }
 })

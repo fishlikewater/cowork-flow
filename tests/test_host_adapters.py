@@ -488,9 +488,17 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("cowork_host_context_key: <host_context_key>", text)
                 self.assertIn("subagent bind <runtime_context_id> <host_context_key>", text)
 
-            plugin = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
-            self.assertIn("experimental.chat.system.transform", plugin)
-            self.assertIn('"shell.env"', plugin)
+            # The opencode plugin is split in two on purpose: opencode calls
+            # every export of a file inside plugins/ as a plugin factory, so the
+            # host-facing hooks stay in the adapter while the runtime logic lives
+            # in a namespaced module the host never scans. The hook names are
+            # asserted on the adapter (that is the host contract surface); the
+            # runtime markers are asserted across both files.
+            adapter = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
+            core = (base / "cowork-flow" / "plugin-core.js").read_text(encoding="utf-8")
+            plugin = adapter + core
+            self.assertIn("experimental.chat.system.transform", adapter)
+            self.assertIn('"shell.env"', adapter)
             self.assertIn("sessionID", plugin)
             self.assertIn("COWORK_FLOW_CONTEXT_ID", plugin)
             self.assertIn("OPENCODE_SESSION_ID", plugin)

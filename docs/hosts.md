@@ -66,6 +66,21 @@ args = ["mcp", "serve"]
 
 项目级注册的健康检查由 `./.cowork-flow/run doctor` 报告。
 
+## OpenCode
+
+`opencode` 是声明宿主，没有机器级组件——资产全部由 `project init` / `project sync` 交付到项目的 `.opencode/`（`agents/`、`commands/`、`plugins/`），`host add opencode` 是用法错误。
+
+**插件模块只能导出插件函数。** opencode 加载插件时遍历模块的**每一个导出**并逐个当插件工厂调用，随后遍历每个工厂返回的 hooks 对象。任何被导出的常量、helper，或返回 `null`/`undefined` 的工厂，都会让宿主在 bootstrap 阶段整进程崩溃（1.1.53 实测：`project init` 过的项目启动即退出码 1）。cowork-flow 因此把逻辑与适配分开：
+
+| 路径 | 角色 |
+|---|---|
+| `.opencode/plugins/cowork-flow.js` | 宿主加载的适配层，只导出 `CoworkFlowPlugin` |
+| `.opencode/cowork-flow/plugin-core.js` | 契约摘要、阶段契约、scope 规则、runtime context 绑定、编辑期 spec-check |
+
+`plugin-core.js` 所在的命名空间目录不在宿主任何扫描面内（插件发现 glob 为 `{plugin,plugins}/*.{ts,js}` 且不递归）；把它放在插件文件同级目录之外，也让项目安装（`.opencode/`）与机器级安装（`~/.config/opencode/`）的载荷结构自相似，适配层的相对导入在两处都成立。`test/opencode-plugin.test.js` 钉住「每个导出都是函数且调用后返回对象」这条契约。
+
+状态注入走 `experimental.chat.system.transform`（`stateInjection: plugin`），编辑期 spec-check 走 `tool.execute.after`。`.cowork-flow/` 流程文件仍由显式 `cwf project init` / `cwf project sync` 在项目根目录管理。
+
 ## ZCode
 
 ```bash

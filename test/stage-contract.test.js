@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 import './helpers/bytecode-isolation.js';
 import { packageRoot } from '../src/lib/paths.js';
-import { stageContractBlock as opencodeStageContract } from '../template/.opencode/plugins/cowork-flow.js';
+import { stageContractBlock as opencodeStageContract } from '../template/.opencode/cowork-flow/plugin-core.js';
 
 const NODE = process.execPath;
 const SCRIPTS = join(packageRoot, 'template', '.cowork-flow', 'scripts');

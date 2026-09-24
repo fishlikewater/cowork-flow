@@ -128,6 +128,13 @@
 
 ### Fixed
 
+#### OpenCode 插件模块导出导致宿主 bootstrap 崩溃
+
+- **`template/.opencode/plugins/cowork-flow.js` 会让 opencode 1.1.53 在启动阶段整进程崩溃**（实测退出码 1，凡是执行过 `cwf project init --platform opencode` 的项目都会中）。opencode 加载插件时遍历模块的**每一个导出**并逐个当插件工厂调用，随后遍历其返回的 hooks 对象；该文件除 `CoworkFlowPlugin` 外还导出了三个供单测使用的 helper，于是 `contractFingerprint(input)` 被调用时 `contracts` 为 `undefined`，在 `digest.update(undefined)` 抛 `ERR_INVALID_ARG_TYPE`。修复验证：仅移除这三个导出即不再崩溃。
+- **纯逻辑迁到命名空间模块 `.opencode/cowork-flow/plugin-core.js`**，插件文件退化为 36 行适配层、只导出 `CoworkFlowPlugin`。该路径不在宿主任何扫描面内（插件发现 glob 为 `{plugin,plugins}/*.{ts,js}` 且不递归），且项目安装与后续机器级安装的载荷结构自相似，适配层的相对导入在两处都成立。两个单测的导入路径随迁；注入行为不变，由跨 python/zcode/opencode 的逐字节一致性用例守住。
+- **新增门禁**（`test/opencode-plugin.test.js`）：插件模块的每个导出必须是函数，且用桩 input 调用后返回非 null 对象——宿主会把返回值塞进 hooks 数组，`undefined`/`null` 都会让后续 hook 遍历抛错。负向验证：把任一 helper 重新具名导出即变红，还原即绿。这条不需要安装 opencode 即可在 CI 钉住。
+
+
 #### 交付树字节码隔离（测试与技能命令不再写 __pycache__）
 
 
