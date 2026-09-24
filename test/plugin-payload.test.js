@@ -22,9 +22,10 @@ test('pluginPayload resolves the declared source and manifest', () => {
     sourceDir: join(packageRoot, 'presets', 'zcode'),
     manifest: '.zcode-plugin/plugin.json'
   });
-  // opencode ships no machine-level plugin payload, so an install command for it
-  // would have nothing to copy; the accessor refuses instead of returning null
-  // and pushing the failure into a later copy.
+  // opencode's payload declaration carries no manifest, so the accessor that
+  // serves version-stamping installers refuses instead of returning a payload
+  // whose stamp would be silently skipped. The directory itself still resolves
+  // through payloadSourceDir.
   assert.throws(
     () => pluginPayload('opencode'),
     /declares no plugin payload manifest/

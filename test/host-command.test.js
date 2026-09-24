@@ -217,7 +217,9 @@ test('host list prints a table of every host and its components', async (t) => {
   assert.match(io.stdout, /^dsh\s+DeepSeek Harness\s+preset, hook\s+no$/m);
   assert.match(io.stdout, /^opencode\s+OpenCode\s+plugin\s+no$/m);
   // Every declared host has at least one component (a gate in
-  // cli-registry.test.js asserts it), so no row can be component-less.
+  // cli-registry.test.js asserts it), so no row can be component-less. This is
+  // documentation of the invariant, not coverage: restoring the removed `-`
+  // branch would still pass, because nothing can reach it.
   assert.doesNotMatch(io.stdout, /\s-\s/m);
 });
 
