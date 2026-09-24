@@ -405,24 +405,31 @@ test('declared payloads resolve to directories the package really ships', () => 
   // entry here without a matching presets/ directory must fail below.
   assert.deepEqual(
     declared.map((platform) => platform.id),
-    ['codex', 'claude-code', 'zcode', 'qoder']
+    ['codex', 'opencode', 'claude-code', 'zcode', 'qoder']
   );
   for (const platform of declared) {
     const payload = registry.platformPayload(platform.id);
     assert.equal(payload.sourceDir, join(packageRoot, 'presets', platform.id));
+    if (!payload.manifest) {
+      // opencode's plugin format has no manifest, so there is nothing inside the
+      // payload to point at. Every other payload must name one.
+      assert.equal(platform.id, 'opencode');
+      assert.ok(existsSync(join(payload.sourceDir, 'plugins', 'cowork-flow.js')));
+      continue;
+    }
     assert.ok(
       existsSync(join(payload.sourceDir, ...payload.manifest.split('/'))),
       `${platform.id} declares ${payload.manifest}, which must exist inside ${platform.payload.source}`
     );
   }
-  assert.equal(registry.platformPayload('opencode'), null);
   assert.equal(registry.platformPayload('dsh'), null);
+  assert.equal(registry.platformPayload('kimi-code'), null);
 });
 
 
 test('plugin installers locate their payload through the declaration', () => {
   const manifest = loadHostAssetManifest();
-  for (const host of ['codex', 'claude-code', 'zcode', 'qoder']) {
+  for (const host of ['opencode', 'codex', 'claude-code', 'zcode', 'qoder']) {
     const installer = readFileSync(
       join(packageRoot, 'src', 'commands', `install-${host}-plugin.js`),
       'utf8'
@@ -434,10 +441,22 @@ test('plugin installers locate their payload through the declaration', () => {
       /presets/,
       `install-${host}-plugin.js must resolve its payload directory from the declaration`
     );
-    assert.match(installer, /pluginPayload\(/);
-    assert.ok(
-      manifest.platforms.find((platform) => platform.id === host).payload.manifest,
-      `${host} must declare the manifest its installer stamps`
+    assert.match(installer, /(?:pluginPayload|payloadSourceDir)\(/);
+    const declared = manifest.platforms.find((platform) => platform.id === host).payload;
+    if (!declared.manifest) {
+      // A manifestless payload has nothing to stamp, and the installer must not
+      // pretend otherwise: it resolves only the directory.
+      assert.doesNotMatch(
+        installer,
+        /stampPayloadManifest\(/,
+        `${host} has no payload manifest, so it must not stamp one`
+      );
+      continue;
+    }
+    assert.match(
+      installer,
+      /stampPayloadManifest\(/,
+      `install-${host}-plugin.js must stamp the manifest it declares`
     );
   }
 });

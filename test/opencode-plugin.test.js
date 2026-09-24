@@ -1,5 +1,5 @@
 ﻿import assert from "node:assert/strict"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -8,9 +8,17 @@ import { pathToFileURL } from "node:url"
 import { packageRoot } from "../src/lib/paths.js"
 import { CoworkFlowPlugin } from "../template/.opencode/plugins/cowork-flow.js"
 
-const PLUGIN_MODULE = pathToFileURL(
-  join(packageRoot, "template", ".opencode", "plugins", "cowork-flow.js")
-).href
+// The same plugin is delivered twice: into a project by init/sync, and into the
+// machine's OpenCode config directory by `host add opencode`. Both are the same
+// source, so every gate below runs against both — a fix applied to one copy only
+// is exactly the drift these gates exist to catch.
+const PROJECT_PLUGIN = join(packageRoot, "template", ".opencode", "plugins", "cowork-flow.js")
+const PROJECT_CORE = join(packageRoot, "template", ".opencode", "cowork-flow", "plugin-core.js")
+const PAYLOAD_ROOT = join(packageRoot, "presets", "opencode")
+const PAYLOAD_PLUGIN = join(PAYLOAD_ROOT, "plugins", "cowork-flow.js")
+const PAYLOAD_CORE = join(PAYLOAD_ROOT, "cowork-flow", "plugin-core.js")
+const PLUGIN_MODULES = [PROJECT_PLUGIN, PAYLOAD_PLUGIN].map((file) => pathToFileURL(file).href)
+const PLUGIN_MODULE = PLUGIN_MODULES[0]
 
 async function createRegistryRepo(t) {
   const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-plugin-"))
@@ -236,10 +244,6 @@ test("tool.execute.after preserves tool output when the runtime is absent", asyn
 // the later `hook["event"]?.(...)` read crash — either way the whole host dies
 // during bootstrap, which is what a helper exported for unit tests used to do.
 test("opencode plugin module exports only callable factories that return objects", async () => {
-  const module = await import(PLUGIN_MODULE)
-  const names = Object.keys(module)
-  assert.ok(names.length > 0, "the plugin module must export at least one factory")
-
   const input = {
     client: {},
     project: {},
@@ -248,19 +252,71 @@ test("opencode plugin module exports only callable factories that return objects
     serverUrl: "http://localhost:4096",
     $: () => {}
   }
-  for (const name of names) {
-    const factory = module[name]
-    assert.equal(
-      typeof factory,
-      "function",
-      `export ${name} is not a function; opencode calls every export as a plugin factory`
-    )
-    const hooks = await factory(input)
-    assert.equal(
-      typeof hooks,
-      "object",
-      `export ${name} returned ${hooks === null ? "null" : typeof hooks}; the host iterates the returned hooks object`
-    )
-    assert.notEqual(hooks, null, `export ${name} returned null`)
+  for (const moduleUrl of PLUGIN_MODULES) {
+    const module = await import(moduleUrl)
+    const names = Object.keys(module)
+    assert.ok(names.length > 0, `${moduleUrl} must export at least one factory`)
+
+    for (const name of names) {
+      const factory = module[name]
+      assert.equal(
+        typeof factory,
+        "function",
+        `export ${name} is not a function; opencode calls every export as a plugin factory`
+      )
+      const hooks = await factory(input)
+      assert.equal(
+        typeof hooks,
+        "object",
+        `export ${name} returned ${hooks === null ? "null" : typeof hooks}; the host iterates the returned hooks object`
+      )
+      assert.notEqual(hooks, null, `export ${name} returned null`)
+    }
   }
+})
+
+test("the project copy and the machine payload are byte-identical", async () => {
+  // They are one source delivered two ways, and the doctor judges staleness by
+  // comparing them — so a difference is either a half-applied change or a
+  // spurious PLUGIN-STALE warning. Neither is acceptable silently.
+  for (const [project, payload] of [[PROJECT_PLUGIN, PAYLOAD_PLUGIN], [PROJECT_CORE, PAYLOAD_CORE]]) {
+    assert.equal(
+      await readFile(project, "utf8"),
+      await readFile(payload, "utf8"),
+      `${project} and ${payload} must stay the same file`
+    )
+  }
+})
+
+test("the config hook registers the payload skills directory, and only when it exists", async () => {
+  const projectHooks = await (await import(PLUGIN_MODULES[0])).CoworkFlowPlugin({ directory: packageRoot })
+  const payloadHooks = await (await import(PLUGIN_MODULES[1])).CoworkFlowPlugin({ directory: packageRoot })
+
+  // The project copy has no skills/ sibling: registering a path that is not
+  // there would only produce a host warning, so it must stay a no-op.
+  const projectConfig = {}
+  await projectHooks.config(projectConfig)
+  assert.equal(projectConfig.skills, undefined)
+
+  const config = {}
+  await payloadHooks.config(config)
+  const registered = config.skills.paths
+  assert.equal(registered.length, 1)
+  // The path is derived from the plugin's own file location, not from the
+  // session directory or the environment: that is what makes a machine install
+  // work in a repository that has no cowork-flow runtime.
+  assert.equal(registered[0], join(PAYLOAD_ROOT, "cowork-flow", "skills"))
+  await access(join(registered[0], "cowork-flow-bootstrap", "SKILL.md"))
+
+  // A user's own paths survive, and a second load does not append a duplicate.
+  const existing = { skills: { paths: ["/somewhere-else"] } }
+  await payloadHooks.config(existing)
+  await payloadHooks.config(existing)
+  assert.deepEqual(existing.skills.paths, ["/somewhere-else", registered[0]])
+
+  // A config the schema would reject must not become a host crash: a plugin that
+  // throws here takes the whole process down during bootstrap.
+  const malformed = { skills: "not-an-object" }
+  await payloadHooks.config(malformed)
+  assert.deepEqual(malformed.skills.paths, [registered[0]])
 })

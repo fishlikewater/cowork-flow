@@ -20,6 +20,23 @@ export function pluginPayload(host) {
 }
 
 
+// For a host whose plugin format carries no manifest at all: the installer still
+// resolves its directory from the same declaration, but there is nothing to
+// stamp a version into. This deliberately does not go through `pluginPayload()`
+// — that function refusing a manifestless payload is what stops a
+// version-stamping installer from silently skipping its stamp.
+export function payloadSourceDir(host) {
+  const payload = hostRegistry.platformPayload(host);
+  if (!payload) {
+    throw new Error(
+      `Host platform ${host} declares no plugin payload; `
+      + 'only payload-hosting hosts have an install command'
+    );
+  }
+  return payload.sourceDir;
+}
+
+
 // The host records a version for the installed payload, so every plugin
 // installer stamps the installed manifest with the package version — otherwise
 // a payload installed from a checkout keeps whatever version its source

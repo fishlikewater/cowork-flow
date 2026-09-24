@@ -588,7 +588,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual(
             [platform.id for platform in declared],
-            ["codex", "claude-code", "zcode", "qoder"],
+            ["codex", "opencode", "claude-code", "zcode", "qoder"],
         )
         for platform in declared:
             payload = platform.payload
@@ -596,12 +596,21 @@ class HostAssetManifestTest(unittest.TestCase):
                 (ROOT / payload.source).is_dir(),
                 f"{platform.id} payload source {payload.source} must exist in the package",
             )
-            self.assertTrue(payload.manifest, platform.id)
+            if not payload.manifest:
+                # opencode's plugin format has no manifest, so this payload has
+                # nothing inside it to point at; every other one must name its
+                # manifest.
+                self.assertEqual("opencode", platform.id)
+                self.assertTrue(
+                    (ROOT / payload.source / "plugins" / "cowork-flow.js").is_file()
+                )
+                continue
             self.assertTrue(
                 (ROOT / payload.source / payload.manifest).is_file(),
                 f"{platform.id} payload manifest {payload.manifest} must exist",
             )
-        self.assertIsNone(manifest.platform("opencode").payload)
+        self.assertIsNone(manifest.platform("dsh").payload)
+        self.assertIsNone(manifest.platform("kimi-code").payload)
         self.assertIsNone(manifest.platform("dsh").payload)
 
     def test_payload_rejects_malformed_declarations(self) -> None:

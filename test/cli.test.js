@@ -142,10 +142,6 @@ test('an unknown host or component is a usage error', async () => {
   assert.match(unknownHost.stderr, /Unknown host: nonsense/);
   assert.match(unknownHost.stderr, /Declared hosts: codex, opencode, claude-code, dsh, zcode, kimi-code, qoder/);
 
-  const noComponent = await runCli(['host', 'add', 'opencode']);
-  assert.equal(noComponent.code, EXIT_USAGE);
-  assert.match(noComponent.stderr, /Host opencode has no machine-level integration/);
-
   const wrongComponent = await runCli(['host', 'add', 'codex', '--component', 'hook']);
   assert.equal(wrongComponent.code, EXIT_USAGE);
   assert.match(wrongComponent.stderr, /Host codex has no component hook/);

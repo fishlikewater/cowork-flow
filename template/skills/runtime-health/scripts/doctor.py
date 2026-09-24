@@ -1106,6 +1106,101 @@ def check_claude_code_plugin(repo_root: Path) -> list[dict[str, str]]:
     return []
 
 
+_OPENCODE_PLUGIN_CONTRACT = "runtime-health:opencode-plugin"
+_OPENCODE_PLUGIN_FILE = "plugins/cowork-flow.js"
+_OPENCODE_PLUGIN_MARKER = "CoworkFlowPlugin"
+_OPENCODE_CORE = "cowork-flow/plugin-core.js"
+_OPENCODE_SKILL = "cowork-flow/skills/cowork-flow-bootstrap/SKILL.md"
+
+
+def _opencode_home() -> Path:
+    configured = (os.environ.get("XDG_CONFIG_HOME") or "").strip()
+    base = Path(configured) if configured else Path.home() / ".config"
+    return base / "opencode"
+
+
+def _opencode_warning(
+    code: str, path: Path, message: str, hint: str
+) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_OPENCODE_PLUGIN_CONTRACT,
+        )
+    ]
+
+
+def check_opencode_plugin(repo_root: Path) -> list[dict[str, str]]:
+    """OpenCode plugin health. Advisory, and silent while the project never
+    selected the OpenCode host: the plugin is a machine-level asset installed
+    once into the user's config directory, so it never updates through sync or
+    npm.
+
+    OpenCode's plugin format carries no manifest, so there is no version to
+    compare. Staleness is judged against the project's own copy of the same two
+    files instead: they are the same source delivered twice, so a difference
+    means one of them was updated and the other was not."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "opencode" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
+
+    home = _opencode_home()
+    plugin = home / _OPENCODE_PLUGIN_FILE
+    try:
+        installed = plugin.read_text(encoding="utf-8")
+    except OSError:
+        return _opencode_warning(
+            "PLUGIN-NOT-INSTALLED",
+            plugin,
+            "this project declares the OpenCode host, but no cowork-flow plugin "
+            "is installed in the OpenCode config directory, so OpenCode sessions "
+            "see no cowork-flow plugin Skill",
+            "cwf host add opencode",
+        )
+    if _OPENCODE_PLUGIN_MARKER not in installed:
+        # A same-named file a user put there is not cowork-flow's to report on.
+        return []
+
+    for relative in (_OPENCODE_CORE, _OPENCODE_SKILL):
+        if not (home / relative).is_file():
+            return _opencode_warning(
+                "PLUGIN-PAYLOAD-INCOMPLETE",
+                home / relative,
+                f"the installed OpenCode plugin is missing {relative}, so it "
+                "registers a skills directory that is not there",
+                "cwf host add opencode --force",
+            )
+
+    for relative in (_OPENCODE_PLUGIN_FILE, _OPENCODE_CORE):
+        project_copy = repo_root / ".opencode" / relative
+        if not project_copy.is_file():
+            # The project has not been initialized with its own copy yet.
+            continue
+        try:
+            project_text = project_copy.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        installed_text = (
+            installed
+            if relative == _OPENCODE_PLUGIN_FILE
+            else (home / relative).read_text(encoding="utf-8")
+        )
+        if project_text != installed_text:
+            return _opencode_warning(
+                "PLUGIN-STALE",
+                home / relative,
+                f"the installed OpenCode {relative} differs from this project's "
+                "copy of the same file; one of them was updated and the other "
+                "was not, and the plugin does not update with sync or npm",
+                "cwf host add opencode --force",
+            )
+    return []
+
+
 _CODEX_PLUGIN_CONTRACT = "runtime-health:codex-plugin"
 CODEX_PLUGIN_KEY = "cowork-flow@cowork-flow-local"
 _CODEX_MARKETPLACE = "cowork-flow-local"
@@ -1378,6 +1473,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     qoder_plugin_issues = check_qoder_plugin(repo_root)
     codex_plugin_issues = check_codex_plugin(repo_root)
     claude_code_plugin_issues = check_claude_code_plugin(repo_root)
+    opencode_plugin_issues = check_opencode_plugin(repo_root)
     skill_delivery_issues = check_skill_delivery(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
@@ -1406,6 +1502,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "qoderPlugin": qoder_plugin_issues,
             "codexPlugin": codex_plugin_issues,
             "claudeCodePlugin": claude_code_plugin_issues,
+            "opencodePlugin": opencode_plugin_issues,
             "skillDelivery": skill_delivery_issues,
         },
     }
@@ -1440,6 +1537,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["claudeCodePlugin"]:
         print(f"Claude Code plugin ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["opencodePlugin"]:
+        print(f"OpenCode plugin ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["skillDelivery"]:

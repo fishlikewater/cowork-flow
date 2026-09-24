@@ -8,6 +8,7 @@ import { runInstallClaudeCodePlugin, FLAGS as CLAUDE_CODE_PLUGIN_FLAGS } from '.
 import { runInstallDshHook, FLAGS as DSH_HOOK_FLAGS } from './install-dsh-hook.js';
 import { runInstallDshPreset, FLAGS as DSH_PRESET_FLAGS } from './install-dsh-preset.js';
 import { runInstallKimiHook, FLAGS as KIMI_HOOK_FLAGS } from './install-kimi-hook.js';
+import { runInstallOpenCodePlugin, FLAGS as OPENCODE_PLUGIN_FLAGS } from './install-opencode-plugin.js';
 import { runInstallQoderPlugin, FLAGS as QODER_PLUGIN_FLAGS } from './install-qoder-plugin.js';
 import { runInstallZCodePlugin, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zcode-plugin.js';
 
@@ -19,7 +20,7 @@ import { runInstallZCodePlugin, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zc
 // command surface. The two are kept in step by a gate instead (see
 // test/cli-registry.test.js), not by merging the files.
 //
-// A host listed here without a component entry (opencode) is a declared host
+// A host listed here without a component entry is a declared host
 // with no machine-level integration at all.
 export const HOST_COMPONENTS = {
   codex: {
@@ -32,6 +33,12 @@ export const HOST_COMPONENTS = {
     default: 'plugin',
     components: {
       plugin: { summary: 'Claude Code skills-directory plugin: the bootstrap skill', flags: CLAUDE_CODE_PLUGIN_FLAGS, run: runInstallClaudeCodePlugin }
+    }
+  },
+  opencode: {
+    default: 'plugin',
+    components: {
+      plugin: { summary: 'OpenCode plugin: the plugin file plus the bootstrap skill it registers', flags: OPENCODE_PLUGIN_FLAGS, run: runInstallOpenCodePlugin }
     }
   },
   zcode: {

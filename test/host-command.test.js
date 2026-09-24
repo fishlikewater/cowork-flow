@@ -15,6 +15,7 @@ const HOME_KEYS = [
   'DSH_HOME',
   'KIMI_CODE_HOME',
   'QODER_CONFIG_DIR',
+  'XDG_CONFIG_HOME',
   'ZCODE_HOME'
 ];
 
@@ -76,6 +77,7 @@ test('host add sends each host to its own installer', async (t) => {
   const home = await createTempDir(t, 'cowork-flow-host-add-');
   useEnv(t, {
     CLAUDE_CONFIG_DIR: join(home, 'claude'),
+    XDG_CONFIG_HOME: join(home, 'xdg'),
     CODEX_HOME: join(home, 'codex'),
     DSH_HOME: join(home, 'dsh'),
     KIMI_CODE_HOME: join(home, 'kimi'),
@@ -84,6 +86,7 @@ test('host add sends each host to its own installer', async (t) => {
   });
 
   const cases = [
+    { argv: ['opencode'], expect: /OpenCode plugin/ },
     { argv: ['claude-code'], expect: /Claude Code plugin/ },
     { argv: ['codex'], expect: /Codex plugin/ },
     { argv: ['zcode'], expect: /ZCode plugin/ },
@@ -127,6 +130,7 @@ test('host remove reaches the uninstall path of every component', async (t) => {
   const home = await createTempDir(t, 'cowork-flow-host-remove-');
   useEnv(t, {
     CLAUDE_CONFIG_DIR: join(home, 'claude'),
+    XDG_CONFIG_HOME: join(home, 'xdg'),
     CODEX_HOME: join(home, 'codex'),
     DSH_HOME: join(home, 'dsh'),
     KIMI_CODE_HOME: join(home, 'kimi'),
@@ -135,6 +139,7 @@ test('host remove reaches the uninstall path of every component', async (t) => {
   });
 
   const cases = [
+    { argv: ['opencode'], expect: /cowork-flow OpenCode plugin was not installed/ },
     { argv: ['claude-code'], expect: /cowork-flow Claude Code plugin was not installed/ },
     { argv: ['codex'], expect: /Would run: codex plugin remove/ },
     { argv: ['zcode'], expect: /Would remove cowork-flow ZCode plugin/ },
@@ -210,7 +215,12 @@ test('host list prints a table by default and flags hosts without components', a
   assert.match(io.stdout, /^Hosts declared in host-assets\.json \(project: /m);
   assert.match(io.stdout, /^host\s+name\s+components\s+selected$/m);
   assert.match(io.stdout, /^dsh\s+DeepSeek Harness\s+preset, hook\s+no$/m);
-  assert.match(io.stdout, /^opencode\s+OpenCode\s+-\s+no$/m);
+  assert.match(io.stdout, /^opencode\s+OpenCode\s+plugin\s+no$/m);
+  // Every declared host now has a machine-level component, so no row can show
+  // the "no component" marker. This assertion makes that a fact the suite
+  // tracks: the day a host is declared without one, it fails and the marker's
+  // rendering gets its coverage back.
+  assert.doesNotMatch(io.stdout, /\s-\s/m);
 });
 
 test('host list rejects a second positional argument', async () => {
@@ -228,6 +238,7 @@ test('every installer rejects an unknown flag instead of ignoring it', async (t)
   const home = await createTempDir(t, 'cowork-flow-host-flags-');
   useEnv(t, {
     CLAUDE_CONFIG_DIR: join(home, 'claude'),
+    XDG_CONFIG_HOME: join(home, 'xdg'),
     CODEX_HOME: join(home, 'codex'),
     DSH_HOME: join(home, 'dsh'),
     KIMI_CODE_HOME: join(home, 'kimi'),
@@ -236,6 +247,7 @@ test('every installer rejects an unknown flag instead of ignoring it', async (t)
   });
 
   const targets = [
+    ['opencode'],
     ['claude-code'],
     ['codex'],
     ['zcode'],
