@@ -74,6 +74,7 @@ function createIo() {
 test('host add sends each host to its own installer', async (t) => {
   const home = await createTempDir(t, 'cowork-flow-host-add-');
   useEnv(t, {
+    CLAUDE_CONFIG_DIR: join(home, 'claude'),
     CODEX_HOME: join(home, 'codex'),
     DSH_HOME: join(home, 'dsh'),
     KIMI_CODE_HOME: join(home, 'kimi'),
@@ -82,6 +83,7 @@ test('host add sends each host to its own installer', async (t) => {
   });
 
   const cases = [
+    { argv: ['claude-code'], expect: /Claude Code plugin/ },
     { argv: ['codex'], expect: /Codex plugin/ },
     { argv: ['zcode'], expect: /ZCode plugin/ },
     { argv: ['qoder'], expect: /Qoder plugin/ },

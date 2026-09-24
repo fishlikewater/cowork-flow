@@ -588,7 +588,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual(
             [platform.id for platform in declared],
-            ["codex", "zcode", "qoder"],
+            ["codex", "claude-code", "zcode", "qoder"],
         )
         for platform in declared:
             payload = platform.payload

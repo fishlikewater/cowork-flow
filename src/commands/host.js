@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { UsageError, extractValueFlag, parseFlags } from '../lib/cli-flags.js';
 import { hostRegistry } from '../lib/host-assets.js';
 import { runInstallCodexPlugin, FLAGS as CODEX_PLUGIN_FLAGS } from './install-codex-plugin.js';
+import { runInstallClaudeCodePlugin, FLAGS as CLAUDE_CODE_PLUGIN_FLAGS } from './install-claude-code-plugin.js';
 import { runInstallDshHook, FLAGS as DSH_HOOK_FLAGS } from './install-dsh-hook.js';
 import { runInstallDshPreset, FLAGS as DSH_PRESET_FLAGS } from './install-dsh-preset.js';
 import { runInstallKimiHook, FLAGS as KIMI_HOOK_FLAGS } from './install-kimi-hook.js';
@@ -18,13 +19,19 @@ import { runInstallZCodePlugin, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zc
 // command surface. The two are kept in step by a gate instead (see
 // test/cli-registry.test.js), not by merging the files.
 //
-// A host listed here without a component entry (opencode, claude-code) is a
-// declared host with no machine-level integration at all.
+// A host listed here without a component entry (opencode) is a declared host
+// with no machine-level integration at all.
 export const HOST_COMPONENTS = {
   codex: {
     default: 'plugin',
     components: {
       plugin: { summary: 'Codex plugin: marketplace source plus the bootstrap skill', flags: CODEX_PLUGIN_FLAGS, run: runInstallCodexPlugin }
+    }
+  },
+  'claude-code': {
+    default: 'plugin',
+    components: {
+      plugin: { summary: 'Claude Code skills-directory plugin: the bootstrap skill', flags: CLAUDE_CODE_PLUGIN_FLAGS, run: runInstallClaudeCodePlugin }
     }
   },
   zcode: {

@@ -41,6 +41,9 @@
     },
     "qoder": {
       "label": "Qoder"
+    },
+    "claude-code": {
+      "label": "Claude Code"
     }
   }
 }

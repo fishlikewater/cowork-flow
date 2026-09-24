@@ -109,5 +109,26 @@ export function pluginManifest(metadata, host, version) {
     };
   }
 
+  if (host === 'claude-code') {
+    // A skills-directory plugin: Claude Code loads any folder under a skills
+    // directory that carries this manifest as `<name>@skills-dir`, with no
+    // marketplace and no install record. Only skills ship here — the project's
+    // own `.claude/settings.json` hook and `.claude/agents/` stay the delivery
+    // for injection and subagents, because a plugin hook would fire alongside
+    // the project hook (Claude Code stacks hook sources) and plugin agents
+    // would duplicate the project ones under a second name. The manifest has no
+    // icon key at all, so none is written.
+    return {
+      ...base,
+      displayName: metadata.displayName,
+      author: { name: author.name, email: author.email, url: author.url },
+      homepage: metadata.homepage,
+      repository: metadata.repository,
+      license: metadata.license,
+      keywords: metadata.keywords,
+      skills: './skills/'
+    };
+  }
+
   throw new Error(`plugin metadata projection has no rule for host: ${host}`);
 }

@@ -1023,6 +1023,89 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
     return []
 
 
+_CLAUDE_CODE_PLUGIN_CONTRACT = "runtime-health:claude-code-plugin"
+_CLAUDE_CODE_PLUGIN_NAME = "cowork-flow"
+_CLAUDE_CODE_SKILL = "skills/cowork-flow-bootstrap/SKILL.md"
+
+
+def _claude_home() -> Path:
+    configured = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip()
+    return Path(configured) if configured else Path.home() / ".claude"
+
+
+def _claude_code_warning(
+    code: str, path: Path, message: str, hint: str
+) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_CLAUDE_CODE_PLUGIN_CONTRACT,
+        )
+    ]
+
+
+def check_claude_code_plugin(repo_root: Path) -> list[dict[str, str]]:
+    """Claude Code plugin health. Advisory, and silent while the project never
+    selected the Claude Code host: the plugin is a machine-level asset installed
+    once into the user's skills directory, so it never updates through sync or
+    npm.
+
+    Claude Code loads `<skills-dir>/<name>/` as `<name>@skills-dir` when that
+    folder carries a plugin manifest, so the payload is readable straight from
+    disk: there is no registry entry and no enable flag to consult."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "claude-code" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
+
+    install_path = _claude_home() / "skills" / _CLAUDE_CODE_PLUGIN_NAME
+    manifest_relative = _payload_manifest(
+        "claude-code", repo_root
+    ) or ".claude-plugin/plugin.json"
+    manifest_path = install_path / manifest_relative
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        manifest = None
+    if not isinstance(manifest, dict):
+        return _claude_code_warning(
+            "PLUGIN-NOT-INSTALLED",
+            install_path,
+            "this project declares the Claude Code host, but no cowork-flow "
+            "skills-directory plugin is installed, so Claude Code sessions see "
+            "no cowork-flow plugin Skill",
+            "cwf host add claude-code",
+        )
+    if manifest.get("name") != _CLAUDE_CODE_PLUGIN_NAME:
+        # A hand-made folder at the same path is not cowork-flow's to report on.
+        return []
+
+    if not (install_path / _CLAUDE_CODE_SKILL).is_file():
+        return _claude_code_warning(
+            "PLUGIN-PAYLOAD-INCOMPLETE",
+            install_path / _CLAUDE_CODE_SKILL,
+            "the installed Claude Code plugin carries no bootstrap Skill, so it "
+            "contributes nothing in a repository without a runtime",
+            "cwf host add claude-code --force",
+        )
+
+    recorded = str(manifest.get("version") or "")
+    project_version = _project_version(repo_root)
+    if project_version and recorded != project_version:
+        return _claude_code_warning(
+            "PLUGIN-STALE",
+            manifest_path,
+            f"the Claude Code plugin was installed from {recorded or 'an unknown version'} "
+            f"but this project runs {project_version}; the plugin does not update "
+            "with sync or npm",
+            "cwf host add claude-code --force",
+        )
+    return []
+
+
 _CODEX_PLUGIN_CONTRACT = "runtime-health:codex-plugin"
 CODEX_PLUGIN_KEY = "cowork-flow@cowork-flow-local"
 _CODEX_MARKETPLACE = "cowork-flow-local"
@@ -1294,6 +1377,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     kimi_hook_issues = check_kimi_hook(repo_root)
     qoder_plugin_issues = check_qoder_plugin(repo_root)
     codex_plugin_issues = check_codex_plugin(repo_root)
+    claude_code_plugin_issues = check_claude_code_plugin(repo_root)
     skill_delivery_issues = check_skill_delivery(repo_root)
     errors: list[dict[str, object]] = []
     for issue in host_issues:
@@ -1321,6 +1405,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "kimiHook": kimi_hook_issues,
             "qoderPlugin": qoder_plugin_issues,
             "codexPlugin": codex_plugin_issues,
+            "claudeCodePlugin": claude_code_plugin_issues,
             "skillDelivery": skill_delivery_issues,
         },
     }
@@ -1351,6 +1436,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["codexPlugin"]:
         print(f"Codex plugin ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["claudeCodePlugin"]:
+        print(f"Claude Code plugin ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["skillDelivery"]:

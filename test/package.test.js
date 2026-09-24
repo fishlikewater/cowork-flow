@@ -173,7 +173,7 @@ test('package metadata exposes release script and synchronized lockfile version'
     ]);
   assert.deepEqual(
     pluginManifests.map(([, host]) => host),
-    ['codex', 'zcode', 'qoder']
+    ['codex', 'claude-code', 'zcode', 'qoder']
   );
   const releaseScript = await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8');
   for (const [relativePath, host] of pluginManifests) {

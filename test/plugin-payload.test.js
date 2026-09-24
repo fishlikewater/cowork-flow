@@ -84,7 +84,7 @@ test('every plugin installer stamps its payload through the shared helper', asyn
   // Without this the three "installed version equals the package version"
   // assertions stay green even if stamping is dropped: the shipped source
   // manifests already carry the release version.
-  for (const host of ['codex', 'zcode', 'qoder']) {
+  for (const host of ['claude-code', 'codex', 'zcode', 'qoder']) {
     const installer = await readFile(
       join(packageRoot, 'src', 'commands', `install-${host}-plugin.js`),
       'utf8'
