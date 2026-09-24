@@ -570,6 +570,143 @@ class CodexPluginCheckTest(unittest.TestCase):
             self.assertNotIn("codex-plugin", str(error))
 
 
+class ClaudeCodePluginCheckTest(unittest.TestCase):
+    """Claude Code plugin diagnostics. The plugin is a skills-directory folder in
+    the user's Claude home, so the check must stay silent for projects that never
+    selected the Claude Code host and must never turn a lagging install into a
+    hard error."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.claude_home = root / "claude-home"
+        self.project = root / "project"
+        adapter_dir = self.project / ".cowork-flow" / "adapters" / "claude-code"
+        adapter_dir.mkdir(parents=True)
+        (adapter_dir / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: claude-code\n", encoding="utf-8"
+        )
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.6.0\n", encoding="utf-8"
+        )
+        self.version = "1.6.0"
+        self.install_path = self.claude_home / "skills" / "cowork-flow"
+
+    def _check(self) -> list[dict[str, str]]:
+        with mock.patch.dict(
+            "os.environ", {"CLAUDE_CONFIG_DIR": str(self.claude_home)}
+        ):
+            return self.doctor.check_claude_code_plugin(self.project)
+
+    def _write_payload(
+        self,
+        *,
+        version: str | None = None,
+        skill: bool = True,
+        name: str = "cowork-flow",
+        manifest: str = "plugin.json",
+    ) -> None:
+        (self.install_path / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+        (self.install_path / ".claude-plugin" / manifest).write_text(
+            json.dumps({"name": name, "version": version or self.version}),
+            encoding="utf-8",
+        )
+        if skill:
+            target = self.install_path / "skills" / "cowork-flow-bootstrap"
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "SKILL.md").write_text("# bootstrap\n", encoding="utf-8")
+
+    def test_project_without_claude_code_adapter_is_silent(self) -> None:
+        (
+            self.project / ".cowork-flow" / "adapters" / "claude-code" / "adapter.yaml"
+        ).unlink()
+        self.assertEqual([], self._check())
+
+    def test_declared_host_without_install_reports_not_installed(self) -> None:
+        issues = self._check()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("cwf host add claude-code", issues[0]["commandHint"])
+
+    def test_healthy_install_reports_nothing(self) -> None:
+        self._write_payload()
+        self.assertEqual([], self._check())
+
+    def test_payload_without_bootstrap_skill_reports_incomplete(self) -> None:
+        self._write_payload(skill=False)
+        issues = self._check()
+        self.assertEqual(
+            ["PLUGIN-PAYLOAD-INCOMPLETE"], [issue["code"] for issue in issues]
+        )
+
+    def test_stale_plugin_version_reports_stale(self) -> None:
+        self._write_payload(version="1.5.0")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("1.5.0", issues[0]["message"])
+
+    def test_foreign_skills_directory_is_silent(self) -> None:
+        # A hand-made folder at the same path is not cowork-flow's to report on.
+        # It is deliberately stale, so only the name guard can explain silence.
+        self._write_payload(name="someone-else", version="1.5.0")
+        self.assertEqual([], self._check())
+
+    def test_missing_project_version_is_silent(self) -> None:
+        self._write_payload(version="0.0.1")
+        (self.project / ".cowork-flow" / ".version").unlink()
+        self.assertEqual([], self._check())
+
+    def _write_host_manifest(self, manifest_relative: str) -> None:
+        """Deliver the host asset manifest with claude-code's declared payload
+        manifest renamed, so the check can be observed following the
+        declaration."""
+        data = json.loads(
+            (
+                TEMPLATE / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+            ).read_text(encoding="utf-8")
+        )
+        platform = next(
+            item for item in data["platforms"] if item["id"] == "claude-code"
+        )
+        platform["payload"]["manifest"] = manifest_relative
+        target = (
+            self.project / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
+        )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+    def test_payload_manifest_path_follows_the_declaration(self) -> None:
+        # The declaration is the only place naming the payload manifest: a
+        # payload carrying exactly the declared name is healthy, and the same
+        # payload is reported missing once the declaration points elsewhere.
+        self._write_host_manifest(".claude-plugin/plugin-alt.json")
+        self._write_payload(manifest="plugin-alt.json")
+        self.assertEqual([], self._check())
+
+        self._write_host_manifest(".claude-plugin/plugin.json")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
+        self.assertTrue(str(issues[0]["path"]).endswith("cowork-flow"), issues[0]["path"])
+
+    def test_plugin_check_never_enters_doctor_errors(self) -> None:
+        with mock.patch.dict(
+            "os.environ", {"CLAUDE_CONFIG_DIR": str(self.claude_home)}
+        ):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual(
+            "PLUGIN-NOT-INSTALLED", result["issues"]["claudeCodePlugin"][0]["code"]
+        )
+        for error in result["errors"]:
+            self.assertNotIn("claudeCodePlugin", str(error))
+
+
 class SkillDeliveryCheckTest(unittest.TestCase):
     """Skill delivery diagnostics: a declared read root that is not on disk, a
     machine-level plugin payload that still carries a copy of a project Skill,

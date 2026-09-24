@@ -30,7 +30,7 @@ npx cowork-flow project init ./my-project --platform codex --developer <your-nam
 cwf project sync ./my-project --dry-run
 cwf project sync ./my-project
 
-# 机器级接入宿主（可选；不装则只用项目级资产）：codex / zcode / qoder 插件、dsh 预设、kimi-code hook
+# 机器级接入宿主（可选；不装则只用项目级资产）：codex / claude-code / zcode / qoder 插件、dsh 预设、kimi-code hook
 cwf host add codex
 cwf host add dsh
 
@@ -136,12 +136,12 @@ Batch、doctor、Party Mode 都是主线旁路能力：它们可以提供事实�
 
 ## 宿主支持
 
-`host add` 只对下表中列了组件的宿主有意义：`opencode` 与 `claude-code` 是声明宿主，资产完全由 `project init` / `project sync` 交付，`host add opencode` 是用法错误。`host add <host> --uninstall` 与 `host remove <host>` 是同一条路径。
+`host add` 只对下表中列了组件的宿主有意义：`opencode` 是声明宿主，资产完全由 `project init` / `project sync` 交付，`host add opencode` 是用法错误。`host add <host> --uninstall` 与 `host remove <host>` 是同一条路径。
 
 | 宿主 | 项目级资产 | 机器级组件 | `host add` 默认 |
 |---|---|---|---|
 | Codex | `.codex/` + `.agents/skills/` | `plugin`（只带引导技能；agents 与 hook 留在项目级） | `plugin` |
-| Claude Code | `.claude/` | 无 | — |
+| Claude Code | `.claude/` | `plugin`（只带引导技能；hook 与 agents 留在项目级） | `plugin` |
 | OpenCode | `.opencode/` + `.agents/skills/` | 无 | — |
 | ZCode | `.agents/skills/` | `plugin`（hook + agents + 引导技能） | `plugin` |
 | Qoder | `.agents/skills/` | `plugin`（hook + agents + 引导技能） | `plugin` |

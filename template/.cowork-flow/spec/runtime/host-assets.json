@@ -258,7 +258,10 @@
           "target": ".claude/hooks/inject-workflow-state.py"
         }
       ],
-      "payload": null
+      "payload": {
+        "source": "presets/claude-code",
+        "manifest": ".claude-plugin/plugin.json"
+      }
     },
     {
       "id": "dsh",

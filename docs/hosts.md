@@ -8,7 +8,7 @@ cowork-flow 的资产分两层：**项目级**由 `cwf project init` / `cwf proj
 
 每个宿主有哪些机器级组件、`host add` 默认装哪个，见 [README 的「宿主支持」表](../README.md#宿主支持)——那张表是组件归属的唯一一份，本文只补充各宿主的安装落点与前提。
 
-`opencode` 与 `claude-code` 是声明宿主，但没有机器级组件——它们的资产完全由 `project init` / `project sync` 交付，`host add opencode` 是用法错误。宿主别名同样可用（如 `claude`、`kimi`、`qoder-cli`，见 Host Asset Manifest 的 `aliases`）。
+`opencode` 是声明宿主，但没有机器级组件——它的资产完全由 `project init` / `project sync` 交付，`host add opencode` 是用法错误。宿主别名同样可用（如 `claude`、`kimi`、`qoder-cli`，见 Host Asset Manifest 的 `aliases`）。
 
 `host add <host> --uninstall` 与 `host remove <host>` 是同一条路径，保留前者只为让旧命令名能被原样重写。`host list` 只报「声明与项目选中」；机器安装是否健康（载荷缺失、版本过期、技能重复）由 `./.cowork-flow/run doctor` 负责。
 
@@ -36,6 +36,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 |---|---|---|---|
 | `codex` | `interface.logo`、`interface.brandColor` | 载荷内相对路径（`./assets/logo.svg`）与十六进制色 | 路径不在载荷内则显示破图，且**任何一层都不报错**——载荷会被整目录拷进 `$CODEX_HOME`，所以文件必须落在 `presets/codex/` 里 |
 | `zcode` | marketplace 条目的 `icon`（**插件清单没有图标键**） | 绝对 `https://` URL | 非 `https://` 开头一律**静默丢弃**并回退默认图标：客户端判定为 `typeof icon === 'string' && icon.startsWith('https://')`，不匹配就当没有图标，不警告 |
+| `claude-code` | 无 | — | skills 目录插件清单只认 `name` / `version` / `description` / `author` / `homepage` / `repository` / `license` / `keywords` / `skills` 这类字段，没有图标位；`claude plugin validate` 对未知键不做校验，写了只是死重量 |
 | `qoder` | 无 | — | agent 插件清单没有图标位（组件发现清单只有 `commands` / `skills` / `agents` / `hooks` / `output-styles` / `workflows` / `bin` / `.mcp.json` / `mcp.json`）；写未知键等于给宿主不支持的字段塞值 |
 
 品牌资产本身：`assets/icon.svg` 是唯一源（24×24 网格、`currentColor`、无外部引用），品牌色只写在 `presets/plugin-meta.json` 的 `brandColor`；`npm run icons:export` 从源导出 `assets/icon.png`（512×512 透明底）并同步 codex 载荷内的副本。zcode 的图标 URL 由 `repository` + `defaultBranch` + `icon.raster` 推导，不写死。三条都有门禁守着（见 `test/plugin-metadata.test.js`）。
@@ -133,6 +134,26 @@ cwf host remove qoder           # 卸载：只回收 cowork-flow 自己的条目
 > 该注册表文件不在 Qoder 公开文档里，格式可能随版本变化。`./.cowork-flow/run doctor` 把它作为 warning 级项报告（`PLUGIN-NOT-INSTALLED` / `PLUGIN-PAYLOAD-MISSING` / `PLUGIN-PAYLOAD-INCOMPLETE` / `PLUGIN-DISABLED` / `PLUGIN-STALE`），不计入 errors；官方等价路径是 `qoder plugins install <目录>`，临时验证也可用 `--plugin-dir <目录>`。
 
 Qoder 侧的三条外部前提：hook 载荷需**重启 Qoder** 才加载（IDE 无热重载）；**未信任的工作区**不加载项目 hooks/agents/`AGENTS.md`；Desktop 的 Custom Agents 文档标注需 Business 版，因此 `.cowork-flow/run` 之外不要假设插件子代理在桌面端一定可用。`PostToolUse` 在 Qoder 不是可阻断事件，编辑期规范告警以 `additionalContext` 随 exit 0 返回。
+
+## Claude Code
+
+Claude Code 的插件通道和另外三家都不一样：**没有 marketplace，也没有安装记录**。任意技能目录下的文件夹只要带 `.claude-plugin/plugin.json`，就被识别为 `<name>@skills-dir` 插件，装上即可用。所以这里的安装器只做一件事——把一个目录写进 `$CLAUDE_CONFIG_DIR/skills/cowork-flow`（未设置时 `~/.claude`）。
+
+```bash
+cwf host add claude-code              # 写 $CLAUDE_CONFIG_DIR/skills/cowork-flow
+cwf host add claude-code --dry-run    # 预览落点，不写文件
+cwf host add claude-code --force      # 同版本也重写
+cwf host remove claude-code           # 删该目录
+```
+
+载荷只有清单和引导技能（`skills/cowork-flow-bootstrap/`，与 codex / zcode / qoder 载荷逐字一致）。**hook 与 agents 都留在项目级**：Claude Code 的 hook 是**多源叠加**——`~/.claude/settings.json`、项目 `.claude/settings.json`、插件 hook 会一起执行，插件再带一份 hook 就是双份注入（codex 上同一个坑已经踩过）；项目级 `.claude/agents/` 已经把三个 fixed subagent 交付到位，插件再带一份只会让同一件事有两个名字。`claude plugin details` 的组件清单就是这条设计的现场证据：`Skills (1) cowork-flow-bootstrap`、`Agents (0)`、`Hooks (0)`。
+
+本机实测（claude 2.1.202，隔离 `CLAUDE_CONFIG_DIR`）：装完 `claude plugin list` 显示 `cowork-flow@skills-dir`、`Version: 1.6.0`、`Scope: user`、`Status: ✔ loaded`；`claude plugin validate` 通过；卸载后列表回到 `No plugins installed`。
+
+Claude Code 侧插件检查（warning，不进 errors）：`PLUGIN-NOT-INSTALLED`（技能目录下没有 cowork-flow 插件，或清单不可读）、`PLUGIN-PAYLOAD-INCOMPLETE`（清单在但缺引导技能，等于什么都不贡献）、`PLUGIN-STALE`（清单版本与 `.cowork-flow/.version` 不一致——这个插件不随 `sync` / npm 升级，只能重装）。清单里 `name` 不是 `cowork-flow` 的目录被当作别人的技能，一律不报也不删。
+
+外部前提：`~/.claude/skills/` 是用户手工维护的目录，安装器只在清单 `name` 为 `cowork-flow` 时才删除或覆盖，其余情况要么报错要么需要显式 `--force`。插件 Skills 需**新会话**才加载。
+
 
 ## Codex
 

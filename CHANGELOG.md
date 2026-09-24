@@ -8,6 +8,15 @@
 
 ### Added
 
+#### Claude Code 插件载荷与 skills 目录安装器
+
+- **Claude Code 也能机器级接入**：`cwf host add claude-code` 把一个带 `.claude-plugin/plugin.json` 的目录写进 `$CLAUDE_CONFIG_DIR/skills/cowork-flow`（未设置该变量时 `~/.claude`）。这条通道**没有 marketplace、没有安装记录**——Claude Code 把技能目录下任何带清单的文件夹识别为 `<name>@skills-dir` 插件，装上即可用，所以安装器不写任何第二份状态。`presets/claude-code/` 是载荷唯一源，与 codex / zcode / qoder 同一套投影与盖章链路。
+- **载荷只带引导技能**：hook 与 agents 继续由项目级 `init` / `sync` 交付。Claude Code 的 hook 是**多源叠加**（`~/.claude/settings.json`、项目 `.claude/settings.json`、插件 hook 一起执行），插件再带一份就是双份注入；`.claude/agents/` 已经把三个 fixed subagent 交付到位，插件再带一份只是让同一件事有两个名字。清单里不写 `hooks` / `agents` / 任何图标键（该清单 schema 没有图标位）。
+- **doctor 新增 `check_claude_code_plugin`**（warning 级，不进 errors）：`PLUGIN-NOT-INSTALLED`（技能目录下没有 cowork-flow 插件或清单不可读）、`PLUGIN-PAYLOAD-INCOMPLETE`（缺引导技能）、`PLUGIN-STALE`（清单版本与 `.cowork-flow/.version` 不一致——这个插件不随 `sync` / npm 升级）。项目未声明 claude-code 宿主时静默；清单 `name` 不是 `cowork-flow` 的目录被当作别人的技能，不报也不删。载荷清单路径从 Host Asset Manifest 的声明读取，不写第二份字面量。
+- **本机实测**（claude 2.1.202，隔离 `CLAUDE_CONFIG_DIR`）：装完 `claude plugin list` 显示 `cowork-flow@skills-dir` / `Version: 1.6.0` / `Scope: user` / `Status: ✔ loaded`；`claude plugin details` 组件清单为 `Skills (1) cowork-flow-bootstrap`、`Agents (0)`、`Hooks (0)`；`claude plugin validate` 通过；卸载后列表回到 `No plugins installed`。
+- **门禁**：`test/claude-code-plugin.test.js` 钉住「装进技能目录且版本被盖章」「除技能目录外不留任何文件（settings.json 与别人的技能原样不动）」「同版本重跑不重写、`--force` 才覆盖」「安装路径下是别人的目录时拒绝覆盖、拒绝删除」「dry-run 不写文件」「卸载只删自己那一个目录」「载荷技能名与项目技能名零交集」；`tests/test_runtime_health.py` 的 `ClaudeCodePluginCheckTest` 钉住三个故障码、静默条件、外来目录静默与「永不进入 errors」，并做负向验证（把检查改成恒静默 → 5 红；去掉归属守卫 → 1 红）。`test/plugin-metadata.test.js`、`test/host-assets.test.js`、`test/plugin-payload.test.js`、`test/host-command.test.js` 的宿主清单同步加入 claude-code。
+- 升级动作：`cwf host add claude-code` 即可；已装项目重跑一次带上后续版本。旧命令名无需迁移——本批没有新增命令，入口是既有的 `host add` / `host remove`。
+
 #### 品牌 mark 与宿主图标接线
 
 

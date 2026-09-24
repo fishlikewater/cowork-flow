@@ -10,6 +10,7 @@ import { packageRoot } from '../src/lib/paths.js';
 import { marketplaceIconUrl, pluginManifest, readPluginMetadata } from '../src/lib/plugin-metadata.js';
 
 const HOST_MANIFESTS = [
+  ['claude-code', '.claude-plugin/plugin.json'],
   ['codex', '.codex-plugin/plugin.json'],
   ['zcode', '.zcode-plugin/plugin.json'],
   ['qoder', '.qoder-plugin/plugin.json']
@@ -17,8 +18,10 @@ const HOST_MANIFESTS = [
 // Which hosts actually read an icon, and under which key. codex takes a
 // payload-relative path plus a brand colour; zcode reads its icon from the
 // marketplace entry, never from the manifest; qoder's manifest schema has no
-// icon field at all, so writing one would be a key the host never reads.
+// icon field at all, so writing one would be a key the host never reads, and
+// claude-code's skills-directory manifest schema has none either.
 const HOST_ICON_KEYS = {
+  'claude-code': [],
   codex: ['brandColor', 'logo'],
   zcode: [],
   qoder: []
@@ -352,6 +355,24 @@ test('qoder manifest carries the identity fields its schema supports', async () 
   // The qoder manifest schema has no icon field; adding one would be dead weight.
   assert.equal(manifest.icon, undefined);
   assert.equal(manifest.logo, undefined);
+});
+
+test('claude-code manifest declares the skills directory and nothing it cannot read', async () => {
+  const metadata = await readPluginMetadata();
+  const manifest = await readManifest('claude-code', '.claude-plugin/plugin.json');
+
+  assert.equal(manifest.displayName, metadata.displayName);
+  assert.equal(manifest.repository, metadata.repository);
+  assert.deepEqual(manifest.keywords, metadata.keywords);
+  // The whole point of this plugin channel: the folder is a plugin because it
+  // carries this manifest, and `skills` is what Claude Code then loads.
+  assert.equal(manifest.skills, './skills/');
+  // No icon key exists in this schema, and no hooks/agents either: the project
+  // delivers injection and the fixed subagents from its own .claude/ tree.
+  for (const key of ['icon', 'logo', 'hooks', 'agents']) {
+    assert.equal(manifest[key], undefined, `claude-code manifest must not declare ${key}`);
+  }
+  await access(join(packageRoot, 'presets', 'claude-code', 'skills', 'cowork-flow-bootstrap', 'SKILL.md'));
 });
 
 test('zcode manifest carries the fields zcode reads', async () => {

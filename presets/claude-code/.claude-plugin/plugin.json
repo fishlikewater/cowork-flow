@@ -1,0 +1,28 @@
+{
+  "name": "cowork-flow",
+  "version": "1.6.0",
+  "description": "AI 协作工作流引擎：任务生命周期、子代理调度、门禁与状态注入。将 cowork-flow 的完整工作流带入 Claude Code。",
+  "displayName": "Cowork Flow",
+  "author": {
+    "name": "fishlikewater",
+    "email": "fishlikewater@126.com",
+    "url": "https://github.com/fishlikewater"
+  },
+  "homepage": "https://github.com/fishlikewater/cowork-flow",
+  "repository": "https://github.com/fishlikewater/cowork-flow",
+  "license": "MIT",
+  "keywords": [
+    "ai-agent",
+    "workflow",
+    "task-lifecycle",
+    "subagents",
+    "codex",
+    "claude-code",
+    "opencode",
+    "zcode",
+    "qoder",
+    "kimi-code",
+    "dsh"
+  ],
+  "skills": "./skills/"
+}

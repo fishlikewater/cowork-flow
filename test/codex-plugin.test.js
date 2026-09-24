@@ -9,7 +9,7 @@ import { readPackageInfo } from '../src/lib/package-info.js';
 import { packageRoot, templateRoot } from '../src/lib/paths.js';
 import { readPluginMetadata } from '../src/lib/plugin-metadata.js';
 
-const HOSTS = ['zcode', 'qoder', 'codex'];
+const HOSTS = ['zcode', 'qoder', 'codex', 'claude-code'];
 const BOOTSTRAP_SKILL = 'cowork-flow-bootstrap';
 const MARKETPLACE_NAME = 'cowork-flow-local';
 const PLUGIN_KEY = 'cowork-flow@cowork-flow-local';
