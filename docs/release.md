@@ -1,61 +1,94 @@
 # 发布与维护
 
-面向 cowork-flow 仓库维护者。用户侧使用见 [README](../README.md)。
+本文面向 cowork-flow 仓库维护者。普通用户只需要 [README](../README.md)；提交代码前先看 [贡献指南](../CONTRIBUTING.md)。
 
-## 测试分层
+## 发布前检查
 
-按反馈速度和覆盖范围分层：
+按改动范围选择测试，不必每次都从最重的命令开始。
+
+| 命令 | 什么时候运行 |
+|---|---|
+| `npm run test:fast` | 日常修改后的最低检查 |
+| `npm run test:integration` | 改动 `project init` / `project sync` |
+| `npm run test:node:full` | 改动 Node CLI、安装器或共享模块 |
+| `npm run test:template` | 改动项目模板的核心路径 |
+| `npm run test:template:full` | 改动 Python 运行时、规范、hook 或宿主适配 |
+| `npm run test:windows:core` | 涉及 Windows、路径、换行或发布行为 |
+| `python -m pytest -q` | 改动 `template/.cowork-flow/`、`tests/` 或 Python 契约 |
+| `npm run test:all` | 准备发布时的完整 Node、模板和打包检查 |
+| `npm run release:check` | 发布信心门禁，当前等价于 `test:all` |
+
+平台前提不满足时，测试可能明确跳过。跳过项必须原样记录，不能当作通过。
+
+稳定性相关改动建议重复运行模板测试：
 
 ```bash
-npm run test:fast          # 快速 Node 测试，等价于 npm test
-npm run test:integration   # init/sync 关键集成路径
-npm run test:node:full     # 完整 Node 测试
-npm run test:template      # 核心模板集成测试
-npm run test:windows:core  # Windows core 发布信心门禁（Node/Python/init/sync/pack/模板）
-npm run test:template:full # 完整模板 Python discovery
-npm run test:all           # 发布前全量测试与打包检查
-npm run release:check      # 发布信心门禁；当前等价于 test:all
+COWORK_TEMPLATE_TEST_REPEAT=3 \
+COWORK_TEMPLATE_TEST_SEED=<固定值> \
+npm run test:template:full
 ```
 
-Python 侧另有仓库级测试，直接跑 `python -m pytest -q`（`test:template:full` 覆盖的是模板集成部分）。
+## 发布命令
 
-## 发布
+| 命令 | 行为 |
+|---|---|
+| `npm run release` | 发布 patch 版本 |
+| `npm run release -- minor` | 发布 minor 版本 |
+| `npm run release -- --version 0.1.0` | 使用指定版本号，跳过自动 bump |
+| `npm run release -- minor --no-publish` | 完成版本、提交和 tag，但不执行 `npm publish` |
+| `npm run release -- --dry-run` | 运行发布前检查，停在版本 bump 之前 |
 
-```bash
-npm run release          # patch
-npm run release -- minor # minor
-npm run release -- --version 0.1.0  # 精确发布指定版本（跳过自动 bump）
-npm run release -- minor --no-publish  # 完整流程但跳过 npm publish（tag 留在本地）
-npm run release -- --dry-run  # 跑完整前置检查后停在版本 bump 之前
-```
+`--dry-run` 不是只读命令。它会执行 `source:refresh` 和 `sync --force`，因此可能刷新仓库中被忽略的运行副本，并临时覆盖后恢复 `AGENTS.md`。它不会改版本文件、提交、打 tag 或发布。
 
-`--dry-run` 会真的执行 `source:refresh` 与 `sync --force`（刷新 gitignored 的自实例副本，并临时覆盖 `AGENTS.md` 后从 HEAD 恢复），只是不改版本文件、不提交、不打 tag、不发布——它是「发布前把前置检查真跑一遍」的入口。CHANGELOG 门禁无法在 dry-run 里检查：目标版本要等 bump 才知道。
+目标版本只有 bump 后才能确定，所以 `--dry-run` 不会运行 CHANGELOG 版本段落门禁。
 
-**发布流程：**
+## 标准发布流程
 
-1. `npm run release:check`、`git diff --check`
-2. 稳定性变更使用 `COWORK_TEMPLATE_TEST_REPEAT=3` 和固定 `COWORK_TEMPLATE_TEST_SEED` 重复运行 `npm run test:template:full`
-3. `npm version` 升级版本
-4. 同步版本到 `template/.cowork-flow/.version` 和宿主插件清单（`presets/<host>/*-plugin/plugin.json`）
-5. `git commit` + `git tag`
-6. `npm publish`——走 CI 发布通道时改用 `--no-publish` 在此止步，交由下一步触发
+1. 确认工作树和更新日志符合预期。
+2. 运行 `npm run release:check` 和 `git diff --check`。
+3. 稳定性改动按上一节重复模板测试。
+4. 运行 `npm run release -- <release-type>`；CI 通道使用 `--no-publish`。
+5. 脚本同步 `package.json`、lockfile、`template/.cowork-flow/.version` 和所有随包插件清单。
+6. 检查提交与 tag，再按下面的 CI 通道发布。
 
-发布说明维护在 `CHANGELOG.md`；发布前更新当前版本段落，并保留 `release:check` 和 `git diff --check` 证据。`scripts/release.sh` 会校验 CHANGELOG 已有该版本段落（`grep -q "^## \[${PACKAGE_VERSION}\] "`），`test/release.test.js` 用假仓库真跑一遍这个门禁。该门禁在 bump **之后**执行（目标版本要等 npm 算出来），所以失败时脚本会打印撤销 bump 的具体命令（`git checkout -- package.json package-lock.json template/.cowork-flow/.version` 再 `npm run source:refresh`）。
+`scripts/release.sh` 会在 bump 后检查 `CHANGELOG.md` 是否存在当前版本段落。这个检查发生在版本已经修改之后；如果失败，按脚本输出的撤销命令恢复 `package.json`、`package-lock.json`、`.version`，再运行 `npm run source:refresh`。
 
-**CI 发布通道（推荐）：** `scripts/release.sh <release-type> --no-publish` 完成提交与打 tag（不本地 publish）后，先 `git push` 分支并 `git push origin v<v>` 把 tag 推上远端，再 `gh release create v<v>` 触发 `.github/workflows/publish.yml`——远端尚无该 tag 时，`gh release create` 会从默认分支最新提交自动建 tag，使门禁与发布落在错误的提交上。Ubuntu/Windows 双平台全量门禁通过后自动 `npm publish`（需仓库 secret `NPM_TOKEN`，权限：publish）。`--no-publish` 只是跳过最后一步，前置的镜像、门禁与版本同步与默认路径完全一致。
+## CI 发布通道
 
-CI 的 PR 同时运行 Ubuntu core 与 Windows core；发布工作流要求 Ubuntu 与 Windows full verification 均成功后才执行 publish。测试 job 不接触 `NPM_TOKEN`，仅 publish job 使用该 secret。
+推荐让 GitHub Actions 执行 `npm publish`：
 
-Windows 上发布前使用 `run.cmd` 入口验证；POSIX shell 专属 release 用例在没有 shell 的 Windows 环境会明确跳过，不得记录为通过。`release:check` 会保留这些 skip 报告，不把 skip 伪装成 pass。
+1. 在本地运行 `npm run release -- <release-type> --no-publish`，完成检查、版本、提交和 tag。
+2. 先推送分支，再显式推送 tag：
+
+   ```bash
+   git push
+   git push origin v<v>
+   ```
+
+3. 创建 GitHub Release：
+
+   ```bash
+   gh release create v<v>
+   ```
+
+4. `.github/workflows/publish.yml` 等待 Ubuntu 和 Windows 验证通过后发布 npm 包。
+
+不要在 tag 尚未存在于远端时运行 `gh release create`，否则 GitHub 可能从默认分支最新提交创建 tag，把发布指向错误提交。
+
+PR 和发布使用同一套 core 门禁。只有 publish job 能读取 `NPM_TOKEN`，测试 job 不接触发布凭据。
 
 ## 维护者命令
 
 ```bash
-npm run source:refresh:dry-run  # 预览本仓库 source checkout live runtime / Skill replica 刷新
-npm run source:refresh          # 刷新 ignored root .cowork-flow、.agents/skills、.claude/skills
-npm run icons:export            # 从 assets/icon.svg 重导出品牌栅格并同步 codex 载荷副本
+npm run source:refresh:dry-run  # 预览源码仓库运行副本的刷新
+npm run source:refresh          # 刷新根 .cowork-flow、.agents/skills、.claude/skills
+npm run icons:export            # 从 assets/icon.svg 重新导出 PNG
 ```
 
-`source:refresh` 以 `template/.cowork-flow/` 和 `template/skills/` 为唯一 tracked 分发源，刷新 ignored 的根 `.cowork-flow/`、`.agents/skills/`、`.claude/skills/` 受管副本。保护边界：不覆盖 `.cowork-flow/tasks/`、`.cowork-flow/plans/`、`.cowork-flow/.runtime/`、`.cowork-flow/.developer`、`.cowork-flow/config.yaml` 和自定义 Skill。事务语义：复用 Asset Plan / plan applier，失败时回滚；`.cowork-flow/.version` 保持 version-last，并复制 template 版本文件的原始内容。应用后再运行 `./.cowork-flow/run doctor --all --json`。
+`source:refresh` 以 `template/.cowork-flow/` 和 `template/skills/` 为唯一分发源，不覆盖任务、计划、开发者身份、项目配置或自定义 Skill。刷新后运行：
 
-`icons:export` 需要机器上有 Edge 或 Chrome（无头渲染栅格）；找不到时以非零码退出并打印替代做法，不会静默跳过。`COWORK_FLOW_BROWSER` 可显式指定浏览器可执行文件。
+```bash
+./.cowork-flow/run doctor --all --json
+```
+
+`icons:export` 需要本机存在 Edge 或 Chrome，可用 `COWORK_FLOW_BROWSER` 指定可执行文件。浏览器缺失时命令会失败，不会把旧图当作已更新。
