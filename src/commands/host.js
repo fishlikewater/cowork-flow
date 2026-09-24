@@ -19,10 +19,8 @@ import { runInstallZCodePlugin, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zc
 // facts (asset paths, skill discovery, where the payload lives in the package),
 // while "which actions can the CLI take against this host" is a property of the
 // command surface. The two are kept in step by a gate instead (see
-// test/cli-registry.test.js), not by merging the files.
-//
-// A host listed here without a component entry is a declared host
-// with no machine-level integration at all.
+// test/cli-registry.test.js), not by merging the files. Every declared host has
+// an entry here — a gate asserts it.
 export const HOST_COMPONENTS = {
   codex: {
     default: 'plugin',
@@ -89,12 +87,6 @@ function resolveHost(token) {
     );
   }
   const host = HOST_COMPONENTS[id];
-  if (!host) {
-    throw new UsageError(
-      `Host ${id} has no machine-level integration, so there is nothing to add or remove. `
-      + `Hosts that have one: ${Object.keys(HOST_COMPONENTS).join(', ')}`
-    );
-  }
   return { id, host };
 }
 
@@ -157,13 +149,14 @@ export async function runHostList(args = [], { io } = {}) {
 
   const rows = [];
   for (const platform of hostRegistry.platforms) {
-    const host = HOST_COMPONENTS[platform.id] ?? null;
+    // Every declared host has components; test/cli-registry.test.js asserts it.
+    const host = HOST_COMPONENTS[platform.id];
     rows.push({
       id: platform.id,
       displayName: platform.displayName,
       aliases: [...platform.aliases],
-      components: host ? Object.keys(host.components) : [],
-      defaultComponent: host?.default ?? null,
+      components: Object.keys(host.components),
+      defaultComponent: host.default,
       // The adapter declaration is the per-project record that this host was
       // selected at init, so its presence is the selection signal.
       selected: await pathExists(join(target, ...platform.adapterPath.split('/')))
@@ -179,7 +172,7 @@ export async function runHostList(args = [], { io } = {}) {
   const table = rows.map((row) => [
     row.id,
     row.displayName,
-    row.components.length > 0 ? row.components.join(', ') : '-',
+    row.components.join(', '),
     row.selected ? 'yes' : 'no'
   ]);
   const widths = header.map((cell, index) => Math.max(
@@ -193,6 +186,6 @@ export async function runHostList(args = [], { io } = {}) {
   for (const line of table) {
     io.writeOut(`${format(line)}\n`);
   }
-  io.writeOut('`selected` means this project has the host\'s adapter; `-` means the host has no machine-level component.\n');
+  io.writeOut('`selected` means this project has the host\'s adapter.\n');
   return 0;
 }

@@ -25,12 +25,9 @@ PLATFORM_AGENT_SOURCES = {
 }
 # Declarations that are still carried by convention rather than by a local
 # probe. Adding a new unverified declaration must show up here on purpose.
-ASSUMED_DISCOVERY = {
-    "opencode": ".agents/skills",
-    "claude-code": ".claude/skills",
-    "dsh": ".agents/skills",
-    "kimi-code": ".agents/skills",
-}
+# Currently empty: every host's discovery path is backed by a local probe (see
+# the evidence strings in host-assets.json).
+ASSUMED_DISCOVERY: dict[str, str] = {}
 SKILL_REFERENCE = re.compile(r"[\w./-]*skills/[\w-]+/SKILL\.md")
 
 

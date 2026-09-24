@@ -125,6 +125,20 @@ test('the machine-level component table only names declared hosts', () => {
   }
 });
 
+// The other direction. `host add`/`host remove`/`host list` read a host's
+// components without a fallback, so a declared host with no entry would crash
+// them instead of reporting a usage error.
+test('every declared host has a machine-level component entry', () => {
+  for (const platform of manifest.platforms) {
+    const host = HOST_COMPONENTS[platform.id];
+    assert.ok(host, `host-assets.json declares ${platform.id}, which has no HOST_COMPONENTS entry`);
+    assert.ok(
+      Object.keys(host.components).length > 0,
+      `${platform.id} has an entry with no components`
+    );
+  }
+});
+
 test('a host has a plugin component exactly when it declares a plugin payload', () => {
   const withPayload = manifest.platforms
     .filter((platform) => platform.payload !== null)

@@ -205,7 +205,7 @@ test('host list reads the selection from the target project adapters', async (t)
   assert.deepEqual(selected, ['codex']);
 });
 
-test('host list prints a table by default and flags hosts without components', async (t) => {
+test('host list prints a table of every host and its components', async (t) => {
   const target = await createTempDir(t, 'cowork-flow-host-table-');
   const io = createIo();
 
@@ -216,10 +216,8 @@ test('host list prints a table by default and flags hosts without components', a
   assert.match(io.stdout, /^host\s+name\s+components\s+selected$/m);
   assert.match(io.stdout, /^dsh\s+DeepSeek Harness\s+preset, hook\s+no$/m);
   assert.match(io.stdout, /^opencode\s+OpenCode\s+plugin\s+no$/m);
-  // Every declared host now has a machine-level component, so no row can show
-  // the "no component" marker. This assertion makes that a fact the suite
-  // tracks: the day a host is declared without one, it fails and the marker's
-  // rendering gets its coverage back.
+  // Every declared host has at least one component (a gate in
+  // cli-registry.test.js asserts it), so no row can be component-less.
   assert.doesNotMatch(io.stdout, /\s-\s/m);
 });
 

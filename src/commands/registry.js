@@ -30,7 +30,7 @@ const FLAG_HELP = {
   '--prune-old': 'Also delete cached versions other than the current one (zcode only)',
   '--uninstall': 'Remove the integration instead of installing it; same as `cwf host remove <host>`',
   '--json': 'Print machine-readable JSON instead of a table',
-  '--component': 'Which machine-level component to act on (dsh has both preset and hook)'
+  '--component': 'Which machine-level component to act on; a host with more than one lists them here'
 };
 
 const flag = (name) => ({ name, kind: 'boolean', description: FLAG_HELP[name] });
@@ -39,7 +39,7 @@ const valueFlag = (name, valueName) => ({ name, kind: 'value', valueName, descri
 const PLATFORM_TOKENS = `${hostRegistry.platformIds.join('|')}|all`;
 const HOST_NOTE = `Hosts: ${Object.entries(HOST_COMPONENTS)
   .map(([id, host]) => `${id} (${Object.keys(host.components).join(', ')})`)
-  .join('; ')}. The other declared hosts have no machine-level component.`;
+  .join('; ')}.`;
 // The flags are a union across hosts, and the installer that owns the flag is
 // what validates it, so the one gap the union creates is named here instead of
 // being left for the user to discover as a usage error.
