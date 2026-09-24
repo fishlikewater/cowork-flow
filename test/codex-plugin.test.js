@@ -25,7 +25,13 @@ const HOST_SKILLS_ROOT = {
 const BOOTSTRAP_SKILL = 'cowork-flow-bootstrap';
 const MARKETPLACE_NAME = 'cowork-flow-local';
 const PLUGIN_KEY = 'cowork-flow@cowork-flow-local';
-const ENV_KEYS = ['CODEX_HOME', 'COWORK_FLOW_CODEX', 'CODEX_STUB_STATE', 'CODEX_STUB_LOG'];
+const ENV_KEYS = [
+  'CODEX_HOME',
+  'COWORK_FLOW_CODEX',
+  'CODEX_STUB_STATE',
+  'CODEX_STUB_LOG',
+  'CODEX_STUB_FAIL_REMOVE'
+];
 
 // The stub speaks the subset of `codex plugin` the installer uses, and persists
 // registration in a state file so install-then-list behaves like the real CLI.
@@ -64,6 +70,10 @@ if (args[1] === 'marketplace' && args[2] === 'list') {
   process.exit(0);
 }
 if (args[1] === 'marketplace' && args[2] === 'remove') {
+  if (process.env.CODEX_STUB_FAIL_REMOVE === '1') {
+    console.error('Error: simulated marketplace removal failure');
+    process.exit(1);
+  }
   if (!state.marketplace || state.marketplace.name !== args[3]) {
     console.error('Error: marketplace \`' + args[3] + '\` is not configured or installed');
     process.exit(1);
@@ -92,6 +102,10 @@ if (args[1] === 'list') {
   process.exit(0);
 }
 if (args[1] === 'remove') {
+  if (process.env.CODEX_STUB_FAIL_REMOVE === '1') {
+    console.error('Error: simulated plugin removal failure');
+    process.exit(1);
+  }
   delete state.plugin;
   write(state);
   console.log('Removed plugin \`' + args[2] + '\`.');
@@ -420,6 +434,21 @@ test('install-codex-plugin uninstall removes registration and payload', async (t
   const recorded = await readJson(state);
   assert.equal(recorded.plugin, undefined);
   assert.equal(recorded.marketplace, undefined);
+});
+
+test('install-codex-plugin keeps the marketplace when CLI removal fails', async (t) => {
+  const { home } = await createCodexHome(t);
+  await runInstallCodexPlugin([]);
+  useEnv(t, { CODEX_STUB_FAIL_REMOVE: '1' });
+
+  const output = await captureConsole(async () => {
+    const code = await runInstallCodexPlugin(['--uninstall']);
+    assert.equal(code, 1);
+  });
+
+  assert.match(output, /did not complete|kept for retry/i);
+  assert.match(output, new RegExp(`codex plugin remove ${PLUGIN_KEY}`));
+  assert.equal(await pathExists(marketplaceRoot(home)), true);
 });
 
 test('install-codex-plugin leaves manual commands when no codex CLI is available', async (t) => {

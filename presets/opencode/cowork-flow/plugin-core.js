@@ -344,42 +344,124 @@ function acquireSessionLock(path) {
   }
 }
 
-function writeJson(path, data, { expectedRevision = null } = {}) {
-  mkdirSync(dirname(path), { recursive: true })
-  const lock = acquireSessionLock(path)
+function releaseSessionLock(lock) {
+  closeSync(lock.handle)
+  try {
+    unlinkSync(lock.lockPath)
+  } catch {
+    // A failed cleanup must not mask the original write error.
+  }
+}
+
+function acquireSessionLocks(paths) {
+  const held = []
+  try {
+    for (const path of [...paths].sort()) {
+      held.push(acquireSessionLock(path))
+    }
+  } catch (error) {
+    for (const lock of held) {
+      releaseSessionLock(lock)
+    }
+    throw error
+  }
+  return held
+}
+
+function removeTemporaryFile(path) {
+  try {
+    unlinkSync(path)
+  } catch {
+    // The temporary file may already have been renamed or never created.
+  }
+}
+
+function stageJsonDocument(path, data, revision) {
+  const persisted = { ...data }
+  delete persisted._state
+  persisted._state = {
+    schema_version: 1,
+    revision: revision + 1,
+    operation_id: `opencode-session-${randomUUID()}`,
+  }
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
   try {
-    const current = readJsonDocument(path)
-    if (current.invalid) {
-      throw new Error(`refusing to overwrite invalid session state: ${path}`)
-    }
-    const revision = expectedRevision === null ? current.revision : expectedRevision
-    if (current.revision !== revision) {
-      throw new Error(`session state changed while writing: ${path}`)
-    }
-    const persisted = { ...data }
-    delete persisted._state
-    persisted._state = {
-      schema_version: 1,
-      revision: current.revision + 1,
-      operation_id: `opencode-session-${randomUUID()}`,
-    }
     writeFileSync(temporary, `${JSON.stringify(persisted, null, 2)}\n`, {
       encoding: "utf8",
       flag: "wx",
     })
-    renameSync(temporary, path)
-  } finally {
-    try {
-      unlinkSync(temporary)
-    } catch {
-      // The temporary file may already have been renamed.
+  } catch (error) {
+    removeTemporaryFile(temporary)
+    throw error
+  }
+  return temporary
+}
+
+function restoreJsonDocument(item) {
+  if (!item.before.exists) {
+    removeTemporaryFile(item.path)
+    return
+  }
+  try {
+    writeFileSync(item.path, `${JSON.stringify(item.before.data, null, 2)}\n`, "utf8")
+  } catch {
+    // Restoring is best effort: the write error is what the caller must see,
+    // and the next bind rewrites both documents anyway.
+  }
+}
+
+// Two documents that only mean something together (a session record and the
+// context binding it points at) are validated and staged under one lock pair
+// before either is renamed. A failure while renaming undoes the documents
+// already replaced, so a host never sees a bound session for an unbound
+// context.
+function writeJsonPair(entries) {
+  const pairs = []
+  const seen = new Map()
+  for (const entry of entries) {
+    seen.set(entry.path, entry)
+  }
+  for (const entry of seen.values()) {
+    mkdirSync(dirname(entry.path), { recursive: true })
+    pairs.push(entry)
+  }
+
+  const locks = acquireSessionLocks(pairs.map((entry) => entry.path))
+  const staged = []
+  try {
+    for (const entry of pairs) {
+      const current = readJsonDocument(entry.path)
+      if (current.invalid) {
+        throw new Error(`refusing to overwrite invalid session state: ${entry.path}`)
+      }
+      if (current.revision !== entry.expectedRevision) {
+        throw new Error(`session state changed while writing: ${entry.path}`)
+      }
+      staged.push({
+        path: entry.path,
+        before: current,
+        temporary: stageJsonDocument(entry.path, entry.data, current.revision),
+      })
     }
-    closeSync(lock.handle)
+
+    const renamed = []
     try {
-      unlinkSync(lock.lockPath)
-    } catch {
-      // A failed cleanup must not mask the original write error.
+      for (const item of staged) {
+        renameSync(item.temporary, item.path)
+        renamed.push(item)
+      }
+    } catch (error) {
+      for (const item of renamed.reverse()) {
+        restoreJsonDocument(item)
+      }
+      throw error
+    }
+  } finally {
+    for (const item of staged) {
+      removeTemporaryFile(item.temporary)
+    }
+    for (const lock of locks) {
+      releaseSessionLock(lock)
     }
   }
 }
@@ -423,7 +505,6 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
   )
   const sessionRevision = readJsonDocument(sessionPath).revision
   const contextRevision = readJsonDocument(contextPath).revision
-  writeJson(sessionPath, session, { expectedRevision: sessionRevision })
   const updated = {
     ...context,
     status: "bound",
@@ -431,7 +512,10 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
     bound_at: context.bound_at || nowIso(),
     last_seen_at: nowIso(),
   }
-  writeJson(contextPath, updated, { expectedRevision: contextRevision })
+  writeJsonPair([
+    { path: sessionPath, data: session, expectedRevision: sessionRevision },
+    { path: contextPath, data: updated, expectedRevision: contextRevision },
+  ])
   return updated
 }
 

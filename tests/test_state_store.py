@@ -297,6 +297,61 @@ class StateStoreTest(unittest.TestCase):
             self.assertTrue(facts[0]["rolled_back"])
             self.assertIsNone(facts[0]["rollback_error"])
 
+    def test_conflict_restores_a_deleted_empty_object_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            empty_path = root / "empty.json"
+            other_path = root / "other.json"
+            store = self.StateStore()
+            store.replace(
+                empty_path,
+                {},
+                expected_revision=0,
+                operation_id="seed-empty-object",
+            )
+            unit = self.UnitOfWork(
+                root,
+                operation_id="op-delete-empty",
+                kind="test",
+                state_store=store,
+            )
+            unit.delete(empty_path)
+            unit.replace(other_path, {"value": "after"}, expected_revision=99)
+
+            with self.assertRaises(self.unit_module.UnitOfWorkError):
+                unit.commit()
+
+            restored = store.load(empty_path, missing_ok=True)
+            self.assertTrue(restored.exists)
+            self.assertEqual({}, restored.data)
+
+    def test_conflict_rolls_back_a_replace_that_created_a_missing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            created_path = root / "created.json"
+            other_path = root / "other.json"
+            store = self.StateStore()
+            store.replace(
+                other_path,
+                {"value": "before"},
+                expected_revision=0,
+                operation_id="seed-other",
+            )
+            unit = self.UnitOfWork(
+                root,
+                operation_id="op-replace-missing",
+                kind="test",
+                state_store=store,
+            )
+            unit.replace(created_path, {"value": "created"})
+            unit.replace(other_path, {"value": "after"}, expected_revision=99)
+
+            with self.assertRaises(self.unit_module.UnitOfWorkError):
+                unit.commit()
+
+            self.assertFalse(store.load(created_path, missing_ok=True).exists)
+            self.assertEqual("before", store.load(other_path).data["value"])
+
     def test_unit_of_work_recovers_after_partial_apply(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

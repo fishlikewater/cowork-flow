@@ -40,6 +40,16 @@ checks:
 unchecked 永不冒充 pass（"没跑成"不是"通过"）。frontmatter 畸形视该
 spec 为无检查并进 doctor 报告，不炸流程。
 
+解析失败是独立于三态之外的信号：`files` 形态非法等声明解析错误归入
+`parseErrors`，不折进 `pass`/`unchecked`，退出码与 `unchecked` 同为 2。
+文本模式与 `--json` 必须使用同一退出码，且文本模式必须打印解析错误行
+（`spec-check: N parse error(s): <spec>: <error>`）——只打印
+`0 passed, 0 violations, 0 unchecked` 会让畸形声明看起来像干净通过。
+
+退出码契约：`0` 全部 pass；`1` 存在 violation；`2` 存在 unchecked 或
+`parseErrors`。`--allow-unchecked` 只豁免 unchecked 的阻断，不豁免
+解析错误。
+
 ## 时机与单行输出
 
 - **编辑期**（zcode/claude）：违规输出单行
@@ -56,7 +66,7 @@ spec 为无检查并进 doctor 报告，不炸流程。
 - **收口期**（task complete）：全量执行，结果进 `meta.specCheckSummary`
   遥测；阻断消息只列未过项摘要。
 - 手动查询：`./.cowork-flow/run spec-check [--file <path>] [--json]
-  [--verbose]`。
+  [--verbose]`（退出码见上）。
 - **edit-only 是 best-effort 提示，不是门禁**：Bash 直写绕过 PostToolUse
   不会触发编辑期反馈；无编辑期快跑能力的宿主（见能力矩阵）同样没有
   这层提示，且收口期不会对 `when: edit` 声明补跑。需要硬门禁的检查

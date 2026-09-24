@@ -226,6 +226,68 @@ class TaskCreationServiceTest(unittest.TestCase):
                 json.loads(task_json.read_text(encoding="utf-8")),
             )
 
+    def test_create_refuses_an_existing_task_directory_without_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo-task"
+            task_dir.mkdir(parents=True)
+            local_file = task_dir / "notes.txt"
+            local_file.write_text("local content\n", encoding="utf-8")
+
+            with self.assertRaises(self.TaskCreationError) as raised:
+                self.TaskCreationService(root).create(
+                    self.TaskCreationRequest(
+                        title="新请求",
+                        slug="demo-task",
+                        assignee="other",
+                        priority="P0",
+                        date_prefix="07-10",
+                    )
+                )
+
+            self.assertEqual("TASK-CREATE-EXISTS-001", raised.exception.code)
+            self.assertFalse((task_dir / "task.json").exists())
+            self.assertEqual(
+                "local content\n",
+                local_file.read_text(encoding="utf-8"),
+            )
+
+    def test_create_rolls_back_when_parent_link_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            parent_dir = tasks_dir / "07-10-parent"
+            parent_dir.mkdir(parents=True)
+            (parent_dir / "task.json").write_text("{broken", encoding="utf-8")
+
+            with self.assertRaises(self.TaskCreationError) as raised:
+                self.TaskCreationService(root).create(
+                    self.TaskCreationRequest(
+                        title="子任务",
+                        slug="child",
+                        assignee="codex",
+                        priority="P1",
+                        parent=parent_dir.name,
+                        date_prefix="07-10",
+                    )
+                )
+
+            self.assertEqual("TASK-CREATE-LINK-001", raised.exception.code)
+            child_dir = tasks_dir / "07-10-child"
+            self.assertFalse((child_dir / "task.json").exists())
+            self.assertFalse(child_dir.exists())
+
+            retried = self.TaskCreationService(root).create(
+                self.TaskCreationRequest(
+                    title="子任务",
+                    slug="child",
+                    assignee="codex",
+                    priority="P1",
+                    date_prefix="07-10",
+                )
+            )
+            self.assertTrue((retried.task_dir / "task.json").is_file())
+
     def test_read_json_file_preserves_corrupt_file_and_reports_diagnostic(self) -> None:
         files = importlib.import_module("infra.files")
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -237,8 +299,22 @@ class TaskCreationServiceTest(unittest.TestCase):
                 result = files.read_json_file(path)
 
             self.assertIsNone(result)
-            self.assertTrue(path.is_file())
-            self.assertIn("Corrupt JSON preserved", stderr.getvalue())
+            self.assertEqual("{broken", path.read_text(encoding="utf-8"))
+            self.assertIn(f"Corrupt JSON preserved: {path}", stderr.getvalue())
+
+    def test_read_json_file_preserves_invalid_utf8_and_reports_diagnostic(self) -> None:
+        files = importlib.import_module("infra.files")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "task.json"
+            path.write_bytes(b"{\xff\xfe")
+            stderr = io.StringIO()
+
+            with contextlib.redirect_stderr(stderr):
+                result = files.read_json_file(path)
+
+            self.assertIsNone(result)
+            self.assertEqual(b"{\xff\xfe", path.read_bytes())
+            self.assertIn(f"Corrupt JSON preserved: {path}", stderr.getvalue())
 
     def test_context_query_preserves_corrupt_task_json(self) -> None:
         git_context = importlib.import_module("adapters.git.git_context")

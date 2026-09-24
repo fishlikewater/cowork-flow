@@ -916,6 +916,84 @@ class RuntimeContextTransactionTest(unittest.TestCase):
                 (self.active_task.sessions_dir(root) / "codex_other.json").exists()
             )
 
+    def test_initialize_retry_recreates_files_removed_by_a_manual_rollback(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+            service.initialize("rtx_demo", self._context())
+            context_path = self.active_task.runtime_context_path(root, "rtx_demo")
+            logical_path = (
+                self.active_task.sessions_dir(root) / "subagent_rtx_demo.json"
+            )
+
+            # Deleting the state files by hand leaves the operation log holding a
+            # committed record for the old attempt identity.
+            context_path.unlink()
+            logical_path.unlink()
+
+            result = service.initialize("rtx_demo", self._context())
+
+            self.assertEqual("subagent_rtx_demo", result.logical_context_key)
+            self.assertTrue(context_path.is_file())
+            self.assertTrue(logical_path.is_file())
+
+    def test_bind_retry_repairs_state_after_an_external_rollback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+            service.initialize("rtx_demo", self._context())
+            service.bind("rtx_demo", "codex_child")
+            sessions = self.active_task.sessions_dir(root)
+            bound_path = sessions / "codex_child.json"
+            context_path = self.active_task.runtime_context_path(root, "rtx_demo")
+            self.assertTrue(bound_path.is_file())
+
+            # An operator reverts the bind by hand while the operation log keeps
+            # that attempt as committed; the retry must repair the files instead
+            # of replaying the stale record.
+            bound_path.unlink()
+            rolled_back = json.loads(context_path.read_text(encoding="utf-8"))
+            rolled_back["status"] = "pending"
+            rolled_back.pop("bound_context_key", None)
+            context_path.write_text(
+                json.dumps(rolled_back, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+
+            repaired = service.bind("rtx_demo", "codex_child")
+
+            self.assertIsNotNone(repaired)
+            self.assertEqual("bound", repaired["status"])
+            self.assertEqual("codex_child", repaired["bound_context_key"])
+            self.assertTrue(bound_path.is_file())
+            session = json.loads(bound_path.read_text(encoding="utf-8"))
+            self.assertEqual("rtx_demo", session["runtime_context_id"])
+
+    def test_close_retry_removes_sessions_restored_by_a_manual_rollback(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service = self.runtime_context.RuntimeContextService(root)
+            service.initialize("rtx_demo", self._context())
+            service.bind("rtx_demo", "codex_child")
+            sessions = self.active_task.sessions_dir(root)
+            bound_path = sessions / "codex_child.json"
+            logical_path = sessions / "subagent_rtx_demo.json"
+            service.close("rtx_demo")
+
+            # A manual rollback restores the session snapshots it had kept while
+            # the context file still records the close as done.
+            for path in (bound_path, logical_path):
+                path.write_text("{}\n", encoding="utf-8")
+
+            self.assertTrue(service.close("rtx_demo"))
+
+            self.assertFalse(bound_path.exists())
+            self.assertFalse(logical_path.exists())
+
     def test_runtime_context_close_deletes_session_files_and_is_repeatable(
         self,
     ) -> None:

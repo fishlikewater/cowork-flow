@@ -112,14 +112,6 @@ def _activate_created_task(repo_root, result) -> None:
 
 def _print_create_result(result) -> None:
     dir_name = result.task_dir.name
-    if result.directory_existed:
-        print(
-            colored(
-                f"Warning: Task directory already exists: {dir_name}",
-                Colors.YELLOW,
-            ),
-            file=sys.stderr,
-        )
     if result.missing_parent:
         print(
             colored(

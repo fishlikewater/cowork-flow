@@ -31,6 +31,18 @@ def _report_exit_code(report: dict) -> int:
     return 0
 
 
+def _parse_error_line(parse_errors: list) -> str:
+    """Render parse failures so text mode cannot look like a clean run."""
+    details = []
+    for item in parse_errors[:3]:
+        if isinstance(item, dict):
+            spec = item.get("spec") or "?"
+            error = item.get("error") or "unknown parse error"
+            details.append(f"{spec}: {error}")
+    suffix = f": {'; '.join(details)}" if details else ""
+    return f"spec-check: {len(parse_errors)} parse error(s){suffix}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="spec-check",
@@ -107,12 +119,16 @@ def main() -> int:
             if result.get("reason"):
                 print(f"reason: {result['reason']}")
 
+    parse_errors = report.get("parseErrors") or []
+    if parse_errors:
+        print(_parse_error_line(parse_errors))
+
     from services.spec_check import normalized_one_line
 
     line = normalized_one_line(report)
     if line:
         print(line)
-    else:
+    elif not parse_errors:
         summary = report.get("summary", {})
         print(
             "spec-check: {pass} passed, {violation} violations, "
@@ -121,11 +137,7 @@ def main() -> int:
             )
         )
 
-    if summary_has(report, "violation"):
-        return 1
-    if summary_has(report, "unchecked"):
-        return 2
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
