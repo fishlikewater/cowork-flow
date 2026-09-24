@@ -132,8 +132,8 @@ async function fingerprintFromOpencode(root) {
     packageRoot,
     'template',
     '.opencode',
-    'plugins',
-    'cowork-flow.js'
+    'cowork-flow',
+    'plugin-core.js'
   );
   const { contractFingerprint } = await import(pathToFileURL(pluginPath).href);
   return contractFingerprint(root, REGISTRY.contracts);
