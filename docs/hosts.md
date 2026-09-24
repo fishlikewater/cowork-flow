@@ -152,7 +152,7 @@ cwf host remove claude-code           # 删该目录
 
 Claude Code 侧插件检查（warning，不进 errors）：`PLUGIN-NOT-INSTALLED`（技能目录下没有 cowork-flow 插件，或清单不可读）、`PLUGIN-PAYLOAD-INCOMPLETE`（清单在但缺引导技能，等于什么都不贡献）、`PLUGIN-STALE`（清单版本与 `.cowork-flow/.version` 不一致——这个插件不随 `sync` / npm 升级，只能重装）。清单里 `name` 不是 `cowork-flow` 的目录被当作别人的技能，一律不报也不删。
 
-外部前提：`~/.claude/skills/` 是用户手工维护的目录，安装器只在清单 `name` 为 `cowork-flow` 时才删除或覆盖，其余情况要么报错要么需要显式 `--force`。插件 Skills 需**新会话**才加载。
+外部前提：`~/.claude/skills/` 是用户手工维护的目录，安装器只在清单 `name` 为 `cowork-flow` 时才删除或覆盖；其余情况**覆盖与删除都默认拒绝**，`--force` 是唯一的显式放行。`--dry-run` 会跑同一套归属检查，所以预览不会承诺一次真跑会拒绝的安装。插件 Skills 需**新会话**才加载。
 
 
 ## Codex

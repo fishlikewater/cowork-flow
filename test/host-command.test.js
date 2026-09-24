@@ -9,6 +9,7 @@ import { HOST_COMPONENTS, runHostAdd, runHostList, runHostRemove } from '../src/
 import { loadHostAssetManifest } from '../src/lib/host-assets.js';
 
 const HOME_KEYS = [
+  'CLAUDE_CONFIG_DIR',
   'CODEX_HOME',
   'COWORK_FLOW_CODEX',
   'DSH_HOME',
@@ -125,6 +126,7 @@ test('host add accepts a host alias and the --component=<value> form', async (t)
 test('host remove reaches the uninstall path of every component', async (t) => {
   const home = await createTempDir(t, 'cowork-flow-host-remove-');
   useEnv(t, {
+    CLAUDE_CONFIG_DIR: join(home, 'claude'),
     CODEX_HOME: join(home, 'codex'),
     DSH_HOME: join(home, 'dsh'),
     KIMI_CODE_HOME: join(home, 'kimi'),
@@ -133,6 +135,7 @@ test('host remove reaches the uninstall path of every component', async (t) => {
   });
 
   const cases = [
+    { argv: ['claude-code'], expect: /cowork-flow Claude Code plugin was not installed/ },
     { argv: ['codex'], expect: /Would run: codex plugin remove/ },
     { argv: ['zcode'], expect: /Would remove cowork-flow ZCode plugin/ },
     { argv: ['qoder'], expect: /Would remove cowork-flow@cowork-flow-local/ },
@@ -224,6 +227,7 @@ test('host list rejects a second positional argument', async () => {
 test('every installer rejects an unknown flag instead of ignoring it', async (t) => {
   const home = await createTempDir(t, 'cowork-flow-host-flags-');
   useEnv(t, {
+    CLAUDE_CONFIG_DIR: join(home, 'claude'),
     CODEX_HOME: join(home, 'codex'),
     DSH_HOME: join(home, 'dsh'),
     KIMI_CODE_HOME: join(home, 'kimi'),
@@ -232,6 +236,7 @@ test('every installer rejects an unknown flag instead of ignoring it', async (t)
   });
 
   const targets = [
+    ['claude-code'],
     ['codex'],
     ['zcode'],
     ['qoder'],
