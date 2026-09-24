@@ -707,6 +707,124 @@ class ClaudeCodePluginCheckTest(unittest.TestCase):
             self.assertNotIn("claudeCodePlugin", str(error))
 
 
+class OpenCodePluginCheckTest(unittest.TestCase):
+    """OpenCode plugin diagnostics. The plugin is a machine-level asset in the
+    user's config directory, so the check must stay silent for projects that
+    never selected the OpenCode host and must never turn a lagging install into a
+    hard error."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.xdg = root / "xdg"
+        self.opencode_home = self.xdg / "opencode"
+        self.project = root / "project"
+        adapter_dir = self.project / ".cowork-flow" / "adapters" / "opencode"
+        adapter_dir.mkdir(parents=True)
+        (adapter_dir / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: opencode\n", encoding="utf-8"
+        )
+
+    def _check(self) -> list[dict[str, str]]:
+        with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(self.xdg)}):
+            return self.doctor.check_opencode_plugin(self.project)
+
+    def _write_install(self, *, plugin: str = "// CoworkFlowPlugin\n", core: bool = True,
+                       skill: bool = True) -> None:
+        plugins = self.opencode_home / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "cowork-flow.js").write_text(plugin, encoding="utf-8")
+        if core:
+            target = self.opencode_home / "cowork-flow"
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "plugin-core.js").write_text("// core\n", encoding="utf-8")
+        if skill:
+            target = self.opencode_home / "cowork-flow" / "skills" / "cowork-flow-bootstrap"
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "SKILL.md").write_text("# bootstrap\n", encoding="utf-8")
+
+    def _write_project_copy(self, *, plugin: str = "// CoworkFlowPlugin\n") -> None:
+        plugins = self.project / ".opencode" / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "cowork-flow.js").write_text(plugin, encoding="utf-8")
+        core = self.project / ".opencode" / "cowork-flow"
+        core.mkdir(parents=True, exist_ok=True)
+        (core / "plugin-core.js").write_text("// core\n", encoding="utf-8")
+
+    def test_project_without_opencode_adapter_is_silent(self) -> None:
+        (
+            self.project / ".cowork-flow" / "adapters" / "opencode" / "adapter.yaml"
+        ).unlink()
+        self.assertEqual([], self._check())
+
+    def test_declared_host_without_install_reports_not_installed(self) -> None:
+        issues = self._check()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("cwf host add opencode", issues[0]["commandHint"])
+
+    def test_healthy_install_reports_nothing(self) -> None:
+        self._write_install()
+        self.assertEqual([], self._check())
+
+    def test_payload_without_core_reports_incomplete(self) -> None:
+        self._write_install(core=False, skill=False)
+        issues = self._check()
+        self.assertEqual(
+            ["PLUGIN-PAYLOAD-INCOMPLETE"], [issue["code"] for issue in issues]
+        )
+        self.assertTrue(str(issues[0]["path"]).endswith("plugin-core.js"), issues[0]["path"])
+
+    def test_payload_without_bootstrap_skill_reports_incomplete(self) -> None:
+        self._write_install(skill=False)
+        issues = self._check()
+        self.assertEqual(
+            ["PLUGIN-PAYLOAD-INCOMPLETE"], [issue["code"] for issue in issues]
+        )
+        self.assertTrue(str(issues[0]["path"]).endswith("SKILL.md"), issues[0]["path"])
+
+    def test_foreign_plugin_file_is_silent(self) -> None:
+        # A same-named file the user put there is not cowork-flow's to report on.
+        self._write_install(plugin="export const Theirs = async () => ({})\n", core=False, skill=False)
+        self.assertEqual([], self._check())
+
+    def test_project_copy_that_differs_reports_stale(self) -> None:
+        # The project copy and the machine install are the same source delivered
+        # twice, so a difference means one of them was updated and the other was
+        # not. There is no manifest to carry a version, which is why the
+        # comparison is by content.
+        self._write_install()
+        self._write_project_copy(plugin="// CowflowPlugin newer\n")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertTrue(str(issues[0]["path"]).endswith("cowork-flow.js"), issues[0]["path"])
+
+    def test_matching_project_copy_is_silent(self) -> None:
+        self._write_install()
+        self._write_project_copy()
+        self.assertEqual([], self._check())
+
+    def test_project_without_its_own_copy_skips_the_staleness_check(self) -> None:
+        # A project mid-init has no .opencode/ copy yet; there is nothing to
+        # compare against, so the check stays quiet rather than guessing.
+        self._write_install()
+        self.assertEqual([], self._check())
+
+    def test_plugin_check_never_enters_doctor_errors(self) -> None:
+        with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(self.xdg)}):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual(
+            "PLUGIN-NOT-INSTALLED", result["issues"]["opencodePlugin"][0]["code"]
+        )
+        for error in result["errors"]:
+            self.assertNotIn("opencodePlugin", str(error))
+
+
 class SkillDeliveryCheckTest(unittest.TestCase):
     """Skill delivery diagnostics: a declared read root that is not on disk, a
     machine-level plugin payload that still carries a copy of a project Skill,

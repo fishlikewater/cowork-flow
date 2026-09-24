@@ -77,6 +77,9 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('presets/plugin-meta.json'), true);
   assert.equal(files.has('presets/codex/.codex-plugin/plugin.json'), true);
   assert.equal(files.has('presets/codex/skills/cowork-flow-bootstrap/SKILL.md'), true);
+  assert.equal(files.has('presets/opencode/plugins/cowork-flow.js'), true);
+  assert.equal(files.has('presets/opencode/cowork-flow/plugin-core.js'), true);
+  assert.equal(files.has('presets/opencode/cowork-flow/skills/cowork-flow-bootstrap/SKILL.md'), true);
   assert.equal(files.has('presets/claude-code/.claude-plugin/plugin.json'), true);
   assert.equal(files.has('presets/claude-code/skills/cowork-flow-bootstrap/SKILL.md'), true);
   // codex resolves interface.logo relative to the plugin root, so the mark has

@@ -8,7 +8,7 @@ cowork-flow 的资产分两层：**项目级**由 `cwf project init` / `cwf proj
 
 每个宿主有哪些机器级组件、`host add` 默认装哪个，见 [README 的「宿主支持」表](../README.md#宿主支持)——那张表是组件归属的唯一一份，本文只补充各宿主的安装落点与前提。
 
-`opencode` 是声明宿主，但没有机器级组件——它的资产完全由 `project init` / `project sync` 交付，`host add opencode` 是用法错误。宿主别名同样可用（如 `claude`、`kimi`、`qoder-cli`，见 Host Asset Manifest 的 `aliases`）。
+每个声明的宿主都有一个机器级组件；不装则只用项目级资产。宿主别名同样可用（如 `claude`、`kimi`、`qoder-cli`，见 Host Asset Manifest 的 `aliases`）。
 
 `host add <host> --uninstall` 与 `host remove <host>` 是同一条路径，保留前者只为让旧命令名能被原样重写。`host list` 只报「声明与项目选中」；机器安装是否健康（载荷缺失、版本过期、技能重复）由 `./.cowork-flow/run doctor` 负责。
 
@@ -36,6 +36,7 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 |---|---|---|---|
 | `codex` | `interface.logo`、`interface.brandColor` | 载荷内相对路径（`./assets/logo.svg`）与十六进制色 | 路径不在载荷内则显示破图，且**任何一层都不报错**——载荷会被整目录拷进 `$CODEX_HOME`，所以文件必须落在 `presets/codex/` 里 |
 | `zcode` | marketplace 条目的 `icon`（**插件清单没有图标键**） | 绝对 `https://` URL | 非 `https://` 开头一律**静默丢弃**并回退默认图标：客户端判定为 `typeof icon === 'string' && icon.startsWith('https://')`，不匹配就当没有图标，不警告 |
+| `opencode` | 无 | — | 插件就是一段被宿主 import 的 JS 模块，**没有清单**，因此没有可写图标的字段 |
 | `claude-code` | 无 | — | skills 目录插件清单只认 `name` / `version` / `description` / `author` / `homepage` / `repository` / `license` / `keywords` / `skills` 这类字段，没有图标位；`claude plugin validate` 对未知键不做校验，写了只是死重量 |
 | `qoder` | 无 | — | agent 插件清单没有图标位（组件发现清单只有 `commands` / `skills` / `agents` / `hooks` / `output-styles` / `workflows` / `bin` / `.mcp.json` / `mcp.json`）；写未知键等于给宿主不支持的字段塞值 |
 
@@ -69,7 +70,28 @@ args = ["mcp", "serve"]
 
 ## OpenCode
 
-`opencode` 是声明宿主，没有机器级组件——资产全部由 `project init` / `project sync` 交付到项目的 `.opencode/`（`agents/`、`commands/`、`plugins/`），`host add opencode` 是用法错误。
+项目级资产（`.opencode/` 下的 `agents/`、`commands/`、`plugins/`）由 `project init` / `project sync` 交付。机器级接入是 `cwf host add opencode`：写 `$XDG_CONFIG_HOME/opencode/`（未设置时 `~/.config/opencode`），不调用 `opencode` CLI，也不改用户的 `opencode.json`。
+
+```bash
+cwf host add opencode              # 写 ~/.config/opencode/plugins/cowork-flow.js 与 cowork-flow/
+cwf host add opencode --dry-run    # 预览落点，不写文件
+cwf host add opencode --force      # 覆盖同名外来文件
+cwf host remove opencode           # 删这两处；plugins/ 被我们清空则一并删掉
+```
+
+**插件自己注册技能目录（方案 D）。** 载荷在 `config` hook 里用 `import.meta.url` 自定位，把自带的 `cowork-flow/skills/` 追加进 `config.skills.paths`；宿主随后照常发现并加载其中的引导技能。这样全局插件在**没有 cowork-flow runtime 的仓库**里也能交付引导技能——这正是机器级接入存在的理由。安装器不写用户配置：`opencode.json` 是用户资产。
+
+这条路径建立在**三条非 prose 文档化的契约**上，全部在 opencode 1.1.53 上实证（探针任务归档 `09-23-opencode-skills-probe`，脚本可复跑）：
+
+| 契约 | 取证 | 写错的后果 |
+|---|---|---|
+| `config` hook 被调用，且 `Config.get()` 返回**缓存**对象，改动对后续技能扫描可见 | 二进制内嵌 JS：`Plugin.init` 内 `for (const hook of hooks) await hook.config?.(config)`；`Plugin.init` 是 `InstanceBootstrap()` 第一步，`Skill.state` 惰性求值 | 技能目录注册了但不会被扫描到 |
+| `skills.paths` 是公开 JSON schema 字段（prose 配置文档未提） | `https://opencode.ai/config.json` → `$defs/Config/properties/skills.paths` | 字段名写错 → 静默无效 |
+| 插件模块的**每一个导出**都被当插件工厂调用 | 二进制内嵌 JS：`for (const [_name, fn3] of Object.entries(mod2)) { hooks.push(await fn3(input)) }` | 任何非函数导出或返回 `null` 的工厂 → 宿主 bootstrap 整进程崩溃 |
+
+宿主升级后这三条若变化，用探针脚本复核：`bash .cowork-flow/tasks/archive/2026-09/09-23-opencode-skills-probe/run-probe.sh`（全程 XDG 隔离，不触碰真实配置）。
+
+**插件模块只能导出插件函数。** opencode 加载插件时遍历模块的**每一个导出**并逐个当插件工厂调用，随后遍历每个工厂返回的 hooks 对象。任何被导出的常量、helper，或返回 `null`/`undefined` 的工厂，都会让宿主在 bootstrap 阶段整进程崩溃（1.1.53 实测：`project init` 过的项目启动即退出码 1）。cowork-flow 因此把逻辑与适配分开：
 
 **插件模块只能导出插件函数。** opencode 加载插件时遍历模块的**每一个导出**并逐个当插件工厂调用，随后遍历每个工厂返回的 hooks 对象。任何被导出的常量、helper，或返回 `null`/`undefined` 的工厂，都会让宿主在 bootstrap 阶段整进程崩溃（1.1.53 实测：`project init` 过的项目启动即退出码 1）。cowork-flow 因此把逻辑与适配分开：
 
@@ -81,6 +103,12 @@ args = ["mcp", "serve"]
 `plugin-core.js` 所在的命名空间目录不在宿主任何扫描面内（插件发现 glob 为 `{plugin,plugins}/*.{ts,js}` 且不递归）；把它放在插件文件同级目录之外，也让项目安装（`.opencode/`）与机器级安装（`~/.config/opencode/`）的载荷结构自相似，适配层的相对导入在两处都成立。`test/opencode-plugin.test.js` 钉住「每个导出都是函数且调用后返回对象」这条契约。
 
 状态注入走 `experimental.chat.system.transform`（`stateInjection: plugin`），编辑期 spec-check 走 `tool.execute.after`。`.cowork-flow/` 流程文件仍由显式 `cwf project init` / `cwf project sync` 在项目根目录管理。
+
+**元数据上限**：opencode 没有任何插件元数据面——不展示插件名、描述、图标，也没有清单文件。`cwf host add opencode` 的 stdout 是唯一的「安装信息面」，这也是这个载荷只声明 `source`、不声明清单的原因。升级信息只能靠 doctor 的 `PLUGIN-STALE`。
+
+OpenCode 侧插件检查（warning，不进 errors）：`PLUGIN-NOT-INSTALLED`（配置目录里没有插件文件）、`PLUGIN-PAYLOAD-INCOMPLETE`（缺 `plugin-core.js` 或引导技能，插件会注册一个不存在的技能目录）、`PLUGIN-STALE`（**与项目自己的 `.opencode/` 副本比对内容**——两者是同一份源交付两次，不一致就说明只更新了一边；没有清单可携带版本，所以只能比内容）。文件里不含 `CoworkFlowPlugin` 标记的同名文件被当作别人的插件，不报也不删。项目尚未生成自己的 `.opencode/` 副本时跳过陈旧检查。
+
+外部前提：`plugins/` 是用户放自己插件的目录，安装器只在文件里带 `CoworkFlowPlugin` 标记时才删除或覆盖，其余情况需要显式 `--force`。插件 Skills 需**新会话**才加载。实测观察：opencode 加载插件时会在自己的配置目录里生成 `package.json` / `bun.lock` / `node_modules/`（宿主为插件作者物化 `@opencode-ai/plugin`），这些是宿主的产物，安装器不碰也不清理。
 
 ## ZCode
 

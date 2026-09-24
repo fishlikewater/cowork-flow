@@ -8,6 +8,17 @@
 
 ### Added
 
+#### OpenCode 插件载荷与全局安装器（插件自注册技能目录）
+
+- **`cwf host add opencode` 把插件装到全局配置目录**：`$XDG_CONFIG_HOME/opencode/`（未设置时 `~/.config/opencode`）下的 `plugins/cowork-flow.js` + `cowork-flow/`。不调用 `opencode` CLI，**不写用户的 `opencode.json`**——那是用户资产，插件自己就能完成注册。卸载删这两处，`plugins/` 被我们清空时连空壳一起删；文件里没有 `CoworkFlowPlugin` 标记的同名文件默认拒绝覆盖与删除，`--force` 是显式放行，`--dry-run` 跑同一套归属检查。
+- **采用方案 D：插件在 `config` hook 里自注册技能目录**。载荷用 `import.meta.url` 自定位，把自带的 `cowork-flow/skills/` 追加进 `config.skills.paths`，宿主随后发现并加载其中的引导技能——于是全局插件在**没有 cowork-flow runtime 的仓库**里也能交付引导技能，这是机器级接入存在的理由。同一份代码服务项目级与全局级：项目副本没有 `skills/` 兄弟目录，`existsSync` 分支让它成为 no-op，不需要两份实现。技能目录缺失时不注册、已存在路径不重复追加、`config` 形状异常不抛错（插件抛错会让宿主整进程崩）。
+- **三条非 prose 契约已实证并记录**：`config` hook + `Config.get()` 缓存对象、`skills.paths` 在公开 schema 内、**插件模块的每个导出都被当插件工厂调用**。全部在 opencode 1.1.53 上取证（探针任务 `09-23-opencode-skills-probe`，脚本可复跑），对应关系写进 `docs/hosts.md` 的表格，宿主升级后人工复核有据可查。**本机端到端实测**：隔离 XDG 下装完，在**没有 cowork-flow runtime 的项目**里 `opencode debug skill` 列出 `cowork-flow-bootstrap`（装前为 `[]`），location 指向安装目录内的 `SKILL.md`；卸载后回到 `[]`。
+- **无清单载荷分支**：OpenCode 的插件格式没有清单，`host-assets.json` 的 opencode 只声明 `payload {source}`。新增 `payloadSourceDir()` 作为「只要目录」的同源解析器；`pluginPayload()` 保留原有抛错语义（它服务需要盖版本章的安装器，静默放行无清单载荷会让盖章被悄悄跳过）。无清单载荷不进入发布盖章清单，安装器也不得出现 `stampPayloadManifest` ——门禁双向断言这一点。
+- **doctor 新增 `check_opencode_plugin`**（warning，不进 errors）：`PLUGIN-NOT-INSTALLED` / `PLUGIN-PAYLOAD-INCOMPLETE` / `PLUGIN-STALE`。没有清单可携带版本，所以陈旧判定**与项目自己的 `.opencode/` 副本比对内容**——两者是同一份源交付两次，不一致就说明只更新了一边；项目尚未生成副本时跳过。项目未声明 opencode 宿主时静默；无标记的同名文件不报也不删。
+- **门禁**：①「插件模块的每个导出都是可调用插件工厂」静态门禁**扩展到载荷**（探针里那个宿主崩溃本可被它提前拦住）；② 项目级与载荷两份插件文件**字节一致**（单一源靠门禁而非新机制，沿用引导技能在四家载荷间的既有做法）；③ 载荷与项目副本各自跑 `config` hook 的行为断言（含注册路径必须落在载荷内、必须真含引导技能）；④ 安装器门禁覆盖落点、收敛到与源一致、外来文件拒绝、dry-run 不写、卸载清空壳；⑤ doctor 门禁四变异全红（恒静默 / 忽略 `XDG_CONFIG_HOME` / 去掉外来守卫 / 不做陈旧比对）。
+- **一处诚实记录**：opencode 加载插件时会在自己的配置目录里生成 `package.json` / `bun.lock` / `node_modules/`（宿主为插件作者物化 `@opencode-ai/plugin`）。这是宿主产物，安装器不碰也不清理，文档写明。未验证项同样写明：多插件共存、全局与项目同名技能的优先级。
+- 升级动作：`cwf host add opencode` 即可。本批没有新增命令，入口是既有的 `host add` / `host remove`；`host add opencode` 从「用法错误」变为可用。
+
 #### Claude Code 插件载荷与 skills 目录安装器
 
 - **Claude Code 也能机器级接入**：`cwf host add claude-code` 把一个带 `.claude-plugin/plugin.json` 的目录写进 `$CLAUDE_CONFIG_DIR/skills/cowork-flow`（未设置该变量时 `~/.claude`）。这条通道**没有 marketplace、没有安装记录**——Claude Code 把技能目录下任何带清单的文件夹识别为 `<name>@skills-dir` 插件，装上即可用，所以安装器不写任何第二份状态。`presets/claude-code/` 是载荷唯一源，与 codex / zcode / qoder 同一套投影与盖章链路。

@@ -811,9 +811,46 @@ function runEditSpecCheck(root, filePath) {
   })
 }
 
-// The plugin adapter imports the first six; the last three are the unit-test
-// surface (fingerprint parity with the python and zcode implementations, and
-// stage-contract fitting). opencode never reads this module.
+// The payload's own skills directory, located from this module's file path and
+// not from the repository root: the machine install puts this file in
+// ~/.config/opencode/cowork-flow/ and the project install in
+// <project>/.opencode/cowork-flow/, so a sibling skills/ resolves in both.
+export function payloadSkillsDir() {
+  return resolve(dirname(fileURLToPath(import.meta.url)), "skills")
+}
+
+// Register the payload skills directory so opencode discovers the bootstrap
+// Skill in a repository that has no cowork-flow runtime — the reason the
+// machine-level install exists at all. config is the cached object the host
+// hands every plugin's `config` hook, so this mutation is visible to the skill
+// scan that runs after it (opencode 1.1.53: Plugin.init runs before Skill.state,
+// and Config.get returns the same cached state).
+export function registerPayloadSkills(config) {
+  if (!config || typeof config !== "object") {
+    return
+  }
+  const dir = payloadSkillsDir()
+  // A project install ships no skills/ sibling. opencode skips a registered
+  // path that does not exist, so the shared code needs no second variant.
+  if (!existsSync(dir)) {
+    return
+  }
+  // Read what is usable and write back a shape the host can consume, without
+  // throwing on a config the schema would reject anyway — a plugin must never
+  // be the reason the host fails to start.
+  const skills = config.skills && typeof config.skills === "object" ? config.skills : {}
+  const paths = Array.isArray(skills.paths) ? skills.paths : []
+  if (!paths.includes(dir)) {
+    paths.push(dir)
+  }
+  skills.paths = paths
+  config.skills = skills
+}
+
+// The plugin adapter imports six hook helpers plus the two functions declared
+// above; these three are the unit-test surface (fingerprint parity with the
+// python and zcode implementations, and stage-contract fitting). opencode never
+// reads this module.
 export {
   buildInjectedDigest,
   buildRuntimeWorkflowState,

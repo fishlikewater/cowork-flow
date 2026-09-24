@@ -11,11 +11,18 @@ import {
   editedFilePath,
   findRepoRoot,
   injectShellEnv,
+  registerPayloadSkills,
   runEditSpecCheck
 } from "../cowork-flow/plugin-core.js"
 
 export const CoworkFlowPlugin = async () => {
   return {
+    // Registers the payload's own skills directory when this file is the
+    // machine-level install, and is a no-op for the project install, which has
+    // no skills/ sibling. See registerPayloadSkills for why this works.
+    "config": async (config) => {
+      registerPayloadSkills(config)
+    },
     "shell.env": async (input, output) => {
       injectShellEnv(input, output)
     },

@@ -207,7 +207,9 @@
         "editScopeWarning": "unsupported"
       },
       "commandTargets": [],
-      "payload": null
+      "payload": {
+      "source": "presets/opencode"
+    }
     },
     {
       "id": "claude-code",

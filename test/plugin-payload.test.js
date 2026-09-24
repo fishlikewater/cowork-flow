@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { packageRoot } from '../src/lib/paths.js';
-import { pluginPayload, stampPayloadManifest } from '../src/lib/plugin-payload.js';
+import { payloadSourceDir, pluginPayload, stampPayloadManifest } from '../src/lib/plugin-payload.js';
 
 const DEMO_MANIFEST = '.demo-plugin/plugin.json';
 
@@ -77,6 +77,17 @@ test('stampPayloadManifest refuses a payload without a readable manifest', async
     () => stampPayloadManifest(dir, DEMO_MANIFEST, '9.9.9'),
     /Plugin payload manifest missing or unreadable/
   );
+});
+
+
+test('a manifestless payload resolves only through the directory resolver', () => {
+  // opencode's plugin format has no manifest. `pluginPayload()` must keep
+  // refusing that payload — an installer that needs a manifest and silently got
+  // none would skip its version stamp — while the directory is still resolved
+  // from the same declaration.
+  assert.throws(() => pluginPayload('opencode'), /declares no plugin payload manifest/);
+  assert.equal(payloadSourceDir('opencode'), join(packageRoot, 'presets', 'opencode'));
+  assert.throws(() => payloadSourceDir('dsh'), /declares no plugin payload/);
 });
 
 
