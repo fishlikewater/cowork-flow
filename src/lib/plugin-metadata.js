@@ -131,23 +131,36 @@ export function pluginManifest(metadata, host, version) {
   }
 
   if (host === 'kimi-code') {
-    // A local-directory plugin. `sessionStart.skill` is what makes the plugin
-    // useful in a repository without a runtime: Kimi Code loads that Skill when
-    // a session starts. Only skills ship here — injection stays with the
-    // config.toml hook route (a plugin hook runs with the plugin root as its cwd,
-    // where the shipped shim cannot locate a project), and the three fixed
-    // subagents stay project-level because plugin agents have the lowest
-    // priority and would always be shadowed. No icon key exists in this schema.
+    // A local-directory plugin. Verified against the host bundle (Kimi Code
+    // 1.0.3, `packages/agent-core-v2/src/app/plugin/manifest.ts`): `name` is the
+    // only required field; a `skills` entry must start with "./" or the host
+    // records the plugin as errored with zero skills; the display name lives
+    // under `interface`; every other key the parser does not read is dropped
+    // without a diagnostic, so none is written here.
+    //
+    // `sessionStart.skill` is what makes the plugin useful in a repository
+    // without a runtime: Kimi Code loads that Skill when a session starts. Only
+    // skills ship. Injection stays with the config.toml hook route — the host
+    // runs a plugin hook with `cwd` pinned to the plugin root (and the hook
+    // schema is strict, so a plugin cannot override it), where the shipped shim
+    // cannot walk up to a project and exits 0. The three fixed subagents stay
+    // project-level because plugin agents have the lowest priority and would
+    // always be shadowed. The schema has no icon key.
     return {
       ...base,
-      displayName: metadata.displayName,
-      author: { name: author.name, email: author.email, url: author.url },
+      author: { name: author.name, email: author.email },
       homepage: metadata.homepage,
-      repository: metadata.repository,
       license: metadata.license,
       keywords: metadata.keywords,
-      skills: 'skills',
-      sessionStart: { skill: 'cowork-flow-bootstrap' }
+      skills: './skills/',
+      sessionStart: { skill: 'cowork-flow-bootstrap' },
+      interface: {
+        displayName: metadata.displayName,
+        shortDescription: metadata.description,
+        longDescription: metadata.longDescription,
+        developerName: author.name,
+        websiteURL: metadata.homepage
+      }
     };
   }
 

@@ -1,6 +1,6 @@
 import { access, cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { parseFlags } from '../lib/cli-flags.js';
 import { readPackageInfo } from '../lib/package-info.js';
@@ -36,7 +36,9 @@ async function pathExists(target) {
 
 function kimiHome() {
   const configured = (process.env.KIMI_CODE_HOME || '').trim();
-  return configured || join(homedir(), '.kimi-code');
+  // The host rejects a relative plugin root outright, and that path is printed
+  // for the user to paste, so a relative KIMI_CODE_HOME must not survive here.
+  return configured ? resolve(configured) : join(homedir(), '.kimi-code');
 }
 
 
@@ -51,10 +53,13 @@ function sourceDir(home) {
 }
 
 
-async function ownsInstall(target) {
+// The declaration is the only place naming the payload manifest, so the
+// ownership guard reads the installed copy through that same path instead of
+// keeping a second literal in sync.
+async function ownsInstall(target, manifestRelative) {
   try {
     const manifest = JSON.parse(
-      await readFile(join(target, '.kimi-plugin', 'plugin.json'), 'utf8')
+      await readFile(join(target, ...manifestRelative.split('/')), 'utf8')
     );
     return manifest?.name === MANIFEST_MARKER;
   } catch {
@@ -76,20 +81,20 @@ function printInstallInstruction(target) {
 }
 
 
-async function uninstall(home, { dryRun, force }) {
+async function uninstall(home, manifestRelative, { dryRun, force }) {
   const target = sourceDir(home);
   if (!(await pathExists(target))) {
     console.log(`cowork-flow Kimi Code plugin source was not installed; nothing to remove at ${target}`);
     return 0;
   }
-  if (!(await ownsInstall(target)) && !force) {
+  if (!(await ownsInstall(target, manifestRelative)) && !force) {
     throw new Error(
-      `${target} exists but is not the cowork-flow plugin (its .kimi-plugin/plugin.json `
+      `${target} exists but is not the cowork-flow plugin (its ${manifestRelative} `
       + `does not name ${MANIFEST_MARKER}). Refusing to delete a directory this installer did `
       + 'not create; use --force to remove it anyway.'
     );
   }
-  if (!(await ownsInstall(target))) {
+  if (!(await ownsInstall(target, manifestRelative))) {
     console.log(`${target} is not the cowork-flow plugin; removing it anyway (--force).`);
   }
   if (dryRun) {
@@ -115,7 +120,7 @@ export async function runInstallKimiPlugin(args = []) {
   const { version } = await readPackageInfo();
 
   if (remove) {
-    return uninstall(home, { dryRun, force });
+    return uninstall(home, manifest, { dryRun, force });
   }
 
   if (!(await pathExists(pluginSrc))) {
@@ -129,7 +134,7 @@ export async function runInstallKimiPlugin(args = []) {
   // "would install" over a directory the real run then refuses would be worse
   // than no preview at all.
   if (await pathExists(target)) {
-    const ours = await ownsInstall(target);
+    const ours = await ownsInstall(target, manifest);
     if (!ours && !force) {
       throw new Error(
         `${target} already exists and is not the cowork-flow plugin. `

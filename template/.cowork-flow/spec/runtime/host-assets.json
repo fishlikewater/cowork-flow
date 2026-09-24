@@ -208,8 +208,8 @@
       },
       "commandTargets": [],
       "payload": {
-      "source": "presets/opencode"
-    }
+        "source": "presets/opencode"
+      }
     },
     {
       "id": "claude-code",
@@ -388,9 +388,9 @@
       },
       "commandTargets": [],
       "payload": {
-      "source": "presets/kimi-code",
-      "manifest": ".kimi-plugin/plugin.json"
-    }
+        "source": "presets/kimi-code",
+        "manifest": ".kimi-plugin/plugin.json"
+      }
     },
     {
       "id": "qoder",

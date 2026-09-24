@@ -29,7 +29,7 @@ presets/                       # ⭐ 机器级插件载荷：安装器拷进宿�
 ├── codex/                     # Codex 插件（.codex-plugin/plugin.json + assets + 引导技能；agents/hook 留在项目级）
 ├── opencode/                  # OpenCode 插件（plugins/cowork-flow.js + cowork-flow/：逻辑模块与引导技能；hook/agents 留在项目级）
 ├── claude-code/               # Claude Code skills 目录插件（.claude-plugin/plugin.json + 引导技能；hook/agents 留在项目级）
-├── kimi-code/                 # Kimi Code hook shim
+├── kimi-code/                 # Kimi Code 插件（.kimi-plugin/plugin.json + 引导技能；hook/agents 留在项目级）
 └── dsh/                       # DSH agent 预设
 ```
 

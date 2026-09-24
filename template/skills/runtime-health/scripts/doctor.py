@@ -859,7 +859,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             config,
             "Kimi Code is configured but no cowork-flow hook is registered; "
             "sessions inject no workflow context",
-            "cwf host add kimi-code",
+            "cwf host add kimi-code --component hook",
         )
     shim = home / "hooks" / "cowork-flow-inject.mjs"
     if not shim.is_file():
@@ -868,7 +868,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             shim,
             "config.toml registers the cowork-flow hook but its shim is "
             "missing; the host runs a command that cannot start",
-            "cwf host add kimi-code",
+            "cwf host add kimi-code --component hook",
         )
     marker = home / "hooks" / _KIMI_HOOK_MARKER
     if not marker.is_file():
@@ -877,7 +877,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             marker,
             "Kimi Code hook is installed without a version marker; its "
             "injection logic may predate the current release",
-            "cwf host add kimi-code",
+            "cwf host add kimi-code --component hook",
         )
     recorded = _marker_version(marker)
     if recorded is None:
@@ -886,7 +886,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             marker,
             "Kimi Code hook version marker is unreadable; its injection logic "
             "may predate the current release",
-            "cwf host add kimi-code",
+            "cwf host add kimi-code --component hook",
         )
     project_version = _project_version(repo_root)
     if not project_version or recorded == project_version:
@@ -897,7 +897,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
         f"Kimi Code hook was installed from {recorded} but this project runs "
         f"{project_version}; the hook does not update with sync or npm, so "
         "injection may lag the project runtime",
-        "cwf host add kimi-code",
+        "cwf host add kimi-code --component hook",
     )
 
 

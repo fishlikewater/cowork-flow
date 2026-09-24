@@ -273,13 +273,26 @@ Kimi Code 的插件安装**只有 TUI**——`kimi` 命令没有 plugins 子命�
 
 形状已知，但宿主的 `install()` 同时承担 realpath 校验、清单解析与 diagnostics、以及 staging + rename 的原子替换。在安装器里重实现这三步等于把宿主私有逻辑抄第二份且没有兼容性承诺——与 codex 侧"不手写 `config.toml`、委托官方 CLI"是同一条理由。取证结果记在这里，将来宿主开放 CLI 子命令时直写有据可循。
 
-**载荷只带引导技能。** 清单声明 `skills` 与 `sessionStart.skill: cowork-flow-bootstrap`——后者是插件在**没有 cowork-flow runtime 的仓库**里唯一有用的部分（会话启动时加载引导技能）。不带 `hooks`：插件 hook 的 cwd 是插件根，现有 shim 靠 cwd 定位项目根的方式会静默失效，而 config.toml 那条链路已经交付注入，再带一份有双份注入风险。不带 `agents`：插件 agent 优先级**最低**（用户级/extra/项目级/`--agent-file` 都赢它），项目级 `.kimi-code/agents/` 已交付三个 fixed subagent，插件再带一份必被盖过。清单 schema 也没有图标字段。
+**清单只声明 skills。** `skills: "./skills/"` 与 `sessionStart.skill: cowork-flow-bootstrap`——后者是插件在**没有 cowork-flow runtime 的仓库**里唯一有用的部分（会话启动时加载引导技能）。不带 `hooks`：宿主把插件 hook 的 cwd 钉死在插件根（`PluginService.enabledHooks()` 以 `cwd: record.root` 注入，且 hook schema 是 `.strict()`、插件无法自己指定 cwd），而 shim 靠 cwd 向上找项目根，在插件根下必然找不到、直接 `exit 0` 静默空转；注入继续由 config.toml 那条链路交付。不带 `agents`：插件 agent 优先级**最低**（用户级/extra/项目级/`--agent-file` 都赢它），项目级 `.kimi-code/agents/` 已交付三个 fixed subagent，插件再带一份必被盖过。清单 schema 也没有图标字段。
+
+物化后的源目录里还带着 hook 组件的 shim（`hooks/cowork-flow-inject.mjs`，与 `--component hook` 共用同一份 `presets/kimi-code/`）：宿主会把整个目录拷进 `managed/`，但清单不引用它，插件侧不会执行它。
+
+**清单字段（已取证）。** 同一份宿主代码（`packages/agent-core-v2/src/app/plugin/manifest.ts`）把清单 schema 也取证到位了，安装器写的每个键都对得上：
+
+| 规则 | 取证函数 |
+|---|---|
+| 只有 `name` 必填，须匹配 `/^[a-z0-9][a-z0-9_-]{0,63}$/` | `parseManifest` |
+| `skills`/`agents` 每项必须以 `./` 开头、落在插件目录内、且是目录；否则记 error，插件在宿主里呈 `state: "error"`、技能数为 0 | `resolveDirListField` |
+| 显示名只从 `interface` 读（`displayName`/`shortDescription`/`longDescription`/`developerName`/`websiteURL`）；列表用 `interface.displayName ?? id` 渲染 | `readInterface` / `recordToSummary` |
+| `sessionStart` 只读 `{skill}`；`author` 只读 `{name, email}` | `readSessionStart` / `readAuthor` |
+| 其余键（如 `repository`）解析器既不读也不报错，静默丢弃——因此不写 | `parseManifest` |
+| 明确报"不支持"的键：`tools`/`apps`/`inject`/`configFile`/`config_file`/`bootstrap` | `recordUnsupportedRuntimeFields` |
 
 **卸载语义照抄宿主**：`/plugins remove cowork-flow` 只删注册表记录，托管副本与源目录都留在盘上。`cwf host remove kimi-code` 删我们物化的源目录，并打印"宿主侧还要你自己清"的提示——不假装清干净了。
 
 Kimi Code 侧插件检查（warning，不进 errors）：`PLUGIN-NOT-INSTALLED`（注册表里没有 cowork-flow 记录——**刚 `host add` 完还没跑 `/plugins install` 就是这个状态**，属正常中间态）、`PLUGIN-DISABLED`、`PLUGIN-PAYLOAD-INCOMPLETE`（记录在但托管副本缺清单或引导技能）、`PLUGIN-STALE`（副本清单版本 ≠ 本项目 `.cowork-flow/.version`）、`PLUGIN-SOURCES-MISSING`（已注册但源目录不在，重装会失败）。项目未声明 kimi-code 宿主时静默。
 
-未验证项（诚实边界）：`sessionStart.skill` 的实际注入效果（本机无 CLI，无法脚本化验证）、插件与项目级同名技能的优先级、插件 hook 在插件根 cwd 下的实际 payload 形状（本批不带 hooks，故不影响）。
+未验证项（诚实边界）：清单 schema 与记录形状取自桌面版 1.0.3 的内置代码，CLI 侧是否同一份实现未交叉验证（本机无 CLI）；`sessionStart.skill` 的实际注入效果（同样无法脚本化验证）；插件与项目级同名技能的优先级。
 
 ### hook 组件（兜底）
 
@@ -291,7 +304,7 @@ Kimi Code 只注册 `UserPromptSubmit` 一个事件：`SessionStart` / `PostTool
 
 > 安装或更新后需要**重启 Kimi Code 会话**（或重新加载配置）才会加载 hook。
 
-Kimi Code 的 Bash 工具不导出会话标识环境变量，CLI 侧身份只能取自注入头里的 `session="kimi_<id>"`，需要显式传 `COWORK_FLOW_CONTEXT_ID`（或 `COWORK_FLOW_HOST=kimi-code`）。`./.cowork-flow/run doctor` 把该 hook 的注册情况作为 warning 级项报告（`HOOK-NOT-INSTALLED` / `HOOK-SHIM-MISSING` / `HOOK-UNKNOWN-VERSION` / `HOOK-STALE`），不计入 errors。
+Kimi Code 的 Bash 工具不导出会话标识环境变量，CLI 侧身份只能取自注入头里的 `session="kimi_<id>"`，需要显式传 `COWORK_FLOW_CONTEXT_ID`（或 `COWORK_FLOW_HOST=kimi-code`）。`./.cowork-flow/run doctor` 把该 hook 的注册情况作为 warning 级项报告（`HOOK-NOT-INSTALLED` / `HOOK-SHIM-MISSING` / `HOOK-UNKNOWN-VERSION` / `HOOK-STALE`），不计入 errors；这些提示给的修复命令是 `cwf host add kimi-code --component hook`——默认组件是插件，不带 `--component hook` 只会物化插件源目录、注册不了 hook。
 
 ## 环境变量
 

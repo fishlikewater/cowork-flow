@@ -155,14 +155,14 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-NOT-INSTALLED", issues[0]["code"])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
+        self.assertEqual("cwf host add kimi-code --component hook", issues[0]["commandHint"])
 
     def test_registered_row_without_shim_reports_missing_shim(self) -> None:
         self._install_block()
         issues = self._check()
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-SHIM-MISSING", issues[0]["code"])
-        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
+        self.assertEqual("cwf host add kimi-code --component hook", issues[0]["commandHint"])
 
     def test_installed_hook_without_marker_reports_unknown_version(self) -> None:
         self._install_block()
@@ -171,7 +171,7 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-UNKNOWN-VERSION", issues[0]["code"])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
+        self.assertEqual("cwf host add kimi-code --component hook", issues[0]["commandHint"])
 
     def test_unreadable_marker_reports_unknown_version(self) -> None:
         self._install_block()
@@ -192,7 +192,7 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual("HOOK-STALE", issues[0]["code"])
         self.assertIn("0.0.1", issues[0]["message"])
         self.assertIn("1.5.0", issues[0]["message"])
-        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
+        self.assertEqual("cwf host add kimi-code --component hook", issues[0]["commandHint"])
 
     def test_matching_version_is_silent(self) -> None:
         self._install_block()
@@ -914,7 +914,7 @@ class KimiCodePluginCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
         self.assertEqual("warning", issues[0]["severity"])
-        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
+        self.assertEqual("cwf host add kimi-code", issues[0]["commandHint"])
 
     def test_materialized_source_without_a_record_still_reports_not_installed(self) -> None:
         # This is the state right after `host add` and before the user runs

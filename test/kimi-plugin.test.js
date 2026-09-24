@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -57,27 +57,88 @@ async function tree(dir, prefix = "") {
   return entries
 }
 
-test("the kimi-code payload is a manifest plus the bootstrap skill, and nothing it cannot read", async () => {
+test("the kimi-code payload is a manifest plus the bootstrap skill", async () => {
   const manifest = await readJson(join(payloadRoot, ...MANIFEST_RELATIVE))
   const metadata = await readPluginMetadata()
   const { version } = await readPackageInfo()
 
   assert.equal(manifest.name, PLUGIN_NAME)
   assert.equal(manifest.version, version)
-  assert.equal(manifest.displayName, metadata.displayName)
-  assert.equal(manifest.skills, "skills")
+  assert.equal(manifest.interface.displayName, metadata.displayName)
   // This is what makes the plugin useful in a repository without a runtime:
   // Kimi Code loads the named Skill when a session starts.
   assert.deepEqual(manifest.sessionStart, { skill: "cowork-flow-bootstrap" })
   await access(join(payloadRoot, ...SKILL_RELATIVE))
+})
 
-  // Injection stays with the config.toml hook route: a plugin hook runs with the
-  // plugin root as its cwd, where the shipped shim cannot locate a project, so
-  // declaring hooks here would either do nothing or double-inject. Agents stay
-  // project-level because plugin agents have the lowest priority and would
-  // always be shadowed. The schema has no icon key either.
-  for (const key of ["hooks", "agents", "commands", "mcpServers", "icon", "logo", "tools", "apps"]) {
+// The byte-equality gate in plugin-metadata.test.js compares the manifest with
+// its projection, so it cannot see this: teach the projection a key or a value
+// the host rejects, regenerate, and byte-equality still holds. These are the
+// rules the host parser actually applies (Kimi Code 1.0.3,
+// `packages/agent-core-v2/src/app/plugin/manifest.ts`): a `skills` entry that
+// does not start with "./" makes the host record the plugin as errored with zero
+// skills, and `displayName` is only read from inside `interface`.
+const HOST_READ_KEYS = [
+  "name",
+  "version",
+  "description",
+  "keywords",
+  "homepage",
+  "license",
+  "author",
+  "skills",
+  "agents",
+  "sessionStart",
+  "mcpServers",
+  "hooks",
+  "commands",
+  "interface",
+  "skillInstructions",
+  "systemPrompt",
+  "systemPromptPath"
+];
+// The parser reads these and pushes an "info" diagnostic saying they are not
+// supported by Kimi plugins, so writing one would ship a known-useless key.
+const HOST_UNSUPPORTED_KEYS = ["tools", "apps", "inject", "configFile", "config_file", "bootstrap"];
+const INTERFACE_KEYS = ["displayName", "shortDescription", "longDescription", "developerName", "websiteURL"];
+
+test("the kimi-code manifest declares only what the host parser reads", async () => {
+  const manifest = await readJson(join(payloadRoot, ...MANIFEST_RELATIVE))
+
+  for (const key of Object.keys(manifest)) {
+    assert.ok(
+      HOST_READ_KEYS.includes(key),
+      `kimi-code manifest must not declare ${key}: the host parser drops it without a diagnostic`
+    );
+    assert.ok(
+      !HOST_UNSUPPORTED_KEYS.includes(key),
+      `kimi-code manifest must not declare ${key}: the host reports it as unsupported`
+    );
+  }
+
+  // Injection stays with the config.toml hook route: the host runs a plugin hook
+  // with cwd pinned to the plugin root (and its hook schema is strict, so a
+  // plugin cannot override it), where the shipped shim cannot locate a project.
+  // Agents stay project-level because plugin agents have the lowest priority and
+  // would always be shadowed.
+  for (const key of ["hooks", "agents", "commands", "mcpServers"]) {
     assert.equal(manifest[key], undefined, `kimi-code manifest must not declare ${key}`)
+  }
+
+  // A relative entry without "./" is an error diagnostic for the host, and the
+  // resolved directory has to sit inside the plugin or it is rejected.
+  for (const entry of Array.isArray(manifest.skills) ? manifest.skills : [manifest.skills]) {
+    assert.match(entry, /^\.\//, "the host requires every skills entry to start with ./");
+    const resolved = join(payloadRoot, entry)
+    assert.ok(resolved.startsWith(payloadRoot), `skills entry escapes the plugin: ${entry}`)
+    assert.ok((await stat(resolved)).isDirectory(), `skills entry is not a directory: ${entry}`)
+  }
+
+  for (const key of Object.keys(manifest.interface)) {
+    assert.ok(INTERFACE_KEYS.includes(key), `interface.${key} is not read by the host`);
+  }
+  for (const key of Object.keys(manifest.author)) {
+    assert.ok(["name", "email"].includes(key), `author.${key} is not read by the host`);
   }
 })
 
