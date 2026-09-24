@@ -158,7 +158,7 @@ export const ALIASES = [
   { name: 'install-codex-plugin', command: ['host', 'add'], args: ['codex'], permanent: false },
   { name: 'install-dsh-preset', command: ['host', 'add'], args: ['dsh', '--component', 'preset'], permanent: false },
   { name: 'install-dsh-hook', command: ['host', 'add'], args: ['dsh', '--component', 'hook'], permanent: false },
-  { name: 'install-kimi-hook', command: ['host', 'add'], args: ['kimi-code'], permanent: false }
+  { name: 'install-kimi-hook', command: ['host', 'add'], args: ['kimi-code', '--component', 'hook'], permanent: false }
 ];
 
 

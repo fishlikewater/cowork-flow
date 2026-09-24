@@ -8,6 +8,16 @@
 
 ### Added
 
+#### Kimi Code 插件载荷与默认组件改 plugin
+
+- **`cwf host add kimi-code` 默认装插件**（原默认 `hook`，用户已拍板）：把 `presets/kimi-code/` 物化到**稳定源目录** `$KIMI_CODE_HOME/plugins/sources/cowork-flow/`，再打印一条 `/plugins install <绝对路径>` 与 `/reload` 提示。`hook` 组件保留为不装插件时的兜底，经 `--component hook` 到达；旧命令名 `install-kimi-hook` 固定到 `--component hook`（否则默认值改动会偷换这个别名的语义）。
+- **为什么打印指令而不是直写注册表**：Kimi Code 的插件安装**只有 TUI**（`kimi` 命令无 plugins 子命令）。本次从宿主自己的代码里把记录形状取证到位——桌面版 1.0.3 的 `resources/app.asar` 内含 `packages/agent-core-v2/src/app/plugin/store.ts`：源只认 GitHub/zip/**绝对路径**、本地源 `realpath` 后整目录拷进 `plugins/managed/<id>/`（staging + rename）、`id = name.toLowerCase()`、注册表每条只落 `{id, root, source, enabled, installedAt, updatedAt, originalSource, capabilities, github}`（本地首次安装后两者不落盘）。形状已知，但宿主的 `install()` 还承担 realpath 校验、清单解析与 diagnostics、原子替换——在安装器里重实现等于把宿主私有逻辑抄第二份，与 codex 侧「不手写 `config.toml`、委托官方 CLI」同一条理由。取证结果写进 `docs/hosts.md` 的表格，将来宿主开放 CLI 子命令时直写有据可循。
+- **载荷只带引导技能**：清单声明 `skills` 与 `sessionStart.skill: cowork-flow-bootstrap`（插件在没有 runtime 的仓库里唯一有用的部分）。**不带 hooks**——插件 hook 的 cwd 是插件根，现有 shim 靠 cwd 定位项目根的方式会静默失效，而 config.toml 链路已交付注入，再带一份有双份注入风险；**不带 agents**——插件 agent 优先级最低，项目级 `.kimi-code/agents/` 已交付三个 fixed subagent，插件再带一份必被盖过。这是对计划原设计的一处收窄，理由可验证且与前三批结论一致。
+- **卸载语义照抄宿主**：`/plugins remove` 只删注册表记录，托管副本与源目录都留在盘上；`cwf host remove kimi-code` 删我们物化的源目录并打印"宿主侧还要你自己清"的提示，不假装清干净了。
+- **doctor 新增 `check_kimi_code_plugin`**（warning，不进 errors）：`PLUGIN-NOT-INSTALLED`（**刚 `host add` 完还没跑 `/plugins install` 就是这个状态**，属正常中间态，文档写明）、`PLUGIN-DISABLED`、`PLUGIN-PAYLOAD-INCOMPLETE`、`PLUGIN-STALE`（副本清单版本 ≠ 本项目 `.cowork-flow/.version`）、`PLUGIN-SOURCES-MISSING`（已注册但源目录不在，重装会失败）。项目未声明 kimi-code 宿主时静默。
+- **门禁**：清单是 `plugin-meta.json` 的投影（字节相等）；载荷技能与其余五家字节一致；清单**不得**出现 `hooks`/`agents`/`commands`/`mcpServers`/图标键（正反双向断言）；安装器物化稳定源目录、打印的指令必须含绝对路径、dry-run 不写但仍打印、收敛到与源一致、外来目录拒绝覆盖与删除、卸载提示宿主侧残留；doctor 门禁七变异全红（恒静默 / 忽略 `KIMI_CODE_HOME` / 不报 disabled / 不查副本完整 / 不做版本比对 / 不报源目录缺失 / 记录 id 匹配放宽）。安装器按 `install-<host-id>-plugin.js` 命名并盖章源清单版本（`test/plugin-payload.test.js` 与 `test/host-assets.test.js` 的既有门禁要求，两条都验证过会红）。
+- 升级动作：`cwf host add kimi-code` 然后按输出在 Kimi 里跑一次 `/plugins install`。已装 hook 的项目不受影响。
+
 #### OpenCode 插件载荷与全局安装器（插件自注册技能目录）
 
 - **`cwf host add opencode` 把插件装到全局配置目录**：`$XDG_CONFIG_HOME/opencode/`（未设置时 `~/.config/opencode`）下的 `plugins/cowork-flow.js` + `cowork-flow/`。不调用 `opencode` CLI，**不写用户的 `opencode.json`**——那是用户资产，插件自己就能完成注册。卸载删这两处，`plugins/` 被我们清空时连空壳一起删；文件里没有 `CoworkFlowPlugin` 标记的同名文件默认拒绝覆盖与删除，`--force` 是显式放行，`--dry-run` 跑同一套归属检查。

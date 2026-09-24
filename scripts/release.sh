@@ -8,7 +8,7 @@ SELF_VERSION_FILE=".cowork-flow/.version"
 # here rather than next to their use so --dry-run can report them without
 # reaching the mutating section.
 GIT_ADD_FILES="package.json package-lock.json $TEMPLATE_VERSION_FILE"
-PLUGIN_MANIFEST_FILES="presets/zcode/.zcode-plugin/plugin.json presets/qoder/.qoder-plugin/plugin.json presets/codex/.codex-plugin/plugin.json presets/claude-code/.claude-plugin/plugin.json"
+PLUGIN_MANIFEST_FILES="presets/zcode/.zcode-plugin/plugin.json presets/qoder/.qoder-plugin/plugin.json presets/codex/.codex-plugin/plugin.json presets/claude-code/.claude-plugin/plugin.json presets/kimi-code/.kimi-plugin/plugin.json"
 
 usage() {
   echo "Usage: scripts/release.sh [release-type|--version <version>] [--no-publish] [--dry-run]" >&2

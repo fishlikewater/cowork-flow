@@ -7,6 +7,7 @@ import { runInstallCodexPlugin, FLAGS as CODEX_PLUGIN_FLAGS } from './install-co
 import { runInstallClaudeCodePlugin, FLAGS as CLAUDE_CODE_PLUGIN_FLAGS } from './install-claude-code-plugin.js';
 import { runInstallDshHook, FLAGS as DSH_HOOK_FLAGS } from './install-dsh-hook.js';
 import { runInstallDshPreset, FLAGS as DSH_PRESET_FLAGS } from './install-dsh-preset.js';
+import { runInstallKimiPlugin, FLAGS as KIMI_PLUGIN_FLAGS } from './install-kimi-code-plugin.js';
 import { runInstallKimiHook, FLAGS as KIMI_HOOK_FLAGS } from './install-kimi-hook.js';
 import { runInstallOpenCodePlugin, FLAGS as OPENCODE_PLUGIN_FLAGS } from './install-opencode-plugin.js';
 import { runInstallQoderPlugin, FLAGS as QODER_PLUGIN_FLAGS } from './install-qoder-plugin.js';
@@ -61,9 +62,10 @@ export const HOST_COMPONENTS = {
     }
   },
   'kimi-code': {
-    default: 'hook',
+    default: 'plugin',
     components: {
-      hook: { summary: 'Kimi Code context-injection hook', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook }
+      plugin: { summary: 'Kimi Code plugin: the bootstrap Skill it loads at session start', flags: KIMI_PLUGIN_FLAGS, run: runInstallKimiPlugin },
+      hook: { summary: 'Kimi Code context-injection hook (fallback when no plugin is installed)', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook }
     }
   }
 };

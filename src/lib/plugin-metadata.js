@@ -130,5 +130,26 @@ export function pluginManifest(metadata, host, version) {
     };
   }
 
+  if (host === 'kimi-code') {
+    // A local-directory plugin. `sessionStart.skill` is what makes the plugin
+    // useful in a repository without a runtime: Kimi Code loads that Skill when
+    // a session starts. Only skills ship here — injection stays with the
+    // config.toml hook route (a plugin hook runs with the plugin root as its cwd,
+    // where the shipped shim cannot locate a project), and the three fixed
+    // subagents stay project-level because plugin agents have the lowest
+    // priority and would always be shadowed. No icon key exists in this schema.
+    return {
+      ...base,
+      displayName: metadata.displayName,
+      author: { name: author.name, email: author.email, url: author.url },
+      homepage: metadata.homepage,
+      repository: metadata.repository,
+      license: metadata.license,
+      keywords: metadata.keywords,
+      skills: 'skills',
+      sessionStart: { skill: 'cowork-flow-bootstrap' }
+    };
+  }
+
   throw new Error(`plugin metadata projection has no rule for host: ${host}`);
 }

@@ -825,6 +825,181 @@ class OpenCodePluginCheckTest(unittest.TestCase):
             self.assertNotIn("opencodePlugin", str(error))
 
 
+class KimiCodePluginCheckTest(unittest.TestCase):
+    """Kimi Code plugin diagnostics. Installation is TUI-only, so "materialized
+    source but no registry record" is a normal state and the check has to name it
+    without turning it into an error."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.kimi_home = root / "kimi-home"
+        self.project = root / "project"
+        adapter_dir = self.project / ".cowork-flow" / "adapters" / "kimi-code"
+        adapter_dir.mkdir(parents=True)
+        (adapter_dir / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: kimi-code\n", encoding="utf-8"
+        )
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.6.0\n", encoding="utf-8"
+        )
+        self.version = "1.6.0"
+        self.managed = self.kimi_home / "plugins" / "managed" / "cowork-flow"
+        self.source = self.kimi_home / "plugins" / "sources" / "cowork-flow"
+
+    def _check(self) -> list[dict[str, str]]:
+        with mock.patch.dict("os.environ", {"KIMI_CODE_HOME": str(self.kimi_home)}):
+            return self.doctor.check_kimi_code_plugin(self.project)
+
+    def _write_managed(self, *, version: str | None = None, skill: bool = True) -> None:
+        (self.managed / ".kimi-plugin").mkdir(parents=True, exist_ok=True)
+        (self.managed / ".kimi-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "cowork-flow", "version": version or self.version}),
+            encoding="utf-8",
+        )
+        if skill:
+            target = self.managed / "skills" / "cowork-flow-bootstrap"
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "SKILL.md").write_text("# bootstrap\n", encoding="utf-8")
+
+    def _write_source(self) -> None:
+        self.source.mkdir(parents=True, exist_ok=True)
+        (self.source / ".kimi-plugin").mkdir(parents=True, exist_ok=True)
+        (self.source / ".kimi-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "cowork-flow", "version": self.version}),
+            encoding="utf-8",
+        )
+
+    def _write_registry(self, *, enabled: bool = True, root: Path | None = None) -> None:
+        plugins = self.kimi_home / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "installed.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "plugins": [
+                        {
+                            "id": "cowork-flow",
+                            "root": str(root or self.managed),
+                            "source": "local-path",
+                            "enabled": enabled,
+                            "installedAt": "2026-09-24T00:00:00.000Z",
+                            "updatedAt": "2026-09-24T00:00:00.000Z",
+                            "originalSource": str(self.source),
+                        }
+                    ],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    def _install(self, *, version: str | None = None, enabled: bool = True) -> None:
+        self._write_managed(version=version)
+        self._write_source()
+        self._write_registry(enabled=enabled)
+
+    def test_project_without_kimi_adapter_is_silent(self) -> None:
+        (
+            self.project / ".cowork-flow" / "adapters" / "kimi-code" / "adapter.yaml"
+        ).unlink()
+        self.assertEqual([], self._check())
+
+    def test_declared_host_without_record_reports_not_installed(self) -> None:
+        issues = self._check()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("cwf host add kimi-code", issues[0]["commandHint"])
+
+    def test_materialized_source_without_a_record_still_reports_not_installed(self) -> None:
+        # This is the state right after `host add` and before the user runs
+        # /plugins install, so it must be reported as "not installed", not as a
+        # broken install.
+        self._write_source()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in self._check()])
+
+    def test_healthy_install_reports_nothing(self) -> None:
+        self._install()
+        self.assertEqual([], self._check())
+
+    def test_disabled_record_reports_disabled(self) -> None:
+        self._install(enabled=False)
+        self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in self._check()])
+
+    def test_missing_bootstrap_skill_reports_incomplete(self) -> None:
+        self._write_managed(skill=False)
+        self._write_source()
+        self._write_registry()
+        issues = self._check()
+        self.assertEqual(["PLUGIN-PAYLOAD-INCOMPLETE"], [issue["code"] for issue in issues])
+        self.assertTrue(str(issues[0]["path"]).endswith("SKILL.md"), issues[0]["path"])
+
+    def test_record_pointing_at_a_missing_copy_reports_incomplete(self) -> None:
+        self._write_source()
+        self._write_registry(root=self.kimi_home / "plugins" / "managed" / "gone")
+        self.assertEqual(["PLUGIN-PAYLOAD-INCOMPLETE"], [issue["code"] for issue in self._check()])
+
+    def test_stale_version_reports_stale(self) -> None:
+        self._install(version="1.5.0")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("1.5.0", issues[0]["message"])
+
+    def test_missing_source_reports_sources_missing(self) -> None:
+        # The registry records where the plugin came from, so a source that is
+        # gone means the next reinstall fails — worth its own code.
+        self._write_managed()
+        self._write_registry()
+        issues = self._check()
+        self.assertEqual(["PLUGIN-SOURCES-MISSING"], [issue["code"] for issue in issues])
+
+    def test_another_plugins_record_does_not_count_as_ours(self) -> None:
+        # The registry holds one entry per plugin, so picking any record instead
+        # of cowork-flow's would report a healthy install while our plugin is
+        # missing entirely.
+        plugins = self.kimi_home / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "installed.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "plugins": [
+                        {
+                            "id": "someone-else",
+                            "root": str(self.managed),
+                            "source": "local-path",
+                            "enabled": True,
+                        }
+                    ],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        self._write_managed()
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in self._check()])
+
+    def test_unreadable_registry_is_reported_as_not_installed(self) -> None:
+        plugins = self.kimi_home / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "installed.json").write_text("{ broken", encoding="utf-8")
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in self._check()])
+
+    def test_plugin_check_never_enters_doctor_errors(self) -> None:
+        with mock.patch.dict("os.environ", {"KIMI_CODE_HOME": str(self.kimi_home)}):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual(
+            "PLUGIN-NOT-INSTALLED", result["issues"]["kimiCodePlugin"][0]["code"]
+        )
+        for error in result["errors"]:
+            self.assertNotIn("kimiCodePlugin", str(error))
+
+
 class SkillDeliveryCheckTest(unittest.TestCase):
     """Skill delivery diagnostics: a declared read root that is not on disk, a
     machine-level plugin payload that still carries a copy of a project Skill,

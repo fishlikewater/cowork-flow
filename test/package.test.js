@@ -77,6 +77,8 @@ test('npm package includes cli source and template assets', async (t) => {
   assert.equal(files.has('presets/plugin-meta.json'), true);
   assert.equal(files.has('presets/codex/.codex-plugin/plugin.json'), true);
   assert.equal(files.has('presets/codex/skills/cowork-flow-bootstrap/SKILL.md'), true);
+  assert.equal(files.has('presets/kimi-code/.kimi-plugin/plugin.json'), true);
+  assert.equal(files.has('presets/kimi-code/skills/cowork-flow-bootstrap/SKILL.md'), true);
   assert.equal(files.has('presets/opencode/plugins/cowork-flow.js'), true);
   assert.equal(files.has('presets/opencode/cowork-flow/plugin-core.js'), true);
   assert.equal(files.has('presets/opencode/cowork-flow/skills/cowork-flow-bootstrap/SKILL.md'), true);
@@ -178,7 +180,7 @@ test('package metadata exposes release script and synchronized lockfile version'
     ]);
   assert.deepEqual(
     pluginManifests.map(([, host]) => host),
-    ['codex', 'claude-code', 'zcode', 'qoder']
+    ['codex', 'claude-code', 'zcode', 'kimi-code', 'qoder']
   );
   const releaseScript = await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8');
   for (const [relativePath, host] of pluginManifests) {

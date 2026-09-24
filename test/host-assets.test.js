@@ -405,7 +405,7 @@ test('declared payloads resolve to directories the package really ships', () => 
   // entry here without a matching presets/ directory must fail below.
   assert.deepEqual(
     declared.map((platform) => platform.id),
-    ['codex', 'opencode', 'claude-code', 'zcode', 'qoder']
+    ['codex', 'opencode', 'claude-code', 'zcode', 'kimi-code', 'qoder']
   );
   for (const platform of declared) {
     const payload = registry.platformPayload(platform.id);
@@ -423,13 +423,12 @@ test('declared payloads resolve to directories the package really ships', () => 
     );
   }
   assert.equal(registry.platformPayload('dsh'), null);
-  assert.equal(registry.platformPayload('kimi-code'), null);
 });
 
 
 test('plugin installers locate their payload through the declaration', () => {
   const manifest = loadHostAssetManifest();
-  for (const host of ['opencode', 'codex', 'claude-code', 'zcode', 'qoder']) {
+  for (const host of ['opencode', 'codex', 'claude-code', 'zcode', 'kimi-code', 'qoder']) {
     const installer = readFileSync(
       join(packageRoot, 'src', 'commands', `install-${host}-plugin.js`),
       'utf8'

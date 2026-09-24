@@ -588,7 +588,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual(
             [platform.id for platform in declared],
-            ["codex", "opencode", "claude-code", "zcode", "qoder"],
+            ["codex", "opencode", "claude-code", "zcode", "kimi-code", "qoder"],
         )
         for platform in declared:
             payload = platform.payload
@@ -610,7 +610,6 @@ class HostAssetManifestTest(unittest.TestCase):
                 f"{platform.id} payload manifest {payload.manifest} must exist",
             )
         self.assertIsNone(manifest.platform("dsh").payload)
-        self.assertIsNone(manifest.platform("kimi-code").payload)
         self.assertIsNone(manifest.platform("dsh").payload)
 
     def test_payload_rejects_malformed_declarations(self) -> None:
