@@ -16,6 +16,7 @@
 - **本机实测**（claude 2.1.202，隔离 `CLAUDE_CONFIG_DIR`）：装完 `claude plugin list` 显示 `cowork-flow@skills-dir` / `Version: 1.6.0` / `Scope: user` / `Status: ✔ loaded`；`claude plugin details` 组件清单为 `Skills (1) cowork-flow-bootstrap`、`Agents (0)`、`Hooks (0)`；`claude plugin validate` 通过；卸载后列表回到 `No plugins installed`。
 - **门禁**：`test/claude-code-plugin.test.js` 钉住「装进技能目录且版本被盖章」「除技能目录外不留任何文件（settings.json 与别人的技能原样不动）」「同版本重跑不重写、`--force` 才覆盖」「安装路径下是别人的目录时拒绝覆盖、拒绝删除」「dry-run 不写文件」「卸载只删自己那一个目录」「载荷技能名与项目技能名零交集」；`tests/test_runtime_health.py` 的 `ClaudeCodePluginCheckTest` 钉住三个故障码、静默条件、外来目录静默与「永不进入 errors」，并做负向验证（把检查改成恒静默 → 5 红；去掉归属守卫 → 1 红）。`test/plugin-metadata.test.js`、`test/host-assets.test.js`、`test/plugin-payload.test.js`、`test/host-command.test.js` 的宿主清单同步加入 claude-code。
 - 升级动作：`cwf host add claude-code` 即可；已装项目重跑一次带上后续版本。旧命令名无需迁移——本批没有新增命令，入口是既有的 `host add` / `host remove`。
+- 独立检查复核轮（`cowork-check`，结论 pass）修掉三处：**盖章目标**此前无行为证据——源清单版本恒等于包版本，所以「装出来的版本等于包版本」在盖章与否两种情况下都成立；现补一条负向源断言，禁止把 `stampPayloadManifest` 指向 `pluginSrc`/`pluginRoot`/`sourceDir`（四家安装器同守，变异即红）。**`--dry-run` 此前跳过归属守卫**，会在外来目录上打印「Would install」而真跑 exit 1；现预览跑同一套检查。**`--force` 此前只解锁覆盖、不解锁删除**，用户遇到残留目录只能手删；现删除路径也认 `--force`，默认仍 fail-closed。另补 `docs/architecture.md` 的 presets 布局树、`test/host-command.test.js` 的 `HOME_KEYS`（`CLAUDE_CONFIG_DIR` 此前注入后不还原）与 `host remove`/未知 flag/pack 内容三处清单。
 
 #### 品牌 mark 与宿主图标接线
 

@@ -162,11 +162,39 @@ test('install-claude-code-plugin refuses a foreign folder at its install path', 
     );
     assert.equal(await readFile(join(target, 'theirs.md'), 'utf8'), 'not ours\n');
 
+    // The preview must not promise an install the real run refuses.
+    await assert.rejects(
+      () => withClaudeHome(home, () => runInstallClaudeCodePlugin(['--dry-run'])),
+      /not the cowork-flow plugin/
+    );
+
     await assert.rejects(
       () => withClaudeHome(home, () => runInstallClaudeCodePlugin(['--uninstall'])),
       /Refusing to delete a folder this installer did not create/
     );
     assert.equal(await readFile(join(target, 'theirs.md'), 'utf8'), 'not ours\n');
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test('--force is the explicit override for both overwrite and removal', async () => {
+  const { home } = await seedClaudeHome();
+  try {
+    const target = installPath(home);
+    await mkdir(target, { recursive: true });
+    // No readable manifest: neither a folder we own nor one we can reason about,
+    // which is exactly the case that has no path forward without --force.
+    await writeFile(join(target, 'leftover.md'), 'half-written\n', 'utf8');
+
+    await assert.rejects(
+      () => withClaudeHome(home, () => runInstallClaudeCodePlugin(['--uninstall'])),
+      /use --force to remove it anyway/
+    );
+    assert.equal(await readFile(join(target, 'leftover.md'), 'utf8'), 'half-written\n');
+
+    await withClaudeHome(home, () => runInstallClaudeCodePlugin(['--uninstall', '--force']));
+    await assert.rejects(access(target));
   } finally {
     await rm(home, { recursive: true, force: true });
   }

@@ -27,6 +27,7 @@ presets/                       # ⭐ 机器级插件载荷：安装器拷进宿�
 ├── zcode/                     # ZCode 插件（hooks + agents + .zcode-plugin/plugin.json）
 ├── qoder/                     # Qoder 插件（hooks + agents + .qoder-plugin/plugin.json）
 ├── codex/                     # Codex 插件（.codex-plugin/plugin.json + assets + 引导技能；agents/hook 留在项目级）
+├── claude-code/               # Claude Code skills 目录插件（.claude-plugin/plugin.json + 引导技能；hook/agents 留在项目级）
 ├── kimi-code/                 # Kimi Code hook shim
 └── dsh/                       # DSH agent 预设
 ```

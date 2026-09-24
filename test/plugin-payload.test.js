@@ -81,9 +81,12 @@ test('stampPayloadManifest refuses a payload without a readable manifest', async
 
 
 test('every plugin installer stamps its payload through the shared helper', async () => {
-  // Without this the three "installed version equals the package version"
-  // assertions stay green even if stamping is dropped: the shipped source
-  // manifests already carry the release version.
+  // Without this the "installed version equals the package version" assertions
+  // stay green even if stamping is dropped: the shipped source manifests already
+  // carry the release version. The negative half is what pins the *target* —
+  // stamping the source directory instead of the installed copy satisfies both
+  // the helper and the version assertion, because the shipped version is the
+  // package version by construction.
   for (const host of ['claude-code', 'codex', 'zcode', 'qoder']) {
     const installer = await readFile(
       join(packageRoot, 'src', 'commands', `install-${host}-plugin.js`),
@@ -93,6 +96,11 @@ test('every plugin installer stamps its payload through the shared helper', asyn
       installer,
       /stampPayloadManifest\(/,
       `install-${host}-plugin.js must stamp the installed payload`
+    );
+    assert.doesNotMatch(
+      installer,
+      /stampPayloadManifest\(\s*(?:pluginSrc|pluginRoot|sourceDir)\b/,
+      `install-${host}-plugin.js must stamp the installed copy, not the shipped source`
     );
   }
 });

@@ -65,16 +65,20 @@ async function ownsInstall(dir, manifestRelative) {
 }
 
 
-async function uninstall(target, manifestRelative, dryRun) {
+async function uninstall(target, manifestRelative, { dryRun, force }) {
   if (!(await pathExists(target))) {
     console.log(`cowork-flow Claude Code plugin was not installed; nothing to remove at ${target}`);
     return 0;
   }
   if (!(await ownsInstall(target, manifestRelative))) {
-    throw new Error(
-      `${target} exists but is not the cowork-flow plugin (its ${manifestRelative} `
-      + `does not name ${PLUGIN_NAME}). Refusing to delete a folder this installer did not create.`
-    );
+    if (!force) {
+      throw new Error(
+        `${target} exists but is not the cowork-flow plugin (its ${manifestRelative} `
+        + `does not name ${PLUGIN_NAME}). Refusing to delete a folder this installer did not `
+        + 'create; use --force to remove it anyway.'
+      );
+    }
+    console.log(`${target} is not the cowork-flow plugin; removing it anyway (--force).`);
   }
   if (dryRun) {
     console.log(`[dry-run] Would remove ${target}`);
@@ -98,7 +102,7 @@ export async function runInstallClaudeCodePlugin(args = []) {
   const { sourceDir: pluginSrc, manifest } = pluginPayload('claude-code');
 
   if (remove) {
-    return uninstall(target, manifest, dryRun);
+    return uninstall(target, manifest, { dryRun, force });
   }
 
   if (!(await pathExists(pluginSrc))) {
@@ -108,7 +112,10 @@ export async function runInstallClaudeCodePlugin(args = []) {
   console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow Claude Code plugin:`);
   console.log(`  Plugin: ${pluginSrc} -> ${target}`);
 
-  if (!dryRun && (await pathExists(target))) {
+  // The ownership guard runs before the dry-run exit too: a preview that says
+  // "would install" over a folder the real run then refuses would be worse than
+  // no preview at all.
+  if (await pathExists(target)) {
     const ours = await ownsInstall(target, manifest);
     if (!ours && !force) {
       throw new Error(
@@ -116,7 +123,7 @@ export async function runInstallClaudeCodePlugin(args = []) {
         + 'Use --force to overwrite it, or remove it yourself first.'
       );
     }
-    if (ours && !force) {
+    if (ours && !force && !dryRun) {
       const installed = (await readManifest(target, manifest))?.version ?? 'unknown';
       if (installed === version) {
         console.log(`cowork-flow Claude Code plugin already installed at ${target} (${version}).`);

@@ -5,7 +5,7 @@ import { packageRoot } from './paths.js';
 
 const METADATA_PATH = join(packageRoot, 'presets', 'plugin-meta.json');
 
-// One source for the identity every host shows. The three native manifests are
+// One source for the identity every host shows. The host manifests are
 // projections of this file (test/plugin-metadata.test.js asserts the shipped
 // bytes match), so a field can never be right in one host and stale in another.
 export async function readPluginMetadata() {
