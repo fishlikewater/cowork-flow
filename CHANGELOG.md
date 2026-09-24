@@ -18,6 +18,7 @@
 - **门禁**：①「插件模块的每个导出都是可调用插件工厂」静态门禁**扩展到载荷**（探针里那个宿主崩溃本可被它提前拦住）；② 项目级与载荷两份插件文件**字节一致**（单一源靠门禁而非新机制，沿用引导技能在四家载荷间的既有做法）；③ 载荷与项目副本各自跑 `config` hook 的行为断言（含注册路径必须落在载荷内、必须真含引导技能）；④ 安装器门禁覆盖落点、收敛到与源一致、外来文件拒绝、dry-run 不写、卸载清空壳；⑤ doctor 门禁四变异全红（恒静默 / 忽略 `XDG_CONFIG_HOME` / 去掉外来守卫 / 不做陈旧比对）。
 - **一处诚实记录**：opencode 加载插件时会在自己的配置目录里生成 `package.json` / `bun.lock` / `node_modules/`（宿主为插件作者物化 `@opencode-ai/plugin`）。这是宿主产物，安装器不碰也不清理，文档写明。未验证项同样写明：多插件共存、全局与项目同名技能的优先级。
 - 升级动作：`cwf host add opencode` 即可。本批没有新增命令，入口是既有的 `host add` / `host remove`；`host add opencode` 从「用法错误」变为可用。
+- 独立检查复核轮（`cowork-check`，结论 needs_fix）修掉五处：**载荷引导技能未被字节一致门禁覆盖**——opencode 的载荷把 `skills/` 嵌在 `cowork-flow/` 下，而门禁按 `presets/<host>/skills/` 拼路径，于是只改这一份技能文件零红；现改为按宿主查相对路径，五份一起比对（单边漂移即红）。另修 `docs/hosts.md` 一段重复段落、`docs/architecture.md` 布局树漏掉 opencode、CHANGELOG 声称「未验证项已写明」但文档里没有（现补进 OpenCode 一节）。复核另指出两处覆盖空洞，一并补上：`config` 空值（宿主不保证传）与 `project_copy` 读取失败的分支（原写法有冗余守卫，已简化并纳入变异验证）。`host list` 的 `-` 图例保留：当前无宿主命中，但删掉会让未来的空组件宿主留下一个没有说明的标记。
 
 #### Claude Code 插件载荷与 skills 目录安装器
 

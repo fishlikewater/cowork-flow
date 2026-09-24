@@ -91,7 +91,6 @@ cwf host remove opencode           # 删这两处；plugins/ 被我们清空则�
 
 宿主升级后这三条若变化，用探针脚本复核：`bash .cowork-flow/tasks/archive/2026-09/09-23-opencode-skills-probe/run-probe.sh`（全程 XDG 隔离，不触碰真实配置）。
 
-**插件模块只能导出插件函数。** opencode 加载插件时遍历模块的**每一个导出**并逐个当插件工厂调用，随后遍历每个工厂返回的 hooks 对象。任何被导出的常量、helper，或返回 `null`/`undefined` 的工厂，都会让宿主在 bootstrap 阶段整进程崩溃（1.1.53 实测：`project init` 过的项目启动即退出码 1）。cowork-flow 因此把逻辑与适配分开：
 
 **插件模块只能导出插件函数。** opencode 加载插件时遍历模块的**每一个导出**并逐个当插件工厂调用，随后遍历每个工厂返回的 hooks 对象。任何被导出的常量、helper，或返回 `null`/`undefined` 的工厂，都会让宿主在 bootstrap 阶段整进程崩溃（1.1.53 实测：`project init` 过的项目启动即退出码 1）。cowork-flow 因此把逻辑与适配分开：
 
@@ -107,6 +106,8 @@ cwf host remove opencode           # 删这两处；plugins/ 被我们清空则�
 **元数据上限**：opencode 没有任何插件元数据面——不展示插件名、描述、图标，也没有清单文件。`cwf host add opencode` 的 stdout 是唯一的「安装信息面」，这也是这个载荷只声明 `source`、不声明清单的原因。升级信息只能靠 doctor 的 `PLUGIN-STALE`。
 
 OpenCode 侧插件检查（warning，不进 errors）：`PLUGIN-NOT-INSTALLED`（配置目录里没有插件文件）、`PLUGIN-PAYLOAD-INCOMPLETE`（缺 `plugin-core.js` 或引导技能，插件会注册一个不存在的技能目录）、`PLUGIN-STALE`（**与项目自己的 `.opencode/` 副本比对内容**——两者是同一份源交付两次，不一致就说明只更新了一边；没有清单可携带版本，所以只能比内容）。文件里不含 `CoworkFlowPlugin` 标记的同名文件被当作别人的插件，不报也不删。项目尚未生成自己的 `.opencode/` 副本时跳过陈旧检查。
+
+**未验证项**（诚实边界）：多插件共存时的加载顺序，以及全局插件技能与项目同名技能同时存在时的优先级——两者都未实测，不做承诺。
 
 外部前提：`plugins/` 是用户放自己插件的目录，安装器只在文件里带 `CoworkFlowPlugin` 标记时才删除或覆盖，其余情况需要显式 `--force`。插件 Skills 需**新会话**才加载。实测观察：opencode 加载插件时会在自己的配置目录里生成 `package.json` / `bun.lock` / `node_modules/`（宿主为插件作者物化 `@opencode-ai/plugin`），这些是宿主的产物，安装器不碰也不清理。
 

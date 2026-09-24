@@ -1176,19 +1176,19 @@ def check_opencode_plugin(repo_root: Path) -> list[dict[str, str]]:
             )
 
     for relative in (_OPENCODE_PLUGIN_FILE, _OPENCODE_CORE):
-        project_copy = repo_root / ".opencode" / relative
-        if not project_copy.is_file():
-            # The project has not been initialized with its own copy yet.
-            continue
+        # A project mid-init has no copy yet; an unreadable one is not ours to
+        # judge. Either way there is nothing to compare, so the loop moves on.
         try:
-            project_text = project_copy.read_text(encoding="utf-8")
+            project_text = (repo_root / ".opencode" / relative).read_text(
+                encoding="utf-8"
+            )
+            installed_text = (
+                installed
+                if relative == _OPENCODE_PLUGIN_FILE
+                else (home / relative).read_text(encoding="utf-8")
+            )
         except OSError:
             continue
-        installed_text = (
-            installed
-            if relative == _OPENCODE_PLUGIN_FILE
-            else (home / relative).read_text(encoding="utf-8")
-        )
         if project_text != installed_text:
             return _opencode_warning(
                 "PLUGIN-STALE",
