@@ -123,8 +123,11 @@ def resolve_execution_policy(
 def _task_readiness_blockers(repo_root: Path, task_dir: Path) -> tuple[str, ...]:
     try:
         from services.readiness import task_readiness_blockers
-    except Exception:
-        return ()
+    except Exception as error:
+        return (
+            "readiness check unavailable; restore the services.readiness "
+            f"module before starting the task ({error})",
+        )
     try:
         blockers = task_readiness_blockers(repo_root, task_dir)
     except Exception:

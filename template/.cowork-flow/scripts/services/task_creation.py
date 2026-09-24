@@ -82,8 +82,21 @@ class TaskCreationService:
         tasks_dir = ensure_tasks_dir(self.repo_root)
         task_name = self._task_name(request)
         task_dir = tasks_dir / task_name
-        plan_metadata, bound_plan_path = self._plan_metadata(request.from_plan)
         directory_existed = task_dir.exists()
+        task_json = task_dir / FILE_TASK_JSON
+        if task_json.exists():
+            raise TaskCreationError(
+                "TASK-CREATE-EXISTS-001",
+                task_json,
+                "task metadata already exists; choose a different slug",
+            )
+        if directory_existed and not task_dir.is_dir():
+            raise TaskCreationError(
+                "TASK-CREATE-EXISTS-001",
+                task_dir,
+                "task path already exists and is not a directory",
+            )
+        plan_metadata, bound_plan_path = self._plan_metadata(request.from_plan)
         task_dir.mkdir(parents=True, exist_ok=True)
 
         created_at = request.created_at or datetime.now().strftime(
@@ -111,8 +124,18 @@ class TaskCreationService:
             "meta": plan_metadata,
         }
         try:
-            self.repository.replace(task_dir, task_data)
+            self.repository.replace(
+                task_dir,
+                task_data,
+                expected_revision=0,
+            )
         except TaskRepositoryError as error:
+            if task_json.exists() or error.code == "TASK-SAVE-002":
+                raise TaskCreationError(
+                    "TASK-CREATE-EXISTS-001",
+                    task_json,
+                    "task metadata already exists; choose a different slug",
+                ) from error
             raise TaskCreationError(
                 "TASK-CREATE-SAVE-001",
                 error.path,

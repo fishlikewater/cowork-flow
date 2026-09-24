@@ -95,13 +95,16 @@ class LifecycleCheckRunner:
         task_dir: Path,
         *,
         allow_spec_file_modifications: bool | None = None,
+        allow_unchecked_specs: bool | None = None,
         execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> LifecycleCheckResult:
         spec_report = _spec_check_report(self.repo_root)
         spec_issues = _spec_check_completion_issues(
             spec_report,
-            allow_unchecked_specs=_policy_allows_unchecked(
-                execution_policy,
+            allow_unchecked_specs=(
+                bool(allow_unchecked_specs)
+                if allow_unchecked_specs is not None
+                else _policy_allows_unchecked(execution_policy)
             ),
         )
         return LifecycleCheckResult(
@@ -162,6 +165,24 @@ def _spec_check_completion_issues(
         return []
     summary = spec_report.get("summary") or {}
     issues: list[LifecycleCheckIssue] = []
+    parse_errors = spec_report.get("parseErrors") or []
+    if parse_errors:
+        details = []
+        for item in parse_errors:
+            if isinstance(item, dict):
+                spec = item.get("spec") or "?"
+                error = item.get("error") or "unknown parse error"
+                details.append(f"{spec}: {error}")
+        suffix = "; ".join(details[:3])
+        issues.append(
+            LifecycleCheckIssue(
+                code="SPEC-CHECK-PARSE-ERROR",
+                message=(
+                    f"spec checks report {len(parse_errors)} parse error(s)"
+                    + (f": {suffix}" if suffix else "")
+                ),
+            )
+        )
     violation = int(summary.get("violation") or 0)
     unchecked = int(summary.get("unchecked") or 0)
     if violation:
@@ -194,22 +215,25 @@ def _spec_check_completion_issues(
 
 
 
-def _baseline_changed_paths(
-    repo_root: Path, task_dir: Path
-) -> tuple[list[str], bool]:
-    """Review change set: baseline..HEAD diff merged with the working-tree
-    status (task start records meta.baselineCommit once). A missing baseline
-    or failed diff degrades to status-only — the pre-baseline behavior."""
-    baseline = None
+def _task_baseline(task_dir: Path) -> str | None:
     try:
         task_data = json.loads(
             (task_dir / "task.json").read_text(encoding="utf-8")
         )
         meta = task_data.get("meta") or {}
         value = meta.get("baselineCommit")
-        baseline = value if isinstance(value, str) and value else None
-    except (OSError, json.JSONDecodeError):
-        pass
+    except (OSError, json.JSONDecodeError, TypeError, AttributeError):
+        return None
+    return value if isinstance(value, str) and value else None
+
+
+def _baseline_changed_paths(
+    repo_root: Path, task_dir: Path
+) -> tuple[list[str], bool]:
+    """Review change set: baseline..HEAD diff merged with the working-tree
+    status (task start records meta.baselineCommit once). A missing baseline
+    or failed diff degrades to status-only — the pre-baseline behavior."""
+    baseline = _task_baseline(task_dir)
     from infra.git_snapshot import collect_changed_paths_since
 
     return collect_changed_paths_since(repo_root, baseline)
@@ -221,8 +245,18 @@ def _review_completion_issues(
     *,
     allow_spec_file_modifications: bool,
 ) -> list[LifecycleCheckIssue]:
-    changed_files, _degraded = _baseline_changed_paths(repo_root, task_dir)
+    changed_files, degraded = _baseline_changed_paths(repo_root, task_dir)
     issues: list[LifecycleCheckIssue] = []
+    if degraded and _task_baseline(task_dir):
+        issues.append(
+            LifecycleCheckIssue(
+                code="GIT-SNAPSHOT-DEGRADED",
+                message=(
+                    "Git snapshot degraded; cannot verify the complete file "
+                    "scope because the baseline diff is unavailable"
+                ),
+            )
+        )
     if not allow_spec_file_modifications:
         issues.extend(_protected_workflow_file_issues(changed_files))
     issues.extend(

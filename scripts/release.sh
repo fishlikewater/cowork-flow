@@ -85,6 +85,42 @@ run_step() {
   "$@"
 }
 
+require_clean_worktree() {
+  RELEASE_STATUS=$(git status --porcelain --untracked-files=all) || {
+    echo "error: unable to inspect the Git worktree" >&2
+    exit 1
+  }
+  if [ -n "$RELEASE_STATUS" ]; then
+    echo "error: release requires a clean Git worktree and index" >&2
+    printf '%s\n' "$RELEASE_STATUS" >&2
+    echo "commit or stash the listed changes before releasing" >&2
+    exit 1
+  fi
+}
+
+verify_release_provenance() {
+  RELEASE_HEAD=$(git rev-parse HEAD) || exit $?
+  RELEASE_TAG_COMMIT=$(git rev-parse "refs/tags/v${PACKAGE_VERSION}^{commit}") || {
+    echo "error: release tag v${PACKAGE_VERSION} does not resolve to a commit" >&2
+    exit 1
+  }
+  if [ "$RELEASE_HEAD" != "$RELEASE_TAG_COMMIT" ]; then
+    echo "error: release tag v${PACKAGE_VERSION} does not point at the release commit" >&2
+    exit 1
+  fi
+  RELEASE_STATUS=$(git status --porcelain --untracked-files=all) || exit $?
+  if [ -n "$RELEASE_STATUS" ]; then
+    echo "error: release commit left a dirty Git worktree or index" >&2
+    printf '%s\n' "$RELEASE_STATUS" >&2
+    exit 1
+  fi
+}
+
+# A release script mutates the checkout before it reaches the version bump.
+# Refuse an already modified checkout up front so source refresh and sync cannot
+# overwrite or silently absorb local work.
+require_clean_worktree
+
 # Live Skill replicas (.agents/skills, .claude/skills) are gitignored and
 # drift from template/skills across checkouts. The full test gate loads every
 # replica and fails on any conflict, so refresh them before running it.
@@ -215,6 +251,8 @@ if git rev-parse -q --verify "refs/tags/v$PACKAGE_VERSION^{commit}" >/dev/null 2
 else
   run_step git tag "v$PACKAGE_VERSION" || exit $?
 fi
+
+verify_release_provenance || exit $?
 
 if [ "$NO_PUBLISH" -eq 1 ]; then
   echo "> npm publish skipped (--no-publish)"

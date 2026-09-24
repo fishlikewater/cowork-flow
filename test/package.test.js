@@ -291,6 +291,19 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
 // 43 cases in init.test.js + sync.test.js, and the other 41 only run in the
 // ubuntu full pass. The patterned-bucket assertion below keeps that partial
 // bucket from spreading.
+test('publish workflow binds checkout and package version to an explicit release ref', async () => {
+  const publish = (await readFile(join(packageRoot, '.github', 'workflows', 'publish.yml'), 'utf8'))
+    .replaceAll('\r\n', '\n');
+
+  assert.match(publish, /workflow_dispatch:\n\s+inputs:/);
+  assert.match(publish, /ref:\n\s+description:.*tag/s);
+  assert.match(publish, /github\.event\.release\.tag_name/);
+  assert.match(publish, /refs\/tags\/v/);
+  assert.match(publish, /package\.json/);
+  assert.match(publish, /git status --porcelain/);
+  assert.match(publish, /npm publish/);
+});
+
 test('every node test suite is assigned to a CI bucket', async () => {
   const packageInfo = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
 
@@ -328,7 +341,8 @@ test('every node test suite is assigned to a CI bucket', async () => {
     'test/dsh-hook.test.js',
     'test/dsh-preset.test.js',
     'test/mcp-client-matrix.test.js',
-    'test/mcp-state-command.test.js'
+    'test/mcp-state-command.test.js',
+    'test/tarball-install.test.js'
   ];
 
   const fast = scriptFiles('test:fast');

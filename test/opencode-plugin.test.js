@@ -163,6 +163,8 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   )
   assert.equal(session.scope, "subagent")
   assert.equal(session.runtime_context_id, "rtx_plugin")
+  assert.equal(session._state.schema_version, 1)
+  assert.equal(Number.isInteger(session._state.revision), true)
   await assert.rejects(
     readFile(join(root, ".cowork-flow", ".runtime", "sessions", "opencode_child-session.json"), "utf8")
   )

@@ -22,6 +22,15 @@ from infra.paths import get_repo_root
 from services.spec_check import SpecCheckError, run_checks, summary_has
 
 
+def _report_exit_code(report: dict) -> int:
+    """Map a report to the public spec-check exit contract."""
+    if summary_has(report, "violation"):
+        return 1
+    if summary_has(report, "unchecked") or report.get("parseErrors"):
+        return 2
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="spec-check",
@@ -84,9 +93,11 @@ def main() -> int:
         print(f"Error: {error}", file=sys.stderr)
         return 2
 
+    exit_code = _report_exit_code(report)
+
     if args.as_json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
-        return 0
+        return exit_code
 
     if args.verbose:
         for result in report.get("results", []):

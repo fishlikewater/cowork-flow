@@ -94,7 +94,7 @@ def _create_task(repo_root, request: TaskCreationRequest):
     except TaskCreationError as error:
         print(
             colored(
-                f"Error: Failed to create task: {error.detail}",
+                f"Error: Failed to create task [{error.code}]: {error.detail}",
                 Colors.RED,
             ),
             file=sys.stderr,

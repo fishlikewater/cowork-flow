@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -134,6 +136,78 @@ test('an unknown flag is a usage error rather than being ignored', async () => {
 
   assert.equal(code, EXIT_USAGE);
   assert.match(stderr, /Unknown option: --bogus/);
+});
+
+test('a short option is rejected before it can become a target path', async () => {
+  const { code, stdout, stderr } = await runCli([
+    'init',
+    '-x',
+    '--dry-run',
+    '--developer',
+    'codex',
+    '--platform',
+    'codex'
+  ]);
+
+  assert.equal(code, EXIT_USAGE);
+  assert.equal(stdout, '');
+  assert.match(stderr, /Unknown option: -x/);
+});
+
+test('a damaged Qoder configuration is reported without being replaced', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'cowork-flow-cli-qoder-'));
+  t.after(async () => {
+    await rm(home, { recursive: true, force: true });
+  });
+  await mkdir(join(home, 'plugins'), { recursive: true });
+  const registryPath = join(home, 'plugins', 'installed_plugins_v2.json');
+  const settingsPath = join(home, 'settings.json');
+  const registryText = '{"version":2,"plugins":{';
+  const settingsText = '{"enabledPlugins":';
+  await writeFile(registryPath, registryText, 'utf8');
+  await writeFile(settingsPath, settingsText, 'utf8');
+
+  const previous = process.env.QODER_CONFIG_DIR;
+  process.env.QODER_CONFIG_DIR = home;
+  const io = createIo();
+  let code;
+  try {
+    code = await main(['host', 'add', 'qoder'], { io });
+  } finally {
+    if (previous === undefined) delete process.env.QODER_CONFIG_DIR;
+    else process.env.QODER_CONFIG_DIR = previous;
+  }
+
+  assert.equal(code, 1);
+  assert.match(io.stderr, /Invalid Qoder configuration|left unchanged/);
+  assert.equal(await readFile(registryPath, 'utf8'), registryText);
+  assert.equal(await readFile(settingsPath, 'utf8'), settingsText);
+});
+
+test('Codex installation without its CLI reports a manual result', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'cowork-flow-cli-codex-'));
+  t.after(async () => {
+    await rm(home, { recursive: true, force: true });
+  });
+  const previous = {
+    CODEX_HOME: process.env.CODEX_HOME,
+    COWORK_FLOW_CODEX: process.env.COWORK_FLOW_CODEX
+  };
+  process.env.CODEX_HOME = home;
+  process.env.COWORK_FLOW_CODEX = join(home, 'missing-codex');
+  let result;
+  try {
+    result = await runCli(['host', 'add', 'codex']);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /manual follow-up/i);
+  assert.match(result.stdout, /codex plugin marketplace add/);
 });
 
 test('an unknown host or component is a usage error', async () => {

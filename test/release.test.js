@@ -77,6 +77,8 @@ async function createFakeCommands(t, options = {}) {
   const commitNoop = options.commitNoop ?? false;
   const tagExists = options.tagExists ?? false;
   const tagMismatch = options.tagMismatch ?? false;
+  const dirty = options.dirty ?? false;
+  const tagStatePath = join(tempDir, 'tag-exists');
   await writeFile(
     join(binDir, 'npm'),
     [
@@ -105,12 +107,17 @@ async function createFakeCommands(t, options = {}) {
     join(binDir, 'git'),
     [
       '#!/bin/sh',
+      `if [ "$1" = "status" ]; then`,
+      `  if [ "${dirty ? '1' : '0'}" = "1" ]; then echo ' M package.json'; fi`,
+      '  exit 0',
+      'fi',
       `if [ "$1" != "rev-parse" ]; then printf 'git %s\n' "$*" >> "${logPath}"; fi`,
       `if [ "git $*" = "${failWhen}" ]; then exit 7; fi`,
+      `if [ "$1" = "tag" ]; then touch "${tagStatePath}"; exit 0; fi`,
       `if [ "$1" = "rev-parse" ]; then`,
       '  case "$*" in',
       '    *"refs/tags/"*)',
-      `      if [ "${tagExists ? '1' : '0'}" = "1" ]; then`,
+      `      if [ "${tagExists ? '1' : '0'}" = "1" ] || [ -f "${tagStatePath}" ]; then`,
       `        if [ "${tagMismatch ? '1' : '0'}" = "1" ]; then echo "2222222222222222222222222222222222"; else echo "1111111111111111111111111111111111"; fi`,
       '      else',
       '        exit 1',
@@ -159,6 +166,27 @@ async function readCommands(logPath) {
   const raw = await readFile(logPath, 'utf8');
   return raw.trim().split('\n').filter(Boolean);
 }
+
+test('release shell script refuses a dirty worktree before any mutating step', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t, { dirty: true });
+  const repo = await createReleaseProject(t);
+
+  await assert.rejects(
+    execFileAsync(shellRunner, ['scripts/release.sh'], {
+      cwd: repo,
+      env: fakeCommands.env,
+      encoding: 'utf8'
+    }),
+    (error) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /worktree.*clean|clean.*worktree/i);
+      return true;
+    }
+  );
+
+  assert.deepEqual(await readCommands(fakeCommands.logPath), []);
+});
 
 test('release shell script defaults to patch and syncs template version before publish', async (t) => {
   if (skipWithoutShell(t)) return;

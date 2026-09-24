@@ -9,6 +9,7 @@
 | 命令 | 什么时候运行 |
 |---|---|
 | `npm run test:fast` | 日常修改后的最低检查 |
+| `npm run test:smoke` | 验证 CLI 可加载，并从真实 npm tarball 安装后运行最小初始化 |
 | `npm run test:integration` | 改动 `project init` / `project sync` |
 | `npm run test:node:full` | 改动 Node CLI、安装器或共享模块 |
 | `npm run test:template` | 改动项目模板的核心路径 |
@@ -38,7 +39,7 @@ npm run test:template:full
 | `npm run release -- minor --no-publish` | 完成版本、提交和 tag，但不执行 `npm publish` |
 | `npm run release -- --dry-run` | 运行发布前检查，停在版本 bump 之前 |
 
-`--dry-run` 不是只读命令。它会执行 `source:refresh` 和 `sync --force`，因此可能刷新仓库中被忽略的运行副本，并临时覆盖后恢复 `AGENTS.md`。它不会改版本文件、提交、打 tag 或发布。
+`--dry-run` 不是只读命令。它会先要求 Git 工作树和暂存区干净，再执行 `source:refresh` 和 `sync --force`，因此可能刷新仓库中被忽略的运行副本，并临时覆盖后恢复 `AGENTS.md`。它不会改版本文件、提交、打 tag 或发布；如果检查开始时已有本地修改，脚本会在任何刷新前停止。
 
 目标版本只有 bump 后才能确定，所以 `--dry-run` 不会运行 CHANGELOG 版本段落门禁。
 
@@ -71,7 +72,7 @@ npm run test:template:full
    gh release create v<v>
    ```
 
-4. `.github/workflows/publish.yml` 等待 Ubuntu 和 Windows 验证通过后发布 npm 包。
+4. `.github/workflows/publish.yml` 等待 Ubuntu 和 Windows 验证通过后，只从已存在的 `v<version>` tag 发布，并核对 tag、`package.json` 与 `template/.cowork-flow/.version` 的版本一致。
 
 不要在 tag 尚未存在于远端时运行 `gh release create`，否则 GitHub 可能从默认分支最新提交创建 tag，把发布指向错误提交。
 

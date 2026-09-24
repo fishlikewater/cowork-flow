@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import contextlib
 import importlib
+import io
+import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "template" / ".cowork-flow" / "scripts"
@@ -34,6 +38,7 @@ class SpecCheckTest(unittest.TestCase):
     def _cleanup_imports(self) -> None:
         for module_name in (
             "services.spec_check",
+            "adapters.cli.spec_check",
             "infra.paths",
         ):
             sys.modules.pop(module_name, None)
@@ -66,6 +71,33 @@ class SpecCheckTest(unittest.TestCase):
                 report["summary"],
                 {"pass": 1, "violation": 1, "unchecked": 0},
             )
+
+    def test_json_mode_preserves_violation_and_unchecked_exit_codes(self) -> None:
+        cli = importlib.import_module("adapters.cli.spec_check")
+        reports = (
+            ({"pass": 0, "violation": 1, "unchecked": 0}, 1),
+            ({"pass": 0, "violation": 0, "unchecked": 1}, 2),
+        )
+        for summary, expected_code in reports:
+            report = {
+                "schemaVersion": 1,
+                "phase": "lifecycle",
+                "results": [],
+                "parseErrors": [],
+                "summary": summary,
+            }
+            for extra_args in ((), ("--json",)):
+                output = io.StringIO()
+                with (
+                    patch.object(cli, "run_checks", return_value=report),
+                    patch.object(cli, "get_repo_root", return_value=Path(".")),
+                    patch.object(sys, "argv", ["spec-check", *extra_args]),
+                    contextlib.redirect_stdout(output),
+                ):
+                    result = cli.main()
+                self.assertEqual(expected_code, result)
+                if extra_args:
+                    self.assertEqual(report, json.loads(output.getvalue()))
 
     def test_missing_command_is_unchecked_never_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

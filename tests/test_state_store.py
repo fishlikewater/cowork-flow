@@ -36,6 +36,7 @@ class StateStoreTest(unittest.TestCase):
         cls.StateStore = state_module.StateStore
         cls.StateStoreError = state_module.StateStoreError
         cls.OperationLog = operation_module.OperationLog
+        cls.unit_module = unit_module
         cls.UnitOfWork = unit_module.UnitOfWork
 
     def test_replace_rejects_stale_revision_and_preserves_utf8(self) -> None:
@@ -219,6 +220,82 @@ class StateStoreTest(unittest.TestCase):
                     path,
                     stale_after_seconds=-1,
                 )
+
+    def test_unit_of_work_rejects_reused_operation_id_with_different_request(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "state.json"
+            store = self.StateStore()
+
+            first = self.UnitOfWork(
+                root,
+                operation_id="op-reused",
+                kind="test",
+                state_store=store,
+            )
+            first.replace(path, {"value": "first"})
+            first.commit()
+
+            second = self.UnitOfWork(
+                root,
+                operation_id="op-reused",
+                kind="test",
+                state_store=store,
+            )
+            second.replace(path, {"value": "second"})
+            with self.assertRaises(self.unit_module.UnitOfWorkError) as captured:
+                second.commit()
+
+            self.assertEqual(
+                "UOW-OPERATION-REUSE-001",
+                captured.exception.code,
+            )
+            self.assertEqual("first", store.load(path).data["value"])
+
+    def test_conflicted_unit_of_work_rolls_back_applied_participants(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first_path = root / "first.json"
+            second_path = root / "second.json"
+            store = self.StateStore()
+            store.replace(
+                first_path,
+                {"value": "first-before"},
+                expected_revision=0,
+                operation_id="seed-first-conflict",
+            )
+            second = store.replace(
+                second_path,
+                {"value": "second-before"},
+                expected_revision=0,
+                operation_id="seed-second-conflict",
+            )
+            unit = self.UnitOfWork(
+                root,
+                operation_id="op-conflict",
+                kind="test",
+                state_store=store,
+            )
+            unit.replace(first_path, {"value": "first-after"})
+            unit.replace(second_path, {"value": "second-after"})
+            store.replace(
+                second_path,
+                {"value": "concurrent"},
+                expected_revision=second.revision,
+                operation_id="external-update",
+            )
+
+            with self.assertRaises(self.unit_module.UnitOfWorkError):
+                unit.commit()
+
+            operation = self.OperationLog(root).load("op-conflict")
+            self.assertEqual("conflicted", operation["phase"])
+            self.assertEqual("first-before", store.load(first_path).data["value"])
+            self.assertEqual("concurrent", store.load(second_path).data["value"])
+            facts = self.OperationLog(root).pending_facts()
+            self.assertEqual(1, len(facts))
+            self.assertTrue(facts[0]["rolled_back"])
+            self.assertIsNone(facts[0]["rollback_error"])
 
     def test_unit_of_work_recovers_after_partial_apply(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

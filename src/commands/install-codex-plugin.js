@@ -214,14 +214,17 @@ async function uninstall({ home, cli, dryRun }) {
     return 0;
   }
 
+  let cliFailed = false;
   if (cli) {
     const pluginResult = runCodex(cli, ['plugin', 'remove', PLUGIN_KEY]);
     if (pluginResult.status !== 0) {
       console.log(`  plugin remove: ${failureOutput(pluginResult)}`);
+      cliFailed = true;
     }
     const marketplaceResult = runCodex(cli, ['plugin', 'marketplace', 'remove', MARKETPLACE_NAME]);
     if (marketplaceResult.status !== 0) {
       console.log(`  marketplace remove: ${failureOutput(marketplaceResult)}`);
+      cliFailed = true;
     }
   } else {
     manualInstructions(root, { uninstall: true });
@@ -229,6 +232,10 @@ async function uninstall({ home, cli, dryRun }) {
 
   await rm(root, { recursive: true, force: true });
   await rm(cacheRoot(home), { recursive: true, force: true });
+  if (cliFailed || !cli) {
+    console.log('Codex uninstall requires manual follow-up; automatic cleanup was not fully confirmed.');
+    return 1;
+  }
   console.log(`✓ cowork-flow Codex plugin uninstalled (${PLUGIN_KEY})`);
   return 0;
 }
@@ -265,7 +272,8 @@ export async function runInstallCodexPlugin(args = []) {
 
   if (!cli) {
     manualInstructions(root);
-    return 0;
+    console.log('Codex install requires manual follow-up; the marketplace source is prepared but not registered.');
+    return 1;
   }
 
   const state = readCodexState(cli);

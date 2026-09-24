@@ -28,6 +28,9 @@ export function parseFlags(args, spec = {}) {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (arg.startsWith('-') && !arg.startsWith('--')) {
+      throw new UsageError(`Unknown option: ${arg}`);
+    }
     if (!arg.startsWith('--')) {
       positionals.push(arg);
       continue;
@@ -51,7 +54,7 @@ export function parseFlags(args, spec = {}) {
       flagValue = args[index + 1];
       index += 1;
     }
-    if (flagValue === undefined || flagValue === '' || flagValue.startsWith('--')) {
+    if (flagValue === undefined || flagValue === '' || flagValue.startsWith('-')) {
       throw new UsageError(`Missing value for ${name}`);
     }
     if (repeatable.has(name)) {
@@ -84,7 +87,7 @@ export function extractValueFlag(args, name) {
     if (arg === name || arg.startsWith(`${name}=`)) {
       const inline = arg === name ? null : arg.slice(name.length + 1);
       const candidate = inline ?? args[index + 1];
-      if (candidate === undefined || candidate === '' || candidate.startsWith('--')) {
+      if (candidate === undefined || candidate === '' || candidate.startsWith('-')) {
         throw new UsageError(`Missing value for ${name}`);
       }
       value = candidate;

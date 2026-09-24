@@ -50,12 +50,54 @@ function pluginPaths(home, version) {
   };
 }
 
-async function readJsonSafe(path) {
+function invalidConfig(path, reason) {
+  return new Error(`Invalid Qoder configuration at ${path}: ${reason}; file was left unchanged`);
+}
+
+async function readJsonObject(path, label) {
+  let raw;
   try {
-    return JSON.parse(await readFile(path, 'utf8'));
-  } catch {
-    return null;
+    raw = await readFile(path, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return { exists: false, data: {} };
+    }
+    throw new Error(`Unable to read Qoder ${label} at ${path}; file was left unchanged: ${error.message}`);
   }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    throw invalidConfig(path, error.message);
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw invalidConfig(path, 'expected a JSON object');
+  }
+  return { exists: true, data };
+}
+
+async function loadConfigs(paths) {
+  const registryDocument = await readJsonObject(paths.registry, 'plugin registry');
+  const settingsDocument = await readJsonObject(paths.settings, 'settings');
+  const registry = registryDocument.data;
+  const settings = settingsDocument.data;
+  if (!registry.plugins || typeof registry.plugins !== 'object' || Array.isArray(registry.plugins)) {
+    if (Object.hasOwn(registry, 'plugins')) {
+      throw invalidConfig(paths.registry, 'plugins must be an object');
+    }
+    registry.plugins = {};
+  }
+  if (Object.hasOwn(registry.plugins, PLUGIN_KEY) && !Array.isArray(registry.plugins[PLUGIN_KEY])) {
+    throw invalidConfig(paths.registry, `plugins[${PLUGIN_KEY}] must be an array`);
+  }
+  if (Object.hasOwn(settings, 'enabledPlugins')) {
+    if (!settings.enabledPlugins || typeof settings.enabledPlugins !== 'object' || Array.isArray(settings.enabledPlugins)) {
+      throw invalidConfig(paths.settings, 'enabledPlugins must be an object');
+    }
+  } else {
+    settings.enabledPlugins = {};
+  }
+  return { registry, settings };
 }
 
 // The Qoder plugin registry is not part of the published docs, so every write
@@ -80,12 +122,8 @@ function registryEntry(existing, installPath, version, now) {
   };
 }
 
-async function updateRegistry(paths, version, now, dryRun) {
-  const registry = (await readJsonSafe(paths.registry)) ?? { version: 2, plugins: {} };
-  if (!registry.plugins || typeof registry.plugins !== 'object') {
-    registry.plugins = {};
-  }
-  const entries = Array.isArray(registry.plugins[PLUGIN_KEY]) ? registry.plugins[PLUGIN_KEY] : [];
+async function updateRegistry(registry, paths, version, now, dryRun) {
+  const entries = registry.plugins[PLUGIN_KEY] ?? [];
   registry.plugins[PLUGIN_KEY] = [
     registryEntry(entries, paths.installPath, version, now),
     ...entries.slice(1)
@@ -98,11 +136,7 @@ async function updateRegistry(paths, version, now, dryRun) {
   await writeJsonAtomic(paths.registry, registry);
 }
 
-async function enablePlugin(paths, dryRun) {
-  const settings = (await readJsonSafe(paths.settings)) ?? {};
-  if (!settings.enabledPlugins || typeof settings.enabledPlugins !== 'object') {
-    settings.enabledPlugins = {};
-  }
+async function enablePlugin(settings, paths, dryRun) {
   settings.enabledPlugins[PLUGIN_KEY] = true;
 
   if (dryRun) {
@@ -113,19 +147,18 @@ async function enablePlugin(paths, dryRun) {
 }
 
 async function uninstall(paths, dryRun) {
-  const registry = await readJsonSafe(paths.registry);
-  const owned = registry?.plugins?.[PLUGIN_KEY];
+  const { registry, settings } = await loadConfigs(paths);
+  const owned = registry.plugins[PLUGIN_KEY];
   if (dryRun) {
     console.log(`[dry-run] Would remove ${PLUGIN_KEY} from ${paths.registry}`);
     console.log(`[dry-run] Would remove ${paths.cacheRoot}`);
     return 0;
   }
-  if (registry && owned) {
+  if (owned) {
     delete registry.plugins[PLUGIN_KEY];
     await writeJsonAtomic(paths.registry, registry);
   }
-  const settings = await readJsonSafe(paths.settings);
-  if (settings?.enabledPlugins && PLUGIN_KEY in settings.enabledPlugins) {
+  if (PLUGIN_KEY in settings.enabledPlugins) {
     delete settings.enabledPlugins[PLUGIN_KEY];
     await writeJsonAtomic(paths.settings, settings);
   }
@@ -153,6 +186,7 @@ export async function runInstallQoderPlugin(args = []) {
     throw new Error(`Qoder plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
   }
 
+  const configs = await loadConfigs(target);
   console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow Qoder plugin:`);
   console.log(`  Plugin: ${pluginSrc} -> ${target.installPath}`);
 
@@ -164,8 +198,8 @@ export async function runInstallQoderPlugin(args = []) {
 
   const now = new Date().toISOString();
   if (dryRun) {
-    await updateRegistry(target, version, now, true);
-    await enablePlugin(target, true);
+    await updateRegistry(configs.registry, target, version, now, true);
+    await enablePlugin(configs.settings, target, true);
     return 0;
   }
 
@@ -175,8 +209,8 @@ export async function runInstallQoderPlugin(args = []) {
   await stampPayloadManifest(target.installPath, manifest, version);
   // Registry and enable flag come last: a half-copied payload must never be
   // advertised as installed.
-  await updateRegistry(target, version, now, false);
-  await enablePlugin(target, false);
+  await updateRegistry(configs.registry, target, version, now, false);
+  await enablePlugin(configs.settings, target, false);
 
   console.log(`✓ cowork-flow Qoder plugin installed to ${target.installPath}`);
   console.log('  Restart Qoder to load the plugin (the IDE has no hook hot reload).');

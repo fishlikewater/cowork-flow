@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from tests.flow_test_support import FlowScriptTestCase
@@ -105,6 +106,64 @@ class LifecycleChecksTest(FlowScriptTestCase):
         finally:
             os.chdir(previous_cwd)
         return result, stdout.getvalue(), stderr.getvalue()
+
+    def test_allow_unchecked_reaches_complete_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            calls: list[dict] = []
+
+            class FakeCheckRunner:
+                def complete(self, _task_dir: Path, **kwargs):
+                    calls.append(kwargs)
+                    return SimpleNamespace(blocked=False, blockers=())
+
+            service_module = importlib.import_module("services.task_lifecycle")
+            service = service_module.TaskLifecycleService(
+                root,
+                check_runner=FakeCheckRunner(),
+            )
+
+            result = service.complete(
+                task_dir,
+                allow_unchecked_specs=True,
+            )
+
+            self.assertTrue(result.ok, result.blockers)
+            self.assertEqual(1, len(calls))
+            self.assertIs(True, calls[0]["allow_unchecked_specs"])
+
+    def test_degraded_git_snapshot_blocks_strict_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            task_json = task_dir / "task.json"
+            task_data = json.loads(task_json.read_text(encoding="utf-8"))
+            task_data["meta"] = {"baselineCommit": "baseline-sha"}
+            task_json.write_text(
+                json.dumps(task_data),
+                encoding="utf-8",
+            )
+            checks = importlib.import_module("services.lifecycle_checks")
+
+            with patch(
+                "infra.git_snapshot.collect_changed_paths_since",
+                return_value=([], True),
+            ):
+                result = checks.LifecycleCheckRunner(root).complete(task_dir)
+
+            self.assertTrue(result.blocked)
+            self.assertIn(
+                "git snapshot degraded",
+                "\n".join(result.blockers).lower(),
+            )
+            self.assertIn(
+                "GIT-SNAPSHOT-DEGRADED",
+                {issue.code for issue in result.issues},
+            )
 
     def test_allowed_file_scope_authorizes_known_exact_context_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

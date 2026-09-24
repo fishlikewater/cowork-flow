@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import importlib
+import io
 import json
 import sys
 import tempfile
@@ -184,6 +186,74 @@ class TaskCreationServiceTest(unittest.TestCase):
             self.assertEqual("08-13-demo", result.task_dir.name)
             self.assertEqual("08-13-demo", task_data["id"])
             self.assertEqual("08-13-demo", task_data["name"])
+
+    def test_create_refuses_to_overwrite_existing_task_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo-task"
+            task_dir.mkdir(parents=True)
+            task_json = task_dir / "task.json"
+            original = {
+                "id": task_dir.name,
+                "name": task_dir.name,
+                "title": "原始任务",
+                "status": "in_progress",
+                "parent": "07-10-parent",
+                "children": ["07-10-child"],
+                "meta": {"keep": "原值"},
+                "createdAt": "2026-07-01",
+            }
+            task_json.write_text(
+                json.dumps(original, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(self.TaskCreationError) as raised:
+                self.TaskCreationService(root).create(
+                    self.TaskCreationRequest(
+                        title="新请求",
+                        slug="demo-task",
+                        assignee="other",
+                        priority="P0",
+                        created_at="2026-07-10",
+                        date_prefix="07-10",
+                    )
+                )
+
+            self.assertEqual("TASK-CREATE-EXISTS-001", raised.exception.code)
+            self.assertEqual(
+                original,
+                json.loads(task_json.read_text(encoding="utf-8")),
+            )
+
+    def test_read_json_file_preserves_corrupt_file_and_reports_diagnostic(self) -> None:
+        files = importlib.import_module("infra.files")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "task.json"
+            path.write_text("{broken", encoding="utf-8")
+            stderr = io.StringIO()
+
+            with contextlib.redirect_stderr(stderr):
+                result = files.read_json_file(path)
+
+            self.assertIsNone(result)
+            self.assertTrue(path.is_file())
+            self.assertIn("Corrupt JSON preserved", stderr.getvalue())
+
+    def test_context_query_preserves_corrupt_task_json(self) -> None:
+        git_context = importlib.import_module("adapters.git.git_context")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_json = root / ".cowork-flow" / "tasks" / "07-10-demo" / "task.json"
+            task_json.parent.mkdir(parents=True)
+            task_json.write_text("{broken", encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                context = git_context.get_context_json(root)
+
+            self.assertTrue(task_json.is_file())
+            self.assertIn("Corrupt JSON preserved", stderr.getvalue())
+            self.assertEqual([], context["tasks"]["active"])
 
     def test_create_sets_id_and_name_to_directory_name(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

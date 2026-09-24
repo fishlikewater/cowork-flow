@@ -64,10 +64,49 @@ from adapters.cli.task_tree_commands import (
 )
 from adapters.cli.execution_context_args import execution_context_from_namespace
 from adapters.cli.execution_resume import worker_command_block_message
+from infra.paths import get_repo_root
+from runtime.session_state import is_delegated_session
+
+
+def _delegated_run_blocked(
+    execution_context,
+    args: argparse.Namespace,
+) -> bool:
+    if not bool(getattr(args, "run", False)):
+        return False
+    if execution_context.is_worker or execution_context.is_subagent:
+        print(
+            worker_command_block_message(
+                execution_context,
+                "task next --run",
+                "Delegated execution cannot mutate main-session task state.",
+            ),
+            file=sys.stderr,
+        )
+        return True
+    try:
+        delegated = is_delegated_session(get_repo_root())
+    except Exception:
+        delegated = True
+    if delegated:
+        print(
+            colored(
+                "Blocked: delegated session cannot run task lifecycle actions.",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        return True
+    return False
 
 
 def cmd_next(args: argparse.Namespace) -> int:
     """Show or run the next workflow action."""
+    if _delegated_run_blocked(
+        execution_context_from_namespace(args),
+        args,
+    ):
+        return 2
     if getattr(args, "list_tasks", False):
         if getattr(args, "run", False):
             print(
@@ -149,6 +188,9 @@ def main() -> int:
     if not args.command:
         show_usage()
         return 1
+
+    if _delegated_run_blocked(execution_context, args):
+        return 2
 
     if _worker_command_blocked(execution_context, args.command):
         return 2
