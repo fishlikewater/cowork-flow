@@ -188,7 +188,7 @@
         {
           "scope": "project",
           "path": ".agents/skills",
-          "evidence": "assumed: OpenCode 约定 .agents/skills，本机未逐项验证"
+          "evidence": "verified: 本机 opencode 1.1.53，隔离 XDG_CONFIG_HOME 下在临时项目放 .agents/skills/<probe>/SKILL.md，`opencode debug skill` 列出该技能且 location 指向项目内；移除该目录后不再列出。同一项目的 .opencode/skills 也会被发现（我们只投递 .agents/skills），裸 skills/ 不会；OPENCODE_DISABLE_EXTERNAL_SKILLS=1 会让外部技能（含项目级）整体返回空，探针不能带它"
         }
       ],
       "adapterPath": ".cowork-flow/adapters/opencode/adapter.yaml",
@@ -235,7 +235,7 @@
         {
           "scope": "project",
           "path": ".claude/skills",
-          "evidence": "assumed: Anthropic 文档声明 .claude/skills，本机未逐项验证"
+          "evidence": "verified: 本机 claude 2.1.202，隔离 CLAUDE_CONFIG_DIR 下在临时项目放 .claude/skills/<probe>/SKILL.md，`claude --debug` 日志 `Loading skills from: ... project=[<cwd>\\.claude\\skills, ...]` 并计 `Loaded N unique skills (... project: 1 ...)`；移除该目录后 project 计数回到 0"
         }
       ],
       "adapterPath": ".cowork-flow/adapters/claude-code/adapter.yaml",
@@ -284,7 +284,7 @@
         {
           "scope": "project",
           "path": ".agents/skills",
-          "evidence": "assumed: DSH 预设挂载 .agents/skills，本机未逐项验证"
+          "evidence": "verified: 本机 dsh 0.1.2-rc.1 的 @deepseek-ai/dsh-skill-filesystem（lib/index.js `roots()`）：project 根为 <projectRoot>/.dsh/skills（rank 100，project-dsh）与 <projectRoot>/.agents/skills（rank 200，project-agents），projectRoot 取最近含 .git 的祖先、无 git 时用 cwd；我们只投递 .agents/skills，不交付 .dsh/skills"
         }
       ],
       "adapterPath": ".cowork-flow/adapters/dsh/adapter.yaml",
@@ -368,7 +368,7 @@
         {
           "scope": "project",
           "path": ".agents/skills",
-          "evidence": "assumed: Kimi Code 约定 .agents/skills，本机未逐项验证"
+          "evidence": "verified: Kimi Code 桌面版 1.0.3 bundle（app.asar 内 packages/agent-core-v2/src/features/skill/catalog/skillRoots.ts）：PROJECT_BRAND_DIRS=[\".kimi-code/skills\"]、PROJECT_GENERIC_DIRS=[\".agents/skills\"]，projectRoots 以 git work-tree 根为基准（无 git 时用工作目录），generic 根存在才纳入；我们只投递 .agents/skills，不交付 .kimi-code/skills"
         }
       ],
       "adapterPath": ".cowork-flow/adapters/kimi-code/adapter.yaml",

@@ -19,12 +19,14 @@ Skills 维护在 `template/skills/` 唯一源码，`init` / `sync` 时按目录�
 | 平台 | 读取根 / 目标目录 | 宿主原生发现 |
 |---|---|---|
 | `codex` | `.agents/skills/` | `.agents/skills/`（verified：探针任务 `09-23-codex-plugin-probe` 的 `codex debug prompt-input` skill roots 表列出 `<cwd>/.agents/skills`） |
-| `opencode` / `dsh` / `kimi-code` | `.agents/skills/` | 声明为 `.agents/skills/`（assumed，未逐一本机验证） |
-| `claude-code` | `.claude/skills/` | 声明为 `.claude/skills/`（assumed） |
+| `opencode` | `.agents/skills/` | `.agents/skills/`（verified：本机 1.1.53 隔离 `XDG_CONFIG_HOME` 下 `opencode debug skill` 列出临时项目 `.agents/skills/` 里的探针技能，移除即消失；同项目 `.opencode/skills/` 也会被发现，我们只投递 `.agents/skills/`） |
+| `dsh` | `.agents/skills/` | `.agents/skills/`（verified：`@deepseek-ai/dsh-skill-filesystem` 的 `roots()` 把 `<projectRoot>/.agents/skills` 列为 rank 200 的 `project-agents` 根，`<projectRoot>` 取最近含 `.git` 的祖先；我们不交付 rank 100 的 `.dsh/skills`） |
+| `kimi-code` | `.agents/skills/` | `.agents/skills/`（verified：桌面版 1.0.3 bundle 的 `skillRoots.ts`，`PROJECT_GENERIC_DIRS=[".agents/skills"]` 存在才纳入，基准是 git work-tree 根；我们不交付 `PROJECT_BRAND_DIRS` 的 `.kimi-code/skills`） |
+| `claude-code` | `.claude/skills/` | `.claude/skills/`（verified：本机 2.1.202 隔离 `CLAUDE_CONFIG_DIR` 下 `claude --debug` 日志 `Loading skills from: ... project=[<cwd>\.claude\skills, ...]`，且 `project` 技能计数随该目录增删 1↔0） |
 | `qoder` | `.agents/skills/` | `.agents/skills/`（verified：SDK 默认开启；受信任目录 + 重启门禁） |
 | `zcode` | `.agents/skills/` | `.agents/skills/` 与 `.zcode/skills/`（verified：宿主 bundle 的 `SkillService.list` 枚举 `<workspace>/.zcode/skills`、`<workspace>/.agents/skills`，含祖先目录向上探测，同名时 `.zcode/skills` 优先；我们只交付共享的 `.agents/skills/`） |
 
-每个平台在 `host-assets.json` 里用两格声明这件事：`skillReadRoot`（我们运行时渲染与 fixed subagent 读取的仓库内路径）与 `skillDiscovery[]`（宿主自己发现该路径的通道，带 `scope` / `gates` / `evidence`）。读取与发现同址时项目里只有一份副本，且机器级载荷（插件、preset）不再携带项目技能副本——插件只额外携带一个新名引导技能 `cowork-flow-bootstrap`；`evidence` 以 `verified:` / `assumed:` 前缀区分「本机验证过」与「沿用约定未验证」，后者由门禁测试逐项登记——声明写错会在 CI 变红，而不是静默生效。`./.cowork-flow/run doctor` 按同一份声明检查交付偏差：`SKILL-READROOT-MISSING`（声明的读取根不在项目里）、`PLUGIN-SKILLS-LEGACY`（插件载荷仍带与项目同名的技能副本，重装即清理）、`SKILL-DISCOVERY-GATED`（发现通道有宿主侧门禁，如信任目录 / 重启），三项均为 warning，不计入 errors。
+每个平台在 `host-assets.json` 里用两格声明这件事：`skillReadRoot`（我们运行时渲染与 fixed subagent 读取的仓库内路径）与 `skillDiscovery[]`（宿主自己发现该路径的通道，带 `scope` / `gates` / `evidence`）。读取与发现同址时项目里只有一份副本，且机器级载荷（插件、preset）不再携带项目技能副本——插件只额外携带一个新名引导技能 `cowork-flow-bootstrap`；`evidence` 以 `verified:` / `assumed:` 前缀区分「本机验证过」与「沿用约定未验证」，后者由门禁测试逐项登记——声明写错会在 CI 变红，而不是静默生效（当前登记表为空：七家宿主的发现路径都有本机取证）。`./.cowork-flow/run doctor` 按同一份声明检查交付偏差：`SKILL-READROOT-MISSING`（声明的读取根不在项目里）、`PLUGIN-SKILLS-LEGACY`（插件载荷仍带与项目同名的技能副本，重装即清理）、`SKILL-DISCOVERY-GATED`（发现通道有宿主侧门禁，如信任目录 / 重启），三项均为 warning，不计入 errors。
 
 分发动作：`adversarial-review`、`agent-dispatch`、`batch-execution`、`brainstorming`、`cowork-flow`、`cowork-flow-maintenance`、`decision-audit`、`failure-analysis`、`game-design`、`party-mode`、`python-runtime-design`、`runtime-health`、`spec-sync`、`task-planning`、`task-review`、`test-first`
 

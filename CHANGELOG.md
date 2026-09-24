@@ -161,6 +161,12 @@
 
 ### Fixed
 
+#### 宿主插件化收口（死分支清理与技能发现取证）
+
+- **删除因三家宿主接入而成为孤儿的分支**：`HOST_COMPONENTS` 现已覆盖 `host-assets.json` 声明的全部七家宿主，于是 `resolveHost` 的「无机器级集成」用法错误、`host list` 的 `-` 标记分支、`registry.js` 帮助文本结尾那句 "The other declared hosts have no machine-level component." 全部不可达或已是假陈述——删掉，并新增门禁「已声明宿主必有组件」把删除的前提钉住（负向验证：临时移除一个宿主条目，门禁以 `host-assets.json declares dsh, which has no HOST_COMPONENTS entry` 变红）。`--component` 的旗标说明也从点名单一宿主改为通用表述（现在 dsh 与 kimi-code 两家各有两个组件）。
+- **七家宿主的技能发现声明全部脱离 `assumed:`**。此前 opencode / claude-code / dsh / kimi-code 四家写的是「沿用约定未验证」，本批逐一本机取证并升级为 `verified:`：opencode 1.1.53（隔离 `XDG_CONFIG_HOME` 下 `opencode debug skill` 列出临时项目 `.agents/skills/` 的探针技能，移除即消失；同项目 `.opencode/skills/` 也会被发现，裸 `skills/` 不会）；claude-code 2.1.202（隔离 `CLAUDE_CONFIG_DIR` 下 `claude --debug` 打印 `Loading skills from: ... project=[<cwd>\.claude\skills, ...]`，project 计数随目录增删 1↔0）；dsh 0.1.2-rc.1（`@deepseek-ai/dsh-skill-filesystem` 的 `roots()` 把 `<projectRoot>/.agents/skills` 列为 rank 200）；kimi-code 桌面版 1.0.3（bundle 内 `skillRoots.ts` 的 `PROJECT_GENERIC_DIRS`，基准为 git work-tree 根）。
+- **`ASSUMED_DISCOVERY` 登记表随之清空**——该门禁的用途不变：新宿主若只能沿用约定，必须显式登记在这里，声明写错仍会在 CI 变红。
+
 #### OpenCode 插件模块导出导致宿主 bootstrap 崩溃
 
 - **`template/.opencode/plugins/cowork-flow.js` 会让 opencode 1.1.53 在启动阶段整进程崩溃**（实测退出码 1，凡是执行过 `cwf project init --platform opencode` 的项目都会中）。opencode 加载插件时遍历模块的**每一个导出**并逐个当插件工厂调用，随后遍历其返回的 hooks 对象；该文件除 `CoworkFlowPlugin` 外还导出了三个供单测使用的 helper，于是 `contractFingerprint(input)` 被调用时 `contracts` 为 `undefined`，在 `digest.update(undefined)` 抛 `ERR_INVALID_ARG_TYPE`。修复验证：仅移除这三个导出即不再崩溃。
