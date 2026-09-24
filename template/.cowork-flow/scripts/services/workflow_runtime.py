@@ -7,6 +7,7 @@ import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from infra.storage.state_store import StateStore, StateStoreError
 from infra.storage.unit_of_work import (
@@ -231,7 +232,7 @@ class RuntimeContextService:
                 "runtime context "
                 f"{runtime_context_id} already bound to {existing_key}",
             )
-        if existing_key == host_context_key and context.get("status") == "bound":
+        if self._bind_holds(context, host_context_key):
             return context
 
         now = self._now()
@@ -277,33 +278,36 @@ class RuntimeContextService:
         if not snapshot.exists:
             return False
         context = dict(snapshot.data)
-        if context.get("status") == "closed":
-            return True
-
         bound_context_key = context.get("bound_context_key")
-        updated = dict(context)
-        updated["status"] = "closed"
-        updated["closed_at"] = self._now()
-        updated["last_seen_at"] = updated["closed_at"]
 
-        unit = self._unit(
-            self._operation_id(
-                "close",
-                runtime_context_id,
-                str(bound_context_key or ""),
-            ),
-            "runtime-context-close",
-        )
-        deleted_paths: set[Path] = set()
+        session_paths: list[Path] = []
         if isinstance(bound_context_key, str) and bound_context_key.strip():
-            bound_path = self._session_path(bound_context_key)
-            unit.delete(bound_path)
-            deleted_paths.add(bound_path)
+            session_paths.append(self._session_path(bound_context_key))
         logical_path = self._session_path(
             logical_subagent_context_key(runtime_context_id)
         )
-        if logical_path not in deleted_paths:
-            unit.delete(logical_path)
+        if logical_path not in session_paths:
+            session_paths.append(logical_path)
+
+        # Another close is a no-op only once its writes really hold: session
+        # files restored by hand (or a manual rollback) still need removing.
+        if context.get("status") == "closed" and not any(
+            path.is_file() for path in session_paths
+        ):
+            return True
+
+        updated = dict(context)
+        if context.get("status") != "closed":
+            updated["status"] = "closed"
+            updated["closed_at"] = self._now()
+        updated["last_seen_at"] = updated.get("closed_at") or self._now()
+
+        unit = self._unit(
+            self._operation_id("close", runtime_context_id),
+            "runtime-context-close",
+        )
+        for path in session_paths:
+            unit.delete(path)
         unit.replace(context_path, updated)
         self._commit(unit)
         return True
@@ -334,6 +338,14 @@ class RuntimeContextService:
     def _load(self, runtime_context_id: str):
         return self._load_path(
             runtime_context_path(self.repo_root, runtime_context_id)
+        )
+
+    def _bind_holds(self, context: dict, host_context_key: str) -> bool:
+        """A repeat bind is a no-op only while both of its writes hold."""
+        return (
+            context.get("bound_context_key") == host_context_key
+            and context.get("status") == "bound"
+            and self._session_path(host_context_key).is_file()
         )
 
     def _load_path(self, path: Path):
@@ -387,7 +399,11 @@ class RuntimeContextService:
 
     @staticmethod
     def _operation_id(kind: str, *parts: str) -> str:
-        identity = "|".join(parts)
+        # A new attempt gets a new identity: recovery is driven by the operation
+        # log, so reusing an identity would let a manual rollback inherit an
+        # older committed result (or fail as a reused request) instead of
+        # rewriting the files.
+        identity = "|".join((*parts, uuid4().hex))
         digest = hashlib.sha256(
             identity.encode("utf-8")
         ).hexdigest()[:16]

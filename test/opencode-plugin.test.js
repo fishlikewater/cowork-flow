@@ -1,5 +1,5 @@
 ﻿import assert from "node:assert/strict"
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { access, chmod, mkdir, mkdtemp, readdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -78,6 +78,33 @@ function extractFingerprint(context) {
   const match = context.match(/<contract-digest fingerprint="([^"]+)">/)
   assert.ok(match, "expected contract digest fingerprint")
   return match[1]
+}
+
+// Reports whether this filesystem refuses to stage and replace a document under
+// the permissions the caller just applied — a new file, or a read-only one.
+// Filesystems that honour neither (a privileged container, for example) leave
+// the guard unprovable, and the caller skips instead of asserting nothing.
+async function writeRefusedHere(directory) {
+  const probe = join(directory, "write-probe.json")
+  const temporary = `${probe}.tmp`
+  try {
+    await writeFile(temporary, "{}\n", "utf8")
+  } catch {
+    return true
+  }
+  try {
+    await writeFile(probe, "{}\n", "utf8")
+    await chmod(probe, 0o444)
+    try {
+      await rename(temporary, probe)
+      return false
+    } catch {
+      return true
+    }
+  } finally {
+    await unlink(temporary).catch(() => {})
+    await unlink(probe).catch(() => {})
+  }
 }
 
 test("opencode plugin injects registry-driven contract digest", async (t) => {
@@ -172,6 +199,62 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
     await readFile(join(root, ".cowork-flow", ".runtime", "subagents", "rtx_plugin.json"), "utf8")
   )
   assert.equal(runtimeContext.bound_context_key, "opencode_prompt_key")
+})
+
+// A bind writes two documents that only mean something together: the session
+// record the adapter reads and the context binding it points at. When the
+// second write fails, the first must not survive — two independent writes left
+// exactly that half state behind.
+test("a failed runtime bind leaves no session record behind", async (t) => {
+  const root = await createRegistryRepo(t)
+  const runtimeDir = join(root, ".cowork-flow", ".runtime", "subagents")
+  const sessionsDir = join(root, ".cowork-flow", ".runtime", "sessions")
+  await mkdir(runtimeDir, { recursive: true })
+  const contextPath = join(runtimeDir, "rtx_plugin.json")
+  await writeFile(
+    contextPath,
+    JSON.stringify(
+      {
+        schema_version: 2,
+        runtime_context_id: "rtx_plugin",
+        scope: "subagent",
+        host: "opencode",
+        status: "pending",
+        bound_context_key: null
+      },
+      null,
+      2
+    ),
+    "utf8"
+  )
+
+  // Which guard refuses the write differs by platform: POSIX honours the
+  // directory's write bit, Windows the read-only attribute of the file being
+  // replaced. Both are applied, and the probe decides whether either took.
+  await chmod(runtimeDir, 0o555)
+  await chmod(contextPath, 0o444)
+  try {
+    if (!(await writeRefusedHere(runtimeDir))) {
+      t.skip("this filesystem accepts the write")
+      return
+    }
+
+    await assert.rejects(() =>
+      renderPluginContext(root, {
+        prompt: "cowork_runtime_context_id: rtx_plugin\ncowork_host_context_key: opencode_prompt_key"
+      })
+    )
+
+    const context = JSON.parse(await readFile(contextPath, "utf8"))
+    assert.equal(context.status, "pending")
+    assert.equal(context.bound_context_key, null)
+    // Neither the session record nor a leaked lock/staged temporary survives.
+    assert.deepEqual(await readdir(sessionsDir), [])
+    assert.deepEqual(await readdir(runtimeDir), ["rtx_plugin.json"])
+  } finally {
+    await chmod(contextPath, 0o644)
+    await chmod(runtimeDir, 0o755)
+  }
 })
 
 test("opencode plugin exposes main session env to shell commands", async (t) => {

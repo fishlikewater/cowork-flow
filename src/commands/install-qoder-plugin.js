@@ -190,7 +190,16 @@ export async function runInstallQoderPlugin(args = []) {
   console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow Qoder plugin:`);
   console.log(`  Plugin: ${pluginSrc} -> ${target.installPath}`);
 
-  if (!dryRun && (await pathExists(target.installPath)) && !force) {
+  const registeredEntries = configs.registry.plugins[PLUGIN_KEY];
+  const pluginRegistered = Array.isArray(registeredEntries) && registeredEntries.length > 0;
+  const pluginEnabled = configs.settings.enabledPlugins[PLUGIN_KEY] === true;
+  if (
+    !dryRun &&
+    (await pathExists(target.installPath)) &&
+    !force &&
+    pluginRegistered &&
+    pluginEnabled
+  ) {
     console.log(`cowork-flow Qoder plugin already installed at ${target.installPath}`);
     console.log('Use --force to overwrite.');
     return 0;

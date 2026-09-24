@@ -99,6 +99,40 @@ class SpecCheckTest(unittest.TestCase):
                 if extra_args:
                     self.assertEqual(report, json.loads(output.getvalue()))
 
+    def test_parse_errors_use_the_same_exit_code_and_stay_visible_in_text(self) -> None:
+        cli = importlib.import_module("adapters.cli.spec_check")
+        report = {
+            "schemaVersion": 1,
+            "phase": "lifecycle",
+            "results": [],
+            "parseErrors": [
+                {
+                    "spec": "backend/broken.md",
+                    "error": "unsupported files form",
+                }
+            ],
+            "summary": {"pass": 0, "violation": 0, "unchecked": 0},
+        }
+        text_output = io.StringIO()
+        json_output = io.StringIO()
+
+        for extra_args, output in (
+            ((), text_output),
+            (("--json",), json_output),
+        ):
+            with (
+                patch.object(cli, "run_checks", return_value=report),
+                patch.object(cli, "get_repo_root", return_value=Path(".")),
+                patch.object(sys, "argv", ["spec-check", *extra_args]),
+                contextlib.redirect_stdout(output),
+            ):
+                result = cli.main()
+            self.assertEqual(2, result)
+
+        self.assertIn("broken.md", text_output.getvalue())
+        self.assertIn("parse error", text_output.getvalue().lower())
+        self.assertEqual(report, json.loads(json_output.getvalue()))
+
     def test_missing_command_is_unchecked_never_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

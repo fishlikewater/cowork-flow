@@ -44,7 +44,6 @@ class TaskCreationRequest:
 @dataclass(frozen=True)
 class TaskCreationResult:
     task_dir: Path
-    directory_existed: bool
     linked_parent: str | None
     missing_parent: str | None
     generated_anchor: bool
@@ -82,19 +81,11 @@ class TaskCreationService:
         tasks_dir = ensure_tasks_dir(self.repo_root)
         task_name = self._task_name(request)
         task_dir = tasks_dir / task_name
-        directory_existed = task_dir.exists()
-        task_json = task_dir / FILE_TASK_JSON
-        if task_json.exists():
-            raise TaskCreationError(
-                "TASK-CREATE-EXISTS-001",
-                task_json,
-                "task metadata already exists; choose a different slug",
-            )
-        if directory_existed and not task_dir.is_dir():
+        if task_dir.exists():
             raise TaskCreationError(
                 "TASK-CREATE-EXISTS-001",
                 task_dir,
-                "task path already exists and is not a directory",
+                "task directory already exists; choose a different slug",
             )
         plan_metadata, bound_plan_path = self._plan_metadata(request.from_plan)
         task_dir.mkdir(parents=True, exist_ok=True)
@@ -123,53 +114,77 @@ class TaskCreationService:
             "notes": "",
             "meta": plan_metadata,
         }
+        task_json = task_dir / FILE_TASK_JSON
+        created_files: list[Path] = []
         try:
-            self.repository.replace(
-                task_dir,
-                task_data,
-                expected_revision=0,
-            )
-        except TaskRepositoryError as error:
-            if task_json.exists() or error.code == "TASK-SAVE-002":
-                raise TaskCreationError(
-                    "TASK-CREATE-EXISTS-001",
-                    task_json,
-                    "task metadata already exists; choose a different slug",
-                ) from error
-            raise TaskCreationError(
-                "TASK-CREATE-SAVE-001",
-                error.path,
-                error.detail,
-            ) from error
-
-        linked_parent = None
-        missing_parent = None
-        if request.parent:
-            parent_dir = self.repository.resolve(request.parent)
-            if not (parent_dir / FILE_TASK_JSON).is_file():
-                missing_parent = str(request.parent)
-            else:
-                try:
-                    self.tree_service.link(parent_dir, task_dir)
-                except TaskTreeError as error:
+            try:
+                self.repository.replace(
+                    task_dir,
+                    task_data,
+                    expected_revision=0,
+                )
+            except TaskRepositoryError as error:
+                if task_json.exists() or error.code == "TASK-SAVE-002":
                     raise TaskCreationError(
-                        "TASK-CREATE-LINK-001",
-                        error.path,
-                        error.detail,
+                        "TASK-CREATE-EXISTS-001",
+                        task_json,
+                        "task metadata already exists; choose a different slug",
                     ) from error
-                linked_parent = parent_dir.name
+                raise TaskCreationError(
+                    "TASK-CREATE-SAVE-001",
+                    error.path,
+                    error.detail,
+                ) from error
+            created_files.append(task_json)
 
-        generated_anchor = self._generate_anchor(
-            task_dir,
-            bound_plan_path,
-        )
+            linked_parent = None
+            missing_parent = None
+            if request.parent:
+                parent_dir = self.repository.resolve(request.parent)
+                if not (parent_dir / FILE_TASK_JSON).is_file():
+                    missing_parent = str(request.parent)
+                else:
+                    try:
+                        self.tree_service.link(parent_dir, task_dir)
+                    except TaskTreeError as error:
+                        raise TaskCreationError(
+                            "TASK-CREATE-LINK-001",
+                            error.path,
+                            error.detail,
+                        ) from error
+                    linked_parent = parent_dir.name
+
+            generated_anchor = self._generate_anchor(
+                task_dir,
+                bound_plan_path,
+            )
+            if generated_anchor:
+                created_files.append(task_dir / "decision-anchor.md")
+        except Exception:
+            self._remove_created_artifacts(task_dir, created_files)
+            raise
         return TaskCreationResult(
             task_dir=task_dir,
-            directory_existed=directory_existed,
             linked_parent=linked_parent,
             missing_parent=missing_parent,
             generated_anchor=generated_anchor,
         )
+
+    @staticmethod
+    def _remove_created_artifacts(
+        task_dir: Path,
+        created_files: list[Path],
+    ) -> None:
+        """Remove only files this create call wrote, then an emptied directory."""
+        for path in created_files:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                continue
+        try:
+            task_dir.rmdir()
+        except OSError:
+            pass
 
     @staticmethod
     def _task_name(request: TaskCreationRequest) -> str:
@@ -248,6 +263,10 @@ class TaskCreationService:
                 encoding="utf-8",
             )
         except OSError as error:
+            try:
+                anchor_file.unlink(missing_ok=True)
+            except OSError:
+                pass
             raise TaskCreationError(
                 "TASK-CREATE-PLAN-002",
                 anchor_file,

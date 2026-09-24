@@ -36,6 +36,7 @@ class StateMutation:
     expected_revision: int
     before: dict
     after: dict | None
+    before_exists: bool
 
 
 FaultInjector = Callable[[int, StateMutation], None]
@@ -85,6 +86,7 @@ class UnitOfWork:
                 ),
                 before=snapshot.data,
                 after=dict(data),
+                before_exists=snapshot.exists,
             )
         )
 
@@ -107,6 +109,7 @@ class UnitOfWork:
                 ),
                 before=snapshot.data,
                 after=None,
+                before_exists=snapshot.exists,
             )
         )
 
@@ -159,6 +162,7 @@ class UnitOfWork:
                 "action": mutation.action,
                 "expected_revision": mutation.expected_revision,
                 "before": mutation.before,
+                "before_exists": mutation.before_exists,
                 "after": mutation.after,
             }
             for mutation in self.mutations
@@ -285,14 +289,21 @@ class UnitOfWork:
                         or current.data != (mutation.after or {})
                     ):
                         continue
-                    self.state_store.replace(
-                        mutation.path,
-                        mutation.before,
-                        expected_revision=current.revision,
-                        operation_id=f"{self.operation_id}:rollback:{index}",
-                    )
+                    if mutation.before_exists:
+                        self.state_store.replace(
+                            mutation.path,
+                            mutation.before,
+                            expected_revision=current.revision,
+                            operation_id=f"{self.operation_id}:rollback:{index}",
+                        )
+                    else:
+                        self.state_store.delete(
+                            mutation.path,
+                            expected_revision=current.revision,
+                            operation_id=f"{self.operation_id}:rollback:{index}",
+                        )
                 elif mutation.action == "delete":
-                    if mutation.before:
+                    if mutation.before_exists:
                         if current.exists:
                             continue
                         self.state_store.replace(
@@ -338,5 +349,13 @@ class UnitOfWork:
                 dict(participant["after"])
                 if isinstance(participant.get("after"), dict)
                 else None
+            ),
+            before_exists=(
+                # Records written before this field existed carry only the
+                # payload, where an empty object is indistinguishable from
+                # "nothing was there".
+                bool(participant["before_exists"])
+                if "before_exists" in participant
+                else bool(participant.get("before"))
             ),
         )

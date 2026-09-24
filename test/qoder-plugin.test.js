@@ -315,6 +315,28 @@ test('install-qoder-plugin refuses to overwrite a healthy install without --forc
   }
 });
 
+test('install-qoder-plugin repairs a payload without registry state', async () => {
+  const { home } = await seedQoderHome();
+  try {
+    const { installPath } = await installTargets(home);
+    await mkdir(installPath, { recursive: true });
+    const staleMarker = join(installPath, 'stale-half-copy.txt');
+    await writeFile(staleMarker, 'half copy\n', 'utf8');
+
+    await withQoderHome(home, () => runInstallQoderPlugin([]));
+
+    const registry = await readJson(join(home, 'plugins', 'installed_plugins_v2.json'));
+    assert.equal(registry.plugins[PLUGIN_KEY].length, 1);
+    assert.equal(registry.plugins[PLUGIN_KEY][0].installPath, installPath);
+    const settings = await readJson(join(home, 'settings.json'));
+    assert.equal(settings.enabledPlugins[PLUGIN_KEY], true);
+    await assert.rejects(access(staleMarker), 'the repaired install must replace the half copy');
+    await readFile(join(installPath, '.qoder-plugin', 'plugin.json'), 'utf8');
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test('a failed payload copy leaves registry and settings untouched', async () => {
   const home = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-blocked-'));
   try {

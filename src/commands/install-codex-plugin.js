@@ -230,9 +230,16 @@ async function uninstall({ home, cli, dryRun }) {
     manualInstructions(root, { uninstall: true });
   }
 
+  if (cliFailed) {
+    console.log(`  retry: codex plugin remove ${PLUGIN_KEY}`);
+    console.log(`  retry: codex plugin marketplace remove ${MARKETPLACE_NAME}`);
+    console.log('Codex unregister did not complete; marketplace and cache were kept for retry.');
+    return 1;
+  }
+
   await rm(root, { recursive: true, force: true });
   await rm(cacheRoot(home), { recursive: true, force: true });
-  if (cliFailed || !cli) {
+  if (!cli) {
     console.log('Codex uninstall requires manual follow-up; automatic cleanup was not fully confirmed.');
     return 1;
   }
