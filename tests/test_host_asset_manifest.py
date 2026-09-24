@@ -610,7 +610,6 @@ class HostAssetManifestTest(unittest.TestCase):
                 f"{platform.id} payload manifest {payload.manifest} must exist",
             )
         self.assertIsNone(manifest.platform("dsh").payload)
-        self.assertIsNone(manifest.platform("dsh").payload)
 
     def test_payload_rejects_malformed_declarations(self) -> None:
         mutations = (

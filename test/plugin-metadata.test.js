@@ -381,10 +381,11 @@ test('kimi-code manifest declares the session-start Skill and nothing it cannot 
   const metadata = await readPluginMetadata();
   const manifest = await readManifest('kimi-code', '.kimi-plugin/plugin.json');
 
-  assert.equal(manifest.displayName, metadata.displayName);
-  assert.equal(manifest.repository, metadata.repository);
+  // The host reads the display name from inside `interface`, not from a top-level
+  // key, and it requires a skills entry to start with "./".
+  assert.equal(manifest.interface.displayName, metadata.displayName);
   assert.deepEqual(manifest.keywords, metadata.keywords);
-  assert.equal(manifest.skills, 'skills');
+  assert.equal(manifest.skills, './skills/');
   assert.deepEqual(manifest.sessionStart, { skill: 'cowork-flow-bootstrap' });
   // Injection stays with the config.toml hook route and the fixed subagents stay
   // project-level (plugin agents have the lowest priority), so neither belongs
