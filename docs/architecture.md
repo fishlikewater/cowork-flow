@@ -1,94 +1,122 @@
-# 架构与扩展点
+# 架构与扩展
 
-本文说明 cowork-flow 自身的仓库布局、运行时分层，以及规范挂命令（spec-check）机制。用户侧怎么用见 [README](../README.md)；宿主接入细节见 [hosts.md](hosts.md)。
+本文面向维护 cowork-flow 的开发者，说明项目文件如何分层、宿主差异放在哪里，以及新增能力时应遵守的边界。只想安装和使用时，看 [README](../README.md)；排查某个宿主时看 [宿主接入](hosts.md)。
 
-## 交付树与仓库自身
+## 先记住三条边界
 
-`template/` 是**唯一 tracked 分发源**：`cwf project init` / `cwf project sync` 把它的内容按平台拷进目标项目。
+1. `template/` 只放会写入用户项目的文件。
+2. `presets/` 只放由 `cwf host add` 安装到宿主配置目录的机器级载荷。
+3. 宿主差异由 `template/.cowork-flow/spec/runtime/host-assets.json` 声明，不写进通用运行时。
 
-```
-template/
-├── AGENTS.md                  # 协作入口（编码原则、流程约定）
-├── CLAUDE.md                  # Claude Code 入口
-├── skills/                    # ⭐ 唯一源码，init 时按平台分发
-├── .codex/                    # Codex agents / hooks / config
-├── .claude/                   # Claude Code settings / agents / hooks
-├── .opencode/                 # OpenCode agents / commands / plugins
-├── .dsh/                      # DeepSeek Harness 标记（sync 检测 + 说明）
-├── .kimi-code/                # Kimi Code fixed agents（cowork-implement / check / research）
-└── .cowork-flow/
-    ├── config.yaml            # 项目配置
-    ├── scripts/               # Python 运行时
-    ├── spec/                  # 规范文档（contracts / schemas / guides）
-    ├── plans/                 # 实现计划
-    └── tasks/                 # 任务目录
+## 仓库职责
 
-presets/                       # ⭐ 机器级插件载荷：安装器拷进宿主配置目录，不落项目
-├── zcode/                     # ZCode 插件（hooks + agents + .zcode-plugin/plugin.json）
-├── qoder/                     # Qoder 插件（hooks + agents + .qoder-plugin/plugin.json）
-├── codex/                     # Codex 插件（.codex-plugin/plugin.json + assets + 引导技能；agents/hook 留在项目级）
-├── opencode/                  # OpenCode 插件（plugins/cowork-flow.js + cowork-flow/：逻辑模块与引导技能；hook/agents 留在项目级）
-├── claude-code/               # Claude Code skills 目录插件（.claude-plugin/plugin.json + 引导技能；hook/agents 留在项目级）
-├── kimi-code/                 # Kimi Code 插件（.kimi-plugin/plugin.json + 引导技能；hook/agents 留在项目级）
-└── dsh/                       # DSH agent 预设
-```
+| 位置 | 职责 |
+|---|---|
+| `template/` | `project init` 和 `project sync` 的唯一分发源 |
+| `presets/` | 插件、预设和机器级 hook 的载荷源 |
+| `src/` | Node CLI：命令注册、安装器和文件同步计划 |
+| `scripts/` | 构建、测试、打包和发布脚本 |
+| `test/` | Node 测试及辅助模块 |
+| `tests/` | Python 仓库测试与 fixtures |
+| `docs/` | 用户、宿主、架构和维护文档 |
+| `.agents/`、`.claude/`、`.codex/`、`.cowork-flow/` | 当前源码仓库的运行副本，不作为分发源 |
 
-仓库自身的目录（不参与分发）：
+### 项目分发源
 
-```
-assets/                        # 品牌资产：icon.svg 唯一源 + 导出的 icon.png
-src/                           # 分发层（Node CLI）：commands/ 子命令 + lib/ 计划与模板拷贝
-scripts/                       # 构建与发布：pack-check、release、模板测试运行器、品牌重导出
-test/                          # Node 测试（node --test 收集本目录所有 .js），*.test.js 为主
-tests/                         # Python 测试（pytest / unittest），test_*.py + fixtures/
-docs/                          # 架构 / 宿主 / 发布三类文档
-.agents/ .claude/ .codex/ .cowork-flow/   # 源 checkout 的活实例（gitignored，由 npm run source:refresh 维护）
-```
+`template/` 中与用户项目直接相关的内容包括：
 
-测试按语言分目录：`test/` 归 Node，`tests/` 归 Python。`node --test` 会收集 `test/` 下**所有** `.js`（不限 `*.test.js`，`test/helpers/` 里的辅助模块同样会被加载）；Python 侧按各自默认模式收集——pytest 收 `test_*.py` / `*_test.py`，unittest `discover` 收 `test*.py`。放在这些目录里的辅助文件必须保持无副作用。
+- `AGENTS.md`：项目协作入口。
+- `template/skills/`：项目技能的唯一源码，由 `init` / `sync` 按宿主分发。
+- `template/.cowork-flow/`：项目配置、Python 运行时、规范、计划和任务。
+- `template/.<host>/`：需要随项目落盘的宿主配置、hook 或 agents。
 
-字节码隔离：`tests/__init__.py`（pytest 与 unittest 都会先导入的包）把 Python 字节码前缀指到 gitignored 的 `.tmp/pycache`——本进程设 `sys.pycache_prefix`，并通过 `PYTHONPYCACHEPREFIX` 传给子进程；Node 测试由 `test/helpers/bytecode-isolation.js` 做同一件事。技能脚本的子进程走另一条规则：`runtime_pythonpath_env(cache_bytecode=False)` 关掉字节码写入，`run.py` 与批处理入口（`batch_mode.py`）共用这一条——技能脚本低频、缓存收益可忽略，而它留下的 `__pycache__` 会落在脚本解析到的 runtime（源 checkout 里就是交付树）。`tests/test_no_legacy_template_paths.py` 有门禁断言钉住 `template/`、`presets/` 的零字节码状态。
+`cwf project init` / `cwf project sync` 不应从源码仓库的运行副本读取内容。
+
+### 机器级载荷
+
+`presets/` 保存不属于单个项目的宿主组件：
+
+- Codex、Claude Code、OpenCode、ZCode、Qoder、Kimi Code 插件。
+- DeepSeek Harness 预设与 hook。
+- 插件品牌资产和引导技能。
+
+机器级安装器只能通过 `cwf host add` / `cwf host remove` 写入宿主配置目录，不应把用户主目录路径硬编码到 `template/`。
 
 ## 运行时分层
 
-运行时代码全部在 `template/.cowork-flow/scripts/` 下（下面省略该前缀，仓库根的 `scripts/` 只有发布与构建脚本）：
+运行时代码位于 `template/.cowork-flow/scripts/`。仓库根的 `scripts/` 只负责构建和发布。
 
-- **服务层**：任务创建、生命周期、归档、上下文、任务树和 runtime context 编排位于 `scripts/services/`；命令层只负责参数和输出适配。
-- **状态存储层**：`scripts/infra/storage/` 提供显式 UTF-8、修订检查、操作日志和可恢复 Unit of Work；任务与会话写入不再直接散落在命令函数中。
-- **Host Asset Manifest**：`spec/runtime/host-assets.json` 是宿主资产、平台识别、同步策略和 obsolete 迁移清单的权威来源。新增平台或资产时更新 Manifest 与 schema，不在 CLI 中新增硬编码集合。
-- **事务式 init/sync**：CLI 先构建不可变 Asset Plan，在同文件系统 staging 中校验 hash/权限，再按备份清单提交；失败时逆序回滚，`.cowork-flow/.version` 最后更新。
-- **共享 Hook 核心**：Codex 与 Claude Code Hook 只做宿主输入适配，工作流状态解析由 `scripts/adapters/host/workflow_state_hook.py` 统一实现。
-- **流程内核**：公开任务入口只有 `task next`；kernel 只解析状态事实和 action，Skill 所有权由 manifest loader 注入，硬门禁由 runtime gate 执行，不再分发独立流程中枢文件或 Skill 注册控制面。
-- **Skill 自带脚本**：只服务单个 Skill 的控制器或辅助脚本放在 `template/skills/<skill-id>/scripts/`，由 `.cowork-flow/run` 薄分发；`scripts/` 内核只保留任务导航、生命周期、gate、host/runtime、存储和分发所需代码。
+| 层 | 位置 | 负责什么 |
+|---|---|---|
+| 命令适配 | `scripts/adapters/cli/` | 参数解析、命令输出和 CLI 返回码 |
+| 任务服务 | `scripts/services/` | 任务创建、生命周期、归档、上下文和任务树 |
+| 状态存储 | `scripts/infra/storage/` | UTF-8 读写、修订检查、操作日志和可恢复事务 |
+| 宿主适配 | `scripts/adapters/host/` | 宿主输入、策略差异和状态注入 |
+| Hook 共享核心 | `scripts/adapters/host/workflow_state_hook.py` | 各宿主共用的工作流状态解析 |
+| 宿主声明 | `spec/runtime/host-assets.json` | 平台、资产、同步策略、技能根和迁移清单 |
 
-平台特化只允许落在四类位置：`spec/runtime/host-assets.json` 的声明、`scripts/adapters/`、`template/.<host>/`、以及显式的宿主 dispatch 模块（`src/commands/install-<host>-*.js` 与 `src/lib/plugin-metadata.js` 里的清单投影表）。通用层——`scripts/services|runtime|infra`、`src/lib/` 的计划与拷贝模块（`asset-plan.js`、`copy-template.js`、`plan-applier.js`）——出现宿主分支就说明分层已经破了。
+流程内核保持窄职责：kernel 只解析状态事实和 action，Skill 所有权由 manifest loader 注入，硬门禁由 runtime gate 执行。仓库不再维护第二套流程中枢或独立的 Skill 注册控制面。
 
-## 规范挂命令（spec-check）
+单个 Skill 需要的脚本放在 `template/skills/<skill-id>/scripts/`，不进入运行时内核。
 
-`.cowork-flow/spec/` 下的规范可在文件首部 frontmatter 声明检查命令；机制只执行声明、不解析规范正文——规则随规范同文件更新，天然同步。
+## init 与 sync
+
+安装器和同步器不直接边读边写，而是按以下顺序执行：
+
+1. 读取 Host Asset Manifest 和同步策略。
+2. 构建不可变 Asset Plan。
+3. 在同一文件系统 staging，并校验文件 hash 与权限。
+4. 按备份清单提交；失败时逆序回滚。
+5. 最后更新 `.cowork-flow/.version`。
+
+`config.yaml`、`.developer`、规范、任务和计划按同步策略保护。`--force` 会扩大覆盖范围，因此已有项目应先用 `--dry-run` 查看变更。
+
+## 规范挂命令
+
+项目可以在 `.cowork-flow/spec/` 下的规范文件中声明检查命令。执行器只读取声明，不解析规范正文。
 
 ```markdown
 ---
 checks:
   - cmd: npm run lint --silent
-    files: "src/"        # 可选：目录前缀或扩展名（"*.ts"），逗号分隔
-    timeout: 60          # 可选：秒，默认 30，硬顶 120
-    when: both           # 可选：edit | lifecycle | both（默认 both）
+    files: "src/"
+    timeout: 60
+    when: both
 ---
 ```
 
-唯一执行器是 `./.cowork-flow/run spec-check`：
+可用字段：
 
-- **三态语义**：`pass`（退出码 0）；`violation` 阻断 `task complete`；`unchecked`（命令缺失、解释器缺失、超时）同样阻断，需显式 `--allow-unchecked` 放行，豁免留痕进 `task.json`。unchecked 永不冒充 pass。
-- **两个相位**：`when: edit` 在编辑期就地执行（超时钳制 2.5 秒，违规输出单行提示；具备编辑期 hook 的宿主均已覆盖，其中 zcode 仅主会话），是 best-effort 提示不是门禁；收口期全量执行，未过项阻断状态推进。
-- **扫描范围**：`.cowork-flow/spec/` 下的 markdown；`contracts/`、`runtime/`、`schemas/` 三个机器自有子树不参与。
-- **模板不带生效声明**：模板无法预知项目命令，而命令缺失会归 `unchecked` 并阻断收口；请把声明写进自建 spec 文件（如 `spec/team-xxx.md`）。
+| 字段 | 含义 |
+|---|---|
+| `cmd` | 要执行的命令 |
+| `files` | 目录前缀或扩展名，如 `src/`、`*.ts`；多个值用逗号分隔 |
+| `timeout` | 秒数，默认 30，最长 120 |
+| `when` | `edit`、`lifecycle` 或 `both`，默认 `both` |
 
-`task start` 后，绑定 spec 的章节索引（h2 标题树）随 stage-contract 注入，规范条目名常驻注意力。完整契约见 `.cowork-flow/spec/contracts/spec-checks.md`。
+唯一执行入口是 `./.cowork-flow/run spec-check`：
 
-## 接入原则
+| 结果 | 含义 | 是否阻断完成 |
+|---|---|---|
+| `pass` | 命令执行成功 | 否 |
+| `violation` | 命令执行失败且有违规 | 是 |
+| `unchecked` | 命令缺失、解释器缺失或超时 | 是，需显式放行 |
 
-- 以目标项目事实为准，不把模板内容当成项目事实
-- 保留有价值的流程骨架，删除不存在的场景
-- 项目差异写入 `AGENTS.md`、`config.yaml`、`spec/` 或项目自有 Skill；不要恢复第二套流程中枢文档
-- 不为了替换项目命令而改写通用 skill
+`when: edit` 是编辑期提示，超时上限为 2.5 秒，不代替收口检查。收口阶段会执行全部声明，并把结果写入任务记录。
+
+模板不预置生效的项目检查命令，因为模板无法知道目标项目使用什么工具。需要检查时，在项目自己的 `spec/` 文件中声明。完整契约见 `.cowork-flow/spec/contracts/spec-checks.md`。
+
+## 扩展规则
+
+- 宿主特化只能放在 `spec/runtime/host-assets.json`、`scripts/adapters/`、`template/.<host>/` 或明确的宿主命令模块中。
+- `scripts/services|runtime|infra` 和 `src/lib/` 的通用计划、拷贝模块不能出现宿主分支。
+- 新宿主先更新 Host Asset Manifest 与 schema，再补安装器、doctor 和测试；不要在多个文件各写一份宿主清单。
+- 项目差异写入 `AGENTS.md`、`config.yaml`、`spec/` 或项目自有 Skill，不恢复第二套流程文档。
+- 修改 Skill 分发路径时，同时更新 `skillReadRoot`、`skillDiscovery` 和对应宿主证据。
+- 修改命令名时，一次更新命令注册表、README、doctor 提示、Skill 和相关测试。
+
+## 测试与字节码
+
+Node 测试位于 `test/`，Python 仓库测试位于 `tests/`。`node --test` 会加载 `test/` 下全部 `.js`，辅助模块也必须无副作用；Python 侧按 pytest 或 unittest 的默认发现规则收集。
+
+测试与技能脚本不得在 `template/`、`presets/` 下留下 `__pycache__` 或 `*.pyc`。Node 测试通过 `test/helpers/bytecode-isolation.js` 重定向缓存；技能脚本通过 `runtime_pythonpath_env(cache_bytecode=False)` 关闭字节码写入。`tests/test_no_legacy_template_paths.py` 负责守住这一边界。
