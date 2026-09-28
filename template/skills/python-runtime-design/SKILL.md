@@ -16,6 +16,12 @@ Use this for `.cowork-flow/scripts/**/*.py` and other Python utilities.
 - Handle UTF-8 deliberately on Windows.
 - Catch narrow exceptions; let unexpected failures surface with useful messages.
 - Keep root and `template/` runtime copies aligned.
+- Write comments and docstrings for constraints the code cannot show (platform
+  differences, ordering rules, external formats); drop narration, history and
+  per-argument lists.
+- Do not keep unused parameters; drop them with the dead code. A parameter kept
+  only for a protocol or a uniform dispatch signature is the exception, and the
+  docstring should say why.
 
 ## Tests
 
