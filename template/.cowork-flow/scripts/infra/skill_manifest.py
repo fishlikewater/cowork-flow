@@ -130,18 +130,51 @@ def _strings(
     return tuple(items)
 
 
+_MANIFEST_FIELDS = frozenset(
+    {"schemaVersion", "skill", "actions", "context", "commands"}
+)
+_ACTION_FIELDS = frozenset(
+    {"id", "label", "lifecycleCheck", "mutatesState", "command", "diagnosticsCommand"}
+)
+_CONTEXT_FIELDS = frozenset({"contexts", "devTypes", "pathPatterns", "reason"})
+_COMMAND_FIELDS = frozenset({"name", "aliases", "script"})
+
+
+def _declared_list(raw: dict[str, Any], field: str, path: Path) -> list[Any]:
+    value = raw.get(field, [])
+    if not isinstance(value, list):
+        raise SkillManifestError(f"manifest {field} must be a list: {path}")
+    return value
+
+
 def _parse_manifest(path: Path, raw: dict[str, Any]) -> SkillManifest:
     _reject_unknown_fields(
         raw,
-        allowed=frozenset({"schemaVersion", "skill", "actions", "context", "commands"}),
+        allowed=_MANIFEST_FIELDS,
         scope="Skill manifest",
         path=path,
     )
+    _require_schema_version(raw, path)
+    skill = _require_skill_name(raw, path)
+    actions = tuple(_parse_actions(raw, skill=skill, path=path))
+    context_rules = tuple(_parse_context_rules(raw, skill=skill, path=path))
+    commands = tuple(_parse_commands(raw, skill=skill, path=path))
+    if not actions and not context_rules and not commands:
+        raise SkillManifestError(
+            f"Skill manifest must declare at least one action, context rule, or command: {path}"
+        )
+    return SkillManifest(skill, path, actions, context_rules, commands)
+
+
+def _require_schema_version(raw: dict[str, Any], path: Path) -> None:
     schema_version = raw.get("schemaVersion")
     if type(schema_version) is not int or schema_version != 1:
         raise SkillManifestError(
             f"unsupported Skill manifest schemaVersion: {schema_version}: {path}"
         )
+
+
+def _require_skill_name(raw: dict[str, Any], path: Path) -> str:
     skill = raw.get("skill")
     if not isinstance(skill, str) or not skill.strip():
         raise SkillManifestError(f"manifest missing skill: {path}")
@@ -150,184 +183,177 @@ def _parse_manifest(path: Path, raw: dict[str, Any]) -> SkillManifest:
         raise SkillManifestError(
             f"manifest skill does not match directory: {skill} != {path.parent.name}: {path}"
         )
+    return skill
 
+
+def _parse_actions(
+    raw: dict[str, Any],
+    *,
+    skill: str,
+    path: Path,
+) -> list[SkillAction]:
     actions: list[SkillAction] = []
-    raw_actions = raw.get("actions", [])
-    if not isinstance(raw_actions, list):
-        raise SkillManifestError(f"manifest actions must be a list: {path}")
-    for item in raw_actions:
+    for item in _declared_list(raw, "actions", path):
         if not isinstance(item, dict):
             raise SkillManifestError(f"manifest action must be an object: {path}")
         _reject_unknown_fields(
             item,
-            allowed=frozenset(
-                {
-                    "id",
-                    "label",
-                    "lifecycleCheck",
-                    "mutatesState",
-                    "command",
-                    "diagnosticsCommand",
-                }
-            ),
+            allowed=_ACTION_FIELDS,
             scope="manifest action",
             path=path,
         )
-        action_id = item.get("id")
-        if not isinstance(action_id, str) or not action_id.strip():
-            raise SkillManifestError(f"manifest action id is missing: {path}")
-        label = item.get("label", action_id)
-        if not isinstance(label, str) or not label.strip():
-            raise SkillManifestError(f"manifest action label is invalid: {path}")
-        lifecycle_check = item.get("lifecycleCheck")
-        if lifecycle_check is not None and not isinstance(lifecycle_check, str):
-            raise SkillManifestError(f"manifest lifecycleCheck is invalid: {path}")
-        mutates_state = item.get("mutatesState", False)
-        if not isinstance(mutates_state, bool):
-            raise SkillManifestError(f"manifest mutatesState is invalid: {path}")
-        command = item.get("command")
-        if command is not None and not isinstance(command, str):
-            raise SkillManifestError(f"manifest command is invalid: {path}")
-        diagnostics_command = item.get("diagnosticsCommand")
-        if diagnostics_command is not None and not isinstance(diagnostics_command, str):
-            raise SkillManifestError(f"manifest diagnosticsCommand is invalid: {path}")
-        actions.append(
-            SkillAction(
-                skill=skill,
-                action_id=action_id.strip(),
-                label=label.strip(),
-                lifecycle_check=lifecycle_check.strip() if isinstance(lifecycle_check, str) else None,
-                mutates_state=mutates_state,
-                command=command.strip() if isinstance(command, str) else None,
-                diagnostics_command=(
-                    diagnostics_command.strip()
-                    if isinstance(diagnostics_command, str)
-                    else None
-                ),
-            )
-        )
+        actions.append(_parse_action(item, skill=skill, path=path))
+    return actions
 
+
+def _parse_action(item: dict[str, Any], *, skill: str, path: Path) -> SkillAction:
+    action_id = item.get("id")
+    if not isinstance(action_id, str) or not action_id.strip():
+        raise SkillManifestError(f"manifest action id is missing: {path}")
+    label = item.get("label", action_id)
+    if not isinstance(label, str) or not label.strip():
+        raise SkillManifestError(f"manifest action label is invalid: {path}")
+    lifecycle_check = item.get("lifecycleCheck")
+    if lifecycle_check is not None and not isinstance(lifecycle_check, str):
+        raise SkillManifestError(f"manifest lifecycleCheck is invalid: {path}")
+    mutates_state = item.get("mutatesState", False)
+    if not isinstance(mutates_state, bool):
+        raise SkillManifestError(f"manifest mutatesState is invalid: {path}")
+    command = item.get("command")
+    if command is not None and not isinstance(command, str):
+        raise SkillManifestError(f"manifest command is invalid: {path}")
+    diagnostics_command = item.get("diagnosticsCommand")
+    if diagnostics_command is not None and not isinstance(diagnostics_command, str):
+        raise SkillManifestError(f"manifest diagnosticsCommand is invalid: {path}")
+    return SkillAction(
+        skill=skill,
+        action_id=action_id.strip(),
+        label=label.strip(),
+        lifecycle_check=lifecycle_check.strip() if isinstance(lifecycle_check, str) else None,
+        mutates_state=mutates_state,
+        command=command.strip() if isinstance(command, str) else None,
+        diagnostics_command=(
+            diagnostics_command.strip() if isinstance(diagnostics_command, str) else None
+        ),
+    )
+
+
+def _parse_context_rules(
+    raw: dict[str, Any],
+    *,
+    skill: str,
+    path: Path,
+) -> list[SkillContextRule]:
     context_rules: list[SkillContextRule] = []
-    raw_context = raw.get("context", [])
-    if not isinstance(raw_context, list):
-        raise SkillManifestError(f"manifest context must be a list: {path}")
-    for item in raw_context:
+    for item in _declared_list(raw, "context", path):
         if not isinstance(item, dict):
             raise SkillManifestError(f"manifest context rule must be an object: {path}")
         _reject_unknown_fields(
             item,
-            allowed=frozenset(
-                {"contexts", "devTypes", "pathPatterns", "reason"}
-            ),
+            allowed=_CONTEXT_FIELDS,
             scope="manifest context",
             path=path,
         )
-        contexts = _strings(
-            item.get("contexts", ["implement"]),
-            field="contexts",
-            path=path,
-        )
-        patterns = _strings(
-            item.get("pathPatterns", []),
-            field="pathPatterns",
-            path=path,
-        )
-        dev_types = _strings(
-            item.get("devTypes", []),
-            field="devTypes",
-            path=path,
-        )
-        reason = item.get("reason", f"Auto-routed {skill} Skill")
-        if not isinstance(reason, str) or not reason.strip():
-            raise SkillManifestError(f"manifest context reason is invalid: {path}")
-        if not contexts:
-            raise SkillManifestError(f"manifest context rule is empty: {path}")
-        context_rules.append(
-            SkillContextRule(
-                skill=skill,
-                contexts=contexts,
-                dev_types=dev_types,
-                path_patterns=patterns,
-                reason=reason.strip(),
-            )
-        )
+        context_rules.append(_parse_context_rule(item, skill=skill, path=path))
+    return context_rules
 
+
+def _parse_context_rule(
+    item: dict[str, Any],
+    *,
+    skill: str,
+    path: Path,
+) -> SkillContextRule:
+    contexts = _strings(item.get("contexts", ["implement"]), field="contexts", path=path)
+    patterns = _strings(item.get("pathPatterns", []), field="pathPatterns", path=path)
+    dev_types = _strings(item.get("devTypes", []), field="devTypes", path=path)
+    reason = item.get("reason", f"Auto-routed {skill} Skill")
+    if not isinstance(reason, str) or not reason.strip():
+        raise SkillManifestError(f"manifest context reason is invalid: {path}")
+    if not contexts:
+        raise SkillManifestError(f"manifest context rule is empty: {path}")
+    return SkillContextRule(
+        skill=skill,
+        contexts=contexts,
+        dev_types=dev_types,
+        path_patterns=patterns,
+        reason=reason.strip(),
+    )
+
+
+def _parse_commands(
+    raw: dict[str, Any],
+    *,
+    skill: str,
+    path: Path,
+) -> list[SkillCommand]:
     commands: list[SkillCommand] = []
-    raw_commands = raw.get("commands", [])
-    if not isinstance(raw_commands, list):
-        raise SkillManifestError(f"manifest commands must be a list: {path}")
-    for item in raw_commands:
+    for item in _declared_list(raw, "commands", path):
         if not isinstance(item, dict):
             raise SkillManifestError(f"manifest command must be an object: {path}")
         _reject_unknown_fields(
             item,
-            allowed=frozenset({"name", "aliases", "script"}),
+            allowed=_COMMAND_FIELDS,
             scope="manifest command",
             path=path,
         )
-        name = item.get("name")
-        if not isinstance(name, str) or not name.strip():
-            raise SkillManifestError(f"manifest command name is missing: {path}")
-        name = name.strip()
+        commands.append(_parse_command(item, skill=skill, path=path))
+    return commands
 
-        raw_aliases = item.get("aliases", [])
-        if not isinstance(raw_aliases, list):
-            raise SkillManifestError(f"manifest command aliases must be a list: {path}")
-        aliases: list[str] = []
-        for alias in raw_aliases:
-            if not isinstance(alias, str) or not alias.strip():
-                raise SkillManifestError(f"manifest command alias is invalid: {path}")
-            aliases.append(alias.strip())
-        command_names = (name, *aliases)
-        if len(set(command_names)) != len(command_names):
-            raise SkillManifestError(f"manifest command alias is duplicated: {path}")
 
-        script = item.get("script")
-        if not isinstance(script, str) or not script.strip():
-            raise SkillManifestError(f"manifest command script is missing: {path}")
-        script = script.strip()
-        script_reference = Path(script)
-        if script_reference.is_absolute() or PureWindowsPath(script).is_absolute():
-            raise SkillManifestError(f"manifest command script escapes Skill: {path}")
-        skill_dir = path.parent.resolve()
-        script_path = (skill_dir / script_reference).resolve()
-        try:
-            script_path.relative_to(skill_dir)
-        except ValueError as error:
-            raise SkillManifestError(
-                f"manifest command script escapes Skill: {path}"
-            ) from error
-        if not script_path.is_file():
-            raise SkillManifestError(
-                f"manifest command script is missing: {script_path}"
-            )
-        try:
-            script_digest = sha256(script_path.read_bytes()).hexdigest()
-        except OSError as error:
-            raise SkillManifestError(
-                f"manifest command script is unreadable: {script_path}"
-            ) from error
-        commands.append(
-            SkillCommand(
-                skill=skill,
-                name=name,
-                aliases=tuple(aliases),
-                script=script,
-                script_path=script_path,
-                script_digest=script_digest,
-            )
-        )
-    if not actions and not context_rules and not commands:
-        raise SkillManifestError(
-            f"Skill manifest must declare at least one action, context rule, or command: {path}"
-        )
-    return SkillManifest(
-        skill,
-        path,
-        tuple(actions),
-        tuple(context_rules),
-        tuple(commands),
+def _parse_command(item: dict[str, Any], *, skill: str, path: Path) -> SkillCommand:
+    name = item.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise SkillManifestError(f"manifest command name is missing: {path}")
+    name = name.strip()
+
+    raw_aliases = item.get("aliases", [])
+    if not isinstance(raw_aliases, list):
+        raise SkillManifestError(f"manifest command aliases must be a list: {path}")
+    aliases: list[str] = []
+    for alias in raw_aliases:
+        if not isinstance(alias, str) or not alias.strip():
+            raise SkillManifestError(f"manifest command alias is invalid: {path}")
+        aliases.append(alias.strip())
+    command_names = (name, *aliases)
+    if len(set(command_names)) != len(command_names):
+        raise SkillManifestError(f"manifest command alias is duplicated: {path}")
+
+    script = item.get("script")
+    if not isinstance(script, str) or not script.strip():
+        raise SkillManifestError(f"manifest command script is missing: {path}")
+    script_path, script_digest = _resolve_command_script(script.strip(), path)
+    return SkillCommand(
+        skill=skill,
+        name=name,
+        aliases=tuple(aliases),
+        script=script.strip(),
+        script_path=script_path,
+        script_digest=script_digest,
     )
+
+
+def _resolve_command_script(script: str, path: Path) -> tuple[Path, str]:
+    script_reference = Path(script)
+    if script_reference.is_absolute() or PureWindowsPath(script).is_absolute():
+        raise SkillManifestError(f"manifest command script escapes Skill: {path}")
+    skill_dir = path.parent.resolve()
+    script_path = (skill_dir / script_reference).resolve()
+    try:
+        script_path.relative_to(skill_dir)
+    except ValueError as error:
+        raise SkillManifestError(
+            f"manifest command script escapes Skill: {path}"
+        ) from error
+    if not script_path.is_file():
+        raise SkillManifestError(f"manifest command script is missing: {script_path}")
+    try:
+        script_digest = sha256(script_path.read_bytes()).hexdigest()
+    except OSError as error:
+        raise SkillManifestError(
+            f"manifest command script is unreadable: {script_path}"
+        ) from error
+    return script_path, script_digest
 
 
 def _replica_precedence(repo_root: Path, manifest: SkillManifest) -> tuple[int, str]:

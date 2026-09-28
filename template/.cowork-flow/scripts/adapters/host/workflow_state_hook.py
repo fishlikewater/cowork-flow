@@ -17,7 +17,9 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, NamedTuple
+
+from adapters.host.policy_base import DEFAULT_DIGEST_POLICY, HostPolicy, default_policy
 
 
 TAG_RE = re.compile(
@@ -65,73 +67,6 @@ def find_repo_root(start: Path) -> Path | None:
         current = current.parent
 
 
-# Digest policy wording is a per-host contract fact (context-injection.md
-# transport table); hosts carry their line in their policy module, unknown
-# hosts fall back to the default line below.
-DEFAULT_DIGEST_POLICY = (
-    "policy: repeat this short digest every hook; "
-    "read full spec files only before listed actions."
-)
-
-
-class HostPolicy:
-    """Per-host deltas consumed by the neutral renderer.
-
-    Fields left at their defaults mean "no such behavior for this host" —
-    the renderer checks callables instead of branching on host names.
-    Plain class on purpose: this file is also loaded standalone by tests
-    under ad-hoc module names, where @dataclass processing crashes on the
-    unregistered module lookup.
-    """
-
-    __slots__ = (
-        "host",
-        "digest_policy",
-        "digest_warning_silent",
-        "session_start_event",
-        "preamble",
-        "rebind_hints",
-        "essential_files_warning",
-        "fallback_for_unbound",
-        "post_tool_use",
-        "emit_indent",
-        "emit_not_initialized",
-        "emit_text",
-    )
-
-    def __init__(
-        self,
-        host: str,
-        digest_policy: str = DEFAULT_DIGEST_POLICY,
-        digest_warning_silent: bool = False,
-        session_start_event: str | None = "SessionStart",
-        preamble: Callable[[Path], tuple[str, ...]] | None = None,
-        rebind_hints: Callable[[Path], str] | None = None,
-        essential_files_warning: Callable[[Path], str] | None = None,
-        fallback_for_unbound: bool = False,
-        post_tool_use: Callable[[Path, dict[str, Any]], tuple[str, int]] | None = None,
-        emit_indent: bool = False,
-        emit_not_initialized: bool = False,
-        emit_text: bool = False,
-    ) -> None:
-        self.host = host
-        self.digest_policy = digest_policy
-        self.digest_warning_silent = digest_warning_silent
-        self.session_start_event = session_start_event
-        self.preamble = preamble
-        self.rebind_hints = rebind_hints
-        self.essential_files_warning = essential_files_warning
-        self.fallback_for_unbound = fallback_for_unbound
-        self.post_tool_use = post_tool_use
-        self.emit_indent = emit_indent
-        self.emit_not_initialized = emit_not_initialized
-        self.emit_text = emit_text
-
-
-def default_policy(host: str = "generic") -> HostPolicy:
-    return HostPolicy(host=host)
-
-
 def _host_policy_module(host: str) -> str | None:
     """Host → policy module, from the single declaration in
     runtime/host_identity.py.
@@ -162,6 +97,16 @@ def resolve_policy(host: str, policy: HostPolicy | None = None) -> HostPolicy:
     return policy if isinstance(policy, HostPolicy) else default_policy(host)
 
 
+class _TaskState(NamedTuple):
+    """Facts the renderer needs once the bound task (or its absence) is known."""
+
+    task_path: str | None
+    status: str
+    source: str
+    extra_lines: tuple[str, ...] = ()
+    missing_task: bool = False
+
+
 def build_hook_context(
     root: Path,
     hook_input: dict[str, Any],
@@ -174,79 +119,19 @@ def build_hook_context(
 ) -> str:
     policy = resolve_policy(host, policy)
     breadcrumbs = _load_breadcrumbs(root)
-    runtime_context, runtime_context_id = _resolve_runtime_context(
-        root,
-        hook_input,
-    )
-    extra_lines: list[str] | None = None
-    if runtime_context is not None:
-        task_dir = runtime_context.get("task_dir")
-        task_path = (
-            task_dir.strip()
-            if isinstance(task_dir, str) and task_dir.strip()
-            else None
-        )
-        status = "delegated_subtask"
-        source = (
-            f"runtime-context:{runtime_context.get('runtime_context_id')}"
-        )
-        extra_lines = _subagent_runtime_lines(runtime_context)
-    elif runtime_context_id:
-        task_path = None
-        status = "delegated_subtask"
-        source = f"runtime-context-invalid:{runtime_context_id}"
-        extra_lines = [
-            f"Runtime context: {runtime_context_id}",
-            (
-                "Runtime context is missing, closed, or invalid. "
-                "Do not run standalone lifecycle commands, resume, archive, commit, or spawn."
-            ),
-        ]
-    else:
-        task_path, status, source = _get_active_task_with_fallback(
-            root,
-            hook_input,
-            policy.fallback_for_unbound,
-        )
-
-    if status == "stale" and task_path:
-        # Unified missing-task semantics (previously zcode JS-only): a bound
-        # task whose directory or task.json vanished renders the no_task
-        # family message instead of a generic fallback breadcrumb.
-        status = "no_task"
-        body = MISSING_TASK_BODY.format(task_path=task_path)
-    else:
-        body = (
-            breadcrumbs.get(status)
-            or "Run ./.cowork-flow/run task next --json for the current workflow route."
-        )
-    if policy.rebind_hints is not None:
-        body += policy.rebind_hints(root)
-    if extra_lines:
-        body = "\n".join([body, *extra_lines])
+    state = _resolve_task_state(root, hook_input, policy)
+    body = _render_state_body(root, breadcrumbs, state, policy)
     if session_start is None:
         # No event signal from the host: treat the first injection as a
         # session start. Session state files appear once a task activation
         # exists (start), so their absence keeps every injection full.
         session_start = not _session_has_started(root, hook_input)
-    if session_start:
-        digest_block = _build_contract_digest(root, policy, adapter)
-    else:
-        contracts, _warning = _load_contract_registry(root)
-        digest_block = (
-            f'<contract-fingerprint value="{contract_fingerprint(root, contracts)}"/>'
-        )
-    anchor_block = _decision_anchor_block(root, task_path, status)
-    blocks = [*preamble, digest_block]
-    if anchor_block:
-        blocks.append(anchor_block)
-    contract_block = _stage_contract_block(root, task_path, status)
-    if contract_block:
-        blocks.append(contract_block)
-    blocks.append(
-        f"<workflow-state{_workflow_state_attrs(task_path, status, source, session=_resolve_session_identity(root, hook_input))}>"
-        f"\n{body}\n</workflow-state>"
-    )
+    blocks = [
+        *preamble,
+        _digest_block(root, policy, adapter, session_start),
+        *_task_blocks(root, state.task_path, state.status),
+        _workflow_state_block(root, hook_input, state, body),
+    ]
     context = "\n\n".join(blocks)
     if policy.essential_files_warning is not None:
         # Appended after the whole context so a broken install is visible
@@ -254,6 +139,108 @@ def build_hook_context(
         # exists at all).
         context += policy.essential_files_warning(root)
     return context
+
+
+def _resolve_task_state(
+    root: Path,
+    hook_input: dict[str, Any],
+    policy: HostPolicy,
+) -> _TaskState:
+    """Delegated runtime context first, then the bound task, then fallback."""
+    runtime_context, runtime_context_id = _resolve_runtime_context(
+        root,
+        hook_input,
+    )
+    if runtime_context is not None:
+        task_dir = runtime_context.get("task_dir")
+        task_path = (
+            task_dir.strip()
+            if isinstance(task_dir, str) and task_dir.strip()
+            else None
+        )
+        return _TaskState(
+            task_path,
+            "delegated_subtask",
+            f"runtime-context:{runtime_context.get('runtime_context_id')}",
+            tuple(_subagent_runtime_lines(runtime_context)),
+        )
+    if runtime_context_id:
+        return _TaskState(
+            None,
+            "delegated_subtask",
+            f"runtime-context-invalid:{runtime_context_id}",
+            (
+                f"Runtime context: {runtime_context_id}",
+                (
+                    "Runtime context is missing, closed, or invalid. "
+                    "Do not run standalone lifecycle commands, resume, archive, commit, or spawn."
+                ),
+            ),
+        )
+    task_path, status, source = _get_active_task_with_fallback(
+        root,
+        hook_input,
+        policy.fallback_for_unbound,
+    )
+    if status == "stale" and task_path:
+        # Unified missing-task semantics (previously zcode JS-only): a bound
+        # task whose directory or task.json vanished renders the no_task
+        # family message instead of a generic fallback breadcrumb.
+        return _TaskState(task_path, "no_task", source, missing_task=True)
+    return _TaskState(task_path, status, source)
+
+
+def _render_state_body(
+    root: Path,
+    breadcrumbs: dict[str, str],
+    state: _TaskState,
+    policy: HostPolicy,
+) -> str:
+    if state.missing_task:
+        body = MISSING_TASK_BODY.format(task_path=state.task_path)
+    else:
+        body = (
+            breadcrumbs.get(state.status)
+            or "Run ./.cowork-flow/run task next --json for the current workflow route."
+        )
+    if policy.rebind_hints is not None:
+        body += policy.rebind_hints(root)
+    if state.extra_lines:
+        body = "\n".join([body, *state.extra_lines])
+    return body
+
+
+def _digest_block(root: Path, policy: HostPolicy, adapter: str, session_start: bool) -> str:
+    if session_start:
+        return _build_contract_digest(root, policy, adapter)
+    contracts, _warning = _load_contract_registry(root)
+    return f'<contract-fingerprint value="{contract_fingerprint(root, contracts)}"/>'
+
+
+def _task_blocks(root: Path, task_path: str | None, status: str) -> list[str]:
+    blocks: list[str] = []
+    anchor_block = _decision_anchor_block(root, task_path, status)
+    if anchor_block:
+        blocks.append(anchor_block)
+    contract_block = _stage_contract_block(root, task_path, status)
+    if contract_block:
+        blocks.append(contract_block)
+    return blocks
+
+
+def _workflow_state_block(
+    root: Path,
+    hook_input: dict[str, Any],
+    state: _TaskState,
+    body: str,
+) -> str:
+    attrs = _workflow_state_attrs(
+        state.task_path,
+        state.status,
+        state.source,
+        session=_resolve_session_identity(root, hook_input),
+    )
+    return f"<workflow-state{attrs}>\n{body}\n</workflow-state>"
 
 
 def _session_has_started(root: Path, hook_input: dict[str, Any]) -> bool:

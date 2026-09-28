@@ -212,6 +212,39 @@ TOOL_HANDLERS = {
 }
 
 
+def _rpc_result(request_id: object, result: dict) -> dict:
+    return {"jsonrpc": "2.0", "id": request_id, "result": result}
+
+
+def _tool_error(request_id: object, text: str) -> dict:
+    return _rpc_result(
+        request_id,
+        {"content": [{"type": "text", "text": text}], "isError": True},
+    )
+
+
+def _handle_tools_call(root: Path, request_id: object, params: dict) -> dict:
+    name = params.get("name")
+    handler = TOOL_HANDLERS.get(name)
+    if handler is None:
+        return _tool_error(request_id, f"unknown tool: {name}")
+    try:
+        payload = handler(root, params.get("arguments") or {})
+    except Exception as error:  # tool errors ride the result, not the frame
+        return _tool_error(request_id, f"{type(error).__name__}: {error}")
+    return _rpc_result(
+        request_id,
+        {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(payload, ensure_ascii=False, indent=2),
+                }
+            ]
+        },
+    )
+
+
 def handle_request(root: Path, request: dict) -> dict | None:
     """Dispatch one decoded JSON-RPC message. Notifications (no id member)
     yield None and are never answered — including initialize/ping/tools/list,
@@ -222,68 +255,20 @@ def handle_request(root: Path, request: dict) -> dict | None:
         return None
     if method == "initialize":
         requested = (request.get("params") or {}).get("protocolVersion")
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
+        return _rpc_result(
+            request_id,
+            {
                 "protocolVersion": requested or PROTOCOL_VERSION,
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": SERVER_INFO,
             },
-        }
+        )
     if method == "ping":
-        return {"jsonrpc": "2.0", "id": request_id, "result": {}}
+        return _rpc_result(request_id, {})
     if method == "tools/list":
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {"tools": TOOLS},
-        }
+        return _rpc_result(request_id, {"tools": TOOLS})
     if method == "tools/call":
-        params = request.get("params") or {}
-        name = params.get("name")
-        handler = TOOL_HANDLERS.get(name)
-        if handler is None:
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "content": [
-                        {"type": "text", "text": f"unknown tool: {name}"}
-                    ],
-                    "isError": True,
-                },
-            }
-        try:
-            payload = handler(root, params.get("arguments") or {})
-        except Exception as error:  # tool errors ride the result, not the frame
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"{type(error).__name__}: {error}",
-                        }
-                    ],
-                    "isError": True,
-                },
-            }
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": json.dumps(
-                            payload, ensure_ascii=False, indent=2
-                        ),
-                    }
-                ]
-            },
-        }
+        return _handle_tools_call(root, request_id, request.get("params") or {})
     if request_id is None:
         return None
     return {

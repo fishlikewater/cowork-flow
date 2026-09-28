@@ -11,7 +11,7 @@ PostToolUse are observe-only events whose stdout is discarded.
 
 from __future__ import annotations
 
-from adapters.host.workflow_state_hook import HostPolicy
+from adapters.host.policy_base import HostPolicy
 
 
 POLICY = HostPolicy(

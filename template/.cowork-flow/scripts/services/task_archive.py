@@ -413,6 +413,32 @@ class TaskArchiveService:
         context_snapshots: dict[str, bytes],
     ) -> tuple[RollbackIssue, ...]:
         issues: list[RollbackIssue] = []
+        self._restore_relationships(relationship_updates, issues)
+        self._discard_plan_snapshot(destination, issues)
+
+        directory_restore_attempted = self._restore_directory(
+            source,
+            destination,
+            issues,
+        )
+        if source.is_dir():
+            self._restore_context_files(source, context_snapshots, issues)
+            self._restore_task_json(source, task_data, issues)
+        elif not source.exists() and not directory_restore_attempted:
+            issues.append(
+                RollbackIssue(
+                    "directory_restore",
+                    source,
+                    "source task directory was not restored",
+                )
+            )
+        return tuple(issues)
+
+    def _restore_relationships(
+        self,
+        relationship_updates: list[tuple[Path, dict, dict]],
+        issues: list[RollbackIssue],
+    ) -> None:
         for task_dir, original, _ in relationship_updates:
             try:
                 self.repository.replace(task_dir, original)
@@ -425,59 +451,68 @@ class TaskArchiveService:
                     )
                 )
 
-        self._discard_plan_snapshot(destination, issues)
-
-        directory_restore_attempted = False
-        if destination.is_dir() and not source.exists():
-            directory_restore_attempted = True
-            try:
-                move_result = archive_directory_resumable(destination, source)
-            except Exception as error:  # best-effort compensation boundary
-                issues.append(
-                    RollbackIssue(
-                        "directory_restore",
-                        source,
-                        f"failed to restore archived directory: {error}",
-                    )
-                )
-            else:
-                if not move_result.ok:
-                    issues.append(
-                        RollbackIssue(
-                            "directory_restore",
-                            move_result.destination,
-                            move_result.message,
-                        )
-                    )
-        if source.is_dir():
-            for name, content in context_snapshots.items():
-                context_path = source / name
-                try:
-                    context_path.write_bytes(content)
-                except Exception as error:
-                    issues.append(
-                        RollbackIssue(
-                            "context_restore",
-                            context_path,
-                            str(error),
-                        )
-                    )
-            try:
-                self.repository.replace(source, task_data)
-            except Exception as error:
-                issues.append(
-                    RollbackIssue(
-                        "task_json_restore",
-                        Path(str(getattr(error, "path", source / "task.json"))),
-                        str(getattr(error, "detail", error)),
-                    )
-                )
-        elif not source.exists() and not directory_restore_attempted:
+    def _restore_directory(
+        self,
+        source: Path,
+        destination: Path,
+        issues: list[RollbackIssue],
+    ) -> bool:
+        """Move the archived directory back; True once a restore was attempted."""
+        if not destination.is_dir() or source.exists():
+            return False
+        try:
+            move_result = archive_directory_resumable(destination, source)
+        except Exception as error:  # best-effort compensation boundary
             issues.append(
                 RollbackIssue(
                     "directory_restore",
                     source,
-                    "source task directory was not restored",
+                    f"failed to restore archived directory: {error}",
                 )
             )
-        return tuple(issues)
+        else:
+            if not move_result.ok:
+                issues.append(
+                    RollbackIssue(
+                        "directory_restore",
+                        move_result.destination,
+                        move_result.message,
+                    )
+                )
+        return True
+
+    def _restore_context_files(
+        self,
+        source: Path,
+        context_snapshots: dict[str, bytes],
+        issues: list[RollbackIssue],
+    ) -> None:
+        for name, content in context_snapshots.items():
+            context_path = source / name
+            try:
+                context_path.write_bytes(content)
+            except Exception as error:
+                issues.append(
+                    RollbackIssue(
+                        "context_restore",
+                        context_path,
+                        str(error),
+                    )
+                )
+
+    def _restore_task_json(
+        self,
+        source: Path,
+        task_data: dict,
+        issues: list[RollbackIssue],
+    ) -> None:
+        try:
+            self.repository.replace(source, task_data)
+        except Exception as error:
+            issues.append(
+                RollbackIssue(
+                    "task_json_restore",
+                    Path(str(getattr(error, "path", source / "task.json"))),
+                    str(getattr(error, "detail", error)),
+                )
+            )

@@ -13,6 +13,7 @@ from typing import Optional, Union
 from uuid import uuid4
 
 from infra.paths import DIR_WORKFLOW
+from infra.storage.state_store import StateSnapshot
 from infra.storage.unit_of_work import (
     FaultInjector,
     UnitOfWork,
@@ -208,6 +209,52 @@ class TaskLifecycleService:
             return checked
         check_result = checked
 
+        guard = self._mutation_guard(
+            stage,
+            task_dir,
+            task_data,
+            check_result,
+            execution_context,
+            executor,
+            takeover,
+        )
+        if guard is not None:
+            return guard
+
+        if already_at_target:
+            return self._already_at_target_result(
+                stage,
+                task_dir,
+                task_data,
+                check_result,
+                transition=transition,
+                execution_policy=execution_policy,
+                executor=executor,
+                takeover=takeover,
+            )
+
+        return self._persist_transition_result(
+            stage,
+            task_dir,
+            task_data,
+            check_result,
+            completed_at,
+            transition=transition,
+            execution_policy=execution_policy,
+            executor=executor,
+        )
+
+    def _mutation_guard(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        check_result: object,
+        execution_context: object | None,
+        executor: str | None,
+        takeover: bool,
+    ) -> LifecycleResult | None:
+        """Refuse the mutation when the caller may not perform it."""
         if self._delegated_mutation_request(execution_context):
             return self._failure(
                 stage,
@@ -220,44 +267,42 @@ class TaskLifecycleService:
                 ),
                 check_result=check_result,
             )
-
-        executor_failure = self._check_executor(
+        return self._check_executor(
             stage,
             task_dir,
             task_data,
             executor,
             takeover,
         )
-        if executor_failure is not None:
-            return executor_failure
 
-        if already_at_target:
-            takeover_result = self._apply_takeover_on_idempotent(
-                stage,
-                task_dir,
-                task_data,
-                executor,
-                takeover,
-            )
-            if takeover_result is not None:
-                return takeover_result
-            return self._validated_idempotent_result(
-                stage,
-                task_dir,
-                check_result,
-                transition=transition,
-                execution_policy=execution_policy,
-            )
-
-        return self._persist_transition_result(
+    def _already_at_target_result(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        check_result: object,
+        *,
+        transition: LifecycleTransition,
+        execution_policy: LifecycleExecutionPolicy,
+        executor: str | None,
+        takeover: bool,
+    ) -> LifecycleResult:
+        """Takeover write when requested, otherwise report the no-op start."""
+        takeover_result = self._apply_takeover_on_idempotent(
             stage,
             task_dir,
             task_data,
+            executor,
+            takeover,
+        )
+        if takeover_result is not None:
+            return takeover_result
+        return self._validated_idempotent_result(
+            stage,
+            task_dir,
             check_result,
-            completed_at,
             transition=transition,
             execution_policy=execution_policy,
-            executor=executor,
         )
 
     def _delegated_mutation_request(self, execution_context: object | None) -> bool:
@@ -676,24 +721,59 @@ class TaskLifecycleService:
         resolved = self._resolve_executor(executor)
         if resolved is None or resolved == current.strip():
             return None
-        persisted = dict(task_data)
-        persisted["executor"] = resolved
+        current_task, failure = self._takeover_snapshot(stage, task_dir, task_data)
+        if failure is not None:
+            return failure
+        failure = self._write_takeover(stage, task_dir, task_data, resolved, current_task)
+        if failure is not None:
+            return failure
+        return LifecycleResult(
+            ok=True,
+            code="LIFECYCLE-EXECUTOR-TAKEN-OVER",
+            stage=stage,
+            task_dir=task_dir,
+            transition=LifecycleTransition(
+                previous_status=task_data.get("status"),
+                next_status=task_data.get("status"),
+                changed=False,
+            ),
+            active_task_path=self._display_task_path(task_dir),
+            emitted_events=self._success_events(stage),
+        )
+
+    def _takeover_snapshot(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+    ) -> tuple[StateSnapshot | None, LifecycleResult | None]:
+        """Re-read the task and fail when it moved under the takeover."""
         try:
             current_task = self.repository.load_snapshot(task_dir)
         except TaskRepositoryError as error:
-            return self._failure(
+            return None, self._failure(
                 stage,
                 task_dir,
                 "LIFECYCLE-UOW-001",
                 title=f"task metadata could not be re-read before takeover: {error.detail}",
             )
         if current_task.data != task_data:
-            return self._failure(
+            return None, self._failure(
                 stage,
                 task_dir,
                 "LIFECYCLE-UOW-001",
                 title="task metadata changed before takeover; retry from fresh state",
             )
+        return current_task, None
+
+    def _write_takeover(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        resolved: str,
+        current_task: StateSnapshot,
+    ) -> LifecycleResult | None:
         identity = "|".join(
             (
                 str(task_dir.resolve()),
@@ -710,6 +790,8 @@ class TaskLifecycleService:
             kind=f"task-lifecycle-{stage.name}-takeover",
             fault_injector=self.fault_injector,
         )
+        persisted = dict(task_data)
+        persisted["executor"] = resolved
         unit.replace(
             self.repository.task_json_path(task_dir),
             persisted,
@@ -724,19 +806,7 @@ class TaskLifecycleService:
                 "LIFECYCLE-UOW-001",
                 title=error.detail,
             )
-        return LifecycleResult(
-            ok=True,
-            code="LIFECYCLE-EXECUTOR-TAKEN-OVER",
-            stage=stage,
-            task_dir=task_dir,
-            transition=LifecycleTransition(
-                previous_status=task_data.get("status"),
-                next_status=task_data.get("status"),
-                changed=False,
-            ),
-            active_task_path=self._display_task_path(task_dir),
-            emitted_events=self._success_events(stage),
-        )
+        return None
 
     def _check_executor(
         self,
