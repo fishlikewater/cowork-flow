@@ -28,10 +28,25 @@ def _unquote(value: str) -> str:
 
 
 def _strip_comment(value: str) -> str:
-    """Strips everything from the first #, quoted values included."""
-    idx = value.find("#")
-    if idx >= 0:
-        return value[:idx].rstrip()
+    """Cuts an inline comment; `#` inside quotes or glued to a word stays.
+
+    Only a quote at the start of the scalar opens a quoted region, so a bare
+    apostrophe in `Sam's project  # note` does not swallow the comment.
+    """
+    quote = ""
+    escaped = False
+    for idx, char in enumerate(value):
+        if escaped:
+            escaped = False
+        elif quote == '"' and char == "\\":
+            escaped = True
+        elif quote:
+            if char == quote:
+                quote = ""
+        elif idx == 0 and char in ("'", '"'):
+            quote = char
+        elif char == "#" and (idx == 0 or value[idx - 1] in " \t"):
+            return value[:idx].rstrip()
     return value
 
 
@@ -50,7 +65,7 @@ def _parse_simple_yaml(content: str) -> dict:
         if indent == 0 and ":" in stripped:
             key, _, value = stripped.partition(":")
             key = key.strip()
-            value = _strip_comment(_unquote(value.strip()))
+            value = _unquote(_strip_comment(value.strip()))
             current_section = None
             current_list_key = None
 
@@ -69,13 +84,14 @@ def _parse_simple_yaml(content: str) -> dict:
             if stripped.startswith("- ") and current_list_key:
                 current_list = section.setdefault(current_list_key, [])
                 if isinstance(current_list, list):
-                    current_list.append(_unquote(stripped[2:].strip()))
+                    item = _strip_comment(stripped[2:].strip())
+                    current_list.append(_unquote(item))
                 continue
 
             if ":" in stripped:
                 key, _, value = stripped.partition(":")
                 key = key.strip()
-                value = _strip_comment(_unquote(value.strip()))
+                value = _unquote(_strip_comment(value.strip()))
                 if value:
                     section[key] = value
                     current_list_key = None
