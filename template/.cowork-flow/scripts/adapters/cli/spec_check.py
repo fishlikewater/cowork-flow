@@ -43,7 +43,7 @@ def _parse_error_line(parse_errors: list) -> str:
     return f"spec-check: {len(parse_errors)} parse error(s){suffix}"
 
 
-def main() -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="spec-check",
         description=(
@@ -81,19 +81,54 @@ def main() -> int:
         dest="as_json",
         help="Print the machine-readable report.",
     )
-    args = parser.parse_args()
+    return parser
 
+
+def _run_throttled(repo_root, changed_files: list[str]) -> int:
+    from services.spec_check import run_edit_checks
+
+    if len(changed_files) != 1:
+        print("Error: --throttled requires exactly one --file", file=sys.stderr)
+        return 2
+    print(run_edit_checks(repo_root, changed_files[0]))
+    return 0
+
+
+def _print_text_report(report: dict, *, verbose: bool) -> None:
+    if verbose:
+        for result in report.get("results", []):
+            print(f"--- {result.get('spec')} :: {result.get('cmd')}")
+            for line in result.get("output", []):
+                print(line)
+            if result.get("reason"):
+                print(f"reason: {result['reason']}")
+
+    parse_errors = report.get("parseErrors") or []
+    if parse_errors:
+        print(_parse_error_line(parse_errors))
+        return
+
+    from services.spec_check import normalized_one_line
+
+    line = normalized_one_line(report)
+    if line:
+        print(line)
+        return
+    summary = report.get("summary", {})
+    print(
+        "spec-check: {pass} passed, {violation} violations, "
+        "{unchecked} unchecked".format(
+            **{**{"pass": 0, "violation": 0, "unchecked": 0}, **summary}
+        )
+    )
+
+
+def main() -> int:
+    args = _build_parser().parse_args()
     repo_root = get_repo_root()
 
     if args.throttled:
-        from services.spec_check import run_edit_checks
-
-        files = args.file or []
-        if len(files) != 1:
-            print("Error: --throttled requires exactly one --file", file=sys.stderr)
-            return 2
-        print(run_edit_checks(repo_root, files[0]))
-        return 0
+        return _run_throttled(repo_root, args.file or [])
 
     try:
         report = run_checks(
@@ -106,37 +141,11 @@ def main() -> int:
         return 2
 
     exit_code = _report_exit_code(report)
-
     if args.as_json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return exit_code
 
-    if args.verbose:
-        for result in report.get("results", []):
-            print(f"--- {result.get('spec')} :: {result.get('cmd')}")
-            for line in result.get("output", []):
-                print(line)
-            if result.get("reason"):
-                print(f"reason: {result['reason']}")
-
-    parse_errors = report.get("parseErrors") or []
-    if parse_errors:
-        print(_parse_error_line(parse_errors))
-
-    from services.spec_check import normalized_one_line
-
-    line = normalized_one_line(report)
-    if line:
-        print(line)
-    elif not parse_errors:
-        summary = report.get("summary", {})
-        print(
-            "spec-check: {pass} passed, {violation} violations, "
-            "{unchecked} unchecked".format(
-                **{**{"pass": 0, "violation": 0, "unchecked": 0}, **summary}
-            )
-        )
-
+    _print_text_report(report, verbose=args.verbose)
     return exit_code
 
 

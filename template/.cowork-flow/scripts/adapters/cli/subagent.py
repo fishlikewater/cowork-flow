@@ -154,9 +154,52 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("Error: fixed agent dispatch requires --execution-task-dir", file=sys.stderr)
         return 1
 
-    allowed_context = [{"file": item, "reason": "prompt-named context"} for item in args.allowed_context]
-    parent_context_key = resolve_context_key()
-    context = {
+    context = _initial_context(
+        args,
+        runtime_context_id=runtime_context_id,
+        task_dir=task_dir,
+        host=host,
+        adapter=adapter,
+        agent_type=agent_type,
+        dispatch_kind=dispatch_kind,
+    )
+    try:
+        initialized = RuntimeContextService(repo_root).initialize(
+            runtime_context_id,
+            context,
+        )
+    except RuntimeContextError as error:
+        _print_runtime_error(error)
+        return 1
+    payload = _init_payload(
+        args,
+        repo_root=repo_root,
+        runtime_context_id=runtime_context_id,
+        logical_context_key=initialized.logical_context_key,
+        host=host,
+        agent_type=agent_type,
+        task_dir=task_dir,
+        dispatch_kind=dispatch_kind,
+    )
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def _initial_context(
+    args: argparse.Namespace,
+    *,
+    runtime_context_id: str,
+    task_dir: str | None,
+    host: str,
+    adapter: str,
+    agent_type: str,
+    dispatch_kind: str,
+) -> dict:
+    allowed_context = [
+        {"file": item, "reason": "prompt-named context"}
+        for item in args.allowed_context
+    ]
+    return {
         "schema_version": 2,
         "runtime_context_id": runtime_context_id,
         "scope": "subagent",
@@ -165,7 +208,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         "agent_type": agent_type,
         "role": args.role,
         "task_dir": task_dir,
-        "parent_context_key": parent_context_key,
+        "parent_context_key": resolve_context_key(),
         "transport": {
             "kind": "prompt",
             "key": "cowork_runtime_context_id",
@@ -190,41 +233,44 @@ def cmd_init(args: argparse.Namespace) -> int:
         "bound_context_key": None,
         "closed_at": None,
     }
-    try:
-        initialized = RuntimeContextService(repo_root).initialize(
-            runtime_context_id,
-            context,
-        )
-    except RuntimeContextError as error:
-        _print_runtime_error(error)
-        return 1
-    logical_context_key = initialized.logical_context_key
-    host_context_key = _suggest_host_context_key(host, runtime_context_id)
 
-    print(
-        json.dumps(
-            {
-                "id": runtime_context_id,
-                "runtimeContextId": runtime_context_id,
-                "cowork_runtime_context_id": runtime_context_id,
-                "hostContextKey": host_context_key,
-                "cowork_host_context_key": host_context_key,
-                "agentType": agent_type,
-                "role": args.role,
-                "taskDir": task_dir,
-                "dispatchKind": dispatch_kind,
-                "runtimeContextFile": _relative(repo_root, runtime_context_path(repo_root, runtime_context_id)),
-                "logicalSessionFile": _relative(repo_root, sessions_dir(repo_root) / f"{logical_context_key}.json"),
-                "promptTransport": (
-                    f"cowork_runtime_context_id: {runtime_context_id}\n"
-                    f"cowork_host_context_key: {host_context_key}"
-                ),
-                "bindCommand": f".cowork-flow/run subagent bind {runtime_context_id} {host_context_key}",
-            },
-            ensure_ascii=False,
-        )
-    )
-    return 0
+
+def _init_payload(
+    args: argparse.Namespace,
+    *,
+    repo_root: Path,
+    runtime_context_id: str,
+    logical_context_key: str,
+    host: str,
+    agent_type: str,
+    task_dir: str | None,
+    dispatch_kind: str,
+) -> dict:
+    host_context_key = _suggest_host_context_key(host, runtime_context_id)
+    return {
+        "id": runtime_context_id,
+        "runtimeContextId": runtime_context_id,
+        "cowork_runtime_context_id": runtime_context_id,
+        "hostContextKey": host_context_key,
+        "cowork_host_context_key": host_context_key,
+        "agentType": agent_type,
+        "role": args.role,
+        "taskDir": task_dir,
+        "dispatchKind": dispatch_kind,
+        "runtimeContextFile": _relative(
+            repo_root,
+            runtime_context_path(repo_root, runtime_context_id),
+        ),
+        "logicalSessionFile": _relative(
+            repo_root,
+            sessions_dir(repo_root) / f"{logical_context_key}.json",
+        ),
+        "promptTransport": (
+            f"cowork_runtime_context_id: {runtime_context_id}\n"
+            f"cowork_host_context_key: {host_context_key}"
+        ),
+        "bindCommand": f".cowork-flow/run subagent bind {runtime_context_id} {host_context_key}",
+    }
 
 
 def _find_subagent(repo_root: Path, runtime_context_id: str) -> dict:

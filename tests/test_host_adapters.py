@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import json
 import re
@@ -125,6 +126,32 @@ class HostAdaptersTest(unittest.TestCase):
         self.assertIsNotNone(qoder_policy.post_tool_use)
         self.assertEqual("SessionStart", qoder_policy.session_start_event)
         self.assertFalse(qoder_policy.emit_text)
+
+    def test_host_policy_fields_have_a_single_source(self) -> None:
+        """The policy contract is declared once; hosts only override values."""
+        policy_base = importlib.import_module("adapters.host.policy_base")
+        hook = importlib.import_module("adapters.host.workflow_state_hook")
+        fields = [(field.name, field.default) for field in dataclasses.fields(policy_base.HostPolicy)]
+        self.assertEqual(
+            [
+                ("host", dataclasses.MISSING),
+                ("digest_policy", policy_base.DEFAULT_DIGEST_POLICY),
+                ("digest_warning_silent", False),
+                ("session_start_event", "SessionStart"),
+                ("preamble", None),
+                ("rebind_hints", None),
+                ("essential_files_warning", None),
+                ("fallback_for_unbound", False),
+                ("post_tool_use", None),
+                ("emit_indent", False),
+                ("emit_not_initialized", False),
+                ("emit_text", False),
+            ],
+            fields,
+        )
+        # Renderer and host modules consume the same class object.
+        self.assertIs(hook.HostPolicy, policy_base.HostPolicy)
+        self.assertIs(hook.default_policy, policy_base.default_policy)
 
     def test_host_session_literals_have_a_single_source(self) -> None:
         literals = (

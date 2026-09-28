@@ -13,7 +13,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from adapters.host.workflow_state_hook import HostPolicy
+from adapters.host.policy_base import HostPolicy
+from adapters.host.workflow_state_hook import spec_only_post_tool_use
 
 CLAUDE_PREAMBLE = (
     (
@@ -29,8 +30,6 @@ def preamble(root: Path) -> tuple[str, ...]:
 
 
 def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
-    from adapters.host.workflow_state_hook import spec_only_post_tool_use
-
     return spec_only_post_tool_use(root, hook_input, POLICY)
 
 

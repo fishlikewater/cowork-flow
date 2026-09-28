@@ -17,7 +17,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from adapters.host.workflow_state_hook import HostPolicy
+from adapters.host.policy_base import HostPolicy
+from adapters.host.workflow_state_hook import (
+    STAGE_CONTRACT_STATES,
+    _get_active_task_with_fallback,
+    _session_scope,
+    build_hook_context,
+    spec_edit_warning,
+)
 
 # Digest policy wording frozen by context-injection.md (zcode drops the
 # registry-warning line and asks for the fingerprint on every hook).
@@ -159,12 +166,6 @@ def edit_scope_warning(root: Path, hook_input: dict[str, Any]) -> str:
     outside the task's file-scope whitelist. Silence rules match the JS
     source, including the newest-session display fallback for sessions with
     no resolvable identity. Never raises."""
-    from adapters.host.workflow_state_hook import (
-        STAGE_CONTRACT_STATES,
-        _get_active_task_with_fallback,
-        _session_scope,
-    )
-
     try:
         task_path, status, _source = _get_active_task_with_fallback(
             root, hook_input, POLICY.fallback_for_unbound
@@ -212,8 +213,6 @@ def merged_edit_warning(root: Path, hook_input: dict[str, Any]) -> str:
     the spec-check warning merged into one additionalContext payload, at
     most one line each, joined by a newline (port of the zcode hook's
     mergedEditWarning)."""
-    from adapters.host.workflow_state_hook import spec_edit_warning
-
     scope_line = edit_scope_warning(root, hook_input)
     spec_line = spec_edit_warning(root, hook_input, POLICY)
     if scope_line and spec_line:
@@ -241,8 +240,6 @@ def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
     if not is_lifecycle_bash(hook_input):
         return "", 0
     claim_after_lifecycle_bash(root, hook_input)
-    from adapters.host.workflow_state_hook import build_hook_context
-
     context = build_hook_context(
         root,
         hook_input,
