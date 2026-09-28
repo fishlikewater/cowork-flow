@@ -2,19 +2,23 @@
 /**
  * cowork-flow ZCode plugin hook — transport shim.
  *
- * All workflow facts (workflow-state, contract digest, decision anchor,
- * stage contract, scope/spec edit warnings) are rendered by the single
- * Python source: <scripts>/adapters/host/inject.py. This shim keeps only
- * transport duties:
- *   1. cheap PostToolUse(Bash) filter — non-lifecycle commands exit 0
- *      without spawning anything (the highest-frequency event);
- *   2. interpreter location (COWORK_FLOW_PYTHON → python3 → python → py -3);
- *   3. stdin passthrough to inject.py --host zcode, stdout/exit forwarding.
+ * Workflow facts (workflow-state, contract digest,
+ * decision anchor, stage contract, scope/spec edits)
+ * come from the Python source
+ * <scripts>/adapters/host/inject.py; this shim does
+ * transport only:
+ *   1. cheap PostToolUse(Bash) filter: anything that
+ *      is not a lifecycle command exits 0 unspawned;
+ *   2. interpreter location, COWORK_FLOW_PYTHON -> python3
+ *      -> python -> py -3;
+ *   3. stdin passthrough to inject.py --host zcode, with
+ *      stdout and exit status forwarded.
  *
- * The project's own runtime copy is preferred (same root the CLI resolves);
- * the plugin cache copy (hooks/runtime/scripts) renders only for directories
- * outside any cowork-flow project. Windows never spawns .cmd shims directly
- * (Node 24+ EINVAL) — interpreters resolve to .exe entries.
+ * The project's own runtime copy wins (same root the CLI
+ * resolves); the plugin cache copy (runtime/scripts)
+ * renders only outside any cowork-flow project. Windows
+ * never spawns .cmd shims directly (Node 24+ EINVAL), so
+ * interpreters resolve to .exe entries.
  */
 
 import { existsSync, readFileSync } from "fs";
@@ -26,7 +30,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const DIR_WORKFLOW = ".cowork-flow";
 const LIFECYCLE_BASH_RE = /\brun(?:\.cmd)?\s+(?:task|subagent|resume)\b/;
-const SPAWN_TIMEOUT_MS = 4800; // hooks.json grants 5s per event
+// hooks.json grants 5s per event.
+const SPAWN_TIMEOUT_MS = 4800;
 
 function readHookInput() {
   if (process.stdin.isTTY) return { raw: "", parsed: {} };
@@ -91,7 +96,7 @@ function resolveInjectScript(parsedInput) {
     );
     if (existsSync(projectInject)) return projectInject;
   }
-  // Plugin-cache runtime copy: renders the not-initialized context for
+  // Plugin-cache copy: the not-initialized context for
   // directories outside any cowork-flow project.
   const cacheInject = join(
     __dirname,
@@ -115,8 +120,8 @@ function main() {
 
   const { raw, parsed } = readHookInput();
 
-  // Cheap first: a PostToolUse Bash call only matters when it is a workflow
-  // lifecycle command (mid-turn state refresh); every other Bash call exits
+  // A PostToolUse Bash call matters only when it is a
+  // workflow lifecycle command; every other call exits
   // without spawning Python.
   if (
     typeof parsed?.hook_event_name === "string" &&
@@ -159,8 +164,9 @@ function main() {
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.status);
   }
-  // No interpreter could run the entry: stay silent rather than break the
-  // host's event stream (fail-open, same contract as the spec-edit path).
+  // No interpreter could run the entry: stay silent rather
+  // than break the host's event stream (fail-open, like
+  // the spec-edit path).
   process.exit(0);
 }
 

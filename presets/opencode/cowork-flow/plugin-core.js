@@ -1,12 +1,15 @@
-// Pure logic behind the opencode plugin: contract digest, stage contract,
-// scope rules, runtime-context binding and the edit-phase spec check.
+// Pure logic behind the opencode plugin: contract digest,
+// stage contract, scope rules, runtime-context binding and
+// the edit-phase spec check.
 //
-// This module must NOT live under plugins/: opencode treats every file
-// directly inside plugins/ as a plugin and calls every export of it as a
-// plugin factory, so library code there kills the host during bootstrap.
-// A namespaced sibling directory also keeps the payload tree self-similar
-// between a project install (.opencode/) and the machine install
-// (~/.config/opencode/), so the adapter's relative import resolves in both.
+// This module must NOT live under plugins/: opencode
+// treats every file directly inside plugins/ as a plugin
+// and calls every export of it as a plugin factory, so
+// library code there kills the host during bootstrap. A
+// namespaced sibling directory also keeps the payload tree
+// self-similar between a project install and the machine
+// install, so the adapter's relative import resolves in
+// both.
 
 import { spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
@@ -50,9 +53,10 @@ const DEFAULT_CONTRACT_REGISTRY = {
 }
 
 // Last-resort repository root: this module lives at
-// <payload>/cowork-flow/plugin-core.js, next to the host-facing plugins/
-// directory, so three levels up is the directory the payload was installed
-// into. Only used when no candidate directory carries a .cowork-flow/ runtime.
+// <payload>/cowork-flow/plugin-core.js, next to plugins/,
+// so three levels up is the directory the payload was
+// installed into. Used only when no candidate directory
+// carries a .cowork-flow/ runtime.
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 
 function asStringList(value) {
@@ -349,7 +353,8 @@ function releaseSessionLock(lock) {
   try {
     unlinkSync(lock.lockPath)
   } catch {
-    // A failed cleanup must not mask the original write error.
+    // A failed cleanup must not mask the original write
+    // error.
   }
 }
 
@@ -372,7 +377,7 @@ function removeTemporaryFile(path) {
   try {
     unlinkSync(path)
   } catch {
-    // The temporary file may already have been renamed or never created.
+    // The temporary file may already be gone.
   }
 }
 
@@ -405,16 +410,18 @@ function restoreJsonDocument(item) {
   try {
     writeFileSync(item.path, `${JSON.stringify(item.before.data, null, 2)}\n`, "utf8")
   } catch {
-    // Restoring is best effort: the write error is what the caller must see,
-    // and the next bind rewrites both documents anyway.
+    // Restoring is best effort: the write error is what
+    // the caller must see, and the next bind rewrites both
+    // documents anyway.
   }
 }
 
-// Two documents that only mean something together (a session record and the
-// context binding it points at) are validated and staged under one lock pair
-// before either is renamed. A failure while renaming undoes the documents
-// already replaced, so a host never sees a bound session for an unbound
-// context.
+// Two documents that only mean something together (a
+// session record and the context binding it points at) are
+// validated and staged under one lock pair before either
+// is renamed; a failed rename undoes the ones already
+// replaced, so a host never sees a bound session pointing
+// at an unbound context.
 function writeJsonPair(entries) {
   const pairs = []
   const seen = new Map()
@@ -520,7 +527,7 @@ function bindRuntimeContext(root, runtimeContextId, context, input) {
 }
 
 // Attribute header + decision-anchor helpers, mirroring
-// services/fact_view.py and the zcode hook (context-injection.md stage 1).
+// services/fact_view.py and the zcode hook.
 const DECISION_ANCHOR_STATES = ["planning", "in_progress", "review"]
 
 function xmlAttr(value) {
@@ -540,7 +547,8 @@ const GATES_TEXT =
   "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
   "files are protected; spec/ edits may be allowed by review policy; " +
   "scope is agent-mutable (self-declared via task context add)"
-// Delegated subtasks render the parent task's scope as a read-only reference.
+// Delegated subtasks render the parent task's scope as a
+// read-only reference.
 const GATES_TEXT_READONLY =
   "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
   "files are protected; spec/ edits may be allowed by review policy; " +
@@ -585,9 +593,9 @@ function parseDecisionAnchor(text) {
   return result
 }
 
-// Mirrors the shipped .cowork-flow/spec/runtime/scope-rules.json; loaded from
-// disk at runtime so the rules are a single source across hosts. Keep both
-// sides in sync (locked by tests/test_scope_rules.py default-equivalence).
+// Default when the shipped scope-rules.json is absent; the
+// on-disk copy is the single source across hosts and a
+// python test locks the defaults to it.
 const DEFAULT_SCOPE_RULES = {
   schemaVersion: 1,
   scopeFilter: {
@@ -607,15 +615,18 @@ function readScopeRules(repoRoot) {
     )
     if (loaded && loaded.schemaVersion === 1) return loaded
   } catch {
-    // Missing or malformed rules file: degrade to the shipped defaults.
+    // Missing or malformed: degrade to the shipped
+    // defaults.
   }
   return DEFAULT_SCOPE_RULES
 }
 
-// Port of services/context_paths.py::_is_valid_context_path: the JS side must
-// skip exactly the entries the Python whitelist drops. Rules come from
-// scope-rules.json; empty lists are meaningful, so nullish coalescing is used
-// for defaults only.
+// Port of
+// services/context_paths.py::_is_valid_context_path: skip
+// exactly the entries the Python whitelist drops. Rules
+// come from scope-rules.json, where empty lists are
+// meaningful, so nullish coalescing fills in absent
+// defaults only.
 function isValidScopePath(normalized, raw, type, rules) {
   const sf = (rules || {}).scopeFilter || {}
   const wildcards = sf.wildcardChars ?? ["*", "?", "[", "]"]
@@ -630,8 +641,9 @@ function isValidScopePath(normalized, raw, type, rules) {
   return true
 }
 
-// Mirrors services/fact_view.py file_scope_whitelist + spec_pointer_files:
-// directory entries authorize nothing, non-canonical entries are dropped.
+// Mirrors services/fact_view.py file_scope_whitelist +
+// spec_pointer_files: directory entries authorize nothing,
+// non-canonical entries are dropped.
 function buildScopeWhitelist(entries, rules) {
   const whitelist = []
   const specFiles = []
@@ -660,11 +672,13 @@ function scopeRow(entries, total, suffix) {
   return `Scope: ${text}${extra} ${suffix}`
 }
 
-// Mirrors services/fact_view.py spec_digest_items: the h2 heading tree of
-// each bound spec, injected as the Specs-row entry-name index. Format is
-// pinned byte-for-byte with the Python source (contract fingerprint tests):
-// path(h2a/h2b), at most 6 headings, each truncated to 24 chars after
-// stripping "();" characters; missing files stay unannotated.
+// Mirrors services/fact_view.py spec_digest_items: the h2
+// heading tree of each bound spec, injected as the
+// entry-name index of the Specs row. The format is pinned
+// byte-for-byte with the Python source (contract
+// fingerprint tests): path(h2a/h2b), at most 6 headings,
+// each truncated to 24 chars after stripping "();"
+// characters; a missing file stays unannotated.
 const SPEC_DIGEST_MAX_HEADINGS = 6
 const SPEC_DIGEST_MAX_CHARS = 24
 
@@ -697,9 +711,11 @@ function specDigestItems(root, specFiles) {
   return map
 }
 
-// Mirrors services/fact_view.py::_fit_stage_contract: degrade an over-budget
-// block without ever emitting a malformed one — closing tag and guard rows
-// (Scope/Gates) always survive. Keep row-role rules and drop order identical.
+// Mirrors services/fact_view.py::_fit_stage_contract:
+// degrade an over-budget block without ever emitting a
+// malformed one — the closing tag and the guard rows
+// (Scope/Gates) always survive. Keep the row-role rules
+// and the drop order identical.
 function fitStageContract(lines, scopeEntries, scopeTotal, mutable, budget) {
   const effectiveBudget = budget ?? STAGE_CONTRACT_BUDGET
   if (lines.join("\n").length <= effectiveBudget) return lines
@@ -726,8 +742,9 @@ function fitStageContract(lines, scopeEntries, scopeTotal, mutable, budget) {
   }
   if (lines.join("\n").length <= effectiveBudget) return lines
   const closing = lines[lines.length - 1]
-  // The final join inserts one newline between the cut body and the closing
-  // tag — reserve it so the block stays within budget byte-for-byte.
+  // The final join inserts one newline between the cut
+  // body and the closing tag — reserve it so the block
+  // stays within budget.
   const room = effectiveBudget - closing.length - 1
   const body = lines.slice(0, -1).join("\n")
   if (body.length <= room) return lines
@@ -760,7 +777,7 @@ function stageContractBlock(root, taskPath, status, readonly = false) {
         const entry = JSON.parse(trimmed)
         if (entry && typeof entry === "object") entries.push(entry)
       } catch {
-        // Skip malformed lines; Python side reports them separately.
+        // Malformed lines are reported by the Python side.
       }
     }
   } catch {
@@ -901,10 +918,11 @@ function buildRuntimeWorkflowState(input) {
   return withStageFacts(header.join("\n"), root, taskDir, "delegated_subtask", true)
 }
 
-// Digest shape: full contract block on the first injection of a session,
-// single fingerprint line afterwards, so long sessions do not pay the full
-// listing on every prompt assembly. In-memory per plugin process; a process
-// restart (e.g. resume) deliberately re-injects the full block.
+// Digest shape: the full contract block on a session's
+// first injection, a single fingerprint line afterwards,
+// so long sessions do not pay the full listing on every
+// prompt assembly. In-memory per plugin process; a process
+// restart deliberately re-injects the full block.
 const fullDigestSessions = new Set()
 
 function buildInjectedDigest(input) {
@@ -924,10 +942,11 @@ function buildInjectedDigest(input) {
   return `<contract-fingerprint value="${contractFingerprint(root, contracts)}"/>`
 }
 
-// Editor-phase spec-check: opencode sessions get the same single-line
-// violation hint zcode and claude-code already receive. Best-effort — a
-// missing runtime, a timeout, or any error stays silent and never blocks
-// the edit that already happened.
+// Editor-phase spec-check: opencode sessions get the same
+// single-line violation hint zcode and claude-code
+// receive. Best-effort — a missing runtime, a timeout, or
+// any error stays silent and never blocks the edit that
+// already happened.
 const EDIT_TOOL_NAMES = new Set(["edit", "write"])
 const EDIT_CHECK_TIMEOUT_MS = 2500
 
@@ -999,33 +1018,39 @@ function runEditSpecCheck(root, filePath) {
   })
 }
 
-// The payload's own skills directory, located from this module's file path and
-// not from the repository root: the machine install puts this file in
-// ~/.config/opencode/cowork-flow/ and the project install in
-// <project>/.opencode/cowork-flow/, so a sibling skills/ resolves in both.
+// The payload's own skills directory, located from this
+// module's file path and not from the repository root: the
+// machine install puts this file in
+// ~/.config/opencode/cowork-flow/ and the project install
+// in <project>/.opencode/cowork-flow/, so a sibling
+// skills/ resolves in both.
 export function payloadSkillsDir() {
   return resolve(dirname(fileURLToPath(import.meta.url)), "skills")
 }
 
-// Register the payload skills directory so opencode discovers the bootstrap
-// Skill in a repository that has no cowork-flow runtime — the reason the
-// machine-level install exists at all. config is the cached object the host
-// hands every plugin's `config` hook, so this mutation is visible to the skill
-// scan that runs after it (opencode 1.1.53: Plugin.init runs before Skill.state,
+// Register the payload skills directory so opencode
+// discovers the bootstrap Skill in a repository that has
+// no cowork-flow runtime — the reason the machine-level
+// install exists at all. `config` is the cached object the
+// host hands every plugin's `config` hook, so this
+// mutation is visible to the skill scan that runs after it
+// (opencode 1.1.53: Plugin.init runs before Skill.state,
 // and Config.get returns the same cached state).
 export function registerPayloadSkills(config) {
   if (!config || typeof config !== "object") {
     return
   }
   const dir = payloadSkillsDir()
-  // A project install ships no skills/ sibling. opencode skips a registered
-  // path that does not exist, so the shared code needs no second variant.
+  // A project install ships no skills/ sibling. opencode
+  // skips a registered path that does not exist, so the
+  // shared code needs no second variant.
   if (!existsSync(dir)) {
     return
   }
-  // Read what is usable and write back a shape the host can consume, without
-  // throwing on a config the schema would reject anyway — a plugin must never
-  // be the reason the host fails to start.
+  // Read what is usable and write back a shape the host
+  // can consume, without throwing on a config the schema
+  // would reject anyway — a plugin must never be the
+  // reason the host fails to start.
   const skills = config.skills && typeof config.skills === "object" ? config.skills : {}
   const paths = Array.isArray(skills.paths) ? skills.paths : []
   if (!paths.includes(dir)) {
@@ -1035,10 +1060,10 @@ export function registerPayloadSkills(config) {
   config.skills = skills
 }
 
-// The plugin adapter imports six hook helpers plus the two functions declared
-// above; these three are the unit-test surface (fingerprint parity with the
-// python and zcode implementations, and stage-contract fitting). opencode never
-// reads this module.
+// The plugin adapter imports the hook helpers; these three
+// are the unit-test surface (fingerprint parity with the
+// python and zcode implementations, and stage-contract
+// fitting). opencode never reads this module.
 export {
   buildInjectedDigest,
   buildRuntimeWorkflowState,

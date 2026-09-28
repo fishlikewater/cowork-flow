@@ -72,16 +72,18 @@ export function loadHostAssetManifest(path = hostAssetManifestPath) {
 }
 
 
-export function createHostRegistry(manifest) {
-  validateManifest(manifest);
-  const platforms = manifest.platforms.map((platform) => ({
+function normalizedPlatforms(manifest) {
+  return manifest.platforms.map((platform) => ({
     ...platform,
     aliases: [...platform.aliases],
     detectAny: [...platform.detectAny],
     assetPrefixes: platform.assetPrefixes.map(normalizePath),
     assetFiles: platform.assetFiles.map(normalizePath)
   }));
-  const byId = new Map(platforms.map((platform) => [platform.id, platform]));
+}
+
+
+function aliasIndex(platforms) {
   const aliases = new Map();
   for (const platform of platforms) {
     for (const alias of platform.aliases) {
@@ -92,16 +94,33 @@ export function createHostRegistry(manifest) {
       aliases.set(normalized, platform.id);
     }
   }
+  return aliases;
+}
+
+
+function normalizedSyncPolicy(policy) {
+  return {
+    protectedFiles: policy.protectedFiles.map(normalizePath),
+    protectedPrefixes: policy.protectedPrefixes.map(normalizePath),
+    safeFiles: policy.safeFiles.map(normalizePath),
+    safePrefixes: policy.safePrefixes.map(normalizePath),
+    managedBlockFiles: policy.managedBlockFiles.map(normalizePath),
+    obsoleteFiles: policy.obsoleteFiles.map(normalizePath)
+  };
+}
+
+
+// Every lookup a registry closes over, built after the
+// manifest passes validation. The order here is the order
+// init/sync observe.
+function buildHostIndex(manifest) {
+  validateManifest(manifest);
+  const platforms = normalizedPlatforms(manifest);
+  const byId = new Map(platforms.map((platform) => [platform.id, platform]));
+  const aliases = aliasIndex(platforms);
   const platformIds = platforms.map((platform) => platform.id);
   const capabilityMatrix = normalizeCapabilityMatrix(manifest.capabilityMatrix);
-  const syncPolicy = {
-    protectedFiles: manifest.syncPolicy.protectedFiles.map(normalizePath),
-    protectedPrefixes: manifest.syncPolicy.protectedPrefixes.map(normalizePath),
-    safeFiles: manifest.syncPolicy.safeFiles.map(normalizePath),
-    safePrefixes: manifest.syncPolicy.safePrefixes.map(normalizePath),
-    managedBlockFiles: manifest.syncPolicy.managedBlockFiles.map(normalizePath),
-    obsoleteFiles: manifest.syncPolicy.obsoleteFiles.map(normalizePath)
-  };
+  const syncPolicy = normalizedSyncPolicy(manifest.syncPolicy);
   const assetPrefixes = unique(
     platforms.flatMap((platform) => platform.assetPrefixes)
   );
@@ -113,9 +132,26 @@ export function createHostRegistry(manifest) {
       )
       .map(normalizePath)
   );
-  const protectedFiles = new Set(syncPolicy.protectedFiles);
-  const safeFiles = new Set(syncPolicy.safeFiles);
-  const managedBlockFiles = new Set(syncPolicy.managedBlockFiles);
+
+  return {
+    manifest,
+    platforms,
+    byId,
+    aliases,
+    platformIds,
+    capabilityMatrix,
+    syncPolicy,
+    assetPrefixes,
+    skillReadRoots,
+    protectedFiles: new Set(syncPolicy.protectedFiles),
+    safeFiles: new Set(syncPolicy.safeFiles),
+    managedBlockFiles: new Set(syncPolicy.managedBlockFiles)
+  };
+}
+
+
+function selectionRules(index) {
+  const { aliases, platformIds } = index;
 
   function parsePlatformSelection(values) {
     const rawValues = Array.isArray(values) ? values : [values];
@@ -150,6 +186,20 @@ export function createHostRegistry(manifest) {
     return platformIds.filter((platformId) => selected.has(platformId));
   }
 
+  return { parsePlatformSelection };
+}
+
+
+function ownershipRules(index) {
+  const { manifest, platforms } = index;
+
+  function assetOwners(relativePath) {
+    const normalized = normalizePath(relativePath);
+    return platforms
+      .filter((platform) => ownsAsset(platform, normalized))
+      .map((platform) => platform.id);
+  }
+
   function shouldInclude(relativePath, selectedPlatforms) {
     const normalized = normalizePath(relativePath);
     if (
@@ -168,12 +218,19 @@ export function createHostRegistry(manifest) {
     );
   }
 
-  function assetOwners(relativePath) {
-    const normalized = normalizePath(relativePath);
-    return platforms
-      .filter((platform) => ownsAsset(platform, normalized))
-      .map((platform) => platform.id);
-  }
+  return { shouldInclude, assetOwners };
+}
+
+
+function syncRules(index) {
+  const {
+    syncPolicy,
+    protectedFiles,
+    safeFiles,
+    managedBlockFiles,
+    assetPrefixes,
+    skillReadRoots
+  } = index;
 
   function isSafeSyncFile(relativePath) {
     const normalized = normalizePath(relativePath);
@@ -206,7 +263,12 @@ export function createHostRegistry(manifest) {
     });
   }
 
-  async function detectInstalledPlatforms(targetDir, pathExists) {
+  return { isSafeSyncFile, isProtectedSyncFile, isManagedBlockFile, obsoleteSyncFiles };
+}
+
+
+function platformDetector(platforms) {
+  return async function detectInstalledPlatforms(targetDir, pathExists) {
     const installed = [];
     for (const platform of platforms) {
       for (const marker of platform.detectAny) {
@@ -217,42 +279,50 @@ export function createHostRegistry(manifest) {
       }
     }
     return installed;
-  }
+  };
+}
+
+
+export function createHostRegistry(manifest) {
+  const index = buildHostIndex(manifest);
+  const selection = selectionRules(index);
+  const ownership = ownershipRules(index);
+  const sync = syncRules(index);
 
   return {
-    manifest,
-    platforms,
-    platformIds,
-    capabilityMatrix,
-    syncPolicy,
-    assetPrefixes,
-    skillReadRoots,
-    parsePlatformSelection,
-    shouldInclude,
-    assetOwners,
-    detectInstalledPlatforms,
+    manifest: index.manifest,
+    platforms: index.platforms,
+    platformIds: index.platformIds,
+    capabilityMatrix: index.capabilityMatrix,
+    syncPolicy: index.syncPolicy,
+    assetPrefixes: index.assetPrefixes,
+    skillReadRoots: index.skillReadRoots,
+    parsePlatformSelection: selection.parsePlatformSelection,
+    shouldInclude: ownership.shouldInclude,
+    assetOwners: ownership.assetOwners,
+    detectInstalledPlatforms: platformDetector(index.platforms),
     platform(platformId) {
-      return byId.get(platformId) ?? null;
+      return index.byId.get(platformId) ?? null;
     },
-    // One alias token to one platform id. `parsePlatformSelection` is the
-    // multi-value entry point — it expands `all` and splits comma lists — which
-    // is the wrong shape for commands that act on exactly one host.
+    // One alias token to one platform id;
+    // parsePlatformSelection is the multi-value entry
+    // point.
     platformIdFor(token) {
-      return aliases.get(String(token ?? '').toLowerCase()) ?? null;
+      return index.aliases.get(String(token ?? '').toLowerCase()) ?? null;
     },
     platformLabel(platformId) {
-      return byId.get(platformId)?.displayName ?? platformId;
+      return index.byId.get(platformId)?.displayName ?? platformId;
     },
     hostCapability(hostId, capability) {
-      return capabilityMatrix.hosts[hostId]?.[capability] ?? null;
+      return index.capabilityMatrix.hosts[hostId]?.[capability] ?? null;
     },
     skillDestination(platformId) {
-      return byId.get(platformId)?.skillReadRoot ?? null;
+      return index.byId.get(platformId)?.skillReadRoot ?? null;
     },
-    // A payload declaration names a directory inside the package, so the
-    // absolute source directory is resolved here rather than in every installer.
+    // A declaration names a directory inside the package;
+    // the absolute source dir is resolved once, here.
     platformPayload(platformId) {
-      const payload = byId.get(platformId)?.payload;
+      const payload = index.byId.get(platformId)?.payload;
       if (!payload) {
         return null;
       }
@@ -261,10 +331,10 @@ export function createHostRegistry(manifest) {
         manifest: payload.manifest ?? null
       };
     },
-    isSafeSyncFile,
-    isProtectedSyncFile,
-    isManagedBlockFile,
-    obsoleteSyncFiles
+    isSafeSyncFile: sync.isSafeSyncFile,
+    isProtectedSyncFile: sync.isProtectedSyncFile,
+    isManagedBlockFile: sync.isManagedBlockFile,
+    obsoleteSyncFiles: sync.obsoleteSyncFiles
   };
 }
 

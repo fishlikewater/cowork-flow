@@ -294,6 +294,25 @@ async function buildFileSyncAction({ source, destination, relativePath }) {
   };
 }
 
+// Obsolete entries are removed shortest-path-first, and a
+// directory's deletion covers the files under it.
+async function collectObsoleteDeletions(targetDir, included) {
+  const actions = [];
+  const deletedParents = [];
+  for (const file of hostRegistry.obsoleteSyncFiles()) {
+    if (!included(file) || isCoveredByDeletedParent(file, deletedParents)) {
+      continue;
+    }
+    const destination = join(targetDir, file);
+    if (await pathExists(destination)) {
+      deletedParents.push(file);
+      actions.push({ action: 'delete', source: null, destination, relativePath: file });
+    }
+  }
+  return actions;
+}
+
+
 export async function buildSourceCheckoutRefreshPlan(targetDir, options = {}) {
   const files = await listFiles(templateRoot);
   const actions = [];
@@ -326,17 +345,7 @@ export async function buildSourceCheckoutRefreshPlan(targetDir, options = {}) {
     sync: true
   });
 
-  const deletedObsoleteParents = [];
-  for (const file of hostRegistry.obsoleteSyncFiles()) {
-    if (!isSourceRefreshObsoleteFile(file) || isCoveredByDeletedParent(file, deletedObsoleteParents)) {
-      continue;
-    }
-    const destination = join(targetDir, file);
-    if (await pathExists(destination)) {
-      deletedObsoleteParents.push(file);
-      actions.push({ action: 'delete', source: null, destination, relativePath: file });
-    }
-  }
+  actions.push(...await collectObsoleteDeletions(targetDir, isSourceRefreshObsoleteFile));
 
   const versionDestination = join(targetDir, '.cowork-flow', '.version');
   const versionSource = join(templateRoot, '.cowork-flow', '.version');
@@ -359,6 +368,62 @@ export async function buildSourceCheckoutRefreshPlan(targetDir, options = {}) {
   });
 }
 
+// Action for one template file, or null for an excluded
+// file and for the .version marker, which is planned
+// separately.
+async function planSyncFile(file, { targetDir, options, platforms, seen }) {
+  if (!hostRegistry.shouldInclude(file, platforms)) {
+    return null;
+  }
+
+  const destination = join(targetDir, file);
+  seen.add(destination);
+
+  if (toTemplatePath(file) === '.cowork-flow/.version') {
+    return null;
+  }
+
+  const source = join(templateRoot, file);
+  const exists = await pathExists(destination);
+  if (hostRegistry.isManagedBlockFile(file)) {
+    return await buildManagedBlockSyncAction({ source, destination, exists, options, relativePath: file });
+  }
+
+  const protectedFile = hostRegistry.isProtectedSyncFile(file) && !options.force && exists;
+  const safeFile = hostRegistry.isSafeSyncFile(file);
+
+  if (protectedFile) {
+    return { action: 'protected', source, destination, relativePath: file };
+  }
+  if (exists && (safeFile || options.force)) {
+    return await buildFileSyncAction({
+      source,
+      destination,
+      relativePath: file
+    });
+  }
+  if (!exists) {
+    return { action: 'create', source, destination, relativePath: file };
+  }
+  return { action: 'protected', source, destination, relativePath: file };
+}
+
+
+async function planSyncVersionAction(targetDir, version) {
+  const destination = join(targetDir, '.cowork-flow', '.version');
+  const content = `${version}\n`;
+  const unchanged = await pathExists(destination)
+    && (await readFile(destination, 'utf8')) === content;
+  return {
+    action: unchanged ? 'skip' : 'update',
+    source: null,
+    destination,
+    relativePath: '.cowork-flow/.version',
+    content
+  };
+}
+
+
 export async function buildSyncPlan(targetDir, options = {}) {
   if (!await pathExists(join(targetDir, '.cowork-flow'))) {
     throw new Error(`Target is not initialized: ${targetDir}`);
@@ -370,67 +435,16 @@ export async function buildSyncPlan(targetDir, options = {}) {
   const seen = new Set();
 
   for (const file of files) {
-    if (!hostRegistry.shouldInclude(file, platforms)) {
-      continue;
-    }
-
-    const destination = join(targetDir, file);
-    seen.add(destination);
-
-    if (toTemplatePath(file) === '.cowork-flow/.version') {
-      continue;
-    }
-
-    const source = join(templateRoot, file);
-    const exists = await pathExists(destination);
-    if (hostRegistry.isManagedBlockFile(file)) {
-      actions.push(await buildManagedBlockSyncAction({ source, destination, exists, options, relativePath: file }));
-      continue;
-    }
-
-    const protectedFile = hostRegistry.isProtectedSyncFile(file) && !options.force && exists;
-    const safeFile = hostRegistry.isSafeSyncFile(file);
-
-    if (protectedFile) {
-      actions.push({ action: 'protected', source, destination, relativePath: file });
-    } else if (exists && (safeFile || options.force)) {
-      actions.push(await buildFileSyncAction({
-        source,
-        destination,
-        relativePath: file
-      }));
-    } else if (!exists) {
-      actions.push({ action: 'create', source, destination, relativePath: file });
-    } else {
-      actions.push({ action: 'protected', source, destination, relativePath: file });
+    const action = await planSyncFile(file, { targetDir, options, platforms, seen });
+    if (action !== null) {
+      actions.push(action);
     }
   }
 
   await appendSkillFileActions(actions, { targetDir, platforms, seen, sync: true });
 
-  const deletedObsoleteParents = [];
-  for (const file of hostRegistry.obsoleteSyncFiles()) {
-    if (isCoveredByDeletedParent(file, deletedObsoleteParents)) {
-      continue;
-    }
-    const destination = join(targetDir, file);
-    if (await pathExists(destination)) {
-      deletedObsoleteParents.push(file);
-      actions.push({ action: 'delete', source: null, destination, relativePath: file });
-    }
-  }
-
-  const versionDestination = join(targetDir, '.cowork-flow', '.version');
-  const versionContent = `${options.version}\n`;
-  const versionUnchanged = await pathExists(versionDestination)
-    && (await readFile(versionDestination, 'utf8')) === versionContent;
-  actions.push({
-    action: versionUnchanged ? 'skip' : 'update',
-    source: null,
-    destination: versionDestination,
-    relativePath: '.cowork-flow/.version',
-    content: versionContent
-  });
+  actions.push(...await collectObsoleteDeletions(targetDir, () => true));
+  actions.push(await planSyncVersionAction(targetDir, options.version));
 
   return createAssetPlan({
     kind: 'sync',

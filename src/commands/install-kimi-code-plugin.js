@@ -1,79 +1,54 @@
-import { access, cp, mkdir, readFile, rm } from 'node:fs/promises';
+import { cp, mkdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { parseFlags } from '../lib/cli-flags.js';
+import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 
 const PLUGIN_NAME = 'cowork-flow';
 const MANIFEST_MARKER = 'cowork-flow';
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list.
+// Rendered by `host add`/`host remove`; the installer's
+// own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
-
-
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    force: Boolean(flags['--force']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
-
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 
 function kimiHome() {
   const configured = (process.env.KIMI_CODE_HOME || '').trim();
-  // The host rejects a relative plugin root outright, and that path is printed
-  // for the user to paste, so a relative KIMI_CODE_HOME must not survive here.
+  // The host rejects a relative plugin root, and that path
+  // is printed for the user to paste, so a relative
+  // KIMI_CODE_HOME must not survive here.
   return configured ? resolve(configured) : join(homedir(), '.kimi-code');
 }
 
 
-// A stable source directory of our own. Kimi Code's registry records the path a
-// plugin was installed from and re-reads it on every reinstall, so this location
-// has to survive upgrades — the same constraint the codex marketplace source
-// carries. It is deliberately NOT the host's `plugins/managed/` tree: that is the
-// host's copy, and a directory there without a registry record is exactly the
-// half-installed state the doctor reports.
+// The host's registry records the path a plugin was
+// installed from and re-reads it on every reinstall, so
+// this source directory has to survive upgrades. It is
+// deliberately NOT `plugins/managed/`: that is the host's
+// own copy, and a directory there without a registry
+// record is exactly the half-installed state the doctor
+// reports.
 function sourceDir(home) {
   return join(home, 'plugins', 'sources', PLUGIN_NAME);
 }
 
 
-// The declaration is the only place naming the payload manifest, so the
-// ownership guard reads the installed copy through that same path instead of
-// keeping a second literal in sync.
+// Read the installed copy through the payload
+// declaration's own manifest path instead of keeping a
+// second literal in sync.
 async function ownsInstall(target, manifestRelative) {
-  try {
-    const manifest = JSON.parse(
-      await readFile(join(target, ...manifestRelative.split('/')), 'utf8')
-    );
-    return manifest?.name === MANIFEST_MARKER;
-  } catch {
-    return false;
-  }
+  const manifest = await readJsonFile(join(target, ...manifestRelative.split('/')));
+  return manifest?.name === MANIFEST_MARKER;
 }
 
 
-// Kimi Code has no CLI subcommand for plugins — installation is TUI-only. So the
-// installer stops at materializing the source and hands the user the one slash
-// command that does the rest: the host copies the payload into
-// `plugins/managed/`, validates the manifest and writes its own registry record.
-// Reimplementing those three steps here would mean keeping a second copy of
-// host-private logic (see docs/hosts.md for the verified record shape).
+// Kimi Code has no CLI subcommand for plugins:
+// installation is TUI-only. The installer materializes the
+// source and hands over the one slash command that does
+// the rest (the host copies the payload, validates the
+// manifest and writes its registry record).
 function printInstallInstruction(target) {
   console.log('  Install it in Kimi Code (one time):');
   console.log(`    /plugins install ${target}`);
@@ -104,8 +79,9 @@ async function uninstall(home, manifestRelative, { dryRun, force }) {
   }
   await rm(target, { recursive: true, force: true });
   console.log(`✓ cowork-flow Kimi Code plugin source removed (${target})`);
-  // The host's remove only drops the registry record; its managed copy and the
-  // source directory stay on disk. Say so instead of implying a clean sweep.
+  // The host's remove only drops the registry record; its
+  // managed copy and this source directory stay on disk,
+  // so say so.
   console.log('  Still registered in Kimi Code? Run /plugins remove cowork-flow, then delete');
   console.log(`  ${join(home, 'plugins', 'managed', PLUGIN_NAME)} if it remains.`);
   return 0;
@@ -113,7 +89,7 @@ async function uninstall(home, manifestRelative, { dryRun, force }) {
 
 
 export async function runInstallKimiPlugin(args = []) {
-  const { dryRun, force, uninstall: remove } = parseArgs(args);
+  const { dryRun, force, uninstall: remove } = parseInstallArgs(args);
   const home = kimiHome();
   const target = sourceDir(home);
   const { sourceDir: pluginSrc, manifest } = pluginPayload('kimi-code');
@@ -130,9 +106,9 @@ export async function runInstallKimiPlugin(args = []) {
   console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow Kimi Code plugin source:`);
   console.log(`  Source: ${pluginSrc} -> ${target}`);
 
-  // The ownership guard runs before the dry-run exit too: a preview that says
-  // "would install" over a directory the real run then refuses would be worse
-  // than no preview at all.
+  // The ownership guard runs before the dry-run exit too:
+  // a preview that promises an install the real run
+  // refuses is worse than none.
   if (await pathExists(target)) {
     const ours = await ownsInstall(target, manifest);
     if (!ours && !force) {
@@ -154,9 +130,10 @@ export async function runInstallKimiPlugin(args = []) {
   await mkdir(join(home, 'plugins', 'sources'), { recursive: true });
   await rm(target, { recursive: true, force: true });
   await cp(pluginSrc, target, { recursive: true });
-  // The host reads the version from this manifest when it installs the plugin, so
-  // the source has to carry the package version — the shipped one tracks the
-  // release, but a materialized copy must not depend on that.
+  // The host reads the version from this manifest when it
+  // installs the plugin, so the source must carry the
+  // package version: the shipped copy tracks the release,
+  // a materialized one must not depend on it.
   await stampPayloadManifest(target, manifest, version);
 
   console.log(`✓ cowork-flow Kimi Code plugin source installed to ${target}`);

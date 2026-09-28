@@ -1,6 +1,7 @@
-// A usage error is the caller's mistake — an unknown command, an unknown flag,
-// a missing value — not a failed operation. It carries its own exit code so a
-// script can tell "you called me wrong" from "the work failed".
+// A usage error is the caller's mistake — an unknown
+// command, an unknown flag, a missing value — not a failed
+// operation. It carries its own exit code so a script can
+// tell the two apart.
 export class UsageError extends Error {
   constructor(message) {
     super(message);
@@ -9,14 +10,13 @@ export class UsageError extends Error {
 }
 
 
-// Flags are declared per command rather than scanned loosely. The installers
-// used to look for the flags they knew with `args.includes(...)` and silently
-// ignore everything else, so a typo like `--forcee` ran the command as if the
-// flag had not been passed at all.
+// Flags are declared per command, never scanned loosely:
+// an unknown flag is an error, so a typo cannot run the
+// command as if the flag had not been passed at all.
 //
-// The spec comes from the command registry: `boolean`, `value` and
-// `repeatable` are flag tokens including their leading dashes, and `positional`
-// bounds the non-flag arguments.
+// `boolean`, `value` and `repeatable` are flag tokens
+// including their leading dashes; `positional` bounds the
+// non-flag arguments.
 export function parseFlags(args, spec = {}) {
   const boolean = new Set(spec.boolean ?? []);
   const value = new Set(spec.value ?? []);
@@ -74,11 +74,11 @@ export function parseFlags(args, spec = {}) {
 }
 
 
-// Pull one value-carrying flag out of argv and hand the rest through untouched.
-// `host add` needs the host's component before it can pick an installer, but
-// every other flag belongs to that installer and has to reach it verbatim —
-// re-serializing a parsed flag set would silently drop whatever the parser
-// here does not know about.
+// Pull one value-carrying flag out of argv and hand the
+// rest through untouched. `host add` needs the component
+// before it can pick an installer; re-serializing a parsed
+// flag set would silently drop whatever this parser does
+// not know about.
 export function extractValueFlag(args, name) {
   const rest = [];
   let value = null;

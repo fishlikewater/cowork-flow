@@ -1,51 +1,34 @@
-import { access, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { parseInstallArgs, pathExists } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
 import { readPackageInfo } from '../lib/package-info.js';
-import { parseFlags } from '../lib/cli-flags.js';
 
 const SHIM_NAME = 'cowork-flow-inject.mjs';
 const SHIM_SRC = join(packageRoot, 'presets', 'kimi-code', 'hooks', SHIM_NAME);
 const MARKER_FILE = '.cowork-flow-kimi-hook.json';
 const HOOK_EVENT = 'UserPromptSubmit';
-// Kimi Code's own hook default; kept explicit so an edit is visible here.
+// Kimi Code's own hook default; kept explicit so an edit
+// is visible.
 const HOOK_TIMEOUT = 30;
-// Written into the user's own config.toml, so this string is a wire format: it
-// is how an existing install is recognised for idempotent replacement. Changing
-// it would make every installed block unrecognisable and append a second one.
+// Written into the user's own config.toml, so these
+// strings are a wire format: how an existing install is
+// recognised for idempotent replacement. Changing them
+// would append a second block.
 const MANAGED_START = '# cowork-flow: kimi hook start. Managed by "cowork-flow install-kimi-hook"; edits inside this block are replaced.';
 const MANAGED_END = '# cowork-flow: kimi hook end.';
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list. No --force: installing
-// always rewrites the shim and its managed block, so a flag that only re-ran
-// the same writes would be a no-op.
+// Rendered by `host add`/`host remove`. No --force:
+// installing always rewrites the shim and its managed
+// block, so the flag would be a no-op; the helper rejects
+// it for this installer.
 export const FLAGS = ['--dry-run', '--uninstall'];
-
-
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
 
 
 function getKimiHome() {
   return process.env.KIMI_CODE_HOME || join(homedir(), '.kimi-code');
-}
-
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 
@@ -59,7 +42,8 @@ async function readIfExists(file) {
 
 
 /**
- * Kimi Code's user-level config.toml, holding the `[[hooks]]` rows.
+ * Kimi Code's user-level config.toml, holding the
+ * `[[hooks]]` rows.
  */
 function configFile(home) {
   return join(home, 'config.toml');
@@ -68,7 +52,8 @@ function configFile(home) {
 
 /**
  * Transport shim installed beside the config, spawned as
- * `node <home>/hooks/cowork-flow-inject.mjs` from every session.
+ * `node <home>/hooks/cowork-flow-inject.mjs` from every
+ * session.
  */
 function shimDest(home) {
   return join(home, 'hooks', SHIM_NAME);
@@ -76,10 +61,11 @@ function shimDest(home) {
 
 
 /**
- * Version marker for the installed hook, written next to the shim. The
- * installed files live outside any project, so nothing else records which
- * release put them there — doctor reads this to tell an up-to-date install
- * from one that predates the project runtime.
+ * Version marker for the installed hook, written next to
+ * the shim. The installed files live outside any project,
+ * so nothing else records which release put them there;
+ * doctor reads this to tell an up-to-date install from one
+ * that predates the project runtime.
  */
 function markerDest(home) {
   return join(home, 'hooks', MARKER_FILE);
@@ -87,12 +73,13 @@ function markerDest(home) {
 
 
 /**
- * One `[[hooks]]` row that pipes every UserPromptSubmit payload into the
- * shim. Kimi Code allows exactly four hook fields — event, matcher, command,
- * timeout — and rejects the whole config when a row carries anything else,
- * so the row is deliberately minimal. `matcher` is omitted on purpose:
- * omitted means "match every prompt". Paths are quoted because a Kimi Code
- * home may contain spaces (Windows user profiles).
+ * One `[[hooks]]` row piping every UserPromptSubmit
+ * payload into the shim. Kimi Code allows exactly four
+ * hook fields (event, matcher, command, timeout) and
+ * rejects the whole config when a row carries anything
+ * else, so the row stays minimal; `matcher` is omitted on
+ * purpose, since omitted means "match every prompt". Paths
+ * are quoted because a Kimi Code home may contain spaces.
  */
 function hookBlock(home) {
   const command = 'node "' + shimDest(home) + '"';
@@ -108,9 +95,10 @@ function hookBlock(home) {
 
 
 /**
- * End of the `[[hooks]]` row starting at `start`: the next table header, the
- * next row of the same array, or the end of file. Trailing blank lines stay
- * outside the range so removal leaves them for the surrounding layout.
+ * End of the `[[hooks]]` row starting at `start`: the next
+ * table header, the next row of the same array, or the end
+ * of file. Trailing blank lines stay outside the range so
+ * removal leaves them.
  */
 function hookRowEnd(lines, start) {
   let end = start + 1;
@@ -131,12 +119,13 @@ function hookRowEnd(lines, start) {
 /**
  * Locate the managed block inside the config text.
  *
- * The config is edited as text on purpose: a TOML round-trip would rewrite
- * every pretty-printed entry of the user's own config (providers, models,
- * permissions), and the file must stay byte-stable outside the block. The
- * marker comments take precedence so the block is removed even when the row
- * no longer resembles ours; without markers, the only ownership signal left
- * is a `[[hooks]]` row whose command names this shim. Returns null when
+ * The config is edited as text on purpose: a TOML
+ * round-trip would rewrite every pretty-printed entry of
+ * the user's own config, and the file must stay
+ * byte-stable outside the block. Marker comments take
+ * precedence, so a block whose row was edited is still
+ * removed; without markers the ownership signal is a
+ * `[[hooks]]` row whose command names this shim. Null when
  * neither exists.
  */
 function findManagedBlock(text, home) {
@@ -193,8 +182,8 @@ function withoutBlock(text, home) {
   const kept = lines.slice(0, range.start).concat(lines.slice(range.end));
   const body = kept.join('\n').replace(/^\n+/, '').replace(/\s+$/, '');
   if (body === '') {
-    // Nothing of the user's own config remains: an empty file left behind
-    // would be a config that only ever held this hook.
+    // An empty file left behind would be a config that
+    // only ever held this hook.
     return { text: '', changed: true };
   }
   return { text: body + '\n', changed: true };
@@ -202,13 +191,15 @@ function withoutBlock(text, home) {
 
 
 /**
- * Compact line preview for --dry-run: every line that differs plus its
- * neighbours, so the operator sees where the block lands without a full-file
+ * Compact line preview for --dry-run: every line that
+ * differs plus its two neighbours either side, so the
+ * operator sees where the block lands without a full-file
  * dump.
  */
 function previewDiff(before, after) {
-  // A trailing newline is a line terminator, not an extra empty line; without
-  // this the preview would always report a phantom last-line change.
+  // A trailing newline is a line terminator, not an extra
+  // empty line; without this the preview reports a phantom
+  // last-line change.
   const toLines = (text) => {
     if (text === '') {
       return [];
@@ -242,92 +233,73 @@ function previewDiff(before, after) {
 }
 
 
-/**
- * Install (or uninstall) the user-level Kimi Code context-injection hook.
- *
- * Kimi Code reads hooks only from $KIMI_CODE_HOME/config.toml, so the shim is
- * installed under the same home and every session — in every project —
- * invokes it; the shim itself exits silently outside cowork-flow projects.
- * Only the Kimi Code home is written: no project file is touched.
- */
-export async function runInstallKimiHook(args = []) {
-  const { dryRun, uninstall } = parseArgs(args);
+function printDryRunUninstall({ config, home, shim, marker, before }) {
+  const result = before === null ? { changed: false } : withoutBlock(before, home);
+  console.log('[dry-run] Would uninstall Kimi Code context hook:');
+  console.log(
+    '  Config: ' + config
+      + (before === null
+        ? ' (absent; nothing to remove)'
+        : (result.changed ? ' (managed block found)' : ' (no managed block)'))
+  );
+  console.log('  Remove shim: ' + shim);
+  console.log('  Remove marker: ' + marker);
+}
 
-  if (!(await pathExists(SHIM_SRC))) {
-    throw new Error('Kimi Code hook shim missing at ' + SHIM_SRC + '. Reinstall cowork-flow.');
-  }
 
-  const home = getKimiHome();
-  const config = configFile(home);
-  const shim = shimDest(home);
-  const marker = markerDest(home);
-
-  if (dryRun) {
-    const before = await readIfExists(config);
-    if (uninstall) {
-      const result = before === null ? { changed: false } : withoutBlock(before, home);
-      console.log('[dry-run] Would uninstall Kimi Code context hook:');
-      console.log(
-        '  Config: ' + config
-          + (before === null
-            ? ' (absent; nothing to remove)'
-            : (result.changed ? ' (managed block found)' : ' (no managed block)'))
-      );
-      console.log('  Remove shim: ' + shim);
-      console.log('  Remove marker: ' + marker);
-      return;
-    }
-    console.log('[dry-run] Would install Kimi Code context hook:');
-    console.log('  Shim: ' + SHIM_SRC + ' -> ' + shim);
-    console.log('  Marker: ' + marker);
-    if (before === null) {
-      console.log('  Create config: ' + config);
-      for (const line of previewDiff('', hookBlock(home))) {
-        console.log(line);
-      }
-      return;
-    }
-    const result = withBlock(before, home);
-    if (!result.changed) {
-      console.log('  Config: ' + config + ' (managed block already up to date)');
-      return;
-    }
-    console.log('  Config: ' + config + (result.existed ? ' (update managed block)' : ' (append managed block)'));
-    for (const line of previewDiff(before, result.text)) {
+function printDryRunInstall({ config, home, shim, marker, before }) {
+  console.log('[dry-run] Would install Kimi Code context hook:');
+  console.log('  Shim: ' + SHIM_SRC + ' -> ' + shim);
+  console.log('  Marker: ' + marker);
+  if (before === null) {
+    console.log('  Create config: ' + config);
+    for (const line of previewDiff('', hookBlock(home))) {
       console.log(line);
     }
     return;
   }
-
-  if (uninstall) {
-    const before = await readIfExists(config);
-    if (before === null) {
-      console.log('No Kimi Code config at ' + config + '; nothing to uninstall.');
-    } else {
-      const result = withoutBlock(before, home);
-      if (!result.changed) {
-        console.log('No managed hook block found in ' + config + '.');
-      } else if (result.text === '') {
-        await rm(config, { force: true });
-        console.log('✓ Kimi Code context hook removed; ' + config + ' held nothing else and was deleted.');
-      } else {
-        await writeFile(config, result.text, 'utf8');
-        console.log('✓ Kimi Code context hook removed from ' + config);
-      }
-    }
-    const hadShim = await pathExists(shim);
-    await rm(shim, { force: true });
-    if (hadShim) {
-      console.log('✓ Removed hook shim ' + shim);
-    }
-    const hadMarker = await pathExists(marker);
-    await rm(marker, { force: true });
-    if (hadMarker) {
-      console.log('✓ Removed version marker ' + marker);
-    }
+  const result = withBlock(before, home);
+  if (!result.changed) {
+    console.log('  Config: ' + config + ' (managed block already up to date)');
     return;
   }
+  console.log('  Config: ' + config + (result.existed ? ' (update managed block)' : ' (append managed block)'));
+  for (const line of previewDiff(before, result.text)) {
+    console.log(line);
+  }
+}
 
+
+async function uninstallHook({ config, home, shim, marker }) {
+  const before = await readIfExists(config);
+  if (before === null) {
+    console.log('No Kimi Code config at ' + config + '; nothing to uninstall.');
+  } else {
+    const result = withoutBlock(before, home);
+    if (!result.changed) {
+      console.log('No managed hook block found in ' + config + '.');
+    } else if (result.text === '') {
+      await rm(config, { force: true });
+      console.log('✓ Kimi Code context hook removed; ' + config + ' held nothing else and was deleted.');
+    } else {
+      await writeFile(config, result.text, 'utf8');
+      console.log('✓ Kimi Code context hook removed from ' + config);
+    }
+  }
+  const hadShim = await pathExists(shim);
+  await rm(shim, { force: true });
+  if (hadShim) {
+    console.log('✓ Removed hook shim ' + shim);
+  }
+  const hadMarker = await pathExists(marker);
+  await rm(marker, { force: true });
+  if (hadMarker) {
+    console.log('✓ Removed version marker ' + marker);
+  }
+}
+
+
+async function installHook({ config, home, shim, marker }) {
   const { version } = await readPackageInfo();
   await mkdir(dirname(shim), { recursive: true });
   await copyFile(SHIM_SRC, shim);
@@ -350,4 +322,42 @@ export async function runInstallKimiHook(args = []) {
   );
   console.log('  Start a new Kimi Code session (or reload the config) for the hook to load.');
   console.log('  Note: injection happens once per submitted prompt; other Kimi Code events cannot inject.');
+}
+
+
+/**
+ * Install (or uninstall) the user-level Kimi Code
+ * context-injection hook. Kimi Code reads hooks only from
+ * $KIMI_CODE_HOME/config.toml, so the shim sits under the
+ * same home and every session in every project invokes it;
+ * the shim exits silently outside cowork-flow projects.
+ */
+export async function runInstallKimiHook(args = []) {
+  const { dryRun, uninstall } = parseInstallArgs(args, { force: false });
+
+  if (!(await pathExists(SHIM_SRC))) {
+    throw new Error('Kimi Code hook shim missing at ' + SHIM_SRC + '. Reinstall cowork-flow.');
+  }
+
+  const home = getKimiHome();
+  const config = configFile(home);
+  const shim = shimDest(home);
+  const marker = markerDest(home);
+
+  if (dryRun) {
+    const before = await readIfExists(config);
+    if (uninstall) {
+      printDryRunUninstall({ config, home, shim, marker, before });
+    } else {
+      printDryRunInstall({ config, home, shim, marker, before });
+    }
+    return;
+  }
+
+  if (uninstall) {
+    await uninstallHook({ config, home, shim, marker });
+    return;
+  }
+
+  await installHook({ config, home, shim, marker });
 }

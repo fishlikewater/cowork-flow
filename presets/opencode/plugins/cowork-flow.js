@@ -1,10 +1,11 @@
 // opencode plugin adapter for cowork-flow.
 //
-// opencode iterates EVERY export of this module and calls it as a plugin
-// factory, then iterates the hooks object each one returns. So this file
-// exports exactly one function and nothing else — the logic lives in
-// ../cowork-flow/plugin-core.js. Re-exporting a helper from here crashes the
-// host during bootstrap (test/opencode-plugin.test.js pins this).
+// opencode calls EVERY export of this module as a plugin
+// factory and then every hook of the object it returns, so
+// this file exports exactly one function and nothing else;
+// the logic lives in ../cowork-flow/plugin-core.js. A
+// re-exported helper would be called as a plugin and break
+// host bootstrap.
 import {
   buildInjectedDigest,
   buildRuntimeWorkflowState,
@@ -17,9 +18,9 @@ import {
 
 export const CoworkFlowPlugin = async () => {
   return {
-    // Registers the payload's own skills directory when this file is the
-    // machine-level install, and is a no-op for the project install, which has
-    // no skills/ sibling. See registerPayloadSkills for why this works.
+    // Registers the payload skills directory for the
+    // machine-level install, and is a no-op for the
+    // project install, which has no skills/ sibling.
     "config": async (config) => {
       registerPayloadSkills(config)
     },

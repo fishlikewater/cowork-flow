@@ -15,9 +15,9 @@ import {
 } from '../lib/platforms.js';
 import { parseFlags, UsageError } from '../lib/cli-flags.js';
 
-// Host selection is validated in the manifest layer, which reports a plain
-// Error. Re-thrown as a usage error here so "you named a host that does not
-// exist" exits with the same code as every other argv mistake.
+// The manifest layer reports a plain Error; re-thrown as a
+// usage error so a bad host name exits with the
+// argv-mistake code.
 function parsePlatformSelectionOrUsage(values) {
   try {
     return parsePlatformSelection(values);

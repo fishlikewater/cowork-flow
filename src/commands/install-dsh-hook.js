@@ -1,44 +1,25 @@
-import { access, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { parseInstallArgs, pathExists } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
-import { parseFlags } from '../lib/cli-flags.js';
 
 const PLUGIN_SRC = join(packageRoot, 'presets', 'dsh', 'plugins', 'workflow-state.js');
 const ROW_ID = 'workflow-state-hook';
-// Written into the user's own patch file, so this string is a wire format: it is
-// how an existing install is recognised for idempotent replacement. Changing it
-// would make every installed row unrecognisable and append a second one.
+// Written into the user's own patch file, so this string
+// is a wire format: how an existing install is recognised
+// for idempotent replacement. Changing it would append a
+// second row.
 const MANAGED_MARK = '# cowork-flow: managed workflow-state-hook row. Run "cowork-flow install-dsh-hook" to change it.';
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list.
+// Rendered by `host add`/`host remove`; the installer's
+// own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
-
-
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    force: Boolean(flags['--force']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
 
 
 function getDshHome() {
   return process.env.DSH_HOME || join(homedir(), '.dsh');
-}
-
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 
@@ -52,10 +33,11 @@ async function readIfExists(file) {
 
 
 function hookRowBlock(pluginPath) {
-  // cordis.patch.yml is a TOP-LEVEL YAML ARRAY of patch objects. A bare row
-  // would be read as a "modify existing entry" patch and skipped with
-  // "entry not found"; a new row therefore needs one id-less patch whose
-  // insert list appends rows at the top level of the composed entry list.
+  // cordis.patch.yml is a TOP-LEVEL YAML ARRAY of patch
+  // objects. A bare row would be read as a "modify
+  // existing entry" patch and skipped with "entry not
+  // found"; the row therefore needs one id-less patch
+  // whose insert list appends at the top level.
   return [
     MANAGED_MARK,
     '- insert:',
@@ -66,12 +48,15 @@ function hookRowBlock(pluginPath) {
 
 
 /**
- * Locate the managed hook block inside a patch file's text.
+ * Locate the managed hook block inside a patch file's
+ * text.
  *
- * The block is the marker comment (when present), the id-less insert patch
- * line, and the hook row with its indented continuation lines. Returns null
- * when no such row exists. The patch is edited as text on purpose: a YAML
- * round-trip would destroy !!js expressions used by DSH compositions.
+ * The block is the marker comment (when present), the
+ * id-less insert patch line, and the hook row with its
+ * indented continuation lines; null when no such row
+ * exists. The file is edited as text on purpose: a YAML
+ * round-trip would destroy the `!!js` expressions DSH
+ * compositions use.
  */
 function findManagedBlock(text) {
   const lines = text.split('\n');
@@ -97,8 +82,9 @@ function findManagedBlock(text) {
   while (end < lines.length && (lines[end].startsWith(' ') || lines[end].startsWith('\t'))) {
     end += 1;
   }
-  // The block excludes any following blank separator: replacement keeps the
-  // file's own line endings byte-stable, removal folds the leftover blank.
+  // The block excludes any following blank separator:
+  // replacement keeps the file's own line endings
+  // byte-stable, removal folds the blank.
   return { start: markStart, end };
 }
 
@@ -154,8 +140,8 @@ async function removeRow(patchFile) {
     return false;
   }
   if (after === '') {
-    // Nothing of the user's own patch remains: drop the file instead of
-    // leaving an empty patch that shadows nothing.
+    // Nothing of the user's own patch remains: drop the
+    // file instead of leaving an empty patch behind.
     await rm(patchFile, { force: true });
   } else {
     await writeFile(patchFile, after, 'utf8');
@@ -165,17 +151,15 @@ async function removeRow(patchFile) {
 
 
 /**
- * Install (or uninstall) the machine-level DSH workflow-state hook.
- *
- * Registers the shared workflow-state.js plugin as an id-less insert patch
- * in $DSH_HOME/cordis.patch.yml, which DSH applies to every profile and
- * agent session at boot. Any preset keeps working unchanged; the hook
- * contributes nothing (and, since the plugin pre-checks for a .cowork-flow
- * root, does not even spawn an interpreter) in projects that do not run
- * cowork-flow.
+ * Install (or uninstall) the machine-level DSH
+ * workflow-state hook: an id-less insert patch in
+ * $DSH_HOME/cordis.patch.yml, which DSH applies to every
+ * profile and agent session at boot. The plugin pre-checks
+ * for a .cowork-flow root, so projects that do not run
+ * cowork-flow spawn nothing.
  */
 export async function runInstallDshHook(args = []) {
-  const { dryRun, force, uninstall } = parseArgs(args);
+  const { dryRun, force, uninstall } = parseInstallArgs(args);
 
   if (!(await pathExists(PLUGIN_SRC))) {
     throw new Error('workflow-state hook source missing at ' + PLUGIN_SRC + '. Reinstall cowork-flow.');

@@ -1,8 +1,8 @@
-import { access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { UsageError, extractValueFlag, parseFlags } from '../lib/cli-flags.js';
 import { hostRegistry } from '../lib/host-assets.js';
+import { pathExists } from '../lib/install-support.js';
 import { runInstallCodexPlugin, FLAGS as CODEX_PLUGIN_FLAGS } from './install-codex-plugin.js';
 import { runInstallClaudeCodePlugin, FLAGS as CLAUDE_CODE_PLUGIN_FLAGS } from './install-claude-code-plugin.js';
 import { runInstallDshHook, FLAGS as DSH_HOOK_FLAGS } from './install-dsh-hook.js';
@@ -14,13 +14,11 @@ import { runInstallQoderPlugin, FLAGS as QODER_PLUGIN_FLAGS } from './install-qo
 import { runInstallZCodePlugin, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zcode-plugin.js';
 
 
-// Which machine-level integrations a host has. This is deliberately not part of
-// host-assets.json: that manifest ships into user projects and declares host
-// facts (asset paths, skill discovery, where the payload lives in the package),
-// while "which actions can the CLI take against this host" is a property of the
-// command surface. The two are kept in step by a gate instead (see
-// test/cli-registry.test.js), not by merging the files. Every declared host has
-// an entry here — a gate asserts it.
+// Which machine-level integrations a host has.
+// Deliberately not part of host-assets.json: that manifest
+// ships into user projects and declares asset facts, while
+// this is a property of the command surface. A gate keeps
+// the two in step.
 export const HOST_COMPONENTS = {
   codex: {
     default: 'plugin',
@@ -69,9 +67,10 @@ export const HOST_COMPONENTS = {
 };
 
 
-// Every flag any installer accepts, in a stable order. `host add` forwards its
-// argv to the installer unchanged, so the installer stays the only place that
-// validates a flag; this list exists so `host add --help` can name them.
+// Every flag any installer accepts, in a stable order.
+// `host add` forwards argv unchanged, so installers stay
+// the only validators; this list is what `host add --help`
+// can name.
 export const HOST_FLAGS = [...new Set(
   Object.values(HOST_COMPONENTS).flatMap(
     (host) => Object.values(host.components).flatMap((component) => component.flags)
@@ -104,19 +103,10 @@ function resolveComponent(id, host, name) {
 }
 
 
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-
-// `--component` is the only flag `host add`/`host remove` own; everything else
-// belongs to the installer and is forwarded verbatim, so a flag this module has
-// never heard of still reaches the installer and is validated there.
+// `--component` is the only flag these two commands own;
+// everything else belongs to the installer and is
+// forwarded verbatim, so a flag this module never heard of
+// still reaches it and is validated there.
 function splitHostArgs(args) {
   const { value: componentName, rest } = extractValueFlag(args, '--component');
   const [token, ...forwarded] = rest;
@@ -149,7 +139,8 @@ export async function runHostList(args = [], { io } = {}) {
 
   const rows = [];
   for (const platform of hostRegistry.platforms) {
-    // Every declared host has components; test/cli-registry.test.js asserts it.
+    // Every declared host has components;
+    // cli-registry.test.js asserts it.
     const host = HOST_COMPONENTS[platform.id];
     rows.push({
       id: platform.id,
@@ -157,8 +148,8 @@ export async function runHostList(args = [], { io } = {}) {
       aliases: [...platform.aliases],
       components: Object.keys(host.components),
       defaultComponent: host.default,
-      // The adapter declaration is the per-project record that this host was
-      // selected at init, so its presence is the selection signal.
+      // The per-project adapter record is the selection
+      // signal.
       selected: await pathExists(join(target, ...platform.adapterPath.split('/')))
     });
   }

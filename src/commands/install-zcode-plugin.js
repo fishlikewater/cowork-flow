@@ -1,40 +1,22 @@
-import { cp, mkdir, readFile, writeFile, access, rm, readdir } from 'node:fs/promises';
+import { cp, mkdir, writeFile, rm, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { templateRoot } from '../lib/paths.js';
 import { marketplaceIconUrl, pluginManifest, readPluginMetadata } from '../lib/plugin-metadata.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
-import { parseFlags } from '../lib/cli-flags.js';
 
 const ZCODE_MARKETPLACE = 'cowork-flow-local';
 const LEGACY_ZCODE_MARKETPLACE = 'zcode-plugins-official';
 const PLUGIN_NAME = 'cowork-flow';
 const LOCAL_MARKETPLACE_DESCRIPTION = 'Local marketplace registration for cowork-flow during local development.';
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list.
+// Rendered by `host add`/`host remove`; `--prune-old` is
+// zcode-only.
 export const FLAGS = ['--dry-run', '--force', '--prune-old', '--uninstall'];
 
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    force: Boolean(flags['--force']),
-    pruneOld: Boolean(flags['--prune-old']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function getZCodePluginsRoot() {
   const base = process.env.ZCODE_HOME || join(homedir(), '.zcode');
@@ -43,14 +25,6 @@ function getZCodePluginsRoot() {
 
 async function getZCodeCacheDir() {
   return join(getZCodePluginsRoot(), 'cache', ZCODE_MARKETPLACE, PLUGIN_NAME);
-}
-
-async function readJsonSafe(path) {
-  try {
-    return JSON.parse(await readFile(path, 'utf8'));
-  } catch {
-    return null;
-  }
 }
 
 async function writeJsonAtomic(path, data) {
@@ -75,8 +49,8 @@ function marketplacePaths(pluginsRoot) {
 
 async function updateMarketplace(pluginsRoot, cacheRoot, version, metadata) {
   const { activeMarketplacePath, sourceMarketplacePath } = marketplacePaths(pluginsRoot);
-  const market = (await readJsonSafe(sourceMarketplacePath))
-    || (await readJsonSafe(activeMarketplacePath))
+  const market = (await readJsonFile(sourceMarketplacePath))
+    || (await readJsonFile(activeMarketplacePath))
     || {
       name: ZCODE_MARKETPLACE,
       description: LOCAL_MARKETPLACE_DESCRIPTION,
@@ -124,7 +98,7 @@ async function updateMarketplace(pluginsRoot, cacheRoot, version, metadata) {
 
 async function updateKnownMarketplaces(pluginsRoot) {
   const knownPath = join(pluginsRoot, 'known_marketplaces.json');
-  const known = (await readJsonSafe(knownPath)) || {
+  const known = (await readJsonFile(knownPath)) || {
     version: 1,
     marketplaces: []
   };
@@ -169,7 +143,7 @@ async function removeLegacyMarketplaceEntry(pluginsRoot) {
     LEGACY_ZCODE_MARKETPLACE,
     'marketplace.json'
   );
-  const legacy = await readJsonSafe(legacyPath);
+  const legacy = await readJsonFile(legacyPath);
   if (!legacy || !Array.isArray(legacy.plugins)) {
     return false;
   }
@@ -202,14 +176,22 @@ async function pruneOldVersions(cacheRoot, currentVersion) {
   return removed;
 }
 
-// ZCode owns every one of these files, but the entries inside them are ours:
-// the marketplace files and the known-marketplaces registry each carry exactly
-// one cowork-flow entry, so uninstall removes that entry and leaves whatever
-// else the user registered in place.
-//
-// `cache/<marketplace>/` is the per-marketplace cache root, named after the
-// marketplace we registered and written by nobody else, so it goes too — an
-// empty directory left behind is a directory the user has to wonder about.
+async function pruneVersions(cacheRoot, version, pruneOld) {
+  if (!pruneOld) {
+    return;
+  }
+  const removed = await pruneOldVersions(cacheRoot, version);
+  if (removed.length > 0) {
+    console.log(`Pruned old cowork-flow ZCode plugin versions: ${removed.join(', ')}`);
+  }
+}
+
+// The files are ZCode's but the entries inside are ours:
+// uninstall removes cowork-flow's entry from each and
+// leaves other registrations in place. The per-marketplace
+// cache dir is ours alone, so it goes too (an empty
+// directory left behind is one the user has to wonder
+// about).
 async function uninstall(pluginsRoot, cacheRoot, dryRun) {
   const { activeMarketplacePath, sourceMarketplacePath } = marketplacePaths(pluginsRoot);
   const activeMarketplaceDir = dirname(activeMarketplacePath);
@@ -226,7 +208,7 @@ async function uninstall(pluginsRoot, cacheRoot, dryRun) {
     return 0;
   }
 
-  const known = await readJsonSafe(knownPath);
+  const known = await readJsonFile(knownPath);
   let droppedKnownEntry = false;
   if (known && Array.isArray(known.marketplaces)) {
     const kept = known.marketplaces.filter((marketplace) => marketplace.id !== ZCODE_MARKETPLACE);
@@ -252,8 +234,66 @@ async function uninstall(pluginsRoot, cacheRoot, dryRun) {
   return 0;
 }
 
+function printInstallDryRun({ pluginSrc, destDir, pluginsRoot }) {
+  console.log(`[dry-run] Would install ZCode plugin:`);
+  console.log(`  Plugin: ${pluginSrc} -> ${destDir}`);
+  console.log(`  Marketplace source: ${join(pluginsRoot, 'cache', 'marketplaces', ZCODE_MARKETPLACE, 'marketplace.json')}`);
+  console.log(`  Active marketplace: ${join(pluginsRoot, 'marketplaces', ZCODE_MARKETPLACE, 'marketplace.json')}`);
+  console.log(`  Known marketplaces: ${join(pluginsRoot, 'known_marketplaces.json')}`);
+}
+
+async function materializePlugin({ pluginSrc, destDir, cacheRoot, manifest, version }) {
+  await mkdir(cacheRoot, { recursive: true });
+  if (await pathExists(destDir)) {
+    await rm(destDir, { recursive: true, force: true });
+  }
+
+  await cp(pluginSrc, destDir, { recursive: true });
+
+  // ZCode applies plugin scaffold files to each workspace
+  // folder; keep workflow runtime files out of scaffold.
+  await rm(join(destDir, "scaffold", ".cowork-flow"), { recursive: true, force: true });
+
+  // The presets/zcode/hooks/runtime/scripts copy is stale;
+  // overwrite it with the authoritative version from the
+  // template.
+  const mainScriptsSrc = join(templateRoot, ".cowork-flow", "scripts");
+  const pluginScriptsDest = join(destDir, "hooks", "runtime", "scripts");
+  if (await pathExists(mainScriptsSrc)) {
+    await cp(mainScriptsSrc, pluginScriptsDest, { recursive: true, force: true });
+  }
+
+  // The cache directory is named after the package
+  // version, so the installed manifest is stamped to
+  // match.
+  await stampPayloadManifest(destDir, manifest, version);
+}
+
+// Registration files are refreshed in one order:
+// marketplace, known list, old-marketplace cleanup, then
+// old cache versions.
+async function refreshRegistrations({ pluginsRoot, cacheRoot, version, metadata, pruneOld }) {
+  await updateMarketplace(pluginsRoot, cacheRoot, version, metadata);
+  await updateKnownMarketplaces(pluginsRoot);
+  await removeLegacyMarketplaceEntry(pluginsRoot);
+  await pruneVersions(cacheRoot, version, pruneOld);
+}
+
+async function writeInstallSeed(destDir, version) {
+  await writeJsonAtomic(join(destDir, ".zcode-plugin-seed.json"), {
+    hash: "placeholder-replace-on-publish",
+    marketplace: ZCODE_MARKETPLACE,
+    plugin: PLUGIN_NAME,
+    pluginVersion: version,
+    source: "cli-install",
+    version: 1
+  });
+}
+
 export async function runInstallZCodePlugin(args = []) {
-  const { dryRun, force, pruneOld, uninstall: remove } = parseArgs(args);
+  const { dryRun, force, pruneOld, uninstall: remove } = parseInstallArgs(args, {
+    extraBoolean: ['--prune-old']
+  });
   const pluginsRoot = getZCodePluginsRoot();
   const cacheRoot = await getZCodeCacheDir();
 
@@ -271,74 +311,20 @@ export async function runInstallZCodePlugin(args = []) {
   const destDir = join(cacheRoot, version);
 
   if (dryRun) {
-    console.log(`[dry-run] Would install ZCode plugin:`);
-    console.log(`  Plugin: ${pluginSrc} -> ${destDir}`);
-    console.log(`  Marketplace source: ${join(pluginsRoot, 'cache', 'marketplaces', ZCODE_MARKETPLACE, 'marketplace.json')}`);
-    console.log(`  Active marketplace: ${join(pluginsRoot, 'marketplaces', ZCODE_MARKETPLACE, 'marketplace.json')}`);
-    console.log(`  Known marketplaces: ${join(pluginsRoot, 'known_marketplaces.json')}`);
+    printInstallDryRun({ pluginSrc, destDir, pluginsRoot });
     return;
   }
 
   if (!force && (await pathExists(destDir))) {
-    await updateMarketplace(pluginsRoot, cacheRoot, version, metadata);
-    await updateKnownMarketplaces(pluginsRoot);
-    await removeLegacyMarketplaceEntry(pluginsRoot);
-    if (pruneOld) {
-      const removed = await pruneOldVersions(cacheRoot, version);
-      if (removed.length > 0) {
-        console.log(`Pruned old cowork-flow ZCode plugin versions: ${removed.join(', ')}`);
-      }
-    }
+    await refreshRegistrations({ pluginsRoot, cacheRoot, version, metadata, pruneOld });
     console.log(`cowork-flow ZCode plugin already installed at ${destDir}`);
     console.log('Use --force to overwrite.');
     return;
   }
 
-  await mkdir(cacheRoot, { recursive: true });
-  if (await pathExists(destDir)) {
-    await rm(destDir, { recursive: true, force: true });
-  }
-
-  // Copy plugin runtime (.zcode-plugin/, hooks/, runtime/, scaffold/) from presets/zcode/
-  await cp(pluginSrc, destDir, { recursive: true });
-
-  // ZCode may apply plugin scaffold files to each workspace folder. Keep
-  // workflow runtime files out of scaffold; explicit init/sync owns .cowork-flow.
-  await rm(join(destDir, "scaffold", ".cowork-flow"), { recursive: true, force: true });
-
-  // Sync canonical scripts from main template (single source of truth).
-  // The presets/zcode/hooks/runtime/scripts/ copy is stale; overwrite with the
-  // authoritative version from template/.cowork-flow/scripts/.
-  const mainScriptsSrc = join(templateRoot, ".cowork-flow", "scripts");
-  const pluginScriptsDest = join(destDir, "hooks", "runtime", "scripts");
-  if (await pathExists(mainScriptsSrc)) {
-    await cp(mainScriptsSrc, pluginScriptsDest, { recursive: true, force: true });
-  }
-
-  // The cache directory is named after the package version, so the installed
-  // manifest is stamped to match; a payload installed from a checkout would
-  // otherwise keep whatever version its source manifest carried.
-  await stampPayloadManifest(destDir, manifest, version);
-
-  await updateMarketplace(pluginsRoot, cacheRoot, version, metadata);
-  await updateKnownMarketplaces(pluginsRoot);
-  await removeLegacyMarketplaceEntry(pluginsRoot);
-  if (pruneOld) {
-    const removed = await pruneOldVersions(cacheRoot, version);
-    if (removed.length > 0) {
-      console.log(`Pruned old cowork-flow ZCode plugin versions: ${removed.join(', ')}`);
-    }
-  }
-
-  // Write seed file for install tracking
-  await writeJsonAtomic(join(destDir, ".zcode-plugin-seed.json"), {
-    hash: "placeholder-replace-on-publish",
-    marketplace: ZCODE_MARKETPLACE,
-    plugin: PLUGIN_NAME,
-    pluginVersion: version,
-    source: "cli-install",
-    version: 1
-  });
+  await materializePlugin({ pluginSrc, destDir, cacheRoot, manifest, version });
+  await refreshRegistrations({ pluginsRoot, cacheRoot, version, metadata, pruneOld });
+  await writeInstallSeed(destDir, version);
 
   console.log(`✓ cowork-flow ZCode plugin installed to ${destDir}`);
   console.log('  Restart ZCode to load the plugin.');
