@@ -30,10 +30,6 @@ from infra.paths import (
 
 CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
 
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
 
 @dataclass(frozen=True)
 class GitSnapshot:
@@ -277,7 +273,6 @@ def _build_resume_checklist(
     return {"commands": commands, "readFiles": read_files, "notes": notes}
 
 
-
 def _append_resume_checklist(
     lines: list[str],
     repo_root: Path,
@@ -442,14 +437,12 @@ def _append_my_tasks(lines: list[str], developer: str, tasks_dir: Path) -> None:
     lines.append("")
 
 
-
 def _append_paths(lines: list[str]) -> None:
     """Append standard cowork-flow paths."""
     lines.append("## PATHS")
     lines.append(f"Tasks: {DIR_WORKFLOW}/{DIR_TASKS}/")
     lines.append(f"Spec: {DIR_WORKFLOW}/{DIR_SPEC}/")
     lines.append("")
-
 
 
 def _context_tasks_json(tasks_dir: Path) -> list[dict]:
@@ -466,11 +459,6 @@ def _context_tasks_json(tasks_dir: Path) -> list[dict]:
             }
         )
     return tasks
-
-
-# =============================================================================
-# JSON Output
-# =============================================================================
 
 
 def get_context_json(repo_root: Path | None = None) -> dict:
@@ -509,11 +497,6 @@ def output_json(repo_root: Path | None = None) -> None:
     """
     context = get_context_json(repo_root)
     print(json.dumps(context, indent=2, ensure_ascii=False))
-
-
-# =============================================================================
-# Text Output
-# =============================================================================
 
 
 def _new_context_lines(title: str) -> list[str]:
@@ -584,7 +567,6 @@ def get_context_text(repo_root: Path | None = None) -> str:
     return "\n".join(lines)
 
 
-
 def output_text(repo_root: Path | None = None) -> None:
     """Output context in text format.
 
@@ -592,11 +574,6 @@ def output_text(repo_root: Path | None = None) -> None:
         repo_root: Repository root path. Defaults to auto-detected.
     """
     print(get_context_text(repo_root))
-
-
-# =============================================================================
-# Main Entry
-# =============================================================================
 
 
 def main() -> None:

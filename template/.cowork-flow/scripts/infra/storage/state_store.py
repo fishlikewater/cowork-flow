@@ -143,9 +143,7 @@ class StateStore:
         path: str | Path,
         *,
         expected_revision: int | None,
-        operation_id: str,
     ) -> bool:
-        del operation_id
         target = Path(path)
         with self._lock(target):
             current = self._load_unlocked(target, missing_ok=True)

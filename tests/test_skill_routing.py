@@ -128,7 +128,6 @@ class SkillRoutingTest(unittest.TestCase):
                     intent=intent,
                     context=context,
                     blockers=(),
-                    active_target=status != "planning",
                 )
                 self.assertEqual(
                     {
@@ -177,7 +176,6 @@ class SkillRoutingTest(unittest.TestCase):
                     intent="question",
                     context=context,
                     blockers=(),
-                    active_target=True,
                 )
                 self.assertEqual(
                     [],
@@ -196,7 +194,6 @@ class SkillRoutingTest(unittest.TestCase):
             intent="review",
             context="main",
             blockers=(),
-            active_target=True,
         )
         self.assertEqual("request_review", started["nextAction"])
         self.assertEqual("task-review", started["action"]["activatedSkill"])
@@ -208,7 +205,6 @@ class SkillRoutingTest(unittest.TestCase):
             intent="review",
             context="main",
             blockers=(),
-            active_target=True,
         )
         self.assertEqual("complete_task", checked["nextAction"])
         self.assertEqual("task_complete", checked["action"]["lifecycleCheck"])
@@ -218,7 +214,6 @@ class SkillRoutingTest(unittest.TestCase):
             intent="review",
             context="delegated",
             blockers=(),
-            active_target=True,
         )
         self.assertFalse(delegated["action"]["runnable"])
         self.assertTrue(
@@ -239,8 +234,6 @@ class SkillRoutingTest(unittest.TestCase):
             intent="implement",
             context="main",
             blockers=(),
-            active_target=True,
-            task_path=".cowork-flow/tasks/05-19-demo",
             repo_root=ROOT,
         )
         adapter_route = navigation.route_request(
@@ -248,7 +241,6 @@ class SkillRoutingTest(unittest.TestCase):
             intent="implement",
             context="main",
             blockers=(),
-            active_target=True,
             task_path=".cowork-flow/tasks/05-19-demo",
             repo_root=ROOT,
         )
@@ -272,7 +264,6 @@ class SkillRoutingTest(unittest.TestCase):
                     intent="doubt_review",
                     context="main",
                     blockers=(),
-                    active_target=status not in {"no_task", "planning"},
                 )
 
                 self.assertEqual("doubt_review", route["nextAction"])
@@ -287,7 +278,6 @@ class SkillRoutingTest(unittest.TestCase):
             intent="discuss",
             context="main",
             blockers=(),
-            active_target=True,
         )
 
         self.assertEqual("discuss_options", route["nextAction"])
@@ -314,7 +304,6 @@ class SkillRoutingTest(unittest.TestCase):
                     intent="review",
                     context="main",
                     blockers=(),
-                    active_target=True,
                     task_path=".cowork-flow/tasks/05-19-demo",
                 )
 
@@ -356,7 +345,6 @@ class SkillRoutingTest(unittest.TestCase):
                     intent="question",
                     context=context,
                     blockers=(),
-                    active_target=False,
                 )
                 self.assertNotIn("internalProtocols", route)
                 self.assertIsNone(route["recommendedSkill"])
@@ -372,7 +360,6 @@ class SkillRoutingTest(unittest.TestCase):
                 intent="implement",
                 context="delegated",
                 blockers=(),
-                active_target=True,
             )
             self.assertTrue(
                 forbidden.isdisjoint(route["allowedOperations"]),
@@ -390,7 +377,6 @@ class SkillRoutingTest(unittest.TestCase):
                 intent="implement",
                 context="main",
                 blockers=(),
-                active_target=True,
             )
             self.assertIsNone(route["recommendedSkill"])
             self.assertIn(
@@ -401,22 +387,20 @@ class SkillRoutingTest(unittest.TestCase):
     def test_illegal_intents_are_blocked_for_primary_workflow_states(self) -> None:
         navigation = self._navigation()
         cases = (
-            ("no_task", "implement", False),
-            ("planning", "archive", False),
-            ("in_progress", "archive", True),
-            ("review", "archive", True),
-            ("completed", "implement", True),
+            ("no_task", "implement"),
+            ("planning", "archive"),
+            ("in_progress", "archive"),
+            ("review", "archive"),
+            ("completed", "implement"),
         )
 
-        for status, intent, active_target in cases:
+        for status, intent in cases:
             with self.subTest(status=status, intent=intent):
                 route = navigation.route_request(
                     status=status,
                     intent=intent,
                     context="main",
                     blockers=(),
-                    active_target=active_target,
-                    task_path=".cowork-flow/tasks/05-19-demo",
                 )
 
                 self.assertIsNone(route["recommendedSkill"])

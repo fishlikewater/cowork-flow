@@ -11,10 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 
 
-# =============================================================================
-# Task Lookup
-# =============================================================================
-
 def find_task_by_name(task_name: str, tasks_dir: Path) -> Path | None:
     """Find task directory by name (exact or suffix match).
 

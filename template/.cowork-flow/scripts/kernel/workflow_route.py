@@ -60,12 +60,7 @@ RUNNABLE_ACTIONS = {
 }
 
 
-def _main_operations(
-    status: str,
-    blockers: tuple[str, ...],
-    active_target: bool,
-) -> list[str]:
-    del active_target
+def _main_operations(status: str, blockers: tuple[str, ...]) -> list[str]:
     operations = ["answer_questions", "debug_failure", "discuss_options", "doubt_review"]
     if status == "no_task":
         operations.extend(["create_task", "edit_planning_artifacts"])
@@ -90,7 +85,6 @@ def _allowed_operations(
     status: str,
     context: str,
     blockers: tuple[str, ...],
-    active_target: bool,
 ) -> list[str]:
     if context == "delegated" and status != "delegated_subtask":
         return [
@@ -98,7 +92,7 @@ def _allowed_operations(
             "debug_failure",
             "discuss_options",
         ]
-    return _main_operations(status, blockers, active_target)
+    return _main_operations(status, blockers)
 
 
 def _required_artifacts(status: str) -> list[str]:
@@ -147,10 +141,8 @@ def _action_contract(
     *,
     status: str,
     blockers: tuple[str, ...] | list[str],
-    active_target: bool,
     intent: str,
 ) -> dict[str, object]:
-    del active_target
     action_blockers = [str(blocker) for blocker in blockers]
     action_id = _action_id(status, intent, action_blockers)
     spec = ACTION_TRANSITIONS[action_id]
@@ -168,10 +160,9 @@ def _resolve_route(
     intent: str,
     context: str,
     blockers: tuple[str, ...] | list[str],
-    active_target: bool,
 ) -> tuple[list[str], list[str], bool]:
     route_blockers = [str(blocker) for blocker in blockers]
-    operations = _allowed_operations(status, context, tuple(route_blockers), active_target)
+    operations = _allowed_operations(status, context, tuple(route_blockers))
     intent_allowed = _intent_is_allowed(intent, operations)
     if context == "delegated" and status != "delegated_subtask":
         route_blockers.append("delegated context cannot operate main-session workflow state")

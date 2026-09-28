@@ -80,16 +80,13 @@ class RouteContract:
 def _action_contract(
     *,
     status: str,
-    task_path: str | None,
     blockers: tuple[str, ...] | list[str],
-    active_target: bool,
     intent: str,
     repo_root: Path | None = None,
 ) -> ActionContract:
     action = _kernel_action_contract(
         status=status,
         blockers=blockers,
-        active_target=active_target,
         intent=intent,
     )
     action_id = str(action["id"])
@@ -133,8 +130,6 @@ def route_request(
     intent: str,
     context: str,
     blockers: tuple[str, ...] | list[str],
-    active_target: bool,
-    task_path: str | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, object]:
     """Return state facts plus adapter-facing Skill/action metadata."""
@@ -150,13 +145,10 @@ def route_request(
         intent=intent,
         context=context,
         blockers=blockers,
-        active_target=active_target,
     )
     action = _action_contract(
         status=status,
-        task_path=task_path,
         blockers=route_blockers,
-        active_target=active_target,
         intent=intent,
         repo_root=repo_root,
     )

@@ -15,10 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-# =============================================================================
-# Path Constants (change here to rename directories)
-# =============================================================================
-
+# Renaming an on-disk directory starts here.
 # Directory names
 DIR_WORKFLOW = ".cowork-flow"
 DIR_AGENTS = ".agents"
@@ -33,10 +30,6 @@ FILE_TASK_JSON = "task.json"
 TASK_DATE_PREFIX_PATTERN = re.compile(r"^\d{2}-\d{2}-")
 FULL_DATE_PREFIX_PATTERN = re.compile(r"^\d{4}-(\d{2}-\d{2}-)")
 
-
-# =============================================================================
-# Repository Root
-# =============================================================================
 
 def get_repo_root(start_path: Path | None = None) -> Path:
     """Find the nearest directory containing .cowork-flow/ folder.
@@ -59,10 +52,6 @@ def get_repo_root(start_path: Path | None = None) -> Path:
     # Fallback to current directory if no .cowork-flow/ found
     return Path.cwd().absolute()
 
-
-# =============================================================================
-# Developer
-# =============================================================================
 
 def get_developer(repo_root: Path | None = None) -> str | None:
     """Get developer name from .developer file.
@@ -107,10 +96,6 @@ def check_developer(repo_root: Path | None = None) -> bool:
     return get_developer(repo_root) is not None
 
 
-# =============================================================================
-# Tasks Directory
-# =============================================================================
-
 def get_tasks_dir(repo_root: Path | None = None) -> Path:
     """Get tasks directory path.
 
@@ -124,10 +109,6 @@ def get_tasks_dir(repo_root: Path | None = None) -> Path:
         repo_root = get_repo_root()
     return repo_root / DIR_WORKFLOW / DIR_TASKS
 
-
-# =============================================================================
-# Task ID Generation
-# =============================================================================
 
 def generate_task_date_prefix() -> str:
     """Generate task ID based on date (MM-DD format).
@@ -151,10 +132,6 @@ def ensure_task_date_prefix(slug: str) -> str:
         return slug
     return f"{generate_task_date_prefix()}-{slug}"
 
-
-# =============================================================================
-# Main Entry (for testing)
-# =============================================================================
 
 if __name__ == "__main__":
     repo = get_repo_root()
