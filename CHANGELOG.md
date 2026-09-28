@@ -46,6 +46,7 @@
 
 ### Removed
 
+- 任务导航的 `allowedOperations` 不再列出没有实现的操作名（`verify_change`、`apply_review_fix`、`report_result`、`report_needs_context`）。这些 id 既没有状态迁移事实，也没有归属 Skill，永远不会成为下一步动作；路由判定结果不变。
 - 删除插件、预设中的项目技能副本。旧安装由 `PLUGIN-SKILLS-LEGACY` 提示重装清理。
 - 删除 qoder、zcode 和其他宿主的失效适配器路径声明，以及不再使用的技能路径推测和宿主枚举。
 - 删除 `install-kimi-hook` 的无效 `--force` 选项；Kimi hook 始终重写自己的托管区块。

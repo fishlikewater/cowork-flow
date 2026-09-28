@@ -160,6 +160,76 @@ class SkillRoutingTest(unittest.TestCase):
                     self.assertEqual(route["recommendedSkill"], route["activatedSkill"])
                     self.assertIn(route["recommendedSkill"], EXPECTED_SKILLS)
 
+    def test_allowed_operations_are_implemented_state_facts(self) -> None:
+        # An operation advertised in allowedOperations with no transition fact
+        # and no Skill owner is dead vocabulary: no intent can select it, so it
+        # only tells hosts and agents about work that does not exist.
+        kernel = importlib.import_module("kernel.workflow_route")
+        navigation = self._navigation()
+
+        for status, context in itertools.product(
+            WORKFLOW_STATUSES,
+            EXECUTION_CONTEXTS,
+        ):
+            with self.subTest(status=status, context=context):
+                route = navigation.route_request(
+                    status=status,
+                    intent="question",
+                    context=context,
+                    blockers=(),
+                    active_target=True,
+                )
+                self.assertEqual(
+                    [],
+                    sorted(
+                        set(route["allowedOperations"])
+                        - set(kernel.ACTION_TRANSITIONS)
+                    ),
+                    route["allowedOperations"],
+                )
+
+    def test_review_intent_still_advances_through_both_check_stages(self) -> None:
+        navigation = self._navigation()
+
+        started = navigation.route_request(
+            status="in_progress",
+            intent="review",
+            context="main",
+            blockers=(),
+            active_target=True,
+        )
+        self.assertEqual("request_review", started["nextAction"])
+        self.assertEqual("task-review", started["action"]["activatedSkill"])
+        self.assertEqual("task_review", started["action"]["lifecycleCheck"])
+        self.assertEqual([], started["blockers"])
+
+        checked = navigation.route_request(
+            status="review",
+            intent="review",
+            context="main",
+            blockers=(),
+            active_target=True,
+        )
+        self.assertEqual("complete_task", checked["nextAction"])
+        self.assertEqual("task_complete", checked["action"]["lifecycleCheck"])
+
+        delegated = navigation.route_request(
+            status="review",
+            intent="review",
+            context="delegated",
+            blockers=(),
+            active_target=True,
+        )
+        self.assertFalse(delegated["action"]["runnable"])
+        self.assertTrue(
+            any(
+                "delegated context cannot operate main-session workflow state"
+                in blocker
+                for blocker in delegated["blockers"]
+            ),
+            delegated["blockers"],
+        )
+
     def test_runtime_gate_alias_is_adapter_only(self) -> None:
         routing = self._routing_service()
         navigation = self._navigation()

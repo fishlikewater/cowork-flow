@@ -29,7 +29,7 @@ INTENT_OPERATIONS = {
     "plan": {"edit_planning_artifacts"},
     "implement": {"implement_change", "execute_delegated_work", "start_task"},
     "archive": {"archive_task"},
-    "review": {"request_review", "verify_change", "complete_task"},
+    "review": {"request_review", "complete_task"},
     "doubt_review": {"doubt_review"},
     "debug": {"debug_failure"},
     "discuss": {"discuss_options"},
@@ -76,11 +76,11 @@ def _main_operations(
     elif status == "in_progress":
         operations.extend(["implement_change", "request_review", "batch_execute"])
     elif status in CHECK_STATUSES:
-        operations.extend(["verify_change", "apply_review_fix", "complete_task"])
+        operations.append("complete_task")
     elif status in DONE_STATUSES:
         operations.extend(["archive_task", "create_task"])
     elif status == "delegated_subtask":
-        operations.extend(["execute_delegated_work", "report_result"])
+        operations.append("execute_delegated_work")
     else:
         operations.append("repair_workflow_state")
     return operations
@@ -97,7 +97,6 @@ def _allowed_operations(
             "answer_questions",
             "debug_failure",
             "discuss_options",
-            "report_needs_context",
         ]
     return _main_operations(status, blockers, active_target)
 
