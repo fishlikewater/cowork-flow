@@ -977,17 +977,11 @@ class TaskLifecycleService:
         stage: LifecycleStage,
         task_dir: Path,
         error: TaskRepositoryError,
-        *,
-        check_result: object | None = None,
-        transition: LifecycleTransition | None = None,
-        execution_policy: LifecycleExecutionPolicy | None = None,
-        emitted_events: tuple[str, ...] = (),
     ) -> LifecycleResult:
         return LifecycleResult(
             ok=False,
             code=error.code,
             stage=stage,
             task_dir=task_dir,
-            check_result=check_result,
             repository_error=error,
         )

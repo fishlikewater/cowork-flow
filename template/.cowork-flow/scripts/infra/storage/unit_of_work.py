@@ -300,7 +300,6 @@ class UnitOfWork:
                         self.state_store.delete(
                             mutation.path,
                             expected_revision=current.revision,
-                            operation_id=f"{self.operation_id}:rollback:{index}",
                         )
                 elif mutation.action == "delete":
                     if mutation.before_exists:
@@ -328,7 +327,6 @@ class UnitOfWork:
             self.state_store.delete(
                 mutation.path,
                 expected_revision=mutation.expected_revision,
-                operation_id=self.operation_id,
             )
             return
         self.state_store.replace(

@@ -412,6 +412,46 @@ class TaskLifecycleServiceTest(unittest.TestCase):
                 any("readiness check unavailable" in blocker for blocker in failure.blockers)
             )
 
+    def test_start_readiness_fails_closed_when_readiness_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            policy = importlib.import_module("services.lifecycle_policy")
+
+            def crashing_gate(repo_root: Path, task_dir: Path) -> list[str]:
+                raise RuntimeError("project gate crashed")
+
+            stub = SimpleNamespace(task_readiness_blockers=crashing_gate)
+            with patch.dict(sys.modules, {"services.readiness": stub}):
+                failure = policy.start_readiness_failure(root, task_dir)
+
+            self.assertIsNotNone(failure)
+            self.assertEqual("TASK-READINESS-001", failure.code)
+            self.assertTrue(
+                any("readiness check failed" in blocker for blocker in failure.blockers)
+            )
+
+    def test_start_readiness_surfaces_project_gate_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            policy = importlib.import_module("services.lifecycle_policy")
+
+            def blocking_gate(repo_root: Path, task_dir: Path) -> list[str]:
+                return ["project gate X", "   "]
+
+            stub = SimpleNamespace(task_readiness_blockers=blocking_gate)
+            with patch.dict(sys.modules, {"services.readiness": stub}):
+                failure = policy.start_readiness_failure(root, task_dir)
+
+            self.assertIsNotNone(failure)
+            self.assertEqual("TASK-READINESS-001", failure.code)
+            self.assertEqual(("project gate X",), failure.blockers)
+
     def test_start_readiness_policy_reports_missing_anchor_without_terminal_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -43,7 +43,7 @@ def _classify_test_content(content: str, test_name: str) -> str:
     if _looks_mock_only(lower):
         return "block"
 
-    if _looks_import_only(content, lower):
+    if _looks_import_only(lower):
         return "block"
 
     if _looks_ambiguous(lower):
@@ -99,7 +99,7 @@ def _parse_test_name(test_name: str) -> tuple[str | None, str | None]:
     return target_class, target_function
 
 
-def _looks_import_only(content: str, lower: str) -> bool:
+def _looks_import_only(lower: str) -> bool:
     if "assert" in lower:
         return False
     if "expect(" in lower or ".to" in lower:

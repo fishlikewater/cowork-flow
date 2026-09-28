@@ -440,7 +440,6 @@ def clear_active_task(repo_root: Path) -> ActiveTask:
                 store.delete(
                     path,
                     expected_revision=snapshot.revision,
-                    operation_id=f"session-clear-{path.name}-{uuid4().hex}",
                 )
         except StateStoreError:
             pass
@@ -464,7 +463,6 @@ def clear_task_from_sessions(repo_root: Path, task_path: str) -> int:
                 store.delete(
                     path,
                     expected_revision=snapshot.revision,
-                    operation_id=f"session-clear-{path.name}-{uuid4().hex}",
                 )
             except StateStoreError:
                 continue

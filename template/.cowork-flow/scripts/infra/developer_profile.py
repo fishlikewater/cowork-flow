@@ -24,11 +24,6 @@ from infra.paths import (
 )
 
 
-# =============================================================================
-# Developer Initialization
-# =============================================================================
-
-
 def init_developer(name: str, repo_root: Path | None = None) -> bool:
     """Initialize developer.
 
@@ -101,10 +96,6 @@ def show_developer_info(repo_root: Path | None = None) -> None:
         print(f"Developer: {developer}")
         print(f"Tasks directory: {DIR_WORKFLOW}/{DIR_TASKS}/")
 
-
-# =============================================================================
-# Main Entry (for testing)
-# =============================================================================
 
 if __name__ == "__main__":
     show_developer_info()

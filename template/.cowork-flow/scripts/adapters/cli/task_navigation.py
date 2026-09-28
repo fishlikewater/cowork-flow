@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from services.readiness import task_readiness_blockers
 from services.task_context import TaskContextService
 from adapters.cli.task_support import resolve_task_dir
 from adapters.cli.execution_context_args import execution_context_from_namespace
@@ -16,7 +17,6 @@ from runtime.session_state import (
     get_active_task,
     is_delegated_session,
 )
-from services.readiness import task_readiness_blockers
 from services.task_repository import TaskRepository, TaskRepositoryError
 
 
@@ -112,7 +112,6 @@ def route_request(
     intent: str,
     context: str,
     blockers: tuple[str, ...] | list[str],
-    active_target: bool,
     task_path: str | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, object]:
@@ -121,12 +120,9 @@ def route_request(
         intent=intent,
         context=context,
         blockers=blockers,
-        active_target=active_target,
-        task_path=task_path,
         repo_root=repo_root,
     )
     return _attach_runtime_gate_alias(_render_adapter_commands(payload, task_path))
-
 
 
 def _display(repo_root: Path, task_dir: Path) -> str:
@@ -318,7 +314,6 @@ def build_navigation_payload(
         intent=intent,
         context=_routing_context(args, root),
         blockers=blockers,
-        active_target=active_target,
         task_path=task_path,
         repo_root=root,
     )
