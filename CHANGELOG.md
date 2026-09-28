@@ -31,6 +31,7 @@
 - 文档改为 README 用户指南、`docs/` 详细说明、`CONTRIBUTING.md` 贡献流程和 Keep a Changelog 更新日志，并随 npm 包发布。
 - 发布脚本新增 `--dry-run` 和 `--no-publish`。前者会真实刷新自实例并运行前置检查，但停在版本 bump 之前；后者完成版本、提交和 tag 后交给 CI 发布。
 - CI 明确记录测试跳过项；Windows 缺少 POSIX 前提时不再把跳过记为通过。
+- 核心库做了一轮结构与注释整理（Python 运行时 + Node 核心库），**行为与对外契约零变化，无需升级动作**：`# ====` 横幅 13 处、`del` 占位 7 处、超长函数 14 个（Python 7 + Node 7）、≥60 字符的注释行 626 条（Python 161 + Node 465）、模板化 docstring 18 条全部清零；九个宿主安装器的重复骨架收敛为 `src/lib/install-support.js`；注释与 docstring 改为只写读代码看不出来的约束。按设计保留的例外：1 处 93 行的宿主载荷函数（`presets/dsh` 的 `apply`），以及 6 处属于协议或统一命令签名的参数。
 - **升级动作**：升级 CLI 后运行 `cwf project sync .`。已有机器级组件按需重装：Codex、Claude Code、OpenCode、ZCode、Qoder 使用 `cwf host add <host> --force`；DSH 使用 `cwf host add dsh --component preset --force`；Kimi Code 重新运行 `cwf host add kimi-code` 并在 TUI 中安装插件。
 
 ### Fixed
