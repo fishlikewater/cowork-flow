@@ -20,10 +20,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# This file lives in <scripts>/adapters/host/; running it as a script puts
-# only its own directory on sys.path. The module root is needed both for the
-# root=None fallback (no project scripts dir exists) and so a stale project
-# copy never shadows the importing module.
+# Run as a script, this file puts only its own directory
+# on sys.path, so the module root is added by hand: it is
+# needed for the root=None fallback, and so a stale
+# project copy never shadows the importing module.
 SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -31,9 +31,9 @@ if str(SCRIPTS_DIR) not in sys.path:
 from runtime.host_identity import HOST_HINT_ENV, context_adapters
 
 
-# Hosts that route through this entry, taken from the single declaration in
-# runtime/host_identity.py. opencode is absent on purpose: its JS plugin
-# renders context itself, so it is not an --host choice here.
+# Hosts routed through this entry; see host_identity.py.
+# opencode is absent: its JS plugin renders its own
+# context, so it is no --host choice here.
 HOST_ADAPTERS = context_adapters()
 
 NOT_INITIALIZED_BODY = (
@@ -51,8 +51,8 @@ NOT_INITIALIZED_BODY = (
 def _configure_stdio() -> None:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
-            # newline="" keeps payload bytes identical across platforms —
-            # text-mode translation would turn the pretty JSON indentation
+            # newline="" keeps payload bytes identical across
+            # platforms; text mode would rewrite the indentation
             # into CRLF on Windows.
             stream.reconfigure(encoding="utf-8", errors="replace", newline="")
 
@@ -150,7 +150,7 @@ def _emit(
     policy: Any,
 ) -> None:
     if policy.emit_text:
-        # Kimi Code appends the hook's stdout to the prompt context verbatim.
+        # Kimi Code appends stdout to the prompt context verbatim.
         sys.stdout.write(context)
         return
     if output_format_name == "cursor":
@@ -202,11 +202,11 @@ def main(argv: list[str] | None = None) -> int:
     policy = resolve_policy(host)
 
     hook_input = _read_input()
-    # The adapter states which host this payload came from, so the identity
-    # resolver below never has to infer a host from key shapes.
+    # The adapter names the host, so identity resolution never
+    # has to infer a host from key shapes.
     hook_input.setdefault(HOST_HINT_ENV, host)
-    # Rendering below resolves skill paths per host; the declared-host channel
-    # makes that explicit even when the host exports no session env var.
+    # Skill paths resolve per host; the declared-host channel
+    # makes that explicit without a host session env var.
     os.environ.setdefault(HOST_HINT_ENV, host)
     event_name = detect_event_name(hook_input)
     output_format_name = output_format()
@@ -224,17 +224,17 @@ def main(argv: list[str] | None = None) -> int:
                 policy,
             )
             return 0
-        # Hosts without the not-initialized payload exit silently outside a
-        # project.
+        # Hosts without the not-initialized payload exit quietly
+        # outside a project.
         return 0
 
     scripts_dir = root / ".cowork-flow" / "scripts"
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
 
-    # zcode / claude-code signal session start by event name; codex (and the
-    # default policy) register UserPromptSubmit only, so their digest shape
-    # derives from the session state file probe (session_start=None).
+    # zcode / claude-code signal session start by event name;
+    # codex (and the default policy) register UserPromptSubmit
+    # only, so their digest comes from the session file probe.
     if policy.session_start_event is None:
         session_start = None
     else:

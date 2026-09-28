@@ -41,12 +41,13 @@ def _run_batch_action(
     *args: str,
 ) -> int:
     script = _batch_action_script(repo_root)
-    # The skill script imports `services.*` / `infra.*` from the runtime.
-    # Inject the runtime scripts dir via PYTHONPATH before spawning (shared
-    # bootstrap with run.py) so the child resolves the same runtime this
-    # adapter came from instead of relying on the ambient path.
-    # `cache_bytecode=False` is the same skill-script rule run.py applies: in a
-    # source checkout the resolved runtime is the shipped `template/` tree.
+    # The skill script imports `services.*` / `infra.*` from
+    # the runtime, so the runtime scripts dir goes on
+    # PYTHONPATH before spawning (same bootstrap as run.py):
+    # the child then resolves this adapter's runtime, not the
+    # ambient path. `cache_bytecode=False` is run.py's
+    # skill-script rule: in a source checkout the runtime is
+    # the shipped `template/` tree.
     env = runtime_pythonpath_env(cache_bytecode=False)
     try:
         completed = subprocess.run(

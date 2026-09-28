@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""
-Developer management utilities.
-
-Provides:
-    init_developer     - Initialize developer
-    ensure_developer   - Ensure developer is initialized (exit if not)
-    show_developer_info - Show developer information
-"""
+"""Developer identity in .cowork-flow/.developer."""
 
 from __future__ import annotations
 
@@ -25,18 +18,7 @@ from infra.paths import (
 
 
 def init_developer(name: str, repo_root: Path | None = None) -> bool:
-    """Initialize developer.
-
-    Creates:
-        - .cowork-flow/.developer file with developer info
-
-    Args:
-        name: Developer name.
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        True on success, False on error.
-    """
+    """Write .developer; a failure is reported and returned, not raised."""
     if not name:
         print("Error: developer name cannot be empty.", file=sys.stderr)
         return False
@@ -46,7 +28,6 @@ def init_developer(name: str, repo_root: Path | None = None) -> bool:
 
     dev_file = repo_root / DIR_WORKFLOW / FILE_DEVELOPER
 
-    # Create .developer file
     initialized_at = datetime.now().isoformat()
     try:
         dev_file.write_text(
@@ -57,7 +38,6 @@ def init_developer(name: str, repo_root: Path | None = None) -> bool:
         print(f"Error: failed to create .developer file: {e}", file=sys.stderr)
         return False
 
-
     print(f"Developer initialized: {name}")
     print(f"  .developer file: {dev_file}")
 
@@ -65,11 +45,7 @@ def init_developer(name: str, repo_root: Path | None = None) -> bool:
 
 
 def ensure_developer(repo_root: Path | None = None) -> None:
-    """Ensure developer is initialized, exit if not.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-    """
+    """Exit 1 with the init command when no developer is set."""
     if repo_root is None:
         repo_root = get_repo_root()
 
@@ -80,11 +56,7 @@ def ensure_developer(repo_root: Path | None = None) -> None:
 
 
 def show_developer_info(repo_root: Path | None = None) -> None:
-    """Show developer information.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-    """
+    """Print the developer name, or the not-initialized notice."""
     if repo_root is None:
         repo_root = get_repo_root()
 

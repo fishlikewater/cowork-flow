@@ -503,9 +503,10 @@ def _build_payload(raw: dict[str, Any], platform_id: str) -> Payload | None:
         raise HostManifestError(
             f"platform {platform_id} payload unknown field: {sorted(unknown)[0]}"
         )
-    # An explicit null manifest is rejected, matching the JS validator and the
-    # schema: `manifest` is optional, but when the key is present it must name a
-    # file. Only the key's absence means "this payload carries no manifest".
+    # `manifest` is optional, but a present key must name a
+    # file: an explicit null is rejected, matching the JS
+    # validator and the schema. Only the key's absence means
+    # "no manifest".
     manifest: str | None = None
     if "manifest" in payload:
         raw_manifest = payload["manifest"]

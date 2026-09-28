@@ -90,8 +90,7 @@ def resolve_policy(host: str, policy: HostPolicy | None = None) -> HostPolicy:
     try:
         module = importlib.import_module(module_name)
     except Exception:
-        # A broken host policy module degrades to the neutral default
-        # instead of killing the injection.
+        # A broken policy module degrades to the neutral default.
         return default_policy(host)
     policy = module.POLICY
     return policy if isinstance(policy, HostPolicy) else default_policy(host)
@@ -122,9 +121,9 @@ def build_hook_context(
     state = _resolve_task_state(root, hook_input, policy)
     body = _render_state_body(root, breadcrumbs, state, policy)
     if session_start is None:
-        # No event signal from the host: treat the first injection as a
-        # session start. Session state files appear once a task activation
-        # exists (start), so their absence keeps every injection full.
+        # No event signal: treat the first injection as a session
+        # start. Session files appear once a task is activated, so
+        # their absence keeps every injection full.
         session_start = not _session_has_started(root, hook_input)
     blocks = [
         *preamble,
@@ -134,9 +133,9 @@ def build_hook_context(
     ]
     context = "\n\n".join(blocks)
     if policy.essential_files_warning is not None:
-        # Appended after the whole context so a broken install is visible
-        # without a second hook pass (host policy decides whether the check
-        # exists at all).
+        # Appended after the whole context so a broken install is
+        # visible in one pass (the host policy decides whether the
+        # check exists at all).
         context += policy.essential_files_warning(root)
     return context
 
@@ -183,9 +182,9 @@ def _resolve_task_state(
         policy.fallback_for_unbound,
     )
     if status == "stale" and task_path:
-        # Unified missing-task semantics (previously zcode JS-only): a bound
-        # task whose directory or task.json vanished renders the no_task
-        # family message instead of a generic fallback breadcrumb.
+        # A bound task whose directory or task.json vanished
+        # renders the no_task family message, not a fallback
+        # breadcrumb.
         return _TaskState(task_path, "no_task", source, missing_task=True)
     return _TaskState(task_path, status, source)
 
@@ -264,8 +263,8 @@ def _session_has_started(root: Path, hook_input: dict[str, Any]) -> bool:
 
 
 def _xml_attr(value: Any) -> str:
-    # Delegates to the fact-view implementation: the escaping rules must stay
-    # identical across the decision-anchor and stage-contract blocks.
+    # Fact-view owns the escaping rules shared by the anchor
+    # and stage-contract blocks.
     from services.fact_view import xml_attr
 
     return xml_attr(value)
@@ -347,10 +346,10 @@ def _decision_anchor_block(
         )
         parsed = parse_decision_anchor(text)
     except (OSError, UnicodeDecodeError):
-        # Absent or undecodable anchors are routine: no block, no noise.
+        # Absent or undecodable anchors are routine: no noise.
         return None
     except Exception as error:
-        # Anything else leaves a trace so silent guard loss stays diagnosable
+        # Anything else leaves a trace: guard loss must be visible
         # (stdout is the injection channel, stderr is safe).
         sys.stderr.write(f"decision-anchor degraded: {error}\n")
         return None
@@ -405,11 +404,11 @@ def _stage_contract_block(
                 anchor_path.read_text(encoding="utf-8")
             )
         except (OSError, UnicodeDecodeError):
-            # Absent or undecodable anchor: scope/gates still render; the
+            # Absent anchor: scope/gates still render; the
             # verify line is dropped by the empty results.
             parsed = {"validationCommands": []}
         except Exception as error:
-            # Never silently kill the guard block: leave a degradation trace
+            # Never drop the guard block silently: leave a trace
             # on stderr (stdout is the injection channel).
             sys.stderr.write(f"stage-contract degraded: {error}\n")
             return None
@@ -544,7 +543,7 @@ def contract_fingerprint(root: Path, contracts: list[dict[str, Any]]) -> str:
             ensure_ascii=False,
             sort_keys=True,
             # Compact separators keep the bytes identical to the JS
-            # stableStringify implementations (see context-injection.md).
+            # stableStringify impls (see context-injection.md).
             separators=(",", ":"),
         ).encode("utf-8")
     )
@@ -782,8 +781,8 @@ def _resolve_runtime_context(
     )
     result = bound or context
     if not result.get("runtime_context_id"):
-        # Legacy context files predate the id field; the detected id is the
-        # identity that opened this context, so display it.
+        # Older context files have no id field; the detected id is
+        # the identity that opened this context, so display it.
         result = {**result, "runtime_context_id": runtime_context_id}
     return result, runtime_context_id
 
@@ -794,9 +793,9 @@ def _subagent_runtime_lines(context: dict[str, Any]) -> list[str]:
         if isinstance(context.get("assignment"), dict)
         else {}
     )
-    # No "Scope: subagent" line here: the stage-contract block owns the scope
-    # declaration and renders the parent task's scope as a read-only reference
-    # for delegated sessions (build_stage_contract(mutable=False)).
+    # No "Scope: subagent" line: the stage-contract block owns
+    # the scope declaration and renders the parent scope as a
+    # read-only reference (build_stage_contract mutable=False).
     lines = [
         f"Runtime context: {context.get('runtime_context_id')}",
         f"Agent: {context.get('agent_type') or 'unknown'}",

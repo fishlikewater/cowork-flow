@@ -365,8 +365,9 @@ def _navigation_target(args, repo_root: Path, structured: bool):
 
     active = get_active_task(repo_root)
     source = f"{active.source}:{active.context_key or '-'}"
-    # 进程标签回退身份是同实例所有会话共享的；其绑定只作 advisory，
-    # 不得自动定位任务（否则他会话绑定的任务会被当作本会话任务）。
+    # A process-label fallback identity is shared by all
+    # sessions of the instance: its binding is advisory and
+    # must never resolve a task on its own.
     untrusted_binding = (
         bool(active.task_path)
         and active.provenance == PROVENANCE_PROCESS_FALLBACK

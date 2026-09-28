@@ -90,10 +90,11 @@ def resolve_context_key_with_provenance(
     context_key = _resolve_input_context_key(values)
     if context_key:
         return context_key, PROVENANCE_HOST_SESSION
-    # Hosts whose Bash CLI carries no session id fall back to their shared
-    # process label so task start / session resolution succeeds once instead
-    # of dropping to another host's identity. Process-level shared identity —
-    # consumers must degrade per PROVENANCE_PROCESS_FALLBACK.
+    # Hosts whose Bash CLI carries no session id fall back to a
+    # shared process label so start / session resolution works
+    # once instead of dropping to another host's identity. It
+    # is process-level: consumers degrade per
+    # PROVENANCE_PROCESS_FALLBACK.
     for prefix, env_name in process_label_providers():
         process_label = os.environ.get(env_name)
         if process_label and process_label.strip():
@@ -144,22 +145,24 @@ def _resolve_input_context_key(values: Mapping[str, object] | None) -> str | Non
 
     hint = _host_hint(values)
     if hint is not None and identity_for(hint) is None:
-        # A declared host that is not registered fails closed: never fall back
-        # to guessing some other host's prefix.
+        # A declared host that is not registered fails closed:
+        # never fall back to guessing another host's prefix.
         return None
     host_id = hint if hint is not None else detect_host(os.environ)
 
     if host_id is not None:
-        # Host known: every key it declares is interpretable, ambiguous ones
-        # included, because the caller stated whose payload this is.
+        # Host known: every key it declares is interpretable,
+        # ambiguous ones included, because the caller stated
+        # whose payload this is.
         identity = identity_for(host_id)
         return _prefixed_context_key(
             identity.prefix,
             _first_input_value(values, identity.input_keys),
         )
 
-    # No host evidence: only keys with a single declarer may resolve, so a
-    # generic key such as session_id can never pick a host on its own.
+    # No host evidence: only keys with a single declarer may
+    # resolve, so a generic key such as session_id can never
+    # pick a host on its own.
     for identity in HOST_IDENTITIES:
         context_key = _prefixed_context_key(
             identity.prefix,

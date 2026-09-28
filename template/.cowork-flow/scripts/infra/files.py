@@ -15,7 +15,7 @@ def read_json_file(path: Path) -> dict | None:
     except FileNotFoundError:
         return None
     except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-        # A read-only query must never destroy an authoritative document.
+        # A read-only query never destroys an authoritative file.
         import sys
         print(f"Warning: Corrupt JSON preserved: {path}", file=sys.stderr)
         return None

@@ -52,7 +52,8 @@ def _next_target_for_run(args: argparse.Namespace, repo_root: Path):
         return task_dir, _display_task_path(repo_root, task_dir), False
 
     active = get_active_task(repo_root)
-    # 进程标签回退身份是共享的，绑定只作 advisory，不自动定位任务。
+    # A process-label fallback identity is shared: its binding
+    # is advisory and never resolves a task on its own.
     if active.task_path and active.provenance != PROVENANCE_PROCESS_FALLBACK:
         task_dir = repo_root / active.task_path
         return task_dir, active.task_path, True

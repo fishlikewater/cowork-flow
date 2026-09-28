@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Git and task context utilities.
-
-Provides:
-    output_json - Output context in JSON format
-    output_text - Output context in text format
-"""
+"""Git and task context utilities."""
 
 from __future__ import annotations
 
@@ -47,13 +41,12 @@ class ActiveTaskSnapshot:
 
 
 def _run_git_command(args: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
-    """Run a git command and return (returncode, stdout, stderr).
+    """Return (returncode, stdout, stderr) from a git command.
 
-    Uses UTF-8 encoding with -c i18n.logOutputEncoding=UTF-8 to ensure
-    consistent output across all platforms (Windows, macOS, Linux).
+    -c i18n.logOutputEncoding=UTF-8 pins the output encoding; without
+    it Windows and POSIX disagree.
     """
     try:
-        # Force git to output UTF-8 for consistent cross-platform behavior
         git_args = ["git", "-c", "i18n.logOutputEncoding=UTF-8"] + args
         result = subprocess.run(
             git_args,
@@ -69,7 +62,7 @@ def _run_git_command(args: list[str], cwd: Path | None = None) -> tuple[int, str
 
 
 def _iter_task_dirs(tasks_dir: Path, sort: bool = True):
-    """Yield active task directories."""
+    """Task directories, excluding archive."""
     if not tasks_dir.is_dir():
         return
 
@@ -80,7 +73,6 @@ def _iter_task_dirs(tasks_dir: Path, sort: bool = True):
 
 
 def _load_task_json_by_dir(tasks_dir: Path, sort: bool = True) -> dict[str, dict]:
-    """Load task.json data keyed by task directory name."""
     tasks: dict[str, dict] = {}
     for d in _iter_task_dirs(tasks_dir, sort=sort):
         task_json = d / FILE_TASK_JSON
@@ -92,7 +84,6 @@ def _load_task_json_by_dir(tasks_dir: Path, sort: bool = True) -> dict[str, dict
 
 
 def _parse_recent_commits(log_out: str, include_empty_message: bool = True) -> list[dict]:
-    """Parse git log --oneline output into JSON-ready commit summaries."""
     commits = []
     for line in log_out.splitlines():
         if not line.strip():
@@ -110,7 +101,6 @@ def _get_git_snapshot(
     repo_root: Path,
     include_empty_commit_message: bool = True,
 ) -> GitSnapshot:
-    """Collect git data shared by JSON and text renderers."""
     _, branch_out, _ = _run_git_command(["branch", "--show-current"], cwd=repo_root)
     _, status_out, _ = _run_git_command(["status", "--porcelain"], cwd=repo_root)
     _, log_out, _ = _run_git_command(["log", "--oneline", "-5"], cwd=repo_root)
@@ -128,7 +118,6 @@ def _get_git_snapshot(
 
 
 def _git_json(git_snapshot: GitSnapshot) -> dict:
-    """Build the git JSON object used by context output."""
     status_count = git_snapshot.status_count
     return {
         "branch": git_snapshot.branch,
@@ -139,7 +128,6 @@ def _git_json(git_snapshot: GitSnapshot) -> dict:
 
 
 def _append_git_status(lines: list[str], git_snapshot: GitSnapshot, repo_root: Path) -> None:
-    """Append the GIT STATUS section to text output."""
     lines.append("## GIT STATUS")
     lines.append(f"Branch: {git_snapshot.branch}")
 
@@ -157,7 +145,6 @@ def _append_git_status(lines: list[str], git_snapshot: GitSnapshot, repo_root: P
 
 
 def _append_recent_commits(lines: list[str], git_snapshot: GitSnapshot) -> None:
-    """Append the RECENT COMMITS section to text output."""
     lines.append("## RECENT COMMITS")
     log_out = git_snapshot.log_out
     if log_out.strip():
@@ -169,7 +156,6 @@ def _append_recent_commits(lines: list[str], git_snapshot: GitSnapshot) -> None:
 
 
 def _get_active_task_snapshot(repo_root: Path) -> ActiveTaskSnapshot:
-    """Collect active-task metadata once for text and JSON renderers."""
     active_task = get_active_task(repo_root).task_path
     if not active_task:
         return ActiveTaskSnapshot(path=None, data=None, has_decision_anchor=False)
@@ -187,7 +173,7 @@ def _get_active_task_snapshot(repo_root: Path) -> ActiveTaskSnapshot:
 
 
 def _jsonl_file_references(jsonl_path: Path) -> list[str]:
-    """读取 JSONL 中声明的文件引用，忽略损坏行。"""
+    """Malformed lines are skipped, not fatal."""
     references: list[str] = []
     if not jsonl_path.is_file():
         return references
@@ -213,7 +199,7 @@ def _jsonl_file_references(jsonl_path: Path) -> list[str]:
 
 
 def _task_plan_references(repo_root: Path, snapshot: ActiveTaskSnapshot) -> list[str]:
-    """从当前任务上下文中提取 plan 文件引用。"""
+    """Only .cowork-flow/plans/ references count, deduplicated."""
     if not snapshot.path:
         return []
 
@@ -250,7 +236,7 @@ def _build_resume_checklist(
     repo_root: Path,
     snapshot: ActiveTaskSnapshot,
 ) -> dict[str, list[str]]:
-    """构建最小恢复清单，只返回路径和命令，不展开文件内容。"""
+    """Paths and commands only; file contents are never inlined."""
     commands = [f"./{DIR_WORKFLOW}/run resume"]
     read_files: list[str] = []
     notes: list[str] = []
@@ -278,7 +264,6 @@ def _append_resume_checklist(
     repo_root: Path,
     snapshot: ActiveTaskSnapshot,
 ) -> None:
-    """Append the minimal resume checklist to text output."""
     lines.append("## RESUME CHECKLIST")
     checklist = _build_resume_checklist(repo_root, snapshot)
     commands = checklist["commands"]
@@ -319,7 +304,6 @@ def _append_active_task(
     include_description: bool = False,
     include_decision_anchor_hint: bool = False,
 ) -> None:
-    """Append the ACTIVE TASK section to text output."""
     lines.append("## ACTIVE TASK")
     active_task = snapshot.path
     if not active_task:
@@ -346,7 +330,7 @@ def _append_active_task(
 
 
 def _load_task_context_by_dir(tasks_dir: Path) -> dict[str, dict]:
-    """Load task display data, preserving dirs without task.json as unknown."""
+    """Directories without task.json are reported as unknown."""
     all_task_data: dict[str, dict] = {}
     for d in _iter_task_dirs(tasks_dir):
         data = _read_json_file(d / FILE_TASK_JSON) or {}
@@ -364,7 +348,6 @@ def _load_task_context_by_dir(tasks_dir: Path) -> dict[str, dict]:
 
 
 def _task_statuses(task_data_by_dir: dict[str, dict]) -> dict[str, str]:
-    """Return task status lookup by directory name."""
     return {
         dir_name: data.get("status", "unknown")
         for dir_name, data in task_data_by_dir.items()
@@ -372,19 +355,17 @@ def _task_statuses(task_data_by_dir: dict[str, dict]) -> dict[str, str]:
 
 
 def _children_done_count(children: list[str], statuses: dict[str, str]) -> int:
-    """Count completed child tasks."""
     return sum(1 for child in children if statuses.get(child) in ("completed", "done"))
 
 
 def _children_progress(children: list[str], statuses: dict[str, str]) -> str:
-    """Render children progress like '[2/3 done]'."""
+    """Renders '[2/3 done]'; empty when there are no children."""
     if not children:
         return ""
     return f" [{_children_done_count(children, statuses)}/{len(children)} done]"
 
 
 def _append_active_tasks(lines: list[str], tasks_dir: Path) -> None:
-    """Append active task hierarchy to text output."""
     lines.append("## ACTIVE TASKS")
     task_count = 0
 
@@ -416,7 +397,6 @@ def _append_active_tasks(lines: list[str], tasks_dir: Path) -> None:
 
 
 def _append_my_tasks(lines: list[str], developer: str, tasks_dir: Path) -> None:
-    """Append tasks assigned to the current developer."""
     lines.append("## MY TASKS (Assigned to me)")
     my_task_count = 0
     all_task_data = _load_task_context_by_dir(tasks_dir)
@@ -438,7 +418,6 @@ def _append_my_tasks(lines: list[str], developer: str, tasks_dir: Path) -> None:
 
 
 def _append_paths(lines: list[str]) -> None:
-    """Append standard cowork-flow paths."""
     lines.append("## PATHS")
     lines.append(f"Tasks: {DIR_WORKFLOW}/{DIR_TASKS}/")
     lines.append(f"Spec: {DIR_WORKFLOW}/{DIR_SPEC}/")
@@ -446,7 +425,6 @@ def _append_paths(lines: list[str]) -> None:
 
 
 def _context_tasks_json(tasks_dir: Path) -> list[dict]:
-    """Build active task list for JSON output."""
     tasks = []
     for dir_name, data in _load_task_json_by_dir(tasks_dir, sort=False).items():
         tasks.append(
@@ -462,14 +440,7 @@ def _context_tasks_json(tasks_dir: Path) -> list[dict]:
 
 
 def get_context_json(repo_root: Path | None = None) -> dict:
-    """Get context as a dictionary.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Context dictionary.
-    """
+    """Full context as a dictionary."""
     if repo_root is None:
         repo_root = get_repo_root()
 
@@ -490,11 +461,7 @@ def get_context_json(repo_root: Path | None = None) -> dict:
 
 
 def output_json(repo_root: Path | None = None) -> None:
-    """Output context in JSON format.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-    """
+    """Print the context JSON."""
     context = get_context_json(repo_root)
     print(json.dumps(context, indent=2, ensure_ascii=False))
 
@@ -545,14 +512,7 @@ def _append_default_context_sections(
 
 
 def get_context_text(repo_root: Path | None = None) -> str:
-    """Get context as formatted text.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Formatted text output.
-    """
+    """Full context as formatted text."""
     if repo_root is None:
         repo_root = get_repo_root()
 
@@ -568,16 +528,11 @@ def get_context_text(repo_root: Path | None = None) -> str:
 
 
 def output_text(repo_root: Path | None = None) -> None:
-    """Output context in text format.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-    """
+    """Print the context text."""
     print(get_context_text(repo_root))
 
 
 def main() -> None:
-    """CLI entry point."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Get cowork-flow context for AI Agent")

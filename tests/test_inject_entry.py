@@ -105,6 +105,29 @@ class InjectEntryTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    # -- CLI surface ----------------------------------------------------------
+
+    def test_help_freezes_the_docstring_description_and_host_choices(self) -> None:
+        """`description=__doc__` makes the module docstring public CLI text,
+        so any rewrap of it changes `--help` on every host."""
+        env = clean_hook_env()
+        # argparse wraps the description to the terminal width; pin it so a
+        # narrow COLUMNS cannot break the sentence this test asserts on.
+        env["COLUMNS"] = "120"
+        result = subprocess.run(
+            [sys.executable, str(INJECT), "--help"],
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            env=env,
+            timeout=15,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("Host-neutral workflow-context injection entry.", result.stdout)
+        self.assertIn(
+            "--host {claude-code,codex,dsh,kimi-code,qoder,zcode}", result.stdout
+        )
+
     # -- digest shape per host ------------------------------------------------
 
     def test_zcode_session_start_full_digest_with_zcode_policy_wording(self) -> None:

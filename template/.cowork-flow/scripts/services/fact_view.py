@@ -212,8 +212,9 @@ GATES_TEXT = (
     "files are protected; spec/ edits may be allowed by review policy; "
     "scope is agent-mutable (self-declared via task context add)"
 )
-# Delegated subtasks render the parent task's scope as a read-only reference:
-# the child must not believe it can self-declare scope on the parent's behalf.
+# Delegated subtasks render the parent scope as a read-only
+# reference: a child must not believe it can self-declare
+# scope on the parent's behalf.
 GATES_TEXT_READONLY = (
     "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow "
     "files are protected; spec/ edits may be allowed by review policy; "
@@ -269,8 +270,9 @@ def _fit_stage_contract(
     if len("\n".join(lines)) <= budget:
         return lines
     closing = lines[-1]
-    # The final join inserts one newline between the cut body and the closing
-    # tag — reserve it so the block stays within budget byte-for-byte.
+    # The final join inserts one newline between the cut body
+    # and the closing tag; reserve it so the block stays
+    # within budget byte-for-byte.
     room = budget - len(closing) - 1
     body = "\n".join(lines[:-1])
     if len(body) <= room:
@@ -370,12 +372,13 @@ def build_stage_contract(
     return "\n".join(fitted)
 
 
-# Spec digest: the h2 heading tree of each bound spec — the "entry-name"
-# index injected with the contract so the rules exist in the agent's
-# attention without reading full spec bodies. Format is pinned byte-for-byte
-# across the Python source and the zcode/opencode JS mirrors (contract
-# fingerprint tests): path(h2a/h2b), at most 6 headings, each truncated to
-# 24 chars after stripping "();" characters.
+# Spec digest: the h2 heading tree of each bound spec, an
+# "entry-name" index injected with the contract so rules
+# reach the agent's attention without full spec bodies.
+# Format is pinned byte-for-byte across this source and the
+# zcode/opencode JS mirrors (contract fingerprint tests):
+# path(h2a/h2b), at most 6 headings, each truncated to 24
+# chars after stripping "();" characters.
 SPEC_DIGEST_MAX_HEADINGS = 6
 SPEC_DIGEST_MAX_CHARS = 24
 

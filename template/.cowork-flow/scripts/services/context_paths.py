@@ -10,10 +10,10 @@ from pathlib import Path
 
 CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file", "deleted-file"))
 
-# Byte-identical with the shipped .cowork-flow/spec/runtime/scope-rules.json;
-# loaded from disk at runtime so the rules are a single source across python
-# and the zcode/opencode JS mirrors. Keep both sides in sync (locked by
-# tests/test_scope_rules.py default-equivalence).
+# JSON-equal to the shipped scope-rules.json at
+# .cowork-flow/spec/runtime/ (same rules, different
+# formatting); python and the zcode/opencode JS mirrors
+# share one rule source, locked by test_scope_rules.py.
 DEFAULT_SCOPE_RULES: dict = {
     "schemaVersion": 1,
     "scopeFilter": {

@@ -13,9 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-# Digest policy wording is a per-host contract fact (context-injection.md
-# transport table); hosts carry their line in their policy module, unknown
-# hosts fall back to the default line below.
+# Per-host contract fact (context-injection.md transport
+# table): a host carries its own line in its policy module,
+# unknown hosts fall back to the default below.
 DEFAULT_DIGEST_POLICY = (
     "policy: repeat this short digest every hook; "
     "read full spec files only before listed actions."

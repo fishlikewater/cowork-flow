@@ -144,7 +144,7 @@ def _tool_task_list(root: Path, _arguments: dict) -> dict:
     records, error = _list_task_records(root, mine=False, status=None)
     if error:
         return {"tasks": [], "count": 0, "error": error}
-    # records[].active is a per-session fact: only a trusted caller identity
+    # records[].active is per-session: only a trusted caller
     # whose bound path matches the record may carry it.
     trusted_active = _implicit_active_task(root)[0]
     for record in records:
