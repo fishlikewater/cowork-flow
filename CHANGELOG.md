@@ -1,9 +1,5 @@
 # 更新日志
 
-本文件记录用户可感知的变化和升级动作。实现细节、取证过程和提交拆分请查看 Git 历史与 Pull Request。
-
-格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。发布前需要把 `Unreleased` 整理为带日期的版本段落。
-
 ## [Unreleased]
 
 ### Added
