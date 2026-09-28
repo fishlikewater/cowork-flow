@@ -17,10 +17,10 @@ function defaultIo() {
 
 function findNearestWorkflowRoot(startDir) {
   let current = resolve(startDir);
-  // Same semantics as the MCP server's root resolution (get_repo_root):
-  // walk up to the nearest directory containing .cowork-flow/, so a client
-  // launching the globally registered server inside any project subdirectory
-  // still lands on the right facts.
+  // Same semantics as the MCP server's get_repo_root: walk
+  // up to the nearest .cowork-flow/ so a client launched
+  // inside any project subdirectory still lands on the
+  // right facts.
   for (;;) {
     if (existsSync(join(current, DIR_WORKFLOW))) {
       return current;
@@ -54,8 +54,9 @@ export async function runMcpState(args, options = {}) {
     const child = spawn(runner, ['mcp-state', ...args], {
       stdio: 'inherit',
       cwd: root,
-      // Windows: newer Node (v24+) throws EINVAL when spawning .cmd files
-      // directly; routing through cmd.exe matches how npm shims launch.
+      // Windows: Node v24+ throws EINVAL when spawning a
+      // .cmd directly; cmd.exe matches how npm shims
+      // launch.
       shell: process.platform === 'win32',
     });
     child.on('error', (error) => {

@@ -1,40 +1,23 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { access, cp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 
+import { parseInstallArgs, pathExists } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { readPluginMetadata } from '../lib/plugin-metadata.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
-import { parseFlags } from '../lib/cli-flags.js';
 
 const MARKETPLACE_NAME = 'cowork-flow-local';
 const PLUGIN_NAME = 'cowork-flow';
 const PLUGIN_KEY = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
 const MARKETPLACE_MANIFEST = join('.agents', 'plugins', 'marketplace.json');
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list.
+// Rendered by `host add`/`host remove`; the installer's
+// own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    force: Boolean(flags['--force']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function codexHome() {
   const configured = (process.env.CODEX_HOME || '').trim();
@@ -53,10 +36,11 @@ function cacheRoot(home) {
   return join(home, 'plugins', 'cache', MARKETPLACE_NAME, PLUGIN_NAME);
 }
 
-// codex validates marketplace entries: every plugin entry carries an explicit
-// installation/authentication policy and a category, and the marketplace's own
-// display name lives in the top-level interface object (codex.exe plugin
-// authoring guide, verified against the official plugin instances).
+// codex validates marketplace entries: each plugin entry
+// carries an explicit installation/authentication policy
+// and a category, and the display name lives in the
+// top-level interface object (codex plugin authoring
+// guide, verified against official instances).
 function marketplaceManifest(metadata) {
   return {
     name: MARKETPLACE_NAME,
@@ -88,8 +72,9 @@ function whichCodex() {
   return null;
 }
 
-// An explicit override is authoritative: falling back to another CLI would make
-// "COWORK_FLOW_CODEX=/missing/codex" silently install through a different one.
+// COWORK_FLOW_CODEX is authoritative: falling back to
+// another CLI would make a mistyped path silently install
+// elsewhere.
 async function findCodexCli(home) {
   const configured = (process.env.COWORK_FLOW_CODEX || '').trim();
   if (configured) {
@@ -110,11 +95,11 @@ async function findCodexCli(home) {
   return null;
 }
 
-// Node refuses to spawn .cmd/.bat without a shell, and shell mode joins the
-// command with spaces without escaping anything, so a token that contains a
-// space (a profile path like "C:\Users\Jane Doe\AppData\Roaming\npm\codex.cmd",
-// or a CODEX_HOME under one) would reach cmd.exe as two words and fail. A real
-// executable must not go through a shell at all.
+// Node refuses to spawn .cmd/.bat without a shell, and
+// shell mode joins the command with spaces without
+// escaping, so a token with a space (a profile path, a
+// CODEX_HOME under one) would reach cmd.exe as two words.
+// Real executables never go through a shell.
 function runCodex(cli, args) {
   if (!/\.(cmd|bat)$/i.test(cli)) {
     return spawnSync(cli, args, { encoding: 'utf8' });
@@ -139,10 +124,11 @@ function failureOutput(result) {
   return output || `exit ${result.status}`;
 }
 
-// Codex records its own canonical spelling of the source root, so the same
-// directory can come back as `\\?\C:\...`, with forward slashes, a trailing
-// separator, or different casing. Comparing the raw strings would report a
-// conflict for a registration that points exactly where we install.
+// Codex records its own canonical spelling of the source
+// root (`\\?\C:\...`, forward slashes, trailing separator,
+// casing), so raw string comparison would report a
+// conflict for a registration that points exactly where we
+// install.
 function sameRoot(left, right) {
   if (!left || !right) {
     return false;
@@ -155,10 +141,11 @@ function sameRoot(left, right) {
     : normalizedLeft === normalizedRight;
 }
 
-// The CLI owns ~/.codex/config.toml: registration and enablement are its state,
-// so cowork-flow writes the marketplace source and lets codex record it. A
-// hand-written config.toml would also be unrecoverable for the user if the
-// format shifts.
+// The CLI owns ~/.codex/config.toml: registration and
+// enablement are its state, so cowork-flow writes the
+// marketplace source and lets codex record it. A
+// hand-written config.toml would also be unrecoverable for
+// the user if the format shifts.
 function readCodexState(cli) {
   const marketplaces = parseJsonOutput(runCodex(cli, ['plugin', 'marketplace', 'list', '--json']));
   const plugins = parseJsonOutput(
@@ -174,9 +161,10 @@ function readCodexState(cli) {
   };
 }
 
-// The marketplace root is referenced in place by codex (no copy), so it has to
-// stay where it is across upgrades; the payload is rewritten and the manifest
-// goes last, so a half-copied plugin is never discoverable.
+// codex references the marketplace root in place (no
+// copy), so it has to stay where it is across upgrades;
+// the payload is rewritten and the manifest written last,
+// so a half-copied plugin is never discoverable.
 async function materializeMarketplace({ home, pluginSrc, manifest, version, metadata }) {
   const root = marketplaceRoot(home);
   const target = pluginTarget(home);
@@ -248,7 +236,7 @@ async function uninstall({ home, cli, dryRun }) {
 }
 
 export async function runInstallCodexPlugin(args = []) {
-  const { dryRun, force, uninstall: remove } = parseArgs(args);
+  const { dryRun, force, uninstall: remove } = parseInstallArgs(args);
   const home = codexHome();
   const { version } = await readPackageInfo();
   const metadata = await readPluginMetadata();

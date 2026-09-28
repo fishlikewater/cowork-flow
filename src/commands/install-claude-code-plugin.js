@@ -1,36 +1,16 @@
-import { access, cp, mkdir, readFile, rm } from 'node:fs/promises';
+import { cp, mkdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { parseFlags } from '../lib/cli-flags.js';
+import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 
 const PLUGIN_NAME = 'cowork-flow';
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list.
+// Rendered by `host add`/`host remove`; the installer's
+// own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
-
-
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    force: Boolean(flags['--force']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
-
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 
 function claudeHome() {
@@ -39,26 +19,24 @@ function claudeHome() {
 }
 
 
-// Claude Code loads any folder under a skills directory that carries a plugin
-// manifest as `<name>@skills-dir`, with no marketplace and no install record,
-// so this installer writes one directory and nothing else.
+// Claude Code loads any skills-directory folder that
+// carries a plugin manifest as `<name>@skills-dir`, with
+// no marketplace and no install record, so one directory
+// is the whole install.
 function installPath(home) {
   return join(home, 'skills', PLUGIN_NAME);
 }
 
 
-async function readManifest(dir, manifestRelative) {
-  try {
-    return JSON.parse(await readFile(join(dir, ...manifestRelative.split('/')), 'utf8'));
-  } catch {
-    return null;
-  }
+function readManifest(dir, manifestRelative) {
+  return readJsonFile(join(dir, ...manifestRelative.split('/')));
 }
 
 
-// `~/.claude/skills/` is a directory users manage by hand, so an existing
-// folder counts as ours only when its manifest names this plugin. Anything else
-// is never deleted and only overwritten behind an explicit --force.
+// `~/.claude/skills/` is a directory users manage by hand,
+// so an existing folder counts as ours only when its
+// manifest names this plugin; anything else needs an
+// explicit --force.
 async function ownsInstall(dir, manifestRelative) {
   const manifest = await readManifest(dir, manifestRelative);
   return manifest?.name === PLUGIN_NAME;
@@ -92,13 +70,13 @@ async function uninstall(target, manifestRelative, { dryRun, force }) {
 
 
 export async function runInstallClaudeCodePlugin(args = []) {
-  const { dryRun, force, uninstall: remove } = parseArgs(args);
+  const { dryRun, force, uninstall: remove } = parseInstallArgs(args);
   const home = claudeHome();
   const target = installPath(home);
   const { version } = await readPackageInfo();
-  // The host asset declaration is the only place naming the payload manifest,
-  // so the installer reads the installed copy through that same path instead of
-  // keeping a second literal in sync.
+  // The payload declaration owns the manifest name; read
+  // the installed copy through it, not through a second
+  // literal.
   const { sourceDir: pluginSrc, manifest } = pluginPayload('claude-code');
 
   if (remove) {
@@ -112,9 +90,9 @@ export async function runInstallClaudeCodePlugin(args = []) {
   console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow Claude Code plugin:`);
   console.log(`  Plugin: ${pluginSrc} -> ${target}`);
 
-  // The ownership guard runs before the dry-run exit too: a preview that says
-  // "would install" over a folder the real run then refuses would be worse than
-  // no preview at all.
+  // The ownership guard runs before the dry-run exit too:
+  // a preview that promises an install the real run
+  // refuses is worse than none.
   if (await pathExists(target)) {
     const ours = await ownsInstall(target, manifest);
     if (!ours && !force) {

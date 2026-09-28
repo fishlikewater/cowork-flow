@@ -1,37 +1,20 @@
-import { access, cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { parseInstallArgs, pathExists } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
-import { parseFlags } from '../lib/cli-flags.js';
 
 const QODER_MARKETPLACE = 'cowork-flow-local';
 const PLUGIN_NAME = 'cowork-flow';
 const PLUGIN_KEY = `${PLUGIN_NAME}@${QODER_MARKETPLACE}`;
 const REGISTRY_FILE = 'installed_plugins_v2.json';
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list.
+// Rendered by `host add`/`host remove`; the installer's
+// own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    force: Boolean(flags['--force']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function qoderHome() {
   const configured = (process.env.QODER_CONFIG_DIR || '').trim();
@@ -100,9 +83,10 @@ async function loadConfigs(paths) {
   return { registry, settings };
 }
 
-// The Qoder plugin registry is not part of the published docs, so every write
-// keeps unknown keys and unrelated entries verbatim: cowork-flow may only own
-// its own key inside a file it did not create.
+// The Qoder plugin registry is not part of the published
+// docs, so every write keeps unknown keys and unrelated
+// entries verbatim: cowork-flow may only own its own key
+// inside a file it did not create.
 async function writeJsonAtomic(path, data) {
   await mkdir(dirname(path), { recursive: true });
   const temp = `${path}.cowork-flow.tmp`;
@@ -172,7 +156,7 @@ async function uninstall(paths, dryRun) {
 }
 
 export async function runInstallQoderPlugin(args = []) {
-  const { dryRun, force, uninstall: remove } = parseArgs(args);
+  const { dryRun, force, uninstall: remove } = parseInstallArgs(args);
   const home = qoderHome();
   const { version } = await readPackageInfo();
   const target = pluginPaths(home, version);
@@ -216,8 +200,8 @@ export async function runInstallQoderPlugin(args = []) {
   await rm(target.installPath, { recursive: true, force: true });
   await cp(pluginSrc, target.installPath, { recursive: true });
   await stampPayloadManifest(target.installPath, manifest, version);
-  // Registry and enable flag come last: a half-copied payload must never be
-  // advertised as installed.
+  // Registry and enable flag come last: a half-copied
+  // payload must never be advertised as installed.
   await updateRegistry(configs.registry, target, version, now, false);
   await enablePlugin(configs.settings, target, false);
 

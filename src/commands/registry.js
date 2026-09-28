@@ -8,10 +8,9 @@ import { runSync } from './sync.js';
 import { runUpdate } from './update.js';
 
 
-// The command surface, in one place. `src/cli.js` resolves argv against this
-// table and dispatches; it holds no command names of its own, and the help text
-// is rendered from these same declarations, so a new command cannot appear in
-// one and be missing from the other.
+// The command surface, in one place: `src/cli.js`
+// dispatches through this table and renders help from the
+// same declarations.
 export const PROGRAM = 'cwf';
 
 export const GROUPS = [
@@ -22,8 +21,8 @@ export const GROUPS = [
   { id: 'dev', summary: 'Commands for working on the cowork-flow repository itself' }
 ];
 
-// Flag descriptions are shared: --dry-run means the same thing everywhere, and
-// spelling it out once keeps the help of eight commands from drifting apart.
+// Flag descriptions are shared, so commands cannot drift
+// apart.
 const FLAG_HELP = {
   '--dry-run': 'Print what would change; write nothing',
   '--force': 'Overwrite an existing installation; on uninstall, also delete the files the managed row alone would leave behind',
@@ -40,9 +39,9 @@ const PLATFORM_TOKENS = `${hostRegistry.platformIds.join('|')}|all`;
 const HOST_NOTE = `Hosts: ${Object.entries(HOST_COMPONENTS)
   .map(([id, host]) => `${id} (${Object.keys(host.components).join(', ')})`)
   .join('; ')}.`;
-// The flags are a union across hosts, and the installer that owns the flag is
-// what validates it, so the one gap the union creates is named here instead of
-// being left for the user to discover as a usage error.
+// The union across hosts contains one gap: kimi-code's
+// hook has no --force, so the help names it instead of
+// letting the user hit a usage error.
 const HOST_FORCE_NOTE = '`--force` applies to every component except kimi-code\'s hook, '
   + 'which overwrites unconditionally and therefore does not accept the flag.';
 
@@ -78,9 +77,9 @@ export const COMMANDS = [
     path: ['host', 'add'],
     summary: 'Install a host\'s machine-level integration',
     usage: 'host add <host> [--component <name>] [--dry-run] [--force] [--prune-old] [--uninstall]',
-    // Documentation only: this command forwards its argv to the installer it
-    // picks, and the installer is what validates the flags. The list is the
-    // union of what the installers declare so the help cannot omit a flag.
+    // Documentation only: argv goes to the installer,
+    // which validates the flags; this list is the declared
+    // union.
     flags: [valueFlag('--component', 'name'), ...HOST_FLAGS.map(flag)],
     notes: [HOST_NOTE, HOST_FORCE_NOTE],
     examples: ['cwf host add codex', 'cwf host add dsh --component hook'],
@@ -90,9 +89,9 @@ export const COMMANDS = [
     path: ['host', 'remove'],
     summary: 'Remove a host\'s machine-level integration',
     usage: 'host remove <host> [--component <name>] [--dry-run] [--force]',
-    // Documentation only, like `host add`: the flags are forwarded to the
-    // installer that owns them. `--force` matters for dsh's hook, where the
-    // managed row goes but the plugin file needs the extra flag.
+    // Documentation only, like `host add`. `--force`
+    // matters for dsh's hook: the managed row goes, the
+    // plugin file needs the flag.
     flags: [valueFlag('--component', 'name'), flag('--dry-run'), flag('--force')],
     notes: [
       HOST_NOTE,
@@ -134,19 +133,18 @@ export const COMMANDS = [
     path: ['mcp', 'serve'],
     summary: 'Serve cowork-flow facts over MCP on stdio',
     usage: 'mcp serve [args...]',
-    // Everything after the command goes to the project runner unchanged: the
-    // runner owns this subcommand's own options, and the npm CLI only resolves
-    // the project root and execs it.
+    // Everything after the command goes to the project
+    // runner unchanged; the runner owns its own options.
     passthrough: true,
     notes: ['Registered once in your MCP client; the project root is resolved by walking up from the client\'s cwd.'],
     run: (args, context) => runMcpState(args, context)
   }
 ];
 
-// Old names. `permanent` aliases are the spelling users have already written
-// outside this repository (MCP client configs) or the short everyday names;
-// the rest are shims that print a migration note on stderr and go away after
-// two minor releases.
+// Old names. `permanent` aliases are spellings already
+// written outside this repository (MCP client configs);
+// the rest print a migration note on stderr and go away
+// after two minor releases.
 export const ALIASES = [
   { name: 'init', command: ['project', 'init'], args: [], permanent: true },
   { name: 'sync', command: ['project', 'sync'], args: [], permanent: true },
@@ -212,10 +210,10 @@ export function aliasNotice(alias) {
 }
 
 
-// The help target for an argv that asked for help: aliases are expanded first,
-// so asking for help on a legacy name documents where that name now points, and
-// anything past the longest matching command is dropped (the trailing
-// positionals are not part of a help path).
+// The help target for an argv that asked for help: aliases
+// expand first, and anything past the longest matching
+// command is dropped (trailing positionals are not part of
+// a help path).
 export function helpPath(argv) {
   const tokens = argv.filter((token) => token !== '--help' && token !== '-h');
   if (tokens[0] === 'help') {

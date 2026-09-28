@@ -1,38 +1,18 @@
-import { cp, mkdir, rm, access, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
 import { readPackageInfo } from '../lib/package-info.js';
-import { parseFlags } from '../lib/cli-flags.js';
 
 const PRESET_ID = 'cowork-flow';
 const MARKER_FILE = '.cowork-flow-preset.json';
 const PRESET_SRC = join(packageRoot, 'presets', 'dsh');
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list.
+// Rendered by `host add`/`host remove`; the installer's
+// own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
-
-
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    force: Boolean(flags['--force']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
-
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 
 function getDshPresetRoot() {
@@ -42,18 +22,13 @@ function getDshPresetRoot() {
 
 
 async function readInstalledVersion(destDir) {
-  try {
-    const raw = await readFile(join(destDir, MARKER_FILE), 'utf8');
-    const parsed = JSON.parse(raw);
-    return typeof parsed.version === 'string' ? parsed.version : null;
-  } catch {
-    return null;
-  }
+  const marker = await readJsonFile(join(destDir, MARKER_FILE));
+  return typeof marker?.version === 'string' ? marker.version : null;
 }
 
 
 export async function runInstallDshPreset(args = []) {
-  const { dryRun, force, uninstall } = parseArgs(args);
+  const { dryRun, force, uninstall } = parseInstallArgs(args);
 
   const destDir = join(getDshPresetRoot(), PRESET_ID);
 

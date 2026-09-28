@@ -5,9 +5,10 @@ import { packageRoot } from './paths.js';
 
 const METADATA_PATH = join(packageRoot, 'presets', 'plugin-meta.json');
 
-// One source for the identity every host shows. The host manifests are
-// projections of this file (test/plugin-metadata.test.js asserts the shipped
-// bytes match), so a field can never be right in one host and stale in another.
+// One source for the identity every host shows: the
+// shipped manifests are projections of this file and
+// test/plugin-metadata.test.js compares their bytes, so a
+// field cannot be right in one host and stale in another.
 export async function readPluginMetadata() {
   return JSON.parse(await readFile(METADATA_PATH, 'utf8'));
 }
@@ -24,11 +25,11 @@ export function hostDescription(metadata, host) {
   return `${metadata.description}将 cowork-flow 的完整工作流带入 ${hostLabel(metadata, host)}。`;
 }
 
-// ZCode only renders a marketplace icon when the value is an absolute https URL
-// (its client keeps the string only if `icon.startsWith('https://')`, and drops
-// anything else without a warning), so the icon has to be fetched from somewhere
-// public rather than read out of the payload. Deriving the URL keeps the repo
-// and the branch stated once instead of hardcoded a fourth time.
+// ZCode renders a marketplace icon only when the value is
+// an absolute https URL (its client keeps the string only
+// if it starts with `https://`), so the icon is fetched
+// from somewhere public rather than read out of the
+// payload.
 export function marketplaceIconUrl(metadata) {
   const { repository, defaultBranch, icon } = metadata;
   const prefix = 'https://github.com/';
@@ -45,124 +46,136 @@ export function marketplaceIconUrl(metadata) {
   return `${raw}/${defaultBranch}/${icon.raster}`;
 }
 
-export function pluginManifest(metadata, host, version) {
-  const base = {
-    name: metadata.name,
-    version,
-    description: hostDescription(metadata, host)
-  };
+function codexManifest(metadata, base) {
   const author = metadata.author;
-
-  if (host === 'codex') {
-    return {
-      ...base,
-      author: { name: author.name, email: author.email, url: author.url },
-      homepage: metadata.homepage,
-      repository: metadata.repository,
-      license: metadata.license,
-      keywords: metadata.keywords,
-      skills: './skills/',
-      interface: {
-        displayName: metadata.displayName,
-        shortDescription: metadata.description,
-        longDescription: metadata.longDescription,
-        developerName: author.name,
-        category: metadata.category,
-        websiteURL: metadata.homepage,
-        // codex resolves these against the plugin root, and the payload is
-        // copied into $CODEX_HOME on its own, so the mark ships inside it.
-        // brandColor is the same value the raster is baked from, so the mark
-        // and the surrounding UI cannot disagree.
-        logo: './assets/logo.svg',
-        brandColor: metadata.brandColor
-      }
-    };
-  }
-
-  if (host === 'zcode') {
-    // zcode's manifest display metadata maps author/authorUrl/homepage/version;
-    // its display name comes from the marketplace listing, so none is declared
-    // here. keywords is not part of the manifest schema either.
-    return {
-      ...base,
-      author: { name: author.name, url: author.url },
-      homepage: metadata.homepage,
-      license: metadata.license,
-      hooks: 'hooks/hooks.json',
-      agents: 'agents',
-      skills: 'skills'
-    };
-  }
-
-  if (host === 'qoder') {
-    return {
-      ...base,
+  return {
+    ...base,
+    author: { name: author.name, email: author.email, url: author.url },
+    homepage: metadata.homepage,
+    repository: metadata.repository,
+    license: metadata.license,
+    keywords: metadata.keywords,
+    skills: './skills/',
+    interface: {
       displayName: metadata.displayName,
-      author: { name: author.name, email: author.email, url: author.url },
-      homepage: metadata.homepage,
-      repository: metadata.repository,
-      license: metadata.license,
-      keywords: metadata.keywords,
-      hooks: 'hooks/hooks.json',
-      agents: 'agents',
-      skills: 'skills'
-    };
-  }
+      shortDescription: metadata.description,
+      longDescription: metadata.longDescription,
+      developerName: author.name,
+      category: metadata.category,
+      websiteURL: metadata.homepage,
+      // codex resolves these against the plugin root; the
+      // payload is copied into $CODEX_HOME alone, so the
+      // mark ships inside it. brandColor is the value the
+      // raster is baked from.
+      logo: './assets/logo.svg',
+      brandColor: metadata.brandColor
+    }
+  };
+}
 
-  if (host === 'claude-code') {
-    // A skills-directory plugin: Claude Code loads any folder under a skills
-    // directory that carries this manifest as `<name>@skills-dir`, with no
-    // marketplace and no install record. Only skills ship here — the project's
-    // own `.claude/settings.json` hook and `.claude/agents/` stay the delivery
-    // for injection and subagents, because a plugin hook would fire alongside
-    // the project hook (Claude Code stacks hook sources) and plugin agents
-    // would duplicate the project ones under a second name. The manifest has no
-    // icon key at all, so none is written.
-    return {
-      ...base,
+// zcode maps author/authorUrl/homepage/version from the
+// manifest; its display name comes from the marketplace
+// listing, so none is declared here, and keywords is not
+// part of the schema either.
+function zcodeManifest(metadata, base) {
+  const author = metadata.author;
+  return {
+    ...base,
+    author: { name: author.name, url: author.url },
+    homepage: metadata.homepage,
+    license: metadata.license,
+    hooks: 'hooks/hooks.json',
+    agents: 'agents',
+    skills: 'skills'
+  };
+}
+
+function qoderManifest(metadata, base) {
+  const author = metadata.author;
+  return {
+    ...base,
+    displayName: metadata.displayName,
+    author: { name: author.name, email: author.email, url: author.url },
+    homepage: metadata.homepage,
+    repository: metadata.repository,
+    license: metadata.license,
+    keywords: metadata.keywords,
+    hooks: 'hooks/hooks.json',
+    agents: 'agents',
+    skills: 'skills'
+  };
+}
+
+// A skills-directory plugin. Only skills ship: the
+// project's own settings hook and `.claude/agents/` stay
+// the delivery for injection and subagents, because a
+// plugin hook would fire next to the project hook (Claude
+// Code stacks hook sources) and plugin agents would
+// duplicate the project ones under a second name.
+function claudeCodeManifest(metadata, base) {
+  const author = metadata.author;
+  return {
+    ...base,
+    displayName: metadata.displayName,
+    author: { name: author.name, email: author.email, url: author.url },
+    homepage: metadata.homepage,
+    repository: metadata.repository,
+    license: metadata.license,
+    keywords: metadata.keywords,
+    skills: './skills/'
+  };
+}
+
+// A local-directory plugin, verified against the host
+// bundle (Kimi Code 1.0.3 manifest.ts): `name` is the only
+// required field, a `skills` entry must start with "./" or
+// the host records the plugin as errored with zero skills,
+// the display name lives under `interface`, and unread
+// keys are dropped without a diagnostic.
+// `sessionStart.skill` is what loads that Skill at session
+// start. Only skills ship: injection stays on the
+// config.toml hook route, because the host runs a plugin
+// hook with `cwd` pinned to the plugin root (the hook
+// schema is strict, so a plugin cannot override it) and
+// the shipped shim cannot walk up to a project, exiting 0.
+// The three fixed subagents stay project-level: plugin
+// agents have the lowest priority and would be shadowed.
+// The schema has no icon key.
+function kimiCodeManifest(metadata, base) {
+  const author = metadata.author;
+  return {
+    ...base,
+    author: { name: author.name, email: author.email },
+    homepage: metadata.homepage,
+    license: metadata.license,
+    keywords: metadata.keywords,
+    skills: './skills/',
+    sessionStart: { skill: 'cowork-flow-bootstrap' },
+    interface: {
       displayName: metadata.displayName,
-      author: { name: author.name, email: author.email, url: author.url },
-      homepage: metadata.homepage,
-      repository: metadata.repository,
-      license: metadata.license,
-      keywords: metadata.keywords,
-      skills: './skills/'
-    };
-  }
+      shortDescription: metadata.description,
+      longDescription: metadata.longDescription,
+      developerName: author.name,
+      websiteURL: metadata.homepage
+    }
+  };
+}
 
-  if (host === 'kimi-code') {
-    // A local-directory plugin. Verified against the host bundle (Kimi Code
-    // 1.0.3, `packages/agent-core-v2/src/app/plugin/manifest.ts`): `name` is the
-    // only required field; a `skills` entry must start with "./" or the host
-    // records the plugin as errored with zero skills; the display name lives
-    // under `interface`; every other key the parser does not read is dropped
-    // without a diagnostic, so none is written here.
-    //
-    // `sessionStart.skill` is what makes the plugin useful in a repository
-    // without a runtime: Kimi Code loads that Skill when a session starts. Only
-    // skills ship. Injection stays with the config.toml hook route — the host
-    // runs a plugin hook with `cwd` pinned to the plugin root (and the hook
-    // schema is strict, so a plugin cannot override it), where the shipped shim
-    // cannot walk up to a project and exits 0. The three fixed subagents stay
-    // project-level because plugin agents have the lowest priority and would
-    // always be shadowed. The schema has no icon key.
-    return {
-      ...base,
-      author: { name: author.name, email: author.email },
-      homepage: metadata.homepage,
-      license: metadata.license,
-      keywords: metadata.keywords,
-      skills: './skills/',
-      sessionStart: { skill: 'cowork-flow-bootstrap' },
-      interface: {
-        displayName: metadata.displayName,
-        shortDescription: metadata.description,
-        longDescription: metadata.longDescription,
-        developerName: author.name,
-        websiteURL: metadata.homepage
-      }
-    };
-  }
+const HOST_MANIFESTS = {
+  codex: codexManifest,
+  zcode: zcodeManifest,
+  qoder: qoderManifest,
+  'claude-code': claudeCodeManifest,
+  'kimi-code': kimiCodeManifest
+};
 
-  throw new Error(`plugin metadata projection has no rule for host: ${host}`);
+export function pluginManifest(metadata, host, version) {
+  // Resolve the description first so an unknown host fails
+  // on the missing label, not on the missing projection.
+  const description = hostDescription(metadata, host);
+  const projection = HOST_MANIFESTS[host];
+  if (!projection) {
+    throw new Error(`plugin metadata projection has no rule for host: ${host}`);
+  }
+  return projection(metadata, { name: metadata.name, version, description });
 }

@@ -1,25 +1,27 @@
 // cowork-flow DSH workflow-state hook.
 //
-// DSH-native equivalent of the Codex/Claude hooks
-// (template/.codex/hooks/inject-workflow-state.py and its Claude sibling):
-// this preset plugin registers ONE system-prompt section, rendered last
-// (order 1000, after identity/persona/tool guidance), whose text is the
-// `<workflow-state>` block produced by the SAME Python protocol the other
-// hosts use (adapters/host/workflow_state_hook.py), so the injected content
-// is structurally identical across hosts.
+// DSH-native equivalent of the Codex/Claude hooks:
+// registers ONE system-prompt section, rendered last
+// (order 1000, after identity/persona/tool guidance),
+// whose text is the `<workflow-state>` block produced by
+// the SAME Python protocol the other hosts use
+// (adapters/host/workflow_state_hook.py), so the injected
+// content is structurally identical across hosts.
 //
-// The block is refreshed per user message (`agent/session-start` warms it,
-// `agent/inbox/claimed` refreshes it) and after lifecycle commands settle
-// (`tools/result`), then cached per agent; each prompt assembly re-renders
-// the current cached value in place — replace semantics, no accumulation
-// across turns or steps. Between refreshes the text is byte-stable, so the
-// static prompt prefix stays cacheable and the dynamic cost is confined to
-// the trailing block.
+// Refreshed per user message (`agent/session-start` warms
+// it, `agent/inbox/claimed` refreshes it) and after
+// lifecycle commands settle (`tools/result`), then cached
+// per agent; each prompt assembly re-renders the cached
+// value in place, with replace semantics and no
+// accumulation across turns or steps. Between refreshes
+// the text is byte-stable, so the static prompt prefix
+// stays cacheable.
 //
-// Degradation is silent: no `.cowork-flow` root, a missing Python, a broken
-// runtime, or the `COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`
-// switches all yield an empty section, and the workspace AGENTS.md gate
-// falls back to running the navigator manually.
+// Degradation is silent: no `.cowork-flow` root, a missing
+// Python, a broken runtime, or the `COWORK_FLOW_HOOKS=0` /
+// `COWORK_FLOW_DISABLE_HOOKS=1` switches all yield an
+// empty section. The workspace AGENTS.md gate then falls
+// back to running the navigator manually.
 
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -38,15 +40,17 @@ const EXEC_OPTIONS = {
   maxBuffer: 1024 * 1024,
 };
 const NO_ROOT_MARKER = '__COWORK_FLOW_NO_ROOT__';
-// How long a "no .cowork-flow root" verdict is trusted for one cwd. Bounded
-// on purpose: a project that installs cowork-flow mid-session becomes visible
-// after at most one TTL, at the cost of at most one interpreter probe.
+// How long a "no .cowork-flow root" verdict is trusted for
+// one cwd. Bounded on purpose: a project that installs
+// cowork-flow mid-session becomes visible after at most
+// one TTL, at the cost of at most one interpreter probe.
 const NO_ROOT_TTL_MS = 30_000;
 const noRootCache = new Map();
 
-// Python 3.9+ protocol reused from the host hook adapters. It resolves the
-// `.cowork-flow` root from the given cwd, loads the shared
-// workflow_state_hook module, and prints the full hook context block.
+// Python 3.9+ protocol reused from the host hook adapters.
+// It resolves the `.cowork-flow` root from the given cwd,
+// loads the shared workflow_state_hook module, and prints
+// the full hook context block.
 const PYTHON_PROTOCOL = `\
 import sys
 from pathlib import Path
@@ -83,9 +87,9 @@ print(build_hook_context(
 ))
 `;
 
-// The edit path sits on the finished tool result, so it gets a short leash:
-// a slow checker is dropped rather than delaying the edit the model already
-// made.
+// The edit path sits on the finished tool result, so it
+// gets a short leash: a slow checker is dropped rather
+// than delaying the edit the model already made.
 const EDIT_TIMEOUT_MS = 2500;
 const EDIT_EXEC_OPTIONS = {
   timeout: EDIT_TIMEOUT_MS,
@@ -93,9 +97,10 @@ const EDIT_EXEC_OPTIONS = {
   maxBuffer: 1024 * 1024,
 };
 
-// Editor-phase spec-check protocol: same root discovery, then the shared
-// edit-check entry so DSH sessions receive the single-line violation hint
-// the other hosts get from their PostToolUse hook. Always exits 0.
+// Editor-phase spec-check protocol: same root discovery,
+// then the shared edit-check entry so DSH sessions receive
+// the single-line violation hint the other hosts get from
+// their PostToolUse hook. Always exits 0.
 const PYTHON_EDIT_PROTOCOL = `\
 import sys
 from pathlib import Path
@@ -121,19 +126,21 @@ except Exception:
     pass
 `;
 
-// The first interpreter that ran the protocol successfully; a missing one is
-// dropped so a later refresh can rediscover (e.g. after a PATH change).
+// The first interpreter that ran the protocol
+// successfully; a missing one is dropped so a later
+// refresh can rediscover it after a PATH change.
 let workingPython = null;
 
-// Cowork-flow lifecycle commands executed through any tool. Matching the
-// command text (not the tool name) keeps the trigger stable across tool
-// surface changes.
+// Cowork-flow lifecycle commands executed through any
+// tool. Matching the command text (not the tool name)
+// keeps the trigger stable across tool surface changes.
 const LIFECYCLE_COMMAND = /\.cowork-flow[\\/]run(?:\.cmd)?(?:\s+[^\s"']*)?\s+(task|subagent|resume)\b/;
 
 
 /**
- * True when a tool argument value embeds a cowork-flow lifecycle command.
- * Accepts strings and JSON-serializable structures; never throws.
+ * True when a tool argument value embeds a cowork-flow
+ * lifecycle command. Accepts strings and JSON-serializable
+ * structures; never throws.
  */
 export function isLifecycleCommand(value) {
   try {
@@ -176,9 +183,10 @@ function tryPython(candidate, cwd, full = true) {
       EXEC_OPTIONS,
       (error, stdout) => {
         if (error) {
-          // ENOENT = the interpreter does not exist (try the next one).
-          // Any other failure means the interpreter ran but the protocol
-          // failed — the candidate works, the project runtime does not.
+          // ENOENT = the interpreter does not exist (try
+          // the next one). Any other failure means the
+          // interpreter ran but the protocol failed — the
+          // candidate works, the runtime does not.
           resolve({ missing: error.code === 'ENOENT', output: '' });
           return;
         }
@@ -198,7 +206,8 @@ function normalize(output) {
 
 
 /**
- * Test seam: forget the memoized interpreter so the next call rediscovers.
+ * Test seam: forget the memoized interpreter so the next
+ * call rediscovers.
  */
 export function resetWorkingPython() {
   workingPython = null;
@@ -206,9 +215,10 @@ export function resetWorkingPython() {
 
 
 /**
- * Nearest ancestor of `cwd` whose `.cowork-flow` entry is a directory, or
- * `null` when no such ancestor exists. Mirrors the root resolution inside
- * the Python protocol so a project without cowork-flow never pays for an
+ * Nearest ancestor of `cwd` whose `.cowork-flow` entry is
+ * a directory, or `null` when no such ancestor exists.
+ * Mirrors the root resolution inside the Python protocol,
+ * so a project without cowork-flow never pays for an
  * interpreter spawn at all.
  */
 export async function findCoworkRoot(cwd) {
@@ -232,11 +242,13 @@ export async function findCoworkRoot(cwd) {
 
 
 /**
- * Produce the `<workflow-state>` hook context block for a workspace cwd.
- * `full` selects the digest shape: true (default) for the full contract
- * block on session-start-like refreshes, false for the single fingerprint
- * line on intra-turn refreshes. Empty string means "contribute nothing"
- * (no root, hooks disabled, no usable interpreter, or a broken runtime).
+ * Produce the `<workflow-state>` hook context block for a
+ * workspace cwd. `full` selects the digest shape: true
+ * (default) for the full contract block on
+ * session-start-like refreshes, false for the single
+ * fingerprint line on intra-turn refreshes. Empty string
+ * means "contribute nothing" (no root, hooks disabled, no
+ * usable interpreter, or a broken runtime).
  */
 export async function runWorkflowState(cwd, full = true) {
   if (hooksDisabled() || !cwd) {
@@ -277,8 +289,9 @@ const EDIT_TOOL_NAMES = new Set(['write', 'edit']);
 
 
 /**
- * Path of the file a finished tool call edited, or '' for anything else.
- * DSH's fs tools expose `file_path`; other tool surfaces are ignored.
+ * Path of the file a finished tool call edited, or '' for
+ * anything else. DSH's fs tools expose `file_path`; other
+ * tool surfaces are ignored.
  */
 export function editedFilePath(exec) {
   const name = exec && typeof exec.name === 'string' ? exec.name : '';
@@ -292,9 +305,10 @@ export function editedFilePath(exec) {
 
 
 /**
- * Editor-phase spec check for one edited file. Returns the single-line
- * warning, or '' when there is nothing to say: no root, no interpreter, no
- * declaration, a clean run, or a timeout. Never throws.
+ * Editor-phase spec check for one edited file. Returns the
+ * single-line warning, or '' when there is nothing to say:
+ * no root, no interpreter, no declaration, a clean run, or
+ * a timeout. Never throws.
  */
 export async function runEditSpecCheck(cwd, filePath) {
   if (hooksDisabled() || !cwd || !filePath) {
@@ -338,9 +352,10 @@ export async function runEditSpecCheck(cwd, filePath) {
 
 
 /**
- * One identified user message carrying a plugin notice. DSH's own
- * createUserMessage lives in a package this preset deliberately does not
- * import, so the shape is built here with node's uuid.
+ * One identified user message carrying a plugin notice.
+ * DSH's own createUserMessage lives in a package this
+ * preset deliberately does not import, so the shape is
+ * built here with node's uuid.
  */
 function specNoticeMessage(text) {
   return {
@@ -358,12 +373,10 @@ function specNoticeMessage(text) {
 
 
 export function apply(ctx) {
-  // One cache entry per agent: { text, inflight, queued, full }.
-  // `full` records the digest shape the next refresh should use: session
-  // starts and inbox claims re-inject the full contract block, intra-turn
-  // refreshes after lifecycle commands only repeat the fingerprint line.
-  // The WeakMap key is the live Agent object the events and the assembly
-  // context both carry.
+  // One cache entry per agent: { text, inflight, queued,
+  // full }. `full` picks the digest shape for the next
+  // refresh: true re-injects the contract block, false
+  // repeats the fingerprint. Key: the live Agent.
   const states = new WeakMap();
 
   const refresh = (agent, full = true) => {
@@ -378,9 +391,8 @@ export function apply(ctx) {
     }
     entry.full = full;
     if (entry.inflight) {
-      // A refresh arrived while one was running (e.g. several lifecycle
-      // commands back to back). Re-run once after it settles so the latest
-      // on-disk state wins instead of being dropped.
+      // A refresh arrived mid-flight; re-run once after it
+      // settles so the latest on-disk state wins.
       entry.queued = true;
       return;
     }
@@ -403,9 +415,9 @@ export function apply(ctx) {
 
   ctx.on('agent/session-start', (payload) => refresh(payload && payload.agent, true));
   ctx.on('agent/inbox/claimed', (payload) => refresh(payload && payload.agent, true));
-  // Intra-turn refresh: a lifecycle command just settled, so the next prompt
-  // assembly should already see the new state instead of the stale block.
-  // Same-session refresh, so only the fingerprint line is repeated.
+  // Intra-turn refresh: a lifecycle command just settled, so
+  // the next assembly sees the new state, not the stale
+  // block. Only the fingerprint line is repeated.
   ctx.on('tools/result', (exec) => {
     const agent = exec && exec.agent;
     if (!agent || !isLifecycleCommand(exec && exec.arguments)) {
@@ -414,9 +426,9 @@ export function apply(ctx) {
     refresh(agent, false);
   });
 
-  // Editor-phase spec-check: the tool already ran, so this only attaches
-  // context for the next request and never blocks the call. Waterfall order
-  // requires awaiting next() before merging downstream decisions.
+  // Editor-phase spec-check: the tool already ran, so this
+  // only adds context for the next request and never blocks
+  // the call. The waterfall awaits next() first.
   ctx.on('tools/post-execute', async (exec, _result, next) => {
     const downstream = await next();
     const agent = exec && exec.agent;

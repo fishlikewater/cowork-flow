@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { hostRegistry } from './host-assets.js';
 
 
-// The payload declaration in the host asset manifest is the single source for
-// where a plugin payload lives inside the package and what its manifest is
-// called. Machine install locations stay in the installers: this declaration
-// ships into projects, which cannot resolve them.
+// The host asset manifest's payload declaration is the
+// single source for where a payload lives in the package
+// and what its manifest is called. Machine install
+// locations stay in the installers: this declaration ships
+// into projects, which cannot resolve them.
 export function pluginPayload(host) {
   const payload = hostRegistry.platformPayload(host);
   if (!payload?.manifest) {
@@ -20,11 +21,13 @@ export function pluginPayload(host) {
 }
 
 
-// For a host whose plugin format carries no manifest at all: the installer still
-// resolves its directory from the same declaration, but there is nothing to
-// stamp a version into. This deliberately does not go through `pluginPayload()`
-// — that function refusing a manifestless payload is what stops a
-// version-stamping installer from silently skipping its stamp.
+// For a host whose plugin format carries no manifest at
+// all: the installer resolves the same directory, but
+// there is nothing to stamp a version into. Deliberately
+// not routed through `pluginPayload()` — that function
+// refusing a manifestless payload is what stops a
+// version-stamping installer from silently skipping its
+// stamp.
 export function payloadSourceDir(host) {
   const payload = hostRegistry.platformPayload(host);
   if (!payload) {
@@ -37,13 +40,15 @@ export function payloadSourceDir(host) {
 }
 
 
-// The host records a version for the installed payload, so every plugin
-// installer stamps the installed manifest with the package version — otherwise
-// a payload installed from a checkout keeps whatever version its source
-// manifest happened to carry. Written the way scripts/release.sh stamps it
-// (key order preserved, two-space indent, trailing newline) so the two agree
-// byte for byte, and renamed into place so a partially written manifest is
-// never readable.
+// The host records a version for the installed payload, so
+// every plugin installer stamps the installed manifest
+// with the package version — otherwise a payload installed
+// from a checkout keeps whatever version its source
+// manifest happened to carry. Written exactly the way
+// scripts/release.sh stamps it (key order preserved,
+// two-space indent, trailing newline) so the two agree
+// byte for byte, and renamed into place so a partially
+// written manifest is never readable.
 export async function stampPayloadManifest(dir, manifest, version) {
   const manifestPath = join(dir, ...manifest.split('/'));
   let parsed;

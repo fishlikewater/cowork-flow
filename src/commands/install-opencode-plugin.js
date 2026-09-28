@@ -1,48 +1,31 @@
-import { access, cp, mkdir, readFile, readdir, rm, rmdir } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, rmdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { parseFlags } from '../lib/cli-flags.js';
+import { parseInstallArgs, pathExists } from '../lib/install-support.js';
 import { payloadSourceDir } from '../lib/plugin-payload.js';
 
 const PLUGIN_NAME = 'cowork-flow';
-// The host scans `plugins/*.{ts,js}` (not recursive), so the plugin file is the
-// only thing opencode loads; everything else is a sibling directory it never
-// looks at.
+// The host scans `plugins/*.{ts,js}` (not recursive), so
+// the plugin file is the only thing opencode loads;
+// everything else is a sibling directory it never looks
+// at.
 const PLUGIN_RELATIVE = 'plugins/cowork-flow.js';
 const PAYLOAD_RELATIVE = 'cowork-flow';
-// A marker inside the plugin file: opencode has no manifest and no install
-// record, so the file's own content is the only way to tell our plugin from a
+// A marker inside the plugin file: opencode has no
+// manifest and no install record, so the file's own
+// content is the only way to tell our plugin from a
 // same-named file a user put there.
 const PLUGIN_MARKER = 'CoworkFlowPlugin';
 
-// Declared so `host add`/`host remove` can render the flags this installer
-// accepts without keeping a second copy of the list.
+// Rendered by `host add`/`host remove`; the installer's
+// own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
-function parseArgs(args) {
-  const { flags } = parseFlags(args, { boolean: FLAGS });
-  return {
-    dryRun: Boolean(flags['--dry-run']),
-    force: Boolean(flags['--force']),
-    uninstall: Boolean(flags['--uninstall'])
-  };
-}
-
-
-async function pathExists(target) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-
-// opencode reads its global config from $XDG_CONFIG_HOME/opencode, falling back
-// to ~/.config/opencode — on every platform, including Windows.
+// opencode reads its global config from
+// $XDG_CONFIG_HOME/opencode, falling back to
+// ~/.config/opencode — on every platform.
 function opencodeHome() {
   const configured = (process.env.XDG_CONFIG_HOME || '').trim();
   return configured ? join(configured, 'opencode') : join(homedir(), '.config', 'opencode');
@@ -69,10 +52,11 @@ async function ownsInstall(home) {
 }
 
 
-// `~/.config/opencode/plugins/` is a directory users drop their own plugins
-// into. Removing the plugin file and the payload leaves it empty when we were
-// its only occupant, and an empty plugins/ is a shell we created — so it goes
-// too, while a directory still holding someone else's plugin stays.
+// `~/.config/opencode/plugins/` is a directory users drop
+// their own plugins into. Removing our file and payload
+// leaves it empty when we were its only occupant, and an
+// empty plugins/ is a shell we created, so it goes too; a
+// directory still holding someone else's stays.
 async function removeIfEmpty(dir) {
   try {
     if ((await readdir(dir)).length === 0) {
@@ -80,7 +64,8 @@ async function removeIfEmpty(dir) {
       return true;
     }
   } catch {
-    // Missing or non-empty: nothing to clean up either way.
+    // Missing or non-empty: nothing to clean up either
+    // way.
   }
   return false;
 }
@@ -121,11 +106,12 @@ async function uninstall(home, { dryRun, force }) {
 
 
 export async function runInstallOpenCodePlugin(args = []) {
-  const { dryRun, force, uninstall: remove } = parseArgs(args);
+  const { dryRun, force, uninstall: remove } = parseInstallArgs(args);
   const home = opencodeHome();
-  // The declaration names the payload directory. opencode's plugin format has no
-  // manifest, so this installer resolves only the directory and stamps nothing:
-  // there is no file the host would read a version from.
+  // The declaration names the payload directory.
+  // opencode's plugin format has no manifest, so this
+  // installer resolves only the directory and stamps
+  // nothing.
   const pluginSrc = payloadSourceDir('opencode');
 
   if (remove) {
@@ -139,9 +125,9 @@ export async function runInstallOpenCodePlugin(args = []) {
   console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow OpenCode plugin:`);
   console.log(`  Plugin: ${pluginSrc} -> ${home}`);
 
-  // The ownership guard runs before the dry-run exit too: a preview that says
-  // "would install" over a file the real run then refuses would be worse than no
-  // preview at all.
+  // The ownership guard runs before the dry-run exit too:
+  // a preview that promises an install the real run
+  // refuses is worse than none.
   if (await pathExists(pluginPath(home))) {
     const ours = await ownsInstall(home);
     if (!ours && !force) {
