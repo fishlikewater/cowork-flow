@@ -62,12 +62,12 @@ def collect_changed_paths_since(
     repo_root: Path, base_commit: str | None
 ) -> tuple[list[str], bool]:
     """Merge the baseline..HEAD diff with the working-tree status:
-    (paths, degraded). Committing during a task no longer hides changed
+    (paths, degraded). A commit made mid-task cannot hide changed
     files from review.
 
-    degraded=True when there is no baseline, HEAD does not exist, or the
-    diff fails (e.g. a rebase orphaned the baseline) — callers fall back to
-    status-only, which is exactly the pre-baseline behavior."""
+    degraded=True when there is no baseline, HEAD does not exist, or
+    the diff fails (e.g. a rebase orphaned the baseline); callers
+    then fall back to status-only review."""
     status_paths = collect_changed_paths(repo_root)
     if not base_commit:
         return status_paths, True
@@ -104,9 +104,10 @@ def _run_git_command(args: list[str], cwd: Path | None = None) -> tuple[int, str
             check=False,
         )
     except OSError:
-        # git unavailable (not installed, or PATH stripped): callers degrade
-        # through the existing rc!=0 paths — no HEAD means no baseline, no
-        # changes means status-only review.
+        # git unavailable (not installed, or PATH stripped):
+        # returning 127 lets callers treat it as their own rc!=0
+        # case (empty status, no HEAD, degraded diff) instead of
+        # failing.
         return 127, "", "git unavailable"
     return completed.returncode, completed.stdout, completed.stderr
 

@@ -477,9 +477,9 @@ class TaskLifecycleService:
     ) -> LifecycleResult | None:
         if not already_at_target or stage.name != START_STAGE.name:
             return None
-        # Executor gate runs before the idempotent shortcut: a foreign
-        # session re-running start on an active task must not ride through
-        # as a no-op success (stage 2 ownership semantics).
+        # The executor gate runs before the idempotent shortcut: a
+        # foreign session re-running start on an active task must
+        # not ride through as a no-op success.
         current = task_data.get("executor") if isinstance(task_data, dict) else None
         current = (
             current.strip()
@@ -621,8 +621,9 @@ class TaskLifecycleService:
         if not stage.activates_session:
             return None, None
         if executor_provided:
-            # Sessionless (CI / headless) start: ownership is recorded via
-            # the explicit executor; no host session file is bound.
+            # Sessionless (CI / headless) start: ownership is
+            # recorded via the explicit executor; no host session
+            # file is bound.
             return None, None
         active_task_path = self._display_task_path(task_dir)
         session_state = build_active_task_session(
@@ -657,10 +658,11 @@ class TaskLifecycleService:
         if stage.activates_session and executor:
             persisted["executor"] = executor
         if stage.activates_session:
-            # Record the git baseline once: review merges baseline..HEAD with
-            # the working tree, so committing mid-task can no longer hide
-            # unlisted files. Already-present baselines are never overwritten
-            # (repeated/covered starts must not shrink the review window).
+            # Record the git baseline once: review merges
+            # baseline..HEAD with the working tree, so committing
+            # mid-task cannot hide unlisted files. An existing
+            # baseline is never overwritten, so repeated starts
+            # cannot shrink the review window.
             meta = dict(persisted.get("meta") or {})
             if not meta.get("baselineCommit"):
                 head = current_head(self.repo_root)
@@ -981,9 +983,9 @@ class TaskLifecycleService:
         *,
         task_revision: int | None = None,
     ) -> str:
-        # A new attempt gets a new identity. Recovery is driven by the
-        # operation log, so deterministic reuse would let a manual rollback
-        # inherit an older committed result.
+        # A new attempt gets a new identity: recovery reads the
+        # operation log, so a deterministic id would let a manual
+        # rollback inherit an older committed result.
         task_fingerprint = json.dumps(
             task_data,
             ensure_ascii=False,

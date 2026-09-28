@@ -26,20 +26,20 @@ from adapters.host.workflow_state_hook import (
     spec_edit_warning,
 )
 
-# Digest policy wording frozen by context-injection.md (zcode drops the
-# registry-warning line and asks for the fingerprint on every hook).
+# Wording frozen by context-injection.md: zcode drops the
+# registry warning and asks for the fingerprint every hook.
 ZCODE_DIGEST_POLICY = (
     "policy: repeat fingerprint every hook; "
     "read full spec files only before listed actions."
 )
 
-# The zcode shim (hooks/inject-context.js) pre-filters Bash events with the
-# same rule; this entry keeps the transport contract correct standalone.
+# The zcode shim (hooks/inject-context.js) pre-filters Bash
+# events with the same rule; this entry keeps the transport
+# contract correct standalone.
 LIFECYCLE_BASH_RE = re.compile(r"\brun(?:\.cmd)?\s+(?:task|subagent|resume)\b")
 
-# Port of the zcode hook's essential-files check (inject-context.js
-# checkEssentialFiles): appended to the zcode context when any guard file of
-# the workflow install is missing.
+# Appended to the zcode context when any guard file of the
+# workflow install is missing; the JS shim does not run it.
 ESSENTIAL_FILES = (
     "AGENTS.md",
     ".cowork-flow/config.yaml",
@@ -62,10 +62,12 @@ def is_lifecycle_bash(hook_input: dict[str, Any]) -> bool:
     )
 
 
-# Activation intent inside a lifecycle Bash command: `task next <dir> --run`,
-# `task start <dir>`, `resume <dir>` (the run prefix is optional). Query
-# forms (`task next --json`, `task next --run` without a dir) match nothing
-# claimable — the captured token must be a task dir whose task.json exists.
+# Activation intent inside a lifecycle Bash command:
+# `task next <dir> --run`, `task start <dir>`,
+# `resume <dir>` (the run prefix is optional). Query
+# forms (`task next --json`, `task next --run` without a
+# dir) match nothing claimable: the captured token must be
+# a task dir whose task.json exists.
 ACTIVATION_COMMAND_RE = re.compile(
     r"\btask\s+next\s+(?P<next>\S+)\s+--run\b"
     r"|\btask\s+start\s+(?P<start>\S+?)(?=\s|$)"
@@ -182,8 +184,8 @@ def edit_scope_warning(root: Path, hook_input: dict[str, Any]) -> str:
     )
     if not isinstance(file_path, str) or not file_path.strip():
         return ""
-    # Hosts pass absolute edit paths; whitelist entries are repo-relative.
-    # Same normalization the spec path applies in run_edit_checks.
+    # Hosts pass absolute edit paths; whitelist entries are
+    # repo-relative. Same normalization as run_edit_checks.
     normalized = file_path.replace("\\", "/").strip()
     try:
         normalized = (

@@ -29,20 +29,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-# os.name == "nt" covers Windows without importing sys: the services layer
-# is kept free of CLI/process plumbing concerns by architecture tests.
+# os.name keeps this layer free of a sys import.
 IS_WINDOWS = os.name == "nt"
 
-# Editor-phase budget: the zcode/claude PostToolUse hook runs on a ~5s hard
-# budget including interpreter startup, so edit-phase commands get 2.5s —
-# leaving room for Python startup plus cmd.exe wrapper overhead on slow
-# machines. Slow or unfiltered commands belong to the lifecycle phase.
+# Edit phase gets 2.5s (hook budget ~5s incl. startup);
+# slow checks belong to the lifecycle phase.
 EDIT_PHASE_TIMEOUT = 2.5
 DEFAULT_TIMEOUT = 30.0
 MAX_TIMEOUT = 120.0
 MAX_FIRST_LINE_CHARS = 200
 
-# Machine-owned spec subtrees; user-declared checks never scan these.
+# Machine-owned subtrees; user checks never scan these.
 EXCLUDED_SPEC_SUBDIRS = ("contracts", "runtime", "schemas")
 
 SCHEMA_VERSION = 1
@@ -97,8 +94,8 @@ class CheckResult:
 
 def _strip_quotes(value: str) -> str:
     value = value.strip()
-    # Only unwrap a true single-pair quoting ("src/"); a command value like
-    # "python" -c "..." quotes twice and must pass through intact.
+    # Unwrap only true single-pair quoting ("src/").
+    # "python" -c "..." quotes twice; pass that value intact.
     for quote in ("\"", "'"):
         if (
             len(value) >= 2
@@ -194,8 +191,8 @@ def _decl_from_pairs(pairs: dict[str, str], errors: list[str]) -> CheckDecl | No
     files, file_errors = _parse_files(files_raw)
     errors.extend(file_errors)
     if file_errors:
-        # A declaration whose files filter cannot be honored must not fall
-        # back to "matches everything"; drop it and let doctor surface it.
+        # Broken files filter: drop the declaration (never widen to
+        # "matches everything"); doctor surfaces it.
         return None
     cmd_win = pairs.pop("cmd.win", None)
     unknown = sorted(pairs)
@@ -290,12 +287,9 @@ def _run_command(decl: CheckDecl, repo_root: Path) -> tuple[str, int | None, str
     command = _decl_for_platform(decl)
     tokens: list[str] = []
     if IS_WINDOWS:
-        # Windows: newer runtimes refuse to spawn .cmd shims directly
-        # (EINVAL), so the command goes through cmd.exe. Passing an argv list
-        # makes list2cmdline escape an already-quoted command into `\"...\"`
-        # — cmd then strips the outer quotes and fails to parse — so the
-        # raw string runs via shell=True, exactly the way npm shims launch.
-        # The entry check keeps "missing command" as unchecked instead of a
+        # Windows: .cmd shims need shell=True (a direct spawn fails
+        # with EINVAL); an argv list double-escapes the quotes.
+        # A missing command stays "unchecked" instead of a
         # cmd.exe rc=1 masquerading as a violation.
         try:
             tokens = shlex.split(command, posix=False)
@@ -322,9 +316,8 @@ def _run_command(decl: CheckDecl, repo_root: Path) -> tuple[str, int | None, str
             argv,
             cwd=str(repo_root),
             capture_output=True,
-            # Explicit UTF-8 with replacement: command output is process
-            # noise (first violation line only), never allowed to crash the
-            # reader thread or masquerade as a check outcome.
+            # UTF-8 with replacement: command output is noise and must
+            # never crash the reader or read as a check outcome.
             encoding="utf-8",
             errors="replace",
             timeout=decl.timeout,
@@ -334,8 +327,8 @@ def _run_command(decl: CheckDecl, repo_root: Path) -> tuple[str, int | None, str
     except subprocess.TimeoutExpired:
         return "unchecked", None, f"timed out after {decl.timeout:g}s", []
     except OSError as error:
-        # PATH-stripped or otherwise degraded environments degrade to
-        # unchecked; they must never read as a passing check.
+        # Degraded environments (PATH stripped) are unchecked,
+        # never a passing check.
         return "unchecked", None, f"failed to launch: {error}", []
 
     merged = list(completed.stdout.splitlines()) + list(completed.stderr.splitlines())
@@ -432,12 +425,10 @@ def normalized_one_line(report: dict) -> str:
     return ""
 
 
-# Per-file throttle for editor-phase runs: an edit storm must not multiply
-# the command cost. State lives in the workflow runtime directory because
-# every hook invocation is a fresh process — in-memory maps cannot throttle
-# across invocations. The slot is recorded only after a completed run: an
-# executor crash must not consume the interval, so the next edit within it
-# still runs its checks.
+# Per-file throttle for editor-phase runs: an edit storm
+# must not multiply command cost. State is a file (each
+# hook call is a new process). The slot is written after a
+# completed run, never on a crash.
 EDIT_THROTTLE_INTERVAL_SECONDS = 10.0
 EDIT_THROTTLE_FILE = ".cowork-flow" / Path(".runtime") / "spec-edit-throttle.json"
 
@@ -460,8 +451,7 @@ def _write_throttle(root: Path, file_path: str, timestamp: float) -> None:
             encoding="utf-8",
         )
     except OSError:
-        # Throttle state is best-effort; a failed write just means the next
-        # edit runs its checks again.
+        # Best-effort: a failed write means the next edit runs.
         pass
 
 
@@ -484,7 +474,7 @@ def run_edit_checks(
     normalized = file_path.replace("\\", "/").strip()
     if not normalized:
         return ""
-    # Hosts pass absolute edit paths; declaration filters are repo-relative.
+    # Hosts pass absolute paths; filters are repo-relative.
     try:
         normalized = (
             Path(normalized).resolve().relative_to(repo_root.resolve()).as_posix()
@@ -503,8 +493,8 @@ def run_edit_checks(
     try:
         report = run_checks(repo_root, phase="edit", changed_files=[normalized])
     except Exception:
-        # Executor crash (not a check failure): leave the throttle untouched
-        # so a retry within the interval is not silently swallowed.
+        # Executor crash, not a check failure: leave the throttle
+        # untouched so a retry inside the interval still runs.
         return ""
     if throttled:
         _write_throttle(repo_root, normalized, time.time() if now is None else now)

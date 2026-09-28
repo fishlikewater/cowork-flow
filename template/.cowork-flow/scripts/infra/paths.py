@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""
-Common path utilities for Cowork Flow workflow.
-
-Provides:
-    get_repo_root          - Get repository root directory
-    get_developer          - Get developer name
-    get_tasks_dir          - Get tasks directory
-"""
+"""Repository-root, developer and task-directory paths."""
 
 from __future__ import annotations
 
@@ -32,15 +25,10 @@ FULL_DATE_PREFIX_PATTERN = re.compile(r"^\d{4}-(\d{2}-\d{2}-)")
 
 
 def get_repo_root(start_path: Path | None = None) -> Path:
-    """Find the nearest directory containing .cowork-flow/ folder.
+    """Walk up to the nearest directory holding .cowork-flow/.
 
-    This handles nested git repos correctly (e.g., test project inside another repo).
-
-    Args:
-        start_path: Starting directory to search from. Defaults to current directory.
-
-    Returns:
-        Path to repository root, or current directory if no .cowork-flow/ found.
+    Nested repositories resolve to the inner root; with no marker the
+    working directory is returned, not start_path.
     """
     current = (start_path or Path.cwd()).absolute()
 
@@ -54,14 +42,7 @@ def get_repo_root(start_path: Path | None = None) -> Path:
 
 
 def get_developer(repo_root: Path | None = None) -> str | None:
-    """Get developer name from .developer file.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Developer name or None if not initialized.
-    """
+    """Developer name, or None when unset or still a <placeholder>."""
     if repo_root is None:
         repo_root = get_repo_root()
 
@@ -85,37 +66,19 @@ def get_developer(repo_root: Path | None = None) -> str | None:
 
 
 def check_developer(repo_root: Path | None = None) -> bool:
-    """Check if developer is initialized.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        True if developer is initialized.
-    """
+    """True when a developer name is recorded."""
     return get_developer(repo_root) is not None
 
 
 def get_tasks_dir(repo_root: Path | None = None) -> Path:
-    """Get tasks directory path.
-
-    Args:
-        repo_root: Repository root path. Defaults to auto-detected.
-
-    Returns:
-        Path to tasks directory.
-    """
+    """Tasks directory under the repo root."""
     if repo_root is None:
         repo_root = get_repo_root()
     return repo_root / DIR_WORKFLOW / DIR_TASKS
 
 
 def generate_task_date_prefix() -> str:
-    """Generate task ID based on date (MM-DD format).
-
-    Returns:
-        Date prefix string (e.g., "01-21").
-    """
+    """Today's MM-DD task-directory prefix."""
     return datetime.now().strftime("%m-%d")
 
 

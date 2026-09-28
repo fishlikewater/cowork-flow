@@ -349,8 +349,8 @@ class UnitOfWork:
                 else None
             ),
             before_exists=(
-                # Records written before this field existed carry only the
-                # payload, where an empty object is indistinguishable from
+                # Records without this field carry only the payload,
+                # where an empty object is indistinguishable from
                 # "nothing was there".
                 bool(participant["before_exists"])
                 if "before_exists" in participant

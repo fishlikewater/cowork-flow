@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""
-cowork-flow configuration reader.
-
-Reads settings from .cowork-flow/config.yaml with sensible defaults.
-"""
+"""Read .cowork-flow/config.yaml; a missing file yields defaults."""
 
 from __future__ import annotations
 
@@ -32,7 +28,7 @@ def _unquote(value: str) -> str:
 
 
 def _strip_comment(value: str) -> str:
-    """Strip inline YAML comment from a value. Only strips # outside quotes."""
+    """Strips everything from the first #, quoted values included."""
     idx = value.find("#")
     if idx >= 0:
         return value[:idx].rstrip()
@@ -91,13 +87,12 @@ def _parse_simple_yaml(content: str) -> dict:
 
 
 def _get_config_path(repo_root: Path | None = None) -> Path:
-    """Get path to config.yaml."""
     root = repo_root or get_repo_root()
     return root / DIR_WORKFLOW / CONFIG_FILE
 
 
 def _load_config(repo_root: Path | None = None) -> dict:
-    """Load and parse config.yaml. Returns empty dict on any error."""
+    """Any read or parse error yields an empty config."""
     config_file = _get_config_path(repo_root)
     try:
         content = config_file.read_text(encoding="utf-8")
@@ -108,15 +103,7 @@ def _load_config(repo_root: Path | None = None) -> dict:
 
 
 def get_hooks(event: str, repo_root: Path | None = None) -> list[str]:
-    """Get hook commands for a lifecycle event.
-
-    Args:
-        event: Event name (e.g. "after_create", "after_archive").
-        repo_root: Repository root path.
-
-    Returns:
-        List of shell commands to execute, empty if none configured.
-    """
+    """Hook commands declared for one lifecycle event; empty when none."""
     config = _load_config(repo_root)
     hooks = config.get("hooks")
     if not isinstance(hooks, dict):

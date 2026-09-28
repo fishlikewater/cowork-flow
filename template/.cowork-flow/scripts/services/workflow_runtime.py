@@ -289,8 +289,9 @@ class RuntimeContextService:
         if logical_path not in session_paths:
             session_paths.append(logical_path)
 
-        # Another close is a no-op only once its writes really hold: session
-        # files restored by hand (or a manual rollback) still need removing.
+        # A repeated close is a no-op only once its writes hold:
+        # session files restored by hand (or a manual rollback)
+        # still need removing.
         if context.get("status") == "closed" and not any(
             path.is_file() for path in session_paths
         ):
@@ -399,10 +400,10 @@ class RuntimeContextService:
 
     @staticmethod
     def _operation_id(kind: str, *parts: str) -> str:
-        # A new attempt gets a new identity: recovery is driven by the operation
-        # log, so reusing an identity would let a manual rollback inherit an
-        # older committed result (or fail as a reused request) instead of
-        # rewriting the files.
+        # A new attempt gets a new identity: recovery reads the
+        # operation log, so reusing an id would let a manual
+        # rollback inherit an older committed result (or fail as a
+        # reused request) instead of rewriting the files.
         identity = "|".join((*parts, uuid4().hex))
         digest = hashlib.sha256(
             identity.encode("utf-8")

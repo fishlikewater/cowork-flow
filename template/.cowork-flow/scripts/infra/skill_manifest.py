@@ -72,8 +72,9 @@ def _reject_unknown_fields(
         )
 
 
-# Host replica roots used when the host manifest cannot be read; the manifest
-# is the source of truth, this only keeps a broken checkout navigable.
+# Host replica roots for an unreadable host manifest: the
+# manifest stays the source of truth, this only keeps a
+# broken checkout navigable.
 _FALLBACK_HOST_SKILL_ROOTS = (".agents/skills", ".claude/skills", ".cowork-flow/skills")
 
 

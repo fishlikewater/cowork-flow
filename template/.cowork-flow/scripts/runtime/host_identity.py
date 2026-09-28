@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """Single declaration of every host's session identity.
 
-One record per host replaces the hand-maintained mirror tables that used to
-live in runtime/session_state.py, adapters/host/inject.py,
-adapters/host/workflow_state_hook.py and adapters/cli/subagent.py. Adding a
-host is one row here; nothing else enumerates hosts by name.
+Adding a host is one row here; nothing else enumerates hosts by name.
 
 Key ownership is derived, not declared: a hook-payload key belongs to a host
 only while that host is its sole declarer. As soon as a second host lists the
@@ -47,13 +44,13 @@ class HostIdentity:
     process_label_env: str | None
 
 
-# Declared-host channel name: the payload key inject.py stamps and the
-# environment variable a caller may set to name the host explicitly.
+# Declared-host channel: the payload key inject.py stamps
+# and the env var a caller may set to name the host.
 HOST_HINT_ENV = "COWORK_FLOW_HOST"
 
 
-# Order is the resolution priority for the env-variable scan and for the
-# sole-owner input scan; it mirrors the table order this module replaced.
+# Order is the resolution priority for the env scan and the
+# sole-owner input scan.
 HOST_IDENTITIES: tuple[HostIdentity, ...] = (
     HostIdentity(
         id="zcode",
@@ -114,11 +111,11 @@ HOST_IDENTITIES: tuple[HostIdentity, ...] = (
         ),
         process_label_env=None,
     ),
-    # Kimi Code registers UserPromptSubmit only (SessionStart/PostToolUse are
-    # observe-only: their stdout is dropped) and its Bash tool exports no
-    # session id, so the CLI side reads the injected session="kimi_<id>"
-    # header. The declared payload key is the generic one, shared with codex
-    # and claude-code, so ownership stays ambiguous by design.
+    # Kimi Code registers UserPromptSubmit only: SessionStart
+    # and PostToolUse are observe-only (stdout is dropped) and
+    # its Bash tool exports no session id, so the CLI reads the
+    # injected session="kimi_<id>" header. The payload key is
+    # the generic one, so ownership stays ambiguous by design.
     HostIdentity(
         id="kimi-code",
         prefix="kimi",
@@ -129,8 +126,9 @@ HOST_IDENTITIES: tuple[HostIdentity, ...] = (
         input_keys=("session_id",),
         process_label_env=None,
     ),
-    # dsh resolves identity from DSH_SESSION_ID alone; its preset plugin passes
-    # only {"cwd": ...} as hook input, so it declares no payload keys.
+    # dsh resolves identity from DSH_SESSION_ID alone; its
+    # preset plugin passes only {"cwd": ...} as hook input, so
+    # it declares no payload keys.
     HostIdentity(
         id="dsh",
         prefix="dsh",
@@ -141,12 +139,12 @@ HOST_IDENTITIES: tuple[HostIdentity, ...] = (
         input_keys=(),
         process_label_env=None,
     ),
-    # Qoder documents QODER_SESSION_ID as a session environment variable and
-    # puts the generic `session_id` in every hook payload; the generic key is
-    # shared with codex/claude-code/kimi-code, so ownership stays ambiguous by
-    # design and only the declared host may resolve it. Payload `cwd` is the
-    # project-root evidence that matters here because Qoder host assets live in
-    # a machine-level plugin, not next to the project.
+    # Qoder documents QODER_SESSION_ID as a session env var and
+    # puts the generic `session_id` in every hook payload; that
+    # key is shared with codex/claude-code/kimi-code, so only
+    # the declared host may resolve it. Payload `cwd` is the
+    # project-root evidence that matters here: Qoder host
+    # assets live in a machine-level plugin, not the project.
     HostIdentity(
         id="qoder",
         prefix="qoder",
