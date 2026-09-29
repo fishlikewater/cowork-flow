@@ -36,6 +36,7 @@
 - 修复 `config.yaml` 行内注释剥离把引号内的 `#` 也当作注释起点的问题。`description: "a # b"` 以前被解析成 `a`，以 `#` 开头的引号值（`note: "# keep"`）还会被误判成段落头并吞掉后续缩进行。现在只有引号外、且位于行首或空白之后的 `#` 才开启注释；未加引号的 `v1#beta` 按 YAML 语义保留，列表项与标量使用同一判定。
 - 修复 OpenCode 插件模块导出测试 helper 后导致宿主启动崩溃的问题。插件入口现在只导出可调用的插件工厂，逻辑放在独立模块中。
 - 修复 Kimi Code 插件清单字段和路径不符合宿主 schema 的问题：技能路径改为 `./` 形式，显示信息移入 `interface`，安装器不再输出宿主拒绝的相对源目录。
+- 修复 Qoder 插件清单路径不符合宿主 schema、导致插件被整体丢弃的问题。清单的 `hooks`/`agents`/`skills` 沿用了 zcode 宿主的裸路径写法，而 Qoder 要求路径以 `./` 开头（`hooks` 还要以 `.json` 结尾）、`agents` 只接受 `.md` 文件路径——一处不合法宿主就解析清单失败并丢弃**整个**插件：hook 不注册、agents 与 skills 也不加载，只在 `~/.qoder/logs/qodercli.log` 里留一行 `Failed to load installed plugin`。现在 `hooks`/`skills` 用 `./` 形式，`agents` 交给宿主的目录约定发现。升级动作：`cwf host add qoder --force` 后重启 Qoder。
 - 修复 ZCode 技能根声明与宿主实际扫描路径不一致的问题，旧 `.cowork-flow/skills/` 副本在同步时清理。
 - 修复测试和技能脚本在 `template/`、`presets/` 下写入 `__pycache__` / `*.pyc` 的问题，并增加交付树纯净性门禁。
 - 修复 Windows 全新检出把 JavaScript 和运行器脚本转成 CRLF 的问题；`.gitattributes` 固定相关文件使用 LF。

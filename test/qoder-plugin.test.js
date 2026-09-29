@@ -98,12 +98,15 @@ test('qoder plugin manifest declares only components that ship', async () => {
     pkg.version,
     'a stale manifest version makes the installed plugin disagree with its cache directory'
   );
-  assert.equal(manifest.hooks, 'hooks/hooks.json');
-  assert.equal(manifest.agents, 'agents');
+  // The host rejects a path without the "./" prefix, and `agents` takes ".md"
+  // file paths only — a directory there fails the manifest parse and the host
+  // drops the whole plugin. The agents directory is discovered by convention.
+  assert.equal(manifest.hooks, './hooks/hooks.json');
+  assert.equal(manifest.agents, undefined);
   // The payload carries bootstrap guidance only; project Skills still ship with
   // the project copy (init/sync). Qoder enumerates the project and payload Skill
   // roots, so payload Skill names must stay disjoint from template/skills/.
-  assert.equal(manifest.skills, 'skills');
+  assert.equal(manifest.skills, './skills/');
   // commands/settings are declared by nothing here: no commands/ dir ships, and
   // Qoder ignores every settings key except `agent`.
   assert.equal(manifest.commands, undefined);

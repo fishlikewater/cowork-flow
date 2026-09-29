@@ -24,7 +24,6 @@
     "kimi-code",
     "dsh"
   ],
-  "hooks": "hooks/hooks.json",
-  "agents": "agents",
-  "skills": "skills"
+  "hooks": "./hooks/hooks.json",
+  "skills": "./skills/"
 }

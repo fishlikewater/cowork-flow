@@ -90,6 +90,13 @@ function zcodeManifest(metadata, base) {
   };
 }
 
+// Qoder enforces the declared paths, and one bad path costs the whole plugin:
+// a declared path must start with "./", `hooks` must end in ".json", and
+// `agents` takes ".md" file paths only. A violation fails the manifest parse —
+// hooks, agents and skills are dropped together, leaving one warning line in
+// the host log. The agents directory is therefore left undeclared: no key
+// expresses a directory, and the host discovers `agents/` by convention, the
+// way its own bundled plugins ship every component.
 function qoderManifest(metadata, base) {
   const author = metadata.author;
   return {
@@ -100,9 +107,8 @@ function qoderManifest(metadata, base) {
     repository: metadata.repository,
     license: metadata.license,
     keywords: metadata.keywords,
-    hooks: 'hooks/hooks.json',
-    agents: 'agents',
-    skills: 'skills'
+    hooks: './hooks/hooks.json',
+    skills: './skills/'
   };
 }
 

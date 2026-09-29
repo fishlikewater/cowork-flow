@@ -359,6 +359,63 @@ test('qoder manifest carries the identity fields its schema supports', async () 
   assert.equal(manifest.logo, undefined);
 });
 
+// Host rule, from the worker bundle's own schema (`dG`/`RNA`/`pei` refinements):
+// a declared path must start with "./", `hooks` must end in ".json", and
+// `agents` takes only ".md" FILE paths — a directory is not expressible. Any
+// violation makes the manifest fail to parse, and a failed parse drops the whole
+// plugin (no hooks, no agents, no skills), which the byte-equality gate above
+// cannot see: projection and manifest agree on the same invalid paths.
+const QODER_PATH_KEYS = ['hooks', 'agents', 'skills', 'commands', 'outputStyles', 'mcpServers', 'workflowsPath', 'workflowsPaths'];
+// Only these keys have an inline form in the host schema (hooks and mcpServers
+// take a JSON path or an inline record, commands a metadata record). On every
+// other key a non-string is a shape the host discards the plugin for. How deep
+// that record form is validated stays the host's business.
+const QODER_INLINE_KEYS = new Set(['commands', 'hooks', 'mcpServers']);
+// Both are `RNA` in the host schema: a declared path must be a .json file.
+const QODER_JSON_PATH_KEYS = new Set(['hooks', 'mcpServers']);
+
+test('qoder manifest declares the component paths its host schema accepts', async () => {
+  const manifest = await readManifest('qoder', '.qoder-plugin/plugin.json');
+
+  for (const key of QODER_PATH_KEYS) {
+    const value = manifest[key];
+    if (value === undefined) {
+      continue;
+    }
+    for (const entry of Array.isArray(value) ? value : [value]) {
+      if (typeof entry !== 'string') {
+        assert.ok(
+          QODER_INLINE_KEYS.has(key),
+          `qoder takes a path on ${key}, not an inline shape: ${JSON.stringify(entry)}`
+        );
+        continue;
+      }
+      assert.ok(
+        entry.startsWith('./'),
+        `qoder rejects a path without the ./ prefix (${key}: ${entry})`
+      );
+      if (QODER_JSON_PATH_KEYS.has(key)) {
+        assert.ok(entry.endsWith('.json'), `qoder ${key} paths must be .json files: ${entry}`);
+      }
+      if (key === 'agents') {
+        assert.ok(entry.endsWith('.md'), `qoder agents must be .md files, not directories: ${entry}`);
+      }
+    }
+  }
+
+  assert.equal(manifest.hooks, './hooks/hooks.json');
+  assert.equal(manifest.skills, './skills/');
+  // The agents directory is found by convention instead: the schema cannot
+  // declare a directory, and a second copy of the file list would go stale.
+  assert.equal(
+    manifest.agents,
+    undefined,
+    'qoder agents takes .md file paths; the agents directory belongs to convention discovery'
+  );
+  await access(join(packageRoot, 'presets', 'qoder', ...manifest.hooks.split('/').slice(1)));
+  await access(join(packageRoot, 'presets', 'qoder', ...manifest.skills.split('/').slice(1), 'cowork-flow-bootstrap', 'SKILL.md'));
+});
+
 test('claude-code manifest declares the skills directory and nothing it cannot read', async () => {
   const metadata = await readPluginMetadata();
   const manifest = await readManifest('claude-code', '.claude-plugin/plugin.json');
