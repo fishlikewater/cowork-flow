@@ -139,7 +139,14 @@ cwf host add dsh
 cwf host remove dsh --component preset
 ```
 
-预设安装到 `~/.dsh/.agent-presets/cowork-flow/`，或 `$DSH_HOME` 对应目录。安装或升级后重启 DSH，在新会话中选择 **Cowork Flow** 预设。
+预设同时写两条交付线，因为桌面版换了通道：
+
+| 位置 | 适用 | 启用方式 |
+| --- | --- | --- |
+| `~/.dsh/.agent-presets/cowork-flow/`（或 `$DSH_HOME` 对应目录） | DSH 0.1.x / CLI 线 | 直接出现在会话的预设列表里，重启后选择 **Cowork Flow** |
+| `~/.dsh/bundles/cowork-flow/` | DSH 0.2.0+（桌面版） | 在桌面版侧边栏的 Plugins 页里填入该目录的绝对路径安装（`plugin_manager` 工具行在桌面宿主组合里被禁用，会话中不可用），然后开新会话 |
+
+0.2.0 起宿主不再读取 `.agent-presets/` 目录（其自带技能原文："Nothing reads that directory any more"），预设改为 bundle patch 里 `@deepseek-ai/dsh-agent-preset` 的一条声明行。bundle 的安装动作由宿主完成——它会跑包安装并写 profile 清单——所以 `cwf` 只产出 bundle 与安装指令，不改写 `~/.dsh/profiles/**`。两条线的内容只差宿主 API 不同的两处：工作流行（0.1.x `dsh-workflow-worker-thread` / 0.2.0 `dsh-workflow-ptc`）与 persona 行的配置键（0.1.x `text` / 0.2.0 `prefix`），bundle 生成时替换；两处都必须与目标线一致，包解析不到或配置键不被接受会让宿主把**整个**预设判为不可用。不带 `--force` 的安装只补缺失的那条线，不会覆盖已存在的目录。
 
 预设已经包含 workflow-state hook，不需要再安装 hook 组件。只有调试组合层配置时才使用：
 
@@ -148,7 +155,7 @@ cwf host add dsh --component hook
 cwf host remove dsh --component hook
 ```
 
-已验证版本中，hook 组合层本身不会进入 agent 提示；实时状态注入依赖预设。新版 DSH 改变这一行为后，应重新验证并更新本文。
+hook 行是否进入 agent 提示按版本分线：实测 DSH 0.1.1-rc.1 不收集 host 层 section，实时注入只能靠预设；0.2.0-rc.1（桌面版）的组装会把全局层 section 合并进每次 agent 提示（`dsh-scope` 的 `layers.merge()` 先取全局层、再由作用域链覆盖），因此该版本上 hook 组件本身即可提供注入。以上为代码与文档级取证，真实会话验证仍需在对应版本上跑一次。
 
 ## Kimi Code
 

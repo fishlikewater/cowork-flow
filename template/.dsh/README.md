@@ -22,16 +22,36 @@ DSH 侧无需其它配置：`AGENTS.md` 作为工作区指令、`.agents/skills/
 
 `init` / `sync` 只交付项目资产；
 
-**现状说明（实测 DSH 0.1.1-rc.1）**：`cwf host add dsh --component hook` 以 `insert:` patch 注册的组合行可被 `dsh --dump-config` 验证，但 agent 提示组装不收集 host 层 section，**不会**在会话中产生 `<workflow-state>` 块。实时注入当前只能通过预设方式（`cwf host add dsh --component preset` 的预设内置同一插件）。以下命令保留为组合层面的幂等注册能力，待 DSH 支持 agent-scope patch / workspace 组合后可直接生效：
-
 ```bash
 cwf host add dsh --component hook            # 安装到 $DSH_HOME/cordis.patch.yml（默认 ~/.dsh）
 cwf host add dsh --component hook --dry-run  # 预览，不写文件
 cwf host remove dsh --component hook         # 卸载托管行（插件文件另加 --force）
 ```
 
-- 组合层面注册（`dsh --dump-config` 可见）；`cordis.patch.yml` 在启动时组合，安装/更新后需**重启 DSH**；当前 DSH 版本该行对 agent 提示不产生注入（见上）。
+- 组合层面注册（`dsh --dump-config` 可见）；`cordis.patch.yml` 在启动时组合，安装/更新后需**重启 DSH**。
 - 无 `.cowork-flow` 根的项目零开销跳过：插件 JS 预检短路，不注入内容、不启动 Python。
 - 全局开关（环境变量）：`COWORK_FLOW_HOOKS=0` / `COWORK_FLOW_DISABLE_HOOKS=1`。
 - 使用预设（`cwf host add dsh --component preset`）时无需再运行本命令——预设已内置同一 hook。
+
+**host 层 section 是否进入提示词按版本分线**（本插件的注册方式未变，变的是宿主）：
+
+| DSH | 行为 | 备注 |
+| --- | --- | --- |
+| 0.1.1-rc.1（实测） | host 层 section 不被 agent 提示组装收集 | 该版本下实时注入只能靠预设 |
+| 0.2.0-rc.1（桌面版，按代码取证） | 全局层 section 会进入每次组装，agent 作用域同名覆盖 | `dsh-scope` 的 `layers.merge()` 先取全局层再用作用域链覆盖；`system-prompt` 行本身在 host 层（`dsh-base`） |
+
+## 预设的两条交付线（0.2.0 起）
+
+`cwf host add dsh --component preset` 同时写两个位置，因为桌面版换了通道：
+
+| 位置 | 适用 | 启用方式 |
+| --- | --- | --- |
+| `$DSH_HOME/.agent-presets/cowork-flow/` | DSH 0.1.x / CLI 线 | 直接出现在会话的预设列表里 |
+| `$DSH_HOME/bundles/cowork-flow/` | DSH 0.2.0+（桌面版） | 在桌面版侧边栏的 Plugins 页里填入该目录的绝对路径安装（`plugin_manager` 工具行在桌面宿主的组合里是禁用行，会话中不可用），再开新会话 |
+
+0.2.0 起预设不再是目录，而是 bundle patch 里 `@deepseek-ai/dsh-agent-preset` 的一条声明行；宿主自带技能已注明 legacy 目录 "Nothing reads that directory any more"。bundle 的安装动作由宿主完成（它会跑包安装并写 profile 清单），因此 `cwf` 只产出 bundle 与安装指令，不改写 `~/.dsh/profiles/**`。
+
+两条线的内容只差宿主 API 不同的两处：工作流行（0.1.x 用 `@deepseek-ai/dsh-workflow-worker-thread`，0.2.0 用 `@deepseek-ai/dsh-workflow-ptc`，bundle 生成时替换）和 persona 行的配置键（0.1.x 的 `dsh-persona` 是单个 `text`，0.2.0 要求 `prefix`／可选 `suffix`；bundle 把同一段文字移到 `prefix`）。这两处必须与目标线的包集合和 schema 一致——包解析不到、或配置键不被接受，宿主会把**整个**预设判为不可用（0.1.x 的预设发现会标注 "names a plugin that cannot be resolved"，0.2.0 则在挂载时校验失败并标记 broken），不是只丢那一行。
+
+`$DSH_HOME/bundles/cowork-flow/` 由 `cwf` 管理，请不要改名或手工编辑：目录名、包名与声明行 id 同源于同一个标识，改名会让卸载认不出来、重装另生成一份。要停用请先在 DSH 的插件管理器里 drop 掉 bundle，再运行 `cwf host remove dsh --component preset`。
 

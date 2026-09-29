@@ -8,9 +8,9 @@
 // (adapters/host/workflow_state_hook.py), so the injected
 // content is structurally identical across hosts.
 //
-// Refreshed per user message (`agent/session-start` warms
-// it, `agent/inbox/claimed` refreshes it) and after
-// lifecycle commands settle (`tools/result`), then cached
+// Refreshed per user message (`agent/created` on 0.2.0, its former name
+// `agent/session-start` on 0.1.x, `agent/inbox/claimed` for each new one)
+// and after lifecycle commands settle (`tools/result`), then cached
 // per agent; each prompt assembly re-renders the cached
 // value in place, with replace semantics and no
 // accumulation across turns or steps. Between refreshes
@@ -413,7 +413,11 @@ export function apply(ctx) {
       });
   };
 
+  // Session-start warm-up. 0.2.0 renamed the event to `agent/created`
+  // (payload `{ agent, source, signal? }` — same `payload.agent` shape), so
+  // both names are subscribed and each DSH line keeps a warm-up path.
   ctx.on('agent/session-start', (payload) => refresh(payload && payload.agent, true));
+  ctx.on('agent/created', (payload) => refresh(payload && payload.agent, true));
   ctx.on('agent/inbox/claimed', (payload) => refresh(payload && payload.agent, true));
   // Intra-turn refresh: a lifecycle command just settled, so
   // the next assembly sees the new state, not the stale

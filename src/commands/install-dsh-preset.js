@@ -1,6 +1,7 @@
-import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 
 import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
@@ -9,21 +10,181 @@ import { readPackageInfo } from '../lib/package-info.js';
 const PRESET_ID = 'cowork-flow';
 const MARKER_FILE = '.cowork-flow-preset.json';
 const PRESET_SRC = join(packageRoot, 'presets', 'dsh');
+// Declaration row id inside the generated bundle patch. `preset-<id>` is the
+// convention the host's own presets follow, and it is the id a user overrides
+// the row by from their profile patch.
+const BUNDLE_ROW_ID = `preset-${PRESET_ID}`;
+const BUNDLE_PACKAGE_NAME = `@cowork-flow/dsh-${PRESET_ID}-preset`;
+const BUNDLE_DEFAULT_ORDER = 10;
+// What the desktop line needs the bundle to say differently. The composition is
+// written for 0.1.x — that line reads it verbatim as a preset directory — and
+// the two lines' host APIs disagree in two places, both fatal if missed: a row
+// naming a package its line lacks, or carrying a config key its line's schema
+// rejects, fails the whole preset there rather than that one row.
+const DESKTOP_ROW_SWAP = {
+  from: { id: 'workflow-worker-thread', name: '@deepseek-ai/dsh-workflow-worker-thread' },
+  to: { id: 'workflow-ptc', name: '@deepseek-ai/dsh-workflow-ptc' },
+};
+// 0.2.0's `dsh-persona` takes `prefix`/`suffix` where 0.1.x takes one `text`;
+// the wording moves to `prefix` unchanged and `suffix` keeps its default.
+const DESKTOP_PERSONA_KEY = /(- id: persona\n(?:.*\n)*? {4})text: /;
 
 // Rendered by `host add`/`host remove`; the installer's
 // own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
-function getDshPresetRoot() {
-  const base = process.env.DSH_HOME || join(homedir(), '.dsh');
-  return join(base, '.agent-presets');
+function getDshHome() {
+  return process.env.DSH_HOME || join(homedir(), '.dsh');
 }
 
 
-async function readInstalledVersion(destDir) {
-  const marker = await readJsonFile(join(destDir, MARKER_FILE));
+function getDshPresetRoot() {
+  return join(getDshHome(), '.agent-presets');
+}
+
+
+function getBundleRoot() {
+  return join(getDshHome(), 'bundles');
+}
+
+
+async function readInstalledVersion(dir) {
+  const marker = await readJsonFile(join(dir, MARKER_FILE));
   return typeof marker?.version === 'string' ? marker.version : null;
+}
+
+
+/**
+ * The display fields a DSH preset carries beside its composition.
+ *
+ * `preset.yml` is their single source on both delivery lines: the legacy
+ * directory reads the file itself, and the bundle's declaration row is
+ * generated from it. Only single-line scalars are lifted — a block or quoted
+ * value would need a real parser, and the declared fields are plain text.
+ */
+export function readPresetMeta(text) {
+  const fields = {};
+  for (const line of text.split('\n')) {
+    const match = /^([a-zA-Z]+):[ \t]*(\S.*)$/.exec(line.trim());
+    if (!match || match[1] in fields) {
+      continue;
+    }
+    const value = match[2].trim();
+    if (/^[|>]/.test(value)) {
+      continue;
+    }
+    fields[match[1]] = value.replace(/^'(.*)'$/, '$1').replace(/^"(.*)"$/, '$1');
+  }
+  return {
+    name: fields.name ?? 'Cowork Flow',
+    description: fields.description ?? '',
+    order: /^\d+$/.test(fields.order ?? '') ? Number(fields.order) : BUNDLE_DEFAULT_ORDER,
+  };
+}
+
+
+// YAML single-quoted scalars only need the quote itself escaped.
+function quoteScalar(value) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+
+// Apply the desktop's row rewrites to the 0.1.x composition. Only rows whose
+// host API differs between the two lines belong here.
+function toDesktopComposition(text) {
+  return text
+    .replace(`- id: ${DESKTOP_ROW_SWAP.from.id}`, `- id: ${DESKTOP_ROW_SWAP.to.id}`)
+    .replace(
+      `name: '${DESKTOP_ROW_SWAP.from.name}'`,
+      `name: '${DESKTOP_ROW_SWAP.to.name}'`
+    )
+    .replace(DESKTOP_PERSONA_KEY, '$1prefix: ');
+}
+
+
+/**
+ * Render the bundle's patch: one id-less `insert` carrying the preset
+ * declaration.
+ *
+ * The rows are the composition with the desktop rewrites applied
+ * (`toDesktopComposition`), moved under `config.plugins`, and the hook row
+ * rewritten to a `file:` URL of the installed copy: a declaration row has no
+ * composition file beside it, so the `./plugins/...` specifier that works
+ * inside the legacy preset directory would have nothing to resolve against.
+ */
+function renderBundlePatch({ composition, meta, pluginFile }) {
+  const pluginUrl = pathToFileURL(pluginFile).href;
+  const rows = toDesktopComposition(composition)
+    .split('\n')
+    .map((line) => (line.trim() === '' ? '' : `            ${line}`))
+    .join('\n')
+    .replace(
+      /(\s*)name:\s*'\.\/plugins\/workflow-state\.js'/,
+      (_match, indent) => `${indent}name: '${pluginUrl}'`
+    );
+  const lines = [
+    '# Generated by `cwf host add dsh --component preset`. The composition and',
+    '# the display fields live in the cowork-flow package; edit those and re-run',
+    '# the command instead of editing this file.',
+    '- insert:',
+    `    - id: ${BUNDLE_ROW_ID}`,
+    "      name: '@deepseek-ai/dsh-agent-preset'",
+    '      config:',
+    `        id: ${PRESET_ID}`,
+    `        name: ${quoteScalar(meta.name)}`,
+  ];
+  if (meta.description !== '') {
+    lines.push(`        description: ${quoteScalar(meta.description)}`);
+  }
+  lines.push(`        order: ${meta.order}`, '        plugins:', rows, '');
+  return lines.join('\n');
+}
+
+
+function renderBundlePackage(version) {
+  return `${JSON.stringify({
+    name: BUNDLE_PACKAGE_NAME,
+    version,
+    private: true,
+    type: 'module',
+    dsh: { bundle: { patch: './cordis.patch.yml' } },
+  }, null, 2)}\n`;
+}
+
+
+async function writeMarker(dir, version) {
+  await writeFile(
+    join(dir, MARKER_FILE),
+    `${JSON.stringify({ version, installedAt: new Date().toISOString() }, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+
+async function writePresetDir(destDir, version) {
+  await mkdir(getDshPresetRoot(), { recursive: true });
+  await rm(destDir, { recursive: true, force: true });
+  await cp(PRESET_SRC, destDir, { recursive: true });
+  await writeMarker(destDir, version);
+}
+
+
+async function writeBundle(bundleDir, version) {
+  const meta = readPresetMeta(await readFile(join(PRESET_SRC, 'preset.yml'), 'utf8'));
+  const composition = await readFile(join(PRESET_SRC, 'agent.cordis.yml'), 'utf8');
+  const pluginFile = join(bundleDir, 'workflow-state.js');
+
+  await rm(bundleDir, { recursive: true, force: true });
+  await mkdir(bundleDir, { recursive: true });
+  await cp(join(PRESET_SRC, 'plugins', 'workflow-state.js'), pluginFile);
+  await writeFile(
+    join(bundleDir, 'cordis.patch.yml'),
+    renderBundlePatch({ composition, meta, pluginFile }),
+    'utf8'
+  );
+  await writeFile(join(bundleDir, 'package.json'), renderBundlePackage(version), 'utf8');
+  await writeMarker(bundleDir, version);
 }
 
 
@@ -31,20 +192,34 @@ export async function runInstallDshPreset(args = []) {
   const { dryRun, force, uninstall } = parseInstallArgs(args);
 
   const destDir = join(getDshPresetRoot(), PRESET_ID);
+  const bundleDir = join(getBundleRoot(), PRESET_ID);
 
   if (uninstall) {
     if (dryRun) {
       console.log('[dry-run] Would uninstall DSH preset:');
-      console.log(`  Remove: ${destDir}`);
+      for (const dir of [destDir, bundleDir]) {
+        console.log(`  Remove: ${dir}`);
+      }
       return;
     }
-    const installed = await pathExists(destDir);
-    await rm(destDir, { recursive: true, force: true });
-    console.log(
-      installed
-        ? `✓ cowork-flow DSH preset removed from ${destDir}`
-        : `cowork-flow DSH preset was not installed at ${destDir}; nothing to remove`
-    );
+    const removed = [];
+    for (const dir of [destDir, bundleDir]) {
+      if (await pathExists(dir)) {
+        await rm(dir, { recursive: true, force: true });
+        removed.push(dir);
+      }
+    }
+    if (removed.length === 0) {
+      console.log(
+        `cowork-flow DSH preset was not installed at ${destDir} or ${bundleDir}; nothing to remove`
+      );
+      return;
+    }
+    for (const dir of removed) {
+      console.log(`✓ cowork-flow DSH preset removed from ${dir}`);
+    }
+    console.log('  A bundle already wired into a profile stays installed there; drop it in');
+    console.log('  DSH\'s plugin manager to remove it.');
     return;
   }
 
@@ -54,15 +229,22 @@ export async function runInstallDshPreset(args = []) {
 
   if (dryRun) {
     console.log('[dry-run] Would install DSH preset:');
-    console.log(`  Preset: ${PRESET_SRC} -> ${destDir}`);
+    console.log(`  DSH 0.1.x (CLI line): ${PRESET_SRC} -> ${destDir}`);
+    console.log(`  DSH 0.2.0+ (desktop): bundle -> ${bundleDir}`);
+    // The bundle needs one host-side step; name it here too, or the preview
+    // hides the only manual part of the install.
+    console.log('    Then install it from DSH\'s plugin manager:');
+    console.log('      desktop - the Plugins page in the sidebar, entering that absolute path');
     return;
   }
 
   const { version } = await readPackageInfo();
+  const legacyPresent = await pathExists(destDir);
+  const bundlePresent = await pathExists(bundleDir);
 
-  if (!force && (await pathExists(destDir))) {
+  if (!force && legacyPresent && bundlePresent) {
     const installedVersion = await readInstalledVersion(destDir);
-    console.log(`cowork-flow DSH preset already installed at ${destDir}`);
+    console.log(`cowork-flow DSH preset already installed at ${destDir} and ${bundleDir}`);
     if (installedVersion === null) {
       console.log(
         `Installed version unknown (no ${MARKER_FILE}); current version is ${version}.`
@@ -80,18 +262,24 @@ export async function runInstallDshPreset(args = []) {
     return;
   }
 
-  await mkdir(getDshPresetRoot(), { recursive: true });
-  if (await pathExists(destDir)) {
-    await rm(destDir, { recursive: true, force: true });
+  // Only what is missing gets written. A legacy-only install is the state every
+  // pre-0.2.0 user upgrades from, and rewriting that directory would drop
+  // whatever they added to it — an install without --force never overwrites.
+  if (force || !legacyPresent) {
+    await writePresetDir(destDir, version);
+  }
+  if (force || !bundlePresent) {
+    await writeBundle(bundleDir, version);
   }
 
-  await cp(PRESET_SRC, destDir, { recursive: true });
-  await writeFile(
-    join(destDir, MARKER_FILE),
-    `${JSON.stringify({ version, installedAt: new Date().toISOString() }, null, 2)}\n`,
-    'utf8'
-  );
-
-  console.log(`✓ cowork-flow DSH preset installed to ${destDir}`);
-  console.log('  Start a new DSH session and pick the "Cowork Flow" preset.');
+  console.log('✓ cowork-flow DSH preset installed');
+  console.log(`  DSH 0.1.x (CLI line): ${destDir}${legacyPresent && !force ? ' (kept)' : ''}`);
+  console.log('    Start a session and pick the "Cowork Flow" preset.');
+  // The host owns bundle installation (it runs the package install and writes
+  // the profile), and the desktop disables the `plugin_manager` tool row, so
+  // the Plugins page is the path that actually works there.
+  console.log(`  DSH 0.2.0+ (desktop): ${bundleDir}${bundlePresent && !force ? ' (kept)' : ''}`);
+  console.log('    Install it from DSH\'s plugin manager:');
+  console.log('      desktop - the Plugins page in the sidebar, entering that absolute path');
+  console.log('    Then start a new session; running sessions keep the plugins they started with.');
 }

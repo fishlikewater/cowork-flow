@@ -1,9 +1,9 @@
 # The `cowork-flow` agent preset: the standard coding agent plus the
 # cowork-flow workflow framework (task gate, planning, fixed subagents, skills).
 #
-# This file is a copy of the deployment's `standard` preset with one change:
-# the persona carries cowork-flow operating rules; `skill-filesystem` keeps the
-# workspace default roots (`<projectRoot>/.dsh/skills` rank 100,
+# It started from the 0.1.x `standard` preset: the persona carries the
+# cowork-flow operating rules, and `skill-filesystem` keeps the workspace
+# default roots (`<projectRoot>/.dsh/skills` rank 100,
 # `<projectRoot>/.agents/skills` rank 200) plus the user roots, so skills come
 # from the project copy that `cwf project init` / `sync` delivers — this preset
 # ships none of its own.
@@ -11,9 +11,30 @@
 # The `dsh` host adapter lives in the cowork-flow repository
 # (template/.cowork-flow/adapters/dsh/adapter.yaml) and declares this preset's
 # capability model; this file is the DSH-side composition it describes.
+#
+# Version basis: the 0.1.x line. This file is what DSH 0.1.x reads as a preset
+# directory (`$DSH_HOME/.agent-presets/<id>/`), and the 0.2.0 bundle is
+# generated from it. Each delivered form must name only the packages its own
+# line ships and carry only the config keys that line's schema accepts — either
+# mistake makes that line fail the whole preset, not just the row. The lines
+# disagree in two places: 0.1.x mounts `dsh-workflow-worker-thread`, which 0.2.0
+# dropped for `dsh-workflow-ptc`, and this `dsh-persona` row is a single
+# `text`, where 0.2.0 requires `prefix` (plus optional `suffix`). The bundle
+# generator performs both rewrites, and a third: the hook specifier becomes a
+# `file:` URL of the installed copy.
+#
+# Deliberate drift from the 0.1.x `standard` (0.1.2-rc.1), besides the
+# cowork-flow persona and the `workflow-state-hook` row: `tool-subagent` drops
+# `modelSelectionSettings`, the codex / claude-code rows use
+# `enableRunInBackground: false` where the standard takes the `backgroundMode`
+# default, `tool-web` sets `fetch: false`, and `command-goal` is not mounted.
+# Rows the 0.2.0 `standard` adds over its 0.1.x counterpart (`present`,
+# `tool-plugin-manager`) are absent from this preset on either line.
 
 # ── identity ────────────────────────────────────────────────────────────────
 
+# 0.1.x's persona schema: one `text`. 0.2.0 takes `prefix`/`suffix`, so the
+# bundle moves this wording to `prefix` unchanged (see the header).
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
@@ -174,6 +195,9 @@
         enableRunInBackground: false
         maxDepth: provider-managed
 
+    # The 0.1.x row: 0.2.0 no longer ships this package and its `standard`
+    # mounts `dsh-workflow-ptc` instead, so the generated bundle swaps the row.
+    # This file itself is read by 0.1.x, where `ptc` resolves nowhere.
     - id: workflow-worker-thread
       name: '@deepseek-ai/dsh-workflow-worker-thread'
       config:

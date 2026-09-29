@@ -340,6 +340,7 @@ test('every node test suite is assigned to a CI bucket', async () => {
     'test/dsh-home-patch.test.js',
     'test/dsh-hook.test.js',
     'test/dsh-preset.test.js',
+    'test/dsh-preset-bundle.test.js',
     'test/mcp-client-matrix.test.js',
     'test/mcp-state-command.test.js',
     'test/tarball-install.test.js'

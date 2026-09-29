@@ -28,10 +28,11 @@
 - 发布脚本新增 `--dry-run` 和 `--no-publish`。前者会真实刷新自实例并运行前置检查，但停在版本 bump 之前；后者完成版本、提交和 tag 后交给 CI 发布。
 - CI 明确记录测试跳过项；Windows 缺少 POSIX 前提时不再把跳过记为通过。
 - 核心库做了一轮结构与注释整理（Python 运行时 + Node 核心库），**行为与对外契约零变化，无需升级动作**：`# ====` 横幅 13 处、`del` 占位 7 处、超长函数 14 个（Python 7 + Node 7）、≥60 字符的注释行 626 条（Python 161 + Node 465）、模板化 docstring 18 条全部清零；九个宿主安装器的重复骨架收敛为 `src/lib/install-support.js`；注释与 docstring 改为只写读代码看不出来的约束。按设计保留的例外：1 处 93 行的宿主载荷函数（`presets/dsh` 的 `apply`），以及 6 处属于协议或统一命令签名的参数。
-- **升级动作**：升级 CLI 后运行 `cwf project sync .`。已有机器级组件按需重装：Codex、Claude Code、OpenCode、ZCode、Qoder 使用 `cwf host add <host> --force`；DSH 使用 `cwf host add dsh --component preset --force`；Kimi Code 重新运行 `cwf host add kimi-code` 并在 TUI 中安装插件。
+- **升级动作**：升级 CLI 后运行 `cwf project sync .`。已有机器级组件按需重装：Codex、Claude Code、OpenCode、ZCode、Qoder 使用 `cwf host add <host> --force`；DSH 使用 `cwf host add dsh --component preset --force`；Kimi Code 重新运行 `cwf host add kimi-code` 并在 TUI 中安装插件。DSH 桌面版（0.2.0+）还需在 DSH 内执行一次 `plugin_manager { action: "install_bundle", target: "$DSH_HOME/bundles/cowork-flow" }`，命令输出里会打印完整路径。
 
 ### Fixed
 
+- 适配 DeepSeek Harness 0.2.0 桌面版。0.2.0 起预设不再是 `$DSH_HOME/.agent-presets/<id>/` 目录（宿主自带技能原文："Nothing reads that directory any more"），而是 bundle patch 里 `@deepseek-ai/dsh-agent-preset` 的一条声明行。`cwf host add dsh --component preset` 现在同时写 legacy 目录（0.1.x / CLI 线）与可安装 bundle（`$DSH_HOME/bundles/cowork-flow/`，含生成的 `cordis.patch.yml`、`package.json` 与插件副本），bundle 由宿主自己的插件管理器安装（桌面版是侧边栏 Plugins 页，填 bundle 目录的绝对路径；`plugin_manager` 工具行在桌面宿主组合里被禁用）。两条交付线只差宿主 API 不同的两处，bundle 生成时替换：工作流行（0.1.x `dsh-workflow-worker-thread` ↔ 0.2.0 `dsh-workflow-ptc`）与 persona 行的配置键（0.1.x `text` ↔ 0.2.0 `prefix`）——包解析不到或配置键不被接受，宿主会把**整个**预设判为不可用，因此两边都只写目标线存在的包与 schema 接受的键；workflow-state 插件补订阅 0.2.0 的 `agent/created` 事件（与旧名 `agent/session-start` 并存，两代都能预热）。
 - 修复 `config.yaml` 行内注释剥离把引号内的 `#` 也当作注释起点的问题。`description: "a # b"` 以前被解析成 `a`，以 `#` 开头的引号值（`note: "# keep"`）还会被误判成段落头并吞掉后续缩进行。现在只有引号外、且位于行首或空白之后的 `#` 才开启注释；未加引号的 `v1#beta` 按 YAML 语义保留，列表项与标量使用同一判定。
 - 修复 OpenCode 插件模块导出测试 helper 后导致宿主启动崩溃的问题。插件入口现在只导出可调用的插件工厂，逻辑放在独立模块中。
 - 修复 Kimi Code 插件清单字段和路径不符合宿主 schema 的问题：技能路径改为 `./` 形式，显示信息移入 `interface`，安装器不再输出宿主拒绝的相对源目录。
