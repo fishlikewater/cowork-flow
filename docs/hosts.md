@@ -129,9 +129,9 @@ Qoder 的插件清单 schema 对路径是强校验的：声明路径必须以 `.
 
 Qoder 需要先信任工作区，安装或升级后重启 Qoder。Desktop 是否提供项目子代理取决于版本和 edition；没有确认前不要把它当作可用能力。
 
-确认 hook 真的生效，看运行日志而不是界面：`~/.qoder/logs/runs/<最新一次运行>/qodercli.log` 里搜 `plugin_id="cowork-flow`，注入事件会留下 `hook.started` / `hook.finished ... success=true exit_code=0` 两行（这两行是 INFO 级，任何会话都有；`Hook system message:` 那行只在带 `--debug` 的运行时才有，别拿它当验收口径）。桌面 IDE **没有** hooks 列表界面——唯一的 hook 列表在 CLI TUI 的 `/hooks`，标签页是 `Local / Project / User / Plugin`，我们的条目在 `Plugin` 页。宿主设置 `hooksConfig.notifications`（默认 `false`）决定聊天记录里是否显示 hook 生命周期条目（started/completed/progress），与注入是否成功无关。
+确认 hook 真的生效，看运行日志而不是界面：`~/.qoder/logs/runs/<最新一次运行>/qodercli.log` 里搜 `plugin_id="cowork-flow`，注入事件会留下 `hook.started` / `hook.finished ... success=true exit_code=0` 两行（这两行是 INFO 级，任何会话都有；`Hook system message:` 那行只在带 `--debug` 的运行时才有，别拿它当验收口径）。桌面设置的 Hooks 页读的是**用户级**配置文件，插件级 hook 不在那里；要看 hook 列表用 CLI TUI 的 `/hooks`，标签页是 `Local / Project / User / Plugin`，我们的条目在 `Plugin` 页。宿主设置 `hooksConfig.notifications`（默认 `false`）由 CLI 的状态区消费，与桌面聊天显示什么无关。
 
-注入会留下一条用户可见痕迹：Qoder 的 hook 输出 schema 接受顶层 `systemMessage`，宿主把它渲染给人看——SessionStart 经 ACP 直接以 agent-message chunk 进对话流，其余事件变成 `hook_system_message` 附件（该类型在模型上下文转换器里被丢弃，所以只影响展示），因此每次 SessionStart / UserPromptSubmit 注入都会出现 `cowork-flow: 工作流状态已注入 · status=… · task=…`，Edit 期的规范自查不带这条；任务名超过 100 字符会截断并加省略号，保证单行。宿主按 schema 收字段，清单之外的键会被丢掉，所以只有 schema 里存在的字段能用。
+注入会留下一条文本痕迹，但**只在 CLI 端可见**：Qoder 的 hook 输出 schema 接受顶层 `systemMessage`，`qodercli` 的终端 TUI 把它渲染成 `<hook 名> says: <文案>`（SessionStart 在 ACP 会话里另有一条 agent-message chunk 通道；`hook_system_message` 这个类型在模型上下文转换器里被丢弃，所以只影响展示），因此每次 SessionStart / UserPromptSubmit 注入都会出现 `cowork-flow: 工作流状态已注入 · status=… · task=…`，Edit 期的规范自查不带这条；任务名超过 100 字符会截断并加省略号，保证单行。**Qoder 桌面版（1.1.64）不渲染 hook 输出文本**：桌面 `app.asar` 里 `systemMessage` / `hook_system_message` / `agent_message_chunk` 一个字符串都没有，消息渲染器对 hook 部件直接返回空，桌面也以 `--output-format stream-json` 驱动 worker 而不是走 ACP。桌面端能看到的痕迹是回复操作条上的锚点图标（悬停显示 hook 数量与各事件 `SessionStart` / `UserPromptSubmit` 的状态），加上上一段那两行日志。宿主按 schema 收字段，清单之外的键会被丢掉，所以只有 schema 里存在的字段能用。
 
 两条 hook 配置事实（读宿主 bundle 得到，写错会静默失效）：`matcher` 是**正则**，对工具名及其别名逐个 `test()`，所以 `Edit|Write` 命中宿主的 `Edit` / `Write`；带 `args` 的 hook 走 exec 形式（`spawn(command, args, {shell:false})`），`command` 必须是单个可执行名——`python` 由 PATH 解析，需要 `python.exe` 在 PATH 上（要固定解释器用 `COWORK_FLOW_PYTHON`，shim 会转发）。
 
