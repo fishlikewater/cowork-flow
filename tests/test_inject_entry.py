@@ -217,6 +217,129 @@ class InjectEntryTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn(".cowork-flow/tasks/09-01-demo", context)
 
+    def test_qoder_system_message_reports_the_injected_state(self) -> None:
+        # Qoder renders a hook's top-level systemMessage to the user, so the
+        # injection leaves a visible trace there. The text must describe the
+        # state this same hook injects — one resolution path, never a second
+        # guess at the binding.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(root, "qoder_s1", ".cowork-flow/tasks/09-01-demo")
+
+            data = self._run_json(
+                root,
+                {"hook_event_name": "UserPromptSubmit", "session_id": "s1"},
+                host="qoder",
+                env_extra={"QODER_SESSION_ID": "s1"},
+            )
+
+        message = data["systemMessage"]
+        self.assertEqual(
+            "cowork-flow: 工作流状态已注入 · status=in_progress · task=09-01-demo",
+            message,
+        )
+        self.assertNotIn("\n", message)
+        self.assertLessEqual(len(message), 160)
+
+    def test_qoder_system_message_names_the_taskless_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_json(
+                root, {"hook_event_name": "SessionStart"}, host="qoder"
+            )
+
+        self.assertEqual(
+            "cowork-flow: 工作流状态已注入 · status=no_task", data["systemMessage"]
+        )
+
+    def test_qoder_system_message_stays_off_non_injection_paths(self) -> None:
+        # Edit-phase advisories keep their shape: only the two injecting
+        # events carry the user-visible message.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(root, "qoder_s1", ".cowork-flow/tasks/09-01-demo")
+            self._make_failing_edit_gate(root)
+
+            result = self._run_inject(
+                root,
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Edit",
+                    "tool_input": {"file_path": "src/a.py"},
+                    "session_id": "s1",
+                },
+                host="qoder",
+                env_extra={"QODER_SESSION_ID": "s1"},
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("systemMessage", json.loads(result.stdout))
+
+    def test_qoder_system_message_is_limited_to_the_two_injecting_events(self) -> None:
+        # Pin the event gate itself: every other event the host may fire in a
+        # Qoder session must keep the plain envelope.
+        for event, extra in (
+            ("PreToolUse", {"tool_name": "Edit", "tool_input": {"file_path": "src/a.py"}}),
+            ("SubagentStart", {}),
+        ):
+            with self.subTest(event=event), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                self._make_project(root)
+                self._write_session(root, "qoder_s1", ".cowork-flow/tasks/09-01-demo")
+
+                result = self._run_inject(
+                    root,
+                    {"hook_event_name": event, "session_id": "s1", **extra},
+                    host="qoder",
+                    env_extra={"QODER_SESSION_ID": "s1"},
+                )
+
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertNotIn("systemMessage", result.stdout)
+
+    def test_qoder_system_message_survives_a_long_task_name(self) -> None:
+        # The task directory name is user-chosen: a long one must not push the
+        # single-line message past the host's budget.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            long_name = "x" * 140
+            self._write_session(
+                root, "qoder_s1", f".cowork-flow/tasks/{long_name}"
+            )
+
+            data = self._run_json(
+                root,
+                {"hook_event_name": "UserPromptSubmit", "session_id": "s1"},
+                host="qoder",
+                env_extra={"QODER_SESSION_ID": "s1"},
+            )
+
+        message = data["systemMessage"]
+        self.assertLessEqual(len(message), 160)
+        self.assertNotIn("\n", message)
+        self.assertTrue(message.endswith("…"), message)
+        self.assertIn(f"task={'x' * 99}…", message)
+
+    def test_only_qoder_declares_a_user_visible_system_message(self) -> None:
+        # The message is a host delta: every other host keeps its previous
+        # payload shape (kimi-code's is bare text, the rest JSON).
+        for host in ("zcode", "codex", "claude-code", "kimi-code", "dsh"):
+            with self.subTest(host=host), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                self._make_project(root)
+
+                result = self._run_inject(
+                    root, {"hook_event_name": "SessionStart"}, host=host
+                )
+
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertNotIn("systemMessage", result.stdout)
+
     def test_zcode_user_prompt_gets_fingerprint_not_full_digest(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

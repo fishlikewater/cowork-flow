@@ -15,6 +15,7 @@
 - 新增 `presets/plugin-meta.json` 作为插件显示名、简介、作者、仓库、许可证和关键词的单一来源，并修正作者名拼写。
 - Codex 插件支持 `interface.logo` 和 `interface.brandColor`；ZCode marketplace 支持 HTTPS 图标 URL。
 - 新增 `SECURITY.md`、Issue 模板、PR 模板、Dependabot 和编辑器基础配置。
+- Qoder 的 hook 注入新增用户可见痕迹：hook 输出补顶层 `systemMessage`，宿主把它转成用户可见附件，每次 SessionStart / UserPromptSubmit 注入都会显示 `cowork-flow: 工作流状态已注入 · status=… · task=…`（只给人看，模型上下文不受影响；Edit 期的规范自查不带这条），文案与实际注入的状态走同一条解析路径。此前注入对用户完全不可见——桌面 IDE 没有 hook 列表界面，注入内容也不写进会话记录。其它六个宿主的输出逐字节不变。升级动作：`cwf host add qoder --force` 刷新插件缓存，并在项目里运行 `cwf project sync .` 更新项目运行时（文案由项目运行时渲染），然后重启 Qoder。
 
 ### Changed
 

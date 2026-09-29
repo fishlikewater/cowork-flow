@@ -23,7 +23,20 @@ would make the digest self-referential).
 | opencode | plugin `experimental.chat.system.transform` + `shell.env` | system-prompt section push / env object |
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 | kimi-code | user-level `config.toml` (`$KIMI_CODE_HOME`, default `~/.kimi-code/`) `[[hooks]]` row on `UserPromptSubmit` → shim (`cowork-flow-inject.mjs`) → `inject.py --host kimi-code` | bare-text stdout appended to the prompt context, no `hookSpecificOutput` envelope |
-| qoder | machine-level plugin `hooks/hooks.json` (`${QODER_PLUGIN_ROOT}/hooks/inject-context.py`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}`; `PostToolUse` is not blockable there, so the edit advisory rides `additionalContext` on exit 0 |
+| qoder | machine-level plugin `hooks/hooks.json` (`${QODER_PLUGIN_ROOT}/hooks/inject-context.py`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` plus a top-level `systemMessage` (the host turns it into a user-visible attachment; the model context is unchanged); `PostToolUse` is not blockable there, so the edit advisory rides `additionalContext` on exit 0 |
+
+The qoder row carries one delta beyond the shared envelope: `systemMessage`,
+emitted only on the two injecting events (`SessionStart`, `UserPromptSubmit`)
+and rendered from the same task-state resolution as the injected block, so the
+message can never report a state other than the one just injected. It exists
+because an injection is otherwise invisible to the user — the host has no hook
+listing UI, injected context is not written to the transcript, and the chat
+only shows hook lifecycle entries when `hooksConfig.notifications` is on. The
+message reaches the user two ways: the ACP session sends a SessionStart
+message straight to the client as an agent-message chunk, and every other
+event reaches it as a `hook_system_message` attachment (the model-context
+converter drops that attachment type, so it stays user-only). Every other host
+keeps the envelope unchanged, and tests assert none of them carries the key.
 
 Kimi Code registers that one `UserPromptSubmit` row and nothing else: the
 other events — `SessionStart`, `PostToolUse` — are observe-only, their stdout

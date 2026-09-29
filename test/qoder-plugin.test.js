@@ -159,13 +159,17 @@ test('qoder shim renders the project workflow state through the project runtime'
 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, '');
-    const envelope = JSON.parse(result.stdout).hookSpecificOutput;
+    const payload = JSON.parse(result.stdout);
+    const envelope = payload.hookSpecificOutput;
     assert.equal(envelope.hookEventName, 'SessionStart');
     assert.match(envelope.additionalContext, /<workflow-state status="no_task"/);
     assert.match(envelope.additionalContext, /host="qoder" adapter="qoder\.hooks"/);
     // The generic `session_id` must resolve through the declared host into the
     // qoder-prefixed context key, which is what the CLI side re-uses to bind.
     assert.match(envelope.additionalContext, /session="qoder_s1"/);
+    // Qoder shows a hook's top-level systemMessage to the user; it is the only
+    // trace of an injection, since the injected context itself stays silent.
+    assert.equal(payload.systemMessage, 'cowork-flow: 工作流状态已注入 · status=no_task');
   } finally {
     await rm(project, { recursive: true, force: true });
   }

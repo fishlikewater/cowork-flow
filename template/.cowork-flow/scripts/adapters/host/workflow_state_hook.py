@@ -140,6 +140,24 @@ def build_hook_context(
     return context
 
 
+def hook_state_summary(
+    root: Path,
+    hook_input: dict[str, Any],
+    *,
+    host: str,
+    policy: HostPolicy | None = None,
+) -> tuple[str, str | None]:
+    """Status and task name for a host's user-visible hook message.
+
+    Same resolution path as build_hook_context, so a message a host policy
+    renders can never disagree with the state that hook just injected.
+    """
+    state = _resolve_task_state(root, hook_input, resolve_policy(host, policy))
+    if not state.task_path:
+        return state.status, None
+    return state.status, Path(state.task_path).name
+
+
 def _resolve_task_state(
     root: Path,
     hook_input: dict[str, Any],
