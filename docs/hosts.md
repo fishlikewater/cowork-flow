@@ -125,6 +125,8 @@ cwf host remove qoder
 
 安装位置由 `QODER_CONFIG_DIR` 决定，未设置时为 `~/.qoder`。插件提供 hook、三个 fixed subagent 和引导技能；项目级 `init` / `sync` 只写适配声明和共享技能。
 
+Qoder 的插件清单 schema 对路径是强校验的：声明路径必须以 `./` 开头（`hooks` 还必须以 `.json` 结尾），`agents` 只接受 `.md` 文件路径、不接受目录。任一处不合法都会让宿主判定清单解析失败并丢弃**整个**插件——hook、agents、skills 一起不加载；安装状态存在注册表里、与宿主是否加载成功无关，失败只在 `~/.qoder/logs/qodercli.log` 里留一行 `Failed to load installed plugin` 警告。因此三个 fixed subagent 不在清单里声明，由宿主按目录约定发现 `agents/`；改完清单先 `cwf host add qoder --force` 刷新缓存副本，Qoder 不热加载插件。
+
 Qoder 需要先信任工作区，安装或升级后重启 Qoder。Desktop 是否提供项目子代理取决于版本和 edition；没有确认前不要把它当作可用能力。
 
 Qoder 的插件注册表不是稳定的公开接口。cowork-flow 尽量保留未知字段和其他插件条目，相关诊断按 warning 报告，不影响其它检查。
