@@ -291,9 +291,18 @@ test('apply wires every refresh event and registers the workflow-state section',
 
   apply(ctx);
 
+  // Both start-event names are wired on purpose: 0.2.0 renamed
+  // `agent/session-start` to `agent/created`, and each DSH line only emits
+  // one of them.
   assert.deepEqual(
     [...handlers.keys()].sort(),
-    ['agent/inbox/claimed', 'agent/session-start', 'tools/post-execute', 'tools/result']
+    [
+      'agent/created',
+      'agent/inbox/claimed',
+      'agent/session-start',
+      'tools/post-execute',
+      'tools/result'
+    ]
   );
   const definition = section();
   assert.equal(definition.name, 'cowork-flow-workflow-state');

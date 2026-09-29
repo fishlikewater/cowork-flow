@@ -284,7 +284,7 @@
         {
           "scope": "project",
           "path": ".agents/skills",
-          "evidence": "verified: 本机 dsh 0.1.2-rc.1 的 @deepseek-ai/dsh-skill-filesystem（lib/index.js `roots()`）：project 根为 <projectRoot>/.dsh/skills（rank 100，project-dsh）与 <projectRoot>/.agents/skills（rank 200，project-agents），projectRoot 取最近含 .git 的祖先、无 git 时用 cwd；我们只投递 .agents/skills，不交付 .dsh/skills"
+          "evidence": "verified: 两代本机构建同一实现——CLI dsh 0.1.2-rc.1 与桌面版 DeepSeek Harness 0.2.0-rc.1 内置的 @deepseek-ai/dsh-skill-filesystem（lib/index.js `roots()`）：project 根为 <projectRoot>/.dsh/skills（rank 100，project-dsh）与 <projectRoot>/.agents/skills（rank 200，project-agents），projectRoot 取最近含 .git 的祖先、无 git 时用 cwd；我们只投递 .agents/skills，不交付 .dsh/skills"
         }
       ],
       "adapterPath": ".cowork-flow/adapters/dsh/adapter.yaml",

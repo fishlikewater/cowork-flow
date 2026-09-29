@@ -60,7 +60,7 @@
     "test:all": "npm run test:node:full && npm run test:template:full && npm run pack:check",
     "release:check": "npm run test:all",
     "release": "sh scripts/release.sh",
-    "test:windows:core": "npm run test:fast && npm run test:integration && node --test test/dsh-home-patch.test.js test/dsh-hook.test.js test/dsh-preset.test.js test/mcp-client-matrix.test.js test/mcp-state-command.test.js test/tarball-install.test.js && npm run pack:check && npm run test:template"
+    "test:windows:core": "npm run test:fast && npm run test:integration && node --test test/dsh-home-patch.test.js test/dsh-hook.test.js test/dsh-preset.test.js test/dsh-preset-bundle.test.js test/mcp-client-matrix.test.js test/mcp-state-command.test.js test/tarball-install.test.js && npm run pack:check && npm run test:template"
   },
   "engines": {
     "node": ">=20"
