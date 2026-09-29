@@ -4,6 +4,11 @@
 
 ### Added
 
+
+## [1.7.0] - 2026-09-29
+
+### Added
+
 - 新增 `cwf` 命令名，并把命令整理为 `project`、`host`、`self`、`mcp`、`dev` 五组。`cwf --help` 和各层 `--help` 由同一注册表生成。
 - 新增统一的机器级宿主命令：`cwf host add`、`cwf host remove` 和 `cwf host list`。
 - 新增 Claude Code 插件安装器。插件写入用户技能目录，只提供 `cowork-flow-bootstrap` 引导技能，项目 hook 和 agents 仍由 `project init` 交付。
@@ -15,7 +20,7 @@
 - 新增 `presets/plugin-meta.json` 作为插件显示名、简介、作者、仓库、许可证和关键词的单一来源，并修正作者名拼写。
 - Codex 插件支持 `interface.logo` 和 `interface.brandColor`；ZCode marketplace 支持 HTTPS 图标 URL。
 - 新增 `SECURITY.md`、Issue 模板、PR 模板、Dependabot 和编辑器基础配置。
-- Qoder 的 hook 注入新增用户可见痕迹：hook 输出补顶层 `systemMessage`，宿主把它转成用户可见附件，每次 SessionStart / UserPromptSubmit 注入都会显示 `cowork-flow: 工作流状态已注入 · status=… · task=…`（只给人看，模型上下文不受影响；Edit 期的规范自查不带这条），文案与实际注入的状态走同一条解析路径。此前注入对用户完全不可见——桌面 IDE 没有 hook 列表界面，注入内容也不写进会话记录。其它六个宿主的输出逐字节不变。升级动作：`cwf host add qoder --force` 刷新插件缓存，并在项目里运行 `cwf project sync .` 更新项目运行时（文案由项目运行时渲染），然后重启 Qoder。
+- Qoder 的 hook 注入新增一条用户可见痕迹：hook 输出补顶层 `systemMessage`，`qodercli` 的终端 TUI 会把它显示成 `<hook 名> says: <文案>`，每次 SessionStart / UserPromptSubmit 注入都会显示 `cowork-flow: 工作流状态已注入 · status=… · task=…`（只给人看，模型上下文不受影响；Edit 期的规范自查不带这条），文案与实际注入的状态走同一条解析路径。**Qoder 桌面版不渲染 hook 输出文本**：1.1.64 的桌面客户端里没有 `systemMessage` / `hook_system_message` 的渲染路径，聊天中的 hook 部件被直接跳过，所以桌面端要核对注入是否发生，看回复操作条上的锚点图标 tooltip（列出 `SessionStart`、`UserPromptSubmit` 及状态），或看 `~/.qoder/logs/runs/<最新一次运行>/qodercli.log` 里的 `hook.finished … success=true exit_code=0`。其它六个宿主的输出逐字节不变。升级动作：`cwf host add qoder --force` 刷新插件缓存，并在项目里运行 `cwf project sync .` 更新项目运行时（文案由项目运行时渲染），然后重启 Qoder。
 
 ### Changed
 
@@ -258,7 +263,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.3.0...v1.4.0

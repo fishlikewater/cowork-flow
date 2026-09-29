@@ -44,11 +44,12 @@ TASK_NAME_BUDGET = 100
 
 
 def system_message(root: Path, hook_input: dict[str, Any], event_name: str) -> str:
-    """One-line trace Qoder shows the user next to the injection.
+    """One-line trace of the injection for Qoder's CLI-side surfaces.
 
     Qoder's hook output schema accepts a top-level `systemMessage` and renders
-    it to the user (the model's context is unaffected), so an injection that
-    used to be invisible now names the state it injected.
+    it in the interactive TUI (the model's context is unaffected); the desktop
+    client renders no hook output text, so there the trace is the hook-summary
+    tooltip on the reply, not this line.
     """
     status, task_name = hook_state_summary(root, hook_input, host="qoder", policy=POLICY)
     if task_name and len(task_name) > TASK_NAME_BUDGET:
