@@ -127,6 +127,33 @@ class HostAdaptersTest(unittest.TestCase):
         self.assertEqual("SessionStart", qoder_policy.session_start_event)
         self.assertFalse(qoder_policy.emit_text)
 
+    def test_only_qoder_declares_the_user_visible_injection_trace(self) -> None:
+        from runtime.host_identity import policy_modules
+
+        hook = importlib.import_module("adapters.host.workflow_state_hook")
+        declared = policy_modules()
+        # The user-visible injection trace is a Qoder delta: any other host
+        # adopting it would change that host's payload shape.
+        self.assertEqual(
+            {"qoder"},
+            {
+                host_id
+                for host_id in declared
+                if hook.resolve_policy(host_id).system_message is not None
+            },
+        )
+        # Bare text has no field to carry it, so a host declaring both would
+        # silently drop the message it asked for.
+        self.assertEqual(
+            [],
+            [
+                host_id
+                for host_id in declared
+                if hook.resolve_policy(host_id).emit_text
+                and hook.resolve_policy(host_id).system_message is not None
+            ],
+        )
+
     def test_host_policy_fields_have_a_single_source(self) -> None:
         """The policy contract is declared once; hosts only override values."""
         policy_base = importlib.import_module("adapters.host.policy_base")
@@ -143,6 +170,7 @@ class HostAdaptersTest(unittest.TestCase):
                 ("essential_files_warning", None),
                 ("fallback_for_unbound", False),
                 ("post_tool_use", None),
+                ("system_message", None),
                 ("emit_indent", False),
                 ("emit_not_initialized", False),
                 ("emit_text", False),

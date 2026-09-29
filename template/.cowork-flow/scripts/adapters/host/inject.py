@@ -47,6 +47,11 @@ NOT_INITIALIZED_BODY = (
     "</workflow-state>"
 )
 
+# The events whose additionalContext reaches the conversation on every host
+# routed here (see context-injection.md); a host's user-visible message
+# accompanies the injection, so it is emitted for these two only.
+INJECTION_EVENTS = frozenset({"SessionStart", "UserPromptSubmit"})
+
 
 def _configure_stdio() -> None:
     for stream in (sys.stdout, sys.stderr):
@@ -143,11 +148,28 @@ def _not_initialized_context(
     return f"{prefix}\n\n{NOT_INITIALIZED_BODY}"
 
 
+def _injection_system_message(
+    policy: Any,
+    root: Path,
+    hook_input: dict[str, Any],
+    event_name: str,
+) -> str | None:
+    """The user-visible line a host shows beside its injection, if any.
+
+    Gated to the injecting events: a PostToolUse advisory is a different
+    report and does not carry the message.
+    """
+    if policy.system_message is None or event_name not in INJECTION_EVENTS:
+        return None
+    return policy.system_message(root, hook_input, event_name)
+
+
 def _emit(
     context: str,
     event_name: str,
     output_format_name: str,
     policy: Any,
+    system_message: str | None = None,
 ) -> None:
     if policy.emit_text:
         # Kimi Code appends stdout to the prompt context verbatim.
@@ -156,12 +178,16 @@ def _emit(
     if output_format_name == "cursor":
         payload: dict[str, Any] = {"additional_context": context}
     else:
-        payload = {
+        payload: dict[str, Any] = {
             "hookSpecificOutput": {
                 "hookEventName": event_name,
                 "additionalContext": context,
             }
         }
+        if system_message:
+            # Hosts that declare a system_message show it to the user beside
+            # the injection (the model's context is unaffected).
+            payload["systemMessage"] = system_message
     indent = 2 if policy.emit_indent else None
     sys.stdout.write(json.dumps(payload, ensure_ascii=False, indent=indent))
 
@@ -250,7 +276,8 @@ def main(argv: list[str] | None = None) -> int:
         session_start=session_start,
         policy=policy,
     )
-    _emit(context, event_name, output_format_name, policy)
+    message = _injection_system_message(policy, root, hook_input, event_name)
+    _emit(context, event_name, output_format_name, policy, message)
     return 0
 
 

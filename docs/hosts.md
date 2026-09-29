@@ -129,6 +129,12 @@ Qoder 的插件清单 schema 对路径是强校验的：声明路径必须以 `.
 
 Qoder 需要先信任工作区，安装或升级后重启 Qoder。Desktop 是否提供项目子代理取决于版本和 edition；没有确认前不要把它当作可用能力。
 
+确认 hook 真的生效，看运行日志而不是界面：`~/.qoder/logs/runs/<最新一次运行>/qodercli.log` 里搜 `plugin_id="cowork-flow`，注入事件会留下 `hook.started` / `hook.finished ... success=true exit_code=0` 两行（这两行是 INFO 级，任何会话都有；`Hook system message:` 那行只在带 `--debug` 的运行时才有，别拿它当验收口径）。桌面 IDE **没有** hooks 列表界面——唯一的 hook 列表在 CLI TUI 的 `/hooks`，标签页是 `Local / Project / User / Plugin`，我们的条目在 `Plugin` 页。宿主设置 `hooksConfig.notifications`（默认 `false`）决定聊天记录里是否显示 hook 生命周期条目（started/completed/progress），与注入是否成功无关。
+
+注入会留下一条用户可见痕迹：Qoder 的 hook 输出 schema 接受顶层 `systemMessage`，宿主把它渲染给人看——SessionStart 经 ACP 直接以 agent-message chunk 进对话流，其余事件变成 `hook_system_message` 附件（该类型在模型上下文转换器里被丢弃，所以只影响展示），因此每次 SessionStart / UserPromptSubmit 注入都会出现 `cowork-flow: 工作流状态已注入 · status=… · task=…`，Edit 期的规范自查不带这条；任务名超过 100 字符会截断并加省略号，保证单行。宿主按 schema 收字段，清单之外的键会被丢掉，所以只有 schema 里存在的字段能用。
+
+两条 hook 配置事实（读宿主 bundle 得到，写错会静默失效）：`matcher` 是**正则**，对工具名及其别名逐个 `test()`，所以 `Edit|Write` 命中宿主的 `Edit` / `Write`；带 `args` 的 hook 走 exec 形式（`spawn(command, args, {shell:false})`），`command` 必须是单个可执行名——`python` 由 PATH 解析，需要 `python.exe` 在 PATH 上（要固定解释器用 `COWORK_FLOW_PYTHON`，shim 会转发）。
+
 Qoder 的插件注册表不是稳定的公开接口。cowork-flow 尽量保留未知字段和其他插件条目，相关诊断按 warning 报告，不影响其它检查。
 
 ## DeepSeek Harness

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from adapters.host.policy_base import HostPolicy
-from adapters.host.workflow_state_hook import spec_edit_warning
+from adapters.host.workflow_state_hook import hook_state_summary, spec_edit_warning
 
 QODER_PREAMBLE = (
     (
@@ -37,8 +37,29 @@ def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
     return spec_edit_warning(root, hook_input, POLICY), 0
 
 
+# The task directory name is user-chosen and unbounded, and the host renders
+# the message as a single line: cap the name so the line cannot wrap (the
+# longest status, delegated_subtask, still fits the 160-character budget).
+TASK_NAME_BUDGET = 100
+
+
+def system_message(root: Path, hook_input: dict[str, Any], event_name: str) -> str:
+    """One-line trace Qoder shows the user next to the injection.
+
+    Qoder's hook output schema accepts a top-level `systemMessage` and renders
+    it to the user (the model's context is unaffected), so an injection that
+    used to be invisible now names the state it injected.
+    """
+    status, task_name = hook_state_summary(root, hook_input, host="qoder", policy=POLICY)
+    if task_name and len(task_name) > TASK_NAME_BUDGET:
+        task_name = f"{task_name[: TASK_NAME_BUDGET - 1]}…"
+    suffix = f" · task={task_name}" if task_name else ""
+    return f"cowork-flow: 工作流状态已注入 · status={status}{suffix}"
+
+
 POLICY = HostPolicy(
     host="qoder",
     preamble=preamble,
     post_tool_use=post_tool_use,
+    system_message=system_message,
 )

@@ -25,6 +25,9 @@ Preamble = Callable[[Path], tuple[str, ...]]
 RebindHints = Callable[[Path], str]
 EssentialFilesWarning = Callable[[Path], str]
 PostToolUse = Callable[[Path, dict[str, Any]], tuple[str, int]]
+# Renders the user-visible one-line message a host shows next to an
+# injection (root, hook_input, event_name) -> text.
+SystemMessage = Callable[[Path, dict[str, Any], str], str]
 
 
 @dataclass(eq=False)
@@ -45,6 +48,7 @@ class HostPolicy:
     essential_files_warning: EssentialFilesWarning | None = None
     fallback_for_unbound: bool = False
     post_tool_use: PostToolUse | None = None
+    system_message: SystemMessage | None = None
     emit_indent: bool = False
     emit_not_initialized: bool = False
     emit_text: bool = False
