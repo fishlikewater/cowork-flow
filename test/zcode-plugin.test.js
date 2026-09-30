@@ -85,8 +85,8 @@ async function captureConsole(fn) {
   return lines.join('\n');
 }
 
-function runZCodeHook(input, options = {}) {
-  const result = spawnSync(process.execPath, [join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.js')], {
+function spawnZCodeHook(input, options = {}) {
+  return spawnSync(process.execPath, [join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.js')], {
     cwd: options.cwd || process.cwd(),
     input: `${JSON.stringify(input)}\n`,
     encoding: 'utf8',
@@ -97,9 +97,45 @@ function runZCodeHook(input, options = {}) {
       COWORK_FLOW_RUNTIME_CONTEXT_ID: ''
     }
   });
+}
+
+function runZCodeHook(input, options = {}) {
+  const result = spawnZCodeHook(input, options);
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
 }
+
+test('zcode shim fails open when the project runtime rejects the host', async (t) => {
+  // The plugin hook is machine-level, so it meets project runtimes older than
+  // itself; a non-zero exit there must not fail the event it was decorating.
+  const projectRoot = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-stale-'));
+  t.after(async () => {
+    await rm(projectRoot, { recursive: true, force: true });
+  });
+  const hostDir = join(projectRoot, '.cowork-flow', 'scripts', 'adapters', 'host');
+  await mkdir(hostDir, { recursive: true });
+  await writeFile(
+    join(hostDir, 'inject.py'),
+    [
+      'import sys',
+      'sys.stderr.write("usage: inject.py [-h] --host {claude-code,codex,dsh,kimi-code,zcode}\\n")',
+      "sys.stderr.write(\"inject.py: error: argument --host: invalid choice: 'zcode'\\n\")",
+      'sys.exit(2)',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+
+  const result = spawnZCodeHook(
+    { hook_event_name: 'UserPromptSubmit', cwd: projectRoot, prompt: 'hi' },
+    { cwd: projectRoot }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '');
+  assert.match(result.stderr, /invalid choice: 'zcode'/);
+  assert.match(result.stderr, /exited 2/);
+});
 
 test('zcode scaffold source does not commit workflow bootstrap files', async () => {
   const sourceScaffold = join(packageRoot, 'presets', 'zcode', 'scaffold');

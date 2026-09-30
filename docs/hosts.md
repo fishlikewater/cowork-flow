@@ -51,6 +51,8 @@ cwf host remove <host>
 
 `--force` 只在确认需要覆盖已有安装时使用。安装器遇到不属于自己的文件时默认拒绝覆盖或删除；`--dry-run` 会执行同样的归属检查。
 
+机器级 hook 与项目运行时各自升级，而它会在任何工作区触发——包括运行时比它旧的项目。三个机器级注入 shim（Qoder、ZCode、Kimi Code）因此是 **fail-open** 的：项目运行时失败时只在宿主运行日志留原因并返回 0，不注入，也不把「hook 失败」变成「拒绝你的输入」；保留非零退出的只有项目级 Edit 期规范门禁（Claude Code / Codex），它与所调用的运行时同源。旧项目上注入会静默不生效，跑一次 `cwf project sync .` 即可恢复。
+
 ## Codex
 
 ```bash

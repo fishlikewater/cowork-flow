@@ -12,7 +12,10 @@
  *   2. interpreter location, COWORK_FLOW_PYTHON -> python3
  *      -> python -> py -3;
  *   3. stdin passthrough to inject.py --host zcode, with
- *      stdout and exit status forwarded.
+ *      stdout forwarded and a failing project runtime
+ *      absorbed (exit 0, reason on stderr) — the hook
+ *      is machine-level and may meet an older project
+ *      copy, which must not fail the event.
  *
  * The project's own runtime copy wins (same root the CLI
  * resolves); the plugin cache copy (runtime/scripts)
@@ -162,7 +165,15 @@ function main() {
     if (result.error || result.status === null) continue;
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    process.exit(result.status);
+    // The interpreter ran; its exit status is the project runtime's verdict,
+    // not ours. Forwarding it would let a stale project copy fail the event
+    // this hook only decorates.
+    if (result.status !== 0) {
+      process.stderr.write(
+        `cowork-flow zcode hook: inject.py exited ${result.status}; skipping injection\n`
+      );
+    }
+    process.exit(0);
   }
   // No interpreter could run the entry: stay silent rather
   // than break the host's event stream (fail-open, like

@@ -350,3 +350,32 @@ test('the shim stays silent outside a cowork-flow project', async (t) => {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, '');
 });
+
+
+test('the shim fails open when the project runtime fails', async (t) => {
+  // The user-level hook row is machine-wide, so it meets project runtimes
+  // older than itself. A non-zero exit there aborts the user's submit, which
+  // is exactly what the shim must absorb.
+  const project = await createWorkflowProject(t);
+  const inject = join(project, '.cowork-flow', 'scripts', 'adapters', 'host', 'inject.py');
+  await writeFile(
+    inject,
+    [
+      'import sys',
+      'sys.stderr.write("usage: inject.py [-h] --host {claude-code,codex,dsh,kimi-code,zcode}\\n")',
+      "sys.stderr.write(\"inject.py: error: argument --host: invalid choice: 'kimi-code'\\n\")",
+      'sys.exit(2)',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  const env = { ...process.env, COWORK_FLOW_PYTHON: process.env.COWORK_FLOW_PYTHON ?? 'python' };
+  delete env.COWORK_FLOW_HOOKS;
+
+  const result = await feedShim(project, env);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /invalid choice: 'kimi-code'/);
+  assert.match(result.stderr, /exited 2/);
+});

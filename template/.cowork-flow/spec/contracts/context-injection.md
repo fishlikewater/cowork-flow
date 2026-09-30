@@ -44,6 +44,16 @@ other events — `SessionStart`, `PostToolUse` — are observe-only, their stdou
 is discarded, so only a blockable event can inject and `UserPromptSubmit` is
 the sole channel.
 
+Exit-status contract, split by install scope. The machine-level shims (Qoder,
+ZCode, Kimi Code) are **fail-open**: they run in every workspace, so they meet
+project runtimes older than themselves, and a project-side failure — an
+argparse rejection of the host argument, a crash, a timeout — must not fail the
+event they only decorate. Each keeps the child's message on stderr (the host's
+run log) and exits 0 with nothing injected. Exit-status blocking is reserved
+for the project-level edit gate (`spec_only_post_tool_use`, installed by
+`init` / `sync` for claude-code and codex): that wrapper sits next to the
+runtime it calls, so hook and runtime cannot skew.
+
 The string block inside every transport follows the same shape: an optional
 runtime preamble, the contract digest (full block or fingerprint line, see
 below), optional `decision-anchor` / `stage-contract` blocks, and the
