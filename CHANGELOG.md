@@ -5,6 +5,12 @@
 ### Added
 
 
+## [1.7.1] - 2026-09-30
+
+### Fixed
+
+- 三个机器级 hook shim（Qoder / ZCode / Kimi Code）改为 **fail-open**：项目侧运行时返回非零、无法启动或超时时，shim 把原因写进宿主运行日志并返回 0，只跳过本次注入——不再把宿主的「hook 失败」升级成「拒绝用户输入」。修前在 Qoder 里，只要工作区项目的运行时早于 qoder 适配（本项目 9 个旧项目都是），每次输入都会被拦：`inject.py: error: argument --host: invalid choice: 'qoder'` → `exit code 2` → `Blocking hook failure(s) … for UserPromptSubmit`。项目级写入的 Edit 期规范门禁（Claude Code / Codex）保留阻止语义，它与所调用的运行时同源、不存在版本错配。升级动作：`cwf host add qoder --force`（或对应宿主）刷新机器级载荷后重启宿主；要让旧项目恢复注入，再对该项目运行 `cwf project sync .`。
+
 ## [1.7.0] - 2026-09-29
 
 ### Added
@@ -263,7 +269,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.4.0...v1.5.0

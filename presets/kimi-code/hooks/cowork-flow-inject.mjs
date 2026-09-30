@@ -10,7 +10,10 @@
  *      exits 0 without spawning anything, so the user-level hook never
  *      touches unrelated repositories;
  *   2. interpreter location (COWORK_FLOW_PYTHON → python3 → python → py -3);
- *   3. stdin passthrough to inject.py, stdout/exit forwarding.
+ *   3. stdin passthrough to inject.py, stdout forwarded
+ *      and a failing project runtime absorbed (exit 0,
+ *      reason on stderr) — the hook row is machine-wide
+ *      and may meet an older project copy.
  *
  * Fail-open by construction: a missing interpreter, a missing runtime, or a
  * broken project copy all exit 0 with empty stdout instead of blocking the
@@ -103,7 +106,16 @@ function main() {
     }
     if (result.error || result.status === null) continue;
     if (result.stdout) process.stdout.write(result.stdout);
-    process.exit(result.status);
+    // The interpreter ran; its exit status is the project runtime's verdict,
+    // not ours. Forwarding it would let a stale project copy abort the submit
+    // this hook only decorates.
+    if (result.stderr) process.stderr.write(result.stderr);
+    if (result.status !== 0) {
+      process.stderr.write(
+        `cowork-flow kimi-code hook: inject.py exited ${result.status}; skipping injection\n`
+      );
+    }
+    process.exit(0);
   }
   // No interpreter could run the entry: stay silent rather than break the
   // user's submit (fail-open, same contract as the other host shims).

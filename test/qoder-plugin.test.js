@@ -190,6 +190,40 @@ test('qoder shim stays silent outside a cowork-flow project', async () => {
   }
 });
 
+test('qoder shim fails open when the project runtime rejects the host', async () => {
+  // A project whose runtime predates the qoder adapter exits 2 on argparse,
+  // and Qoder refuses the prompt on a non-zero hook exit. The shim absorbs
+  // that: evidence on stderr, exit 0, nothing injected.
+  const project = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-stale-'));
+  try {
+    const hostDir = join(project, '.cowork-flow', 'scripts', 'adapters', 'host');
+    await mkdir(hostDir, { recursive: true });
+    await writeFile(
+      join(hostDir, 'inject.py'),
+      [
+        'import sys',
+        'sys.stderr.write("usage: inject.py [-h] --host {claude-code,codex,dsh,kimi-code,zcode}\\n")',
+        'sys.stderr.write("inject.py: error: argument --host: invalid choice: \'qoder\'\\n")',
+        'sys.exit(2)',
+        ''
+      ].join('\n'),
+      'utf8'
+    );
+
+    const result = runShim(
+      { hook_event_name: 'UserPromptSubmit', cwd: project, session_id: 's1' },
+      project
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), '');
+    assert.match(result.stderr, /invalid choice: 'qoder'/);
+    assert.match(result.stderr, /exited 2/);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 async function withQoderHome(home, run) {
   const previous = process.env.QODER_CONFIG_DIR;
   process.env.QODER_CONFIG_DIR = home;

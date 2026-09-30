@@ -7,7 +7,10 @@ project it serves. The project is therefore resolved from the hook payload
 project's own `.cowork-flow/scripts` — one copy of the injection logic per
 repository, never a stale second copy in the plugin cache.
 
-Fail-open by design: outside a cowork-flow project this exits 0 with no output.
+Fail-open by design: outside a cowork-flow project, or when the project's own
+runtime fails, this exits 0 with no injection. The hook is machine-level, so it
+meets project runtimes older than itself; Qoder refuses the prompt on a
+non-zero hook exit, and a stale project copy must never do that.
 """
 
 from __future__ import annotations
@@ -100,11 +103,19 @@ def main() -> int:
         )
     except OSError as error:
         print(f"cowork-flow qoder hook: {error}", file=sys.stderr)
-        return 1
+        return 0
     except subprocess.TimeoutExpired:
         print("cowork-flow qoder hook: inject timed out", file=sys.stderr)
-        return 1
-    return completed.returncode
+        return 0
+    if completed.returncode != 0:
+        # Never propagate: Qoder counts a non-zero exit on SessionStart and
+        # UserPromptSubmit as a blocking hook failure. Keep the reason in the
+        # run log and leave the event alone.
+        print(
+            f"cowork-flow qoder hook: inject.py exited {completed.returncode}; skipping injection",
+            file=sys.stderr,
+        )
+    return 0
 
 
 if __name__ == "__main__":
