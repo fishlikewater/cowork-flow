@@ -1,6 +1,6 @@
 {
   "name": "cowork-flow",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "CLI for installing and maintaining cowork-flow collaboration templates.",
   "keywords": [
     "ai-agent",
