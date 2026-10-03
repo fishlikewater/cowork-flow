@@ -36,7 +36,7 @@ npm run test:template:full
 | `npm run release` | 发布 patch 版本 |
 | `npm run release -- minor` | 发布 minor 版本 |
 | `npm run release -- --version 0.1.0` | 使用指定版本号，跳过自动 bump |
-| `npm run release -- minor --no-publish` | 完成版本、提交和 tag，但不执行 `npm publish` |
+| `npm run release -- minor --no-publish` | 完成版本、提交和 tag，推送 commit 与 tag，但不执行 `npm publish`；由 CI 发布 |
 | `npm run release -- --dry-run` | 运行发布前检查，停在版本 bump 之前 |
 
 `--dry-run` 不是只读命令。它会先要求 Git 工作树和暂存区干净，再执行 `source:refresh` 和 `sync --force`，因此可能刷新仓库中被忽略的运行副本，并临时覆盖后恢复 `AGENTS.md`。它不会改版本文件、提交、打 tag 或发布；如果检查开始时已有本地修改，脚本会在任何刷新前停止。
@@ -48,7 +48,7 @@ npm run test:template:full
 1. 确认工作树和更新日志符合预期。
 2. 运行 `npm run release:check` 和 `git diff --check`。
 3. 稳定性改动按上一节重复模板测试。
-4. 运行 `npm run release -- <release-type>`；CI 通道使用 `--no-publish`。
+4. 运行 `npm run release -- <release-type>`；CI 通道使用 `--no-publish`，它会把 tag 推给 CI。
 5. 脚本同步 `package.json`、lockfile、`template/.cowork-flow/.version` 和所有随包插件清单。
 6. 检查提交与 tag，再按下面的 CI 通道发布。
 
@@ -58,23 +58,24 @@ npm run test:template:full
 
 推荐让 GitHub Actions 执行 `npm publish`：
 
-1. 在本地运行 `npm run release -- <release-type> --no-publish`，完成检查、版本、提交和 tag。
-2. 先推送分支，再显式推送 tag：
+1. 在本地运行 `npm run release -- <release-type> --no-publish`。脚本完成检查、版本、提交和 tag，然后推送分支与 tag：
 
    ```bash
    git push
    git push origin v<v>
    ```
 
-3. 创建 GitHub Release：
+2. 推送 tag 即触发 `.github/workflows/publish.yml`。工作流等待 Ubuntu 和 Windows 验证通过后，只从已存在的 `v<version>` tag 发布，并核对 tag、`package.json` 与 `template/.cowork-flow/.version` 的版本一致。
+
+3. 需要给这个 tag 写 Release 说明时，再手动创建（不是发布的必要步骤）：
 
    ```bash
    gh release create v<v>
    ```
 
-4. `.github/workflows/publish.yml` 等待 Ubuntu 和 Windows 验证通过后，只从已存在的 `v<version>` tag 发布，并核对 tag、`package.json` 与 `template/.cowork-flow/.version` 的版本一致。
-
 不要在 tag 尚未存在于远端时运行 `gh release create`，否则 GitHub 可能从默认分支最新提交创建 tag，把发布指向错误提交。
+
+同一 tag 的重复触发会被 concurrency 锁串行化，不会并发抢发；如果该版本已经发到 npm，重复运行会在 `npm publish` 阶段被 npm 拒绝，这是预期行为。上一次 CI 失败需要重发时，用 `workflow_dispatch` 指定同一个 tag 重跑即可。
 
 PR 和发布使用同一套 core 门禁。只有 publish job 能读取 `NPM_TOKEN`，测试 job 不接触发布凭据。
 

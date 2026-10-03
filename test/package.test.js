@@ -280,6 +280,39 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
 });
 
 
+// `on: push: tags` only starts the workflow; each job still runs behind its own
+// `if`. A gate that names only `release` and `inputs.ref` leaves every job
+// skipped on a tag push: the run goes green and publishes nothing, which is
+// exactly the failure `--no-publish` hands publishing to. Every job must admit
+// the push event, or CI is not a publisher at all.
+test('publish workflow lets a tag push through every job gate', async () => {
+  const publish = (await readFile(join(packageRoot, '.github', 'workflows', 'publish.yml'), 'utf8'))
+    .replaceAll('\r\n', '\n');
+  const jobBlock = (jobName) => {
+    const marker = `  ${jobName}:\n`;
+    const start = publish.indexOf(marker);
+    assert.notEqual(start, -1, `missing workflow job: ${jobName}`);
+    const remainder = publish.slice(start + marker.length);
+    const nextJob = remainder.search(/^  [A-Za-z0-9_-]+:\n/m);
+    return nextJob === -1 ? remainder : remainder.slice(0, nextJob);
+  };
+
+  assert.match(
+    publish,
+    /on:\n(?=[\s\S]*push:\n\s+tags:\n\s+- "?v\*"?)/,
+    'the tag push trigger must stay declared'
+  );
+  for (const jobName of ['verify-ubuntu', 'verify-windows', 'publish']) {
+    const condition = jobBlock(jobName).match(/^\s*if: (.+)$/m)?.[1] ?? '';
+    assert.match(
+      condition,
+      /github\.event_name == 'push'/,
+      `${jobName} would be skipped on a tag push, leaving the CI channel inert`
+    );
+  }
+});
+
+
 // `test:node:full` runs everything, so an unlisted file still runs on ubuntu
 // through release:check. The Windows PR job is the hole: it runs test:fast +
 // test:integration, so a suite nobody names loses Windows coverage until

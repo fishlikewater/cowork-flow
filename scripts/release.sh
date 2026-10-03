@@ -14,7 +14,8 @@ usage() {
   echo "Usage: scripts/release.sh [release-type|--version <version>] [--no-publish] [--dry-run]" >&2
   echo "  release-type    one of: $RELEASE_TYPES (default: patch)" >&2
   echo "  --version <v>   publish exactly <v> instead of bumping" >&2
-  echo "  --no-publish    commit and tag the release without running npm publish" >&2
+  echo "  --no-publish    commit, tag and push the release without running npm publish" >&2
+  echo "                  (the pushed tag hands publishing to GitHub Actions)" >&2
   echo "  --dry-run       run the whole pre-flight, then stop before the version bump" >&2
   echo "                  (source:refresh and sync --force still run for real; no" >&2
   echo "                  version file, commit, tag or publish is touched)" >&2
@@ -174,7 +175,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   echo "  would commit   : chore(release): <new version>"
   echo "  would tag      : v<new version>"
   if [ "$NO_PUBLISH" -eq 1 ]; then
-    echo "  would publish  : no (--no-publish)"
+    echo "  would publish  : no (--no-publish; would push tag for CI)"
   else
     echo "  would publish  : yes (npm publish)"
   fi
@@ -256,7 +257,9 @@ verify_release_provenance || exit $?
 
 if [ "$NO_PUBLISH" -eq 1 ]; then
   echo "> npm publish skipped (--no-publish)"
-  echo "note: tag v$PACKAGE_VERSION is local; publish with 'npm publish' or 'gh release create v$PACKAGE_VERSION'"
+  run_step git push || exit $?
+  run_step git push origin "v$PACKAGE_VERSION" || exit $?
+  echo "note: tag v$PACKAGE_VERSION pushed; npm publish is handled by GitHub Actions"
 else
   run_step npm publish || exit $?
 fi

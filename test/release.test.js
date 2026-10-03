@@ -259,7 +259,7 @@ test('release shell script reports --no-publish and the release target in a dry 
   });
 
   assert.match(result.stdout, /release target\s+: minor/);
-  assert.match(result.stdout, /would publish\s+: no \(--no-publish\)/);
+  assert.match(result.stdout, /would publish\s+: no \(--no-publish; would push tag for CI\)/);
   // A downstream install has no self-instance marker, so it must not be promised.
   assert.doesNotMatch(result.stdout, /would update/);
 });
@@ -414,7 +414,8 @@ test('release shell script skips npm publish under --no-publish', async (t) => {
   );
 
   assert.match(result.stdout, /> npm publish skipped \(--no-publish\)/);
-  assert.match(result.stdout, /tag v0\.1\.0 is local/);
+  assert.match(result.stdout, /tag v0\.1\.0 pushed/);
+  assert.match(result.stdout, /handled by GitHub Actions/);
   assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.1.0\n');
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
@@ -425,7 +426,9 @@ test('release shell script skips npm publish under --no-publish', async (t) => {
     'npm version minor --no-git-tag-version',
     'git add package.json package-lock.json template/.cowork-flow/.version',
     'git commit -m chore(release): 0.1.0',
-    'git tag v0.1.0'
+    'git tag v0.1.0',
+    'git push',
+    'git push origin v0.1.0'
   ]);
 });
 
@@ -441,6 +444,7 @@ test('release shell script treats a repeated --no-publish as idempotent', async 
   );
 
   assert.match(result.stdout, /> npm publish skipped \(--no-publish\)/);
+  assert.match(result.stdout, /tag v0\.0\.6 pushed/);
   assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.0.6\n');
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
@@ -451,7 +455,9 @@ test('release shell script treats a repeated --no-publish as idempotent', async 
     'npm version patch --no-git-tag-version',
     'git add package.json package-lock.json template/.cowork-flow/.version',
     'git commit -m chore(release): 0.0.6',
-    'git tag v0.0.6'
+    'git tag v0.0.6',
+    'git push',
+    'git push origin v0.0.6'
   ]);
 });
 
@@ -467,6 +473,7 @@ test('release shell script accepts --no-publish ahead of the release type', asyn
   );
 
   assert.match(result.stdout, /> npm publish skipped \(--no-publish\)/);
+  assert.match(result.stdout, /tag v0\.0\.6 pushed/);
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',
     'git diff --quiet -- AGENTS.md',
@@ -476,8 +483,30 @@ test('release shell script accepts --no-publish ahead of the release type', asyn
     'npm version patch --no-git-tag-version',
     'git add package.json package-lock.json template/.cowork-flow/.version',
     'git commit -m chore(release): 0.0.6',
-    'git tag v0.0.6'
+    'git tag v0.0.6',
+    'git push',
+    'git push origin v0.0.6'
   ]);
+});
+
+test('release shell script delegates publishing to CI under --no-publish', async (t) => {
+  if (skipWithoutShell(t)) return;
+  const fakeCommands = await createFakeCommands(t);
+  const repo = await createReleaseProject(t);
+
+  await execFileAsync(
+    shellRunner,
+    ['scripts/release.sh', 'patch', '--no-publish'],
+    { cwd: repo, env: fakeCommands.env, encoding: 'utf8' }
+  );
+
+  const commands = await readCommands(fakeCommands.logPath);
+  assert.ok(!commands.includes('npm publish'));
+  assert.equal(commands.filter((line) => line === 'git push origin v0.0.6').length, 1);
+  assert.ok(
+    commands.lastIndexOf('git push') < commands.lastIndexOf('git push origin v0.0.6'),
+    'the branch push must precede the tag push'
+  );
 });
 
 test('release shell script keeps the self-instance version marker in step', async (t) => {
