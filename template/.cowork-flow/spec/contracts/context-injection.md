@@ -23,7 +23,7 @@ would make the digest self-referential).
 | opencode | plugin `experimental.chat.system.transform` + `shell.env` | system-prompt section push / env object |
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 | kimi-code | user-level `config.toml` (`$KIMI_CODE_HOME`, default `~/.kimi-code/`) `[[hooks]]` row on `UserPromptSubmit` → shim (`cowork-flow-inject.mjs`) → `inject.py --host kimi-code` | bare-text stdout appended to the prompt context, no `hookSpecificOutput` envelope |
-| qoder | machine-level plugin `hooks/hooks.json` (`${QODER_PLUGIN_ROOT}/hooks/inject-context.py`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` plus a top-level `systemMessage` (a CLI-visible trace; the model context is unchanged); `PostToolUse` is not blockable there, so the edit advisory rides `additionalContext` on exit 0 |
+| qoder | machine-level plugin `hooks/hooks.json` (node, `${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` plus a top-level `systemMessage` (a CLI-visible trace; the model context is unchanged); `PostToolUse` is not blockable there, so the edit advisory rides `additionalContext` on exit 0 |
 
 The qoder row carries one delta beyond the shared envelope: `systemMessage`,
 emitted only on the two injecting events (`SessionStart`, `UserPromptSubmit`)

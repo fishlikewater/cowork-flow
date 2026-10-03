@@ -279,8 +279,8 @@ class QoderPluginCheckTest(unittest.TestCase):
                 json.dumps({"hooks": {}}), encoding="utf-8"
             )
         if shim:
-            (self.install_path / "hooks" / "inject-context.py").write_text(
-                "# shim\n", encoding="utf-8"
+            (self.install_path / "hooks" / "inject-context.mjs").write_text(
+                "// shim\n", encoding="utf-8"
             )
 
     def _write_registry(self, install_path: Path | None = None) -> None:
@@ -1063,7 +1063,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
             json.dumps({"name": "cowork-flow", "version": version}), encoding="utf-8"
         )
         (payload / "hooks").mkdir()
-        for relative in ("hooks/hooks.json", "hooks/inject-context.py"):
+        for relative in ("hooks/hooks.json", "hooks/inject-context.mjs"):
             (payload / relative).write_text("{}", encoding="utf-8")
         for name in skill_names:
             skill_dir = payload / "skills" / name

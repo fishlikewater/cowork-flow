@@ -984,7 +984,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
             "manifest is on disk there; the host cannot load a missing payload",
             "cwf host add qoder --force",
         )
-    for relative in ("hooks/hooks.json", "hooks/inject-context.py"):
+    for relative in ("hooks/hooks.json", "hooks/inject-context.mjs"):
         if not (install_path / relative).is_file():
             return _qoder_warning(
                 "PLUGIN-PAYLOAD-INCOMPLETE",

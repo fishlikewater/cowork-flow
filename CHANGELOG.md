@@ -1,9 +1,21 @@
 # 更新日志
 
-## [Unreleased]
+## [1.7.2] - 2026-10-04
 
 ### Added
 
+- GitHub 现在会在收到 `v*` tag 推送时自动发布 npm：`.github/workflows/publish.yml` 新增 `push: tags` 触发器与按 tag 归一的 `concurrency` 锁（同一 tag 的重复触发串行化而非并发抢发），`scripts/release.sh --no-publish` 改为推送分支与 tag 并把发布交给 CI，`gh release create` 降级为可选的 Release 说明入口。推送 tag 即发布，无需再手工建 Release。
+
+### Fixed
+
+- 修复 tag 推送通道的空转：`verify-ubuntu` / `verify-windows` / `publish` 三个 job 的触发条件此前只认 `release` 事件和 `inputs.ref`，`on: push: tags` 触发工作流后三个 job 会被全部跳过——运行显示绿色却不会发布任何内容。三个门禁现在都放行 push 事件；Ubuntu 与 Windows 双平台验证仍是发布的硬前置。新增 `test/package.test.js` 断言锁住这一行为。
+- Qoder 插件 hook 不再由宿主解析 `python`：改为 **Node 传输 shim**（`command: "node"` + `hooks/inject-context.mjs`），与 ZCode 插件同形态。修前在没有 `python` 命令的机器上（macOS 12.3+、只装 `python3` 的发行版），hook 以 `spawn python ENOENT` 静默失败，SessionStart / UserPromptSubmit 注入从未发生，日志里只有 `Non-blocking hook error(s) … Continuing execution`；Windows 上则依赖 `python.exe` 恰好在 PATH，商店版 Python 等环境同样哑。新 shim 由宿主必备的 Node 运行，内置 `COWORK_FLOW_PYTHON → python3 → python → py -3` 探测链自行定位项目运行时解释器，探测不到时保持 fail-open（exit 0）。升级动作：`cwf host add qoder --force` 刷新插件缓存后重启 Qoder。ZCode 的 `.js` shim（ESM 语法）在安装目录无 `package.json` 时依赖 Node ≥23 的语法探测，仓库声明的最低 Node 20 上会崩溃，建议后续同样改 `.mjs`——本次未动 ZCode。
+
+## [1.7.2] - 2026-10-04
+
+### Fixed
+
+- Qoder 插件 hook 不再由宿主解析 `python`：改为 **Node 传输 shim**（`command: "node"` + `hooks/inject-context.mjs`），与 ZCode 插件同形态。修前在没有 `python` 命令的机器上（macOS 12.3+、只装 `python3` 的发行版），hook 以 `spawn python ENOENT` 静默失败，SessionStart / UserPromptSubmit 注入从未发生，日志里只有 `Non-blocking hook error(s) … Continuing execution`；Windows 上则依赖 `python.exe` 恰好在 PATH，商店版 Python 等环境同样哑。新 shim 由宿主必备的 Node 运行，内置 `COWORK_FLOW_PYTHON → python3 → python → py -3` 探测链自行定位项目运行时解释器，探测不到时保持 fail-open（exit 0）。升级动作：`cwf host add qoder --force` 刷新插件缓存后重启 Qoder。ZCode 的 `.js` shim（ESM 语法）在安装目录无 `package.json` 时依赖 Node ≥23 的语法探测，仓库声明的最低 Node 20 上会崩溃，建议后续同样改 `.mjs`——本次未动 ZCode。
 
 ## [1.7.1] - 2026-09-30
 
@@ -269,7 +281,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.5.0...v1.6.0

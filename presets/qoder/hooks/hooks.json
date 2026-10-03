@@ -5,9 +5,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python",
+            "command": "node",
             "args": [
-              "${QODER_PLUGIN_ROOT}/hooks/inject-context.py"
+              "${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs"
             ],
             "timeout": 30,
             "statusMessage": "cowork-flow: 注入工作流状态"
@@ -20,9 +20,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python",
+            "command": "node",
             "args": [
-              "${QODER_PLUGIN_ROOT}/hooks/inject-context.py"
+              "${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs"
             ],
             "timeout": 30,
             "statusMessage": "cowork-flow: 注入工作流状态"
@@ -36,9 +36,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python",
+            "command": "node",
             "args": [
-              "${QODER_PLUGIN_ROOT}/hooks/inject-context.py"
+              "${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs"
             ],
             "timeout": 30,
             "statusMessage": "cowork-flow: 规范自查"

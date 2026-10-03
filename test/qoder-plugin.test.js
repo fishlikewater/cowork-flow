@@ -14,7 +14,7 @@ const PLUGIN_KEY = 'cowork-flow@cowork-flow-local';
 const FOREIGN_PLUGIN_KEY = 'someone-else@their-market';
 
 const pluginRoot = join(templateRoot, '..', 'presets', 'qoder');
-const SHIM = join(pluginRoot, 'hooks', 'inject-context.py');
+const SHIM = join(pluginRoot, 'hooks', 'inject-context.mjs');
 const FIXED_AGENTS = ['cowork-implement', 'cowork-check', 'cowork-research'];
 
 async function readJson(path) {
@@ -22,7 +22,9 @@ async function readJson(path) {
 }
 
 function runShim(input, cwd) {
-  return spawnSync('python', [SHIM], {
+  // The current Node binary runs the shim; the shim itself locates a Python
+  // interpreter for the project runtime, so the test must not pre-resolve one.
+  return spawnSync(process.execPath, [SHIM], {
     cwd,
     input: `${JSON.stringify(input)}\n`,
     encoding: 'utf8',
@@ -53,9 +55,11 @@ test('qoder hook config runs the plugin shim without a shell', async () => {
       for (const hook of group.hooks) {
         // Exec form (command + args) is the only shape that survives a Windows
         // default shell, where ${VAR} would never be expanded by the shell.
+        // `node` matches the zcode plugin shape; the shim locates Python for
+        // the project runtime instead of the host resolving `python` itself.
         assert.equal(hook.type, 'command');
-        assert.equal(hook.command, 'python');
-        assert.deepEqual(hook.args, ['${QODER_PLUGIN_ROOT}/hooks/inject-context.py']);
+        assert.equal(hook.command, 'node');
+        assert.deepEqual(hook.args, ['${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs']);
         assert.ok(hook.timeout >= 1 && hook.timeout <= 30, `${eventName} must stay bounded`);
       }
     }
