@@ -144,10 +144,12 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.match(packageInfo.scripts['test:all'], /npm run test:template:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
   // Both names are the same entry point, so whichever one a user types runs
-  // the same CLI.
+  // the same CLI. The path carries no leading "./": npm rewrites a "./" bin at
+  // publish time and warns about it, so the tarball would ship a package.json
+  // that differs from this one.
   assert.deepEqual(packageInfo.bin, {
-    cwf: './bin/cowork-flow.js',
-    'cowork-flow': './bin/cowork-flow.js'
+    cwf: 'bin/cowork-flow.js',
+    'cowork-flow': 'bin/cowork-flow.js'
   });
   assert.equal(packageInfo.scripts['source:refresh'], 'node bin/cowork-flow.js dev refresh');
   assert.equal(packageInfo.scripts['source:refresh:dry-run'], 'node bin/cowork-flow.js dev refresh --dry-run');
@@ -272,11 +274,29 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
   const publishJob = jobBlock('publish');
   assert.match(ubuntuVerify, /run: npm run release:check/);
   assert.match(windowsVerify, /run: npm run release:check/);
-  assert.doesNotMatch(ubuntuVerify, /NPM_TOKEN/);
-  assert.doesNotMatch(windowsVerify, /NPM_TOKEN/);
   assert.match(publishJob, /needs: \[verify-ubuntu, verify-windows\]/);
-  assert.match(publishJob, /NPM_TOKEN/);
-  assert.equal((publish.match(/NPM_TOKEN/g) ?? []).length, 1);
+
+  // Publishing runs on Trusted Publishing: the runner presents a GitHub OIDC
+  // token and npm mints a short-lived credential. That needs id-token: write on
+  // the job and an npm CLI that knows the exchange (npm >= 11.5.1). Node 20
+  // carries npm 10, so the publish job — and only it — runs on Node 24; pinning
+  // it back to 20 would silently disable the OIDC path and fall back to a
+  // long-lived secret whose 2FA account cannot publish unattended (EOTP).
+  assert.match(publishJob, /id-token: write/);
+  assert.match(publishJob, /node-version: 24/);
+  // The token is supplied by the OIDC exchange, never by a secret. Match the env
+  // wiring rather than the prose: the comments here legitimately name the
+  // variable to explain why it must be absent.
+  assert.doesNotMatch(publishJob, /^\s*NODE_AUTH_TOKEN:/m);
+  // setup-node's registry-url writes an .npmrc with an unresolved
+  // ${NODE_AUTH_TOKEN} placeholder. With no token in the environment npm reads
+  // that as an empty credential, skips the OIDC exchange, and publishes
+  // unauthenticated — the registry answers 404, not an auth error, so it looks
+  // like a permissions problem rather than a configuration one. Match the input
+  // key, not the prose explaining it.
+  assert.doesNotMatch(publishJob, /^\s*registry-url:/m);
+  assert.doesNotMatch(ubuntuVerify, /node-version: 24|id-token|NPM_TOKEN/);
+  assert.doesNotMatch(windowsVerify, /node-version: 24|id-token|NPM_TOKEN/);
 });
 
 

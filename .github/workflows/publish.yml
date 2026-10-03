@@ -88,6 +88,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Trusted Publishing exchanges a GitHub OIDC token for a short-lived npm
+      # credential. Without id-token: write the runner never receives an ID token
+      # to present, so the publish step falls back to whatever NPM_TOKEN holds —
+      # and a classic token on a 2FA account fails with EOTP.
+      id-token: write
 
     steps:
       - name: Checkout release ref
@@ -141,17 +146,24 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Node.js
+      # The OIDC exchange behind Trusted Publishing landed in npm 11.5.1, which
+      # Node 20 does not ship (it carries npm 10). Node 24 bundles a CLI that has
+      # it. Only this job needs the newer runtime: the verify jobs stay on Node 20,
+      # the version the package declares, so a release gate and the package agree.
+      #
+      # No `registry-url` here on purpose. setup-node writes an .npmrc holding an
+      # unresolved ${NODE_AUTH_TOKEN} placeholder, and with no token in the
+      # environment npm treats that as an empty credential and skips the OIDC
+      # exchange — the publish then goes out unauthenticated and the registry
+      # answers 404. Trusted Publishing needs no token, so no placeholder either.
+      - name: Setup Node.js for publishing
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
-          registry-url: https://registry.npmjs.org
 
       - name: Install Node dependencies
         run: npm ci
 
       - name: Publish
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

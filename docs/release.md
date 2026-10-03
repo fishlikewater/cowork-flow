@@ -77,7 +77,15 @@ npm run test:template:full
 
 同一 tag 的重复触发会被 concurrency 锁串行化，不会并发抢发；如果该版本已经发到 npm，重复运行会在 `npm publish` 阶段被 npm 拒绝，这是预期行为。上一次 CI 失败需要重发时，用 `workflow_dispatch` 指定同一个 tag 重跑即可。
 
-PR 和发布使用同一套 core 门禁。只有 publish job 能读取 `NPM_TOKEN`，测试 job 不接触发布凭据。
+PR 和发布使用同一套 core 门禁。
+
+发布凭据走 **Trusted Publishing**：publish job 声明 `id-token: write`，把 GitHub OIDC token 交给 npm 换取短期凭据，仓库里不保存长期 token。登记在 npm 包页面（Settings → Trusted Publishers），声明仓库 `fishlikewater/cowork-flow` 与 workflow 文件 `publish.yml`。
+
+该交换由 npm CLI 实现（11.5.1 起），而 Node 20 自带 npm 10，因此**只有 publish job 跑在 Node 24**；两个验证 job 仍用 Node 20，与 `package.json` 声明的 `engines` 保持一致。
+
+publish job 的 `setup-node` **不要设 `registry-url`**。该选项会写入含 `${NODE_AUTH_TOKEN}` 占位符的 `.npmrc`；环境中没有这个变量时，npm 会把占位符当成空凭据、跳过 OIDC 交换，以未认证身份发布，注册表返回 `E404`——这个错误码看起来像权限问题，实际是配置问题。
+
+早期版本用 `NPM_TOKEN` secret。若账号开启双因素认证，classic token 无法完成交互式 OTP，CI 发布会以 `EOTP` 失败——这也是改用 Trusted Publishing 的原因。验证 job（Ubuntu / Windows）不接触任何发布凭据，只跑 `release:check`。
 
 ## 维护者命令
 
