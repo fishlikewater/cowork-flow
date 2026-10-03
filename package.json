@@ -1,6 +1,6 @@
 {
   "name": "cowork-flow",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "CLI for installing and maintaining cowork-flow collaboration templates.",
   "keywords": [
     "ai-agent",
@@ -30,8 +30,8 @@
   },
   "type": "module",
   "bin": {
-    "cwf": "./bin/cowork-flow.js",
-    "cowork-flow": "./bin/cowork-flow.js"
+    "cwf": "bin/cowork-flow.js",
+    "cowork-flow": "bin/cowork-flow.js"
   },
   "files": [
     "bin",

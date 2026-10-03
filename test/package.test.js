@@ -144,10 +144,12 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.match(packageInfo.scripts['test:all'], /npm run test:template:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
   // Both names are the same entry point, so whichever one a user types runs
-  // the same CLI.
+  // the same CLI. The path carries no leading "./": npm rewrites a "./" bin at
+  // publish time and warns about it, so the tarball would ship a package.json
+  // that differs from this one.
   assert.deepEqual(packageInfo.bin, {
-    cwf: './bin/cowork-flow.js',
-    'cowork-flow': './bin/cowork-flow.js'
+    cwf: 'bin/cowork-flow.js',
+    'cowork-flow': 'bin/cowork-flow.js'
   });
   assert.equal(packageInfo.scripts['source:refresh'], 'node bin/cowork-flow.js dev refresh');
   assert.equal(packageInfo.scripts['source:refresh:dry-run'], 'node bin/cowork-flow.js dev refresh --dry-run');
@@ -272,11 +274,28 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
   const publishJob = jobBlock('publish');
   assert.match(ubuntuVerify, /run: npm run release:check/);
   assert.match(windowsVerify, /run: npm run release:check/);
-  assert.doesNotMatch(ubuntuVerify, /NPM_TOKEN/);
-  assert.doesNotMatch(windowsVerify, /NPM_TOKEN/);
   assert.match(publishJob, /needs: \[verify-ubuntu, verify-windows\]/);
-  assert.match(publishJob, /NPM_TOKEN/);
-  assert.equal((publish.match(/NPM_TOKEN/g) ?? []).length, 1);
+
+  // Publishing runs on Trusted Publishing: the runner presents a GitHub OIDC
+  // token and npm mints a short-lived credential. That needs id-token: write on
+  // the job and an npm CLI that knows the exchange (npm >= 11.5.1). Node 20
+  // carries npm 10, so the publish job — and only it — runs on Node 24; pinning
+  // it back to 20 would silently disable the OIDC path and fall back to a
+  // long-lived secret whose 2FA account cannot publish unattended (EOTP).
+  assert.match(publishJob, /id-token: write/);
+  assert.match(publishJob, /node-version: 24/);
+  // setup-node's registry-url is what puts the registry in .npmrc, which npm
+  // requires before it will attempt the exchange at all — drop it and the
+  // publish dies ENEEDAUTH without ever reaching the token endpoint.
+  assert.match(publishJob, /registry-url: https:\/\/registry\.npmjs\.org/);
+  // The credential itself is never supplied: the ${NODE_AUTH_TOKEN} placeholder
+  // setup-node writes stays unresolved, so npm tries the exchange first and only
+  // falls back to an empty token if the exchange is refused. Match the env
+  // wiring rather than the prose — these comments legitimately name the
+  // variable to explain why it must be absent.
+  assert.doesNotMatch(publishJob, /^\s*NODE_AUTH_TOKEN:/m);
+  assert.doesNotMatch(ubuntuVerify, /node-version: 24|id-token|NPM_TOKEN/);
+  assert.doesNotMatch(windowsVerify, /node-version: 24|id-token|NPM_TOKEN/);
 });
 
 

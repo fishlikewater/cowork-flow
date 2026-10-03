@@ -235,7 +235,11 @@ test('runEditSpecCheck reports a declared check for an edited file', async (t) =
     [
       '---',
       'checks:',
-      '  - cmd: sh -c "exit 1"',
+      // The current Node binary, not `sh -c`: this suite also runs on the
+      // Windows PR and publish jobs, where sh does not exist. There the check
+      // produced no output at all, and the empty warning matched neither
+      // branch below — the test failed on Windows and passed everywhere else.
+      `  - cmd: "${process.execPath}" -e "process.exit(1)"`,
       '    files: "src/"',
       '    when: edit',
       '---',
