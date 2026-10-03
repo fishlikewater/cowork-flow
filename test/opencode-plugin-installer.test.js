@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -92,12 +92,18 @@ test("the installed plugin registers its own installed skills directory", async 
     const config = {}
     await hooks.config(config)
 
-    // The plugin derives its skills path from import.meta.url, so it reports the
-    // realpath of the install location. On macOS tmpdir() lives under a
-    // symlinked /var, so the same directory surfaces as /private/var; compare
-    // realpaths rather than the seed's literal spelling.
-    assert.deepEqual(config.skills.paths, [await realpath(join(home, "cowork-flow", "skills"))])
-    await access(join(config.skills.paths[0], "cowork-flow-bootstrap", "SKILL.md"))
+    // The plugin derives its skills path from import.meta.url, so it reports a
+    // different spelling of the same directory than the seed's: macOS expands
+    // the symlinked /var to /private/var, Windows runner temp shows up as an
+    // 8.3 short path. Path spelling is not the contract — self-location is.
+    // Assert what the directory actually is: exactly one path, holding the
+    // shipped Skill, and resolving to the seed's own tree.
+    assert.equal(config.skills.paths.length, 1)
+    const [skillsPath] = config.skills.paths
+    await access(join(skillsPath, "cowork-flow-bootstrap", "SKILL.md"))
+    const installedFiles = await tree(skillsPath)
+    const seedFiles = await tree(join(home, "cowork-flow", "skills"))
+    assert.deepEqual(installedFiles, seedFiles)
   } finally {
     await rm(home, { recursive: true, force: true })
   }
