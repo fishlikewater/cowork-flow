@@ -155,7 +155,7 @@ print(context)
 }
 
 function runZcodeBlock(root, caseDef) {
-  const hook = join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.js');
+  const hook = join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.mjs');
   const delegated = caseDef.status === 'delegated_subtask';
   const input = {
     hook_event_name: 'UserPromptSubmit',

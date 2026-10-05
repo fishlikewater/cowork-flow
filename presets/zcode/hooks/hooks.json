@@ -8,7 +8,7 @@
             "type": "process",
             "command": "node",
             "args": [
-              "${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js"
+              "${ZCODE_PLUGIN_ROOT}/hooks/inject-context.mjs"
             ],
             "timeoutMs": 5000
           }
@@ -22,7 +22,7 @@
             "type": "process",
             "command": "node",
             "args": [
-              "${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js"
+              "${ZCODE_PLUGIN_ROOT}/hooks/inject-context.mjs"
             ],
             "timeoutMs": 5000
           }
@@ -37,7 +37,7 @@
             "type": "process",
             "command": "node",
             "args": [
-              "${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js"
+              "${ZCODE_PLUGIN_ROOT}/hooks/inject-context.mjs"
             ],
             "timeoutMs": 5000
           }

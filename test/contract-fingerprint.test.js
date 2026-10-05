@@ -103,7 +103,7 @@ function fingerprintFromZcodeHook(root) {
     'presets',
     'zcode',
     'hooks',
-    'inject-context.js'
+    'inject-context.mjs'
   );
   const result = spawnSync(
     NODE,

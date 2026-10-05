@@ -223,7 +223,7 @@ test('default host registry exposes manifest platform behavior', async () => {
     false
   );
   assert.equal(
-    registry.shouldInclude('.zcode/hooks/inject-context.js', ['zcode']),
+    registry.shouldInclude('.zcode/hooks/inject-context.mjs', ['zcode']),
     false
   );
   assert.deepEqual(registry.parsePlatformSelection(['qoder-cli']), ['qoder']);
