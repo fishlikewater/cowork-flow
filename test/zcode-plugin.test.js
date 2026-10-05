@@ -86,7 +86,7 @@ async function captureConsole(fn) {
 }
 
 function spawnZCodeHook(input, options = {}) {
-  return spawnSync(process.execPath, [join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.js')], {
+  return spawnSync(process.execPath, [join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.mjs')], {
     cwd: options.cwd || process.cwd(),
     input: `${JSON.stringify(input)}\n`,
     encoding: 'utf8',
@@ -151,7 +151,10 @@ test('zcode hook config uses process executor with args', async () => {
     const hook = hooksConfig.hooks[eventName][0].hooks[0];
     assert.equal(hook.type, 'process');
     assert.equal(hook.command, 'node');
-    assert.deepEqual(hook.args, ['${ZCODE_PLUGIN_ROOT}/hooks/inject-context.js']);
+    // .mjs is a language-level guarantee: the installed plugin cache has no
+    // package.json, so a .js shim would parse as CommonJS and die on ESM
+    // syntax on Node < 23.
+    assert.deepEqual(hook.args, ['${ZCODE_PLUGIN_ROOT}/hooks/inject-context.mjs']);
   }
 });
 
@@ -191,6 +194,38 @@ test('zcode hook reads stdin event and cwd for workflow-state injection', async 
     { cwd: unrelatedCwd }
   );
 
+  assert.equal(payload.hookSpecificOutput.hookEventName, 'SessionStart');
+  assert.match(payload.hookSpecificOutput.additionalContext, /<workflow-state[^>]*>/);
+  assert.doesNotMatch(payload.hookSpecificOutput.additionalContext, /status="not_initialized"/);
+});
+
+test('zcode hook finds the project root from a cwd nested two levels deep', async (t) => {
+  const projectRoot = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-deep-'));
+  const unrelatedCwd = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-unrelated-'));
+  t.after(async () => {
+    await rm(projectRoot, { recursive: true, force: true });
+    await rm(unrelatedCwd, { recursive: true, force: true });
+  });
+
+  await cp(
+    join(templateRoot, '.cowork-flow', 'scripts'),
+    join(projectRoot, '.cowork-flow', 'scripts'),
+    { recursive: true }
+  );
+  const nestedCwd = join(projectRoot, 'docs', 'guide');
+  await mkdir(nestedCwd, { recursive: true });
+
+  const payload = runZCodeHook(
+    {
+      hook_event_name: 'SessionStart',
+      cwd: nestedCwd,
+      source: 'startup'
+    },
+    { cwd: unrelatedCwd }
+  );
+
+  // The upward search must not stop at the cwd's parent: .cowork-flow sits
+  // three levels above the event cwd here.
   assert.equal(payload.hookSpecificOutput.hookEventName, 'SessionStart');
   assert.match(payload.hookSpecificOutput.additionalContext, /<workflow-state[^>]*>/);
   assert.doesNotMatch(payload.hookSpecificOutput.additionalContext, /status="not_initialized"/);
@@ -329,7 +364,7 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   for (const relativePath of ['.cowork-flow', 'AGENTS.md', 'CLAUDE.md']) {
     await assert.rejects(access(join(installedScaffold, relativePath)));
   }
-  await access(join(pluginRoot, 'hooks', 'inject-context.js'));
+  await access(join(pluginRoot, 'hooks', 'inject-context.mjs'));
   await access(join(pluginRoot, 'agents', 'cowork-implement.md'));
   await access(join(pluginRoot, 'agents', 'cowork-check.md'));
   await access(join(pluginRoot, 'agents', 'cowork-research.md'));

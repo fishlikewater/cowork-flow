@@ -33,7 +33,7 @@ ZCODE_DIGEST_POLICY = (
     "read full spec files only before listed actions."
 )
 
-# The zcode shim (hooks/inject-context.js) pre-filters Bash
+# The zcode shim (hooks/inject-context.mjs) pre-filters Bash
 # events with the same rule; this entry keeps the transport
 # contract correct standalone.
 LIFECYCLE_BASH_RE = re.compile(r"\brun(?:\.cmd)?\s+(?:task|subagent|resume)\b")

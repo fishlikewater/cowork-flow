@@ -17,7 +17,7 @@ would make the digest self-referential).
 
 | Host | Transport | Shape |
 |---|---|---|
-| zcode | process hook shim (`inject-context.js`) → `inject.py --host zcode`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` |
+| zcode | process hook shim (`inject-context.mjs`) → `inject.py --host zcode`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` |
 | codex | thin wrapper (`inject-workflow-state.py`) → `inject.py --host codex`, stdout JSON | same shape |
 | claude-code | thin wrapper (`inject-workflow-state.py`) → `inject.py --host claude-code`, stdout JSON | same shape |
 | opencode | plugin `experimental.chat.system.transform` + `shell.env` | system-prompt section push / env object |

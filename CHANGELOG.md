@@ -2,7 +2,9 @@
 
 ## [Unreleased]
 
-### Added
+### Fixed
+
+- ZCode 插件 hook shim 由 `.js` 改为 **`.mjs`**，并修复项目根向上查找只覆盖两层的缺陷（1.7.2 遗留说明的收口）。修前两个缺陷叠加：shim 安装到宿主插件缓存目录后无 `package.json`，`.js` 按 CommonJS 解析，ESM `import` 只靠 Node ≥23 的语法探测兜住——仓库声明最低 Node 20，这些机器上 shim 直接语法错误，SessionStart / UserPromptSubmit / PostToolUse 注入从未发生；同时 `findWorkflowRoot` 在循环外缓存 `dirname(current)`，向上查找只覆盖起始目录与其父，hook 事件的 cwd 在项目根下两级及以上（例如从子目录打开会话）时定位不到项目运行时，注入同样为空。现在对齐 qoder / kimi 先例：`.mjs` 扩展名 + `resolve` 起步 + 逐级向上直到文件系统根，其余传输行为零变化。升级动作：升级 CLI 后运行 `cwf host add zcode --force` 刷新插件缓存，并重启 ZCode。
 
 
 ## [1.7.2] - 2026-10-04

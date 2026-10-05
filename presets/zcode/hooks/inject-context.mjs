@@ -25,7 +25,7 @@
  */
 
 import { existsSync, readFileSync } from "fs";
-import { dirname, join } from "path";
+import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
 
@@ -54,13 +54,18 @@ function readHookInput() {
 
 function findWorkflowRoot(startDir) {
   if (typeof startDir !== "string" || !startDir.trim()) return null;
-  let current = startDir;
-  const root = dirname(current);
-  while (current !== root) {
-    if (existsSync(join(current, DIR_WORKFLOW))) return current;
-    current = dirname(current);
+  let current;
+  try {
+    current = resolve(startDir);
+  } catch {
+    return null;
   }
-  return existsSync(join(current, DIR_WORKFLOW)) ? current : null;
+  for (;;) {
+    if (existsSync(join(current, DIR_WORKFLOW))) return current;
+    const parent = dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
 }
 
 function findProjectRoot(parsedInput) {
