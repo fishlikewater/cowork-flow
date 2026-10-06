@@ -45,7 +45,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
             encoding="utf-8",
         )
         (task_dir / "decision-anchor.md").write_text(
-            "# Demo\n\n## 目标\n\nKeep scope explicit.\n\n## 验收标准\n\n- AC-001: only planned files change.\n",
+            "# Demo\n\n## 目标\n\nKeep scope explicit.\n\n## 验收标准\n\n- Only planned files change.\n",
             encoding="utf-8",
         )
         (task_dir / "implement.jsonl").write_text(
@@ -133,6 +133,154 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertTrue(result.ok, result.blockers)
             self.assertEqual(1, len(calls))
             self.assertIs(True, calls[0]["allow_unchecked_specs"])
+
+    def _write_ac_gate_task(
+        self,
+        root: Path,
+        task_dir: Path,
+        *,
+        checked: bool = True,
+        with_evidence: bool = False,
+    ) -> None:
+        self._write_allowed_file_task(root, task_dir, "review")
+        (task_dir / "decision-anchor.md").write_text(
+            "# Demo\n\n## 目标\n\nEvidence gate.\n\n## 验收标准\n\n"
+            + f"- [{'x' if checked else ' '}] AC-001: parser exposes check state.\n",
+            encoding="utf-8",
+        )
+        if with_evidence:
+            (task_dir / "evidence.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ac": "AC-001",
+                        "kind": "test",
+                        "ref": "tests/test_x.py::test_y",
+                        "recordedAt": "2026-10-06",
+                        "by": "probe",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+    def test_complete_blocks_on_unchecked_acceptance_criteria(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=False)
+            checks = importlib.import_module("services.lifecycle_checks")
+
+            result = checks.LifecycleCheckRunner(root).complete(task_dir)
+
+            self.assertTrue(result.blocked)
+            codes = {issue.code for issue in result.issues}
+            self.assertIn("LIFECYCLE-AC-001", codes)
+            self.assertNotIn("LIFECYCLE-AC-002", codes)
+
+    def test_complete_blocks_on_checked_ac_without_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True)
+            checks = importlib.import_module("services.lifecycle_checks")
+
+            result = checks.LifecycleCheckRunner(root).complete(task_dir)
+
+            self.assertTrue(result.blocked)
+            codes = {issue.code for issue in result.issues}
+            self.assertIn("LIFECYCLE-AC-002", codes)
+            self.assertNotIn("LIFECYCLE-AC-001", codes)
+            ac002 = next(i for i in result.issues if i.code == "LIFECYCLE-AC-002")
+            self.assertIn("evidence.jsonl", ac002.message)
+            self.assertIn("--allow-missing-evidence", ac002.message)
+
+    def test_complete_ac_gate_skipped_without_acceptance_criteria(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            checks = importlib.import_module("services.lifecycle_checks")
+
+            result = checks.LifecycleCheckRunner(root).complete(task_dir)
+
+            self.assertFalse(result.blocked)
+            codes = {issue.code for issue in result.issues}
+            self.assertNotIn("LIFECYCLE-AC-001", codes)
+            self.assertNotIn("LIFECYCLE-AC-002", codes)
+
+    def test_evidence_record_satisfies_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True, with_evidence=True)
+            checks = importlib.import_module("services.lifecycle_checks")
+
+            result = checks.LifecycleCheckRunner(root).complete(task_dir)
+
+            self.assertFalse(result.blocked)
+            self.assertIsNone(result.evidence_exemption)
+
+    def test_allow_missing_evidence_sets_exemption_on_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True)
+            checks = importlib.import_module("services.lifecycle_checks")
+
+            result = checks.LifecycleCheckRunner(root).complete(
+                task_dir, allow_missing_evidence=True
+            )
+
+            self.assertFalse(result.blocked)
+            self.assertEqual(
+                {"missing": ["AC-001"]}, result.evidence_exemption
+            )
+
+    def test_service_complete_records_evidence_exemption_in_meta(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True)
+            service_module = importlib.import_module("services.task_lifecycle")
+            service = service_module.TaskLifecycleService(root)
+
+            result = service.complete(task_dir, allow_missing_evidence=True)
+
+            self.assertTrue(result.ok, result.blockers)
+            task_data = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                ["AC-001"],
+                task_data["meta"]["evidenceExempt"]["missing"],
+            )
+
+    def test_allow_missing_evidence_flag_reaches_complete_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True)
+            calls: list[dict] = []
+
+            class FakeCheckRunner:
+                def complete(self, _task_dir: Path, **kwargs):
+                    calls.append(kwargs)
+                    return SimpleNamespace(
+                        blocked=False, blockers=(), evidence_exemption=None
+                    )
+
+            service_module = importlib.import_module("services.task_lifecycle")
+            service = service_module.TaskLifecycleService(
+                root,
+                check_runner=FakeCheckRunner(),
+            )
+
+            result = service.complete(
+                task_dir, allow_missing_evidence=True
+            )
+
+            self.assertTrue(result.ok, result.blockers)
+            self.assertIs(True, calls[0]["allow_missing_evidence"])
 
     def test_degraded_git_snapshot_blocks_strict_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

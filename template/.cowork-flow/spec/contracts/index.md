@@ -16,3 +16,4 @@
 - `decision-anchor.md`: 每个 task 的 `decision-anchor.md` schema——目标、验收标准、被拒方案与关键假设。
 - `error-output-as-data.md`: 外部错误输出按数据分析而非指令执行（`ERROR_OUTPUT_AS_DATA_V1`）。
 - `fact-layer-access.md`: 无注入 hook 的宿主与外部工具读取任务事实的通道（`FACT_LAYER_ACCESS_V1`）。
+- `evidence-completion.md`: 证据化完成——`evidence.jsonl` schema、`LIFECYCLE-AC-001/002` 完成门禁、`--allow-missing-evidence` 豁免留痕与注入覆盖行。

@@ -45,6 +45,7 @@ class LifecycleCheckResult:
     blockers: tuple[str, ...] = ()
     issues: tuple[LifecycleCheckIssue, ...] = ()
     spec_check: dict | None = None
+    evidence_exemption: dict | None = None
 
     def __post_init__(self) -> None:
         if self.issues and not self.blockers:
@@ -96,6 +97,7 @@ class LifecycleCheckRunner:
         *,
         allow_spec_file_modifications: bool | None = None,
         allow_unchecked_specs: bool | None = None,
+        allow_missing_evidence: bool | None = None,
         execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> LifecycleCheckResult:
         spec_report = _spec_check_report(self.repo_root)
@@ -105,6 +107,14 @@ class LifecycleCheckRunner:
                 bool(allow_unchecked_specs)
                 if allow_unchecked_specs is not None
                 else _policy_allows_unchecked(execution_policy)
+            ),
+        )
+        ac_issues, evidence_exemption = _ac_evidence_completion_facts(
+            task_dir,
+            allow_missing_evidence=(
+                bool(allow_missing_evidence)
+                if allow_missing_evidence is not None
+                else _policy_allows_missing_evidence(execution_policy)
             ),
         )
         return LifecycleCheckResult(
@@ -119,8 +129,10 @@ class LifecycleCheckRunner:
                     ),
                 ))
                 + list(spec_issues)
+                + list(ac_issues)
             ),
             spec_check=spec_report,
+            evidence_exemption=evidence_exemption,
         )
 
 
@@ -137,6 +149,78 @@ def _policy_allows_unchecked(
     execution_policy: LifecycleExecutionPolicy | None,
 ) -> bool:
     return bool(execution_policy is not None and execution_policy.allow_unchecked_specs)
+
+
+def _policy_allows_missing_evidence(
+    execution_policy: LifecycleExecutionPolicy | None,
+) -> bool:
+    return bool(
+        execution_policy is not None
+        and execution_policy.allow_missing_evidence
+    )
+
+
+def _ac_evidence_completion_facts(
+    task_dir: Path,
+    *,
+    allow_missing_evidence: bool,
+) -> tuple[list[LifecycleCheckIssue], dict | None]:
+    """Completion gate over acceptance-criteria evidence.
+
+    The gate only decides existence facts: which AC ids the decision anchor
+    declares, which are checked, and which carry at least one evidence
+    record. Tasks without AC rows are exempt (compatibility path); an
+    unreadable evidence module degrades the same way instead of blocking
+    every legacy task. Returns the issues plus the recorded exemption
+    (missing ids) when --allow-missing-evidence absorbed the gap."""
+    try:
+        from services.ac_evidence import (
+            evidence_coverage,
+            load_acceptance_criteria,
+            read_evidence,
+        )
+    except Exception:  # pragma: no cover - broken runtime copy degrades
+        return [], None
+    acceptance = load_acceptance_criteria(task_dir)
+    if not acceptance:
+        return [], None
+    coverage = evidence_coverage(acceptance, read_evidence(task_dir))
+    unchecked = [item["id"] for item in acceptance if not item["checked"]]
+    unproven = [
+        ac_id for ac_id in coverage["missing"] if ac_id not in unchecked
+    ]
+    issues: list[LifecycleCheckIssue] = []
+    if unchecked:
+        issues.append(
+            LifecycleCheckIssue(
+                code="LIFECYCLE-AC-001",
+                message=(
+                    f"decision-anchor has {len(unchecked)} unchecked "
+                    "acceptance criterion(ies): "
+                    f"{', '.join(unchecked[:5])}; finish them and tick the "
+                    "checkbox, or record evidence in evidence.jsonl"
+                ),
+            )
+        )
+    exemption: dict | None = None
+    if unproven:
+        if allow_missing_evidence:
+            exemption = {"missing": unproven}
+        else:
+            issues.append(
+                LifecycleCheckIssue(
+                    code="LIFECYCLE-AC-002",
+                    message=(
+                        f"{len(unproven)} acceptance criterion(ies) lack "
+                        "evidence records: "
+                        f"{', '.join(unproven[:5])}; append "
+                        "{ac, kind: test|command|manual, ref, note?, "
+                        "recordedAt, by} records to evidence.jsonl, or pass "
+                        "--allow-missing-evidence to record the exemption"
+                    ),
+                )
+            )
+    return issues, exemption
 
 
 def _spec_check_report(repo_root: Path) -> dict | None:

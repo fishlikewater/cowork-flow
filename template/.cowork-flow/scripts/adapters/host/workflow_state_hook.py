@@ -382,10 +382,31 @@ def _decision_anchor_block(
             for item in parsed["acceptanceCriteria"][:8]
         )
         lines.append(f"Acceptance: {items}")
+        coverage = _acceptance_evidence_coverage(root, task_path)
+        if coverage:
+            detail = ""
+            if coverage["missing"]:
+                detail = f" missing={','.join(coverage['missing'][:5])}"
+            lines.append(
+                f"AC evidence: {coverage['withEvidence']}/{coverage['total']}{detail}"
+            )
     if parsed["rejectedOptions"]:
         lines.append("Rejected: " + "; ".join(parsed["rejectedOptions"][:6]))
     lines.append("</decision-anchor>")
     return "\n".join(lines)
+
+
+def _acceptance_evidence_coverage(root: Path, task_path: str | None):
+    """AC evidence coverage facts for the anchor block; a supplementary fact
+    that degrades to absence on any failure instead of degrading injection."""
+    if not task_path:
+        return None
+    try:
+        from services.ac_evidence import coverage_summary
+
+        return coverage_summary(root / task_path)
+    except Exception:
+        return None
 
 
 def _stage_contract_block(

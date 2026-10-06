@@ -7,7 +7,10 @@ import { test } from 'node:test';
 
 import './helpers/bytecode-isolation.js';
 import { packageRoot } from '../src/lib/paths.js';
-import { stageContractBlock as opencodeStageContract } from '../template/.opencode/cowork-flow/plugin-core.js';
+import {
+  stageContractBlock as opencodeStageContract,
+  decisionAnchorBlock,
+} from '../template/.opencode/cowork-flow/plugin-core.js';
 
 const NODE = process.execPath;
 const SCRIPTS = join(packageRoot, 'template', '.cowork-flow', 'scripts');
@@ -68,6 +71,12 @@ function writeMatrixFixture(root, caseDef) {
       lines.push('## 范围边界', '', caseDef.anchor.scopeBoundary);
     }
     writeFileSync(join(taskDir, 'decision-anchor.md'), lines.join('\n'));
+  }
+  if (caseDef.evidence) {
+    writeFileSync(
+      join(taskDir, 'evidence.jsonl'),
+      caseDef.evidence.map((entry) => JSON.stringify(entry)).join('\n') + '\n'
+    );
   }
   for (const [specPath, content] of Object.entries(caseDef.specFiles || {})) {
     mkdirSync(join(root, specPath, '..'), { recursive: true });
@@ -230,6 +239,101 @@ function assertCase(block, assertDef) {
     assert.doesNotMatch(block, /^Specs:/m);
   }
 }
+
+function extractDecisionAnchor(context) {
+  const match = context
+    .replace(/\r\n/g, '\n')
+    .match(/<decision-anchor task="[^"]*">[\s\S]*?<\/decision-anchor>/);
+  assert.ok(match, 'decision-anchor block must be present');
+  return match[0];
+}
+
+function runPythonAnchor(root) {
+  const script = `
+import sys
+from pathlib import Path
+sys.path.insert(0, ${JSON.stringify(SCRIPTS)})
+from adapters.cli.encoding import configure_cli_encoding
+from adapters.host.workflow_state_hook import build_hook_context
+configure_cli_encoding()
+context = build_hook_context(
+    Path(${JSON.stringify(root)}),
+    {"COWORK_FLOW_CONTEXT_ID": "probe"},
+    host="codex",
+    adapter="codex.hook",
+    preamble=(),
+    session_start=False,
+)
+print(context)
+`;
+  const python = spawnSync(pythonCommand()[0], [...pythonCommand().slice(1), '-c', script], { encoding: 'utf8' });
+  assert.equal(python.status, 0, `python probe failed: ${python.stderr}`);
+  return extractDecisionAnchor(python.stdout);
+}
+
+function runZcodeAnchor(root) {
+  const hook = join(packageRoot, 'presets', 'zcode', 'hooks', 'inject-context.mjs');
+  const zcode = spawnSync(
+    NODE,
+    [hook],
+    {
+      encoding: 'utf8',
+      cwd: root,
+      input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'probe' }),
+    }
+  );
+  assert.equal(zcode.status, 0, `zcode hook failed: ${zcode.stderr}`);
+  return extractDecisionAnchor(JSON.parse(zcode.stdout).hookSpecificOutput.additionalContext);
+}
+
+test('decision-anchor AC evidence line is byte-identical across python/zcode/opencode', () => {
+  const caseDef = {
+    name: 'anchor-evidence',
+    status: 'in_progress',
+    anchor: {
+      goal: 'Evidence line parity.',
+      acceptance: ['AC-001: first criterion', 'AC-002: second criterion'],
+    },
+    evidence: [
+      {
+        ac: 'AC-001',
+        kind: 'test',
+        ref: 'tests/test_x.py::test_y',
+        recordedAt: '2026-10-06',
+        by: 'probe',
+      },
+    ],
+  };
+  const pythonRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-py-'));
+  const zcodeRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-js-'));
+  const opencodeRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-oc-'));
+  try {
+    const taskPath = '.cowork-flow/tasks/08-30-demo';
+    for (const root of [pythonRoot, zcodeRoot, opencodeRoot]) {
+      writeMatrixFixture(root, caseDef);
+      writeFileSync(
+        join(root, '.cowork-flow', '.runtime', 'sessions', 'probe.json'),
+        JSON.stringify({ active_task_path: taskPath })
+      );
+      writeFileSync(
+        join(root, '.cowork-flow', '.runtime', 'sessions', 'zcode_probe.json'),
+        JSON.stringify({ active_task_path: taskPath })
+      );
+    }
+
+    const pythonBlock = runPythonAnchor(pythonRoot);
+    const zcodeBlock = runZcodeAnchor(zcodeRoot);
+    const opencodeBlock = decisionAnchorBlock(opencodeRoot, taskPath, 'in_progress');
+
+    assert.match(pythonBlock, /AC evidence: 1\/2 missing=AC-002/);
+    assert.equal(zcodeBlock, pythonBlock, 'zcode anchor must equal python');
+    assert.equal(opencodeBlock, pythonBlock, 'opencode anchor must equal python');
+  } finally {
+    rmSync(pythonRoot, { recursive: true, force: true });
+    rmSync(zcodeRoot, { recursive: true, force: true });
+    rmSync(opencodeRoot, { recursive: true, force: true });
+  }
+});
 
 function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

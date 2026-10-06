@@ -160,6 +160,7 @@ class TaskLifecycleService:
         completed_at: str | None = None,
         allow_spec_file_modifications: bool | None = None,
         allow_unchecked_specs: bool = False,
+        allow_missing_evidence: bool = False,
         execution_context: object | None = None,
     ) -> LifecycleResult:
         return self.execute(
@@ -168,6 +169,7 @@ class TaskLifecycleService:
             completed_at=completed_at,
             allow_spec_file_modifications=allow_spec_file_modifications,
             allow_unchecked_specs=allow_unchecked_specs,
+            allow_missing_evidence=allow_missing_evidence,
             execution_context=execution_context,
         )
 
@@ -179,6 +181,7 @@ class TaskLifecycleService:
         preflight: Preflight | None = None,
         allow_spec_file_modifications: bool | None = None,
         allow_unchecked_specs: bool = False,
+        allow_missing_evidence: bool = False,
         completed_at: str | None = None,
         execution_context: object | None = None,
         executor: str | None = None,
@@ -191,6 +194,7 @@ class TaskLifecycleService:
             execution_context,
             allow_spec_file_modifications=allow_spec_file_modifications,
             allow_unchecked_specs=allow_unchecked_specs,
+            allow_missing_evidence=allow_missing_evidence,
         )
         prepared = self._prepare_transition(
             stage, task_dir, preflight, executor=executor, takeover=takeover
@@ -590,6 +594,7 @@ class TaskLifecycleService:
                     execution_policy.allow_spec_file_modifications
                 ),
                 allow_unchecked_specs=execution_policy.allow_unchecked_specs,
+                allow_missing_evidence=execution_policy.allow_missing_evidence,
                 execution_policy=execution_policy,
             )
         else:
@@ -678,6 +683,13 @@ class TaskLifecycleService:
                 meta["specCheckSummary"] = dict(
                     spec_report.get("summary") or {}
                 )
+                if getattr(check_result, "evidence_exemption", None):
+                    meta["evidenceExempt"] = {
+                        "at": datetime.now(timezone.utc).strftime(
+                            "%Y-%m-%dT%H:%M:%SZ"
+                        ),
+                        **check_result.evidence_exemption,
+                    }
                 if (
                     execution_policy is not None
                     and execution_policy.allow_unchecked_specs
