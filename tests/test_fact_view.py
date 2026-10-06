@@ -51,9 +51,9 @@ class ParseDecisionAnchorTest(unittest.TestCase):
         self.assertEqual("让事实视图可被机器消费。", parsed["goal"])
         self.assertEqual(
             [
-                {"id": "AC-001", "text": "输出合法 JSON"},
-                {"id": "AC-002", "text": "无绑定降级为 task null"},
-                {"id": "AC-003", "text": "测试锁定解析行为"},
+                {"id": "AC-001", "text": "输出合法 JSON", "checked": False},
+                {"id": "AC-002", "text": "无绑定降级为 task null", "checked": False},
+                {"id": "AC-003", "text": "测试锁定解析行为", "checked": True},
             ],
             parsed["acceptanceCriteria"],
         )
@@ -161,6 +161,10 @@ class BuildFactViewTest(unittest.TestCase):
         self.assertTrue(view["decisionAnchor"]["exists"])
         self.assertEqual("让事实视图可被机器消费。", view["decisionAnchor"]["goal"])
         self.assertEqual(3, len(view["decisionAnchor"]["acceptanceCriteria"]))
+        self.assertEqual(
+            {"total": 3, "withEvidence": 0, "missing": ["AC-001", "AC-002", "AC-003"]},
+            view["evidenceCoverage"],
+        )
         self.assertEqual(2, len(view["decisionAnchor"]["rejectedOptions"]))
         # Directory entries authorize nothing: file-scope only.
         self.assertEqual(
@@ -200,6 +204,31 @@ class BuildFactViewTest(unittest.TestCase):
 
         self.assertIsNone(view["snapshot"])
 
+    def test_evidence_records_drive_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._make_project(root)
+            (task_dir / "evidence.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ac": "AC-003",
+                        "kind": "command",
+                        "ref": "python3 -m pytest tests/test_fact_view.py -q",
+                        "recordedAt": "2026-10-06",
+                        "by": "probe",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            view = build_fact_view(root, task_dir)
+
+        self.assertEqual(
+            {"total": 3, "withEvidence": 1, "missing": ["AC-001", "AC-002"]},
+            view["evidenceCoverage"],
+        )
+
     def test_missing_anchor_and_plan_degrade(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -213,6 +242,7 @@ class BuildFactViewTest(unittest.TestCase):
 
         self.assertFalse(view["decisionAnchor"]["exists"])
         self.assertFalse(view["plan"]["bound"])
+        self.assertIsNone(view["evidenceCoverage"])
         self.assertEqual([], view["sessions"])
         self.assertIsNone(view["snapshot"])
 

@@ -4,6 +4,7 @@
 
 ### Added
 
+- **证据化完成（1.8.0 主线）**：任务完成从"流程走完"升级为"证据齐全"。decision-anchor 的验收标准（AC）成为机器可查询事实——`services/ac_evidence.py` 解析 `## 验收标准` 的勾选状态并读取任务目录 `evidence.jsonl`（追加式，`{ac, kind: test|command|manual, ref, note?, recordedAt, by}`）；完成动作新增两条稳定门禁 code：存在未勾选 AC 阻断（`LIFECYCLE-AC-001`）、已声明 AC 缺有效证据记录阻断（`LIFECYCLE-AC-002`），新旗标 `--allow-missing-evidence` 豁免后者并把 `meta.evidenceExempt`（含 `at` 与 `missing`）留在任务记录；decision-anchor 注入块在 `Acceptance:` 行后追加 `AC evidence: n/m`（缺失时附 `missing=` 列表），三线（Python / zcode shim / opencode 插件）逐字节同格式并由矩阵测试锁定；`run state --json` 与 MCP 事实视图新增 `evidenceCoverage`。无 AC 的存量任务零影响（兼容路径有测试锁定），契约见 `.cowork-flow/spec/contracts/evidence-completion.md`。
 
 ## [1.7.3] - 2026-10-06
 

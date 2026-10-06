@@ -35,6 +35,7 @@ class LifecycleExecutionPolicy:
     execution_scope: str
     allow_spec_file_modifications: bool
     allow_unchecked_specs: bool = False
+    allow_missing_evidence: bool = False
 
 
 def start_readiness_failure(
@@ -93,17 +94,20 @@ def resolve_execution_policy(
     *,
     allow_spec_file_modifications: bool | None = None,
     allow_unchecked_specs: bool | None = None,
+    allow_missing_evidence: bool | None = None,
 ) -> LifecycleExecutionPolicy:
     """Resolve lifecycle scope capability from execution facts."""
     if execution_context is None:
         if (
             allow_spec_file_modifications is not None
             or allow_unchecked_specs is not None
+            or allow_missing_evidence is not None
         ):
             return LifecycleExecutionPolicy(
                 execution_scope="explicit",
                 allow_spec_file_modifications=bool(allow_spec_file_modifications),
                 allow_unchecked_specs=bool(allow_unchecked_specs),
+                allow_missing_evidence=bool(allow_missing_evidence),
             )
         execution_context = ExecutionContext()
 
@@ -117,6 +121,7 @@ def resolve_execution_policy(
         execution_scope=execution_context.mode,
         allow_spec_file_modifications=allowed,
         allow_unchecked_specs=bool(allow_unchecked_specs),
+        allow_missing_evidence=bool(allow_missing_evidence),
     )
 
 

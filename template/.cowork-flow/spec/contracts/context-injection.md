@@ -233,6 +233,7 @@ means without re-reading the file:
 <decision-anchor task=".cowork-flow/tasks/08-28-demo">
 Goal: <first goal line, max 160 chars>
 Acceptance: AC-001 <text, max 80>; AC-002 <...>   (first 8 items)
+AC evidence: <with evidence>/<total>[ missing=<id,...>, max 5]
 Rejected: <rejected option name>; ...             (first 6 names)
 </decision-anchor>
 ```
@@ -240,9 +241,10 @@ Rejected: <rejected option name>; ...             (first 6 names)
 - Extracted from `decision-anchor.md` with the line-level parser frozen in
   `services/fact_view.py` (`parse_decision_anchor`); the zcode and opencode JS
   lines carry an identical parser shape.
-- Missing anchor file, no extractable essentials, or terminal statuses
-  (`completed`) inject nothing.
-
+- The `AC evidence:` row appears only for tasks that declare AC rows, right
+  after the `Acceptance:` row, and renders byte-identically across the
+  python / zcode-shim / opencode lines (matrix-locked). Schema and gate
+  semantics live in `evidence-completion.md`.
 - Missing anchor file, no extractable essentials, or terminal statuses
   (`completed`) inject nothing.
 

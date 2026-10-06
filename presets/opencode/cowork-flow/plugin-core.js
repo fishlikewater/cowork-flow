@@ -574,8 +574,14 @@ function parseDecisionAnchor(text) {
     if (section === "目标") {
       if (line) goalLines.push(line)
     } else if (section === "验收标准") {
-      const match = raw.match(/^\s*-\s*\[[ xX]?\]\s*(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$/)
-      if (match) result.acceptanceCriteria.push({ id: match[1], text: match[2] })
+      const match = raw.match(/^\s*-\s*(?:\[([ xX])\]?\s*)?(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$/)
+      if (match) {
+        result.acceptanceCriteria.push({
+          id: match[2],
+          text: match[3],
+          checked: match[1] === 'x' || match[1] === 'X',
+        })
+      }
     } else if (section === "被拒方案") {
       const match = raw.match(/^\s*-\s*\*\*(.+?)\*\*/)
       if (match) result.rejectedOptions.push(match[1].trim())
@@ -836,6 +842,36 @@ function withStageFacts(block, root, taskPath, status, readonly = false) {
   return parts.length > 0 ? `${parts.join("\n\n")}\n\n${block}` : block
 }
 
+// Evidence coverage for the anchor block: one read of the task's
+// evidence.jsonl, tolerating noise exactly like the python line. Returns
+// null when the file is absent so the coverage line degrades silently.
+function readEvidenceCoverage(root, taskPath) {
+  let text = ''
+  try {
+    text = readFileSync(resolve(root, taskPath, 'evidence.jsonl'), 'utf8')
+  } catch {
+    return null
+  }
+  const covered = new Set()
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (!line) continue
+    let record
+    try {
+      record = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (!record || typeof record !== 'object' || Array.isArray(record)) continue
+    const ac = typeof record.ac === 'string' ? record.ac.trim() : ''
+    const ref = typeof record.ref === 'string' ? record.ref.trim() : ''
+    if (ac && ref && ['test', 'command', 'manual'].includes(record.kind)) {
+      covered.add(ac)
+    }
+  }
+  return covered
+}
+
 function decisionAnchorBlock(root, taskPath, status) {
   if (!taskPath) {
     return null
@@ -868,6 +904,17 @@ function decisionAnchorBlock(root, taskPath, status) {
     lines.push(
       `Acceptance: ${parsed.acceptanceCriteria.slice(0, 8).map((item) => `${item.id} ${item.text.slice(0, 80)}`).join("; ")}`
     )
+    const covered = readEvidenceCoverage(root, taskPath)
+    if (covered) {
+      const total = parsed.acceptanceCriteria.length
+      const missing = parsed.acceptanceCriteria
+        .map((item) => item.id)
+        .filter((id) => !covered.has(id))
+      const detail = missing.length
+        ? ` missing=${missing.slice(0, 5).join(',')}`
+        : ''
+      lines.push(`AC evidence: ${total - missing.length}/${total}${detail}`)
+    }
   }
   if (parsed.rejectedOptions.length > 0) {
     lines.push(`Rejected: ${parsed.rejectedOptions.slice(0, 6).join("; ")}`)
@@ -1073,5 +1120,6 @@ export {
   runEditSpecCheck,
   contractFingerprint,
   stableStringify,
-  stageContractBlock
+  stageContractBlock,
+  decisionAnchorBlock
 }

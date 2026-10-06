@@ -349,6 +349,72 @@ class WorkflowStateHookTest(unittest.TestCase):
             )
             self.assertNotIn("<stage-contract", done)
 
+    def test_decision_anchor_shows_ac_evidence_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}', encoding="utf-8"
+            )
+            self._write_anchor(root)
+            (task_dir / "evidence.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ac": "AC-001",
+                        "kind": "test",
+                        "ref": "tests/test_workflow_state_hook.py",
+                        "recordedAt": "2026-10-06",
+                        "by": "probe",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            block = self.module._decision_anchor_block(
+                root, ".cowork-flow/tasks/07-10-demo", "in_progress"
+            )
+
+        self.assertIn("AC evidence: 1/2 missing=AC-002", block)
+
+    def test_decision_anchor_ac_evidence_without_records_lists_all_missing(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}', encoding="utf-8"
+            )
+            self._write_anchor(root)
+
+            block = self.module._decision_anchor_block(
+                root, ".cowork-flow/tasks/07-10-demo", "in_progress"
+            )
+
+        self.assertIn("AC evidence: 0/2 missing=AC-001,AC-002", block)
+
+    def test_decision_anchor_without_evidence_file_omits_nothing(self) -> None:
+        """Coverage degrades to 0/n without an evidence file — the anchor
+        block itself stays present and well-formed."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                '{"status": "in_progress"}', encoding="utf-8"
+            )
+            self._write_anchor(root)
+
+            block = self.module._decision_anchor_block(
+                root, ".cowork-flow/tasks/07-10-demo", "in_progress"
+            )
+
+        self.assertIn("</decision-anchor>", block)
+        self.assertIn("AC evidence: 0/2", block)
+
     def test_decision_anchor_skipped_for_terminal_states(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -23,7 +23,7 @@ VERIFY_COMMAND_MAX = 5
 SCOPE_BOUNDARY_TRUNCATE = 160
 ANCHOR_SECTIONS = ("目标", "验收标准", "被拒方案", "验证命令", "范围边界")
 ACCEPTANCE_RE = re.compile(
-    r"^\s*-\s*\[[ xX]?\]\s*(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$"
+    r"^\s*-\s*(?:\[([ xX])\]?\s*)?(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$"
 )
 REJECTED_RE = re.compile(r"^\s*-\s*\*\*(.+?)\*\*")
 _HEADING_RE = re.compile(r"^##\s*(.+?)\s*$")
@@ -53,7 +53,11 @@ def parse_decision_anchor(text: str) -> dict[str, Any]:
             match = ACCEPTANCE_RE.match(raw)
             if match:
                 acceptance.append(
-                    {"id": match.group(1), "text": match.group(2)}
+                    {
+                        "id": match.group(2),
+                        "text": match.group(3),
+                        "checked": match.group(1) in ("x", "X"),
+                    }
                 )
         elif section == "被拒方案":
             match = REJECTED_RE.match(raw)
@@ -488,6 +492,15 @@ def build_fact_view(repo_root: Path, task_dir: Path) -> dict[str, Any]:
     else:
         anchor = {"exists": False}
 
+    evidence_coverage: dict[str, Any] | None = None
+    if anchor.get("acceptanceCriteria"):
+        try:
+            from services.ac_evidence import coverage_summary
+
+            evidence_coverage = coverage_summary(task_dir)
+        except Exception:
+            evidence_coverage = None
+
     meta = task.get("meta") if isinstance(task, dict) else None
     plan_file = meta.get("planFile") if isinstance(meta, dict) else None
     plan: dict[str, Any] = {"bound": bool(plan_file)}
@@ -501,6 +514,7 @@ def build_fact_view(repo_root: Path, task_dir: Path) -> dict[str, Any]:
         "taskPath": rel_task,
         "task": task,
         "decisionAnchor": anchor,
+        "evidenceCoverage": evidence_coverage,
         "plan": plan,
         "whitelist": file_scope_whitelist(repo_root, task_dir),
         "sessions": _bound_sessions(repo_root, rel_task),

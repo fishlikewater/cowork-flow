@@ -86,6 +86,7 @@ def _add_next_output_options(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--allow-unchecked",
+        "--allow-missing-evidence",
         dest="allow_unchecked",
         action="store_true",
         help="With task completion: allow unchecked spec-check commands "
