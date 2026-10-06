@@ -17,6 +17,9 @@
 | 1.5→1.7 宿主广度 + 发布链（七宿主） | ✅ 完成 | CHANGELOG 1.5.0-1.7.2 | — |
 | 1.7.3 维护：ZCode shim .mjs + 项目根查找修复 | ✅ 完成 | 10-04-zcode-shim-mjs（d0716a9） | — |
 | 1.8.0 立项：证据化完成 | 🔄 立项完成，待启动 | 10-05-direction-1-8-0 / 10-05-evidence-completion | 在宿主会话启动主线任务 |
+| 1.8.0 主线实现：证据化完成 | ✅ 完成 | 10-05-evidence-completion（baa386d，CI test + windows-core 全绿） | 真实宿主冒烟后发布 1.8.0 |
+| 1.8.x 收尾：Skill 证据补课 | 🔄 进行中 | 10-06-skill-evidence-training | 合入后与冒烟共同构成 1.8.0 发布判据 |
+| 1.9.0 前置：task adopt 命令 | 📋 立项 | 10-06-task-adopt-command | 下一会话实现（agent-teams 就绪的地基） |
 
 **当前结论**：方向路线图阶段 0-3 全部落地。项目当前形态：「多主机 Agent 协作的运行时上下文与协作事实层」——事实视图（CLI + MCP）、结构化注入、跨宿主一致性治理、执行者归属与证据位均已就绪并有测试锁定。后续演进见「不做什么」边界与观察期事项。
 
@@ -156,6 +159,14 @@
 
 5. **采用**：npm 周下载与激活项目数——1.8.0 之后用数字验证"深度路线"是否兑现。
 
+### 10.5 2026-10-06 增补：1.8.x 收尾与 1.9.0 排期
+
+- **1.8.0 主线已实现**（10-05-evidence-completion，baa386d）：AC 事实化、`evidence.jsonl`、完成门禁 `LIFECYCLE-AC-001/002`、三线注入覆盖行、`evidenceCoverage` 事实视图；主线任务自身以新门禁完成（四 AC 证据齐全，无豁免）。
+- **1.8.0 发布判据**：CI 双平台（已绿）+ 真实宿主冒烟（维护者：带 AC 任务在 ZCode/Qoder 实跑一轮，观察覆盖行与门禁体验）+ Skill 证据补课合入。
+- **1.9.0 主线候选：agent-teams 就绪**，按 10.3 排期；前置小任务 = **task adopt 命令**（孤儿任务收养：显式重绑执行者 + 陈旧基线降级 + 审计留痕）。需求证据：2026-10-06 归档两个滞留任务时，takeover 只重绑执行者，陈旧基线需手改 task.json meta 才能走降级归档——该操作目前无运行时命令承载。10.5 增补时立项（10-06-task-adopt-command），设计注意"基线永不覆盖"不变量与显式收养语义的边界。
+- **Skill 证据补课**（10-06-skill-evidence-training）：1.8.0 只改了运行时与契约，教 agent 写证据的目前只有门禁报错文案；task-review 等 Skill 正文需补 evidence.jsonl 约定。
+- **维持**：文档英文化待维护者拍板（与 AGENTS.md 文档语言约定冲突）；缓行清单不变。**观察项**：1.8.0 的机器可解析 AC 是与 Spec Kit / OpenSpec 互操作的第一块砖（spec 制品 ↔ decision-anchor 映射），符合"SDD 工具之下的状态层"定位，待 agent-teams 排期落定后议。
+
 ## 11. 修订记录
 
 - 2026-08-27：创建。基于三路只读探查（注入层/状态模型/治理层）+ 大模型趋势分析；用户拍板方案 A；落库任务 08-27-direction-doc。
@@ -165,3 +176,4 @@
 - 2026-08-29：阶段 3 完成并更新状态追踪——路线图阶段 0-3 全部落地。`run mcp-state` 无依赖 MCP stdio 只读服务（task_state / task_list）、`spec/contracts/fact-layer-access.md` 接入契约（只读保证 + 薄 adapter 立场）（a88474e）。观察期事项：AGNTCY 等跨 agent 协议收敛后按薄壳接入；MCP 写工具默认拒绝，提案须先重开 fact-layer-access 契约。
 - 2026-08-29：MCP 全局入口补充——npm CLI 新增 `cowork-flow mcp-state` 透传命令（cwd 向上定位项目运行时、stdio inherit、退出码透传），MCP 客户端全局注册一次即可服务所有项目，消除逐项目 `.mcp.json` 配置（9a1fa86）。
 - 2026-08-29：后续方向 P0-P3 执行完毕。**P0**：1.1.0 发布——dev→master 合并、CHANGELOG 1.1.0 段（含 1.0.0 载体错位注明）、tag v1.1.0 与 GitHub Release 创建；publish CI 首跑曝光 node:full 存量问题（dsh-hook 依赖 gitignored 运行时、Windows 无法 exec shebang 脚本、test runner IPC 崩溃）并全部修复——双平台门禁现已全绿。**发布确认：npm registry `cowork-flow@1.1.0` 已上线（dist-tag latest），AC-004 闭合，发版任务归档。** **P1**：`docs/mcp-client-setup.md`（codex/opencode/claude-code/zcode 真实注册格式）+ `test/mcp-client-matrix.test.js` 客户端等效启动验证。**P1'**：publish.yml 链路实测核对并写入 README 发布节。**P2**：flaky 组合复跑 5 轮未复现（记录为单次现象）；doctor 会话卫生无残留。**P3**：观察期边界维持——MCP 写工具默认拒绝，AGNTCY 等协议收敛后按薄壳接入。- 2026-10-05：2026-10 修订落库（任务 10-05-direction-1-8-0）。1.7.3 维护完成（10-04-zcode-shim-mjs，d0716a9：ZCode shim 改 .mjs、findWorkflowRoot off-by-one 修复）；1.8.0 主线定为**证据化完成**，主线任务 10-05-evidence-completion 立项（planning 就绪待启动）；候选 B（agent-teams 就绪）列为 1.9.0 候选主线；文档英文化列为待决项，待维护者拍板。方向文档自本次起恢复版本控制（087ef72 untrack 后首次入库）。
+- 2026-10-06：10.5 增补落库（任务 10-06-direction-post-1-8-0）。1.8.0 主线实现完成（10-05-evidence-completion，baa386d，CI 双平台全绿）；立项 10-06-skill-evidence-training（1.8.0 收尾）与 10-06-task-adopt-command（1.9.0 前置）；1.8.0 发布判据 = CI + 真实宿主冒烟 + Skill 补课。
