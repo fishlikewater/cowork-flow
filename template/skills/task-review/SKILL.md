@@ -37,6 +37,7 @@ Read only what is needed for the current task:
 - **Scope**: every changed file is planned or justified; no unrelated cleanup sneaks in.
 - **Behavior**: acceptance criteria are satisfied through observable behavior, not implementation-shaped assertions.
 - **Tests**: test intent is explicit; tests fail for meaningful regressions, reject shallow tests such as existence/mock/snapshot-only checks, and cover boundary/error paths when relevant.
+- **Evidence coverage**: when the decision anchor declares acceptance criteria (`AC-xxx`), verify each one has an evidence record in `<task>/evidence.jsonl` — or a recorded `meta.evidenceExempt` exemption from an explicit `--allow-missing-evidence` completion. Schema and gate codes (`LIFECYCLE-AC-001/002`) are defined in `.cowork-flow/spec/contracts/evidence-completion.md`. A record must point at real proof (test, command output, or manual verification note); a record that restates the AC without evidence is a finding.
 - **User specs**: every applicable backend/frontend requirement is verified against the diff and marked `pass`, `finding`, or `not_applicable` with reason. Every `finding` is fixed during review; an unfixed spec violation blocks completion and is never accepted as-is or deferred to the user.
 - **Specs**: project specs are updated when behavior/contracts changed, or the review states why no spec update is needed.
 - **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against applicable user specs.

@@ -39,6 +39,10 @@ If red-first is skipped, state the reason before or with the implementation summ
 
 Do not write TDD evidence objects to `check.jsonl`, do not create `tdd.jsonl`, and do not create TDD exemption records. Report the exact red/green commands in the agent response or task review narrative when useful; the workflow does not validate them as separate evidence artifacts.
 
+## Evidence records
+
+When the task's decision anchor declares acceptance criteria, a green test from a red-green cycle is the canonical completion evidence for the mapped AC: append one record to the task's `evidence.jsonl` — `{"ac": "AC-xxx", "kind": "test", "ref": "<test file>::<case>", "note": "<core assertion>", "recordedAt": "<date>", "by": "<session>"}`. This is task-level completion evidence governed by `.cowork-flow/spec/contracts/evidence-completion.md`; it is a different artifact from the forbidden `tdd.jsonl` above, and this skill still does not require or validate it — recording it as you go simply spares the completion gate a block later.
+
 ## Anti-Rationalization
 
 Do not use these excuses to skip meaningful behavior tests:
