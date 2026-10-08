@@ -4,6 +4,7 @@
 
 ### Added
 
+- **多执行者协作事实（1.9.0 主线）**：把 executor / evidence / adopt 语义补成团队协调原语，让 `.cowork-flow/tasks/` 在多 agent 场景下当共享看板。① **看板归属可见**：`task next --list --json` 与 MCP `task_list`（同一实现）每条记录新增 `executor` / `ownerSessionActive`（提示位：是否有会话绑定该任务，不裁决孤儿）/ `evidenceCoverage` / `blocked` / `blockedBy`——第二个执行者不跑 `run state` 就能看出谁在占用、有没有卡住、证据到哪了。② **依赖边**：`task next --run --title ... --depends-on <task>`（可重复，完整目录名）在创建时写入 `task.json` 的 `dependsOn`，声明期 fail-closed（目标不存在 / 自依赖 / 环分别报 `TASK-CREATE-DEPENDENCY-001/002/003`，失败不落盘；归档任务按已完成依赖解析）；start 门禁 `LIFECYCLE-DEPENDENCY-001`——依赖未全部 completed 时阻断进入 in_progress，导航 payload 与 `--run` 报同一 blocker 文本，已启动任务不受回溯影响，adopt/review/complete 不受约束。③ **交接凭证**：adopt 成功后打印 Handover 段（原执行者 → 新执行者、原基线 → 新基线、剩余未勾选 AC、证据覆盖 n/m）。契约见 `.cowork-flow/spec/contracts/task-board.md`。
 
 ## [1.8.1] - 2026-10-08
 

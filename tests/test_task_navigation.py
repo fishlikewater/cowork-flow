@@ -229,6 +229,101 @@ class TaskNavigationTest(FlowScriptTestCase):
         plain = self.task.build_parser().parse_args(["next", "--run"])
         self.assertIs(False, plain.adopt)
 
+    def test_task_next_parser_accepts_repeatable_depends_on(self) -> None:
+        args = self.task.build_parser().parse_args(
+            [
+                "next",
+                "--run",
+                "--title",
+                "Demo task",
+                "--depends-on",
+                "10-01-a",
+                "--depends-on",
+                "10-02-b",
+            ]
+        )
+
+        self.assertEqual(["10-01-a", "10-02-b"], args.depends_on)
+
+    def test_depends_on_input_is_rejected_outside_create(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                json.dumps({"status": "in_progress", "executor": "session-a"}),
+                encoding="utf-8",
+            )
+            args = self.task.build_parser().parse_args(
+                ["next", str(task_dir), "--run", "--depends-on", "10-01-a"]
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-a"}
+                ):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_next(args)
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertIn("create_task inputs cannot run", stderr.getvalue())
+
+    def test_run_reports_dependency_blocker_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            dependency_dir = tasks_dir / "10-01-active"
+            dependency_dir.mkdir(parents=True)
+            (dependency_dir / "task.json").write_text(
+                json.dumps({"status": "in_progress", "name": "10-01-active"}),
+                encoding="utf-8",
+            )
+            task_dir = tasks_dir / "10-03-feature"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {
+                        "status": "planning",
+                        "name": "10-03-feature",
+                        "meta": {"taskType": "Tiny"},
+                        "dependsOn": ["10-01-active"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = self.task.build_parser().parse_args(
+                ["next", str(task_dir), "--run"]
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}
+                ):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_next(args)
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertIn("10-01-active", stderr.getvalue())
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("planning", persisted["status"])
+            self.assertIsNone(persisted.get("executor"))
+
     def test_adopt_run_refuses_non_active_status_before_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from runtime.execution_context import ExecutionContext
 from runtime.session_state import is_main_session
+from services import task_graph
 from services.task_context import TaskContextService
 
 
@@ -83,6 +84,18 @@ def start_readiness_failure(
             hint=(
                 "run task next <dir> and complete the "
                 "reported readiness artifacts"
+            ),
+        )
+
+    dependency_blockers = tuple(task_graph.dependency_blockers(repo_root, task_dir))
+    if dependency_blockers:
+        return LifecyclePolicyFailure(
+            code="LIFECYCLE-DEPENDENCY-001",
+            title="Task dependencies are not completed",
+            blockers=dependency_blockers,
+            hint=(
+                "finish the dependency tasks (status completed), then retry "
+                "`task next <dir> --run`"
             ),
         )
     return None

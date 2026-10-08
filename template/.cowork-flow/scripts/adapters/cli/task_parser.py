@@ -130,6 +130,14 @@ def _add_next_create_inputs(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--description", "-d", help="Description for create_task")
     parser.add_argument("--parent", help="Parent task directory for create_task")
     parser.add_argument(
+        "--depends-on",
+        dest="depends_on",
+        action="append",
+        metavar="<task-name>",
+        help="Dependency for create_task (repeatable, full task directory "
+        "name): the new task cannot start until every dependency is completed",
+    )
+    parser.add_argument(
         "--from-plan",
         "-f",
         dest="from_plan",

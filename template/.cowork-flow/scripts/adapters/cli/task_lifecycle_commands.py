@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -325,8 +326,48 @@ def cmd_adopt(args: argparse.Namespace) -> int:
     task_path = _display_task_path(repo_root, full_path)
     set_active_task(repo_root, task_path)
     print(colored(f"[OK] Task adopted: {task_path}", Colors.GREEN))
+    _print_handover_brief(full_path)
     print(f"Next: ./.cowork-flow/run task next {task_path} --run")
     return 0
+
+
+def _print_handover_brief(task_dir: Path) -> None:
+    """Handover facts for the adopter: ownership audit, baseline, leftovers."""
+    from services import ac_evidence
+
+    try:
+        task_data = json.loads(
+            (task_dir / FILE_TASK_JSON).read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        task_data = {}
+    meta = task_data.get("meta") if isinstance(task_data, dict) else None
+    meta = meta if isinstance(meta, dict) else {}
+    predecessor = meta.get("previousExecutor") or "<none>"
+    owner = task_data.get("executor") or "<unknown>"
+    previous_baseline = meta.get("previousBaseline") or "<none>"
+    baseline = meta.get("baselineCommit") or "<none>"
+    print("Handover:")
+    print(f"  executor: {predecessor} -> {owner}")
+    print(f"  baseline: {previous_baseline} -> {baseline}")
+    acceptance = ac_evidence.load_acceptance_criteria(task_dir)
+    if acceptance:
+        pending = [
+            str(entry.get("id"))
+            for entry in acceptance
+            if not entry.get("checked")
+        ]
+        print(f"  pending acceptance criteria: {len(pending)} of {len(acceptance)}")
+        for ac_id in pending:
+            print(f"    - {ac_id}")
+        coverage = ac_evidence.coverage_summary(task_dir)
+        if coverage is not None:
+            print(
+                "  evidence coverage: "
+                f"{coverage['withEvidence']}/{coverage['total']}"
+            )
+    else:
+        print("  pending acceptance criteria: none declared")
 
 
 def cmd_review(args: argparse.Namespace) -> int:

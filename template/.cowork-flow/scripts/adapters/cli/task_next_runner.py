@@ -125,6 +125,7 @@ def _run_create_action(
             description=getattr(args, "description", None),
             parent=getattr(args, "parent", None),
             from_plan=getattr(args, "from_plan", None),
+            depends_on=tuple(getattr(args, "depends_on", None) or ()),
         )
     )
 
@@ -136,6 +137,7 @@ def _create_input_names(args: argparse.Namespace) -> list[str]:
         "assignee",
         "description",
         "parent",
+        "depends_on",
     )
     return [name for name in names if getattr(args, name, None)]
 
