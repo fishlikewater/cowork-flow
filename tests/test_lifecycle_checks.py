@@ -582,10 +582,15 @@ class LifecycleChecksTest(FlowScriptTestCase):
             task_json.write_text(json.dumps(data), encoding="utf-8")
             self._commit_all(root, "repo moved on")
 
-            adopted, _stdout, stderr = self._run_next_command(
+            adopted, stdout, stderr = self._run_next_command(
                 root, ["next", str(task_dir), "--run", "--adopt"]
             )
             self.assertEqual(0, adopted, stderr)
+            self.assertIn("Handover:", stdout)
+            self.assertIn("session-dead -> main", stdout)
+            self.assertIn("stale-baseline-sha", stdout)
+            self.assertIn("pending acceptance criteria: 0 of 1", stdout)
+            self.assertIn("evidence coverage: 1/1", stdout)
             data = json.loads(task_json.read_text(encoding="utf-8"))
             self.assertEqual("in_progress", data["status"], "adopt keeps status")
             self.assertEqual("main", data["executor"])

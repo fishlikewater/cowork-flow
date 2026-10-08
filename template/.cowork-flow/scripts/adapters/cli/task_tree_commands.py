@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import sys
 
+from services import task_board
 from services.task_tree import TaskTreeError, TaskTreeService
 from adapters.cli.task_support import Colors, colored, resolve_task_dir
 from infra.paths import (
@@ -149,6 +150,7 @@ def _list_task_records(repo_root, *, mine: bool, status: str | None):
 
     service = TaskTreeService(repo_root)
     all_tasks = service.active_nodes()
+    bound_paths = task_board.bound_task_paths(repo_root)
     records: list[dict[str, object]] = []
 
     def append_task(dir_name: str, depth: int = 0) -> None:
@@ -159,20 +161,26 @@ def _list_task_records(repo_root, *, mine: bool, status: str | None):
             return
         relative_path = f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}"
         done, total = service.children_progress(info.children, all_tasks)
-        records.append(
-            {
-                "name": dir_name,
-                "path": relative_path,
-                "status": info.status,
-                "assignee": info.assignee,
-                "parent": info.parent,
-                "children": list(info.children),
-                "childrenDone": done,
-                "childrenTotal": total,
-                "depth": depth,
-                "active": relative_path == active_task,
-            }
+        record = {
+            "name": dir_name,
+            "path": relative_path,
+            "status": info.status,
+            "assignee": info.assignee,
+            "parent": info.parent,
+            "children": list(info.children),
+            "childrenDone": done,
+            "childrenTotal": total,
+            "depth": depth,
+            "active": relative_path == active_task,
+        }
+        record.update(
+            task_board.board_facts(
+                repo_root,
+                repo_root / relative_path,
+                bound_paths=bound_paths,
+            )
         )
+        records.append(record)
         for child_name in info.children:
             if child_name in all_tasks:
                 append_task(child_name, depth + 1)

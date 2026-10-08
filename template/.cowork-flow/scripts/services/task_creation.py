@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from services.task_tree import TaskTreeError, TaskTreeService
+from services import task_graph
 from infra.paths import (
     FILE_TASK_JSON,
     ensure_task_date_prefix,
@@ -37,6 +38,7 @@ class TaskCreationRequest:
     creator: str | None = None
     parent: str | Path | None = None
     from_plan: str | Path | None = None
+    depends_on: tuple[str, ...] = ()
     created_at: str | None = None
     date_prefix: str | None = None
 
@@ -88,11 +90,17 @@ class TaskCreationService:
                 "task directory already exists; choose a different slug",
             )
         plan_metadata, bound_plan_path = self._plan_metadata(request.from_plan)
+        dependencies = self._resolve_dependencies(
+            request.depends_on, task_name, request.slug
+        )
         task_dir.mkdir(parents=True, exist_ok=True)
 
         created_files: list[Path] = []
         try:
-            self._write_task_json(task_dir, self._task_data(request, task_name, plan_metadata))
+            self._write_task_json(
+                task_dir,
+                self._task_data(request, task_name, plan_metadata, dependencies),
+            )
             created_files.append(task_dir / FILE_TASK_JSON)
 
             linked_parent, missing_parent = self._link_parent(request, task_dir)
@@ -117,6 +125,7 @@ class TaskCreationService:
         request: TaskCreationRequest,
         task_name: str,
         plan_metadata: dict,
+        dependencies: list[str],
     ) -> dict:
         created_at = request.created_at or datetime.now().strftime("%Y-%m-%d")
         return {
@@ -137,9 +146,53 @@ class TaskCreationService:
             "children": [],
             "parent": None,
             "relatedFiles": [],
+            "dependsOn": list(dependencies),
             "notes": "",
             "meta": plan_metadata,
         }
+
+    def _resolve_dependencies(
+        self,
+        declared: tuple[str, ...],
+        task_name: str,
+        slug: str,
+    ) -> list[str]:
+        """Validate declared dependencies and return canonical task names.
+
+        Fail-closed before anything is written: a missing target, a self
+        dependency, or a dependency cycle rejects the whole creation.
+        """
+        resolved: list[str] = []
+        for raw in declared:
+            token = raw.strip() if isinstance(raw, str) else ""
+            if not token:
+                continue
+            if token in {task_name, slug}:
+                raise TaskCreationError(
+                    "TASK-CREATE-DEPENDENCY-002",
+                    self.repo_root,
+                    f"task cannot depend on itself: {token}",
+                )
+            dependency_dir = task_graph.find_task_dir(self.repo_root, token)
+            if dependency_dir is None:
+                raise TaskCreationError(
+                    "TASK-CREATE-DEPENDENCY-001",
+                    self.repo_root,
+                    "dependency task not found (use the full task directory "
+                    f"name): {token}",
+                )
+            if dependency_dir.name not in resolved:
+                resolved.append(dependency_dir.name)
+        cycle = task_graph.dependency_cycle_for_new(
+            self.repo_root, task_name, resolved
+        )
+        if cycle is not None:
+            raise TaskCreationError(
+                "TASK-CREATE-DEPENDENCY-003",
+                self.repo_root,
+                "dependency cycle: " + " -> ".join(cycle),
+            )
+        return resolved
 
     def _write_task_json(self, task_dir: Path, task_data: dict) -> None:
         """Write task.json, translating repository failures into create errors."""

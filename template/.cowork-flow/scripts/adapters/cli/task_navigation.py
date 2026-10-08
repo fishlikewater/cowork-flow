@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from services import task_graph
 from services.readiness import task_readiness_blockers
 from services.task_context import TaskContextService
 from adapters.cli.task_support import resolve_task_dir
@@ -144,6 +145,7 @@ def _status(repo_root: Path, task_dir: Path) -> str:
 def _blockers(repo_root: Path, task_dir: Path) -> list[str]:
     blockers = list(TaskContextService(repo_root).start_blockers(task_dir))
     blockers.extend(task_readiness_blockers(repo_root, task_dir))
+    blockers.extend(task_graph.dependency_blockers(repo_root, task_dir))
     return blockers
 
 

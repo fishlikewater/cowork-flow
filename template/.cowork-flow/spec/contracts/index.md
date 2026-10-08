@@ -18,3 +18,4 @@
 - `fact-layer-access.md`: 无注入 hook 的宿主与外部工具读取任务事实的通道（`FACT_LAYER_ACCESS_V1`）。
 - `evidence-completion.md`: 证据化完成——`evidence.jsonl` schema、`LIFECYCLE-AC-001/002` 完成门禁、`--allow-missing-evidence` 豁免留痕与注入覆盖行。
 - `task-adopt.md`: 任务收养——`task next --run --adopt` 的入口边界、前置条件（`LIFECYCLE-ADOPT-001`）、重绑+基线重置+审计写入，与 `--takeover` 的区别。
+- `task-board.md`: 共享看板与依赖边——list/MCP 看板字段（executor / ownerSessionActive / evidenceCoverage / blocked）、`--depends-on` 声明与校验、start 依赖门禁（`LIFECYCLE-DEPENDENCY-001`）、adopt 交接凭证。

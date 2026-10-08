@@ -85,6 +85,7 @@ def _build_create_request(
         creator=creator,
         parent=args.parent,
         from_plan=getattr(args, "from_plan", None),
+        depends_on=tuple(getattr(args, "depends_on", None) or ()),
     )
 
 
