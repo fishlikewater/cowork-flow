@@ -5,6 +5,10 @@
 ### Added
 
 
+### Fixed
+
+- **`--allow-missing-evidence` 恢复独立解析**（1.8.0 遗留缺陷）：该旗标此前被误注册为 `--allow-unchecked` 的解析别名（同一 `add_argument`、dest 相同），造成两个后果——AC 证据豁免（`LIFECYCLE-AC-002` 的可豁免路径）从 CLI 不可达（`cmd_complete` 读取的属性 argparse 从不创建，恒为 False）；且传入 `--allow-missing-evidence` 会静默获得 spec-check 未检查豁免（语义错误、方向危险：本意只豁免 AC 证据，却放开了缺失/超时的 spec-check 命令）。现在两个旗标各自独立解析，parser 级与命令贯通级回归测试锁定（既有测试手工构造 Namespace 绕过 parser，正是此缺陷漏网原因）。
+
 ## [1.8.0] - 2026-10-08
 
 ### Added

@@ -207,6 +207,21 @@ class TaskNavigationTest(FlowScriptTestCase):
         self.assertEqual("Demo task", args.title)
         self.assertEqual("demo-task", args.slug)
 
+    def test_task_next_parser_keeps_exemption_flags_independent(self) -> None:
+        parser = self.task.build_parser()
+
+        missing_evidence_args = parser.parse_args(
+            ["next", "--run", "--allow-missing-evidence"]
+        )
+        self.assertIs(True, missing_evidence_args.allow_missing_evidence)
+        self.assertIs(False, missing_evidence_args.allow_unchecked)
+
+        unchecked_args = parser.parse_args(
+            ["next", "--run", "--allow-unchecked"]
+        )
+        self.assertIs(True, unchecked_args.allow_unchecked)
+        self.assertIs(False, unchecked_args.allow_missing_evidence)
+
     def test_task_next_parser_accepts_read_only_list_and_validate(self) -> None:
         list_args = self.task.build_parser().parse_args(["next", "--list"])
         validate_args = self.task.build_parser().parse_args(
