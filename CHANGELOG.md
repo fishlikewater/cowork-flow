@@ -4,6 +4,11 @@
 
 ### Added
 
+
+## [1.8.0] - 2026-10-08
+
+### Added
+
 - **spec-check 采纳闭环（1.8.x 主线）**：让 spec-check 机制从"存在但沉默"变为可遵循。① 零声明可见性：仓库无生效声明时 `spec-check` 文本模式输出显式事实行 `spec-check: no checks declared (<N> spec files scanned)`（与"有声明且全过"可区分），`--json` 顶层新增 `specFiles`、summary 新增 `declarations`——"没挂声明"不再与"干净通过"同形（零声明保持退出码 0：不挂命令是合法状态，但必须被看见）。② 注入契约 `SPEC_CHECKS_V1`：`contract-registry.json` 新增第 10 条（digest 2 条 + readWhen 3 条），python/zcode/opencode 三线渲染在 digest 块输出 `- SPEC_CHECKS_V1: .cowork-flow/spec/contracts/spec-checks.md`。③ `spec-checks.md` 重排为使用者核心区（何时挂 / 语法含 UTF-8 无 BOM 注意点 / 三态与门禁含零声明语义 / 时机与输出 / 归属）+ 维护者附录（宿主能力矩阵 / delegated 缺口与补偿 / digest 注入 / 开放决策），零信息丢失由独立复核逐项清点确认。④ AI 挂命令职责三处一致：契约归属段、`task-review`（User specs 逐条问"可机检吗、已挂吗" + `user_spec_review` 列「条款 → 命令」清单）、`spec-sync`（同次维护挂/刷新声明）；质量纪律四条（干净树跑出 pass / 反例能报错 / `files` 限定 / 挂后跑 spec-check 确认解析）获测试锁（`test_review_contract.py` markers）。不新增硬门禁——放权语义：主会话 AI 主动挂声明，review 报告留痕。
 - **证据化完成（1.8.0 主线）**：任务完成从"流程走完"升级为"证据齐全"。decision-anchor 的验收标准（AC）成为机器可查询事实——`services/ac_evidence.py` 解析 `## 验收标准` 的勾选状态并读取任务目录 `evidence.jsonl`（追加式，`{ac, kind: test|command|manual, ref, note?, recordedAt, by}`）；完成动作新增两条稳定门禁 code：存在未勾选 AC 阻断（`LIFECYCLE-AC-001`）、已声明 AC 缺有效证据记录阻断（`LIFECYCLE-AC-002`），新旗标 `--allow-missing-evidence` 豁免后者并把 `meta.evidenceExempt`（含 `at` 与 `missing`）留在任务记录；decision-anchor 注入块在 `Acceptance:` 行后追加 `AC evidence: n/m`（缺失时附 `missing=` 列表），三线（Python / zcode shim / opencode 插件）逐字节同格式并由矩阵测试锁定；`run state --json` 与 MCP 事实视图新增 `evidenceCoverage`。无 AC 的存量任务零影响（兼容路径有测试锁定），契约见 `.cowork-flow/spec/contracts/evidence-completion.md`。
 
@@ -291,7 +296,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.3...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.3...v1.8.0
 [1.7.3]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.0...v1.7.1
