@@ -197,6 +197,23 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             (task_dir / context_name).write_text(line, encoding="utf-8")
 
     @staticmethod
+    def _write_adoptable_task(
+        task_dir: Path,
+        status: str,
+        *,
+        executor: str | None = "session-a",
+        baseline: str | None = "old-baseline-sha",
+    ) -> None:
+        TaskLifecycleServiceTest._write_task(task_dir, status)
+        task_json = task_dir / "task.json"
+        data = json.loads(task_json.read_text(encoding="utf-8"))
+        if executor is not None:
+            data["executor"] = executor
+        if baseline is not None:
+            data["meta"] = {**data.get("meta", {}), "baselineCommit": baseline}
+        task_json.write_text(json.dumps(data), encoding="utf-8")
+
+    @staticmethod
     def _check_runner(*, blocked: bool = False):
         class FakeCheckRunner:
             def __init__(self) -> None:
@@ -336,6 +353,151 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self.assertEqual(
                 baseline, persisted["meta"]["baselineCommit"],
                 "baseline must never slide",
+            )
+
+    def test_adopt_rebinds_executor_resets_baseline_and_records_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._git(root, "init")
+            self._git(root, "config", "user.name", "Test User")
+            self._git(root, "config", "user.email", "test@example.com")
+            (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+            self._git(root, "add", "-A")
+            self._git(root, "commit", "-m", "baseline")
+            head = self._git(root, "rev-parse", "HEAD")
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_adoptable_task(task_dir, "in_progress")
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(
+                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}, clear=True
+            ):
+                result = service.adopt(task_dir)
+
+            self.assertTrue(result.ok, result.blockers)
+            self.assertEqual("LIFECYCLE-EXECUTOR-ADOPTED", result.code)
+            self.assertIsNotNone(result.transition)
+            self.assertFalse(result.transition.changed)
+            self.assertIsNone(result.check_result)
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("session-b", persisted["executor"])
+            self.assertEqual("in_progress", persisted["status"])
+            self.assertEqual(head, persisted["meta"]["baselineCommit"])
+            self.assertEqual("session-a", persisted["meta"]["previousExecutor"])
+            self.assertEqual(
+                "old-baseline-sha", persisted["meta"]["previousBaseline"]
+            )
+            self.assertRegex(
+                str(persisted["meta"]["adoptedAt"]),
+                r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",
+            )
+            self.assertEqual("Tiny", persisted["meta"]["taskType"])
+            self.assertIn("adopt", str(persisted["_state"]["operation_id"]))
+
+    def test_adopt_keeps_status_and_does_not_exempt_completion_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_adoptable_task(task_dir, "review")
+            (task_dir / "decision-anchor.md").write_text(
+                "# Demo\n\n## 目标\n\nAdopt.\n\n## 验收标准\n\n"
+                "- [ ] AC-001: Pending.\n",
+                encoding="utf-8",
+            )
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(
+                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}, clear=True
+            ):
+                adopted = service.adopt(task_dir)
+
+            self.assertTrue(adopted.ok, adopted.blockers)
+            self.assertEqual("review", self._status(task_dir))
+            self.assertIsNone(adopted.check_result)
+
+            checks = importlib.import_module("services.lifecycle_checks")
+            blocked = checks.LifecycleCheckRunner(root).complete(task_dir)
+            self.assertTrue(
+                blocked.blocked,
+                "adoption must not exempt the unchecked-AC completion gate",
+            )
+            codes = {issue.code for issue in blocked.issues}
+            self.assertIn("LIFECYCLE-AC-001", codes)
+
+    def test_adopt_rejects_planning_completed_and_unowned_tasks(self) -> None:
+        cases = (
+            ("planning", "session-a", "planning"),
+            ("completed", "session-a", "completed"),
+            ("in_progress", None, "unowned"),
+        )
+        for status, executor, label in cases:
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+                    self._write_adoptable_task(
+                        task_dir, status, executor=executor
+                    )
+                    service = self.TaskLifecycleService(
+                        root, check_runner=self._check_runner()
+                    )
+
+                    with patch.dict(
+                        os.environ,
+                        {"COWORK_FLOW_CONTEXT_ID": "session-b"},
+                        clear=True,
+                    ):
+                        result = service.adopt(task_dir)
+
+                    self.assertFalse(result.ok)
+                    self.assertEqual("LIFECYCLE-ADOPT-001", result.code)
+                    self.assertTrue(result.blockers)
+                    persisted = json.loads(
+                        (task_dir / "task.json").read_text(encoding="utf-8")
+                    )
+                    self.assertEqual(status, persisted["status"])
+                    self.assertEqual(executor, persisted.get("executor"))
+                    self.assertEqual(
+                        "old-baseline-sha", persisted["meta"]["baselineCommit"]
+                    )
+
+    def test_adopt_rejects_self_and_fallback_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_adoptable_task(task_dir, "in_progress")
+            service = self.TaskLifecycleService(root, check_runner=self._check_runner())
+
+            with patch.dict(
+                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-a"}, clear=True
+            ):
+                self_adopt = service.adopt(task_dir)
+
+            self.assertFalse(self_adopt.ok)
+            self.assertEqual("LIFECYCLE-ADOPT-001", self_adopt.code)
+
+            with (
+                patch.dict(os.environ, {}, clear=True),
+                patch(
+                    "runtime.session_state.resolve_context_key_with_provenance",
+                    return_value=("zcode_local-1", "process_fallback"),
+                ),
+            ):
+                fallback = service.adopt(task_dir)
+
+            self.assertFalse(fallback.ok)
+            self.assertEqual("LIFECYCLE-ADOPT-001", fallback.code)
+            self.assertIn(
+                "process-fallback", " ".join(fallback.blockers)
+            )
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("session-a", persisted["executor"])
+            self.assertEqual(
+                "old-baseline-sha", persisted["meta"]["baselineCommit"]
             )
 
     def test_git_unavailable_degrades_baseline_and_changed_files(self) -> None:

@@ -38,6 +38,7 @@ from adapters.cli.task_context_commands import (
 from adapters.cli.task_create_command import cmd_create, ensure_tasks_dir
 from adapters.cli import task_navigation
 from adapters.cli.task_lifecycle_commands import (
+    cmd_adopt,
     cmd_complete,
     cmd_current,
     cmd_finish,
@@ -152,6 +153,7 @@ def cmd_next(args: argparse.Namespace) -> int:
                 review=cmd_review,
                 complete=cmd_complete,
                 archive=cmd_archive,
+                adopt=cmd_adopt,
             ),
         )
     return task_navigation.cmd_next(args)

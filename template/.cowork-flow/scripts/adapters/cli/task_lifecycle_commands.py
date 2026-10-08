@@ -30,6 +30,7 @@ from runtime.session_state import (
     PROVENANCE_PROCESS_FALLBACK,
     clear_active_task,
     get_active_task,
+    set_active_task,
 )
 
 
@@ -281,6 +282,50 @@ def cmd_start(args: argparse.Namespace) -> int:
     _report_start_success(result, repo_root, full_path)
     if "after_start" in getattr(result, "emitted_events", ()):
         _run_hooks("after_start", full_path / FILE_TASK_JSON, repo_root)
+    return 0
+
+
+def cmd_adopt(args: argparse.Namespace) -> int:
+    """Adopt an active task from another executor."""
+    repo_root = get_repo_root()
+    execution_context = execution_context_from_namespace(args)
+    task_input = getattr(args, "dir", None)
+    if not task_input:
+        print(
+            colored("Error: task directory or name required", Colors.RED),
+            file=sys.stderr,
+        )
+        return 1
+
+    full_path = _resolve_start_task(task_input, repo_root)
+    if full_path is None:
+        return 1
+
+    service = TaskLifecycleService(repo_root)
+    result = service.adopt(
+        full_path,
+        executor=getattr(args, "executor", None),
+        execution_context=execution_context,
+    )
+    if not result.ok:
+        if result.code == "LIFECYCLE-ADOPT-001":
+            print(
+                colored("Error: task adoption blocked", Colors.RED),
+                file=sys.stderr,
+            )
+            for blocker in result.blockers:
+                print(f"  - {blocker}", file=sys.stderr)
+            return 1
+        if result.title:
+            return _report_lifecycle_preflight(result)
+        if result.repository_error is not None:
+            return _report_lifecycle_repository_error(result)
+        return 1
+
+    task_path = _display_task_path(repo_root, full_path)
+    set_active_task(repo_root, task_path)
+    print(colored(f"[OK] Task adopted: {task_path}", Colors.GREEN))
+    print(f"Next: ./.cowork-flow/run task next {task_path} --run")
     return 0
 
 
