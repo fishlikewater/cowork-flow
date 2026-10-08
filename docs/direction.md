@@ -16,10 +16,11 @@
 | 本规划文档落库 | ✅ 完成 | 08-27-direction-doc | — |
 | 1.5→1.7 宿主广度 + 发布链（七宿主） | ✅ 完成 | CHANGELOG 1.5.0-1.7.2 | — |
 | 1.7.3 维护：ZCode shim .mjs + 项目根查找修复 | ✅ 完成 | 10-04-zcode-shim-mjs（d0716a9） | — |
-| 1.8.0 立项：证据化完成 | 🔄 立项完成，待启动 | 10-05-direction-1-8-0 / 10-05-evidence-completion | 在宿主会话启动主线任务 |
-| 1.8.0 主线实现：证据化完成 | ✅ 完成 | 10-05-evidence-completion（baa386d，CI test + windows-core 全绿） | 真实宿主冒烟后发布 1.8.0 |
-| 1.8.x 收尾：Skill 证据补课 | 🔄 进行中 | 10-06-skill-evidence-training | 合入后与冒烟共同构成 1.8.0 发布判据 |
-| 1.9.0 前置：task adopt 命令 | 📋 立项 | 10-06-task-adopt-command | 下一会话实现（agent-teams 就绪的地基） |
+| 1.8.0 立项：证据化完成 | ✅ 完成 | 10-05-direction-1-8-0 / 10-05-evidence-completion | — |
+| 1.8.0 主线实现：证据化完成 | ✅ 完成 | 10-05-evidence-completion（baa386d，CI test + windows-core 全绿）；已随 1.8.0 发布（cfe1ac1） | — |
+| 1.8.x 收尾：Skill 证据补课 + spec-check 采纳闭环 | ✅ 完成 | 10-06-skill-evidence-training（09937d0）、10-08 spec-check 闭环（08f9d9b） | — |
+| 1.9.0 前置：task adopt 命令 | ✅ 完成 | 10-06-task-adopt-command（e6e5132）：`--adopt` 重绑执行者 + 基线重置 + 审计；契约 task-adopt.md | 1.9.0 主线（多执行者协作）立项 |
+| 1.8.1 补丁：`--allow-missing-evidence` 解析修复 + adopt | 🔄 本次发布 | 10-08-fix-evidence-flag-parser（dc594a4）；tag v1.8.1 → CI 发布 npm | 确认 CI 全绿与 npm latest=1.8.1 |
 
 **当前结论**：方向路线图阶段 0-3 全部落地。项目当前形态：「多主机 Agent 协作的运行时上下文与协作事实层」——事实视图（CLI + MCP）、结构化注入、跨宿主一致性治理、执行者归属与证据位均已就绪并有测试锁定。后续演进见「不做什么」边界与观察期事项。
 
@@ -177,3 +178,4 @@
 - 2026-08-29：MCP 全局入口补充——npm CLI 新增 `cowork-flow mcp-state` 透传命令（cwd 向上定位项目运行时、stdio inherit、退出码透传），MCP 客户端全局注册一次即可服务所有项目，消除逐项目 `.mcp.json` 配置（9a1fa86）。
 - 2026-08-29：后续方向 P0-P3 执行完毕。**P0**：1.1.0 发布——dev→master 合并、CHANGELOG 1.1.0 段（含 1.0.0 载体错位注明）、tag v1.1.0 与 GitHub Release 创建；publish CI 首跑曝光 node:full 存量问题（dsh-hook 依赖 gitignored 运行时、Windows 无法 exec shebang 脚本、test runner IPC 崩溃）并全部修复——双平台门禁现已全绿。**发布确认：npm registry `cowork-flow@1.1.0` 已上线（dist-tag latest），AC-004 闭合，发版任务归档。** **P1**：`docs/mcp-client-setup.md`（codex/opencode/claude-code/zcode 真实注册格式）+ `test/mcp-client-matrix.test.js` 客户端等效启动验证。**P1'**：publish.yml 链路实测核对并写入 README 发布节。**P2**：flaky 组合复跑 5 轮未复现（记录为单次现象）；doctor 会话卫生无残留。**P3**：观察期边界维持——MCP 写工具默认拒绝，AGNTCY 等协议收敛后按薄壳接入。- 2026-10-05：2026-10 修订落库（任务 10-05-direction-1-8-0）。1.7.3 维护完成（10-04-zcode-shim-mjs，d0716a9：ZCode shim 改 .mjs、findWorkflowRoot off-by-one 修复）；1.8.0 主线定为**证据化完成**，主线任务 10-05-evidence-completion 立项（planning 就绪待启动）；候选 B（agent-teams 就绪）列为 1.9.0 候选主线；文档英文化列为待决项，待维护者拍板。方向文档自本次起恢复版本控制（087ef72 untrack 后首次入库）。
 - 2026-10-06：10.5 增补落库（任务 10-06-direction-post-1-8-0）。1.8.0 主线实现完成（10-05-evidence-completion，baa386d，CI 双平台全绿）；立项 10-06-skill-evidence-training（1.8.0 收尾）与 10-06-task-adopt-command（1.9.0 前置）；1.8.0 发布判据 = CI + 真实宿主冒烟 + Skill 补课。
+- 2026-10-08：1.8.0 已发布（cfe1ac1，tag v1.8.0，CI publish 全绿，npm latest=1.8.0）。发布后排查发现 `--allow-missing-evidence` 被误注册为 `--allow-unchecked` 解析别名的遗留缺陷（AC 证据豁免从 CLI 不可达 + 误授 spec-check 豁免），修复入库（10-08-fix-evidence-flag-parser，dc594a4，parser 级与命令贯通级回归测试锁定）。1.9.0 前置 task adopt 完成（10-06-task-adopt-command，e6e5132）：`task next --run --adopt` 独立动作——重绑执行者、评审基线重置到收养时 HEAD（审计保留原值）、状态不变、误用 fail-closed（`LIFECYCLE-ADOPT-001`）；契约 `spec/contracts/task-adopt.md`，含与 `--takeover` 的边界。本次发布 1.8.1 同时携带两项交付（CHANGELOG 分列 Added/Fixed）；1.9.0 主线（多执行者协作就绪）待立项。

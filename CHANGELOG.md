@@ -4,7 +4,12 @@
 
 ### Added
 
-- **任务收养 `task next --run --adopt`（1.9.0 agent-teams 前置）**：为孤儿/滞留任务提供受支持的接管路径，替代手改 task.json meta。收养是独立动作（不与 review/complete/archive 链式同发）：把 `in_progress`/`review` 状态、由另一执行者占有的任务重绑到收养者（`executor`），把评审基线**重置**到收养时 HEAD（原值记入 `meta.previousBaseline`），保留状态并写审计字段 `meta.previousExecutor` / `meta.previousBaseline` / `meta.adoptedAt`，结果 code `LIFECYCLE-EXECUTOR-ADOPTED`。误用 fail-closed（`LIFECYCLE-ADOPT-001`）：planning/completed、无 executor、自我收养、process-fallback 身份、delegated 上下文、携带 create/plan 或批启动旗标全部拒绝且不改状态。start 路径"基线永不覆盖"不变量原样保留（既有测试零改动），收养是唯一经审计的显式重置路径；成功后 CLI 把会话绑定到该任务。契约见 `.cowork-flow/spec/contracts/task-adopt.md`。
+
+## [1.8.1] - 2026-10-08
+
+### Added
+
+- **任务收养 `task next --run --adopt`（1.9.0 多执行者协作前置）**：为孤儿/滞留任务提供受支持的接管路径，替代手改 task.json meta。收养是独立动作（不与 review/complete/archive 链式同发）：把 `in_progress`/`review` 状态、由另一执行者占有的任务重绑到收养者（`executor`），把评审基线**重置**到收养时 HEAD（原值记入 `meta.previousBaseline`），保留状态并写审计字段 `meta.previousExecutor` / `meta.previousBaseline` / `meta.adoptedAt`，结果 code `LIFECYCLE-EXECUTOR-ADOPTED`。误用 fail-closed（`LIFECYCLE-ADOPT-001`）：planning/completed、无 executor、自我收养、process-fallback 身份、delegated 上下文、携带 create/plan 或批启动旗标全部拒绝且不改状态。start 路径"基线永不覆盖"不变量原样保留（既有测试零改动），收养是唯一经审计的显式重置路径；成功后 CLI 把会话绑定到该任务。契约见 `.cowork-flow/spec/contracts/task-adopt.md`。
 
 ### Fixed
 
@@ -301,7 +306,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.3...v1.8.0
 [1.7.3]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.1...v1.7.2
