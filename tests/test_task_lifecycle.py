@@ -370,7 +370,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             service = self.TaskLifecycleService(root, check_runner=self._check_runner())
 
             with patch.dict(
-                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}, clear=True
+                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}
             ):
                 result = service.adopt(task_dir)
 
@@ -409,7 +409,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             service = self.TaskLifecycleService(root, check_runner=self._check_runner())
 
             with patch.dict(
-                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}, clear=True
+                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}
             ):
                 adopted = service.adopt(task_dir)
 
@@ -447,7 +447,6 @@ class TaskLifecycleServiceTest(unittest.TestCase):
                     with patch.dict(
                         os.environ,
                         {"COWORK_FLOW_CONTEXT_ID": "session-b"},
-                        clear=True,
                     ):
                         result = service.adopt(task_dir)
 
@@ -471,19 +470,16 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             service = self.TaskLifecycleService(root, check_runner=self._check_runner())
 
             with patch.dict(
-                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-a"}, clear=True
+                os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-a"}
             ):
                 self_adopt = service.adopt(task_dir)
 
             self.assertFalse(self_adopt.ok)
             self.assertEqual("LIFECYCLE-ADOPT-001", self_adopt.code)
 
-            with (
-                patch.dict(os.environ, {}, clear=True),
-                patch(
-                    "runtime.session_state.resolve_context_key_with_provenance",
-                    return_value=("zcode_local-1", "process_fallback"),
-                ),
+            with patch(
+                "runtime.session_state.resolve_context_key_with_provenance",
+                return_value=("zcode_local-1", "process_fallback"),
             ):
                 fallback = service.adopt(task_dir)
 
