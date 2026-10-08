@@ -43,6 +43,18 @@ class SpecCheckTest(unittest.TestCase):
         ):
             sys.modules.pop(module_name, None)
 
+    def _cli_run(self, report: dict, extra_args: tuple[str, ...] = ()) -> tuple[int, str]:
+        cli = importlib.import_module("adapters.cli.spec_check")
+        output = io.StringIO()
+        with (
+            patch.object(cli, "run_checks", return_value=report),
+            patch.object(cli, "get_repo_root", return_value=Path(".")),
+            patch.object(sys, "argv", ["spec-check", *extra_args]),
+            contextlib.redirect_stdout(output),
+        ):
+            code = cli.main()
+        return code, output.getvalue()
+
     def test_pass_and_violation_are_distinct_outcomes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -69,7 +81,7 @@ class SpecCheckTest(unittest.TestCase):
             self.assertEqual(violation["exitCode"], 3)
             self.assertEqual(
                 report["summary"],
-                {"pass": 1, "violation": 1, "unchecked": 0},
+                {"pass": 1, "violation": 1, "unchecked": 0, "declarations": 2},
             )
 
     def test_json_mode_preserves_violation_and_unchecked_exit_codes(self) -> None:
@@ -405,6 +417,112 @@ class SpecCheckTest(unittest.TestCase):
                 module.run_edit_checks(root, "docs/readme.ts", throttled=False),
                 "",
             )
+
+    def test_zero_declarations_reported_as_explicit_fact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".cowork-flow" / "spec").mkdir(parents=True)
+            report = self.run_checks(root, phase="lifecycle")
+            self.assertEqual(0, report["summary"]["declarations"])
+            self.assertEqual(0, report["declarations"])
+            self.assertEqual(0, report["specFiles"])
+
+            code, text = self._cli_run(report)
+            self.assertEqual(0, code)
+            self.assertIn(
+                "spec-check: no checks declared (0 spec files scanned)", text
+            )
+            self.assertNotIn("0 passed, 0 violations, 0 unchecked", text)
+
+            json_code, json_text = self._cli_run(report, ("--json",))
+            self.assertEqual(0, json_code)
+            payload = json.loads(json_text)
+            self.assertEqual(0, payload["specFiles"])
+            self.assertEqual(0, payload["summary"]["declarations"])
+
+    def test_declarationless_spec_files_report_scanned_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _spec(root, "backend/plain.md", "# 规范\n\n无声明\n")
+            _spec(root, "backend/other.md", "# 另一份\n")
+            report = self.run_checks(root, phase="lifecycle")
+            self.assertEqual(0, report["summary"]["declarations"])
+            self.assertEqual(2, report["specFiles"])
+
+            code, text = self._cli_run(report)
+            self.assertEqual(0, code)
+            self.assertIn("no checks declared (2 spec files scanned)", text)
+
+    def test_declarations_keep_existing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _spec(
+                root,
+                "backend/ok.md",
+                "---\n"
+                "checks:\n"
+                f"  - cmd: \"{PY}\" -c \"import sys; sys.exit(0)\"\n"
+                "---\n",
+            )
+            report = self.run_checks(root, phase="lifecycle")
+            self.assertEqual(1, report["summary"]["declarations"])
+            self.assertEqual(1, report["specFiles"])
+
+            code, text = self._cli_run(report)
+            self.assertEqual(0, code)
+            self.assertIn("spec-check: 1 passed, 0 violations, 0 unchecked", text)
+            self.assertNotIn("no checks declared", text)
+
+    def test_zero_declaration_output_differs_from_all_passing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            zero_root = Path(tmp) / "zero"
+            (zero_root / ".cowork-flow" / "spec").mkdir(parents=True)
+            one_root = Path(tmp) / "one"
+            _spec(
+                one_root,
+                "backend/ok.md",
+                "---\n"
+                "checks:\n"
+                f"  - cmd: \"{PY}\" -c \"import sys; sys.exit(0)\"\n"
+                "---\n",
+            )
+            zero_code, zero_text = self._cli_run(
+                self.run_checks(zero_root, phase="lifecycle")
+            )
+            one_code, one_text = self._cli_run(
+                self.run_checks(one_root, phase="lifecycle")
+            )
+            # Exit-code contract is unchanged for both; only the text differs.
+            self.assertEqual(0, zero_code)
+            self.assertEqual(0, one_code)
+            self.assertIn("no checks declared", zero_text)
+            self.assertIn("passed", one_text)
+            self.assertNotEqual(zero_text, one_text)
+
+    def test_edit_only_declaration_is_not_reported_as_no_declarations(self) -> None:
+        # A lifecycle run skips edit-only declarations, so the result list is
+        # empty while declarations exist: zero-declaration must be judged on the
+        # collected declarations, never on len(results).
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _spec(
+                root,
+                "backend/edit-only.md",
+                "---\n"
+                "checks:\n"
+                f"  - cmd: \"{PY}\" -c \"import sys; sys.exit(0)\"\n"
+                "    when: edit\n"
+                "    files: src/\n"
+                "---\n",
+            )
+            report = self.run_checks(root, phase="lifecycle")
+            self.assertEqual([], report["results"])
+            self.assertEqual(1, report["summary"]["declarations"])
+
+            code, text = self._cli_run(report)
+            self.assertEqual(0, code)
+            self.assertIn("spec-check: 0 passed, 0 violations, 0 unchecked", text)
+            self.assertNotIn("no checks declared", text)
 
 
 if __name__ == "__main__":

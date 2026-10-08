@@ -33,6 +33,7 @@ Keep each update concrete:
 - Show the contract or command shape.
 - Include good/bad cases when useful.
 - State tests or checks that protect the behavior.
+- When a clause is machine-checkable (可机检), add or refresh its `checks:` declaration in the same pass (main session only — never rewrite the clause text): the command must pass on a clean tree, a negative case must prove it can fail, `files` must narrow the scope, and a `spec-check` run after writing must confirm the declaration parses.
 - Update the matching `index.md` when adding a new topic.
 - Check for duplicate guidance and remove stale wording before finishing.
 

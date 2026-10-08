@@ -108,13 +108,22 @@ def _print_text_report(report: dict, *, verbose: bool) -> None:
         print(_parse_error_line(parse_errors))
         return
 
+    summary = report.get("summary", {})
+    if not parse_errors and summary.get("declarations") == 0:
+        # Zero declarations is a fact, not a pass: name it so a missing or
+        # silently ignored declaration block cannot look like a clean run.
+        print(
+            "spec-check: no checks declared "
+            f"({report.get('specFiles', 0)} spec files scanned)"
+        )
+        return
+
     from services.spec_check import normalized_one_line
 
     line = normalized_one_line(report)
     if line:
         print(line)
         return
-    summary = report.get("summary", {})
     print(
         "spec-check: {pass} passed, {violation} violations, "
         "{unchecked} unchecked".format(

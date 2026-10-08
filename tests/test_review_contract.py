@@ -100,6 +100,9 @@ class SpecReviewContractTest(unittest.TestCase):
             "anti-self-proof",
             "anti-rationalization",
             "verification-before-completion",
+            "machine-checkable",
+            "main-session duty",
+            "clause → command",
         )
         forbidden_markers = (
             "guides",
@@ -111,6 +114,18 @@ class SpecReviewContractTest(unittest.TestCase):
 
         self.assertEqual([], [marker for marker in required_markers if marker not in skill])
         self.assertEqual([], [marker for marker in forbidden_markers if marker in skill])
+
+    def test_spec_sync_skill_declares_checkable_clause_duty(self) -> None:
+        skill = (TEMPLATE / "skills" / "spec-sync" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        required_markers = (
+            "machine-checkable",
+            "`checks:`",
+            "main session only",
+        )
+        self.assertEqual([], [marker for marker in required_markers if marker not in skill])
 
     def test_task_review_skill_uses_task_next_for_lifecycle_blockers(self) -> None:
         skill = (TEMPLATE / "skills" / "task-review" / "SKILL.md").read_text(

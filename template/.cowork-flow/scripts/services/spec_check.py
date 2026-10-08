@@ -357,9 +357,16 @@ def run_checks(
     if file_filter:
         changed = [file_filter.replace("\\", "/")]
 
+    collected = collect_spec_declarations(repo_root)
+    # Repository-wide declaration count, phase-independent: "no checks
+    # declared" is a property of the repo, not of this phase's result list
+    # (a lifecycle run skips every edit-only declaration and would otherwise
+    # read as "nothing declared").
+    declarations_total = sum(len(spec_decls.decls) for spec_decls in collected)
+
     results: list[CheckResult] = []
     parse_errors: list[dict[str, str]] = []
-    for spec_decls in collect_spec_declarations(repo_root):
+    for spec_decls in collected:
         for message in spec_decls.errors:
             parse_errors.append({"spec": spec_decls.spec, "error": message})
         for decl in spec_decls.decls:
@@ -400,11 +407,14 @@ def run_checks(
         "pass": sum(1 for r in results if r.status == "pass"),
         "violation": sum(1 for r in results if r.status == "violation"),
         "unchecked": sum(1 for r in results if r.status == "unchecked"),
+        "declarations": declarations_total,
     }
     return {
         "schemaVersion": SCHEMA_VERSION,
         "phase": phase,
         "changedFiles": changed,
+        "declarations": declarations_total,
+        "specFiles": len(collected),
         "results": [r.to_json() for r in results],
         "parseErrors": parse_errors,
         "summary": summary,
