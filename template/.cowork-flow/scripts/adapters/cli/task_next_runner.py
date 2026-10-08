@@ -18,6 +18,7 @@ from runtime.session_state import (
     get_active_task,
 )
 from services.plan_binding import PlanBindingError, bind_task_plan
+from services.task_lifecycle import ADOPTABLE_STATUSES
 
 
 LifecycleCommand = Callable[[argparse.Namespace], int]
@@ -30,6 +31,7 @@ class NextActionHandlers:
     review: LifecycleCommand
     complete: LifecycleCommand
     archive: LifecycleCommand
+    adopt: LifecycleCommand
 
 
 def namespace_with(args: argparse.Namespace, **overrides) -> argparse.Namespace:
@@ -270,7 +272,62 @@ def _run_plan_bind_action(args: argparse.Namespace, task_path: str) -> int:
     return 0
 
 
+def _run_adopt_action(
+    args: argparse.Namespace,
+    handlers: NextActionHandlers,
+) -> int:
+    """`--adopt` is its own action: it repairs ownership and the review
+    baseline without running any lifecycle transition."""
+    repo_root = get_repo_root()
+    if _create_input_names(args) or getattr(args, "from_plan", None):
+        print(
+            colored(
+                "Error: --adopt takes over an existing task; create/plan "
+                "inputs cannot run with it",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    if getattr(args, "auto", False) or getattr(args, "approved", False):
+        print(
+            colored(
+                "Error: --adopt does not run batch start; adopt first, then "
+                "re-run with --auto --approved",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    task_dir, task_path, _active_target = _next_target_for_run(args, repo_root)
+    if task_dir is None or task_path is None:
+        blockers = _fallback_binding_blockers(args, repo_root)
+        for blocker in blockers or ["no task target for --adopt; pass a task dir"]:
+            print(colored(f"Error: {blocker}", Colors.RED), file=sys.stderr)
+        return 1
+    if not task_dir.is_dir():
+        print(
+            colored(f"Error: task directory not found: {task_path}", Colors.RED),
+            file=sys.stderr,
+        )
+        return 1
+    status = task_navigation._status(repo_root, task_dir)
+    if status not in ADOPTABLE_STATUSES:
+        print(
+            colored(
+                "Error: --adopt only applies to an active task "
+                f"({'/'.join(ADOPTABLE_STATUSES)}); current status: {status}",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    return handlers.adopt(namespace_with(args, dir=task_path))
+
+
 def run_next_action(args: argparse.Namespace, handlers: NextActionHandlers) -> int:
+    if bool(getattr(args, "adopt", False)):
+        return _run_adopt_action(args, handlers)
     action, error_code = _validated_next_action(args)
     if action is None:
         return error_code

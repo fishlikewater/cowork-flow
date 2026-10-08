@@ -222,6 +222,57 @@ class TaskNavigationTest(FlowScriptTestCase):
         self.assertIs(True, unchecked_args.allow_unchecked)
         self.assertIs(False, unchecked_args.allow_missing_evidence)
 
+    def test_task_next_parser_accepts_adopt_flag(self) -> None:
+        args = self.task.build_parser().parse_args(["next", "--run", "--adopt"])
+        self.assertIs(True, args.adopt)
+
+        plain = self.task.build_parser().parse_args(["next", "--run"])
+        self.assertIs(False, plain.adopt)
+
+    def test_adopt_run_refuses_non_active_status_before_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {
+                        "status": "planning",
+                        "executor": "session-a",
+                        "meta": {"baselineCommit": "old-baseline-sha"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            args = self.task.build_parser().parse_args(
+                ["next", str(task_dir), "--run", "--adopt"]
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(
+                    os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}, clear=True
+                ):
+                    with (
+                        contextlib.redirect_stdout(io.StringIO()),
+                        contextlib.redirect_stderr(io.StringIO()) as stderr,
+                    ):
+                        result = self.task.cmd_next(args)
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(1, result)
+            self.assertIn("--adopt", stderr.getvalue())
+            persisted = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual("planning", persisted["status"])
+            self.assertEqual("session-a", persisted["executor"])
+            self.assertEqual(
+                "old-baseline-sha", persisted["meta"]["baselineCommit"]
+            )
+
     def test_task_next_parser_accepts_read_only_list_and_validate(self) -> None:
         list_args = self.task.build_parser().parse_args(["next", "--list"])
         validate_args = self.task.build_parser().parse_args(

@@ -31,6 +31,8 @@ Action inputs for `next --run`:
   --parent <dir>        Optional parent task directory for create_task
   --from-plan <path>    Plan path for create_task or planning-phase rebind
   --auto --approved     Optional batch start flags for start_task
+  --adopt              Adopt an active task from another executor (rebind
+                       executor + reset review baseline; status unchanged)
   --commit             Optional archive auto-commit flag for archive_task
 
 Examples:
@@ -162,6 +164,12 @@ def _add_next_runtime_inputs(parser: argparse.ArgumentParser) -> None:
         "--takeover",
         action="store_true",
         help="Take the task over from its current executor on start_task",
+    )
+    parser.add_argument(
+        "--adopt",
+        action="store_true",
+        help="Adopt an active task from another executor: rebind executor, "
+        "reset the review baseline to HEAD, keep status, record audit fields",
     )
 
 

@@ -542,6 +542,95 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertEqual(0, result, stderr)
             self.assertEqual("completed", data["status"])
 
+    def _run_next_command(
+        self,
+        root: Path,
+        argv: list[str],
+        *,
+        env_context: str = "main",
+    ) -> tuple[int, str, str]:
+        args = self.task.build_parser().parse_args(argv)
+        previous_cwd = Path.cwd()
+        try:
+            os.chdir(root)
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": env_context}):
+                with (
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_next(args)
+        finally:
+            os.chdir(previous_cwd)
+        return result, stdout.getvalue(), stderr.getvalue()
+
+    def test_adopted_stale_task_runs_review_complete_archive_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True, with_evidence=True)
+            self._write_session_task(root)
+            self._commit_all(root, "baseline")
+
+            # The stale task: a dead session owns it and its baseline was
+            # recorded before the repository moved on.
+            task_json = task_dir / "task.json"
+            data = json.loads(task_json.read_text(encoding="utf-8"))
+            data["status"] = "in_progress"
+            data["executor"] = "session-dead"
+            data["meta"] = {"baselineCommit": "stale-baseline-sha"}
+            task_json.write_text(json.dumps(data), encoding="utf-8")
+            self._commit_all(root, "repo moved on")
+
+            adopted, _stdout, stderr = self._run_next_command(
+                root, ["next", str(task_dir), "--run", "--adopt"]
+            )
+            self.assertEqual(0, adopted, stderr)
+            data = json.loads(task_json.read_text(encoding="utf-8"))
+            self.assertEqual("in_progress", data["status"], "adopt keeps status")
+            self.assertEqual("main", data["executor"])
+            self.assertEqual("session-dead", data["meta"]["previousExecutor"])
+            self.assertEqual(
+                "stale-baseline-sha", data["meta"]["previousBaseline"]
+            )
+            self.assertNotEqual(
+                "stale-baseline-sha",
+                data["meta"]["baselineCommit"],
+                "adopt resets the review baseline",
+            )
+
+            reviewed, _stdout, stderr = self._run_next_command(
+                root, ["next", str(task_dir), "--run", "--intent", "review"]
+            )
+            self.assertEqual(0, reviewed, stderr)
+            self.assertEqual(
+                "review",
+                json.loads(task_json.read_text(encoding="utf-8"))["status"],
+            )
+
+            completed, _stdout, stderr = self._run_next_command(
+                root, ["next", str(task_dir), "--run"]
+            )
+            self.assertEqual(0, completed, stderr)
+            self.assertEqual(
+                "completed",
+                json.loads(task_json.read_text(encoding="utf-8"))["status"],
+            )
+
+            archived, _stdout, stderr = self._run_next_command(
+                root, ["next", str(task_dir), "--run"]
+            )
+            self.assertEqual(0, archived, stderr)
+            self.assertFalse(task_dir.exists())
+            archived_dirs = [
+                path
+                for path in (
+                    root / ".cowork-flow" / "tasks" / "archive"
+                ).rglob("05-19-demo")
+                if path.is_dir()
+            ]
+            self.assertEqual(1, len(archived_dirs))
+
     @staticmethod
     def _write_spec_check_fixture(root: Path, command: str) -> None:
         spec_dir = root / ".cowork-flow" / "spec" / "backend"

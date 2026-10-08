@@ -60,6 +60,10 @@ COMPLETE_STAGE = LifecycleStage(
     records_completion_date=True,
 )
 
+# Adoption repairs ownership on an unfinished task; finished or unstarted
+# tasks have nothing to hand over.
+ADOPTABLE_STATUSES = ("in_progress", "review")
+
 
 @dataclass(frozen=True)
 class LifecyclePreflightFailure:
@@ -137,6 +141,73 @@ class TaskLifecycleService:
             executor=executor,
             takeover=takeover,
             execution_context=execution_context,
+        )
+
+    def adopt(
+        self,
+        task: str | Path,
+        *,
+        executor: str | None = None,
+        execution_context: object | None = None,
+    ) -> LifecycleResult:
+        """Take over an active task owned by another executor: rebind the
+        executor, reset the review baseline to HEAD, keep status, record
+        audit fields. Adoption repairs ownership; it is not a transition."""
+        task_dir = self.repository.resolve(task)
+        task_data_or_failure = self._load_transition_task(START_STAGE, task_dir)
+        if isinstance(task_data_or_failure, LifecycleResult):
+            return task_data_or_failure
+        task_data = task_data_or_failure
+
+        resolved, failure = self._adopt_gate(
+            START_STAGE,
+            task_dir,
+            task_data,
+            executor,
+            execution_context,
+        )
+        if failure is not None:
+            return failure
+        current_task, failure = self._takeover_snapshot(
+            START_STAGE, task_dir, task_data
+        )
+        if failure is not None:
+            return failure
+
+        current = str(task_data.get("executor")).strip()
+        meta = dict(task_data.get("meta") or {})
+        adoption = {
+            "previousExecutor": current,
+            "previousBaseline": meta.get("baselineCommit"),
+            "adoptedAt": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+            # Reset, not preserve: the adopter's review window starts at the
+            # adoption HEAD. No HEAD (no git) degrades to status-only.
+            "baselineCommit": current_head(self.repo_root),
+        }
+        failure = self._write_takeover(
+            START_STAGE,
+            task_dir,
+            task_data,
+            resolved,
+            current_task,
+            adoption=adoption,
+            operation_tag="adopt",
+        )
+        if failure is not None:
+            return failure
+        return LifecycleResult(
+            ok=True,
+            code="LIFECYCLE-EXECUTOR-ADOPTED",
+            stage=START_STAGE,
+            task_dir=task_dir,
+            active_task_path=self._display_task_path(task_dir),
+            transition=LifecycleTransition(
+                previous_status=task_data.get("status"),
+                next_status=task_data.get("status"),
+                changed=False,
+            ),
         )
 
     def review(
@@ -717,6 +788,103 @@ class TaskLifecycleService:
             return None
         return key or None
 
+    def _adopt_gate(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        executor: str | None,
+        execution_context: object | None,
+    ) -> tuple[str | None, LifecycleResult | None]:
+        """Fail-closed adoption gate: only an active task owned by another
+        executor can be adopted, and only by a real (non-shared) identity."""
+        if self._delegated_mutation_request(execution_context):
+            return None, self._failure(
+                stage,
+                task_dir,
+                "TASK-EXECUTION-001",
+                title="Delegated execution cannot mutate task lifecycle",
+                blockers=(
+                    "delegated execution context cannot mutate main-session "
+                    "task lifecycle state",
+                ),
+            )
+        status = task_data.get("status")
+        if status not in ADOPTABLE_STATUSES:
+            return None, self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-ADOPT-001",
+                title="task is not active",
+                blockers=(
+                    "--adopt only applies to an active task "
+                    f"({'/'.join(ADOPTABLE_STATUSES)}); current status: "
+                    f"{status!r}",
+                ),
+            )
+        current = task_data.get("executor")
+        current = (
+            current.strip()
+            if isinstance(current, str) and current.strip()
+            else None
+        )
+        if current is None:
+            return None, self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-ADOPT-001",
+                title="task has no executor",
+                blockers=("task has no recorded executor; nothing to adopt",),
+            )
+        explicit = executor.strip() if executor and executor.strip() else None
+        if explicit:
+            resolved = explicit
+        else:
+            try:
+                from runtime.session_state import (
+                    PROVENANCE_PROCESS_FALLBACK,
+                    resolve_context_key_with_provenance,
+                )
+
+                resolved, provenance = resolve_context_key_with_provenance()
+            except Exception:
+                resolved, provenance = None, None
+            if resolved and provenance == PROVENANCE_PROCESS_FALLBACK:
+                return None, self._failure(
+                    stage,
+                    task_dir,
+                    "LIFECYCLE-ADOPT-001",
+                    title="adoption requires an explicit identity",
+                    blockers=(
+                        f"process-fallback identity '{resolved}' cannot adopt "
+                        "a task; set COWORK_FLOW_CONTEXT_ID or pass "
+                        "--executor <label>",
+                    ),
+                )
+        if not resolved:
+            return None, self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-ADOPT-001",
+                title="no executor identity resolved",
+                blockers=(
+                    "no executor identity resolved; set "
+                    "COWORK_FLOW_CONTEXT_ID or pass --executor <label>",
+                ),
+            )
+        if resolved == current:
+            return None, self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-ADOPT-001",
+                title=f"task is already owned by '{current}'",
+                blockers=(
+                    f"task is already owned by '{current}'; --adopt is for "
+                    "taking over another executor's task",
+                ),
+            )
+        return resolved, None
+
     def _apply_takeover_on_idempotent(
         self,
         stage: LifecycleStage,
@@ -787,6 +955,9 @@ class TaskLifecycleService:
         task_data: dict,
         resolved: str,
         current_task: StateSnapshot,
+        *,
+        adoption: dict | None = None,
+        operation_tag: str = "takeover",
     ) -> LifecycleResult | None:
         identity = "|".join(
             (
@@ -800,12 +971,16 @@ class TaskLifecycleService:
         digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
         unit = UnitOfWork(
             self.repo_root,
-            operation_id=f"task-{stage.name}-takeover-{digest}",
-            kind=f"task-lifecycle-{stage.name}-takeover",
+            operation_id=f"task-{stage.name}-{operation_tag}-{digest}",
+            kind=f"task-lifecycle-{stage.name}-{operation_tag}",
             fault_injector=self.fault_injector,
         )
         persisted = dict(task_data)
         persisted["executor"] = resolved
+        if adoption is not None:
+            meta = dict(persisted.get("meta") or {})
+            meta.update(adoption)
+            persisted["meta"] = meta
         unit.replace(
             self.repository.task_json_path(task_dir),
             persisted,
