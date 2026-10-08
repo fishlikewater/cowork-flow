@@ -282,6 +282,57 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertTrue(result.ok, result.blockers)
             self.assertIs(True, calls[0]["allow_missing_evidence"])
 
+    def test_parsed_missing_evidence_flag_reaches_complete_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._init_git_repo(root)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True)
+            self._write_session_task(root)
+            self._commit_all(root, "baseline")
+            calls: list[dict] = []
+
+            class FakeCheckRunner:
+                def complete(self, _task_dir: Path, **kwargs):
+                    calls.append(kwargs)
+                    return SimpleNamespace(
+                        blocked=False, blockers=(), evidence_exemption=None
+                    )
+
+            args = self.task.build_parser().parse_args(
+                ["next", "--run", "--allow-missing-evidence"]
+            )
+            service_module = importlib.import_module("services.task_lifecycle")
+            service = service_module.TaskLifecycleService(
+                root,
+                check_runner=FakeCheckRunner(),
+            )
+            lifecycle_commands = importlib.import_module(
+                "adapters.cli.task_lifecycle_commands"
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.object(
+                        lifecycle_commands,
+                        "TaskLifecycleService",
+                        return_value=service,
+                    ),
+                    patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_complete(args)
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(0, result)
+            self.assertEqual(1, len(calls))
+            self.assertIs(True, calls[0]["allow_missing_evidence"])
+            self.assertIs(False, calls[0]["allow_unchecked_specs"])
+
     def test_degraded_git_snapshot_blocks_strict_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
