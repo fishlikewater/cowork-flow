@@ -252,7 +252,7 @@ class TaskNavigationTest(FlowScriptTestCase):
             try:
                 os.chdir(root)
                 with patch.dict(
-                    os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}, clear=True
+                    os.environ, {"COWORK_FLOW_CONTEXT_ID": "session-b"}
                 ):
                     with (
                         contextlib.redirect_stdout(io.StringIO()),
