@@ -38,7 +38,7 @@ Read only what is needed for the current task:
 - **Behavior**: acceptance criteria are satisfied through observable behavior, not implementation-shaped assertions.
 - **Tests**: test intent is explicit; tests fail for meaningful regressions, reject shallow tests such as existence/mock/snapshot-only checks, and cover boundary/error paths when relevant.
 - **Evidence coverage**: when the decision anchor declares acceptance criteria (`AC-xxx`), verify each one has an evidence record in `<task>/evidence.jsonl` — or a recorded `meta.evidenceExempt` exemption from an explicit `--allow-missing-evidence` completion. Schema and gate codes (`LIFECYCLE-AC-001/002`) are defined in `.cowork-flow/spec/contracts/evidence-completion.md`. A record must point at real proof (test, command output, or manual verification note); a record that restates the AC without evidence is a finding.
-- **User specs**: every applicable backend/frontend requirement is verified against the diff and marked `pass`, `finding`, or `not_applicable` with reason. Every `finding` is fixed during review; an unfixed spec violation blocks completion and is never accepted as-is or deferred to the user.
+- **User specs**: every applicable backend/frontend requirement is verified against the diff and marked `pass`, `finding`, or `not_applicable` with reason. Every `finding` is fixed during review; an unfixed spec violation blocks completion and is never accepted as-is or deferred to the user. For each requirement, also ask whether it is machine-checkable (可机检) and already declared with `checks:`; identifying checkable clauses and adding or refreshing declarations is a main-session duty (never rewrite the clause text — raise a conflict through the review instead), and a declared check must earn its place: the command passes on a clean tree, a negative case proves it can fail, `files` narrows the scope, and a `spec-check` run after declaring confirms the declaration parses. Delegated subagents do not edit specs; they report candidates up.
 - **Specs**: project specs are updated when behavior/contracts changed, or the review states why no spec update is needed.
 - **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against applicable user specs.
 - **Lifecycle blockers**: state/scope blockers are fixed before acceptance; review does not invent hard blockers for natural-language specs.
@@ -62,7 +62,7 @@ Return a concise review result with:
 - `status`: `pass`, `needs_fix`, or `blocked`.
 - `findings`: severity, file, line/scope, impact, and fix.
 - `test_intent_review`: why tests prove the intended behavior or what is missing.
-- `user_spec_review`: applicable spec files, per-requirement result, and findings.
+- `user_spec_review`: applicable spec files, per-requirement result, findings, and the "clause → command" list for every `checks:` declaration added or refreshed in this review (`none` when nothing became machine-checkable).
 - `lifecycle_check_review`: lifecycle commands run, blocker status, and resolution.
 - `verification`: exact commands run from this checkout.
 - `specUpdates`: files updated or reason no update was needed.
