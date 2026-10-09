@@ -16,6 +16,7 @@ from services.fact_view import (  # noqa: E402
     build_fact_view,
     build_stage_contract,
     parse_decision_anchor,
+    spec_entries_for_task,
     spec_pointer_files,
 )
 
@@ -364,6 +365,59 @@ class StageContractBuildTest(unittest.TestCase):
             ],
             files,
         )
+
+
+class SpecEntriesForTaskDevTypeTest(unittest.TestCase):
+    """`dev_type` is what makes dev-type spec pointers appear in the reading
+    list; a task that declares none must not be handed them."""
+
+    def _task_dir(self, root: Path, dev_type: object) -> Path:
+        task_dir = root / ".cowork-flow" / "tasks" / "10-09-demo"
+        task_dir.mkdir(parents=True)
+        payload: dict = {"status": "planning", "title": "Demo"}
+        if dev_type is not None:
+            payload["dev_type"] = dev_type
+        (task_dir / "task.json").write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
+        return task_dir
+
+    def _files(self, root: Path, dev_type: object) -> tuple[object, list[str]]:
+        task_dir = self._task_dir(root, dev_type)
+        resolved, entries = spec_entries_for_task(root, task_dir)
+        return resolved, [entry["file"] for entry in entries]
+
+    def test_backend_dev_type_adds_backend_spec_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            resolved, files = self._files(root, "backend")
+
+        self.assertEqual("backend", resolved)
+        self.assertIn(".cowork-flow/spec/backend/index.md", files)
+
+    def test_fullstack_dev_type_adds_both_packs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, files = self._files(root, "fullstack")
+
+        self.assertIn(".cowork-flow/spec/backend/index.md", files)
+        self.assertIn(".cowork-flow/spec/frontend/index.md", files)
+
+    def test_spec_dev_type_adds_contract_indexes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, files = self._files(root, "spec")
+
+        self.assertIn(".cowork-flow/spec/contracts/index.md", files)
+
+    def test_absent_dev_type_yields_no_spec_pointers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            resolved, files = self._files(root, None)
+
+        self.assertIsNone(resolved)
+        self.assertNotIn(".cowork-flow/spec/backend/index.md", files)
+        self.assertNotIn(".cowork-flow/spec/frontend/index.md", files)
 
 
 if __name__ == "__main__":

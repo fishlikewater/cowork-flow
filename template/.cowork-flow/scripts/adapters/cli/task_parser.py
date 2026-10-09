@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 
 from adapters.cli.execution_context_args import build_internal_execution_context_parser
+from services.task_creation import VALID_DEV_TYPES
 
 
 USAGE_TEXT = """Task workflow router for cowork-flow
@@ -29,6 +30,10 @@ Action inputs for `next --run`:
   --priority <P0-P3>    Optional task priority for create_task (default: P2)
   --description <text>  Optional task description for create_task
   --parent <dir>        Optional parent task directory for create_task
+  --depends-on <name>   Optional dependency for create_task (repeatable)
+  --type <dev-type>     Dev type for create_task, or a planning-phase rebind
+                        on an unstarted task; selects the reading list
+                        `task specs` reports (backend|frontend|fullstack|test|spec)
   --from-plan <path>    Plan path for create_task or planning-phase rebind
   --auto --approved     Optional batch start flags for start_task
   --adopt              Adopt an active task from another executor (rebind
@@ -144,6 +149,17 @@ def _add_next_create_inputs(parser: argparse.ArgumentParser) -> None:
         help=(
             "Plan file to bind to the task: at creation, or as a "
             "planning-phase rebind (repo-relative .cowork-flow/plans path)"
+        ),
+    )
+    parser.add_argument(
+        "--type",
+        dest="dev_type",
+        choices=VALID_DEV_TYPES,
+        metavar="<dev-type>",
+        help=(
+            "Dev type for create_task, or a planning-phase rebind on an "
+            "unstarted task: it selects the spec/skill reading list "
+            "`task specs` reports (" + "|".join(VALID_DEV_TYPES) + ")"
         ),
     )
 
