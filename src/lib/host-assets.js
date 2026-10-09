@@ -254,6 +254,10 @@ function syncRules(index) {
     return managedBlockFiles.has(normalizePath(relativePath));
   }
 
+  // Declared obsolete paths, shortest first. Listing a path authorizes a
+  // retirement attempt, not an unconditional delete: a Skill path is removed
+  // only when the target still matches the template byte for byte, and is kept
+  // and reported otherwise (see collectObsoleteDeletions).
   function obsoleteSyncFiles() {
     return [...syncPolicy.obsoleteFiles].sort((left, right) => {
       if (left.length !== right.length) {

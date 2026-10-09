@@ -171,7 +171,12 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')),
     await readText(join(templateRoot, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md'))
   );
-  assert.equal(await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md')), false);
+  // A sync-protected path is user-owned: the retired contract is left alone
+  // even though its path is listed as obsolete.
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md')),
+    'custom entry contract\n'
+  );
   assert.equal(
     await readText(join(target, '.codex', 'agents', 'cowork-implement.toml')),
     await readText(join(templateRoot, '.codex', 'agents', 'cowork-implement.toml'))
@@ -194,7 +199,7 @@ test('sync updates safe template files and preserves protected files', async (t)
   assert.match(io.stdout, /protected=/);
 });
 
-test('sync removes obsolete runtime rules metadata without overwriting local specs', async (t) => {
+test('sync keeps sync-protected obsolete spec paths and never overwrites local specs', async (t) => {
   const target = await createTempDir(t);
   assert.equal(
     await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
@@ -227,8 +232,11 @@ test('sync removes obsolete runtime rules metadata without overwriting local spe
   const code = await main(['sync', target], { io: createIo() });
 
   assert.equal(code, 0);
-  assert.equal(await exists(rulesPath), false);
-  assert.equal(await exists(rulesSchemaPath), false);
+  // Retired framework metadata under a protected prefix stays: sync never
+  // writes those paths, so it may not delete them either.
+  assert.equal(await readText(rulesPath), '{"schemaVersion":1,"rules":[]}\n');
+  assert.equal(await readText(rulesSchemaPath), '{"type":"object"}\n');
+  // A retired path outside the protected prefixes is still cleaned up.
   assert.equal(await exists(removedGatePath), false);
   assert.equal(await readText(localSpecPath), '# Local extension\n');
 });
@@ -291,7 +299,7 @@ test('sync is idempotent after the target matches the template', async (t) => {
   assert.match(io.stdout, /deleted=0/);
 });
 
-test('sync deletes removed official Skills and leaves custom Skills and task contexts untouched', async (t) => {
+test('sync keeps unverifiable Skill retirements, cleans non-Skill ones, and touches no task contexts', async (t) => {
   const target = await createTempDir(t);
   assert.equal(
     await main([
@@ -369,11 +377,17 @@ test('sync deletes removed official Skills and leaves custom Skills and task con
     join(archivedTask, 'check.jsonl')
   );
 
-  assert.equal(await main(['sync', target], { io: createIo() }), 0);
+  const syncIo = createIo();
+  assert.equal(await main(['sync', target], { io: syncIo }), 0);
 
-  assert.equal(await exists(removedAgentSkill), false);
-  assert.equal(await exists(removedPartyModeV2Skill), false);
-  assert.equal(await exists(removedClaudeSkill), false);
+  // The retired Skill names are gone from the template, so their directories
+  // cannot be verified as ours: they stay and are named instead of deleted.
+  assert.equal(await exists(removedAgentSkill), true);
+  assert.equal(await exists(removedPartyModeV2Skill), true);
+  assert.equal(await exists(removedClaudeSkill), true);
+  assert.match(syncIo.stdout, /Kept 3 unverifiable retirement\(s\)/);
+  assert.match(syncIo.stdout, /\.agents\/skills\/start/);
+  // Non-Skill obsolete files are framework files nobody edits in place.
   assert.equal(await exists(removedSpecValidator), false);
   assert.equal(await exists(removedJsonlValidator), false);
   assert.equal(await readText(customSkill), 'custom content\n');
@@ -432,6 +446,7 @@ test('sync dry-run does not write safe file updates', async (t) => {
     'pendingRecovery',
     'warnings',
     'wouldCopy',
+    'wouldKeep',
     'wouldRemoveObsolete',
     'wouldSkipProtected'
   ].sort());
@@ -471,7 +486,16 @@ test('sync dry-run readiness report separates protected obsolete host and recove
   assert.equal(code, 0);
   const report = parseReadiness(io.stdout);
   assert.ok(report.wouldSkipProtected.some((action) => action.path === 'AGENTS.md'));
-  assert.ok(report.wouldRemoveObsolete.some((action) => action.path === '.agents/skills/tdd'));
+  // `.agents/skills/tdd` is a retired Skill the template no longer carries:
+  // the dry-run must report it as kept, not as a removal.
+  assert.deepEqual(
+    report.wouldKeep.map((action) => [action.path, action.action]),
+    [[`.agents/skills/${'tdd'}`, 'keep']]
+  );
+  assert.equal(
+    report.wouldRemoveObsolete.some((action) => action.path === '.agents/skills/tdd'),
+    false
+  );
   assert.ok(report.hostAssetRefresh.some((action) => action.path === '.codex/hooks.json'));
   assert.ok(report.pendingRecovery.some((transaction) => transaction.status === 'rollback-failed'));
   assert.ok(report.warnings.some((warning) => warning.includes('rollback-failed')));
