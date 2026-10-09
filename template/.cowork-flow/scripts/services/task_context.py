@@ -33,6 +33,12 @@ from services.context_paths import (
     prepare_context_entry,
 )
 from services.plan_binding import normalize_plan_file, plan_file_blockers
+from services.task_gate_profiles import (
+    GATE_PROFILE_STRICT,
+    acceptance_row_blockers,
+    dev_type_blocker,
+    resolve_gate_profile,
+)
 
 
 CONTEXT_JSONL_FILES = ("implement.jsonl", "check.jsonl", "debug.jsonl")
@@ -330,11 +336,15 @@ class TaskContextService:
             blockers.append("decision-anchor.md is missing or empty")
         else:
             blockers.extend(self._decision_anchor_section_blockers(anchor_text))
+            if resolve_gate_profile(task_data) == GATE_PROFILE_STRICT:
+                blockers.extend(acceptance_row_blockers(anchor_text))
         for context_file in ("implement.jsonl",):
             if not read_text_utf8(task_dir / context_file):
                 blockers.append(f"{context_file} is missing or empty")
         if (task_dir / FILE_TASK_JSON).is_file() and not self._is_tiny_task(task_data):
             blockers.extend(self._plan_file_blockers(task_data))
+        if resolve_gate_profile(task_data) == GATE_PROFILE_STRICT:
+            blockers.extend(dev_type_blocker(task_data))
         return tuple(blockers)
 
     def _task_data(self, task_dir: Path) -> dict:

@@ -66,6 +66,7 @@
 ## Lifecycle Check 联动
 
 - `task next <dir> --run` 启动任务时的 preflight 检查 `decision-anchor.md` 非空，并要求 `## 目标` 和 `## 验收标准` 章节存在。
+- **门禁档案 `meta.gateProfile`**：新建任务写入 `"strict"`；未标记的任务按 `"legacy"` 处理——存量任务不被追溯重新门禁，档案可经事实视图查询。strict 任务在章节检查之上再要求：`## 验收标准` 至少一条可解析的 `- [ ] AC-xxx: ...` 行、AC id 不重复、该章节内没有非 AC 的列表行，且必须声明 `dev_type`（否则 `task specs` 的 dev-type 派发静默变短）。
 - `## 验收标准` 行的勾选状态（`- [ ]` / `- [x]`）与证据记录（任务目录 `evidence.jsonl`）是完成门禁的事实源：存在未勾选 AC（`LIFECYCLE-AC-001`）或已声明 AC 缺证据（`LIFECYCLE-AC-002`）时完成被阻断。schema 与豁免见 `evidence-completion.md`。
 - `cowork-implement` 读取：见 .cowork-flow/spec/contracts/subagent-dispatch.md
 - `cowork-check` 读取：同上

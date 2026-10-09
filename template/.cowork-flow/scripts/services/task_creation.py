@@ -15,6 +15,7 @@ from infra.paths import (
     get_tasks_dir,
 )
 from services.plan_binding import PlanBindingError, bind_plan_file
+from services.task_gate_profiles import GATE_PROFILE_STRICT
 from services.task_repository import TaskRepository, TaskRepositoryError
 
 
@@ -28,6 +29,20 @@ class TaskCreationError(RuntimeError):
         super().__init__(f"{code}: {detail}: {path}")
 
 
+# The dev types that actually change what an implementer is told to read
+# (`context_discovery.implement_spec_entries`): each one has a spec pack
+# and/or a narrow `devTypes` skill rule behind it. Values without a
+# dispatch effect are deliberately not offered, so the flag cannot
+# promise a reading list it never produces.
+VALID_DEV_TYPES: tuple[str, ...] = (
+    "backend",
+    "frontend",
+    "fullstack",
+    "test",
+    "spec",
+)
+
+
 @dataclass(frozen=True)
 class TaskCreationRequest:
     title: str
@@ -39,6 +54,7 @@ class TaskCreationRequest:
     parent: str | Path | None = None
     from_plan: str | Path | None = None
     depends_on: tuple[str, ...] = ()
+    dev_type: str | None = None
     created_at: str | None = None
     date_prefix: str | None = None
 
@@ -89,6 +105,7 @@ class TaskCreationService:
                 task_dir,
                 "task directory already exists; choose a different slug",
             )
+        _validate_dev_type(request.dev_type, task_dir)
         plan_metadata, bound_plan_path = self._plan_metadata(request.from_plan)
         dependencies = self._resolve_dependencies(
             request.depends_on, task_name, request.slug
@@ -128,14 +145,15 @@ class TaskCreationService:
         dependencies: list[str],
     ) -> dict:
         created_at = request.created_at or datetime.now().strftime("%Y-%m-%d")
+        meta = dict(plan_metadata) if isinstance(plan_metadata, dict) else {}
+        meta.setdefault("gateProfile", GATE_PROFILE_STRICT)
         return {
             "id": task_name,
             "name": task_name,
             "title": request.title,
             "description": request.description or "",
             "status": "planning",
-            "dev_type": None,
-            "scope": None,
+            "dev_type": request.dev_type,
             "priority": request.priority,
             "creator": request.creator or request.assignee,
             "assignee": request.assignee,
@@ -148,7 +166,7 @@ class TaskCreationService:
             "relatedFiles": [],
             "dependsOn": list(dependencies),
             "notes": "",
-            "meta": plan_metadata,
+            "meta": meta,
         }
 
     def _resolve_dependencies(
@@ -326,7 +344,8 @@ class TaskCreationService:
             return False
         try:
             anchor_file.write_text(
-                f"## 目标\n\n{goal}\n\n## 验收标准\n- [ ] \n",
+                f"## 目标\n\n{goal}\n\n## 验收标准\n"
+                "<!-- 至少一条，例如：- [ ] AC-001: ... -->\n",
                 encoding="utf-8",
             )
         except OSError as error:
@@ -340,3 +359,51 @@ class TaskCreationService:
                 "decision anchor could not be written",
             ) from error
         return True
+
+
+def _validate_dev_type(dev_type: str | None, path: Path) -> None:
+    """Reject an unknown dev type before anything is written."""
+    if dev_type is None:
+        return
+    if dev_type not in VALID_DEV_TYPES:
+        raise TaskCreationError(
+            "TASK-CREATE-DEVTYPE-001",
+            path,
+            f"unknown dev_type '{dev_type}'; expected one of: "
+            f"{', '.join(VALID_DEV_TYPES)}",
+        )
+
+
+def set_task_dev_type(
+    repo_root: Path,
+    task_dir: Path,
+    dev_type: str,
+    *,
+    repository: TaskRepository | None = None,
+) -> dict:
+    """Backfill `dev_type` on a task that has not started yet.
+
+    Only a planning task is writable: a started task's dev_type belongs to
+    the change already under way, and rewriting it would silently swap the
+    reading list a reviewer worked against.
+    """
+    task_dir = Path(task_dir)
+    _validate_dev_type(dev_type, task_dir)
+    repo = repository or TaskRepository(Path(repo_root))
+    task_json = repo.task_json_path(task_dir)
+    if not task_json.is_file():
+        raise TaskCreationError(
+            "TASK-CREATE-DEVTYPE-003",
+            task_json,
+            "task.json is missing; cannot set dev_type",
+        )
+    status = repo.load(task_dir).get("status")
+    if status != "planning":
+        raise TaskCreationError(
+            "TASK-CREATE-DEVTYPE-002",
+            task_json,
+            "dev_type can only be set while the task is planning "
+            f"(current status: {status})",
+        )
+    return repo.save(task_dir, {"dev_type": dev_type})
+

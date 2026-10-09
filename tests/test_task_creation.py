@@ -16,6 +16,7 @@ SCRIPTS_DIR = (
     / ".cowork-flow"
     / "scripts"
 )
+ROOT = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -109,8 +110,8 @@ class TaskCreationServiceTest(unittest.TestCase):
             task_data = json.loads(
                 (result.task_dir / "task.json").read_text(encoding="utf-8")
             )
-            self.assertEqual({}, task_data["meta"])
             self.assertNotIn("planFile", task_data["meta"])
+            self.assertEqual("strict", task_data["meta"]["gateProfile"])
 
 
     def test_create_from_noncanonical_plan_path_uses_shared_policy(self) -> None:
@@ -354,6 +355,134 @@ class TaskCreationServiceTest(unittest.TestCase):
             self.assertEqual("07-10-demo-task", result.task_dir.name)
             self.assertEqual(result.task_dir.name, task_data["id"])
             self.assertEqual(result.task_dir.name, task_data["name"])
+
+
+class DevTypeWiringTest(unittest.TestCase):
+    """dev_type must be writable and readable end to end: persisted at
+    creation, backfillable on an unstarted task, and never silently
+    swapped under a task that already started."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        module = importlib.import_module("services.task_creation")
+        cls.creation_module = module
+        cls.TaskCreationRequest = module.TaskCreationRequest
+        cls.TaskCreationService = module.TaskCreationService
+        cls.TaskCreationError = module.TaskCreationError
+        cls.VALID_DEV_TYPES = module.VALID_DEV_TYPES
+        cls.TaskRepository = importlib.import_module(
+            "services.task_repository"
+        ).TaskRepository
+
+    def set_dev_type(self, root: Path, task_dir: Path, dev_type: str) -> None:
+        self.creation_module.set_task_dev_type(root, task_dir, dev_type)
+
+    def _create(self, root: Path, **overrides) -> Path:
+        kwargs = {
+            "title": "dev type wiring",
+            "slug": "dev-type-wiring",
+            "assignee": "codex",
+            "priority": "P2",
+            "created_at": "2026-10-09",
+            "date_prefix": "10-09",
+        }
+        kwargs.update(overrides)
+        return self.TaskCreationService(root).create(
+            self.TaskCreationRequest(**kwargs)
+        ).task_dir
+
+    def _task_json(self, task_dir: Path) -> dict:
+        return json.loads(
+            (task_dir / "task.json").read_text(encoding="utf-8")
+        )
+
+    def test_create_persists_declared_dev_type(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = self._create(Path(temp_dir), dev_type="backend")
+
+            self.assertEqual("backend", self._task_json(task_dir)["dev_type"])
+
+    def test_create_defaults_dev_type_to_null(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = self._create(Path(temp_dir))
+
+            self.assertIsNone(self._task_json(task_dir)["dev_type"])
+
+    def test_create_task_json_has_no_scope_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            task_dir = self._create(Path(temp_dir), dev_type="backend")
+
+            self.assertNotIn("scope", self._task_json(task_dir))
+
+    def test_create_rejects_unknown_dev_type(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(self.TaskCreationError) as caught:
+                self._create(Path(temp_dir), dev_type="nope")
+
+            self.assertEqual(
+                "TASK-CREATE-DEVTYPE-001", caught.exception.code
+            )
+
+    def test_backfill_sets_dev_type_on_planning_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._create(root)
+
+            self.set_dev_type(root, task_dir, "frontend")
+
+            self.assertEqual(
+                "frontend", self._task_json(task_dir)["dev_type"]
+            )
+
+    def test_backfill_refuses_started_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._create(root)
+            self.TaskRepository(root).save(
+                task_dir, {"status": "in_progress"}
+            )
+
+            with self.assertRaises(self.TaskCreationError) as caught:
+                self.set_dev_type(root, task_dir, "frontend")
+
+            self.assertEqual(
+                "TASK-CREATE-DEVTYPE-002", caught.exception.code
+            )
+            self.assertIsNone(self._task_json(task_dir)["dev_type"])
+
+    def test_backfill_rejects_unknown_dev_type(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._create(root)
+
+            with self.assertRaises(self.TaskCreationError) as caught:
+                self.set_dev_type(root, task_dir, "nope")
+
+            self.assertEqual(
+                "TASK-CREATE-DEVTYPE-001", caught.exception.code
+            )
+
+    def test_valid_dev_types_all_have_a_dispatch_effect(self) -> None:
+        """Every offered value must change the implement reading list —
+        otherwise the flag advertises a promise it never keeps."""
+        context_discovery = importlib.import_module(
+            "services.context_discovery"
+        )
+        base = {
+            entry["file"]
+            for entry in context_discovery.implement_spec_entries(
+                ROOT, None
+            )
+        }
+        for dev_type in self.VALID_DEV_TYPES:
+            with self.subTest(dev_type=dev_type):
+                dispatched = {
+                    entry["file"]
+                    for entry in context_discovery.implement_spec_entries(
+                        ROOT, dev_type
+                    )
+                }
+                self.assertNotEqual(base, dispatched)
 
 
 if __name__ == "__main__":
