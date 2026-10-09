@@ -191,6 +191,43 @@ class ReviewReceiptGateTest(unittest.TestCase):
 
         self.assertEqual(["LIFECYCLE-REVIEW-003"], self._review_issues())
 
+    def test_ac_text_change_after_review_makes_the_receipt_stale(self) -> None:
+        # Rewording what was accepted is a different judgment than ticking the
+        # same criterion off, which must stay fingerprint-neutral.
+        self._record_receipt()
+        (self.task_dir / "decision-anchor.md").write_text(
+            "# Decision Anchor\n\n"
+            "## 目标\n"
+            "演示完成复核门禁。\n\n"
+            "## 验收标准\n"
+            "- [ ] AC-001: 换了条款。\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(["LIFECYCLE-REVIEW-003"], self._review_issues())
+
+    def test_spec_pointer_change_after_review_makes_the_receipt_stale(self) -> None:
+        # The applicable-spec reading list is part of what the review judged,
+        # and implement.jsonl is not itself a changed path, so only the spec
+        # component can notice it.
+        self._record_receipt()
+        with (self.task_dir / "implement.jsonl").open(
+            "a", encoding="utf-8", newline="\n"
+        ) as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "file": ".cowork-flow/spec/backend/index.md",
+                        "reason": "演示",
+                        "type": "planned-file",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+        self.assertEqual(["LIFECYCLE-REVIEW-003"], self._review_issues())
+
     def test_dev_type_change_makes_the_receipt_stale(self) -> None:
         self._record_receipt()
         data = json.loads((self.task_dir / "task.json").read_text(encoding="utf-8"))
