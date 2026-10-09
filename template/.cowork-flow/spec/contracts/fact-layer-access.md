@@ -50,7 +50,7 @@ client's requested `protocolVersion` (falling back to `2025-06-18`).
 | `task_state` | `{task?: string}` | The fact view as JSON text (`task`, `decisionAnchor`, `plan`, `sessions`, `snapshot`); without `task`, the session-bound active task when one resolves, or `{"task": null, "reason": "no-active-task"}` | `services/fact_view.build_fact_view` |
 | `task_list` | `{}` | Active tasks overview: name, path, status, assignee, parent/children, active flag | `TaskTreeService.active_nodes` via the list records |
 | `task_scope` | `{task?: string, path?: string}` | The file-scope whitelist summary, or a per-path `inScope` verdict with `path` | `services/fact_view.file_scope_whitelist` / `path_in_scope` |
-| `task_specs` | `{task?: string}` | The spec/skill reading list dispatched by the task's `dev_type` | `services/fact_view.spec_entries_for_task` |
+| `task_specs` | `{task?: string}` | The spec/skill reading list dispatched by the task's `dev_type` (declared at creation with `--type <dev-type>`, or backfilled on an unstarted task); a task with no `dev_type` gets base guides plus file-matched domain skills and no dev-type spec pointers | `services/fact_view.spec_entries_for_task` |
 
 `task_scope` and `task_specs` have CLI fact-command equivalents
 (`task scope`, `task specs`) consuming the same facade — MCP holds no

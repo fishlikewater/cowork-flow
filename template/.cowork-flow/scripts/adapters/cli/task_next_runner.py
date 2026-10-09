@@ -18,6 +18,7 @@ from runtime.session_state import (
     get_active_task,
 )
 from services.plan_binding import PlanBindingError, bind_task_plan
+from services.task_creation import TaskCreationError, set_task_dev_type
 from services.task_lifecycle import ADOPTABLE_STATUSES
 
 
@@ -126,6 +127,7 @@ def _run_create_action(
             parent=getattr(args, "parent", None),
             from_plan=getattr(args, "from_plan", None),
             depends_on=tuple(getattr(args, "depends_on", None) or ()),
+            dev_type=getattr(args, "dev_type", None),
         )
     )
 
@@ -154,6 +156,7 @@ def _validated_next_action(args: argparse.Namespace) -> tuple[dict[str, object] 
     create_inputs = _create_input_names(args)
     action_id = action.get("id")
     from_plan = getattr(args, "from_plan", None)
+    dev_type = getattr(args, "dev_type", None)
     if create_inputs and action_id != "create_task":
         print(
             colored(
@@ -180,7 +183,18 @@ def _validated_next_action(args: argparse.Namespace) -> tuple[dict[str, object] 
             file=sys.stderr,
         )
         return None, 1
-    if action_id == "edit_planning_artifacts" and from_plan:
+    if dev_type and action_id not in {"create_task", "edit_planning_artifacts"}:
+        print(
+            colored(
+                "Error: --type sets the dev type at creation or on an "
+                "unstarted task, but the next action is "
+                f"{action_id}",
+                Colors.RED,
+            ),
+            file=sys.stderr,
+        )
+        return None, 1
+    if action_id == "edit_planning_artifacts" and (from_plan or dev_type):
         return action, 0
     if payload.get("blockers") or action.get("blockers"):
         print(colored("Error: next action is blocked", Colors.RED), file=sys.stderr)
@@ -261,15 +275,27 @@ def _dispatch_next_lifecycle_action(
 
 def _run_plan_bind_action(args: argparse.Namespace, task_path: str) -> int:
     repo_root = get_repo_root()
-    try:
-        bind_task_plan(repo_root, repo_root / task_path, args.from_plan)
-    except PlanBindingError as error:
-        print(
-            colored(f"Error: {error.detail}: {error.path}", Colors.RED),
-            file=sys.stderr,
-        )
-        return 1
-    print(colored(f"[OK] Plan bound to: {task_path}", Colors.GREEN))
+    dev_type = getattr(args, "dev_type", None)
+    if getattr(args, "from_plan", None):
+        try:
+            bind_task_plan(repo_root, repo_root / task_path, args.from_plan)
+        except PlanBindingError as error:
+            print(
+                colored(f"Error: {error.detail}: {error.path}", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        print(colored(f"[OK] Plan bound to: {task_path}", Colors.GREEN))
+    if dev_type:
+        try:
+            set_task_dev_type(repo_root, repo_root / task_path, dev_type)
+        except TaskCreationError as error:
+            print(
+                colored(f"Error: {error.detail}: {error.path}", Colors.RED),
+                file=sys.stderr,
+            )
+            return 1
+        print(colored(f"[OK] dev_type set to '{dev_type}': {task_path}", Colors.GREEN))
     print(f"Next: ./.cowork-flow/run task next {task_path} --run")
     return 0
 
@@ -281,7 +307,9 @@ def _run_adopt_action(
     """`--adopt` is its own action: it repairs ownership and the review
     baseline without running any lifecycle transition."""
     repo_root = get_repo_root()
-    if _create_input_names(args) or getattr(args, "from_plan", None):
+    if _create_input_names(args) or getattr(args, "from_plan", None) or getattr(
+        args, "dev_type", None
+    ):
         print(
             colored(
                 "Error: --adopt takes over an existing task; create/plan "

@@ -61,7 +61,10 @@ TOOLS = [
         "description": (
             "Spec files the implementing agent should read for a task, "
             "dispatched by its dev_type (base guides + domain skills + "
-            "backend/frontend/spec pointers). Read them before coding."
+            "backend/frontend/fullstack/spec pointers). A task that "
+            "declares no dev_type gets the base guides and the domain "
+            "skills matched by its files, and no dev-type spec pointers. "
+            "Read them before coding."
         ),
         "inputSchema": {
             "type": "object",
