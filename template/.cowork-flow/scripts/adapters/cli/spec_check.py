@@ -26,7 +26,13 @@ def _report_exit_code(report: dict) -> int:
     """Map a report to the public spec-check exit contract."""
     if summary_has(report, "violation"):
         return 1
-    if summary_has(report, "unchecked") or report.get("parseErrors"):
+    # An executor failure means the checks never produced a verdict; it must
+    # never exit 0 just because the synthetic report carries no counter.
+    if (
+        summary_has(report, "unchecked")
+        or summary_has(report, "executorError")
+        or report.get("parseErrors")
+    ):
         return 2
     return 0
 

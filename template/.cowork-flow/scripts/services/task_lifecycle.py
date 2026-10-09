@@ -494,7 +494,6 @@ class TaskLifecycleService:
                 completed_at,
                 executor=resolved_executor,
                 check_result=check_result,
-                execution_policy=execution_policy,
             ),
             session_state,
             check_result,
@@ -723,7 +722,6 @@ class TaskLifecycleService:
         completed_at: str | None,
         executor: str | None = None,
         check_result: object | None = None,
-        execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> dict:
         persisted = dict(task_data)
         persisted["status"] = stage.target_status
@@ -761,16 +759,10 @@ class TaskLifecycleService:
                         ),
                         **check_result.evidence_exemption,
                     }
-                if (
-                    execution_policy is not None
-                    and execution_policy.allow_unchecked_specs
-                    and int((spec_report.get("summary") or {}).get("unchecked") or 0)
-                ):
+                if getattr(check_result, "spec_exemption", None):
                     meta["specCheckExempt"] = {
                         "at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                        "unchecked": int(
-                            (spec_report.get("summary") or {}).get("unchecked") or 0
-                        ),
+                        **check_result.spec_exemption,
                     }
                 persisted["meta"] = meta
         return persisted

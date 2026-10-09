@@ -58,6 +58,36 @@ def _display_task_path(repo_root: Path, task_dir: Path) -> str:
         return str(task_dir)
 
 
+def _print_completion_exemptions(result: object) -> None:
+    """Name the exemptions this completion applied.
+
+    A waived gate that is only written to task.json reads as a clean pass to
+    whoever is watching the command, so the same fact is printed here.
+    """
+    check_result = getattr(result, "check_result", None)
+    spec_exemption = getattr(check_result, "spec_exemption", None)
+    if spec_exemption:
+        print(
+            colored(
+                f"Exempted: {spec_exemption.get('unchecked', 0)} unchecked "
+                "spec-check command(s) via --allow-unchecked "
+                "(recorded in task.json meta.specCheckExempt)",
+                Colors.YELLOW,
+            )
+        )
+    evidence_exemption = getattr(check_result, "evidence_exemption", None)
+    if evidence_exemption:
+        missing = evidence_exemption.get("missing") or []
+        print(
+            colored(
+                f"Exempted: {len(missing)} acceptance criterion(ies) without "
+                "evidence via --allow-missing-evidence "
+                "(recorded in task.json meta.evidenceExempt)",
+                Colors.YELLOW,
+            )
+        )
+
+
 def _resolve_status_task_dir(
     args: argparse.Namespace,
     repo_root: Path,
@@ -453,6 +483,7 @@ def cmd_complete(args: argparse.Namespace) -> int:
             Colors.GREEN,
         )
     )
+    _print_completion_exemptions(result)
     print(f"Next: ./.cowork-flow/run task next {task_path}")
     return 0
 
