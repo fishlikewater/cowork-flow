@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -253,6 +254,91 @@ class ReviewReceiptGateTest(unittest.TestCase):
         self._record_receipt(result="fail")
 
         self.assertEqual([], self._review_issues())
+
+
+class SpecCheckFactTest(unittest.TestCase):
+    """A spec-check executor that never ran must not read as "nothing to check"."""
+
+    def _report(self) -> dict:
+        from services.lifecycle_checks import _spec_check_report
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with mock.patch(
+                "services.spec_check.run_checks",
+                side_effect=RuntimeError("executor exploded"),
+            ):
+                return _spec_check_report(root)
+
+    def test_executor_failure_is_classified_not_folded_into_unchecked(self) -> None:
+        report = self._report()
+
+        self.assertEqual("executor-failure", report["summary"]["classification"])
+        self.assertEqual(1, report["summary"]["executorError"])
+
+    def test_executor_failure_blocks_completion_even_with_allow_unchecked(self) -> None:
+        from services.lifecycle_checks import _spec_check_completion_issues
+
+        issues = _spec_check_completion_issues(
+            self._report(),
+            allow_unchecked_specs=True,
+        )
+
+        self.assertEqual(
+            ["SPEC-CHECK-EXECUTOR-ERROR"], [issue.code for issue in issues]
+        )
+
+    def test_executor_failure_does_not_offer_the_exemption_flag(self) -> None:
+        from services.lifecycle_checks import _spec_check_completion_issues
+
+        issues = _spec_check_completion_issues(
+            self._report(),
+            allow_unchecked_specs=False,
+        )
+
+        # One precise blocker: the synthetic unchecked count is not a second
+        # finding, and the message must not advertise the flag that would
+        # wave the failure through as "nothing to check".
+        self.assertEqual(
+            ["SPEC-CHECK-EXECUTOR-ERROR"], [issue.code for issue in issues]
+        )
+        self.assertNotIn("--allow-unchecked", issues[0].message)
+
+    def test_a_real_unchecked_command_stays_exemptible(self) -> None:
+        from services.lifecycle_checks import _spec_check_completion_issues
+
+        report = {
+            "parseErrors": [],
+            "results": [],
+            "summary": {
+                "pass": 0,
+                "violation": 0,
+                "unchecked": 1,
+                "declarations": 1,
+                "classification": "unchecked",
+            },
+        }
+
+        self.assertEqual(
+            [],
+            _spec_check_completion_issues(report, allow_unchecked_specs=True),
+        )
+        self.assertEqual(
+            ["SPEC-CHECK-UNCHECKED"],
+            [
+                issue.code
+                for issue in _spec_check_completion_issues(
+                    report, allow_unchecked_specs=False
+                )
+            ],
+        )
+
+    def test_executor_failure_yields_no_recorded_exemption(self) -> None:
+        from services.lifecycle_checks import _spec_check_exemption
+
+        self.assertIsNone(
+            _spec_check_exemption(self._report(), allow_unchecked_specs=True)
+        )
 
 
 if __name__ == "__main__":

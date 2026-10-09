@@ -16,6 +16,13 @@ Editor-phase runs are clamped to a short timeout and only touch declarations
 whose ``files`` match the edited path; slow or unfiltered commands belong to
 the lifecycle phase. Output passed back to agents is normalized to one line;
 full command output is only shown on an explicit ``--file`` query.
+
+Every report also carries a one-word ``summary.classification`` (see
+``classify_spec_check_result``), so "nothing declared", "declared but nothing
+ran in this phase", "parse failure", "executor failure" and "unchecked" are
+distinct queryable facts instead of one grey not-passing state. Reports
+written before this field existed read back as ``legacy`` through
+``report_classification`` rather than being guessed at.
 """
 
 from __future__ import annotations
@@ -43,6 +50,21 @@ MAX_FIRST_LINE_CHARS = 200
 EXCLUDED_SPEC_SUBDIRS = ("contracts", "runtime", "schemas")
 
 SCHEMA_VERSION = 1
+
+# One word per distinct outcome, most severe first. `empty` is the legal
+# "declarations exist but none ran in this phase" case (an edit-only
+# declaration under a lifecycle run); `legacy` is the read-back value for a
+# report written before this field existed, never a produced outcome.
+CLASSIFICATIONS = (
+    "parse-error",
+    "executor-failure",
+    "zero-declaration",
+    "violation",
+    "unchecked",
+    "pass",
+    "empty",
+)
+LEGACY_CLASSIFICATION = "legacy"
 
 
 class SpecCheckError(Exception):
@@ -409,6 +431,7 @@ def run_checks(
         "unchecked": sum(1 for r in results if r.status == "unchecked"),
         "declarations": declarations_total,
     }
+    summary["classification"] = classify_spec_check_result(summary, parse_errors)
     return {
         "schemaVersion": SCHEMA_VERSION,
         "phase": phase,
@@ -419,6 +442,41 @@ def run_checks(
         "parseErrors": parse_errors,
         "summary": summary,
     }
+
+
+def classify_spec_check_result(summary: dict, parse_errors: list) -> str:
+    """The report's one-word outcome, ordered by severity.
+
+    Parse failures and a failed executor outrank the counters: both mean the
+    checks did not produce a usable verdict, so neither may be read as a
+    benign "nothing to check" state.
+    """
+    if parse_errors:
+        return "parse-error"
+    summary = summary or {}
+    if int(summary.get("executorError") or 0):
+        return "executor-failure"
+    if int(summary.get("declarations") or 0) == 0:
+        return "zero-declaration"
+    if int(summary.get("violation") or 0):
+        return "violation"
+    if int(summary.get("unchecked") or 0):
+        return "unchecked"
+    if int(summary.get("pass") or 0):
+        return "pass"
+    return "empty"
+
+
+def report_classification(report: dict | None) -> str:
+    """Read a report's classification.
+
+    A report written before the field existed (or an unrecognized value) reads
+    back as ``legacy``: absence is its own fact, and re-deriving a verdict
+    from the counters would silently upgrade an old report into a guess.
+    """
+    summary = (report or {}).get("summary") or {}
+    value = summary.get("classification")
+    return value if value in CLASSIFICATIONS else LEGACY_CLASSIFICATION
 
 
 def normalized_one_line(report: dict) -> str:

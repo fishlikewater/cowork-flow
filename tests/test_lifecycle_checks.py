@@ -697,6 +697,56 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertEqual(1, data["meta"]["specCheckExempt"]["unchecked"])
             self.assertEqual(1, data["meta"]["specCheckSummary"]["unchecked"])
 
+    def test_spec_exemption_is_visible_in_completion_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            self._write_spec_check_fixture(
+                root, "definitely-not-a-real-command-xyz --flag"
+            )
+
+            result, stdout, stderr = self._run_complete(root, allow_unchecked=True)
+
+            self.assertEqual(0, result, stderr)
+            self.assertIn("1 unchecked spec-check command(s)", stdout)
+            self.assertIn("meta.specCheckExempt", stdout)
+
+    def test_recorded_exemptions_are_visible_in_archive_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            self._write_spec_check_fixture(
+                root, "definitely-not-a-real-command-xyz --flag"
+            )
+            completed, _stdout, stderr = self._run_complete(
+                root, allow_unchecked=True
+            )
+            self.assertEqual(0, completed, stderr)
+            self._init_git_repo(root)
+            self._commit_all(root, "baseline")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as archive_stderr,
+                ):
+                    code = self.task.cmd_archive(
+                        argparse.Namespace(name="05-19-demo", commit=False)
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            output = archive_stderr.getvalue()
+            self.assertEqual(0, code, output)
+            self.assertIn("meta.specCheckExempt", output)
+            self.assertIn("1 unchecked spec-check command(s)", output)
+
     def test_passing_spec_checks_record_summary_on_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

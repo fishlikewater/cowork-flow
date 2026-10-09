@@ -56,6 +56,7 @@ class LifecycleCheckResult:
     issues: tuple[LifecycleCheckIssue, ...] = ()
     spec_check: dict | None = None
     evidence_exemption: dict | None = None
+    spec_exemption: dict | None = None
 
     def __post_init__(self) -> None:
         if self.issues and not self.blockers:
@@ -111,13 +112,14 @@ class LifecycleCheckRunner:
         execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> LifecycleCheckResult:
         spec_report = _spec_check_report(self.repo_root)
+        allow_unchecked = (
+            bool(allow_unchecked_specs)
+            if allow_unchecked_specs is not None
+            else _policy_allows_unchecked(execution_policy)
+        )
         spec_issues = _spec_check_completion_issues(
             spec_report,
-            allow_unchecked_specs=(
-                bool(allow_unchecked_specs)
-                if allow_unchecked_specs is not None
-                else _policy_allows_unchecked(execution_policy)
-            ),
+            allow_unchecked_specs=allow_unchecked,
         )
         ac_issues, evidence_exemption = _ac_evidence_completion_facts(
             task_dir,
@@ -147,6 +149,10 @@ class LifecycleCheckRunner:
             ),
             spec_check=spec_report,
             evidence_exemption=evidence_exemption,
+            spec_exemption=_spec_check_exemption(
+                spec_report,
+                allow_unchecked_specs=allow_unchecked,
+            ),
         )
 
 
@@ -245,13 +251,74 @@ def _spec_check_report(repo_root: Path) -> dict | None:
     except Exception:  # pragma: no cover - import surface must stay lazy
         return {"schemaVersion": 1, "phase": "lifecycle", "results": [],
                 "parseErrors": [], "summary": {"pass": 0, "violation": 0,
-                "unchecked": 1, "executorError": 1}}
+                "unchecked": 1, "executorError": 1,
+                "classification": "executor-failure"}}
     try:
         return run_checks(repo_root, phase="lifecycle")
     except Exception as error:  # fail closed: unchecked, not pass
         return {"schemaVersion": 1, "phase": "lifecycle", "results": [],
                 "parseErrors": [], "summary": {"pass": 0, "violation": 0,
-                "unchecked": 1, "executorError": 1, "error": str(error)}}
+                "unchecked": 1, "executorError": 1, "error": str(error),
+                "classification": "executor-failure"}}
+
+
+def _spec_check_exemption(
+    spec_report: dict | None,
+    *,
+    allow_unchecked_specs: bool,
+) -> dict | None:
+    """The exemption this completion applied, or None.
+
+    Single source for both the persisted telemetry and the delivery output:
+    a waived gate that is recorded but never shown reads as a clean pass.
+    An executor failure is never exemptible, so it never yields one.
+    """
+    if not spec_report or not allow_unchecked_specs:
+        return None
+    summary = spec_report.get("summary") or {}
+    if int(summary.get("executorError") or 0):
+        return None
+    unchecked = int(summary.get("unchecked") or 0)
+    return {"unchecked": unchecked} if unchecked else None
+
+
+def _spec_check_parse_error_issue(parse_errors: list) -> LifecycleCheckIssue | None:
+    """The blocking fact for declarations the parser could not read."""
+    if not parse_errors:
+        return None
+    details = []
+    for item in parse_errors:
+        if isinstance(item, dict):
+            spec = item.get("spec") or "?"
+            error = item.get("error") or "unknown parse error"
+            details.append(f"{spec}: {error}")
+    suffix = "; ".join(details[:3])
+    return LifecycleCheckIssue(
+        code="SPEC-CHECK-PARSE-ERROR",
+        message=(
+            f"spec checks report {len(parse_errors)} parse error(s)"
+            + (f": {suffix}" if suffix else "")
+        ),
+    )
+
+
+def _spec_check_executor_issue(summary: dict) -> LifecycleCheckIssue | None:
+    """The blocking fact for a spec-check executor that never ran.
+
+    Not waivable: --allow-unchecked exempts a command that could not run, not
+    an executor that is broken. The `unchecked: 1` in a degraded report is a
+    placeholder for "no verdict", so it never becomes a finding of its own.
+    """
+    if not int(summary.get("executorError") or 0):
+        return None
+    return LifecycleCheckIssue(
+        code="SPEC-CHECK-EXECUTOR-ERROR",
+        message=(
+            "spec-check executor failed; the declared checks did not run, so "
+            "this is not an exemption-eligible unchecked result — fix the "
+            "spec-check executor and rerun"
+        ),
+    )
 
 
 def _spec_check_completion_issues(
@@ -263,24 +330,14 @@ def _spec_check_completion_issues(
         return []
     summary = spec_report.get("summary") or {}
     issues: list[LifecycleCheckIssue] = []
-    parse_errors = spec_report.get("parseErrors") or []
-    if parse_errors:
-        details = []
-        for item in parse_errors:
-            if isinstance(item, dict):
-                spec = item.get("spec") or "?"
-                error = item.get("error") or "unknown parse error"
-                details.append(f"{spec}: {error}")
-        suffix = "; ".join(details[:3])
-        issues.append(
-            LifecycleCheckIssue(
-                code="SPEC-CHECK-PARSE-ERROR",
-                message=(
-                    f"spec checks report {len(parse_errors)} parse error(s)"
-                    + (f": {suffix}" if suffix else "")
-                ),
-            )
-        )
+    parse_error_issue = _spec_check_parse_error_issue(
+        spec_report.get("parseErrors") or []
+    )
+    if parse_error_issue is not None:
+        issues.append(parse_error_issue)
+    executor_issue = _spec_check_executor_issue(summary)
+    if executor_issue is not None:
+        issues.append(executor_issue)
     violation = int(summary.get("violation") or 0)
     unchecked = int(summary.get("unchecked") or 0)
     if violation:
@@ -298,7 +355,7 @@ def _spec_check_completion_issues(
                 ),
             )
         )
-    if unchecked and not allow_unchecked_specs:
+    if unchecked and executor_issue is None and not allow_unchecked_specs:
         issues.append(
             LifecycleCheckIssue(
                 code="SPEC-CHECK-UNCHECKED",

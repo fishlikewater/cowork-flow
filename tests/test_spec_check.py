@@ -23,6 +23,112 @@ def _spec(root: Path, relative: str, text: str) -> Path:
     return path
 
 
+class SpecCheckClassificationTest(unittest.TestCase):
+    """One word per distinct outcome, so "nothing ran" never reads as a pass."""
+
+    def setUp(self) -> None:
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
+        self.addCleanup(self._cleanup_imports)
+        module = importlib.import_module("services.spec_check")
+        self.classify = module.classify_spec_check_result
+        self.report_classification = module.report_classification
+        self.run_checks = module.run_checks
+
+    def _cleanup_imports(self) -> None:
+        sys.modules.pop("services.spec_check", None)
+
+    def test_each_distinct_state_gets_its_own_classification(self) -> None:
+        cases = (
+            ("pass", {"pass": 1, "violation": 0, "unchecked": 0, "declarations": 1}, []),
+            ("violation", {"pass": 0, "violation": 2, "unchecked": 0, "declarations": 2}, []),
+            ("unchecked", {"pass": 0, "violation": 0, "unchecked": 1, "declarations": 1}, []),
+            (
+                "zero-declaration",
+                {"pass": 0, "violation": 0, "unchecked": 0, "declarations": 0},
+                [],
+            ),
+            ("empty", {"pass": 0, "violation": 0, "unchecked": 0, "declarations": 3}, []),
+            (
+                "parse-error",
+                {"pass": 0, "violation": 0, "unchecked": 0, "declarations": 1},
+                [{"spec": "team.md", "error": "malformed check line"}],
+            ),
+            (
+                "executor-failure",
+                {
+                    "pass": 0,
+                    "violation": 0,
+                    "unchecked": 1,
+                    "declarations": 1,
+                    "executorError": 1,
+                },
+                [],
+            ),
+        )
+        for expected, summary, parse_errors in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(expected, self.classify(summary, parse_errors))
+
+    def test_parse_error_outranks_a_failed_executor(self) -> None:
+        summary = {
+            "pass": 0,
+            "violation": 0,
+            "unchecked": 1,
+            "declarations": 2,
+            "executorError": 1,
+        }
+        self.assertEqual(
+            "parse-error",
+            self.classify(summary, [{"spec": "team.md", "error": "bad"}]),
+        )
+
+    def test_failed_executor_is_not_reported_as_unchecked(self) -> None:
+        summary = {
+            "pass": 0,
+            "violation": 0,
+            "unchecked": 1,
+            "declarations": 1,
+            "executorError": 1,
+        }
+        self.assertEqual("executor-failure", self.classify(summary, []))
+
+    def test_pre_classification_report_reads_back_as_legacy(self) -> None:
+        legacy = {"summary": {"pass": 1, "violation": 0, "unchecked": 0, "declarations": 1}}
+        self.assertEqual("legacy", self.report_classification(legacy))
+        self.assertEqual("legacy", self.report_classification({"summary": {}}))
+        self.assertEqual("legacy", self.report_classification({}))
+        self.assertEqual("legacy", self.report_classification(None))
+        # An unknown value is not a verdict either: fall back, do not guess.
+        self.assertEqual(
+            "legacy", self.report_classification({"summary": {"classification": "bogus"}})
+        )
+        self.assertEqual(
+            "pass", self.report_classification({"summary": {"classification": "pass"}})
+        )
+
+    def test_run_checks_stamps_the_classification_it_produced(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            empty_report = self.run_checks(root, phase="lifecycle")
+            self.assertEqual(
+                "zero-declaration", empty_report["summary"]["classification"]
+            )
+
+            _spec(
+                root,
+                "team.md",
+                f'---\nchecks:\n  - cmd: "{PY}" -c "import sys; sys.exit(0)"\n---\n\n# 规范\n',
+            )
+            passing_report = self.run_checks(root, phase="lifecycle")
+            self.assertEqual("pass", passing_report["summary"]["classification"])
+            self.assertEqual(
+                "pass", self.report_classification(passing_report)
+            )
+
+
 class SpecCheckTest(unittest.TestCase):
     def setUp(self) -> None:
         if str(SCRIPTS) not in sys.path:
@@ -81,7 +187,13 @@ class SpecCheckTest(unittest.TestCase):
             self.assertEqual(violation["exitCode"], 3)
             self.assertEqual(
                 report["summary"],
-                {"pass": 1, "violation": 1, "unchecked": 0, "declarations": 2},
+                {
+                    "pass": 1,
+                    "violation": 1,
+                    "unchecked": 0,
+                    "declarations": 2,
+                    "classification": "violation",
+                },
             )
 
     def test_json_mode_preserves_violation_and_unchecked_exit_codes(self) -> None:
