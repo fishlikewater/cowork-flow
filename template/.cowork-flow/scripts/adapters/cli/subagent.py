@@ -29,6 +29,7 @@ from runtime.session_state import (
     sessions_dir,
     subagent_contexts_dir,
 )
+from services.review_receipt import ReviewReceiptError, submit_review_receipt
 from services.workflow_runtime import (
     RuntimeContextError,
     RuntimeContextService,
@@ -367,6 +368,38 @@ def cmd_close(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_review(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    task_dir = Path(args.task_dir)
+    if not task_dir.is_absolute():
+        task_dir = repo_root / task_dir
+    findings: list[dict] = []
+    for raw in args.finding or []:
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            print(f"Error: --finding must be a JSON object: {raw}", file=sys.stderr)
+            return 1
+        if not isinstance(item, dict):
+            print(f"Error: --finding must be a JSON object: {raw}", file=sys.stderr)
+            return 1
+        findings.append(item)
+    try:
+        receipt = submit_review_receipt(
+            RuntimeContextService(repo_root),
+            task_dir,
+            context_id=args.subagent_id,
+            result=args.result,
+            findings=findings,
+            changed_fingerprint=args.changed_fingerprint,
+        )
+    except ReviewReceiptError as error:
+        print(f"Error: {error.code}: {error.detail}", file=sys.stderr)
+        return 1
+    print(json.dumps(receipt, ensure_ascii=False))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Runtime-context scoped subagent state",
@@ -414,6 +447,35 @@ def build_parser() -> argparse.ArgumentParser:
     close = subparsers.add_parser("close", help="Close subagent runtime context")
     close.add_argument("subagent_id")
     close.set_defaults(func=cmd_close)
+
+    check_review = subparsers.add_parser(
+        "check-review",
+        help=(
+            "Record an independent review receipt for a task (only a bound "
+            "cowork-check context can submit)"
+        ),
+    )
+    check_review.add_argument("subagent_id")
+    check_review.add_argument(
+        "--task-dir",
+        dest="task_dir",
+        required=True,
+        help="Task under review (repo-relative or absolute)",
+    )
+    check_review.add_argument("--result", required=True, choices=("pass", "fail"))
+    check_review.add_argument(
+        "--changed-fingerprint",
+        dest="changed_fingerprint",
+        required=True,
+        help="Fingerprint of the change set this review covers",
+    )
+    check_review.add_argument(
+        "--finding",
+        action="append",
+        default=[],
+        help="Review finding as a JSON object (repeatable)",
+    )
+    check_review.set_defaults(func=cmd_check_review)
 
     return parser
 
