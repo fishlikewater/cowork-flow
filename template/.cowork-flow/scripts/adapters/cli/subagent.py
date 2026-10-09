@@ -473,7 +473,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--finding",
         action="append",
         default=[],
-        help="Review finding as a JSON object (repeatable)",
+        help=(
+            "Review finding as a JSON object (repeatable), using the review "
+            "report keys: clause, command, negativeProof (command and "
+            "negativeProof may be null for a judgment no command decides)"
+        ),
     )
     check_review.set_defaults(func=cmd_check_review)
 

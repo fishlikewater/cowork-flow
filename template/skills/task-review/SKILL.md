@@ -47,6 +47,22 @@ Read only what is needed for the current task:
 - **Anti-self-proof**: every claimed pass maps to source, diff, test output, or lifecycle output.
 - **Anti-rationalization**: every accepted gap has an explicit user decision or narrow technical reason.
 
+## Review Report Format
+
+A finding is a machine-readable fact, not prose: the completion path and `subagent check-review` both consume it. Every finding carries three keys:
+
+- `clause`: the requirement it judges — a user-spec clause, an acceptance criterion (`AC-xxx`), or a repo convention.
+- `command`: the command that decides it, run from this checkout.
+- `negativeProof`: what that command reports when the clause is broken — the evidence that the check can actually fail instead of always passing.
+
+`command` and `negativeProof` may be `null` only for a judgment no command can decide (naming, layering, design intent); a machine-checkable clause left without a command is itself a finding. Use the same three keys when recording the finding in a review receipt:
+
+```json
+{"clause": "所有源文件 UTF-8 无 BOM", "command": "python scripts/check_bom.py", "negativeProof": "写入 BOM 后该命令退出码 1 并打印 offending file"}
+```
+
+`./.cowork-flow/run subagent check-review <subagent-id> --task-dir <dir> --result pass --changed-fingerprint <fp> --finding '<json>'` (repeatable).
+
 ## Severity
 
 - `critical`: correctness, security, data loss, lifecycle bypass, or completion would be invalid. Blocks completion.
@@ -60,9 +76,9 @@ Return a concise review result with:
 
 - `acceptanceId`: covered acceptance criteria or `overall`.
 - `status`: `pass`, `needs_fix`, or `blocked`.
-- `findings`: severity, file, line/scope, impact, and fix.
+- `findings`: severity, file, line/scope, impact, fix, plus the `clause` / `command` / `negativeProof` triple defined in Review Report Format.
 - `test_intent_review`: why tests prove the intended behavior or what is missing.
-- `user_spec_review`: applicable spec files, per-requirement result, findings, and the "clause → command" list for every `checks:` declaration added or refreshed in this review (`none` when nothing became machine-checkable).
+- `user_spec_review`: applicable spec files, per-requirement result, findings, and the "clause → command → negative proof" list for every `checks:` declaration added or refreshed in this review (`none` when nothing became machine-checkable).
 - `lifecycle_check_review`: lifecycle commands run, blocker status, and resolution.
 - `verification`: exact commands run from this checkout.
 - `specUpdates`: files updated or reason no update was needed.

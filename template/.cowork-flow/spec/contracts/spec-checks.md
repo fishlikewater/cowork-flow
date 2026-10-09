@@ -61,7 +61,7 @@ unchecked 永不冒充 pass（"没跑成"不是"通过"）；frontmatter 畸形�
 - **模板不预置声明**：模板自带的 spec 文件不含生效的 `checks:` 声明——模板无法预知项目命令，而命令缺失会归 `unchecked` 并阻断 `complete`。请把声明写进自建 spec 文件（如 `spec/team-xxx.md` 或自建子目录），sync 不触碰，声明随规范正文一起由使用方维护。
 - **sync 保护前缀与具名例外**：`spec/` 整体是 sync 保护前缀，已存在的 spec 文件不会被 `sync` 覆盖（模板里 spec 的更新只对 `init` 新装生效）；唯一具名例外是 `spec/contracts/` 下列入 `spec/runtime/host-assets.json` `syncPolicy.safeFiles` 的条目（本文件与 `workflow-state-templates.md`），它们随 sync 更新，使契约修正能到达已安装项目。
 - **识别并挂声明是主会话 AI 的职责**：声明归项目所有。review / 规范维护时，主会话 AI 负责识别可机检条款并补 `checks:` 声明（条款正文不擅自改——发现条款与实现冲突时按 review 流程提出，由用户决策）；仅主会话写入 spec，delegated 子代理只上报候选、不越 scope。完整职责见 `task-review` 与 `spec-sync` Skill。
-- **质量纪律四条**：① 在干净树上跑出 `pass`；② 用一个反例证明该检查确实能报错（不是恒过的装饰）；③ 用 `files` 限定适用范围；④ 挂后跑一次 `spec-check` 确认声明被解析（防 BOM / `files` 形态错误静默失效）；并在 review 报告列出「条款 → 命令」清单。
+- **质量纪律四条**：① 在干净树上跑出 `pass`；② 用一个反例证明该检查确实能报错（不是恒过的装饰）；③ 用 `files` 限定适用范围；④ 挂后跑一次 `spec-check` 确认声明被解析（防 BOM / `files` 形态错误静默失效）。复核报告按「条款 → 命令 → 反例」三元组列出：`clause`（条款）、`command`（判定命令）、`negativeProof`（破坏该条款时命令报什么）——与 `task-review` 的 Review Report Format 和 `subagent check-review --finding` 用同一组键。无法用命令判定的条款写明理由（`command`/`negativeProof` 为 `null`），不留空行；可机检却给不出命令的条款本身就是一条 finding。
 
 ## 附录 A 宿主能力矩阵
 
