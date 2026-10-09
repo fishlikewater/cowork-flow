@@ -49,6 +49,11 @@ class ReviewReceiptGateTest(unittest.TestCase):
         _git(self.root, "init")
         _git(self.root, "config", "user.email", "gate@example.com")
         _git(self.root, "config", "user.name", "gate")
+        # A real checkout ignores .cowork-flow/, so the bound plan never shows
+        # up in the change set. Without this the fixture would let the plan
+        # test pass through the changed-path digest and leave the plan digest
+        # itself unguarded.
+        (self.root / ".gitignore").write_text("/.cowork-flow/\n", encoding="utf-8")
         (self.root / ".cowork-flow" / "tasks").mkdir(parents=True)
         (self.root / ".cowork-flow" / "plans").mkdir(parents=True)
         (self.root / "src.py").write_text("value = 1\n", encoding="utf-8")
