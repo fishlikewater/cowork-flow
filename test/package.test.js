@@ -132,7 +132,13 @@ test('package metadata exposes release script and synchronized lockfile version'
   const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
 
   assert.equal(packageInfo.scripts.release, 'sh scripts/release.sh');
-  assert.equal(packageInfo.scripts['release:check'], 'npm run test:all');
+  // release:check is the suite run plus the gates no suite can express: the
+  // self-instance drift check and doctor. Pinning the composition here keeps a
+  // later edit from quietly dropping the non-suite half.
+  assert.match(
+    packageInfo.scripts['release:check'],
+    /^npm run test:all && node scripts\/release-gates\.js$/
+  );
   // The Windows job is the PR buckets plus the suites only test:node:full
   // would otherwise reach; which files those are is asserted by the CI-bucket
   // test below, so this pins the composition and not a copy of the list.

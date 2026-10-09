@@ -17,7 +17,7 @@
 | `npm run test:windows:core` | 涉及 Windows、路径、换行或发布行为 |
 | `python -m pytest -q` | 改动 `template/.cowork-flow/`、`tests/` 或 Python 契约 |
 | `npm run test:all` | 准备发布时的完整 Node、模板和打包检查 |
-| `npm run release:check` | 发布信心门禁，当前等价于 `test:all` |
+| `npm run release:check` | 发布信心门禁：`test:all` 加上测试表达不了的检查——自实例相对 `template/` 的漂移，以及 `doctor --all` 的 error 级问题 |
 
 平台前提不满足时，测试可能明确跳过。跳过项必须原样记录，不能当作通过。
 
@@ -38,6 +38,8 @@ npm run test:template:full
 | `npm run release -- --version 0.1.0` | 使用指定版本号，跳过自动 bump |
 | `npm run release -- minor --no-publish` | 完成版本、提交和 tag，推送 commit 与 tag，但不执行 `npm publish`；由 CI 发布 |
 | `npm run release -- --dry-run` | 运行发布前检查，停在版本 bump 之前 |
+
+`npm run release` 内部跑的是 `test:all`，不是 `release:check`：它在跑测试前先执行 `source:refresh` 与 `sync --force`，漂移已被抹平，因此缺的只是 `doctor` 这一半。发布前请按标准流程先单独跑一次 `release:check`。
 
 `--dry-run` 不是只读命令。它会先要求 Git 工作树和暂存区干净，再执行 `source:refresh` 和 `sync --force`，因此可能刷新仓库中被忽略的运行副本，并临时覆盖后恢复 `AGENTS.md`。它不会改版本文件、提交、打 tag 或发布；如果检查开始时已有本地修改，脚本会在任何刷新前停止。
 
