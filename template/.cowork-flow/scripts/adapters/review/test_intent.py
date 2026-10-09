@@ -57,7 +57,17 @@ def _strip_string_and_comment_literals(content: str) -> str:
         tokens = []
         for token in tokenize.generate_tokens(io.StringIO(content).readline):
             if token.type in (tokenize.STRING, tokenize.COMMENT):
-                tokens.append(token._replace(string='""'))
+                # The replacement is shorter than the literal, so the end
+                # position has to shrink with it: untokenize requires
+                # monotonic positions, and a tokenizer reports a multi-line
+                # string's closing line in UTF-8 bytes, which already
+                # overruns the next token on any non-ASCII line.
+                tokens.append(
+                    token._replace(
+                        string='""',
+                        end=(token.start[0], token.start[1] + 2),
+                    )
+                )
             else:
                 tokens.append(token)
         return tokenize.untokenize(tokens)
