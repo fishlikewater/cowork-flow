@@ -12,7 +12,7 @@ Batch Scheduler is a persistent state machine. Do **not** simulate or check comp
 - Batch is not the default path for ordinary task work.
 - Use normal step-by-task progression unless the user explicitly approves automatic continuous execution.
 - Task ordering comes **only** from the topological order of leaf tasks in the task tree.
-- `implement.jsonl` and `check.jsonl` serve **only** as current-task context and review evidence; they must **not** be used as the Batch task list.
+- `implement.jsonl` and `check.jsonl` serve **only** as current-task context (review results belong in `review.jsonl`; `check.jsonl` carries no conclusions); they must **not** be used as the Batch task list.
 - Only one host-neutral `next_action` is published at a time.
 - After the host executes a real action, results must be written back; the state machine validates repository state before advancing.
 - Any failure in lifecycle checks, binding, implementation, check, test, completion, or commit **pauses** the batch.

@@ -172,6 +172,83 @@ class HostSkillsGateTest(unittest.TestCase):
         )
         self.assertEqual([], [spec.errors for spec in collected if spec.errors])
 
+    def _skill_manifests(self) -> list:
+        module = importlib.import_module("infra.skill_manifest")
+        try:
+            return module.load_skill_manifests(TEMPLATE)
+        finally:
+            sys.modules.pop("infra.skill_manifest", None)
+
+    def test_only_one_skill_owns_the_doubt_cycle(self) -> None:
+        """decision-audit duplicated adversarial-review's review loop.
+
+        Two owners of the same entry point is what made the review surface
+        ambiguous; a second owner must fail here rather than be discovered in
+        a session.
+        """
+        owners = [
+            path.parent.name
+            for path in sorted((TEMPLATE / "skills").glob("*/SKILL.md"))
+            if "**DOUBT**" in path.read_text(encoding="utf-8")
+            and "**RECONCILE**" in path.read_text(encoding="utf-8")
+        ]
+
+        self.assertEqual(["adversarial-review"], owners)
+
+    def test_template_ships_no_game_domain_guide_or_spec(self) -> None:
+        """Game guidance is a project concern, not a framework default."""
+        self.assertFalse((TEMPLATE / "skills" / "game-design").exists())
+        self.assertFalse((TEMPLATE / ".cowork-flow" / "spec" / "game").exists())
+        self.assertEqual(
+            [],
+            [
+                pattern
+                for manifest in self._skill_manifests()
+                for rule in manifest.context_rules
+                for pattern in rule.path_patterns
+                if "game" in pattern.lower()
+            ],
+        )
+
+    def test_maintenance_guide_is_scoped_to_the_source_checkout(self) -> None:
+        """An installed project edits `.cowork-flow/**` on every single task.
+
+        Routing the maintenance guide on those paths armed it for ordinary
+        project work; only trees that exist in the framework checkout may
+        arm it.
+        """
+        rules = [
+            rule
+            for manifest in self._skill_manifests()
+            if manifest.skill == "cowork-flow-maintenance"
+            for rule in manifest.context_rules
+        ]
+
+        self.assertEqual(1, len(rules))
+        patterns = list(rules[0].path_patterns)
+        self.assertEqual(
+            [],
+            [pattern for pattern in patterns if pattern.startswith(".cowork-flow")],
+            "an installed project's own .cowork-flow edits must not arm this guide",
+        )
+        self.assertEqual(
+            [],
+            [
+                pattern
+                for pattern in patterns
+                if pattern.split("/")[0] not in {"template", "presets"}
+            ],
+            "only framework-checkout trees may arm this guide",
+        )
+
+    def test_batch_execution_does_not_call_check_jsonl_review_evidence(self) -> None:
+        text = (
+            TEMPLATE / "skills" / "batch-execution" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("review evidence", text)
+        self.assertIn("review results belong in `review.jsonl`", text)
+
 
 if __name__ == "__main__":
     unittest.main()

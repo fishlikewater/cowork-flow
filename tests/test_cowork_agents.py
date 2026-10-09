@@ -74,9 +74,7 @@ class CoworkAgentsTest(unittest.TestCase):
             "brainstorming",
             "cowork-flow",
             "cowork-flow-maintenance",
-            "decision-audit",
             "failure-analysis",
-            "game-design",
             "party-mode",
             "python-runtime-design",
             "runtime-health",
@@ -284,14 +282,14 @@ class CoworkAgentsTest(unittest.TestCase):
     def test_fixed_agents_share_required_skill_contracts(self) -> None:
         role_contracts = {
             "cowork-implement": (
-                "decision-audit/SKILL.md",
+                "adversarial-review/SKILL.md",
                 "spec-sync/SKILL.md",
                 "verification commands",
                 "acceptance IDs",
             ),
             "cowork-check": (
                 "task-review/SKILL.md",
-                "decision-audit/SKILL.md",
+                "adversarial-review/SKILL.md",
                 "spec-sync/SKILL.md",
                 "test intent review",
                 "findings",

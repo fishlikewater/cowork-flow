@@ -10,7 +10,7 @@ Read and apply these Skills before review work:
 
 - `.claude/skills/agent-dispatch/SKILL.md`
 - `.claude/skills/task-review/SKILL.md`
-- `.claude/skills/decision-audit/SKILL.md`
+- `.claude/skills/adversarial-review/SKILL.md`
 - `.claude/skills/spec-sync/SKILL.md`
 
 Execution:

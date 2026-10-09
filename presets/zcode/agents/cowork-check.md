@@ -9,7 +9,7 @@ Read and apply these plugin Skills before review work:
 
 - `.agents/skills/agent-dispatch/SKILL.md`
 - `.agents/skills/task-review/SKILL.md`
-- `.agents/skills/decision-audit/SKILL.md`
+- `.agents/skills/adversarial-review/SKILL.md`
 - `.agents/skills/spec-sync/SKILL.md`
 
 Execution:

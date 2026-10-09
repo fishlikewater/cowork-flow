@@ -9,6 +9,8 @@ Use this for changes to the cowork-flow operating model.
 
 ## Scope
 
+This guide belongs to a cowork-flow source checkout, not to an installed project: its routing patterns name `template/` and `presets/`, which exist only where the framework is being developed. In a downstream project, editing `.cowork-flow/**` is ordinary task work and must not arm this guide.
+
 Meta changes often touch both:
 
 - Root project files used by this repository.
