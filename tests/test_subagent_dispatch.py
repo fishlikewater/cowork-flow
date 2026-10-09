@@ -549,5 +549,169 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertNotEqual(0, result.returncode)
             self.assertFalse((root / ".cowork-flow" / ".runtime").exists())
 
+    def test_check_review_records_receipt_for_bound_cowork_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow" / "tasks" / "demo-task").mkdir(parents=True)
+
+            dispatch = self._dispatch(root, agent_type="cowork-check")
+            self.assertEqual(0, dispatch.returncode, msg=dispatch.stderr)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "check-review",
+                    dispatch.payload["runtimeContextId"],
+                    "--task-dir",
+                    ".cowork-flow/tasks/demo-task",
+                    "--result",
+                    "pass",
+                    "--changed-fingerprint",
+                    "abc123",
+                    "--finding",
+                    '{"clause": "AC-002", "command": "pytest -q"}',
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+            receipt = json.loads(result.stdout)
+            self.assertEqual("pass", receipt["result"])
+            self.assertEqual(dispatch.payload["runtimeContextId"], receipt["contextId"])
+            self.assertEqual("cowork-check", receipt["agentType"])
+            self.assertEqual("abc123", receipt["changedFingerprint"])
+            self.assertEqual(
+                [{"clause": "AC-002", "command": "pytest -q"}],
+                receipt["findings"],
+            )
+
+            recorded = json.loads(
+                (root / ".cowork-flow" / "tasks" / "demo-task" / "review.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()[0]
+            )
+            self.assertEqual(receipt, recorded)
+
+    def test_check_review_refuses_a_non_checker_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow" / "tasks" / "demo-task").mkdir(parents=True)
+
+            dispatch = self._dispatch(root, agent_type="cowork-implement")
+            self.assertEqual(0, dispatch.returncode, msg=dispatch.stderr)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "check-review",
+                    dispatch.payload["runtimeContextId"],
+                    "--task-dir",
+                    ".cowork-flow/tasks/demo-task",
+                    "--result",
+                    "pass",
+                    "--changed-fingerprint",
+                    "abc123",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("REVIEW-RECEIPT-003", result.stderr)
+            self.assertFalse(
+                (root / ".cowork-flow" / "tasks" / "demo-task" / "review.jsonl").exists()
+            )
+
+    def test_check_review_refuses_a_context_bound_to_another_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow" / "tasks" / "demo-task").mkdir(parents=True)
+            (root / ".cowork-flow" / "tasks" / "other-task").mkdir(parents=True)
+
+            dispatch = self._dispatch(
+                root,
+                agent_type="cowork-check",
+                task_dir=".cowork-flow/tasks/other-task",
+            )
+            self.assertEqual(0, dispatch.returncode, msg=dispatch.stderr)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SUBAGENT),
+                    "check-review",
+                    dispatch.payload["runtimeContextId"],
+                    "--task-dir",
+                    ".cowork-flow/tasks/demo-task",
+                    "--result",
+                    "pass",
+                    "--changed-fingerprint",
+                    "abc123",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("REVIEW-RECEIPT-004", result.stderr)
+
+    def _dispatch(
+        self,
+        root: Path,
+        *,
+        agent_type: str,
+        task_dir: str = ".cowork-flow/tasks/demo-task",
+    ) -> subprocess.CompletedProcess:
+        """Init a formal context and bind it, the way a real dispatch does."""
+        init = subprocess.run(
+            [
+                sys.executable,
+                str(SUBAGENT),
+                "init",
+                "--execution-task-dir",
+                task_dir,
+                "--title",
+                "Independent review",
+                "--role",
+                agent_type.removeprefix("cowork-"),
+                "--agent-type",
+                agent_type,
+            ],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if init.returncode != 0:
+            return init
+        payload = json.loads(init.stdout)
+        bind = subprocess.run(
+            [
+                sys.executable,
+                str(SUBAGENT),
+                "bind",
+                payload["runtimeContextId"],
+                payload["hostContextKey"],
+            ],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if bind.returncode != 0:
+            return bind
+        init.payload = payload
+        return init
+
+
 if __name__ == "__main__":
     unittest.main()
