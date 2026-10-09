@@ -111,6 +111,38 @@ def submit_review_receipt(
     return receipt
 
 
+def read_review_receipts(task_dir: Path) -> list[dict[str, Any]]:
+    """Valid receipts recorded for a task, oldest first.
+
+    Bad lines and malformed records are skipped, never fatal: the gate
+    blocks on missing or stale review, not on file noise."""
+    path = Path(task_dir) / REVIEW_FILE
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    receipts: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict) and _valid_receipt(record):
+            receipts.append(record)
+    return receipts
+
+
+def _valid_receipt(record: dict[str, Any]) -> bool:
+    return (
+        record.get("result") in RESULTS
+        and isinstance(record.get("changedFingerprint"), str)
+        and bool(record["changedFingerprint"].strip())
+    )
+
+
 def _bound_to_task(repo_root: Path, context: dict[str, Any], task_dir: Path) -> bool:
     """Whether the context's recorded task path is the task under review.
 

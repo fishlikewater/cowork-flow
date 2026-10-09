@@ -92,6 +92,22 @@ def _read_json(path: Path) -> Any:
         return None
 
 
+def task_data(task_dir: Path) -> dict[str, Any]:
+    """Task metadata for fact consumers, or {} when unreadable."""
+    data = _read_json(Path(task_dir) / "task.json")
+    return data if isinstance(data, dict) else {}
+
+
+def task_baseline(task_dir: Path) -> str | None:
+    """The commit recorded when the task started, or None.
+
+    A missing baseline (or one orphaned by a rebase) makes the change set
+    degrade to working-tree status only — the pre-baseline behavior."""
+    meta = task_data(task_dir).get("meta")
+    value = meta.get("baselineCommit") if isinstance(meta, dict) else None
+    return value if isinstance(value, str) and value else None
+
+
 def file_scope_whitelist(repo_root: Path, task_dir: Path) -> list[dict]:
     """File-scope-only whitelist entries for one task.
 
@@ -519,4 +535,16 @@ def build_fact_view(repo_root: Path, task_dir: Path) -> dict[str, Any]:
         "whitelist": file_scope_whitelist(repo_root, task_dir),
         "sessions": _bound_sessions(repo_root, rel_task),
         "snapshot": _matching_snapshot(repo_root, rel_task, status),
+        "changeFingerprint": _change_fingerprint(repo_root, task_dir),
     }
+
+
+def _change_fingerprint(repo_root: Path, task_dir: Path) -> str:
+    """The gate's change fingerprint, exposed as a fact.
+
+    Lazy import for the same reason as the evidence coverage above: the
+    fingerprint is decided by the gate layer, and this read entry only
+    publishes it so a reviewer can name the change set it judged."""
+    from services.lifecycle_checks import compute_change_fingerprint
+
+    return compute_change_fingerprint(repo_root, task_dir)
