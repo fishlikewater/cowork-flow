@@ -275,6 +275,31 @@ class ReviewReceiptGateTest(unittest.TestCase):
 
         self.assertEqual([], self._review_issues())
 
+    def test_runtime_metadata_is_excluded_even_when_git_can_see_it(self) -> None:
+        """The path filter, not .gitignore, is what keeps runtime metadata out.
+
+        A checkout that does not ignore .cowork-flow/ would otherwise put the
+        task's own artifacts into the change set, and then recording evidence
+        or ticking an AC would invalidate the receipt it belongs to.
+        """
+        (self.root / ".gitignore").unlink()
+        self._record_receipt()
+        with (self.task_dir / "evidence.jsonl").open(
+            "a", encoding="utf-8", newline="\n"
+        ) as handle:
+            handle.write(
+                json.dumps(
+                    {"ac": "AC-001", "kind": "test", "ref": "tests/demo.py"},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+        runtime = self.root / ".cowork-flow" / ".runtime" / "subagents"
+        runtime.mkdir(parents=True)
+        (runtime / "rtx_fixture.json").write_text("{}", encoding="utf-8")
+
+        self.assertEqual([], self._review_issues())
+
     def test_receipt_is_found_after_the_task_moves_to_the_archive(self) -> None:
         self._record_receipt()
         archived = (
