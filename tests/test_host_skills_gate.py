@@ -113,6 +113,65 @@ class HostSkillsGateTest(unittest.TestCase):
             [(discovery.path, discovery.scope) for discovery in qoder.skill_discovery],
         )
 
+    def test_review_report_carries_clause_command_and_negative_proof(self) -> None:
+        """The three keys are the review report's contract, not prose.
+
+        They are what makes a finding verifiable: without `command` and
+        `negativeProof` a "pass" is the agent's own word.
+        """
+        skill = (
+            TEMPLATE / "skills" / "task-review" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("## Review Report Format", skill)
+        # Scope the keys to the section that defines them: naming them
+        # elsewhere in the skill is not the contract.
+        section = skill.split("## Review Report Format", 1)[1].split("\n## ", 1)[0]
+        for marker in ("`clause`", "`command`", "`negativeProof`"):
+            self.assertIn(marker, section, f"{marker} missing from Review Report Format")
+        # The receipt path must name the same keys where they are used.
+        receipt_cli = (
+            SCRIPTS / "adapters" / "cli" / "subagent.py"
+        ).read_text(encoding="utf-8")
+        for marker in ("clause", "command", "negativeProof"):
+            self.assertIn(marker, receipt_cli, f"{marker} missing from check-review")
+
+    def test_spec_check_contract_states_the_same_triple(self) -> None:
+        contract = (
+            TEMPLATE
+            / ".cowork-flow"
+            / "spec"
+            / "contracts"
+            / "spec-checks.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("条款 → 命令 → 反例", contract)
+        for marker in ("`clause`", "`command`", "`negativeProof`"):
+            self.assertIn(marker, contract, f"{marker} missing from the contract")
+
+    def test_template_ships_no_spec_check_declarations(self) -> None:
+        """A shipped declaration would be `unchecked` in every install.
+
+        The template cannot know a project's toolchain, so a template-owned
+        `checks:` entry either blocks `complete` for everyone or is a
+        decorative always-pass. Declarations belong to the project.
+        """
+        module = importlib.import_module("services.spec_check")
+        try:
+            collected = module.collect_spec_declarations(TEMPLATE)
+        finally:
+            sys.modules.pop("services.spec_check", None)
+
+        self.assertEqual(
+            [],
+            [
+                (spec.spec, decl.cmd)
+                for spec in collected
+                for decl in spec.decls
+            ],
+        )
+        self.assertEqual([], [spec.errors for spec in collected if spec.errors])
+
 
 if __name__ == "__main__":
     unittest.main()
