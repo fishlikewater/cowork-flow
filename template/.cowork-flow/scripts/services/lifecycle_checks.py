@@ -8,16 +8,26 @@ task metadata and the current git snapshot.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from infra.git_snapshot import collect_changed_paths_since
+from services.fact_view import (
+    parse_decision_anchor,
+    spec_pointer_files,
+    task_baseline,
+    task_data,
+)
 from services.lifecycle_policy import LifecycleExecutionPolicy
+from services.review_receipt import REVIEW_FILE, read_review_receipts
 from services.task_context import (
     normalize_context_file_scope_entry,
     read_context_jsonl_entries,
 )
+from services.task_gate_profiles import GATE_PROFILE_STRICT, resolve_gate_profile
 
 
 PROTECTED_WORKFLOW_PATTERNS = (
@@ -127,6 +137,10 @@ class LifecycleCheckRunner:
                         execution_policy,
                         allow_spec_file_modifications,
                     ),
+                ))
+                + list(_review_receipt_completion_issues(
+                    self.repo_root,
+                    task_dir,
                 ))
                 + list(spec_issues)
                 + list(ac_issues)
@@ -299,28 +313,141 @@ def _spec_check_completion_issues(
 
 
 
-def _task_baseline(task_dir: Path) -> str | None:
-    try:
-        task_data = json.loads(
-            (task_dir / "task.json").read_text(encoding="utf-8")
+def task_changed_paths(repo_root: Path, task_dir: Path) -> tuple[list[str], bool]:
+    """Review change set for one task: baseline..HEAD merged with the
+    working tree, plus whether the snapshot degraded to status-only."""
+    return collect_changed_paths_since(repo_root, task_baseline(task_dir))
+
+
+def compute_change_fingerprint(repo_root: Path, task_dir: Path) -> str:
+    """Hash of everything a review result is a judgment about.
+
+    Covers the changed files' content, the anchor's goal and AC text, the
+    bound plan's content, the dev type, and the applicable spec pointers, so
+    a change to code, scope, specs, plan, goal, or AC wording invalidates an
+    older receipt. Runtime metadata is excluded for the same reason the
+    scope gate excludes it: dispatching the reviewer writes context files
+    under `.cowork-flow/.runtime/`, and counting those would make every
+    receipt stale the moment it is recorded.
+    """
+    repo_root = Path(repo_root).resolve()
+    task_dir = Path(task_dir).resolve()
+    changed, _degraded = task_changed_paths(repo_root, task_dir)
+    paths = {
+        path: _content_digest(repo_root, path)
+        for path in sorted(
+            {
+                normalized
+                for normalized in (_normalize_git_path(item) for item in changed)
+                if normalized and not _is_runtime_metadata_path(normalized)
+            }
         )
-        meta = task_data.get("meta") or {}
-        value = meta.get("baselineCommit")
-    except (OSError, json.JSONDecodeError, TypeError, AttributeError):
-        return None
-    return value if isinstance(value, str) and value else None
+    }
+
+    anchor_text = ""
+    try:
+        anchor_text = (task_dir / "decision-anchor.md").read_text(encoding="utf-8")
+    except OSError:
+        anchor_text = ""
+    anchor = parse_decision_anchor(anchor_text) if anchor_text else {}
+    acceptance = anchor.get("acceptanceCriteria") or []
+    anchor_facts = {
+        "goal": anchor.get("goal") or "",
+        "acceptance": [
+            item.get("text") or "" for item in acceptance if isinstance(item, dict)
+        ],
+    }
+
+    task = task_data(task_dir)
+    meta = task.get("meta")
+    plan_file = meta.get("planFile") if isinstance(meta, dict) else None
+    plan_digest = ""
+    if isinstance(plan_file, str) and plan_file.strip():
+        try:
+            plan_digest = hashlib.sha256(
+                (repo_root / plan_file.strip()).read_bytes()
+            ).hexdigest()[:16]
+        except OSError:
+            plan_digest = "missing"
+
+    payload = json.dumps(
+        {
+            "paths": paths,
+            "anchor": anchor_facts,
+            "plan": plan_digest,
+            # The dev type selects the applicable spec and skill reading
+            # list, so switching it changes what the review was a judgment
+            # about even when the repo ships no spec files for it.
+            "devType": task.get("dev_type"),
+            "specs": sorted(spec_pointer_files(task_dir)),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
-def _baseline_changed_paths(
-    repo_root: Path, task_dir: Path
-) -> tuple[list[str], bool]:
-    """Review change set: baseline..HEAD diff merged with the working-tree
-    status (task start records meta.baselineCommit once). A missing baseline
-    or failed diff degrades to status-only — the pre-baseline behavior."""
-    baseline = _task_baseline(task_dir)
-    from infra.git_snapshot import collect_changed_paths_since
+def _content_digest(repo_root: Path, relative: str) -> str:
+    """Content digest of one changed path.
 
-    return collect_changed_paths_since(repo_root, baseline)
+    Hashing content, not just the path set, is what makes a receipt stale
+    when an already-changed file is edited again — a path-only fingerprint
+    would keep passing while the reviewed code kept moving."""
+    try:
+        return hashlib.sha256((repo_root / relative).read_bytes()).hexdigest()[:16]
+    except OSError:
+        return "absent"
+
+
+def _review_receipt_completion_issues(
+    repo_root: Path,
+    task_dir: Path,
+) -> list[LifecycleCheckIssue]:
+    """A strict task cannot complete without a passing review of the
+    current change set.
+
+    Legacy tasks keep the historical path, where review receipts are
+    advisory. The latest receipt decides: a later `fail` is not masked by
+    an earlier `pass`, while a retry that passes supersedes an older fail.
+    """
+    if resolve_gate_profile(task_data(task_dir)) != GATE_PROFILE_STRICT:
+        return []
+    receipts = read_review_receipts(task_dir)
+    if not receipts:
+        return [
+            LifecycleCheckIssue(
+                code="LIFECYCLE-REVIEW-001",
+                message=(
+                    "task has no independent review receipt; dispatch a "
+                    "cowork-check agent and record one with "
+                    "`subagent check-review` before completing"
+                ),
+            )
+        ]
+    latest = receipts[-1]
+    if latest.get("result") != "pass":
+        return [
+            LifecycleCheckIssue(
+                code="LIFECYCLE-REVIEW-002",
+                message=(
+                    f"the latest of {len(receipts)} review receipt(s) did not "
+                    "pass; re-run the review and record a passing receipt"
+                ),
+            )
+        ]
+    current = compute_change_fingerprint(repo_root, task_dir)
+    if latest.get("changedFingerprint") != current:
+        return [
+            LifecycleCheckIssue(
+                code="LIFECYCLE-REVIEW-003",
+                message=(
+                    "review receipt is stale: the change set, plan, goal, "
+                    "acceptance text, or applicable specs changed after it "
+                    "was recorded; re-run cowork-check"
+                ),
+            )
+        ]
+    return []
 
 
 def _review_completion_issues(
@@ -329,9 +456,9 @@ def _review_completion_issues(
     *,
     allow_spec_file_modifications: bool,
 ) -> list[LifecycleCheckIssue]:
-    changed_files, degraded = _baseline_changed_paths(repo_root, task_dir)
+    changed_files, degraded = task_changed_paths(repo_root, task_dir)
     issues: list[LifecycleCheckIssue] = []
-    if degraded and _task_baseline(task_dir):
+    if degraded and task_baseline(task_dir):
         issues.append(
             LifecycleCheckIssue(
                 code="GIT-SNAPSHOT-DEGRADED",
