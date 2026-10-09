@@ -294,22 +294,147 @@ async function buildFileSyncAction({ source, destination, relativePath }) {
   };
 }
 
+// A retirement may only be removed when the framework can still prove it owns
+// every byte in the target. A Skill is proven against the template's own copy
+// of that Skill; a sync-protected path is user-owned by contract and is never
+// removed at all. A modified file, a user's own extra entry, or a Skill the
+// template no longer carries is kept and reported instead of deleted. Every
+// other obsolete path keeps the old unconditional cleanup: those are framework
+// files nobody edits in place.
+const SKILL_PATH_PATTERN = /(?:^|\/)skills\/([^/]+)(?:\/|$)/;
+
+function obsoleteSkillName(relativePath) {
+  const match = SKILL_PATH_PATTERN.exec(normalizeReportPath(relativePath));
+  return match ? match[1] : null;
+}
+
+// Every entry under a directory as `relPath:kind`. listFiles is the wrong tool
+// here: it hides `__pycache__`, `.pyc` and everything that is not a regular
+// file, so an extra empty directory or symlink would leave the target looking
+// byte-identical to the original.
+async function listTreeEntries(root, current = root) {
+  const entries = await readdir(current, { withFileTypes: true });
+  const found = [];
+  for (const entry of entries) {
+    const absolute = join(current, entry.name);
+    const kind = entry.isDirectory()
+      ? 'directory'
+      : entry.isFile()
+        ? 'file'
+        : entry.isSymbolicLink()
+          ? 'symlink'
+          : 'other';
+    found.push(`${normalizeReportPath(relative(root, absolute))}:${kind}`);
+    if (kind === 'directory') {
+      found.push(...await listTreeEntries(root, absolute));
+    }
+  }
+  return found.sort();
+}
+
+async function treeMatchesOriginal(target, original) {
+  const [targetStats, originalStats] = await Promise.all([
+    stat(target).catch(() => null),
+    stat(original).catch(() => null)
+  ]);
+  if (!targetStats || !originalStats) {
+    return false;
+  }
+  if (targetStats.isDirectory() !== originalStats.isDirectory()) {
+    return false;
+  }
+  if (!targetStats.isDirectory()) {
+    const [targetContent, originalContent] = await Promise.all([
+      readFile(target),
+      readFile(original)
+    ]);
+    return targetContent.equals(originalContent);
+  }
+  const [targetEntries, originalEntries] = await Promise.all([
+    listTreeEntries(target),
+    listTreeEntries(original)
+  ]);
+  if (targetEntries.length !== originalEntries.length) {
+    return false;
+  }
+  for (let index = 0; index < targetEntries.length; index += 1) {
+    if (targetEntries[index] !== originalEntries[index]) {
+      return false;
+    }
+  }
+  const files = targetEntries
+    .filter((entry) => entry.endsWith(':file'))
+    .map((entry) => entry.slice(0, -':file'.length));
+  const comparisons = await Promise.all(
+    files.map(async (file) => {
+      const [targetContent, originalContent] = await Promise.all([
+        readFile(join(target, file)),
+        readFile(join(original, file))
+      ]);
+      return targetContent.equals(originalContent);
+    })
+  );
+  return comparisons.every(Boolean);
+}
+
+// Why this obsolete path must be kept, or null when it is safe to delete.
+async function retirementKeepReason(targetDir, relativePath) {
+  const skill = obsoleteSkillName(relativePath);
+  if (skill === null) {
+    return hostRegistry.isProtectedSyncFile(relativePath) ? 'protected-path' : null;
+  }
+  const original = join(templateRoot, 'skills', skill);
+  if (!await pathExists(original)) {
+    return 'original-not-in-template';
+  }
+  const matches = await treeMatchesOriginal(join(targetDir, relativePath), original);
+  return matches ? null : 'modified-or-extra';
+}
+
 // Obsolete entries are removed shortest-path-first, and a
 // directory's deletion covers the files under it.
 async function collectObsoleteDeletions(targetDir, included) {
-  const actions = [];
+  const deletions = [];
+  const kept = [];
   const deletedParents = [];
   for (const file of hostRegistry.obsoleteSyncFiles()) {
     if (!included(file) || isCoveredByDeletedParent(file, deletedParents)) {
       continue;
     }
     const destination = join(targetDir, file);
-    if (await pathExists(destination)) {
-      deletedParents.push(file);
-      actions.push({ action: 'delete', source: null, destination, relativePath: file });
+    if (!(await pathExists(destination))) {
+      continue;
     }
+    const keepReason = await retirementKeepReason(targetDir, file);
+    if (keepReason !== null) {
+      kept.push({ action: 'keep', destination, relativePath: file, reason: keepReason });
+      continue;
+    }
+    deletedParents.push(file);
+    deletions.push({ action: 'delete', source: null, destination, relativePath: file });
   }
-  return actions;
+  return { deletions, kept };
+}
+
+// Every retirement this target keeps, with the reason it cannot be verified as
+// ours. Read-only, so a dry-run report states the same fact the plan would act
+// on.
+export async function collectKeptRetirements(targetDir) {
+  const { kept } = await collectObsoleteDeletions(targetDir, () => true);
+  return kept;
+}
+
+// The retained retirements, one line each and never truncated: a kept path is a
+// decision the user has to make, so it must not pass unmentioned and the reason
+// it was kept is the only thing that tells them what to do about it.
+export function formatKeptRetirements(kept) {
+  if (kept.length === 0) {
+    return '';
+  }
+  const lines = kept.map(
+    (entry) => `Kept ${normalizeReportPath(entry.relativePath)} (${entry.reason}); delete manually if unwanted.\n`
+  );
+  return `Kept ${kept.length} unverifiable retirement(s):\n${lines.join('')}`;
 }
 
 
@@ -345,7 +470,7 @@ export async function buildSourceCheckoutRefreshPlan(targetDir, options = {}) {
     sync: true
   });
 
-  actions.push(...await collectObsoleteDeletions(targetDir, isSourceRefreshObsoleteFile));
+  actions.push(...(await collectObsoleteDeletions(targetDir, isSourceRefreshObsoleteFile)).deletions);
 
   const versionDestination = join(targetDir, '.cowork-flow', '.version');
   const versionSource = join(templateRoot, '.cowork-flow', '.version');
@@ -443,7 +568,7 @@ export async function buildSyncPlan(targetDir, options = {}) {
 
   await appendSkillFileActions(actions, { targetDir, platforms, seen, sync: true });
 
-  actions.push(...await collectObsoleteDeletions(targetDir, () => true));
+  actions.push(...(await collectObsoleteDeletions(targetDir, () => true)).deletions);
   actions.push(await planSyncVersionAction(targetDir, options.version));
 
   return createAssetPlan({
@@ -507,6 +632,10 @@ export async function buildReadinessReport(plan, options = {}) {
     wouldRemoveObsolete: actions
       .filter((action) => action.action === 'delete')
       .map(readinessAction),
+    wouldKeep: (await collectKeptRetirements(plan.targetDir)).map((entry) => ({
+      ...readinessAction(entry),
+      reason: entry.reason
+    })),
     hostAssetRefresh: actions
       .filter((action) => action.action !== 'skip' && hostAssetOwners(action.relativePath).length > 0)
       .map(readinessAction),

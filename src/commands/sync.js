@@ -4,7 +4,9 @@ import {
   applyPlan,
   buildReadinessReport,
   buildSyncPlan,
+  collectKeptRetirements,
   detectInstalledPlatforms,
+  formatKeptRetirements,
   formatReadinessReport,
   summarizePlan
 } from '../lib/copy-template.js';
@@ -36,6 +38,7 @@ export async function runSync(args, { io, fileSystem }) {
 
   await applyPlan(plan, { dryRun: options.dryRun, fileSystem });
   io.writeOut(summarizePlan(plan, options.dryRun));
+  io.writeOut(formatKeptRetirements(await collectKeptRetirements(options.target)));
   if (options.dryRun) {
     const readiness = await buildReadinessReport(plan, { fileSystem });
     io.writeOut(formatReadinessReport(readiness));
