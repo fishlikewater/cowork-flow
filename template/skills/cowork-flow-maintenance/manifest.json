@@ -5,8 +5,8 @@
     {
       "contexts": ["implement", "check", "debug"],
       "devTypes": ["spec"],
-      "pathPatterns": [".cowork-flow/**", "template/.cowork-flow/**", "template/skills/**"],
-      "reason": "Auto-routed Cowork Flow Maintenance domain guide"
+      "pathPatterns": ["template/**", "presets/**"],
+      "reason": "Auto-routed Cowork Flow Maintenance domain guide (source checkout only)"
     }
   ]
 }

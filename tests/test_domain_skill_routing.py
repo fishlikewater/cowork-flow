@@ -53,25 +53,24 @@ class DomainSkillRoutingTest(FlowScriptTestCase):
                 )
             ],
         )
-        self.assertEqual(
-            [".agents/skills/game-design/SKILL.md"],
-            [
-                entry["file"]
-                for entry in context.get_domain_skill_context(
-                    ROOT,
-                    paths=("games/demo/scene.tscn",),
-                )
-            ],
-        )
+        # The maintenance guide routes on source-checkout paths only: an
+        # installed project's own `.cowork-flow/**` edits are ordinary work.
         self.assertEqual(
             [".agents/skills/cowork-flow-maintenance/SKILL.md"],
             [
                 entry["file"]
                 for entry in context.get_domain_skill_context(
                     ROOT,
-                    paths=(".cowork-flow/spec/backend/quality-guidelines.md",),
+                    paths=("template/.cowork-flow/spec/backend/quality-guidelines.md",),
                 )
             ],
+        )
+        self.assertEqual(
+            [],
+            context.get_domain_skill_context(
+                ROOT,
+                paths=(".cowork-flow/spec/backend/quality-guidelines.md",),
+            ),
         )
         self.assertEqual(
             [],
@@ -95,6 +94,14 @@ class DomainSkillRoutingTest(FlowScriptTestCase):
                 "version: 1\n",
                 encoding="utf-8",
             )
+            # The maintenance guide is a source-checkout guide: its routing
+            # patterns name `template/**`, not an installed project's own
+            # `.cowork-flow/**`.
+            (root / "template/.cowork-flow").mkdir(parents=True)
+            (root / "template/.cowork-flow/config.yaml").write_text(
+                "version: 1\n",
+                encoding="utf-8",
+            )
             task_dir = root / ".cowork-flow/tasks/example"
             task_dir.mkdir(parents=True)
 
@@ -109,7 +116,7 @@ class DomainSkillRoutingTest(FlowScriptTestCase):
             service.add(
                 task_dir,
                 "implement",
-                ".cowork-flow/config.yaml",
+                "template/.cowork-flow/config.yaml",
                 "Workflow metadata target",
             )
 

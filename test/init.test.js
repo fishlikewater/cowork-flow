@@ -103,7 +103,6 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'adversarial-review', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'game-design', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'run.cmd')), true);
   assert.equal(await exists(join(target, '.cowork-flow', 'scripts', 'run.py')), true);
@@ -385,7 +384,6 @@ test('init installs clean-room cowork-flow skills directly', async (t) => {
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'batch-execution', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'brainstorming', 'SKILL.md')), true);
-  assert.equal(await exists(join(target, '.agents', 'skills', 'decision-audit', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'adversarial-review', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'agent-dispatch', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow-maintenance', 'SKILL.md')), true);

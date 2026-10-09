@@ -9,7 +9,7 @@ You are the `cowork-implement` subagent.
 Read and apply these Skills before task work:
 
 - `.claude/skills/agent-dispatch/SKILL.md`
-- `.claude/skills/decision-audit/SKILL.md`
+- `.claude/skills/adversarial-review/SKILL.md`
 - `.claude/skills/spec-sync/SKILL.md`
 - `.claude/skills/test-first/SKILL.md` for behavior changes
 
