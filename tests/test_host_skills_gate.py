@@ -125,10 +125,16 @@ class HostSkillsGateTest(unittest.TestCase):
 
         self.assertIn("## Review Report Format", skill)
         # Scope the keys to the section that defines them: naming them
-        # elsewhere in the skill is not the contract.
+        # elsewhere in the skill is not the contract. Each key needs its own
+        # definition bullet — a bare mention in the surrounding prose or in
+        # the JSON example would otherwise keep a deleted definition passing.
         section = skill.split("## Review Report Format", 1)[1].split("\n## ", 1)[0]
-        for marker in ("`clause`", "`command`", "`negativeProof`"):
-            self.assertIn(marker, section, f"{marker} missing from Review Report Format")
+        lines = [line.strip() for line in section.splitlines()]
+        for marker in ("clause", "command", "negativeProof"):
+            self.assertTrue(
+                any(line.startswith(f"- `{marker}`:") for line in lines),
+                f"`{marker}` has no definition bullet in Review Report Format",
+            )
         # The receipt path must name the same keys where they are used.
         receipt_cli = (
             SCRIPTS / "adapters" / "cli" / "subagent.py"
