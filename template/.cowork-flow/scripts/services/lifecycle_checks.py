@@ -193,21 +193,49 @@ def _ac_evidence_completion_facts(
 
     The gate only decides existence facts: which AC ids the decision anchor
     declares, which are checked, and which carry at least one evidence
-    record. Tasks without AC rows are exempt (compatibility path); an
-    unreadable evidence module degrades the same way instead of blocking
-    every legacy task. Returns the issues plus the recorded exemption
-    (missing ids) when --allow-missing-evidence absorbed the gap."""
+    record. A legacy task without AC rows is exempt (compatibility path), and
+    an unreadable evidence module degrades the same way for it. A strict task
+    gets neither exemption: it was required to declare AC rows at start, so an
+    empty section at completion means the anchor was rewritten or cannot be
+    read, and a broken runtime copy is a fact to fix rather than to skip.
+    Returns the issues plus the recorded exemption (missing ids) when
+    --allow-missing-evidence absorbed the gap."""
+    strict = resolve_gate_profile(task_data(task_dir)) == GATE_PROFILE_STRICT
     try:
         from services.ac_evidence import (
             evidence_coverage,
             load_acceptance_criteria,
             read_evidence,
         )
-    except Exception:  # pragma: no cover - broken runtime copy degrades
-        return [], None
+    except Exception as error:  # a broken runtime copy must not pass a gate
+        if not strict:
+            return [], None
+        return [
+            LifecycleCheckIssue(
+                code="LIFECYCLE-AC-004",
+                message=(
+                    "the acceptance-evidence module is unavailable, so the "
+                    f"strict acceptance gate cannot run: {error}; fix the "
+                    "runtime install and rerun"
+                ),
+            )
+        ], None
     acceptance = load_acceptance_criteria(task_dir)
     if not acceptance:
-        return [], None
+        if not strict:
+            return [], None
+        return [
+            LifecycleCheckIssue(
+                code="LIFECYCLE-AC-003",
+                message=(
+                    "strict task declares no acceptance criterion at "
+                    "completion; the anchor was required to carry at least one "
+                    "`- [ ] AC-xxx: ...` row at start, so either the anchor "
+                    "was rewritten, the task was created without one, or the "
+                    "anchor is unreadable (check its encoding)"
+                ),
+            )
+        ], None
     coverage = evidence_coverage(acceptance, read_evidence(task_dir))
     unchecked = [item["id"] for item in acceptance if not item["checked"]]
     unproven = [

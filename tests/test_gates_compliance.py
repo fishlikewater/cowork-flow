@@ -41,8 +41,13 @@ def _git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-class ReviewReceiptGateTest(unittest.TestCase):
-    """The completion gate over independent review receipts (strict tasks)."""
+class _StrictTaskFixture(unittest.TestCase):
+    """A strict task in a real checkout, with a real bound checker context.
+
+    A review receipt is only evidence when the runtime context it names
+    exists and was bound to this task, so the fixture records one instead of
+    naming a context that was never dispatched.
+    """
 
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
@@ -158,6 +163,10 @@ class ReviewReceiptGateTest(unittest.TestCase):
             "a", encoding="utf-8", newline="\n"
         ) as handle:
             handle.write(json.dumps(receipt, ensure_ascii=False) + "\n")
+
+
+class ReviewReceiptGateTest(_StrictTaskFixture):
+    """The completion gate over independent review receipts (strict tasks)."""
 
     def _review_issues(self) -> list[str]:
         result = LifecycleCheckRunner(self.root).complete(self.task_dir)
@@ -374,6 +383,95 @@ class ReviewReceiptGateTest(unittest.TestCase):
         self._record_receipt(result="fail")
 
         self.assertEqual([], self._review_issues())
+
+
+class AcceptanceCompletionGateTest(_StrictTaskFixture):
+    """The completion gate over acceptance criteria (strict vs legacy)."""
+
+    def _ac_issues(self, **kwargs: object) -> list[str]:
+        result = LifecycleCheckRunner(self.root).complete(self.task_dir, **kwargs)
+        return [
+            issue.code
+            for issue in result.issues
+            if issue.code.startswith("LIFECYCLE-AC-")
+        ]
+
+    def _clear_acceptance(self) -> None:
+        """Rewrite the anchor so `## 验收标准` declares no AC row."""
+        (self.task_dir / "decision-anchor.md").write_text(
+            "# Decision Anchor\n\n## 目标\n演示。\n\n## 验收标准\n",
+            encoding="utf-8",
+        )
+
+    def test_strict_task_with_cleared_acceptance_criteria_blocks_completion(
+        self,
+    ) -> None:
+        self._clear_acceptance()
+        self._record_receipt()
+
+        self.assertEqual(["LIFECYCLE-AC-003"], self._ac_issues())
+
+    def test_evidence_module_failure_blocks_completion(self) -> None:
+        self._record_receipt()
+
+        with mock.patch.dict(sys.modules, {"services.ac_evidence": None}):
+            result = LifecycleCheckRunner(self.root).complete(self.task_dir)
+
+        issues = {
+            issue.code: issue.message
+            for issue in result.issues
+            if issue.code.startswith("LIFECYCLE-AC-")
+        }
+        self.assertEqual(["LIFECYCLE-AC-004"], list(issues))
+        # The reason must survive into the message, or the operator cannot
+        # tell a broken runtime copy from a missing declaration.
+        self.assertIn("services.ac_evidence", issues["LIFECYCLE-AC-004"])
+
+    def test_legacy_task_without_acceptance_criteria_completes(self) -> None:
+        self._write_task(gate_profile=None)
+        self._clear_acceptance()
+
+        self.assertEqual([], self._ac_issues())
+
+    def test_legacy_task_still_reports_a_checked_ac_without_evidence(self) -> None:
+        """The compat path waives the new blockers, not the gate itself.
+
+        Without this control the two legacy cases above would also pass if
+        the whole gate stopped running, so they could not tell "exempt" from
+        "never evaluated".
+        """
+        self._write_task(gate_profile=None)
+        (self.task_dir / "decision-anchor.md").write_text(
+            "# Decision Anchor\n\n## 目标\n演示。\n\n## 验收标准\n"
+            "- [x] AC-001: 演示条款。\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(["LIFECYCLE-AC-002"], self._ac_issues())
+
+    def test_legacy_task_survives_an_unreadable_evidence_module(self) -> None:
+        self._write_task(gate_profile=None)
+
+        with mock.patch.dict(sys.modules, {"services.ac_evidence": None}):
+            self.assertEqual([], self._ac_issues())
+
+    def test_allow_missing_evidence_does_not_exempt_empty_acceptance(self) -> None:
+        self._clear_acceptance()
+        self._record_receipt()
+
+        self.assertEqual(
+            ["LIFECYCLE-AC-003"],
+            self._ac_issues(allow_missing_evidence=True),
+        )
+
+    def test_allow_missing_evidence_does_not_exempt_a_broken_module(self) -> None:
+        self._record_receipt()
+
+        with mock.patch.dict(sys.modules, {"services.ac_evidence": None}):
+            self.assertEqual(
+                ["LIFECYCLE-AC-004"],
+                self._ac_issues(allow_missing_evidence=True),
+            )
 
 
 class SpecCheckFactTest(unittest.TestCase):

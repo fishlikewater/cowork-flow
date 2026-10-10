@@ -25,15 +25,18 @@
 
 ## 完成门禁
 
-`task next <dir> --run` 的完成动作在直接生命周期检查中追加两条稳定 code：
+`task next <dir> --run` 的完成动作在直接生命周期检查中追加四条稳定 code：
 
 | code | 触发事实 | 豁免 |
 |---|---|---|
 | `LIFECYCLE-AC-001` | 存在未勾选的 AC 行 | 无——完成工作本身，或勾选已完成的行 |
 | `LIFECYCLE-AC-002` | 存在已声明但无任何有效证据记录的 AC | `--allow-missing-evidence`（记入 task.json `meta.evidenceExempt`，含 `at` 与 `missing`） |
+| `LIFECYCLE-AC-003` | `gateProfile=strict` 且 decision-anchor 读不到 AC 行 | 无——strict 任务在启动期已被要求声明 AC，完成期读不到只有三种可能：anchor 被改写、任务被错误创建、或 anchor 不可解码（编码损坏） |
+| `LIFECYCLE-AC-004` | `gateProfile=strict` 且 ac_evidence 模块不可导入 | 无——与 `SPEC-CHECK-EXECUTOR-ERROR` 同类：模块故障不是"没得查"；文案含原始异常，修好 runtime 安装后重跑 |
 
-- 两个 code 可同时出现；`--allow-missing-evidence` 只豁免 `LIFECYCLE-AC-002`。
-- **兼容路径**：decision-anchor 缺失或未声明任何 AC 行的任务（全部存量任务）不触发本门禁；ac_evidence 模块不可读时同样降级为不阻断。
+- 前两个 code 可同时出现；`--allow-missing-evidence` 只豁免 `LIFECYCLE-AC-002`，不豁免 `003`/`004`。
+- **兼容路径**：无 `gateProfile` 的 legacy 任务（全部存量任务）在 decision-anchor 缺失、未声明任何 AC 行、或 ac_evidence 模块不可读时都不触发本门禁，逐条与本契约引入前一致。
+- **严格路径**：`gateProfile=strict` 的任务在完成阶段重新校验 AC 的存在性与证据模块可用性——启动期的 AC 声明要求不因完成期读不到而失效。
 - 豁免留痕 `meta.evidenceExempt` 与 spec-check 的 `specCheckExempt` 同型：重试不累积，最新一次完成结果为准。
 
 ## 注入与事实视图
