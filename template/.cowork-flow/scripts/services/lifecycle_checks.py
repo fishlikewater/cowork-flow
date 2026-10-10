@@ -22,7 +22,11 @@ from services.fact_view import (
     task_data,
 )
 from services.lifecycle_policy import LifecycleExecutionPolicy
-from services.review_receipt import REVIEW_FILE, read_review_receipts
+from services.review_receipt import (
+    REVIEW_FILE,
+    read_review_receipts,
+    receipt_binding_issue,
+)
 from services.task_context import (
     normalize_context_file_scope_entry,
     read_context_jsonl_entries,
@@ -501,6 +505,18 @@ def _review_receipt_completion_issues(
                     "review receipt is stale: the change set, plan, goal, "
                     "acceptance text, or applicable specs changed after it "
                     "was recorded; re-run cowork-check"
+                ),
+            )
+        ]
+    binding_reason = receipt_binding_issue(repo_root, task_dir, latest)
+    if binding_reason:
+        return [
+            LifecycleCheckIssue(
+                code="LIFECYCLE-REVIEW-004",
+                message=(
+                    "the latest review receipt is not backed by a runtime "
+                    f"binding: {binding_reason}; dispatch a cowork-check agent "
+                    "and record the receipt with `subagent check-review`"
                 ),
             )
         ]

@@ -20,9 +20,11 @@ from services.lifecycle_checks import (  # noqa: E402
     compute_change_fingerprint,
 )
 from services.review_receipt import REVIEW_FILE  # noqa: E402
+from services.workflow_runtime import RuntimeContextService  # noqa: E402
 
 
 REVIEW_PREFIX = "LIFECYCLE-REVIEW-"
+CHECKER_CONTEXT_ID = "rtx_gate_fixture"
 
 
 def _git(root: Path, *args: str) -> str:
@@ -102,12 +104,41 @@ class ReviewReceiptGateTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _ensure_checker_context(self) -> str:
+        """A real bound cowork-check context for this task.
+
+        A receipt is only evidence when the context it names exists in the
+        runtime store and was bound to this task, so the fixture must record
+        one instead of naming a context that was never dispatched.
+        """
+        existing = getattr(self, "_checker_context_id", None)
+        if existing:
+            return existing
+        service = RuntimeContextService(self.root)
+        service.initialize(
+            CHECKER_CONTEXT_ID,
+            {
+                "schema_version": 2,
+                "runtime_context_id": CHECKER_CONTEXT_ID,
+                "scope": "subagent",
+                "agent_type": "cowork-check",
+                "task_dir": str(self.task_dir),
+                "status": "pending",
+                "dispatch_kind": "formal",
+            },
+        )
+        service.bind(CHECKER_CONTEXT_ID, "zcode_gate_session")
+        self._checker_context_id = CHECKER_CONTEXT_ID
+        return CHECKER_CONTEXT_ID
+
     def _record_receipt(
         self,
         *,
         result: str = "pass",
         fingerprint: str | None = None,
+        context_id: str | None = None,
     ) -> None:
+        named_context = context_id or self._ensure_checker_context()
         receipt = {
             "schemaVersion": 1,
             "id": "rr-fixture",
@@ -119,8 +150,9 @@ class ReviewReceiptGateTest(unittest.TestCase):
                 else fingerprint
             ),
             "submittedAt": "2026-10-09T00:00:00Z",
-            "contextId": "rtx_fixture",
+            "contextId": named_context,
             "agentType": "cowork-check",
+            "bindingEvidence": "declared",
         }
         with (self.task_dir / REVIEW_FILE).open(
             "a", encoding="utf-8", newline="\n"
@@ -147,6 +179,23 @@ class ReviewReceiptGateTest(unittest.TestCase):
 
     def test_strict_passing_receipt_allows_completion(self) -> None:
         self._record_receipt()
+
+        self.assertEqual([], self._review_issues())
+
+    def test_receipt_without_a_runtime_context_blocks_completion(self) -> None:
+        # The receipt names a context that was never dispatched: appending a
+        # JSON line is not evidence that a checker ran.
+        self._record_receipt(context_id="rtx_never_dispatched")
+
+        self.assertEqual(["LIFECYCLE-REVIEW-004"], self._review_issues())
+
+    def test_receipt_from_a_checker_closed_after_review_allows_completion(
+        self,
+    ) -> None:
+        # A finished checker closes its context; the receipt it recorded
+        # before closing must stay valid (AC-004).
+        self._record_receipt()
+        RuntimeContextService(self.root).close(CHECKER_CONTEXT_ID)
 
         self.assertEqual([], self._review_issues())
 
@@ -270,7 +319,7 @@ class ReviewReceiptGateTest(unittest.TestCase):
     def test_runtime_metadata_change_does_not_invalidate_the_receipt(self) -> None:
         self._record_receipt()
         runtime = self.root / ".cowork-flow" / ".runtime" / "subagents"
-        runtime.mkdir(parents=True)
+        runtime.mkdir(parents=True, exist_ok=True)
         (runtime / "rtx_fixture.json").write_text("{}", encoding="utf-8")
 
         self.assertEqual([], self._review_issues())
@@ -295,7 +344,7 @@ class ReviewReceiptGateTest(unittest.TestCase):
                 + "\n"
             )
         runtime = self.root / ".cowork-flow" / ".runtime" / "subagents"
-        runtime.mkdir(parents=True)
+        runtime.mkdir(parents=True, exist_ok=True)
         (runtime / "rtx_fixture.json").write_text("{}", encoding="utf-8")
 
         self.assertEqual([], self._review_issues())
@@ -309,7 +358,11 @@ class ReviewReceiptGateTest(unittest.TestCase):
         shutil.move(str(self.task_dir), str(archived))
         self.task_dir = archived
 
-        self.assertEqual([], self._review_issues())
+        # The receipt travels with the task directory, so the gate reads it
+        # there instead of reporting a missing review (that would be 001).
+        # Its runtime context, however, was bound to the pre-archive path, so
+        # the binding check reports that separately.
+        self.assertEqual(["LIFECYCLE-REVIEW-004"], self._review_issues())
 
     def test_legacy_task_skips_the_review_gate(self) -> None:
         self._write_task(gate_profile=None)

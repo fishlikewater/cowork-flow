@@ -63,6 +63,12 @@ A finding is a machine-readable fact, not prose: the completion path and `subage
 
 `./.cowork-flow/run subagent check-review <subagent-id> --task-dir <dir> --result pass --changed-fingerprint <fp> --finding '<json>'` (repeatable).
 
+The receipt is only as good as its provenance: completion re-reads the runtime
+context it names, so the receipt must come from a `cowork-check` context that
+was bound to *this* task. When this environment resolves no host context key,
+the receipt records `bindingEvidence: "declared"` — say so in the report rather
+than presenting the review as session-verified.
+
 ## Severity
 
 - `critical`: correctness, security, data loss, lifecycle bypass, or completion would be invalid. Blocks completion.

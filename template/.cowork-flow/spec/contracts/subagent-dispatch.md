@@ -61,6 +61,31 @@ child output. If binding fails, the child must receive fail-closed subagent stat
 and must not run main-session start/resume, task activation, archive, commit,
 or agent coordination.
 
+## Review Receipt Provenance
+
+A review receipt (`review.jsonl`) is only evidence while the runtime binding it
+names still holds, so the completion gate re-reads the fact instead of trusting
+the line:
+
+- the receipt's `contextId` must resolve to a runtime context that is
+  `scope: "subagent"`, `agent_type: "cowork-check"`, bound to *this* task, and
+  was bound to a host session at least once (`bound_at` or `bound_context_key`).
+- A context closed *after* the review still counts: closing is what a finished
+  checker does.
+- A missing or unreadable runtime store is a blocking reason, not a pass —
+  otherwise deleting the store and hand-writing a receipt would suffice.
+
+`subagent check-review` also compares the submitting environment's host context
+key (`COWORK_FLOW_HOST_CONTEXT_KEY`) with the context's `bound_context_key` and
+refuses (`REVIEW-RECEIPT-007`) when they differ. When the host offers no such
+evidence the receipt records `bindingEvidence: "declared"` instead of claiming
+a proof it does not have.
+
+**Ceiling:** this makes "a bound checker context exists" machine-checkable. It
+does not defend against a forged runtime record — writing
+`.cowork-flow/.runtime/**` is out of scope here and would need a signed or
+externally rooted record, which is a separate contract.
+
 ## Delegated Spec Self-Check
 
 Delegated subagent tool calls receive no edit-phase hook feedback on hosts

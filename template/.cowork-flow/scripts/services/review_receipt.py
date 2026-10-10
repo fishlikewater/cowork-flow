@@ -27,6 +27,12 @@ REQUIRED_AGENT_TYPE = "cowork-check"
 # A context that was never bound to a host session carries no evidence that a
 # checker ran, so `pending` is refused along with every terminal status.
 SUBMITTABLE_STATUSES = ("bound", "active")
+# How the submitter proved it held the bound host context key. `session-key`
+# means the submitting environment resolved the same key the context was bound
+# with; `declared` means the host offered no such evidence and the receipt
+# records that fact instead of pretending otherwise.
+BINDING_EVIDENCE_SESSION_KEY = "session-key"
+BINDING_EVIDENCE_DECLARED = "declared"
 
 
 class ReviewReceiptError(Exception):
@@ -44,8 +50,15 @@ def submit_review_receipt(
     result: str,
     findings: list[dict[str, Any]],
     changed_fingerprint: str,
+    session_context_key: str | None = None,
 ) -> dict[str, Any]:
-    """Append one review receipt for `task_dir`, or refuse with a reason."""
+    """Append one review receipt for `task_dir`, or refuse with a reason.
+
+    `session_context_key` is the host context key the submitting environment
+    resolved, or None when the host offered no session evidence. It is only
+    comparable to a context that was actually bound: a context bound to one
+    key cannot be reported on from another.
+    """
     if result not in RESULTS:
         raise ReviewReceiptError(
             "REVIEW-RECEIPT-006",
@@ -95,6 +108,26 @@ def submit_review_receipt(
             f"receipt; expected {'/'.join(SUBMITTABLE_STATUSES)}",
         )
 
+    bound_key = context.get("bound_context_key")
+    bound_key = bound_key.strip() if isinstance(bound_key, str) else ""
+    submitted_key = (
+        session_context_key.strip()
+        if isinstance(session_context_key, str)
+        else ""
+    )
+    if submitted_key and bound_key and submitted_key != bound_key:
+        raise ReviewReceiptError(
+            "REVIEW-RECEIPT-007",
+            f"this session ({submitted_key}) is not the session bound to "
+            f"{context_id} ({bound_key}); only the bound session can record "
+            "the receipt",
+        )
+    binding_evidence = (
+        BINDING_EVIDENCE_SESSION_KEY
+        if submitted_key and bound_key and submitted_key == bound_key
+        else BINDING_EVIDENCE_DECLARED
+    )
+
     receipt = {
         "schemaVersion": SCHEMA_VERSION,
         "id": f"rr-{uuid.uuid4().hex[:12]}",
@@ -104,6 +137,7 @@ def submit_review_receipt(
         "submittedAt": _now(),
         "contextId": context.get("runtime_context_id") or context_id,
         "agentType": context.get("agent_type"),
+        "bindingEvidence": binding_evidence,
     }
     path = Path(task_dir) / REVIEW_FILE
     with path.open("a", encoding="utf-8", newline="\n") as handle:
@@ -133,6 +167,51 @@ def read_review_receipts(task_dir: Path) -> list[dict[str, Any]]:
         if isinstance(record, dict) and _valid_receipt(record):
             receipts.append(record)
     return receipts
+
+
+def receipt_binding_issue(
+    repo_root: Path,
+    task_dir: Path,
+    receipt: dict[str, Any],
+) -> str | None:
+    """Why a recorded receipt is not backed by a runtime binding, or None.
+
+    Write-time validation only proves the receipt was submitted through the
+    CLI. `review.jsonl` is a plain file anyone with file access can append to,
+    so the completion gate re-reads the fact the receipt claims: the named
+    context exists, is a cowork-check subagent context, was bound to *this*
+    task, and was actually bound to a host session at least once. A context
+    closed after the review still counts — closing is what a finished checker
+    does (AC-004).
+
+    Missing or unreadable runtime state is a blocking reason, not a pass:
+    degrading here would reopen exactly the hole this closes, since deleting
+    the store and hand-writing a receipt would then suffice.
+    """
+    context_id = receipt.get("contextId")
+    if not isinstance(context_id, str) or not context_id.strip():
+        return "the receipt names no runtime context"
+    try:
+        context = RuntimeContextService(Path(repo_root)).load(context_id.strip())
+    except Exception as error:  # fail closed: an unreadable store is a reason
+        return f"runtime context {context_id!r} is unreadable: {error}"
+    if not context:
+        return f"runtime context {context_id!r} does not exist"
+    if context.get("scope") != REQUIRED_SCOPE:
+        return f"runtime context {context_id!r} is not a subagent context"
+    if context.get("agent_type") != REQUIRED_AGENT_TYPE:
+        return (
+            f"runtime context {context_id!r} is not a {REQUIRED_AGENT_TYPE} "
+            "context"
+        )
+    if not _bound_to_task(Path(repo_root), context, task_dir):
+        return f"runtime context {context_id!r} is not bound to this task"
+    if not (context.get("bound_at") or context.get("bound_context_key")):
+        return (
+            f"runtime context {context_id!r} was never bound to a host "
+            "session, so no checker is known to have run"
+        )
+    return None
 
 
 def _valid_receipt(record: dict[str, Any]) -> bool:

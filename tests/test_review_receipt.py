@@ -15,6 +15,7 @@ if str(SCRIPTS) not in sys.path:
 from services.review_receipt import (  # noqa: E402
     REVIEW_FILE,
     ReviewReceiptError,
+    receipt_binding_issue,
     submit_review_receipt,
 )
 from services.workflow_runtime import RuntimeContextService  # noqa: E402
@@ -167,6 +168,93 @@ class ReviewReceiptTest(unittest.TestCase):
         self._refusal()
 
         self.assertFalse((self.task_dir / REVIEW_FILE).exists())
+
+    # -- submitter binding (AC-102) -------------------------------------
+
+    def test_submit_records_declared_when_the_host_offers_no_session_key(
+        self,
+    ) -> None:
+        self._bound_checker()
+
+        receipt = self._submit()
+
+        self.assertEqual("declared", receipt["bindingEvidence"])
+
+    def test_submit_records_session_key_when_it_matches_the_bound_key(
+        self,
+    ) -> None:
+        self._bound_checker()
+
+        receipt = self._submit(session_context_key="codex_test_session")
+
+        self.assertEqual("session-key", receipt["bindingEvidence"])
+
+    def test_submit_rejects_a_session_other_than_the_bound_one(self) -> None:
+        self._bound_checker()
+
+        error = self._refusal(session_context_key="codex_other_session")
+
+        self.assertEqual("REVIEW-RECEIPT-007", error.code)
+        self.assertIn("codex_other_session", error.detail)
+        self.assertIn("codex_test_session", error.detail)
+
+    # -- runtime binding facts (AC-101) ---------------------------------
+
+    def test_binding_issue_flags_a_context_that_does_not_exist(self) -> None:
+        self._bound_checker()
+
+        reason = receipt_binding_issue(
+            self.root, self.task_dir, {"contextId": "rtx_never_dispatched"}
+        )
+
+        self.assertIsNotNone(reason)
+        self.assertIn("does not exist", reason)
+
+    def test_binding_issue_flags_a_context_never_bound_to_a_session(self) -> None:
+        # `active` is submittable at write time, but no host session ever
+        # bound it, so nothing proves a checker ran.
+        self.service.initialize(
+            CONTEXT_ID, _context(self.task_dir, status="active")
+        )
+
+        reason = receipt_binding_issue(
+            self.root, self.task_dir, {"contextId": CONTEXT_ID}
+        )
+
+        self.assertIsNotNone(reason)
+        self.assertIn("never bound", reason)
+
+    def test_binding_issue_flags_a_context_bound_to_another_task(self) -> None:
+        other = self.root / ".cowork-flow" / "tasks" / "other-task"
+        other.mkdir(parents=True)
+        self._bound_checker(task_dir=str(other))
+
+        reason = receipt_binding_issue(
+            self.root, self.task_dir, {"contextId": CONTEXT_ID}
+        )
+
+        self.assertIsNotNone(reason)
+        self.assertIn("not bound to this task", reason)
+
+    def test_binding_issue_accepts_a_checker_closed_after_the_review(self) -> None:
+        self._bound_checker()
+        self.service.close(CONTEXT_ID)
+
+        reason = receipt_binding_issue(
+            self.root, self.task_dir, {"contextId": CONTEXT_ID}
+        )
+
+        self.assertIsNone(reason)
+
+    def test_binding_issue_flags_a_non_checker_context(self) -> None:
+        self._bound_checker(agent_type="cowork-implement")
+
+        reason = receipt_binding_issue(
+            self.root, self.task_dir, {"contextId": CONTEXT_ID}
+        )
+
+        self.assertIsNotNone(reason)
+        self.assertIn("cowork-check", reason)
 
 
 if __name__ == "__main__":
