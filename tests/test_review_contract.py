@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,21 @@ from tests.flow_test_support import ROOT
 
 TEMPLATE = ROOT / "template"
 SPEC = TEMPLATE / ".cowork-flow" / "spec"
+INSTANCE_SPEC = ROOT / ".cowork-flow" / "spec"
+
+# A contract declares its gate codes in a table whose first column is the code.
+_CODE_CELL = re.compile(r"^\|\s*`([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+)`\s*\|")
+_CODE = re.compile(r"\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+\b")
+# `LIFECYCLE-AC-001/002/003` is how the index compresses a run of codes.
+_CODE_RUN = re.compile(r"\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)-(\d+)((?:/\d+)+)")
+_INDEX_ENTRY = re.compile(r"^- `([a-z0-9-]+\.md)`:")
+
+
+def _expand_code_run(match: re.Match) -> str:
+    """`-AC-001/002/003` -> `-AC-001 -AC-002 -AC-003` for the set comparison."""
+    root = match.group(1)
+    numbers = [match.group(2)] + [part for part in match.group(3).split("/") if part]
+    return " ".join(f"{root}-{number}" for number in numbers)
 
 
 class SpecReviewContractTest(unittest.TestCase):
@@ -252,6 +268,92 @@ class SpecReviewContractTest(unittest.TestCase):
         self.assertTrue(
             (TEMPLATE / ".cowork-flow" / "scripts" / "adapters" / "review" / "test_intent.py").is_file()
         )
+
+    def test_contract_index_lists_every_code_its_contracts_declare(self) -> None:
+        """The index names the gate codes each contract declares — no silent gaps.
+
+        A contract declares its codes in a table whose first column is the code.
+        The index line for that contract must name every one of them: the second
+        round of gate hardening shipped a stricter completion gate whose codes
+        only ever existed in the contract, so the index still offered to tell a
+        reader "001/002" and left the two codes that actually block completion
+        unlisted. Under-declaring is what this locks; over-listing fails too, so
+        the index cannot name a code the contract dropped.
+
+        Driven from the contracts, not from the index: an index entry that is
+        missing entirely, or whose list marker was changed, would otherwise be
+        skipped without ever being looked at — which is the same silence this
+        test exists to break. A code a contract mentions only in prose is
+        outside the rule, because forcing every prose mention into the index
+        would turn it into a second copy of the contract.
+
+        Only the shipped tree is read here, so this also runs on a CI checkout
+        that has no local `.cowork-flow` instance (it is gitignored). The
+        instance copy carries the same content through
+        `test_instance_contracts_mirror_the_template_byte_for_byte`.
+        """
+        listed: dict[str, set[str]] = {}
+        for line in (SPEC / "contracts" / "index.md").read_text(encoding="utf-8").splitlines():
+            entry = _INDEX_ENTRY.match(line.strip())
+            if entry:
+                listed[entry.group(1)] = set(
+                    _CODE.findall(_CODE_RUN.sub(_expand_code_run, line))
+                )
+        for path in sorted((SPEC / "contracts").glob("*.md")):
+            body = path.read_text(encoding="utf-8")
+            declared = {
+                match.group(1)
+                for text in body.splitlines()
+                if (match := _CODE_CELL.match(text))
+            }
+            if not declared:
+                continue
+            self.assertIn(path.name, listed, f"contracts/index.md has no entry for {path.name}")
+            self.assertEqual(
+                declared,
+                listed[path.name],
+                f"contracts/index.md mis-lists {path.name}",
+            )
+
+    def test_instance_contracts_mirror_the_template_byte_for_byte(self) -> None:
+        """The instance this repo is gated by is the tree it ships.
+
+        In the source checkout `.cowork-flow/spec/**` is *not* a protected
+        prefix — `isSourceCheckoutProtected` drops it on purpose — so
+        `dev refresh` does rewrite it, and `self-instance-drift` in
+        `release:check` already refuses a divergence. That gate only runs where
+        `release:check` runs, which is the ubuntu job; the Windows job runs
+        `python -m pytest -q` and never calls it, so this assertion is what
+        would catch a half-edited contract there, days before a release.
+
+        Skipped, not failed, when the checkout has no local instance: a CI
+        checkout has none (`.cowork-flow/` is gitignored), and "no instance" is
+        not a defect. An instance that exists but lost its `spec/contracts`
+        directory *is* one, so that state fails instead of skipping. The
+        comparison is byte-exact, so it also fails when one tree gains CRLF
+        endings while the other keeps LF — a real divergence, not noise.
+        """
+        if not (ROOT / ".cowork-flow").is_dir():
+            self.skipTest("no local .cowork-flow instance in this checkout (it is gitignored)")
+        self.assertTrue(
+            (INSTANCE_SPEC / "contracts").is_dir(),
+            "local instance has no spec/contracts directory",
+        )
+        template_files = {
+            path.name: path
+            for path in (TEMPLATE / ".cowork-flow" / "spec" / "contracts").glob("*.md")
+        }
+        instance_files = {
+            path.name: path
+            for path in (INSTANCE_SPEC / "contracts").glob("*.md")
+        }
+        self.assertEqual(sorted(template_files), sorted(instance_files))
+        for name in sorted(template_files):
+            self.assertEqual(
+                template_files[name].read_bytes(),
+                instance_files[name].read_bytes(),
+                f"contracts/{name} differs between template and this instance",
+            )
 
 
 if __name__ == "__main__":

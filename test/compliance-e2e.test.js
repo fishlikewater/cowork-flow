@@ -104,7 +104,7 @@ async function installedInstance(t, contextId, { requiresRunner = true } = {}) {
   };
 }
 
-async function writePlanningArtifacts(instance, name, { anchor = true } = {}) {
+async function writePlanningArtifacts(instance, name, { anchor = true, specs = [] } = {}) {
   const taskDir = join(instance.dir, instance.taskDir(name));
   if (anchor) {
     await writeFile(
@@ -113,9 +113,16 @@ async function writePlanningArtifacts(instance, name, { anchor = true } = {}) {
       'utf8'
     );
   }
+  const entries = [{ file: 'src/scenario.js', reason: 'scenario', type: 'planned-file' }];
+  // A declared spec pointer is what puts that spec's body inside the review
+  // fingerprint; without one, editing the spec changes nothing the receipt
+  // covers.
+  for (const spec of specs) {
+    entries.push({ file: spec, reason: 'applicable spec for the review', type: 'file' });
+  }
   await writeFile(
     join(taskDir, 'implement.jsonl'),
-    `${JSON.stringify({ file: 'src/scenario.js', reason: 'scenario', type: 'planned-file' })}\n`,
+    entries.map((entry) => `${JSON.stringify(entry)}\n`).join(''),
     'utf8'
   );
 }
@@ -142,7 +149,7 @@ async function taskStatus(instance, name) {
 
 // A strict task needs its declared shape before it can start: a dev type, a
 // bound plan, and a non-empty context index.
-async function createStartedTask(instance, name) {
+async function createStartedTask(instance, name, { specs = [] } = {}) {
   await mkdir(join(instance.dir, '.cowork-flow', 'plans'), { recursive: true });
   await writeFile(
     join(instance.dir, '.cowork-flow', 'plans', `${name}.md`),
@@ -155,13 +162,13 @@ async function createStartedTask(instance, name) {
     '--type', 'backend', '--from-plan', `.cowork-flow/plans/${name}.md`
   ]);
   assert.equal(created.status, 0, created.stderr);
-  await writePlanningArtifacts(instance, name);
+  await writePlanningArtifacts(instance, name, { specs });
   const started = instance.run(['task', 'next', instance.taskDir(name), '--run']);
   assert.equal(started.status, 0, started.stderr);
   return JSON.parse(await readText(join(instance.dir, instance.taskDir(name), 'task.json')));
 }
 
-async function bindSubagent(instance, { name, role, agentType }) {
+async function bindSubagent(instance, { name, role, agentType, bind = true }) {
   const init = instance.run([
     'subagent', 'init',
     '--title', `compliance-${role}`,
@@ -175,8 +182,13 @@ async function bindSubagent(instance, { name, role, agentType }) {
   ]);
   assert.equal(init.status, 0, init.stderr);
   const context = JSON.parse(init.stdout.slice(init.stdout.indexOf('{')));
-  const bind = instance.run(['subagent', 'bind', context.runtimeContextId, context.hostContextKey]);
-  assert.equal(bind.status, 0, bind.stderr);
+  // `bind: false` leaves a context that exists but was never attached to a host
+  // session — the state the write path will not submit a receipt from.
+  if (!bind) {
+    return context;
+  }
+  const bindRun = instance.run(['subagent', 'bind', context.runtimeContextId, context.hostContextKey]);
+  assert.equal(bindRun.status, 0, bindRun.stderr);
   return context;
 }
 
@@ -186,9 +198,7 @@ async function recordReviewReceipt(instance, name) {
     role: 'check',
     agentType: 'cowork-check'
   });
-  const state = instance.run(['state', instance.taskDir(name), '--json']);
-  assert.equal(state.status, 0, state.stderr);
-  const fingerprint = JSON.parse(state.stdout).changeFingerprint;
+  const fingerprint = await currentFingerprint(instance, name);
   const review = instance.run([
     'subagent', 'check-review', context.runtimeContextId,
     '--task-dir', instance.taskDir(name),
@@ -197,6 +207,34 @@ async function recordReviewReceipt(instance, name) {
   ], { COWORK_FLOW_CONTEXT_ID: context.hostContextKey });
   assert.equal(review.status, 0, review.stderr);
   assert.match(review.stdout, /"result": "pass"/);
+}
+
+// The change fingerprint the completion gate compares a receipt against.
+async function currentFingerprint(instance, name) {
+  const state = instance.run(['state', instance.taskDir(name), '--json']);
+  assert.equal(state.status, 0, state.stderr);
+  return JSON.parse(state.stdout).changeFingerprint;
+}
+
+// Plant a receipt the way the write path refuses to: straight into
+// review.jsonl. Everything else about it can be correct — a passing result and
+// the current fingerprint — because what the gate has to catch is the claim of
+// provenance, not the shape of the record.
+async function writeReviewReceipt(instance, name, { contextId, fingerprint }) {
+  await writeFile(
+    join(instance.dir, instance.taskDir(name), 'review.jsonl'),
+    `${JSON.stringify({
+      schemaVersion: 1,
+      contextId,
+      agentType: 'cowork-check',
+      result: 'pass',
+      changedFingerprint: fingerprint,
+      findings: [],
+      bindingEvidence: 'hand-written'
+    })}
+`,
+    'utf8'
+  );
 }
 
 // The release check is only worth what it can refuse: a suite cannot express
@@ -489,6 +527,87 @@ test('an installed instance runs the light path for a strict tiny task, and only
   assert.notEqual(unreviewed.status, 0);
   assert.match(unreviewed.stdout + unreviewed.stderr, /independent review receipt/);
   assert.equal(await taskStatus(instance, strictName), 'review');
+});
+
+test('an installed instance refuses a review receipt it cannot trace to a checker', async (t) => {
+  const instance = await installedInstance(t, 'compliance_receipt');
+  if (instance.unavailable) {
+    t.skip(instance.unavailable);
+    return;
+  }
+
+  const name = '10-10-untraceable-receipt';
+  await createStartedTask(instance, name);
+  await closeOutEvidence(instance, name);
+  assert.equal(
+    instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'review']).status,
+    0
+  );
+
+  const fingerprint = await currentFingerprint(instance, name);
+  await writeReviewReceipt(instance, name, { contextId: 'rtx-hand-written', fingerprint });
+  const fabricated = instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'review']);
+  assert.notEqual(fabricated.status, 0, fabricated.stdout + fabricated.stderr);
+  assert.match(fabricated.stdout + fabricated.stderr, /does not exist/);
+  assert.equal(await taskStatus(instance, name), 'review');
+
+  // A context that does exist but was never bound to a host session: the CLI
+  // refuses to submit that receipt, so hand-writing is the only way to get one
+  // in, and the gate has to catch it on the way out too.
+  const unbound = await bindSubagent(instance, { name, role: 'check', agentType: 'cowork-check', bind: false });
+  await writeReviewReceipt(instance, name, { contextId: unbound.runtimeContextId, fingerprint });
+  const unverified = instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'review']);
+  assert.notEqual(unverified.status, 0, unverified.stdout + unverified.stderr);
+  assert.match(unverified.stdout + unverified.stderr, /never bound to a host session/);
+  assert.equal(await taskStatus(instance, name), 'review');
+
+  // The gate is about provenance, not about this file being left alone: the
+  // very same receipt, submitted through the CLI by a bound checker, completes
+  // the task. Without that half, a green result above could just be a gate
+  // that refuses everything.
+  await writeFile(join(instance.dir, instance.taskDir(name), 'review.jsonl'), '', 'utf8');
+  await recordReviewReceipt(instance, name);
+  const completed = instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'review']);
+  assert.equal(completed.status, 0, completed.stdout + completed.stderr);
+  assert.equal(await taskStatus(instance, name), 'completed');
+});
+
+test('an installed instance stops trusting a receipt once a referenced spec changes', async (t) => {
+  const instance = await installedInstance(t, 'compliance_specchange');
+  if (instance.unavailable) {
+    t.skip(instance.unavailable);
+    return;
+  }
+
+  const name = '10-10-spec-change';
+  await createStartedTask(instance, name, { specs: ['.cowork-flow/spec/backend/index.md'] });
+  await closeOutEvidence(instance, name);
+  assert.equal(
+    instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'review']).status,
+    0
+  );
+
+  await recordReviewReceipt(instance, name);
+
+  // The receipt covers the applicable specs, not just the code diff: this task
+  // is a backend task, so its spec pointers include the backend guide.
+  const specPath = join(instance.dir, '.cowork-flow', 'spec', 'backend', 'index.md');
+  const originalSpec = await readText(specPath);
+  await writeFile(specPath, `${originalSpec}
+Edited after the review.
+`, 'utf8');
+
+  const stale = instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'review']);
+  assert.notEqual(stale.status, 0, stale.stdout + stale.stderr);
+  assert.match(stale.stdout + stale.stderr, /review receipt is stale/);
+  assert.equal(await taskStatus(instance, name), 'review');
+
+  // The other half of the attribution: put the spec back and the same receipt
+  // completes again, so what refused above was the spec change and nothing else.
+  await writeFile(specPath, originalSpec, 'utf8');
+  const completed = instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'review']);
+  assert.equal(completed.status, 0, completed.stdout + completed.stderr);
+  assert.equal(await taskStatus(instance, name), 'completed');
 });
 
 test('a bound implement context cannot drive main-session workflow state', async (t) => {
