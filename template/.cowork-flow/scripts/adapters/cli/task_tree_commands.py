@@ -115,12 +115,13 @@ def cmd_list(args) -> int:
         )
         done, total = service.children_progress(info.children, all_tasks)
         progress = f" [{done}/{total} done]" if info.children else ""
+        light = f" {colored('[light]', Colors.YELLOW)}" if info.light else ""
         prefix = "  " * indent + "  - "
         if filter_mine:
-            print(f"{prefix}{dir_name}/ ({info.status}){progress}{marker}")
+            print(f"{prefix}{dir_name}/ ({info.status}){progress}{light}{marker}")
         else:
             print(
-                f"{prefix}{dir_name}/ ({info.status}){progress} "
+                f"{prefix}{dir_name}/ ({info.status}){progress}{light} "
                 f"[{colored(info.assignee, Colors.CYAN)}]{marker}"
             )
         count += 1
@@ -172,6 +173,7 @@ def _list_task_records(repo_root, *, mine: bool, status: str | None):
             "childrenTotal": total,
             "depth": depth,
             "active": relative_path == active_task,
+            "lightProfile": info.light,
         }
         record.update(
             task_board.board_facts(

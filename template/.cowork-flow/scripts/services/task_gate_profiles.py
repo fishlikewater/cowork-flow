@@ -19,6 +19,8 @@ from services.fact_view import ACCEPTANCE_RE
 GATE_PROFILE_STRICT = "strict"
 GATE_PROFILE_LEGACY = "legacy"
 
+LIGHT_TASK_TYPE = "tiny"
+
 ACCEPTANCE_HEADING = "验收标准"
 
 _HEADING_RE = re.compile(r"^##\s*(.+?)\s*$")
@@ -32,6 +34,42 @@ def resolve_gate_profile(task_data: dict) -> str:
     if isinstance(marker, str) and marker.strip().lower() == GATE_PROFILE_STRICT:
         return GATE_PROFILE_STRICT
     return GATE_PROFILE_LEGACY
+
+
+def declares_light_profile(task_data: dict) -> bool:
+    """Whether the metadata carries the `tiny` task type.
+
+    Field semantics only, and deliberately loose: existing data writes
+    `taskType` or `task_type`, at the top level or under `meta`. This is the
+    single reading of those fields; `is_light_task` adds the gate-profile
+    half of the definition, and the start preflight keeps using this half
+    alone so pre-strict tiny tasks behave exactly as they did.
+    """
+    if not isinstance(task_data, dict):
+        return False
+    meta = task_data.get("meta")
+    candidates = [
+        task_data.get("taskType"),
+        task_data.get("task_type"),
+        meta.get("taskType") if isinstance(meta, dict) else None,
+        meta.get("task_type") if isinstance(meta, dict) else None,
+    ]
+    return any(
+        str(candidate).lower() == LIGHT_TASK_TYPE for candidate in candidates
+    )
+
+
+def is_light_task(task_data: dict) -> bool:
+    """Whether a strict task opted into the light profile at creation.
+
+    A light task still runs under the strict profile: it skips the review
+    receipt, the acceptance-evidence and the dev_type gates, and nothing
+    else. The spec-check, file-scope and acceptance-row gates stay in force,
+    so this is a narrower reading list rather than an exemption channel.
+    """
+    if resolve_gate_profile(task_data) != GATE_PROFILE_STRICT:
+        return False
+    return declares_light_profile(task_data)
 
 
 def acceptance_section_lines(anchor_text: str) -> list[str]:
@@ -89,8 +127,11 @@ def dev_type_blocker(task_data: dict) -> list[str]:
 
     `dev_type` is what `task specs` uses to dispatch the dev-type spec
     pointers and the narrow `devTypes` skill rules; a strict task that leaves
-    it empty is created into a silently shorter reading list.
+    it empty is created into a silently shorter reading list. A light task
+    declares no dev type by design, so it is exempt.
     """
+    if is_light_task(task_data):
+        return []
     dev_type = task_data.get("dev_type") if isinstance(task_data, dict) else None
     if isinstance(dev_type, str) and dev_type.strip():
         return []

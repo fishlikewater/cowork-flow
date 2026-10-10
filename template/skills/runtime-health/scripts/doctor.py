@@ -262,6 +262,8 @@ def _missing_context_files(task_dir: Path) -> tuple[str, ...]:
 
 
 def check_task_hygiene(repo_root: Path) -> list[dict[str, str]]:
+    from services.task_gate_profiles import is_light_task
+
     tasks_dir = repo_root / ".cowork-flow" / "tasks"
     if not tasks_dir.is_dir():
         return []
@@ -273,6 +275,22 @@ def check_task_hygiene(repo_root: Path) -> list[dict[str, str]]:
         task = _task_path(repo_root, task_dir)
         data = _task_metadata(task_dir / "task.json")
         status = str(data.get("status") or "unknown")
+        if is_light_task(data):
+            # A warning, not an error: the profile is legitimate, and the
+            # point is that a reduced gate set is never silent.
+            issues.append(
+                _task_hygiene_issue(
+                    kind="light_profile",
+                    task=task,
+                    status=status,
+                    message=(
+                        "task runs under the light profile: the review "
+                        "receipt, acceptance-evidence and dev_type gates are "
+                        "waived"
+                    ),
+                    hint=f"./.cowork-flow/run task next {task}",
+                )
+            )
         if status == "completed":
             issues.append(
                 _task_hygiene_issue(

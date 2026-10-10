@@ -10,6 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from infra.paths import DIR_ARCHIVE, get_tasks_dir
+from services.task_gate_profiles import is_light_task
 from services.task_repository import TaskRepository, TaskRepositoryError
 from infra.storage.unit_of_work import UnitOfWork, UnitOfWorkError
 
@@ -34,6 +35,7 @@ class TaskNode:
     assignee: str
     children: tuple[str, ...]
     parent: str | None
+    light: bool = False
 
 
 class TaskTreeService:
@@ -267,6 +269,7 @@ class TaskTreeService:
                 assignee=str(data.get("assignee") or "-"),
                 children=tuple(data.get("children") or ()),
                 parent=data.get("parent"),
+                light=is_light_task(data),
             )
         return nodes
 

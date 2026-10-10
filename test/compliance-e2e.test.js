@@ -395,20 +395,22 @@ test('an installed instance runs the strict task path and refuses to complete it
   );
 });
 
-test('an installed instance runs the light compatibility path without the strict gates', async (t) => {
-  const instance = await installedInstance(t, 'compliance_light');
+test('an installed instance still completes a pre-strict tiny task', async (t) => {
+  const instance = await installedInstance(t, 'compliance_legacy_light');
   if (instance.unavailable) {
     t.skip(instance.unavailable);
     return;
   }
-  const name = '10-09-light';
-  // No --type and no --from-plan: the light path is a tiny legacy task, which
-  // is the shape every pre-strict project still creates.
+  const name = '10-09-legacy-light';
   const created = instance.run([
-    'task', 'next', '--run', '--title', 'Light', '--slug', name, '--assignee', 'compliance'
+    'task', 'next', '--run', '--title', 'Legacy light', '--slug', name, '--assignee', 'compliance'
   ]);
   assert.equal(created.status, 0, created.stderr);
 
+  // Every task a current instance creates is strict, so the only way to reach
+  // the compatibility path is to build the pre-strict metadata by hand. This
+  // is a fixture for legacy data, not a shortcut around the creation entry
+  // point — that one is covered by the scenario above.
   const taskPath = join(instance.dir, instance.taskDir(name), 'task.json');
   const task = JSON.parse(await readText(taskPath));
   delete task.meta.gateProfile;
@@ -427,6 +429,66 @@ test('an installed instance runs the light compatibility path without the strict
   const completed = instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'review']);
   assert.equal(completed.status, 0, completed.stderr);
   assert.equal(await taskStatus(instance, name), 'completed');
+});
+
+test('an installed instance runs the light path for a strict tiny task, and only for it', async (t) => {
+  const instance = await installedInstance(t, 'compliance_light');
+  if (instance.unavailable) {
+    t.skip(instance.unavailable);
+    return;
+  }
+
+  // The light profile is declared at creation, through the shipped CLI — not
+  // by hand-editing task.json, which is what the compatibility scenario used
+  // to do and which proved nothing about the creation entry point.
+  const lightName = '10-09-light';
+  const created = instance.run([
+    'task', 'next', '--run',
+    '--title', 'Light', '--slug', lightName, '--assignee', 'compliance',
+    '--task-type', 'tiny'
+  ]);
+  assert.equal(created.status, 0, created.stderr);
+  await writePlanningArtifacts(instance, lightName);
+  const started = instance.run(['task', 'next', instance.taskDir(lightName), '--run']);
+  assert.equal(started.status, 0, started.stderr);
+
+  const taskPath = join(instance.dir, instance.taskDir(lightName), 'task.json');
+  const task = JSON.parse(await readText(taskPath));
+  assert.equal(task.meta.gateProfile, 'strict', 'the light profile is a strict profile');
+  assert.equal(task.meta.taskType, 'tiny');
+  assert.equal(task.status, 'in_progress');
+
+  // Visibility: a reduced gate set must never be silent.
+  const listed = instance.run(['task', 'next', '--list', '--json']);
+  assert.equal(listed.status, 0, listed.stderr);
+  const records = JSON.parse(listed.stdout).tasks;
+  assert.equal(
+    records.find((record) => record.name === lightName).lightProfile,
+    true
+  );
+  const textList = instance.run(['task', 'next', '--list']);
+  assert.equal(textList.status, 0, textList.stderr);
+  assert.match(textList.stdout, /10-09-light\/.*\[light\]/);
+
+  // No evidence file, an unchecked AC and no review receipt: all three are
+  // waived, so the light task still reaches completed.
+  assert.equal(instance.run(['task', 'next', instance.taskDir(lightName), '--run', '--intent', 'review']).status, 0);
+  const completed = instance.run(['task', 'next', instance.taskDir(lightName), '--run', '--intent', 'review']);
+  assert.equal(completed.status, 0, completed.stderr);
+  assert.equal(await taskStatus(instance, lightName), 'completed');
+  const archived = instance.run(['task', 'next', instance.taskDir(lightName), '--run', '--intent', 'archive']);
+  assert.equal(archived.status, 0, archived.stderr);
+
+  // The counterexample that keeps the exemption from being too wide: the same
+  // instance, an ordinary strict task, and the receipt gate still bites.
+  const strictName = '10-09-strict-untouched';
+  await createStartedTask(instance, strictName);
+  await closeOutEvidence(instance, strictName);
+  assert.equal(instance.run(['task', 'next', instance.taskDir(strictName), '--run', '--intent', 'review']).status, 0);
+  const unreviewed = instance.run(['task', 'next', instance.taskDir(strictName), '--run', '--intent', 'review']);
+  assert.notEqual(unreviewed.status, 0);
+  assert.match(unreviewed.stdout + unreviewed.stderr, /independent review receipt/);
+  assert.equal(await taskStatus(instance, strictName), 'review');
 });
 
 test('a bound implement context cannot drive main-session workflow state', async (t) => {

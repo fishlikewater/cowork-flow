@@ -21,7 +21,9 @@ from services.task_gate_profiles import (  # noqa: E402
     GATE_PROFILE_LEGACY,
     GATE_PROFILE_STRICT,
     acceptance_row_blockers,
+    declares_light_profile,
     dev_type_blocker,
+    is_light_task,
     resolve_gate_profile,
 )
 
@@ -136,6 +138,87 @@ class DevTypeBlockerTest(unittest.TestCase):
     def test_blank_dev_type_blocks(self) -> None:
         self.assertEqual(1, len(dev_type_blocker({"dev_type": "  "})))
 
+    def test_light_strict_task_is_exempt(self) -> None:
+        """The light profile declares no dev type by design."""
+        self.assertEqual(
+            [],
+            dev_type_blocker(
+                {"meta": {"gateProfile": "strict", "taskType": "tiny"}}
+            ),
+        )
+
+    def test_legacy_tiny_task_is_not_exempt_here(self) -> None:
+        """Legacy tasks are filtered by the caller; the blocker itself must
+        not invent a second exemption path for them."""
+        self.assertEqual(
+            1, len(dev_type_blocker({"meta": {"taskType": "tiny"}}))
+        )
+
+
+class DeclaresLightProfileTest(unittest.TestCase):
+    """Field-level reading of `taskType`/`task_type`, wherever it is written."""
+
+    def test_reads_every_known_field_location(self) -> None:
+        cases = (
+            {"taskType": "tiny"},
+            {"task_type": "tiny"},
+            {"meta": {"taskType": "tiny"}},
+            {"meta": {"task_type": "tiny"}},
+        )
+        for task_data in cases:
+            with self.subTest(task_data=task_data):
+                self.assertTrue(declares_light_profile(task_data))
+
+    def test_value_is_case_insensitive(self) -> None:
+        self.assertTrue(declares_light_profile({"meta": {"taskType": "Tiny"}}))
+
+    def test_value_comparison_keeps_the_legacy_exactness(self) -> None:
+        """No strip: widening the value match would silently reclassify
+        existing metadata, so the field-level reading stays byte-exact."""
+        self.assertFalse(
+            declares_light_profile({"meta": {"taskType": " tiny "}})
+        )
+        self.assertFalse(declares_light_profile({"meta": {"taskType": "tinyx"}}))
+
+    def test_non_tiny_or_absent_values_are_false(self) -> None:
+        cases = (
+            {},
+            {"meta": {}},
+            {"meta": {"taskType": None}},
+            {"meta": {"gateProfile": "strict"}},
+            {"meta": {"taskType": "small"}},
+            {"meta": "tiny"},
+        )
+        for task_data in cases:
+            with self.subTest(task_data=task_data):
+                self.assertFalse(declares_light_profile(task_data))
+
+    def test_non_mapping_input_is_false(self) -> None:
+        self.assertFalse(declares_light_profile(None))
+        self.assertFalse(declares_light_profile(["tiny"]))
+
+
+class IsLightTaskTest(unittest.TestCase):
+    """Light = strict plus the marker. The profile half is not optional."""
+
+    def test_strict_with_the_marker_is_light(self) -> None:
+        self.assertTrue(
+            is_light_task({"meta": {"gateProfile": "strict", "taskType": "tiny"}})
+        )
+
+    def test_the_marker_alone_is_not_light(self) -> None:
+        """A pre-strict tiny task keeps its legacy behaviour everywhere the
+        light profile would otherwise loosen a gate."""
+        self.assertFalse(is_light_task({"meta": {"taskType": "tiny"}}))
+
+    def test_strict_without_the_marker_is_not_light(self) -> None:
+        self.assertFalse(
+            is_light_task({"meta": {"gateProfile": "strict"}})
+        )
+        self.assertFalse(
+            is_light_task({"meta": {"gateProfile": "strict", "taskType": "small"}})
+        )
+
 
 class StartGateIntegrationTest(unittest.TestCase):
     """The gate is chosen per task: strict tasks get the new blockers,
@@ -154,10 +237,13 @@ class StartGateIntegrationTest(unittest.TestCase):
         gate_profile: str | None,
         dev_type: str | None,
         acceptance_lines: list[str],
+        task_type: str | None = "tiny",
     ) -> Path:
         task_dir = root / ".cowork-flow" / "tasks" / "10-09-demo"
         task_dir.mkdir(parents=True)
-        meta: dict = {"taskType": "tiny"}
+        meta: dict = {}
+        if task_type is not None:
+            meta["taskType"] = task_type
         if gate_profile is not None:
             meta["gateProfile"] = gate_profile
         (task_dir / "task.json").write_text(
@@ -187,6 +273,7 @@ class StartGateIntegrationTest(unittest.TestCase):
                 gate_profile="strict",
                 dev_type=None,
                 acceptance_lines=[],
+                task_type=None,
             )
 
         self.assertTrue(
@@ -218,6 +305,49 @@ class StartGateIntegrationTest(unittest.TestCase):
             )
 
         self.assertEqual((), blockers)
+
+    def test_light_task_skips_the_dev_type_blocker(self) -> None:
+        """strict + tiny with no dev_type is startable; the fixture would
+        otherwise be blocked, so the marker is the only difference."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            blockers = self._blockers(
+                Path(temp_dir),
+                gate_profile="strict",
+                dev_type=None,
+                acceptance_lines=["- [ ] AC-001: 真标准"],
+            )
+
+        self.assertEqual((), blockers)
+
+    def test_light_task_still_requires_acceptance_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            blockers = self._blockers(
+                Path(temp_dir),
+                gate_profile="strict",
+                dev_type=None,
+                acceptance_lines=[],
+            )
+
+        self.assertTrue(
+            any("declares no acceptance criterion" in b for b in blockers),
+            blockers,
+        )
+
+    def test_strict_non_light_task_without_dev_type_still_blocks(self) -> None:
+        """The exemption boundary: without the marker the dev_type gate
+        applies exactly as before."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            blockers = self._blockers(
+                Path(temp_dir),
+                gate_profile="strict",
+                dev_type=None,
+                acceptance_lines=["- [ ] AC-001: 真标准"],
+                task_type=None,
+            )
+
+        self.assertTrue(
+            any("declares no dev_type" in b for b in blockers), blockers
+        )
 
     def test_created_task_is_strict_and_gated(self) -> None:
         """A created task is strict, and the anchor skeleton a bound plan
@@ -260,6 +390,70 @@ class StartGateIntegrationTest(unittest.TestCase):
         self.assertTrue(
             any("declares no dev_type" in b for b in blockers), blockers
         )
+
+    def test_created_light_task_persists_the_marker_and_starts(self) -> None:
+        """The creation entry point is the only way in, so it has to write the
+        marker — and a task created that way is startable without a plan file
+        or a dev_type once its acceptance rows exist."""
+        creation = importlib.import_module("services.task_creation")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = creation.TaskCreationService(root).create(
+                creation.TaskCreationRequest(
+                    title="轻量演示",
+                    slug="light-demo",
+                    assignee="codex",
+                    priority="P2",
+                    task_type="tiny",
+                    created_at="2026-10-10",
+                    date_prefix="10-10",
+                )
+            ).task_dir
+            task_data = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            anchor_path = task_dir / "decision-anchor.md"
+            anchor_path.write_text(
+                "# Decision Anchor\n\n## 目标\n\n演示。\n\n"
+                "## 验收标准\n- [ ] AC-001: 真标准\n",
+                encoding="utf-8",
+            )
+            (task_dir / "implement.jsonl").write_text(
+                json.dumps({"file": "src/a.py", "type": "planned-file"}) + "\n",
+                encoding="utf-8",
+            )
+
+            self.assertTrue(is_light_task(task_data))
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        self.assertEqual("tiny", task_data["meta"]["taskType"])
+        self.assertEqual("strict", task_data["meta"]["gateProfile"])
+        self.assertNotIn("planFile", task_data.get("meta", {}))
+        self.assertEqual((), blockers)
+
+    def test_creation_without_the_marker_stays_non_light(self) -> None:
+        """The marker is opt-in: omitting it must not accidentally produce a
+        light task, or the exemption would be free again."""
+        creation = importlib.import_module("services.task_creation")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = creation.TaskCreationService(root).create(
+                creation.TaskCreationRequest(
+                    title="普通演示",
+                    slug="plain-demo",
+                    assignee="codex",
+                    priority="P2",
+                    created_at="2026-10-10",
+                    date_prefix="10-10",
+                )
+            ).task_dir
+            task_data = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+
+        self.assertFalse(declares_light_profile(task_data))
+        self.assertFalse(is_light_task(task_data))
+        self.assertNotIn("taskType", task_data.get("meta", {}))
 
 
 if __name__ == "__main__":

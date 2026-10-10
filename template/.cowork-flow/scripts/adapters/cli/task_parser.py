@@ -8,6 +8,7 @@ from pathlib import Path
 
 from adapters.cli.execution_context_args import build_internal_execution_context_parser
 from services.task_creation import VALID_DEV_TYPES
+from services.task_gate_profiles import LIGHT_TASK_TYPE
 
 
 USAGE_TEXT = """Task workflow router for cowork-flow
@@ -35,6 +36,9 @@ Action inputs for `next --run`:
                         on an unstarted task; selects the reading list
                         `task specs` reports (backend|frontend|fullstack|test|spec)
   --from-plan <path>    Plan path for create_task or planning-phase rebind
+  --task-type tiny      Declare the light profile at creation (skips the
+                        review receipt, acceptance-evidence and dev_type
+                        gates; acceptance rows stay required)
   --auto --approved     Optional batch start flags for start_task
   --adopt              Adopt an active task from another executor (rebind
                        executor + reset review baseline; status unchanged)
@@ -160,6 +164,18 @@ def _add_next_create_inputs(parser: argparse.ArgumentParser) -> None:
             "Dev type for create_task, or a planning-phase rebind on an "
             "unstarted task: it selects the spec/skill reading list "
             "`task specs` reports (" + "|".join(VALID_DEV_TYPES) + ")"
+        ),
+    )
+    parser.add_argument(
+        "--task-type",
+        dest="task_type",
+        choices=(LIGHT_TASK_TYPE,),
+        metavar="<task-type>",
+        help=(
+            f"Declare the light profile at creation ({LIGHT_TASK_TYPE}): a "
+            "light task skips the review receipt, acceptance-evidence and "
+            "dev_type gates while its acceptance rows stay required. "
+            "Declarable only here — there is no post-creation switch."
         ),
     )
 

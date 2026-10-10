@@ -239,6 +239,39 @@ class TaskTreeServiceTest(unittest.TestCase):
                 ),
             )
 
+    def test_active_nodes_flag_the_light_profile(self) -> None:
+        """The list is where a reduced gate set becomes visible, so the flag
+        has to travel with the node, and only for a strict tiny task."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks_dir = root / ".cowork-flow" / "tasks"
+            tasks_dir.mkdir(parents=True)
+            self._write_task(
+                tasks_dir,
+                "10-10-light",
+                {
+                    "status": "in_progress",
+                    "meta": {"gateProfile": "strict", "taskType": "tiny"},
+                },
+            )
+            self._write_task(
+                tasks_dir,
+                "10-10-ordinary",
+                {"status": "in_progress", "meta": {"gateProfile": "strict"}},
+            )
+            self._write_task(
+                tasks_dir,
+                "10-10-legacy-tiny",
+                {"status": "in_progress", "meta": {"taskType": "tiny"}},
+            )
+            service = self.TaskTreeService(root)
+
+            nodes = service.active_nodes()
+
+            self.assertTrue(nodes["10-10-light"].light)
+            self.assertFalse(nodes["10-10-ordinary"].light)
+            self.assertFalse(nodes["10-10-legacy-tiny"].light)
+
 
 if __name__ == "__main__":
     unittest.main()

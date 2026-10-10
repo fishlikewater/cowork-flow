@@ -71,6 +71,7 @@
 - **复核凭证的变更指纹**（strict 任务完成时要求最新凭证与当前状态一致，`LIFECYCLE-REVIEW-003`）输入 = git 可见变更（路径 + 内容摘要）+ 本锚点的目标与 AC 正文 + 绑定计划的内容摘要 + `dev_type` + 被引用 spec 的**正文摘要** + `implement.jsonl` 的内容摘要。`spec/**` 与 `tasks/**` 都被 gitignore，后两项因此必须显式入指纹，否则改写被引用 spec 的正文、或扩大声明范围，都不会使旧凭证失效。
 - 指纹**排除项**（机制）：变更集排除 `.cowork-flow/tasks/**` 整段、`.cowork-flow/.runtime/**` 与 `.cowork-flow/logs/**`——任务目录内的产物（`task.json`、`evidence.jsonl`、`review.jsonl`、`check.jsonl`、`debug.jsonl`，以及 anchor 的**路径层**）与运行期元数据都不计入，否则凭证一记录就自我失效。`implement.jsonl` 的路径层同样被排除，其**内容**改由 `scope` 分量计入。
 - 推论（预期成本，非缺陷）：**`implement.jsonl` 的任意字节变化**（追加/删除范围条目、改 `reason` 措辞、`task context add` 自动追加的 domain guide 条目）**或被引用 spec 正文的改写，都会使既有凭证失效**，需在最终状态重跑一次复核。证据追加、AC 勾选与运行期元数据不在此列。
+- **轻量档 `meta.taskType: "tiny"`**：只对 `strict` 任务生效（`legacy` + `tiny` 仍是兼容路径）。轻量任务**仍是 strict**——它免的是复核凭证、AC 证据与 `dev_type` 三项，**不免** spec-check、文件范围门禁与"AC 行非空"（`LIFECYCLE-AC-003`/`004` 照旧）。计划文件绑定不在三项之内，但沿用 tiny 既有的字段级豁免，故轻量任务同样不要求 `planFile`。`tiny` **只在创建期声明**（`task next --run --task-type tiny`），没有事后修改入口；轻量档在 `task next --list`（文本 `[light]` 标记与 `--json` 的 `lightProfile`）与 doctor 的任务卫生输出中可见。判定唯一来源是 `task_gate_profiles.is_light_task`（`strict` + 字段为 `tiny`）；启动 preflight 的计划文件豁免仍用字段级判定 `declares_light_profile`，以便存量 pre-strict tiny 任务行为不变。**不得**把轻量档用于触碰 runtime / 门禁 / spec 的任务——这一条靠可见性与复核约束，不是机检门禁。
 - `cowork-implement` 读取：见 .cowork-flow/spec/contracts/subagent-dispatch.md
 - `cowork-check` 读取：同上
 - `debug.jsonl` 引用：可选，偏差诊断时写入 anchor 锚点差异

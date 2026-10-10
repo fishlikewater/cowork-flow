@@ -177,9 +177,22 @@ class _StrictTaskFixture(unittest.TestCase):
         ) as handle:
             handle.write(json.dumps(receipt, ensure_ascii=False) + "\n")
 
+    def _make_light(self) -> None:
+        """Declare the light profile the way the creation entry does."""
+        data = json.loads(
+            (self.task_dir / "task.json").read_text(encoding="utf-8")
+        )
+        data.setdefault("meta", {})["taskType"] = "tiny"
+        (self.task_dir / "task.json").write_text(
+            json.dumps(data, ensure_ascii=False), encoding="utf-8"
+        )
 
-class ReviewReceiptGateTest(_StrictTaskFixture):
-    """The completion gate over independent review receipts (strict tasks)."""
+    def _clear_acceptance(self) -> None:
+        """Rewrite the anchor so `## 验收标准` declares no AC row."""
+        (self.task_dir / "decision-anchor.md").write_text(
+            "# Decision Anchor\n\n## 目标\n演示。\n\n## 验收标准\n",
+            encoding="utf-8",
+        )
 
     def _review_issues(self) -> list[str]:
         result = LifecycleCheckRunner(self.root).complete(self.task_dir)
@@ -188,6 +201,18 @@ class ReviewReceiptGateTest(_StrictTaskFixture):
             for issue in result.issues
             if issue.code.startswith(REVIEW_PREFIX)
         ]
+
+    def _ac_issues(self, **kwargs: object) -> list[str]:
+        result = LifecycleCheckRunner(self.root).complete(self.task_dir, **kwargs)
+        return [
+            issue.code
+            for issue in result.issues
+            if issue.code.startswith("LIFECYCLE-AC-")
+        ]
+
+
+class ReviewReceiptGateTest(_StrictTaskFixture):
+    """The completion gate over independent review receipts (strict tasks)."""
 
     # -- tests ----------------------------------------------------------
 
@@ -460,21 +485,6 @@ class ReviewReceiptGateTest(_StrictTaskFixture):
 class AcceptanceCompletionGateTest(_StrictTaskFixture):
     """The completion gate over acceptance criteria (strict vs legacy)."""
 
-    def _ac_issues(self, **kwargs: object) -> list[str]:
-        result = LifecycleCheckRunner(self.root).complete(self.task_dir, **kwargs)
-        return [
-            issue.code
-            for issue in result.issues
-            if issue.code.startswith("LIFECYCLE-AC-")
-        ]
-
-    def _clear_acceptance(self) -> None:
-        """Rewrite the anchor so `## 验收标准` declares no AC row."""
-        (self.task_dir / "decision-anchor.md").write_text(
-            "# Decision Anchor\n\n## 目标\n演示。\n\n## 验收标准\n",
-            encoding="utf-8",
-        )
-
     def test_strict_task_with_cleared_acceptance_criteria_blocks_completion(
         self,
     ) -> None:
@@ -544,6 +554,52 @@ class AcceptanceCompletionGateTest(_StrictTaskFixture):
                 ["LIFECYCLE-AC-004"],
                 self._ac_issues(allow_missing_evidence=True),
             )
+
+
+class LightTaskGateTest(_StrictTaskFixture):
+    """The light profile waives three gates and nothing else."""
+
+    def test_the_tiny_marker_is_what_flips_the_receipt_gate(self) -> None:
+        """Same fixture twice: the marker, not the fixture, is the switch."""
+        self.assertEqual(["LIFECYCLE-REVIEW-001"], self._review_issues())
+
+        self._make_light()
+
+        self.assertEqual([], self._review_issues())
+
+    def test_light_task_completes_without_evidence_or_a_checked_ac(self) -> None:
+        # The fixture anchor is unticked and evidence.jsonl is absent: a
+        # non-light strict task cannot complete like this.
+        self._make_light()
+
+        self.assertEqual([], self._ac_issues())
+
+    def test_light_task_still_requires_acceptance_rows(self) -> None:
+        self._make_light()
+        self._clear_acceptance()
+
+        self.assertEqual(["LIFECYCLE-AC-003"], self._ac_issues())
+
+    def test_light_task_still_blocks_on_a_broken_evidence_module(self) -> None:
+        self._make_light()
+
+        with mock.patch.dict(sys.modules, {"services.ac_evidence": None}):
+            self.assertEqual(["LIFECYCLE-AC-004"], self._ac_issues())
+
+    def test_light_task_still_blocks_on_unplanned_changed_files(self) -> None:
+        """The light profile narrows the reading list, not the scope gate."""
+        self._make_light()
+        (self.root / "unplanned.py").write_text("value = 1\n", encoding="utf-8")
+
+        result = LifecycleCheckRunner(self.root).complete(self.task_dir)
+
+        self.assertTrue(
+            any(
+                "unplanned" in (issue.path or "") or "unplanned" in issue.message
+                for issue in result.issues
+            ),
+            [f"{issue.code}: {issue.path}" for issue in result.issues],
+        )
 
 
 class SpecCheckFactTest(unittest.TestCase):
