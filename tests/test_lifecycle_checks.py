@@ -987,6 +987,17 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self._write_baseline_task_with_manifest(
                 root, task_dir, meta={"baselineCommit": baseline}
             )
+            # Bookkeeping the framework writes for itself is not a reviewed
+            # change, so the scope gate must stay quiet about it even in a
+            # checkout that does not ignore .cowork-flow/ — this fixture has no
+            # .gitignore, so every one of these paths is visible to git.
+            for relative in (
+                ".cowork-flow/.runtime/subagents/rtx_demo.json",
+                ".cowork-flow/logs/run.log",
+            ):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}\n", encoding="utf-8")
             # Sneak an unlisted file in via a commit: it must still surface.
             (root / "src" / "sneaky.py").write_text("SNEAKY = 1\n", encoding="utf-8")
             self._commit_all(root, "sneaky unlisted file")
@@ -996,11 +1007,12 @@ class LifecycleChecksTest(FlowScriptTestCase):
                 root, task_dir, allow_spec_file_modifications=False
             )
 
-        codes = [issue.code for issue in issues]
-        self.assertIn("unlisted_changed_file", codes)
-        self.assertTrue(
-            any("src/sneaky.py" in issue.message for issue in issues),
-            "the committed unlisted file must be flagged",
+        # Exactly the unlisted source file: the committed sneaky edit must be
+        # reported, and the task's own artifacts plus the runtime bookkeeping
+        # under .cowork-flow/ must not be.
+        self.assertEqual(
+            [("unlisted_changed_file", "src/sneaky.py")],
+            [(issue.code, issue.path) for issue in issues],
         )
 
     def test_review_without_baseline_degrades_to_status_only(self) -> None:
