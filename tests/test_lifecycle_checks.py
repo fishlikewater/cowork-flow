@@ -88,11 +88,18 @@ class LifecycleChecksTest(FlowScriptTestCase):
         root: Path,
         *,
         allow_unchecked: bool = False,
+        allow_missing_evidence: bool = False,
+        context_id: str | None = "main",
     ) -> tuple[int, str, str]:
         previous_cwd = Path.cwd()
+        environment = (
+            {} if context_id is None else {"COWORK_FLOW_CONTEXT_ID": context_id}
+        )
         try:
             os.chdir(root)
-            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+            with patch.dict(os.environ, environment):
+                if context_id is None:
+                    os.environ.pop("COWORK_FLOW_CONTEXT_ID", None)
                 with (
                     contextlib.redirect_stdout(io.StringIO()) as stdout,
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
@@ -101,6 +108,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
                         argparse.Namespace(
                             dir=None,
                             allow_unchecked=allow_unchecked,
+                            allow_missing_evidence=allow_missing_evidence,
                         )
                     )
         finally:
@@ -326,7 +334,8 @@ class LifecycleChecksTest(FlowScriptTestCase):
 
             self.assertFalse(result.blocked)
             self.assertEqual(
-                {"missing": ["AC-001"]}, result.evidence_exemption
+                {"missing": ["AC-001"], "flag": "--allow-missing-evidence"},
+                result.evidence_exemption,
             )
 
     def test_service_complete_records_evidence_exemption_in_meta(self) -> None:
@@ -840,6 +849,163 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertIn("meta.specCheckExempt", output)
             self.assertIn("1 unchecked spec-check command(s)", output)
 
+    def test_completion_names_the_commands_it_exempted_and_the_actor(self) -> None:
+        """The count alone is not the fact: the record and the output both
+        have to name which declarations went unverified, and who waived them."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            self._write_spec_check_fixture(
+                root, "definitely-not-a-real-command-xyz --flag"
+            )
+
+            result, stdout, stderr = self._run_complete(root, allow_unchecked=True)
+
+            self.assertEqual(0, result, stderr)
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            record = data["meta"]["specCheckExempt"]
+            self.assertEqual("--allow-unchecked", record["flag"])
+            self.assertEqual("main", record["by"])
+            self.assertEqual(
+                [
+                    {
+                        "spec": "backend/gate.md",
+                        "cmd": "definitely-not-a-real-command-xyz --flag",
+                    }
+                ],
+                record["uncheckedItems"],
+            )
+            # The output is the record, line for line — not a re-derivation.
+            for line in importlib.import_module("services.lifecycle_checks").exemption_report_lines(data["meta"]):
+                self.assertIn(line, stdout)
+            self.assertIn(
+                "  - backend/gate.md: definitely-not-a-real-command-xyz --flag",
+                stdout,
+            )
+            # The actor is recorded for both kinds, so it must be shown for
+            # both: a spec-only exemption names it just as an evidence-only
+            # one does.
+            self.assertIn("by main", stdout)
+
+    def test_completion_records_the_missing_ac_ids_flag_and_actor(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True)
+            self._write_session_task(root)
+
+            result, stdout, stderr = self._run_complete(
+                root, allow_missing_evidence=True
+            )
+
+            self.assertEqual(0, result, stderr)
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            record = data["meta"]["evidenceExempt"]
+            self.assertEqual(["AC-001"], record["missing"])
+            self.assertEqual("--allow-missing-evidence", record["flag"])
+            self.assertEqual("main", record["by"])
+            for line in importlib.import_module("services.lifecycle_checks").exemption_report_lines(data["meta"]):
+                self.assertIn(line, stdout)
+
+    def test_an_unresolved_actor_is_recorded_and_printed_as_null(self) -> None:
+        """No session identity means an unknown actor, not the assignee."""
+        host_identity = importlib.import_module("runtime.host_identity")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True)
+            task_json = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            task_json["assignee"] = "someone-else"
+            (task_dir / "task.json").write_text(
+                json.dumps(task_json), encoding="utf-8"
+            )
+            # Every identity source has to go: a process-level label is still
+            # an identity, and leaving one set would make this test depend on
+            # whoever launched pytest.
+            cleared = (
+                ["COWORK_FLOW_CONTEXT_ID"]
+                + [name for _prefix, name in host_identity.session_env_providers()]
+                + [
+                    name
+                    for _prefix, name in host_identity.process_label_providers()
+                ]
+            )
+            service_module = importlib.import_module("services.task_lifecycle")
+            with patch.dict(os.environ, {name: "" for name in cleared}):
+                for name in cleared:
+                    os.environ.pop(name, None)
+                result = service_module.TaskLifecycleService(root).complete(
+                    task_dir, allow_missing_evidence=True
+                )
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+
+        self.assertTrue(result.ok, result.blockers)
+        self.assertIsNone(data["meta"]["evidenceExempt"]["by"])
+        lines = importlib.import_module(
+            "services.lifecycle_checks"
+        ).exemption_report_lines(data["meta"])
+        self.assertTrue(any("by null" in line for line in lines), lines)
+        self.assertFalse(any("someone-else" in line for line in lines), lines)
+
+    def test_an_over_long_exemption_list_is_truncated_and_says_so(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            spec_dir = root / ".cowork-flow" / "spec" / "backend"
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            for index in range(12):
+                (spec_dir / f"gate-{index}.md").write_text(
+                    "---\n"
+                    "checks:\n"
+                    f"  - cmd: definitely-not-a-real-command-{index}\n"
+                    "---\n\n# gate\n",
+                    encoding="utf-8",
+                )
+
+            result, stdout, stderr = self._run_complete(root, allow_unchecked=True)
+
+            self.assertEqual(0, result, stderr)
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            record = data["meta"]["specCheckExempt"]
+            self.assertEqual(12, record["unchecked"])
+            self.assertEqual(10, len(record["uncheckedItems"]))
+            self.assertIs(True, record["truncated"])
+            item_lines = [
+                line for line in stdout.splitlines() if line.startswith("  - backend/")
+            ]
+            self.assertEqual(10, len(item_lines))
+            self.assertIn("the list is truncated", stdout)
+            self.assertEqual(
+                item_lines,
+                [
+                    f"  - {item['spec']}: {item['cmd']}"
+                    for item in record["uncheckedItems"]
+                ],
+            )
+
+    def test_completion_without_exemptions_prints_no_exemption_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            self._write_spec_check_fixture(
+                root, f'"{sys.executable}" -c "import sys; sys.exit(0)"'
+            )
+
+            result, stdout, stderr = self._run_complete(root)
+
+            self.assertEqual(0, result, stderr)
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            self.assertNotIn("Exempted:", stdout)
+            self.assertEqual([], importlib.import_module("services.lifecycle_checks").exemption_report_lines(data["meta"]))
+
     def test_passing_spec_checks_record_summary_on_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -857,6 +1023,51 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertEqual("completed", data["status"])
             self.assertEqual(1, data["meta"]["specCheckSummary"]["pass"])
             self.assertNotIn("specCheckExempt", data["meta"])
+
+    def test_archive_prints_the_same_exemption_details_completion_did(self) -> None:
+        """Archiving must not shrink the record back to a count."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_ac_gate_task(root, task_dir, checked=True)
+            self._write_session_task(root)
+            self._write_spec_check_fixture(
+                root, "definitely-not-a-real-command-xyz --flag"
+            )
+            completed, completion_stdout, stderr = self._run_complete(
+                root,
+                allow_unchecked=True,
+                allow_missing_evidence=True,
+            )
+            self.assertEqual(0, completed, stderr)
+            self._init_git_repo(root)
+            self._commit_all(root, "baseline")
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()) as archive_stderr,
+                ):
+                    code = self.task.cmd_archive(
+                        argparse.Namespace(name="05-19-demo", commit=False)
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            output = archive_stderr.getvalue()
+            self.assertEqual(0, code, output)
+            self.assertIn("Exemptions carried into the archive:", output)
+            for line in importlib.import_module(
+                "services.lifecycle_checks"
+            ).exemption_report_lines(data["meta"]):
+                self.assertIn(line, output)
+                # The two surfaces render one record, so they agree verbatim.
+                self.assertIn(line, completion_stdout)
+            self.assertIn("  - AC-001", output)
+            self.assertIn("by main", output)
 
     def _write_bound_subagent_review_fixture(
         self,

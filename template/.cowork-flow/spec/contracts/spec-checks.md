@@ -38,13 +38,15 @@ checks:
 | --- | --- | --- |
 | `pass` | 退出码 0 | 通过 |
 | `violation` | 退出码非 0 | **阻断**（状态不推进） |
-| `unchecked` | 命令不存在/解释器缺失/超时 | **阻断**；显式 `--allow-unchecked` 可放行，豁免留痕进 task.json `meta.specCheckExempt` |
+| `unchecked` | 命令不存在/解释器缺失/超时 | **阻断**；显式 `--allow-unchecked` 可放行，豁免留痕进 task.json `meta.specCheckExempt`（含逐条明细，见下） |
 
 unchecked 永不冒充 pass（"没跑成"不是"通过"）；frontmatter 畸形视该 spec 为无检查并进 doctor 报告，不炸流程。解析失败是独立于三态之外的信号：`files` 形态非法等声明解析错误归入 `parseErrors`，不折进 `pass`/`unchecked`，退出码与 `unchecked` 同为 2。文本模式与 `--json` 必须使用同一退出码，且文本模式必须打印解析错误行（`spec-check: N parse error(s): <spec>: <error>`）——只打印 `0 passed, 0 violations, 0 unchecked` 会让畸形声明看起来像干净通过。
 
 退出码契约：`0` 全部 pass；`1` 存在 violation；`2` 存在 unchecked、`parseErrors` 或执行器失败。`--allow-unchecked` 只豁免 unchecked 的阻断，不豁免解析错误。
 
 **执行器整体失败是独立阻断**：spec-check 模块导入失败或运行抛错时，收口门禁降级为 `summary.executorError` 置位 + `classification: executor-failure` + 退出码 2，并以 `SPEC-CHECK-EXECUTOR-ERROR` 阻断 `complete`。它**不接受** `--allow-unchecked`——该开关豁免的是"声明的命令跑不起来"，不是"检查器本身坏了"；降级报告里合成的 `unchecked: 1` 只是计数占位，不再单独报一条，阻断消息也不提该开关。
+
+**豁免记录必须点名"豁免了什么"**：`meta.specCheckExempt` = `{"at", "flag": "--allow-unchecked", "by": <执行者或 null>, "unchecked": N, "uncheckedItems": [{"spec", "cmd"}…], "truncated"?}`；`meta.evidenceExempt` = `{"at", "flag": "--allow-missing-evidence", "by": <执行者或 null>, "missing": [<AC id>…]}`。明细条目上限 10 条，超出置 `truncated: true`；单条命令按 80 字符截断且**不切开首个 token**（那个 token 是程序名，正是"什么没验证"的答案）。`by` 取会话执行者解析结果，解析不到写 `null`——**不**用 `creator`/`assignee` 冒充。完成输出与归档输出打印**同一份记录的同一批行**（完成输出直接读刚落盘的 `task.json`），因此"记录了什么"与"打印了什么"不可能各说一套；无豁免时不打印任何豁免行。
 
 **每次运行都带一个分类事实**：`summary.classification` ∈ `parse-error` / `executor-failure` / `zero-declaration` / `violation` / `unchecked` / `pass` / `empty`，`--json` 直接可查。`empty` 是合法状态：有声明但本阶段无一执行（如 lifecycle 运行下的 `when: edit` 声明）。读取早于该字段的报告走 `report_classification()`，返回 `legacy`——缺字段本身是事实，不从计数反推（反推等于把旧报告升格成猜测）。
 
@@ -53,7 +55,7 @@ unchecked 永不冒充 pass（"没跑成"不是"通过"）；frontmatter 畸形�
 ## 时机与输出
 
 - **编辑期**（PostToolUse）：仅 `when: edit`/`both` 且改动命中 `files` 时执行，违规输出单行 `spec-check[<spec>] violation: <首个违规行>`；执行器缺失或超时静默，绝不阻断编辑流。宿主差异与节流细节见附录 A。
-- **收口期**（task complete）：全量执行，结果进 `meta.specCheckSummary` 遥测；阻断消息只列未过项摘要。豁免必须同时**可见**：`--allow-unchecked` / `--allow-missing-evidence` 生效时，完成输出打印 `Exempted: …`（点名 `meta.specCheckExempt` / `meta.evidenceExempt`），归档输出再打印一次随任务归档的豁免——只写进 task.json 的豁免，对正在看命令的人等于干净通过。
+- **收口期**（task complete）：全量执行，结果进 `meta.specCheckSummary` 遥测；阻断消息只列未过项摘要。豁免必须同时**可见**：`--allow-unchecked` / `--allow-missing-evidence` 生效时，完成输出按上面的记录结构逐条打印（`Exempted: …` 标题行 + `  - <spec>: <cmd>` / `  - <AC id>` 明细行，点名 `meta.specCheckExempt` / `meta.evidenceExempt` 与执行者），归档输出再打印同一批行——只写进 task.json 的豁免，对正在看命令的人等于干净通过。
 - **手动查询**：`./.cowork-flow/run spec-check [--file <path>] [--json] [--verbose]`（退出码见上）。
 
 ## 声明归使用方维护

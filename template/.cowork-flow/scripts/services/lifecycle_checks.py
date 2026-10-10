@@ -45,6 +45,15 @@ PROTECTED_WORKFLOW_PATTERNS = (
     r"(^|/)CLAUDE\.md$",
 )
 
+# A recorded exemption names what it waived: the flag that allowed it, the
+# actor who applied it, and the concrete items. The item list is capped so a
+# pathological repo cannot turn one completion into pages of output, and a
+# single command is clipped so one long declaration cannot do the same.
+SPEC_EXEMPTION_FLAG = "--allow-unchecked"
+EVIDENCE_EXEMPTION_FLAG = "--allow-missing-evidence"
+SPEC_EXEMPTION_ITEM_LIMIT = 10
+SPEC_EXEMPTION_COMMAND_LIMIT = 80
+
 
 @dataclass(frozen=True)
 class LifecycleCheckIssue:
@@ -269,7 +278,10 @@ def _ac_evidence_completion_facts(
     exemption: dict | None = None
     if unproven:
         if allow_missing_evidence:
-            exemption = {"missing": unproven}
+            exemption = {
+                "missing": unproven,
+                "flag": EVIDENCE_EXEMPTION_FLAG,
+            }
         else:
             issues.append(
                 LifecycleCheckIssue(
@@ -306,6 +318,32 @@ def _spec_check_report(repo_root: Path) -> dict | None:
                 "classification": "executor-failure"}}
 
 
+def _exemption_command(cmd: object) -> str:
+    """One declared command, clipped so a long line cannot swamp the output.
+
+    The clip never splits the first token: that token names the program, which
+    is the part that says what could not be verified.
+    """
+    text = " ".join(str(cmd or "").split())
+    if len(text) <= SPEC_EXEMPTION_COMMAND_LIMIT:
+        return text
+    head = text.split(" ", 1)[0]
+    return text[: max(SPEC_EXEMPTION_COMMAND_LIMIT, len(head))] + "…"
+
+
+def _unchecked_exemption_items(spec_report: dict) -> tuple[list[dict], bool]:
+    """The unchecked declarations, capped, plus whether anything was dropped."""
+    items = [
+        {
+            "spec": item.get("spec") or "?",
+            "cmd": _exemption_command(item.get("cmd")),
+        }
+        for item in spec_report.get("results") or []
+        if isinstance(item, dict) and item.get("status") == "unchecked"
+    ]
+    return items[:SPEC_EXEMPTION_ITEM_LIMIT], len(items) > SPEC_EXEMPTION_ITEM_LIMIT
+
+
 def _spec_check_exemption(
     spec_report: dict | None,
     *,
@@ -314,8 +352,10 @@ def _spec_check_exemption(
     """The exemption this completion applied, or None.
 
     Single source for both the persisted telemetry and the delivery output:
-    a waived gate that is recorded but never shown reads as a clean pass.
-    An executor failure is never exemptible, so it never yields one.
+    a waived gate that is recorded but never shown reads as a clean pass, and
+    one that is shown as a bare count reads as a clean pass to whoever has to
+    check it afterwards. An executor failure is never exemptible, so it never
+    yields one.
     """
     if not spec_report or not allow_unchecked_specs:
         return None
@@ -323,7 +363,86 @@ def _spec_check_exemption(
     if int(summary.get("executorError") or 0):
         return None
     unchecked = int(summary.get("unchecked") or 0)
-    return {"unchecked": unchecked} if unchecked else None
+    if not unchecked:
+        return None
+    items, truncated = _unchecked_exemption_items(spec_report)
+    exemption = {
+        "unchecked": unchecked,
+        "uncheckedItems": items,
+        "flag": SPEC_EXEMPTION_FLAG,
+    }
+    if truncated:
+        exemption["truncated"] = True
+    return exemption
+
+
+def _actor_text(actor: object) -> str:
+    """The recorded actor, or `null` — never a stand-in identity."""
+    return "null" if actor is None else str(actor)
+
+
+def exemption_report_lines(meta: dict | None) -> list[str]:
+    """The recorded exemptions rendered once, for every surface that shows them.
+
+    Completion and archive output both print this, so a waived gate cannot be
+    described one way when it is recorded and another way when it is read back.
+    Each line is plain text; the caller adds colour and picks the stream.
+    """
+    meta = meta if isinstance(meta, dict) else {}
+    lines: list[str] = []
+    spec_exempt = meta.get("specCheckExempt")
+    if isinstance(spec_exempt, dict):
+        lines.append(
+            f"Exempted: {spec_exempt.get('unchecked', 0)} unchecked "
+            f"spec-check command(s) via {spec_exempt.get('flag')} "
+            "(recorded in task.json meta.specCheckExempt, "
+            f"by {_actor_text(spec_exempt.get('by'))})"
+        )
+        items = spec_exempt.get("uncheckedItems") or []
+        for item in items:
+            if isinstance(item, dict):
+                lines.append(f"  - {item.get('spec')}: {item.get('cmd')}")
+        if spec_exempt.get("truncated"):
+            lines.append(
+                f"  - (more than {len(items)} unchecked commands; the list is "
+                "truncated — see meta.specCheckExempt.uncheckedItems)"
+            )
+    evidence_exempt = meta.get("evidenceExempt")
+    if isinstance(evidence_exempt, dict):
+        missing = evidence_exempt.get("missing") or []
+        lines.append(
+            f"Exempted: {len(missing)} acceptance criterion(ies) without "
+            f"evidence via {evidence_exempt.get('flag')} "
+            "(recorded in task.json meta.evidenceExempt, "
+            f"by {_actor_text(evidence_exempt.get('by'))})"
+        )
+        for ac_id in missing:
+            lines.append(f"  - {ac_id}")
+    return lines
+
+
+def exemption_meta_payloads(
+    check_result: object,
+    *,
+    executor: str | None,
+) -> dict[str, dict]:
+    """The task.json meta payloads for the exemptions one completion applied.
+
+    Each gate states what it waived — its own flag and its own items — and this
+    adds the one fact the gates cannot know: who applied it. Both the persisted
+    record and the printed lines come from this single payload, so "recorded"
+    and "shown" cannot drift apart. The actor is whatever the caller resolved;
+    when it resolved nothing the actor is None rather than a stand-in identity
+    such as the creator or assignee.
+    """
+    payloads: dict[str, dict] = {}
+    spec_exemption = getattr(check_result, "spec_exemption", None)
+    if spec_exemption:
+        payloads["specCheckExempt"] = {"by": executor, **spec_exemption}
+    evidence_exemption = getattr(check_result, "evidence_exemption", None)
+    if evidence_exemption:
+        payloads["evidenceExempt"] = {"by": executor, **evidence_exemption}
+    return payloads
 
 
 def _spec_check_parse_error_issue(parse_errors: list) -> LifecycleCheckIssue | None:

@@ -58,33 +58,23 @@ def _display_task_path(repo_root: Path, task_dir: Path) -> str:
         return str(task_dir)
 
 
-def _print_completion_exemptions(result: object) -> None:
-    """Name the exemptions this completion applied.
+def _print_completion_exemptions(task_dir: Path) -> None:
+    """Name the exemptions this completion applied, detail included.
 
     A waived gate that is only written to task.json reads as a clean pass to
-    whoever is watching the command, so the same fact is printed here.
+    whoever is watching the command. These lines are rendered from the record
+    the service just persisted, so what is printed is literally what was
+    recorded — not a second formatting of the same intent.
     """
-    check_result = getattr(result, "check_result", None)
-    spec_exemption = getattr(check_result, "spec_exemption", None)
-    if spec_exemption:
+    from services.fact_view import task_data
+    from services.lifecycle_checks import exemption_report_lines
+
+    meta = task_data(task_dir).get("meta") or {}
+    for line in exemption_report_lines(meta):
         print(
-            colored(
-                f"Exempted: {spec_exemption.get('unchecked', 0)} unchecked "
-                "spec-check command(s) via --allow-unchecked "
-                "(recorded in task.json meta.specCheckExempt)",
-                Colors.YELLOW,
-            )
-        )
-    evidence_exemption = getattr(check_result, "evidence_exemption", None)
-    if evidence_exemption:
-        missing = evidence_exemption.get("missing") or []
-        print(
-            colored(
-                f"Exempted: {len(missing)} acceptance criterion(ies) without "
-                "evidence via --allow-missing-evidence "
-                "(recorded in task.json meta.evidenceExempt)",
-                Colors.YELLOW,
-            )
+            colored(line, Colors.YELLOW)
+            if line.startswith("Exempted:")
+            else line
         )
 
 
@@ -483,7 +473,7 @@ def cmd_complete(args: argparse.Namespace) -> int:
             Colors.GREEN,
         )
     )
-    _print_completion_exemptions(result)
+    _print_completion_exemptions(task_dir)
     print(f"Next: ./.cowork-flow/run task next {task_path}")
     return 0
 
