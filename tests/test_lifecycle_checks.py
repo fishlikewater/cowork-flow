@@ -208,6 +208,99 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertNotIn("LIFECYCLE-AC-001", codes)
             self.assertNotIn("LIFECYCLE-AC-002", codes)
 
+    def test_fingerprint_covers_declared_scope_and_spec_content(self) -> None:
+        """`.cowork-flow/**` never reaches the change set, so the fingerprint
+        has to carry the declared scope and the referenced spec bodies itself.
+
+        A name-only spec list would leave both a rewritten requirement and a
+        widened scope invisible, and the receipt would keep passing.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            spec = root / ".cowork-flow" / "spec" / "backend" / "demo.md"
+            spec.parent.mkdir(parents=True, exist_ok=True)
+            spec.write_text("原文要求。\n", encoding="utf-8")
+            task_dir.mkdir(parents=True, exist_ok=True)
+            (task_dir / "task.json").write_text(
+                json.dumps({"status": "review", "dev_type": "backend"}),
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                "# Demo\n\n## 目标\n\n演示。\n\n## 验收标准\n\n- [ ] AC-001: 条款。\n",
+                encoding="utf-8",
+            )
+
+            def declare(files: tuple[str, ...]) -> None:
+                (task_dir / "implement.jsonl").write_text(
+                    "".join(
+                        json.dumps(
+                            {"file": item, "reason": "planned", "type": "planned-file"},
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                        for item in files
+                    ),
+                    encoding="utf-8",
+                )
+
+            checks = importlib.import_module("services.lifecycle_checks")
+            declare((".cowork-flow/spec/backend/demo.md", "src/planned.py"))
+            baseline = checks.compute_change_fingerprint(root, task_dir)
+
+            spec.write_text("换了要求。\n", encoding="utf-8")
+            self.assertNotEqual(
+                baseline,
+                checks.compute_change_fingerprint(root, task_dir),
+                msg="改写被引用 spec 的正文必须改变指纹",
+            )
+
+            spec.write_text("原文要求。\n", encoding="utf-8")
+            declare(
+                (
+                    ".cowork-flow/spec/backend/demo.md",
+                    "src/planned.py",
+                    "src/extra.py",
+                )
+            )
+            self.assertNotEqual(
+                baseline,
+                checks.compute_change_fingerprint(root, task_dir),
+                msg="扩大声明范围必须改变指纹",
+            )
+
+            # A pointer whose file is missing must still count: the reading
+            # list changed, so the review judged a different list. The pointer
+            # list is injected with implement.jsonl frozen at the baseline —
+            # rewriting the file would move the scope digest as well and the
+            # assertion would hold even if this component noticed nothing.
+            declare((".cowork-flow/spec/backend/demo.md", "src/planned.py"))
+
+            def fingerprint_for(pointers: list[str]) -> str:
+                with patch.object(
+                    checks, "spec_pointer_files", return_value=pointers
+                ):
+                    return checks.compute_change_fingerprint(root, task_dir)
+
+            missing_one = fingerprint_for(
+                [".cowork-flow/spec/backend/missing-one.md"]
+            )
+            missing_two = fingerprint_for(
+                [".cowork-flow/spec/backend/missing-two.md"]
+            )
+            no_pointer = fingerprint_for([])
+
+            self.assertNotEqual(
+                no_pointer,
+                missing_one,
+                msg="缺失指针仍须进入指纹（缺失记 absent，而不是被丢掉）",
+            )
+            self.assertNotEqual(
+                missing_one,
+                missing_two,
+                msg="两个缺失指针必须可区分（名字保留，不是折叠成同一个 absent）",
+            )
+
     def test_evidence_record_satisfies_gate(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

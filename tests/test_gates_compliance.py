@@ -136,6 +136,19 @@ class _StrictTaskFixture(unittest.TestCase):
         self._checker_context_id = CHECKER_CONTEXT_ID
         return CHECKER_CONTEXT_ID
 
+    def _add_implement_entry(self, file_path: str) -> None:
+        """Declare one more file in the task's scope index."""
+        with (self.task_dir / "implement.jsonl").open(
+            "a", encoding="utf-8", newline="\n"
+        ) as handle:
+            handle.write(
+                json.dumps(
+                    {"file": file_path, "reason": "演示", "type": "planned-file"},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
     def _record_receipt(
         self,
         *,
@@ -290,6 +303,65 @@ class ReviewReceiptGateTest(_StrictTaskFixture):
             )
 
         self.assertEqual(["LIFECYCLE-REVIEW-003"], self._review_issues())
+
+    def test_spec_body_change_after_review_makes_the_receipt_stale(self) -> None:
+        """The referenced spec's *body* is review input, not just its name.
+
+        `.cowork-flow/spec/**` is gitignored, so the change set can never see
+        it; only the spec content digest can notice a rewritten requirement.
+        """
+        spec = self.root / ".cowork-flow" / "spec" / "backend" / "demo.md"
+        spec.parent.mkdir(parents=True, exist_ok=True)
+        spec.write_text("原文要求。\n", encoding="utf-8")
+        self._add_implement_entry(".cowork-flow/spec/backend/demo.md")
+        self._record_receipt()
+
+        spec.write_text("换了要求。\n", encoding="utf-8")
+
+        self.assertEqual(["LIFECYCLE-REVIEW-003"], self._review_issues())
+
+    def test_implement_scope_change_after_review_makes_the_receipt_stale(
+        self,
+    ) -> None:
+        """A declared non-spec file moves the scope, and nothing else can see it.
+
+        implement.jsonl lives under `.cowork-flow/tasks/**`, which the change
+        set excludes, and a plain source path is not a spec pointer — so the
+        scope digest is the only component that can report this.
+        """
+        self._record_receipt()
+
+        self._add_implement_entry("src/extra.py")
+
+        self.assertEqual(["LIFECYCLE-REVIEW-003"], self._review_issues())
+
+    def test_closeout_metadata_keeps_the_receipt_valid(self) -> None:
+        """Completing a task must not invalidate the receipt it just checked.
+
+        Ticking an AC, appending evidence, and writing runtime metadata all
+        happen around the completion gate; if any of them moved the
+        fingerprint the gate would demand a fresh review forever.
+        """
+        self._record_receipt()
+        anchor = (self.task_dir / "decision-anchor.md").read_text(encoding="utf-8")
+        (self.task_dir / "decision-anchor.md").write_text(
+            anchor.replace("- [ ] AC-001:", "- [x] AC-001:"), encoding="utf-8"
+        )
+        with (self.task_dir / "evidence.jsonl").open(
+            "a", encoding="utf-8", newline="\n"
+        ) as handle:
+            handle.write(
+                json.dumps(
+                    {"ac": "AC-001", "kind": "test", "ref": "tests/demo.py"},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+        runtime = self.root / ".cowork-flow" / ".runtime" / "subagents"
+        runtime.mkdir(parents=True, exist_ok=True)
+        (runtime / "rtx_fixture.json").write_text("{}", encoding="utf-8")
+
+        self.assertEqual([], self._review_issues())
 
     def test_dev_type_change_makes_the_receipt_stale(self) -> None:
         self._record_receipt()
