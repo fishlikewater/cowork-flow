@@ -36,6 +36,7 @@ from services.plan_binding import normalize_plan_file, plan_file_blockers
 from services.task_gate_profiles import (
     GATE_PROFILE_STRICT,
     acceptance_row_blockers,
+    declares_light_profile,
     dev_type_blocker,
     resolve_gate_profile,
 )
@@ -369,14 +370,9 @@ class TaskContextService:
 
     @staticmethod
     def _is_tiny_task(task_data: dict) -> bool:
-        meta = task_data.get("meta")
-        candidates = [
-            task_data.get("taskType"),
-            task_data.get("task_type"),
-            meta.get("taskType") if isinstance(meta, dict) else None,
-            meta.get("task_type") if isinstance(meta, dict) else None,
-        ]
-        return any(str(candidate).lower() == "tiny" for candidate in candidates)
+        """Field-level reading only: the plan-file waiver also covers
+        pre-strict tiny tasks, which `is_light_task` would exclude."""
+        return declares_light_profile(task_data)
 
     def _plan_file_blockers(self, task_data: dict) -> list[str]:
         return plan_file_blockers(self.repo_root, task_data)

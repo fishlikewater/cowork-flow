@@ -55,6 +55,7 @@ class TaskCreationRequest:
     from_plan: str | Path | None = None
     depends_on: tuple[str, ...] = ()
     dev_type: str | None = None
+    task_type: str | None = None
     created_at: str | None = None
     date_prefix: str | None = None
 
@@ -147,6 +148,10 @@ class TaskCreationService:
         created_at = request.created_at or datetime.now().strftime("%Y-%m-%d")
         meta = dict(plan_metadata) if isinstance(plan_metadata, dict) else {}
         meta.setdefault("gateProfile", GATE_PROFILE_STRICT)
+        # The light profile is declarable at creation only: this is the sole
+        # write of the field, and no lifecycle command changes it later.
+        if request.task_type:
+            meta["taskType"] = request.task_type
         return {
             "id": task_name,
             "name": task_name,

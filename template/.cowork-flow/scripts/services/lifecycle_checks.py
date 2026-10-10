@@ -31,7 +31,11 @@ from services.task_context import (
     normalize_context_file_scope_entry,
     read_context_jsonl_entries,
 )
-from services.task_gate_profiles import GATE_PROFILE_STRICT, resolve_gate_profile
+from services.task_gate_profiles import (
+    GATE_PROFILE_STRICT,
+    is_light_task,
+    resolve_gate_profile,
+)
 
 
 PROTECTED_WORKFLOW_PATTERNS = (
@@ -197,10 +201,14 @@ def _ac_evidence_completion_facts(
     an unreadable evidence module degrades the same way for it. A strict task
     gets neither exemption: it was required to declare AC rows at start, so an
     empty section at completion means the anchor was rewritten or cannot be
-    read, and a broken runtime copy is a fact to fix rather than to skip.
-    Returns the issues plus the recorded exemption (missing ids) when
-    --allow-missing-evidence absorbed the gap."""
-    strict = resolve_gate_profile(task_data(task_dir)) == GATE_PROFILE_STRICT
+    read, and a broken runtime copy is a fact to fix rather than to skip. A
+    light task keeps the AC-row requirement and the module check for the same
+    reason — it only waives the evidence side. Returns the issues plus the
+    recorded exemption (missing ids) when --allow-missing-evidence absorbed
+    the gap."""
+    task = task_data(task_dir)
+    strict = resolve_gate_profile(task) == GATE_PROFILE_STRICT
+    light = is_light_task(task)
     try:
         from services.ac_evidence import (
             evidence_coverage,
@@ -236,6 +244,10 @@ def _ac_evidence_completion_facts(
                 ),
             )
         ], None
+    if light:
+        # The light profile waives the evidence side, not the acceptance-row
+        # requirement checked above.
+        return [], None
     coverage = evidence_coverage(acceptance, read_evidence(task_dir))
     unchecked = [item["id"] for item in acceptance if not item["checked"]]
     unproven = [
@@ -513,10 +525,12 @@ def _review_receipt_completion_issues(
     current change set.
 
     Legacy tasks keep the historical path, where review receipts are
-    advisory. The latest receipt decides: a later `fail` is not masked by
-    an earlier `pass`, while a retry that passes supersedes an older fail.
+    advisory, and so do light tasks, which opted out at creation. The latest
+    receipt decides: a later `fail` is not masked by an earlier `pass`, while
+    a retry that passes supersedes an older fail.
     """
-    if resolve_gate_profile(task_data(task_dir)) != GATE_PROFILE_STRICT:
+    task = task_data(task_dir)
+    if resolve_gate_profile(task) != GATE_PROFILE_STRICT or is_light_task(task):
         return []
     receipts = read_review_receipts(task_dir)
     if not receipts:

@@ -1688,6 +1688,71 @@ class RuntimeHealthTest(unittest.TestCase):
             ],
         )
 
+    def test_task_hygiene_surfaces_the_light_profile_without_failing_health(
+        self,
+    ) -> None:
+        """A reduced gate set is never silent: the light task is named, the
+        ordinary strict task next to it is not, and neither is an error."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks = root / ".cowork-flow" / "tasks"
+            light = tasks / "10-10-light"
+            ordinary = tasks / "10-11-ordinary"
+            for task_dir, meta in (
+                (light, {"gateProfile": "strict", "taskType": "tiny"}),
+                (ordinary, {"gateProfile": "strict"}),
+            ):
+                task_dir.mkdir(parents=True)
+                (task_dir / "task.json").write_text(
+                    json.dumps(
+                        {
+                            "status": "planning",
+                            "assignee": "codex",
+                            "meta": meta,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                for name in (
+                    "decision-anchor.md",
+                    "implement.jsonl",
+                    "check.jsonl",
+                    "debug.jsonl",
+                ):
+                    (task_dir / name).write_text("# x\n", encoding="utf-8")
+
+            issues = self.doctor.check_task_hygiene(root)
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = self.doctor._run_task_hygiene_checks(root, structured=True)
+
+        light_issues = [i for i in issues if i["kind"] == "light_profile"]
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(0, result)
+        self.assertEqual(
+            [".cowork-flow/tasks/10-10-light"],
+            [issue["task"] for issue in light_issues],
+        )
+        self.assertEqual(
+            ["TASK-HYGIENE-LIGHT-PROFILE"], [i["code"] for i in light_issues]
+        )
+        self.assertEqual(
+            ["warning"], [i["severity"] for i in light_issues]
+        )
+        self.assertIn("waived", light_issues[0]["message"])
+        self.assertEqual(
+            [".cowork-flow/tasks/10-10-light"],
+            [
+                i["task"]
+                for i in payload["issues"]
+                if i["kind"] == "light_profile"
+            ],
+        )
+        self.assertEqual(
+            [], [i for i in payload["issues"] if i["severity"] == "error"]
+        )
+
     def test_session_hygiene_reports_stale_sessions_without_failing_health(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

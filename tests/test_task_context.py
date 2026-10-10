@@ -474,6 +474,69 @@ class TaskContextServiceTest(unittest.TestCase):
 
             self.assertEqual((), blockers)
 
+    def test_start_blockers_waive_plan_and_dev_type_for_a_light_strict_task(
+        self,
+    ) -> None:
+        """strict + tiny declares neither a plan file nor a dev_type, and
+        the acceptance rows it does carry are the only requirement left."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {
+                        "status": "planning",
+                        "meta": {"gateProfile": "strict", "taskType": "tiny"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- [ ] AC-001: Demo.\n",
+                encoding="utf-8",
+            )
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md", "reason": "Demo"}\n',
+                encoding="utf-8",
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+            self.assertEqual((), blockers)
+
+    def test_start_blockers_keep_plan_and_dev_type_for_a_non_light_strict_task(
+        self,
+    ) -> None:
+        """The same fixture without the marker blocks on both counts."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {"status": "planning", "meta": {"gateProfile": "strict"}}
+                ),
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- [ ] AC-001: Demo.\n",
+                encoding="utf-8",
+            )
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md", "reason": "Demo"}\n',
+                encoding="utf-8",
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+            self.assertEqual(
+                (
+                    "planFile is required before implementation starts",
+                    "strict task declares no dev_type; pass --type <dev-type> at "
+                    "creation (or backfill it on a planning task)",
+                ),
+                blockers,
+            )
+
     def test_start_blockers_require_plan_for_non_tiny_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
