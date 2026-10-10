@@ -58,6 +58,24 @@ def _write_workflow_spec(root: Path) -> None:
     )
 
 
+@contextlib.contextmanager
+def _isolated_session_env():
+    """Keep the process environment from picking the session for a test.
+
+    Both resolvers that feed the hook read their variable from os.environ
+    first and only consult the caller's hook_input when the environment
+    carries none: `resolve_context_key_with_provenance` for
+    COWORK_FLOW_CONTEXT_ID, `resolve_runtime_context_id` for
+    COWORK_FLOW_RUNTIME_CONTEXT_ID. A shell that exported either one —
+    which is what this project's own lifecycle commands ask for — therefore
+    overrides every fixture session named "probe" and resolves the task to
+    no_task. Clearing everything, rather than deleting one name, is what
+    also covers the host-session and process-label providers.
+    """
+    with patch.dict(os.environ, {}, clear=True):
+        yield
+
+
 class WorkflowStateHookTest(unittest.TestCase):
     def setUp(self) -> None:
         self.module = _load_module()
@@ -67,13 +85,14 @@ class WorkflowStateHookTest(unittest.TestCase):
             root = Path(temp_dir)
             _write_workflow_spec(root)
 
-            context = self.module.build_hook_context(
-                root,
-                {},
-                host="codex",
-                adapter="codex.hook",
-                preamble=(),
-            )
+            with _isolated_session_env():
+                context = self.module.build_hook_context(
+                    root,
+                    {},
+                    host="codex",
+                    adapter="codex.hook",
+                    preamble=(),
+                )
 
         self.assertIn("<workflow-state status=", context)
         self.assertIn('status=\"no_task\"', context)
@@ -104,13 +123,14 @@ class WorkflowStateHookTest(unittest.TestCase):
                 '{"status": "in_progress"}', encoding="utf-8"
             )
 
-            context = self.module.build_hook_context(
-                root,
-                {"COWORK_FLOW_CONTEXT_ID": "probe"},
-                host="codex",
-                adapter="codex.hook",
-                preamble=(),
-            )
+            with _isolated_session_env():
+                context = self.module.build_hook_context(
+                    root,
+                    {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                    host="codex",
+                    adapter="codex.hook",
+                    preamble=(),
+                )
 
         self.assertIn('task=\".cowork-flow/tasks/07-10-demo\"', context)
         self.assertIn('status=\"in_progress\"', context)
@@ -219,13 +239,14 @@ class WorkflowStateHookTest(unittest.TestCase):
             )
 
             # No event signal + existing session state file -> slim.
-            started = self.module.build_hook_context(
-                root,
-                {"COWORK_FLOW_CONTEXT_ID": "probe"},
-                host="codex",
-                adapter="codex.hook",
-                preamble=(),
-            )
+            with _isolated_session_env():
+                started = self.module.build_hook_context(
+                    root,
+                    {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                    host="codex",
+                    adapter="codex.hook",
+                    preamble=(),
+                )
             self.assertRegex(
                 started,
                 r'<contract-fingerprint value="[a-f0-9]{16}"/>',
@@ -234,13 +255,14 @@ class WorkflowStateHookTest(unittest.TestCase):
 
             # No event signal + no session state file -> full (first injection).
             (sessions / "probe.json").unlink()
-            fresh = self.module.build_hook_context(
-                root,
-                {"COWORK_FLOW_CONTEXT_ID": "probe"},
-                host="codex",
-                adapter="codex.hook",
-                preamble=(),
-            )
+            with _isolated_session_env():
+                fresh = self.module.build_hook_context(
+                    root,
+                    {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                    host="codex",
+                    adapter="codex.hook",
+                    preamble=(),
+                )
             self.assertIn("<contract-digest fingerprint=", fresh)
 
     def _write_anchor(self, root: Path) -> None:
@@ -280,14 +302,15 @@ class WorkflowStateHookTest(unittest.TestCase):
             )
             self._write_anchor(root)
 
-            context = self.module.build_hook_context(
-                root,
-                {"COWORK_FLOW_CONTEXT_ID": "probe"},
-                host="codex",
-                adapter="codex.hook",
-                preamble=(),
-                session_start=False,
-            )
+            with _isolated_session_env():
+                context = self.module.build_hook_context(
+                    root,
+                    {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                    host="codex",
+                    adapter="codex.hook",
+                    preamble=(),
+                    session_start=False,
+                )
 
         self.assertIn(
             '<decision-anchor task=".cowork-flow/tasks/07-10-demo">', context
@@ -316,14 +339,15 @@ class WorkflowStateHookTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            active = self.module.build_hook_context(
-                root,
-                {"COWORK_FLOW_CONTEXT_ID": "probe"},
-                host="codex",
-                adapter="codex.hook",
-                preamble=(),
-                session_start=False,
-            )
+            with _isolated_session_env():
+                active = self.module.build_hook_context(
+                    root,
+                    {"COWORK_FLOW_CONTEXT_ID": "probe"},
+                    host="codex",
+                    adapter="codex.hook",
+                    preamble=(),
+                    session_start=False,
+                )
             self.assertIn('<stage-contract task=".cowork-flow/tasks/07-10-demo">', active)
             self.assertIn("Scope: src/demo.py [agent-mutable]", active)
             self.assertIn("Gates: edits outside Scope are review blockers", active)

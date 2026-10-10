@@ -422,14 +422,6 @@ class ReviewReceiptGateTest(_StrictTaskFixture):
 
         self.assertEqual([], self._review_issues())
 
-    def test_runtime_metadata_change_does_not_invalidate_the_receipt(self) -> None:
-        self._record_receipt()
-        runtime = self.root / ".cowork-flow" / ".runtime" / "subagents"
-        runtime.mkdir(parents=True, exist_ok=True)
-        (runtime / "rtx_fixture.json").write_text("{}", encoding="utf-8")
-
-        self.assertEqual([], self._review_issues())
-
     def test_runtime_metadata_is_excluded_even_when_git_can_see_it(self) -> None:
         """The path filter, not .gitignore, is what keeps runtime metadata out.
 
