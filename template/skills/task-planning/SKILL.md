@@ -151,9 +151,12 @@ Then list task briefs, followed by integrated verification and completion checks
 
 A plan can be marked approved only when all conditions hold:
 
-- Every task in `implement.jsonl` has clear acceptance criteria.
+- Every task in the plan has clear acceptance criteria.
 - Every task has implementation steps and verification commands.
 - Task dependencies are explicit, including whether work is serial or parallelizable.
+
+`implement.jsonl` is the current task's context index — the files in scope and
+the spec pointers it needs — not the task list. The plan owns the task list.
 
 ## Post-Approval Options
 
