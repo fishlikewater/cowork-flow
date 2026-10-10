@@ -255,6 +255,25 @@ class HostSkillsGateTest(unittest.TestCase):
         self.assertNotIn("review evidence", text)
         self.assertIn("review results belong in `review.jsonl`", text)
 
+    def test_task_planning_gate_names_the_plan_as_the_task_list(self) -> None:
+        """The plan owns the task list; `implement.jsonl` owns this task's scope.
+
+        `implement.jsonl` is the current task's context index — the files in
+        scope and the spec pointers it needs — so a gate condition of "every
+        task in `implement.jsonl`" is unsatisfiable. Guard the corrected
+        wording so it cannot drift back.
+        """
+        skill = (
+            TEMPLATE / "skills" / "task-planning" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("## Plan Approval Gate", skill)
+        # Scope the check to the gate: naming the plan elsewhere in the skill
+        # would not satisfy the condition the gate states.
+        section = skill.split("## Plan Approval Gate", 1)[1].split("\n## ", 1)[0]
+        self.assertNotIn("Every task in `implement.jsonl`", section)
+        self.assertIn("Every task in the plan", section)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1902,10 +1902,16 @@ class RuntimeHealthTest(unittest.TestCase):
             root = Path(temp_dir)
             spec_dir = root / ".cowork-flow" / "spec" / "backend"
             spec_dir.mkdir(parents=True, exist_ok=True)
+            # The first token must be a real executable on every platform.
+            # `echo` is a shell builtin: `shutil.which("echo")` only finds it
+            # where MSYS/coreutils is on PATH (a Git-for-Windows dev box), so
+            # the same fixture reported `command entry not found` on a plain
+            # Windows runner. `node` is a genuine binary and a hard prerequisite
+            # of this repository.
             (spec_dir / "clean.md").write_text(
                 "---\n"
                 "checks:\n"
-                "  - cmd: echo ok\n"
+                "  - cmd: node --version\n"
                 "    files: src/\n"
                 "---\n",
                 encoding="utf-8",
