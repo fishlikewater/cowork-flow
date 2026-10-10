@@ -576,6 +576,7 @@ class SubagentDispatchTest(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=False,
+                env=self._review_env(),
             )
 
             self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
@@ -584,6 +585,9 @@ class SubagentDispatchTest(unittest.TestCase):
             self.assertEqual(dispatch.payload["runtimeContextId"], receipt["contextId"])
             self.assertEqual("cowork-check", receipt["agentType"])
             self.assertEqual("abc123", receipt["changedFingerprint"])
+            # No host context key in this environment, so the receipt records
+            # the degradation instead of claiming session proof.
+            self.assertEqual("declared", receipt["bindingEvidence"])
             self.assertEqual(
                 [{"clause": "AC-002", "command": "pytest -q"}],
                 receipt["findings"],
@@ -595,6 +599,93 @@ class SubagentDispatchTest(unittest.TestCase):
                 .splitlines()[0]
             )
             self.assertEqual(receipt, recorded)
+
+    def test_check_review_marks_the_receipt_session_verified_when_the_key_matches(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow" / "tasks" / "demo-task").mkdir(parents=True)
+
+            dispatch = self._dispatch(root, agent_type="cowork-check")
+            self.assertEqual(0, dispatch.returncode, msg=dispatch.stderr)
+
+            result = self._check_review(
+                root,
+                dispatch.payload["runtimeContextId"],
+                env=self._review_env(
+                    COWORK_FLOW_HOST_CONTEXT_KEY=dispatch.payload["hostContextKey"]
+                ),
+            )
+
+            self.assertEqual(0, result.returncode, msg=result.stderr)
+            self.assertEqual(
+                "session-key", json.loads(result.stdout)["bindingEvidence"]
+            )
+
+    def test_check_review_refuses_a_receipt_from_another_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow" / "tasks" / "demo-task").mkdir(parents=True)
+
+            dispatch = self._dispatch(root, agent_type="cowork-check")
+            self.assertEqual(0, dispatch.returncode, msg=dispatch.stderr)
+
+            result = self._check_review(
+                root,
+                dispatch.payload["runtimeContextId"],
+                env=self._review_env(
+                    COWORK_FLOW_HOST_CONTEXT_KEY="codex_rtx_someone_else"
+                ),
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("REVIEW-RECEIPT-007", result.stderr)
+            self.assertFalse(
+                (root / ".cowork-flow" / "tasks" / "demo-task" / "review.jsonl").exists()
+            )
+
+    def _review_env(self, **overrides: str) -> dict:
+        """The CLI environment, with the host-key variable under test control.
+
+        Without this the suite inherits whatever the developer's shell exports,
+        and a stray `COWORK_FLOW_HOST_CONTEXT_KEY` turns a legitimate receipt
+        into `REVIEW-RECEIPT-007`.
+        """
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "COWORK_FLOW_HOST_CONTEXT_KEY"
+        }
+        env.update(overrides)
+        return env
+
+    def _check_review(
+        self,
+        root: Path,
+        runtime_context_id: str,
+        *,
+        env: dict,
+    ) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SUBAGENT),
+                "check-review",
+                runtime_context_id,
+                "--task-dir",
+                ".cowork-flow/tasks/demo-task",
+                "--result",
+                "pass",
+                "--changed-fingerprint",
+                "abc123",
+            ],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+        )
 
     def test_check_review_refuses_a_non_checker_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

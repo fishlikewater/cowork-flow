@@ -25,6 +25,7 @@ from runtime.host_identity import (
 )
 from runtime.session_state import (
     resolve_context_key,
+    resolve_host_context_key,
     runtime_context_path,
     sessions_dir,
     subagent_contexts_dir,
@@ -392,6 +393,10 @@ def cmd_check_review(args: argparse.Namespace) -> int:
             result=args.result,
             findings=findings,
             changed_fingerprint=args.changed_fingerprint,
+            # The bound key is a *host context* key (subagent bind records it),
+            # so the session key to compare against is the host one; None when
+            # this environment carries no such evidence.
+            session_context_key=resolve_host_context_key({}),
         )
     except ReviewReceiptError as error:
         print(f"Error: {error.code}: {error.detail}", file=sys.stderr)
