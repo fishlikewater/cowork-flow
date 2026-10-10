@@ -412,12 +412,16 @@ def compute_change_fingerprint(repo_root: Path, task_dir: Path) -> str:
     """Hash of everything a review result is a judgment about.
 
     Covers the changed files' content, the anchor's goal and AC text, the
-    bound plan's content, the dev type, and the applicable spec pointers, so
-    a change to code, scope, specs, plan, goal, or AC wording invalidates an
-    older receipt. Runtime metadata is excluded for the same reason the
-    scope gate excludes it: dispatching the reviewer writes context files
-    under `.cowork-flow/.runtime/`, and counting those would make every
-    receipt stale the moment it is recorded.
+    bound plan's content, the dev type, the referenced spec files' content,
+    and the declared scope index, so a change to code, scope, specs, plan,
+    goal, or AC wording invalidates an older receipt. Runtime metadata is
+    excluded for the same reason the scope gate excludes it: dispatching the
+    reviewer writes context files under `.cowork-flow/.runtime/`, and counting
+    those would make every receipt stale the moment it is recorded.
+
+    Spec bodies and the scope index are digested explicitly rather than left
+    to the change set: `.cowork-flow/**` is gitignored, so a rewritten
+    requirement or a widened scope would otherwise be invisible.
     """
     repo_root = Path(repo_root).resolve()
     task_dir = Path(task_dir).resolve()
@@ -468,12 +472,28 @@ def compute_change_fingerprint(repo_root: Path, task_dir: Path) -> str:
             # list, so switching it changes what the review was a judgment
             # about even when the repo ships no spec files for it.
             "devType": task.get("dev_type"),
-            "specs": sorted(spec_pointer_files(task_dir)),
+            # Names alone would miss a rewritten requirement; a pointer whose
+            # file is gone still counts as a changed reading list.
+            "specs": {
+                pointer: _content_digest(repo_root, pointer)
+                for pointer in sorted(spec_pointer_files(task_dir))
+            },
+            # implement.jsonl lives under .cowork-flow/tasks/**, which the
+            # change set excludes, so the declared scope needs its own entry.
+            "scope": _file_digest(task_dir / "implement.jsonl"),
         },
         ensure_ascii=False,
         sort_keys=True,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _file_digest(path: Path) -> str:
+    """Content digest of one file, or "absent" when it cannot be read."""
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
+    except OSError:
+        return "absent"
 
 
 def _content_digest(repo_root: Path, relative: str) -> str:
@@ -482,10 +502,7 @@ def _content_digest(repo_root: Path, relative: str) -> str:
     Hashing content, not just the path set, is what makes a receipt stale
     when an already-changed file is edited again — a path-only fingerprint
     would keep passing while the reviewed code kept moving."""
-    try:
-        return hashlib.sha256((repo_root / relative).read_bytes()).hexdigest()[:16]
-    except OSError:
-        return "absent"
+    return _file_digest(Path(repo_root) / relative)
 
 
 def _review_receipt_completion_issues(
