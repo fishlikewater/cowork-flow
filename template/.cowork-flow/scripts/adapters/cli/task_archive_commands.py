@@ -119,35 +119,26 @@ def _archive_task(repo_root, task_name: str, task_dir):
 
 
 def _print_recorded_exemptions(destination, repo_root) -> None:
-    """Carry the recorded exemptions into the archive output.
+    """Carry the recorded exemptions into the archive output, detail included.
 
     They live in the archived task.json; printing them keeps a waived gate
-    from becoming invisible the moment the task leaves the active tree.
+    from becoming invisible the moment the task leaves the active tree, and
+    printing the same lines completion printed keeps the two surfaces from
+    describing one record two ways.
     """
     from services.fact_view import task_data
+    from services.lifecycle_checks import exemption_report_lines
 
     meta = task_data(destination).get("meta") or {}
-    spec_exempt = meta.get("specCheckExempt")
-    evidence_exempt = meta.get("evidenceExempt")
-    if not spec_exempt and not evidence_exempt:
+    lines = exemption_report_lines(meta)
+    if not lines:
         return
     print(
         colored("Exemptions carried into the archive:", Colors.YELLOW),
         file=sys.stderr,
     )
-    if spec_exempt:
-        print(
-            f"  - {spec_exempt.get('unchecked', 0)} unchecked spec-check "
-            "command(s) (meta.specCheckExempt)",
-            file=sys.stderr,
-        )
-    if evidence_exempt:
-        missing = evidence_exempt.get("missing") or []
-        print(
-            f"  - {len(missing)} acceptance criterion(ies) without evidence "
-            "(meta.evidenceExempt)",
-            file=sys.stderr,
-        )
+    for line in lines:
+        print(line, file=sys.stderr)
 
 
 def _print_archive_result(result, repo_root) -> None:

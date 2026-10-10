@@ -24,7 +24,11 @@ from runtime.session_state import (
     is_delegated_session,
 )
 from infra.git_snapshot import current_head
-from services.lifecycle_checks import LifecycleCheckResult, LifecycleCheckRunner
+from services.lifecycle_checks import (
+    LifecycleCheckResult,
+    LifecycleCheckRunner,
+    exemption_meta_payloads,
+)
 from services.lifecycle_policy import (
     LifecycleExecutionPolicy,
     LifecyclePolicyFailure,
@@ -752,17 +756,24 @@ class TaskLifecycleService:
                 meta["specCheckSummary"] = dict(
                     spec_report.get("summary") or {}
                 )
-                if getattr(check_result, "evidence_exemption", None):
+                # Resolved here rather than reusing resolved_executor: the
+                # complete stage does not activate a session, so that one is
+                # always None and the actor would never be recorded.
+                payloads = exemption_meta_payloads(
+                    check_result,
+                    executor=self._resolve_executor(executor),
+                )
+                if "evidenceExempt" in payloads:
                     meta["evidenceExempt"] = {
                         "at": datetime.now(timezone.utc).strftime(
                             "%Y-%m-%dT%H:%M:%SZ"
                         ),
-                        **check_result.evidence_exemption,
+                        **payloads["evidenceExempt"],
                     }
-                if getattr(check_result, "spec_exemption", None):
+                if "specCheckExempt" in payloads:
                     meta["specCheckExempt"] = {
                         "at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                        **check_result.spec_exemption,
+                        **payloads["specCheckExempt"],
                     }
                 persisted["meta"] = meta
         return persisted
