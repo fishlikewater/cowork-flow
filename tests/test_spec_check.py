@@ -4,6 +4,7 @@ import contextlib
 import importlib
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -13,6 +14,18 @@ from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "template" / ".cowork-flow" / "scripts"
 
+SPEC_CHECKS_CONTRACT = (
+    Path(__file__).resolve().parents[1]
+    / "template"
+    / ".cowork-flow"
+    / "spec"
+    / "contracts"
+    / "spec-checks.md"
+)
+
+QUICK_START_HEADING = "### 从零到第一条检查（可直接抄）"
+
+
 PY = sys.executable
 
 
@@ -21,6 +34,48 @@ def _spec(root: Path, relative: str, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def _quick_start_example(cmd: str) -> str:
+    """The contract's copyable example, with `cmd` swapped in.
+
+    The example is read out of the shipped contract rather than restated here,
+    so a quick-start that stops being copyable — a field renamed, the fenced
+    block dropped, a blank line sneaking in above the frontmatter opener —
+    turns a test red instead of shipping guidance no one can follow.
+
+    Only the newline that closes the ```markdown fence line is removed. A
+    further leading blank line is a real defect (the frontmatter then parses
+    to zero declarations with no error), so it must reach the parser rather
+    than be normalized away here.
+    """
+    text = SPEC_CHECKS_CONTRACT.read_text(encoding="utf-8")
+    if QUICK_START_HEADING not in text:
+        raise AssertionError(
+            f"the contract lost its quick-start heading {QUICK_START_HEADING!r}"
+        )
+    after_heading = text[text.index(QUICK_START_HEADING) :]
+    parts = after_heading.split("```markdown", 1)
+    if len(parts) != 2:
+        raise AssertionError("the quick-start has no ```markdown example block")
+    # An unclosed fence would make the extracted "example" run to the end of
+    # the contract; it still parses, so only an explicit check catches it.
+    if "```" not in parts[1]:
+        raise AssertionError("the quick-start example fence is never closed")
+    block = parts[1].split("```", 1)[0]
+    if block.startswith("\n"):
+        block = block[1:]
+    if not block.startswith("---"):
+        raise AssertionError(
+            "the quick-start example must open with the frontmatter marker; a "
+            "leading blank line makes it parse to zero declarations silently"
+        )
+    substituted, count = re.subn(
+        r"(?m)^(\s*-\s*cmd:\s*).*$", lambda m: f"{m.group(1)}{cmd}", block, count=1
+    )
+    if count != 1:
+        raise AssertionError("the quick-start example must declare one cmd")
+    return substituted.rstrip("\n")
 
 
 class SpecCheckClassificationTest(unittest.TestCase):
@@ -564,6 +619,162 @@ class SpecCheckTest(unittest.TestCase):
             code, text = self._cli_run(report)
             self.assertEqual(0, code)
             self.assertIn("no checks declared (2 spec files scanned)", text)
+
+    def test_zero_declaration_output_carries_its_next_action(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".cowork-flow" / "spec").mkdir(parents=True)
+            report = self.run_checks(root, phase="lifecycle")
+
+            code, text = self._cli_run(report)
+            self.assertEqual(0, code)
+            lines = text.splitlines()
+            # The fact line stays verbatim: it is what the existing
+            # output-distinction assertions pin, and a script consumer that
+            # matches it must not break by gaining a line.
+            self.assertEqual(
+                "spec-check: no checks declared (0 spec files scanned)", lines[0]
+            )
+            # Exactly one pointer line: this is the state every freshly
+            # initialized instance starts from, so that state has to name
+            # where to write and where to read the syntax.
+            self.assertEqual(2, len(lines))
+            self.assertIn(".cowork-flow/spec/", lines[1])
+            self.assertIn(".cowork-flow/spec/contracts/spec-checks.md", lines[1])
+            # --json is the machine surface and stays exactly as it was.
+            json_code, json_text = self._cli_run(report, ("--json",))
+            self.assertEqual(0, json_code)
+            self.assertNotIn("next: write", json_text)
+
+    def test_quick_start_example_runs_in_a_real_instance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "lint-marker.txt"
+            # A check whose verdict the test can actually flip: the guidance
+            # promises "fix it and it goes green", so green has to be
+            # reachable, and the message a linter would print has to reach
+            # the one-line summary.
+            cmd = (
+                f'"{PY}" -c "import sys, pathlib; '
+                "p = pathlib.Path('lint-marker.txt'); "
+                "print('lint-marker.txt still present') if p.exists() else None; "
+                'sys.exit(1 if p.exists() else 0)"'
+            )
+            _spec(root, "team-gate.md", _quick_start_example(cmd))
+
+            marker.write_text("dirty\n", encoding="utf-8")
+            report = self.run_checks(root, phase="lifecycle")
+            self.assertEqual(1, report["summary"]["declarations"])
+            self.assertEqual(1, report["summary"]["violation"])
+
+            # Exactly one prefix: the framework adds spec-check[<spec>]
+            # violation:, and the clause the example ships with is what keeps
+            # the command from printing it too. The doubling is a real failure
+            # mode, not a hypothetical — see the negative control test below.
+            line = self.normalized_one_line(report)
+            self.assertIn("spec-check[team-gate.md] violation: ", line)
+            self.assertIn("lint-marker.txt still present", line)
+            self.assertEqual(1, line.count("spec-check["))
+
+            marker.unlink()
+            fixed = self.run_checks(root, phase="lifecycle")
+            self.assertEqual(1, fixed["summary"]["pass"])
+            self.assertEqual(0, fixed["summary"]["violation"])
+            self.assertEqual("", self.normalized_one_line(fixed))
+
+    def test_contract_states_who_owns_the_violation_prefix(self) -> None:
+        # The clause, not the behavior: this test exists so that deleting the
+        # sentence cannot ship silently. It says out loud that the prefix is
+        # added by the framework, which is what keeps a check command from
+        # printing it too (the doubling is demonstrated by
+        # test_a_command_that_prints_the_prefix_doubles_it).
+        contract = SPEC_CHECKS_CONTRACT.read_text(encoding="utf-8")
+        self.assertIn(QUICK_START_HEADING, contract)
+        self.assertIn("前缀由框架加", contract)
+        self.assertIn("命令只输出违规内容", contract)
+        self.assertIn("files", _quick_start_example(f'"{PY}" -c "pass"'))
+
+    def test_a_command_that_prints_the_prefix_doubles_it(self) -> None:
+        # Negative control for the single-prefix assertion above: the prefix
+        # is added unconditionally by the framework, so a command that emits
+        # it itself produces it twice. This is what the contract clause
+        # forbids, and it is why "exactly one prefix" is an assertion rather
+        # than a tautology.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _spec(
+                root,
+                "team-gate.md",
+                _quick_start_example(
+                    f'"{PY}" -c "import sys; '
+                    "print('spec-check[team-gate.md] violation: boom'); "
+                    'sys.exit(1)"'
+                ),
+            )
+            report = self.run_checks(root, phase="lifecycle")
+            self.assertEqual(1, report["summary"]["violation"])
+            line = self.normalized_one_line(report)
+            self.assertIn("spec-check[team-gate.md] violation: ", line)
+            self.assertEqual(2, line.count("spec-check["))
+
+    def test_guidance_line_appears_only_in_the_zero_declaration_branch(
+        self,
+    ) -> None:
+        # The pointer belongs to the one state that has no enforced check yet.
+        # Moving it to a shared tail would append noise to every later run —
+        # a regression no positive assertion in this file would catch. The
+        # all-pass case is the highest-frequency state a compliant project
+        # rests in, so it gets its own negative assertion: a mix that makes
+        # normalized_one_line return non-empty never reaches that branch.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _spec(
+                root,
+                "backend/ok.md",
+                "---\n"
+                "checks:\n"
+                f'  - cmd: "{PY}" -c "import sys; sys.exit(0)"\n'
+                "---\n",
+            )
+            _spec(
+                root,
+                "backend/bad.md",
+                "---\n"
+                "checks:\n"
+                f'  - cmd: "{PY}" -c "import sys; print(\\"boom-tail\\"); sys.exit(3)"\n'
+                "---\n",
+            )
+            code, text = self._cli_run(self.run_checks(root, phase="lifecycle"))
+            self.assertEqual(1, code)
+            self.assertIn(
+                "spec-check[backend/bad.md] violation: boom-tail", text
+            )
+            self.assertNotIn("next: write", text)
+
+            # All passing: the fallback summary branch, which is where a
+            # shared-tail print would also land.
+            all_pass = Path(tmp) / "all-pass"
+            _spec(
+                all_pass,
+                "backend/ok.md",
+                "---\n"
+                "checks:\n"
+                f'  - cmd: "{PY}" -c "import sys; sys.exit(0)"\n'
+                "---\n",
+            )
+            passed_code, passed_text = self._cli_run(
+                self.run_checks(all_pass, phase="lifecycle")
+            )
+            self.assertEqual(0, passed_code)
+            self.assertIn("spec-check: 1 passed, 0 violations, 0 unchecked", passed_text)
+            self.assertNotIn("next: write", passed_text)
+
+            zero_root = Path(tmp) / "zero"
+            (zero_root / ".cowork-flow" / "spec").mkdir(parents=True)
+            _, zero_text = self._cli_run(
+                self.run_checks(zero_root, phase="lifecycle")
+            )
+            self.assertIn("next: write", zero_text)
 
     def test_declarations_keep_existing_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
