@@ -40,9 +40,10 @@ def _quick_start_example(cmd: str) -> str:
     """The contract's copyable example, with `cmd` swapped in.
 
     The example is read out of the shipped contract rather than restated here,
-    so a quick-start that stops being copyable — a field renamed, the fenced
-    block dropped, a blank line sneaking in above the frontmatter opener —
-    turns a test red instead of shipping guidance no one can follow.
+    so a quick-start that stops being copyable — the `cmd` key renamed, the
+    fenced block dropped, a blank line sneaking in above the frontmatter
+    opener, the fence left unclosed — turns a test red instead of shipping
+    guidance no one can follow.
 
     Only the newline that closes the ```markdown fence line is removed. A
     further leading blank line is a real defect (the frontmatter then parses
@@ -54,15 +55,22 @@ def _quick_start_example(cmd: str) -> str:
         raise AssertionError(
             f"the contract lost its quick-start heading {QUICK_START_HEADING!r}"
         )
-    after_heading = text[text.index(QUICK_START_HEADING) :]
-    parts = after_heading.split("```markdown", 1)
-    if len(parts) != 2:
+    # Bound the extraction to the quick-start's own section, so a code block
+    # added anywhere later in the contract can never be mistaken for this
+    # example's closing fence.
+    section = []
+    for line in text[text.index(QUICK_START_HEADING) :].splitlines()[1:]:
+        if line.startswith("## "):
+            break
+        section.append(line)
+    fence_at = "\n".join(section).find("```markdown")
+    if fence_at < 0:
         raise AssertionError("the quick-start has no ```markdown example block")
-    # An unclosed fence would make the extracted "example" run to the end of
-    # the contract; it still parses, so only an explicit check catches it.
-    if "```" not in parts[1]:
+    inside = "\n".join(section)[fence_at + len("```markdown") :]
+    closer = inside.find("\n```")
+    if closer < 0:
         raise AssertionError("the quick-start example fence is never closed")
-    block = parts[1].split("```", 1)[0]
+    block = inside[:closer]
     if block.startswith("\n"):
         block = block[1:]
     if not block.startswith("---"):
