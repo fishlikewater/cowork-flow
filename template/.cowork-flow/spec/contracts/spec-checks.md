@@ -32,6 +32,26 @@ checks:
 - `when: edit` 在编辑期（PostToolUse）对命中 `files` 的改动文件就地执行，超时被钳制到 2.5 秒（为解释器启动与 cmd 包装留 spawn 预算）；慢命令请声明 `when: lifecycle`。
 - **文件必须 UTF-8 无 BOM**：BOM 开头的 frontmatter 会被解析器静默忽略（声明数 0、无解析错误）——声明无声失效。挂完声明请跑一次 `spec-check` 确认被解析。
 
+### 从零到第一条检查（可直接抄）
+
+1. 在 `.cowork-flow/spec/` 下建一个规范文件（自建子目录或直接放根下，如 `spec/team-gate.md`）。`contracts/`、`runtime/`、`schemas/` 是机器目录、不扫；其余任意层级与子目录都扫。文件存 UTF-8 无 BOM。
+2. 把下面这段抄进去，`cmd` 换成当前仓库真能跑通的命令，`files` 限定到该规范管的那一层：
+
+```markdown
+---
+checks:
+  - cmd: npm run lint --silent
+    files: "src/"
+    when: both
+---
+
+# 团队规范正文（机制不读）
+```
+
+3. 跑 `./.cowork-flow/run spec-check`：应看到 `1 passed, 0 violations, 0 unchecked`，不再是 `no checks declared`。再故意制造一次违规，确认它确实报 `violation`——恒过的声明是装饰，不是检查。
+
+**命令只输出违规内容，`spec-check[<spec>] violation:` 前缀由框架加**：`cmd` 自己 print 这个前缀，会和框架前缀叠加成 `spec-check[team-gate.md] violation: spec-check[team-gate.md] violation: ...`。命令的职责只有退出码（0=pass，非 0=violation）与可读输出；前缀、分类、三态判定、节流都在框架侧。
+
 ## 三态与门禁
 
 | 状态 | 含义 | complete 门禁 |

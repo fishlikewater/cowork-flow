@@ -122,6 +122,16 @@ def _print_text_report(report: dict, *, verbose: bool) -> None:
             "spec-check: no checks declared "
             f"({report.get('specFiles', 0)} spec files scanned)"
         )
+        # The reader of this branch is the session that has just been told
+        # nothing is enforced, not a human skimming a terminal: without the
+        # write path and the syntax reference in the same breath, the fact it
+        # is looking at has no obvious next action attached to it.
+        print(
+            "next: write .cowork-flow/spec/<name>.md with frontmatter "
+            "checks: (any .md under spec/ outside contracts/, runtime/, "
+            "schemas/); syntax and example: "
+            ".cowork-flow/spec/contracts/spec-checks.md"
+        )
         return
 
     from services.spec_check import normalized_one_line
