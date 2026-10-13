@@ -1,6 +1,6 @@
 import { cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { parseInstallArgs, pathExists, writeJsonAtomic } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';

@@ -96,7 +96,6 @@ export async function uninstallPayloadDir({
   ownsInstall,
   exists,
   refusal,
-  onForeign,
   onPreview,
   remove
 }) {
@@ -109,7 +108,7 @@ export async function uninstallPayloadDir({
   if (!ours && !force) {
     throw refusal();
   }
-  if (!ours && onForeign !== false) {
+  if (!ours) {
     console.log(`${target} is not the cowork-flow plugin; removing it anyway (--force).`);
   }
   if (dryRun) {
