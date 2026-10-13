@@ -260,8 +260,8 @@ def _fit_stage_contract(
     the closing tag and the guard rows (Scope/Gates) always survive. Order:
     1) drop removable rows (Specs/Verify) from the tail; 2) shrink Scope
     entries one by one (min 1); 3) last-resort codepoint cut that keeps the
-    closing tag. Mirrored by the zcode/opencode JS implementations — keep
-    the row-role rules and the drop order identical."""
+    closing tag. Single renderer: the host shims transport this output
+    unchanged, so the row-role rules and the drop order live here only."""
     if len("\n".join(lines)) <= budget:
         return lines
     removable = [
@@ -314,8 +314,8 @@ def _stage_contract_lines(
     verify_limit: int = STAGE_CONTRACT_VERIFY_LIMIT,
     digests: dict[str, str] | None = None,
 ) -> list[str]:
-    """Assemble the stage-contract body lines. Byte-for-byte mirrored by the
-    zcode and opencode JS implementations — keep the formatting identical."""
+    """Assemble the stage-contract body lines. The host shims transport this
+    output unchanged; the formatting is pinned by the stage-contract tests."""
     scope_suffix = "[agent-mutable]" if mutable else "[read-only]"
     lines: list[str] = []
     scope_items = [entry["file"] for entry in whitelist[:scope_limit]]
@@ -358,8 +358,8 @@ def build_stage_contract(
     rules: dict | None = None,
     digests: dict[str, str] | None = None,
 ) -> str:
-    """Assemble the stage-contract block. Byte-for-byte mirrored by the zcode
-    and opencode JS implementations — keep the formatting identical. Over-
+    """Assemble the stage-contract block. The host shims transport this output
+    unchanged; the formatting is pinned by the stage-contract tests. Over-
     budget inputs degrade through _fit_stage_contract, never emitting a half-
     closed block. `mutable=False` renders the parent scope as a read-only
     reference for delegated subtasks. `rules` comes from
@@ -395,8 +395,8 @@ def build_stage_contract(
 # Spec digest: the h2 heading tree of each bound spec, an
 # "entry-name" index injected with the contract so rules
 # reach the agent's attention without full spec bodies.
-# Format is pinned byte-for-byte across this source and the
-# zcode/opencode JS mirrors (contract fingerprint tests):
+# Format is pinned by the contract fingerprint tests; host
+# shims forward this Python rendering unchanged:
 # path(h2a/h2b), at most 6 headings, each truncated to 24
 # chars after stripping "();" characters.
 SPEC_DIGEST_MAX_HEADINGS = 6

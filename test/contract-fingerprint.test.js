@@ -4,7 +4,6 @@ import { cpSync } from 'node:fs';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 
 import './helpers/bytecode-isolation.js';
@@ -27,7 +26,7 @@ function pythonCommand() {
 // The registry below deliberately lists contract object keys in a different
 // order than the JSON document order, and the two contracts out of id order,
 // so a non-stable serialization would produce a different fingerprint per
-// implementation. All three implementations must sort keys before hashing.
+// implementation. Both implementations must sort keys before hashing.
 const REGISTRY = {
   schemaVersion: 1,
   contracts: [
@@ -127,19 +126,7 @@ function fingerprintFromZcodeHook(root) {
   return match[1];
 }
 
-async function fingerprintFromOpencode(root) {
-  const pluginPath = join(
-    packageRoot,
-    'template',
-    '.opencode',
-    'cowork-flow',
-    'plugin-core.js'
-  );
-  const { contractFingerprint } = await import(pathToFileURL(pluginPath).href);
-  return contractFingerprint(root, REGISTRY.contracts);
-}
-
-test('contract fingerprint is identical across zcode, python and opencode', async (t) => {
+test('contract fingerprint is identical across zcode and python', async (t) => {
   const root = await createFixture();
   t.after(async () => {
     await rm(root, { recursive: true, force: true });
@@ -147,14 +134,12 @@ test('contract fingerprint is identical across zcode, python and opencode', asyn
 
   const pythonFp = fingerprintFromPython(root);
   const zcodeFp = fingerprintFromZcodeHook(root);
-  const opencodeFp = await fingerprintFromOpencode(root);
 
   assert.match(pythonFp, /^[a-f0-9]{16}$/);
   assert.equal(zcodeFp, pythonFp, 'zcode JS hook must hash identically to the Python core');
-  assert.equal(opencodeFp, pythonFp, 'opencode plugin must hash identically to the Python core');
 });
 
-test('fingerprint changes identically on all three when a contract file changes', async (t) => {
+test('fingerprint changes identically on both when a contract file changes', async (t) => {
   const root = await createFixture();
   t.after(async () => {
     await rm(root, { recursive: true, force: true });
@@ -162,17 +147,13 @@ test('fingerprint changes identically on all three when a contract file changes'
 
   const beforePython = fingerprintFromPython(root);
   const beforeZcode = fingerprintFromZcodeHook(root);
-  const beforeOpencode = await fingerprintFromOpencode(root);
   assert.equal(beforeZcode, beforePython);
-  assert.equal(beforeOpencode, beforePython);
 
   const specPath = join(root, '.cowork-flow', 'spec', 'contracts', 'plan-binding.md');
   await writeFile(specPath, CONTRACT_FILES['.cowork-flow/spec/contracts/plan-binding.md'] + '<!-- drift -->\n', 'utf8');
 
   const afterPython = fingerprintFromPython(root);
   const afterZcode = fingerprintFromZcodeHook(root);
-  const afterOpencode = await fingerprintFromOpencode(root);
   assert.notEqual(afterPython, beforePython, 'changed contract content must move the fingerprint');
   assert.equal(afterZcode, afterPython);
-  assert.equal(afterOpencode, afterPython);
 });

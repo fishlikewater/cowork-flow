@@ -31,9 +31,9 @@ if str(SCRIPTS_DIR) not in sys.path:
 from runtime.host_identity import HOST_HINT_ENV, context_adapters
 
 
-# Hosts routed through this entry; see host_identity.py.
-# opencode is absent: its JS plugin renders its own
-# context, so it is no --host choice here.
+# Hosts routed through this entry; see host_identity.py. Every declared host
+# is a --host choice: machine-level shims (zcode, opencode, kimi-code) and
+# process hooks (claude-code, codex, qoder, dsh) all render here.
 HOST_ADAPTERS = context_adapters()
 
 NOT_INITIALIZED_BODY = (

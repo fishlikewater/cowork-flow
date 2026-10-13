@@ -1,6 +1,11 @@
-// Pure logic behind the opencode plugin: contract digest,
-// stage contract, scope rules, runtime-context binding and
-// the edit-phase spec check.
+// Transport shim behind the opencode plugin. Every workflow fact
+// (contract digest, workflow-state, decision anchor, stage contract,
+// runtime-context bind) is rendered by the Python source
+// <scripts>/adapters/host/inject.py --host opencode; this module moves
+// bytes only. What stays here is what the Python side cannot reach:
+// the config-hook skills registration, the shell.env context-key
+// export, and the edit-phase spec-check the tool.execute.after hook
+// delegates to the project runtime.
 //
 // This module must NOT live under plugins/: opencode
 // treats every file directly inside plugins/ as a plugin
@@ -12,45 +17,13 @@
 // both.
 
 import { spawn } from "node:child_process"
-import { createHash, randomUUID } from "node:crypto"
-import {
-  closeSync,
-  existsSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs"
+import { existsSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const DEFAULT_CONTRACT_REGISTRY = {
-  contracts: [
-    {
-      id: "RUNTIME_CONTEXT_DISPATCH_V2",
-      path: ".cowork-flow/spec/contracts/subagent-dispatch.md",
-      digest: [
-        "Formal subagent work is keyed by cowork_runtime_context_id.",
-        "Explicit shim bind records bound_context_key before formal output is accepted.",
-      ],
-      readWhen: ["before formal subagent dispatch", "when checking subagent health"],
-    },
-    {
-      id: "FACT_LAYER_ACCESS_V1",
-      path: ".cowork-flow/spec/contracts/fact-layer-access.md",
-      digest: [
-        "Task/scope/spec facts are read-only via MCP tools or CLI; writes only flow through CLI lifecycle gates.",
-        "Prefer MCP task_state/task_scope/task_specs for fact queries when available; CLI is the fallback.",
-      ],
-      readWhen: [
-        "when querying task facts or file scope",
-        "when registering the fact layer for a new host or external client",
-      ],
-    },
-  ],
-}
+const DIR_WORKFLOW = ".cowork-flow"
+// One prompt assembly must not wait longer than a host hook event.
+const INJECT_TIMEOUT_MS = 4800
 
 // Last-resort repository root: this module lives at
 // <payload>/cowork-flow/plugin-core.js, next to plugins/,
@@ -58,13 +31,6 @@ const DEFAULT_CONTRACT_REGISTRY = {
 // installed into. Used only when no candidate directory
 // carries a .cowork-flow/ runtime.
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
-
-function asStringList(value) {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  return value.filter((item) => typeof item === "string" && item.trim())
-}
 
 function inputCwd(input) {
   for (const value of [
@@ -90,7 +56,7 @@ function findRepoRoot(input) {
   for (const candidate of candidates) {
     let current = resolve(candidate)
     while (true) {
-      if (existsSync(resolve(current, ".cowork-flow"))) {
+      if (existsSync(resolve(current, DIR_WORKFLOW))) {
         return current
       }
       const parent = resolve(current, "..")
@@ -103,90 +69,138 @@ function findRepoRoot(input) {
   return pluginRoot
 }
 
-function stableStringify(value) {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`
-  }
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-      .join(",")}}`
-  }
-  return JSON.stringify(value)
+function pythonCandidates() {
+  const list = []
+  const env = (process.env.COWORK_FLOW_PYTHON || "").trim()
+  if (env) list.push([env])
+  list.push(["python3"], ["python"])
+  if (process.platform === "win32") list.push(["py", "-3"])
+  return list
 }
 
-function loadContractRegistry(root) {
-  const registryFile = resolve(root, ".cowork-flow", "spec", "runtime", "contract-registry.json")
-  let data = DEFAULT_CONTRACT_REGISTRY
-  let warning = null
-  try {
-    data = JSON.parse(readFileSync(registryFile, "utf8"))
-  } catch (error) {
-    data = DEFAULT_CONTRACT_REGISTRY
-    warning = `contract registry unavailable or invalid at ${registryFile}; using fallback digest`
+// The project's own runtime copy wins (same root the CLI resolves);
+// the payload's cached copy (cowork-flow/runtime/scripts) renders only
+// outside any cowork-flow project, for the not-initialized context.
+function resolveInjectScript(root) {
+  if (root) {
+    const projectInject = resolve(
+      root,
+      DIR_WORKFLOW,
+      "scripts",
+      "adapters",
+      "host",
+      "inject.py"
+    )
+    if (existsSync(projectInject)) return projectInject
   }
-
-  if (!Array.isArray(data?.contracts)) {
-    return {
-      contracts: DEFAULT_CONTRACT_REGISTRY.contracts,
-      warning: warning || `contract registry has no contracts array at ${registryFile}; using fallback digest`,
-    }
-  }
-  return {
-    contracts: data.contracts.filter((contract) => contract && typeof contract === "object"),
-    warning,
-  }
+  const cacheInject = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "runtime",
+    "scripts",
+    "adapters",
+    "host",
+    "inject.py"
+  )
+  return existsSync(cacheInject) ? cacheInject : null
 }
 
-function contractFingerprint(root, contracts) {
-  const digest = createHash("sha256")
-  digest.update(stableStringify(contracts), "utf8")
-  for (const contract of contracts) {
-    const path = contract.path
-    if (typeof path !== "string" || !path.trim()) {
-      continue
-    }
+// One spawn attempt: stdin carries the synthesized hook payload,
+// stdout is the injection text. A non-zero exit or a timeout skips
+// the injection — the shim decorates the event, it must never break
+// it — but the child's stderr and the skip reason still reach the
+// host log (zcode shim parity), so a broken render stays debuggable.
+function runInject(candidate, script, payload) {
+  return new Promise((resolvePromise) => {
+    let child
     try {
-      digest.update(readFileSync(resolve(root, path)))
+      child = spawn(candidate[0], [...candidate.slice(1), script, "--host", "opencode"], {
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+      })
     } catch {
-      digest.update(`missing:${path}`, "utf8")
+      resolvePromise({ ran: false, stdout: "" })
+      return
     }
-  }
-  return digest.digest("hex").slice(0, 16)
+    let stdout = ""
+    let stderr = ""
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      try {
+        child.kill()
+      } catch {
+        // the transform must not be held up by a stuck render
+      }
+    }, INJECT_TIMEOUT_MS)
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk)
+    })
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk)
+    })
+    child.on("error", () => {
+      clearTimeout(timer)
+      resolvePromise({ ran: false, stdout: "" })
+    })
+    child.on("close", (code) => {
+      clearTimeout(timer)
+      if (!child.pid) {
+        // The interpreter never started (a missing binary can surface as a
+        // close code instead of an error event): stay silent and let the
+        // next candidate try.
+        resolvePromise({ ran: false, stdout: "" })
+        return
+      }
+      if (stderr.trim()) console.error(stderr.trimEnd())
+      if (timedOut) {
+        console.error(
+          "cowork-flow opencode plugin: inject.py timed out; skipping injection"
+        )
+        resolvePromise({ ran: true, stdout: "" })
+        return
+      }
+      if (code) {
+        console.error(
+          `cowork-flow opencode plugin: inject.py exited ${code}; skipping injection`
+        )
+      }
+      resolvePromise({ ran: true, stdout })
+    })
+    child.stdin.on("error", () => {})
+    child.stdin.end(JSON.stringify(payload), "utf8")
+  })
 }
 
-function buildContractDigest(input) {
-  const root = findRepoRoot(input)
-  const { contracts, warning } = loadContractRegistry(root)
-  const fingerprint = contractFingerprint(root, contracts)
-  const lines = [
-    '<cowork-runtime host="opencode" adapter="opencode.task">',
-    `<contract-digest fingerprint="${fingerprint}">`,
-    "policy: repeat this short digest every plugin transform; read full spec files only before listed actions.",
-  ]
-  if (warning) {
-    lines.push(`warning: ${warning}`)
+// The transform hook's single render path: forward the event to
+// inject.py and hand back whatever it printed. The payload spreads the
+// host input so every session/runtime-context key the Python identity
+// table knows arrives unchanged; hook_event_name and cwd are the two
+// fields the hook contract requires.
+async function renderViaInject(input) {
+  if (
+    process.env.COWORK_FLOW_HOOKS === "0" ||
+    process.env.COWORK_FLOW_DISABLE_HOOKS === "1"
+  ) {
+    return ""
   }
-
-  for (const contract of contracts) {
-    const contractId = contract.id
-    if (typeof contractId !== "string" || !contractId.trim()) {
+  const root = findRepoRoot(input)
+  const script = resolveInjectScript(root === pluginRoot ? null : root)
+  if (!script) {
+    return ""
+  }
+  const payload = {
+    ...(input && typeof input === "object" ? input : {}),
+    hook_event_name: "UserPromptSubmit",
+    cwd: inputCwd(input) || (root === pluginRoot ? null : root) || process.cwd(),
+  }
+  for (const candidate of pythonCandidates()) {
+    const result = await runInject(candidate, script, payload)
+    if (!result.ran) {
       continue
     }
-    const path = typeof contract.path === "string" && contract.path.trim() ? contract.path : "<missing-path>"
-    lines.push(`- ${contractId}: ${path}`)
-    for (const item of asStringList(contract.digest).slice(0, 2)) {
-      lines.push(`  digest: ${item}`)
-    }
-    const readWhen = asStringList(contract.readWhen)
-    if (readWhen.length > 0) {
-      lines.push(`  read_before: ${readWhen.join("; ")}`)
-    }
+    return result.stdout.trim()
   }
-
-  lines.push("</contract-digest>", "</cowork-runtime>")
-  return lines.join("\n")
+  return ""
 }
 
 function sanitize(value) {
@@ -205,43 +219,6 @@ function firstString(input, keys) {
     }
   }
   return null
-}
-
-function promptText(input) {
-  const direct = firstString(input, ["prompt", "user_prompt", "userPrompt", "message", "input"])
-  if (direct) {
-    return direct
-  }
-  const messages = input?.messages
-  if (Array.isArray(messages)) {
-    return messages
-      .map((item) => item?.content)
-      .filter((item) => typeof item === "string" && item.trim())
-      .join("\n")
-  }
-  return ""
-}
-
-function resolveRuntimeContextId(input) {
-  const envValue =
-    typeof process !== "undefined" && process?.env?.COWORK_FLOW_RUNTIME_CONTEXT_ID
-      ? process.env.COWORK_FLOW_RUNTIME_CONTEXT_ID
-      : null
-  if (envValue && envValue.trim()) {
-    return sanitize(envValue)
-  }
-
-  const direct = firstString(input, [
-    "COWORK_FLOW_RUNTIME_CONTEXT_ID",
-    "cowork_runtime_context_id",
-    "runtime_context_id",
-  ])
-  if (direct) {
-    return sanitize(direct)
-  }
-
-  const match = promptText(input).match(/^\s*cowork_runtime_context_id\s*:\s*([A-Za-z0-9._-]+)\s*$/im)
-  return match ? sanitize(match[1]) : null
 }
 
 function resolveOpenCodeSessionId(input) {
@@ -285,710 +262,6 @@ function injectShellEnv(input, output) {
   }
 }
 
-function resolveHostContextKey(input) {
-  const direct = firstString(input, ["cowork_host_context_key", "host_context_key", "COWORK_FLOW_HOST_CONTEXT_KEY"])
-  if (direct) {
-    return sanitize(direct)
-  }
-
-  const match = promptText(input).match(/^\s*cowork_host_context_key\s*:\s*([A-Za-z0-9._-]+)\s*$/im)
-  return match ? sanitize(match[1]) : null
-}
-
-function readJsonDocument(path) {
-  try {
-    const data = JSON.parse(readFileSync(path, "utf8"))
-    if (!data || typeof data !== "object" || Array.isArray(data)) {
-      return { exists: true, invalid: true, data: null, revision: 0 }
-    }
-    const metadata = data._state
-    const revision =
-      metadata &&
-      Number.isInteger(metadata.revision) &&
-      metadata.revision >= 0
-        ? metadata.revision
-        : 0
-    return { exists: true, invalid: false, data, revision }
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return { exists: false, invalid: false, data: null, revision: 0 }
-    }
-    return { exists: true, invalid: true, data: null, revision: 0 }
-  }
-}
-
-function readJson(path) {
-  const document = readJsonDocument(path)
-  return document.invalid ? null : document.data
-}
-
-function sleepSync(milliseconds) {
-  const buffer = new Int32Array(new SharedArrayBuffer(4))
-  Atomics.wait(buffer, 0, 0, milliseconds)
-}
-
-function acquireSessionLock(path) {
-  const lockPath = `${path}.lock`
-  const deadline = Date.now() + 5000
-  while (true) {
-    try {
-      const handle = openSync(lockPath, "wx", 0o600)
-      writeFileSync(
-        handle,
-        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
-        "utf8"
-      )
-      return { handle, lockPath }
-    } catch (error) {
-      if (error?.code !== "EEXIST" || Date.now() >= deadline) {
-        throw error
-      }
-      sleepSync(10)
-    }
-  }
-}
-
-function releaseSessionLock(lock) {
-  closeSync(lock.handle)
-  try {
-    unlinkSync(lock.lockPath)
-  } catch {
-    // A failed cleanup must not mask the original write
-    // error.
-  }
-}
-
-function acquireSessionLocks(paths) {
-  const held = []
-  try {
-    for (const path of [...paths].sort()) {
-      held.push(acquireSessionLock(path))
-    }
-  } catch (error) {
-    for (const lock of held) {
-      releaseSessionLock(lock)
-    }
-    throw error
-  }
-  return held
-}
-
-function removeTemporaryFile(path) {
-  try {
-    unlinkSync(path)
-  } catch {
-    // The temporary file may already be gone.
-  }
-}
-
-function stageJsonDocument(path, data, revision) {
-  const persisted = { ...data }
-  delete persisted._state
-  persisted._state = {
-    schema_version: 1,
-    revision: revision + 1,
-    operation_id: `opencode-session-${randomUUID()}`,
-  }
-  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
-  try {
-    writeFileSync(temporary, `${JSON.stringify(persisted, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    })
-  } catch (error) {
-    removeTemporaryFile(temporary)
-    throw error
-  }
-  return temporary
-}
-
-function restoreJsonDocument(item) {
-  if (!item.before.exists) {
-    removeTemporaryFile(item.path)
-    return
-  }
-  try {
-    writeFileSync(item.path, `${JSON.stringify(item.before.data, null, 2)}\n`, "utf8")
-  } catch {
-    // Restoring is best effort: the write error is what
-    // the caller must see, and the next bind rewrites both
-    // documents anyway.
-  }
-}
-
-// Two documents that only mean something together (a
-// session record and the context binding it points at) are
-// validated and staged under one lock pair before either
-// is renamed; a failed rename undoes the ones already
-// replaced, so a host never sees a bound session pointing
-// at an unbound context.
-function writeJsonPair(entries) {
-  const pairs = []
-  const seen = new Map()
-  for (const entry of entries) {
-    seen.set(entry.path, entry)
-  }
-  for (const entry of seen.values()) {
-    mkdirSync(dirname(entry.path), { recursive: true })
-    pairs.push(entry)
-  }
-
-  const locks = acquireSessionLocks(pairs.map((entry) => entry.path))
-  const staged = []
-  try {
-    for (const entry of pairs) {
-      const current = readJsonDocument(entry.path)
-      if (current.invalid) {
-        throw new Error(`refusing to overwrite invalid session state: ${entry.path}`)
-      }
-      if (current.revision !== entry.expectedRevision) {
-        throw new Error(`session state changed while writing: ${entry.path}`)
-      }
-      staged.push({
-        path: entry.path,
-        before: current,
-        temporary: stageJsonDocument(entry.path, entry.data, current.revision),
-      })
-    }
-
-    const renamed = []
-    try {
-      for (const item of staged) {
-        renameSync(item.temporary, item.path)
-        renamed.push(item)
-      }
-    } catch (error) {
-      for (const item of renamed.reverse()) {
-        restoreJsonDocument(item)
-      }
-      throw error
-    }
-  } finally {
-    for (const item of staged) {
-      removeTemporaryFile(item.temporary)
-    }
-    for (const lock of locks) {
-      releaseSessionLock(lock)
-    }
-  }
-}
-
-function nowIso() {
-  return new Date().toISOString().replace(/\.\d{3}Z$/, "Z")
-}
-
-function bindRuntimeContext(root, runtimeContextId, context, input) {
-  const contextKey = resolveHostContextKey(input) || resolveContextKey(input)
-  if (!contextKey) {
-    return context
-  }
-  if (typeof context.bound_context_key === "string" && context.bound_context_key.trim() && context.bound_context_key !== contextKey) {
-    return context
-  }
-  const session = {
-    schema_version: 2,
-    scope: "subagent",
-    runtime_context_id: runtimeContextId,
-    platform: "opencode",
-    status: "bound",
-    last_seen_at: nowIso(),
-  }
-  if (typeof context.task_dir === "string" && context.task_dir.trim()) {
-    session.active_task_path = context.task_dir.trim()
-  }
-  const sessionPath = resolve(
-    root,
-    ".cowork-flow",
-    ".runtime",
-    "sessions",
-    `${contextKey}.json`
-  )
-  const contextPath = resolve(
-    root,
-    ".cowork-flow",
-    ".runtime",
-    "subagents",
-    `${runtimeContextId}.json`
-  )
-  const sessionRevision = readJsonDocument(sessionPath).revision
-  const contextRevision = readJsonDocument(contextPath).revision
-  const updated = {
-    ...context,
-    status: "bound",
-    bound_context_key: contextKey,
-    bound_at: context.bound_at || nowIso(),
-    last_seen_at: nowIso(),
-  }
-  writeJsonPair([
-    { path: sessionPath, data: session, expectedRevision: sessionRevision },
-    { path: contextPath, data: updated, expectedRevision: contextRevision },
-  ])
-  return updated
-}
-
-// Attribute header + decision-anchor helpers, mirroring
-// services/fact_view.py and the zcode hook.
-const DECISION_ANCHOR_STATES = ["planning", "in_progress", "review"]
-
-function xmlAttr(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-}
-
-const STAGE_CONTRACT_STATES = ["in_progress", "review"]
-const STAGE_CONTRACT_SCOPE_LIMIT = 8
-const STAGE_CONTRACT_SPECS_LIMIT = 4
-const STAGE_CONTRACT_VERIFY_LIMIT = 3
-const STAGE_CONTRACT_BUDGET = 1200
-const GATES_TEXT =
-  "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
-  "files are protected; spec/ edits may be allowed by review policy; " +
-  "scope is agent-mutable (self-declared via task context add)"
-// Delegated subtasks render the parent task's scope as a
-// read-only reference.
-const GATES_TEXT_READONLY =
-  "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow " +
-  "files are protected; spec/ edits may be allowed by review policy; " +
-  "scope is inherited from the parent task (read-only reference)"
-
-function parseDecisionAnchor(text) {
-  const result = {
-    goal: "",
-    acceptanceCriteria: [],
-    rejectedOptions: [],
-    validationCommands: [],
-    scopeBoundary: "",
-  }
-  const goalLines = []
-  let section = null
-  for (const raw of String(text ?? "").split("\n")) {
-    const line = raw.trim()
-    const heading = line.match(/^##\s*(.+?)\s*$/)
-    if (heading) {
-      section = ["目标", "验收标准", "被拒方案", "验证命令", "范围边界"].includes(heading[1]) ? heading[1] : null
-      continue
-    }
-    if (section === "目标") {
-      if (line) goalLines.push(line)
-    } else if (section === "验收标准") {
-      const match = raw.match(/^\s*-\s*(?:\[([ xX])\]?\s*)?(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$/)
-      if (match) {
-        result.acceptanceCriteria.push({
-          id: match[2],
-          text: match[3],
-          checked: match[1] === 'x' || match[1] === 'X',
-        })
-      }
-    } else if (section === "被拒方案") {
-      const match = raw.match(/^\s*-\s*\*\*(.+?)\*\*/)
-      if (match) result.rejectedOptions.push(match[1].trim())
-    } else if (section === "验证命令") {
-      let command = line
-      if (command.startsWith("- ")) command = command.slice(2).trim()
-      if (command && result.validationCommands.length < 5) {
-        result.validationCommands.push(command.slice(0, 120))
-      }
-    } else if (section === "范围边界") {
-      if (line && !result.scopeBoundary) result.scopeBoundary = line.slice(0, 160)
-    }
-  }
-  result.goal = goalLines.join("\n").slice(0, 300)
-  return result
-}
-
-// Default when the shipped scope-rules.json is absent; the
-// on-disk copy is the single source across hosts and a
-// python test locks the defaults to it.
-const DEFAULT_SCOPE_RULES = {
-  schemaVersion: 1,
-  scopeFilter: {
-    allowedTypes: ["file", "planned-file", "deleted-file"],
-    wildcardChars: ["*", "?", "[", "]"],
-    rejectedSegments: ["", ".", ".."],
-    driveLetterPattern: "^[A-Za-z]:",
-    trailingSlashRejectedTypes: ["planned-file", "deleted-file"],
-  },
-  stageContract: { budget: 1200, scopeLimit: 8, specLimit: 4, verifyLimit: 3 },
-}
-
-function readScopeRules(repoRoot) {
-  try {
-    const loaded = JSON.parse(
-      readFileSync(resolve(repoRoot, ".cowork-flow", "spec", "runtime", "scope-rules.json"), "utf8")
-    )
-    if (loaded && loaded.schemaVersion === 1) return loaded
-  } catch {
-    // Missing or malformed: degrade to the shipped
-    // defaults.
-  }
-  return DEFAULT_SCOPE_RULES
-}
-
-// Port of
-// services/context_paths.py::_is_valid_context_path: skip
-// exactly the entries the Python whitelist drops. Rules
-// come from scope-rules.json, where empty lists are
-// meaningful, so nullish coalescing fills in absent
-// defaults only.
-function isValidScopePath(normalized, raw, type, rules) {
-  const sf = (rules || {}).scopeFilter || {}
-  const wildcards = sf.wildcardChars ?? ["*", "?", "[", "]"]
-  const segments = normalized.split("/")
-  const rejected = sf.rejectedSegments ?? ["", ".", ".."]
-  if (!normalized || normalized.startsWith("/")) return false
-  if (new RegExp(sf.driveLetterPattern ?? "^[A-Za-z]:").test(normalized)) return false
-  if (segments.some((segment) => rejected.includes(segment))) return false
-  if (wildcards.some((character) => normalized.includes(character))) return false
-  const trailing = sf.trailingSlashRejectedTypes ?? ["planned-file", "deleted-file"]
-  if (trailing.includes(type) && /[\\/]$/.test(raw)) return false
-  return true
-}
-
-// Mirrors services/fact_view.py file_scope_whitelist +
-// spec_pointer_files: directory entries authorize nothing,
-// non-canonical entries are dropped.
-function buildScopeWhitelist(entries, rules) {
-  const whitelist = []
-  const specFiles = []
-  const sf = (rules || {}).scopeFilter || {}
-  const allowedTypes = sf.allowedTypes ?? ["file", "planned-file", "deleted-file"]
-  for (const entry of entries) {
-    const file = typeof entry.file === "string" ? entry.file : ""
-    let normalized = file.replaceAll("\\", "/")
-    while (normalized.startsWith("./")) {
-      normalized = normalized.slice(2)
-    }
-    const type = typeof entry.type === "string" && entry.type ? entry.type : "file"
-    if (type === "directory") continue
-    if (!allowedTypes.includes(type)) continue
-    if (!isValidScopePath(normalized, file, type, rules)) continue
-    whitelist.push({ file: normalized, type })
-    if (normalized.startsWith(".cowork-flow/spec/")) specFiles.push(normalized)
-  }
-  return { whitelist, specFiles }
-}
-
-function scopeRow(entries, total, suffix) {
-  const text = entries.length > 0 ? entries.join("; ") : "(empty)"
-  const more = total - entries.length
-  const extra = more > 0 ? ` (+${more} more in implement.jsonl)` : ""
-  return `Scope: ${text}${extra} ${suffix}`
-}
-
-// Mirrors services/fact_view.py spec_digest_items: the h2
-// heading tree of each bound spec, injected as the
-// entry-name index of the Specs row. The format is pinned
-// byte-for-byte with the Python source (contract
-// fingerprint tests): path(h2a/h2b), at most 6 headings,
-// each truncated to 24 chars after stripping "();"
-// characters; a missing file stays unannotated.
-const SPEC_DIGEST_MAX_HEADINGS = 6
-const SPEC_DIGEST_MAX_CHARS = 24
-
-function specHeadingDigest(specFile, root) {
-  let text
-  try {
-    text = readFileSync(resolve(root, specFile), "utf8")
-  } catch {
-    return null
-  }
-  const headings = []
-  for (const line of text.split(/\r?\n/)) {
-    if (line.startsWith("## ") && !line.startsWith("###")) {
-      const cleaned = line.slice(3).replace(/[();]/g, "").trim().slice(0, SPEC_DIGEST_MAX_CHARS)
-      if (cleaned) {
-        headings.push(cleaned)
-        if (headings.length >= SPEC_DIGEST_MAX_HEADINGS) break
-      }
-    }
-  }
-  return headings.length > 0 ? headings.join("/") : null
-}
-
-function specDigestItems(root, specFiles) {
-  const map = {}
-  for (const item of specFiles) {
-    const digest = specHeadingDigest(item, root)
-    if (digest) map[item] = digest
-  }
-  return map
-}
-
-// Mirrors services/fact_view.py::_fit_stage_contract:
-// degrade an over-budget block without ever emitting a
-// malformed one — the closing tag and the guard rows
-// (Scope/Gates) always survive. Keep the row-role rules
-// and the drop order identical.
-function fitStageContract(lines, scopeEntries, scopeTotal, mutable, budget) {
-  const effectiveBudget = budget ?? STAGE_CONTRACT_BUDGET
-  if (lines.join("\n").length <= effectiveBudget) return lines
-  const removable = []
-  for (let i = 1; i < lines.length - 1; i++) {
-    if (!lines[i].startsWith("Scope:") && !lines[i].startsWith("Gates:")) {
-      removable.push(i)
-    }
-  }
-  for (let i = removable.length - 1; i >= 0; i--) {
-    const reduced = lines.filter((_, j) => j !== removable[i])
-    if (reduced.join("\n").length <= effectiveBudget) return reduced
-    lines = reduced
-  }
-  const suffix = mutable ? "[agent-mutable]" : "[read-only]"
-  let pool = scopeEntries.slice()
-  while (pool.length > 1) {
-    pool = pool.slice(0, -1)
-    const candidate = lines.map((line) =>
-      line.startsWith("Scope:") ? scopeRow(pool, scopeTotal, suffix) : line
-    )
-    if (candidate.join("\n").length <= effectiveBudget) return candidate
-    lines = candidate
-  }
-  if (lines.join("\n").length <= effectiveBudget) return lines
-  const closing = lines[lines.length - 1]
-  // The final join inserts one newline between the cut
-  // body and the closing tag — reserve it so the block
-  // stays within budget.
-  const room = effectiveBudget - closing.length - 1
-  const body = lines.slice(0, -1).join("\n")
-  if (body.length <= room) return lines
-  const head = body.slice(0, room).replace(/\s+$/, "")
-  if (!head) return lines
-  return [head, closing]
-}
-
-function stageContractBlock(root, taskPath, status, readonly = false) {
-  if (!taskPath) {
-    return null
-  }
-  let effective = status
-  if (status === "delegated_subtask") {
-    const data = readJson(resolve(root, taskPath, "task.json"))
-    effective = data && typeof data.status === "string" ? data.status : null
-    if (!effective) {
-      return null
-    }
-  }
-  if (!STAGE_CONTRACT_STATES.includes(effective)) {
-    return null
-  }
-  let entries = []
-  try {
-    for (const line of String(readFileSync(resolve(root, taskPath, "implement.jsonl"), "utf8") ?? "").split("\n")) {
-      const trimmed = line.trim()
-      if (!trimmed) continue
-      try {
-        const entry = JSON.parse(trimmed)
-        if (entry && typeof entry === "object") entries.push(entry)
-      } catch {
-        // Malformed lines are reported by the Python side.
-      }
-    }
-  } catch {
-    // Absent jsonl: scope degrades to empty.
-  }
-  const rules = readScopeRules(root)
-  const { whitelist, specFiles } = buildScopeWhitelist(entries, rules)
-  const stage = rules.stageContract || {}
-  const scopeLimit = stage.scopeLimit ?? STAGE_CONTRACT_SCOPE_LIMIT
-  const specLimit = stage.specLimit ?? STAGE_CONTRACT_SPECS_LIMIT
-  const verifyLimit = stage.verifyLimit ?? STAGE_CONTRACT_VERIFY_LIMIT
-  const budget = stage.budget ?? STAGE_CONTRACT_BUDGET
-  let parsed
-  try {
-    parsed = parseDecisionAnchor(readFileSync(resolve(root, taskPath, "decision-anchor.md"), "utf8"))
-  } catch {
-    parsed = { goal: "", acceptanceCriteria: [], rejectedOptions: [], validationCommands: [], scopeBoundary: "" }
-  }
-  const suffix = readonly ? "[read-only]" : "[agent-mutable]"
-  const lines = [`<stage-contract task="${xmlAttr(taskPath)}">`]
-  lines.push(scopeRow(
-    whitelist.slice(0, scopeLimit).map((e) => e.file),
-    whitelist.length,
-    suffix
-  ))
-  if (specFiles.length > 0) {
-    const specItems = specFiles.slice(0, specLimit)
-    const digestMap = specDigestItems(root, specFiles)
-    const parts = specItems.map((item) => {
-      const digest = digestMap[item]
-      return digest ? `${item}(${digest})` : item
-    })
-    let specsText = parts.join("; ")
-    const specMore = specFiles.length - specItems.length
-    if (specMore > 0) specsText += ` (+${specMore} more)`
-    lines.push(`Specs: ${specsText}`)
-  }
-  lines.push(readonly ? GATES_TEXT_READONLY : GATES_TEXT)
-  if (parsed.validationCommands.length > 0) {
-    lines.push("Verify: " + parsed.validationCommands.slice(0, verifyLimit).join("; "))
-  }
-  lines.push("</stage-contract>")
-  return fitStageContract(
-    lines,
-    whitelist.slice(0, scopeLimit).map((e) => e.file),
-    whitelist.length,
-    !readonly,
-    budget
-  ).join("\n")
-}
-
-function withStageFacts(block, root, taskPath, status, readonly = false) {
-  const anchor = decisionAnchorBlock(root, taskPath, status)
-  const contract = stageContractBlock(root, taskPath, status, readonly)
-  const parts = [anchor, contract].filter(Boolean)
-  return parts.length > 0 ? `${parts.join("\n\n")}\n\n${block}` : block
-}
-
-// Evidence coverage for the anchor block: one read of the task's
-// evidence.jsonl, tolerating noise exactly like the python line. Returns
-// null when the file is absent so the coverage line degrades silently.
-function readEvidenceCoverage(root, taskPath) {
-  let text = ''
-  try {
-    text = readFileSync(resolve(root, taskPath, 'evidence.jsonl'), 'utf8')
-  } catch {
-    return null
-  }
-  const covered = new Set()
-  for (const raw of text.split('\n')) {
-    const line = raw.trim()
-    if (!line) continue
-    let record
-    try {
-      record = JSON.parse(line)
-    } catch {
-      continue
-    }
-    if (!record || typeof record !== 'object' || Array.isArray(record)) continue
-    const ac = typeof record.ac === 'string' ? record.ac.trim() : ''
-    const ref = typeof record.ref === 'string' ? record.ref.trim() : ''
-    if (ac && ref && ['test', 'command', 'manual'].includes(record.kind)) {
-      covered.add(ac)
-    }
-  }
-  return covered
-}
-
-function decisionAnchorBlock(root, taskPath, status) {
-  if (!taskPath) {
-    return null
-  }
-  let effective = status
-  if (status === "delegated_subtask") {
-    const data = readJson(resolve(root, taskPath, "task.json"))
-    effective = data && typeof data.status === "string" ? data.status : null
-    if (!effective) {
-      return null
-    }
-  }
-  if (!DECISION_ANCHOR_STATES.includes(effective)) {
-    return null
-  }
-  let parsed
-  try {
-    parsed = parseDecisionAnchor(readFileSync(resolve(root, taskPath, "decision-anchor.md"), "utf8"))
-  } catch {
-    return null
-  }
-  if (!parsed.goal && parsed.acceptanceCriteria.length === 0) {
-    return null
-  }
-  const lines = [`<decision-anchor task="${xmlAttr(taskPath)}">`]
-  if (parsed.goal) {
-    lines.push(`Goal: ${parsed.goal.split("\n")[0].slice(0, 160)}`)
-  }
-  if (parsed.acceptanceCriteria.length > 0) {
-    lines.push(
-      `Acceptance: ${parsed.acceptanceCriteria.slice(0, 8).map((item) => `${item.id} ${item.text.slice(0, 80)}`).join("; ")}`
-    )
-    const covered = readEvidenceCoverage(root, taskPath)
-    if (covered) {
-      const total = parsed.acceptanceCriteria.length
-      const missing = parsed.acceptanceCriteria
-        .map((item) => item.id)
-        .filter((id) => !covered.has(id))
-      const detail = missing.length
-        ? ` missing=${missing.slice(0, 5).join(',')}`
-        : ''
-      lines.push(`AC evidence: ${total - missing.length}/${total}${detail}`)
-    }
-  }
-  if (parsed.rejectedOptions.length > 0) {
-    lines.push(`Rejected: ${parsed.rejectedOptions.slice(0, 6).join("; ")}`)
-  }
-  lines.push("</decision-anchor>")
-  return lines.join("\n")
-}
-
-function withDecisionAnchor(block, root, taskPath, status) {
-  const anchor = decisionAnchorBlock(root, taskPath, status)
-  return anchor ? `${anchor}\n\n${block}` : block
-}
-
-function buildRuntimeWorkflowState(input) {
-  const root = findRepoRoot(input)
-  const runtimeContextId = resolveRuntimeContextId(input)
-  if (!runtimeContextId) {
-    return null
-  }
-
-  const contextFile = resolve(root, ".cowork-flow", ".runtime", "subagents", `${runtimeContextId}.json`)
-  const context = readJson(contextFile)
-  if (!context || context.scope !== "subagent" || context.status === "closed") {
-    return [
-      `<workflow-state status="delegated_subtask" source="runtime-context-invalid:${xmlAttr(runtimeContextId)}">`,
-      `Runtime context: ${runtimeContextId}`,
-      "Runtime context is missing, closed, or invalid. Do not run start/resume/task start/archive/commit/spawn.",
-      "</workflow-state>",
-    ].join("\n")
-  }
-
-  const bound = bindRuntimeContext(root, runtimeContextId, context, input)
-  const assignment = bound.assignment && typeof bound.assignment === "object" ? bound.assignment : {}
-  const taskDir = typeof bound.task_dir === "string" && bound.task_dir.trim() ? bound.task_dir.trim() : null
-  const attrs = [
-    taskDir ? ` task="${xmlAttr(taskDir)}"` : null,
-    ' status="delegated_subtask"',
-    ` source="runtime-context:${xmlAttr(runtimeContextId)}"`,
-  ].filter(Boolean)
-  const header = [
-    `<workflow-state${attrs.join("")}>`,
-    `Runtime context: ${runtimeContextId}`,
-    `Agent: ${bound.agent_type || "unknown"}`,
-    "Do not run start/resume/task start/archive/commit/spawn.",
-    typeof assignment.goal === "string" && assignment.goal.trim() ? `Goal: ${assignment.goal.trim()}` : null,
-    "</workflow-state>",
-  ].filter(Boolean)
-  return withStageFacts(header.join("\n"), root, taskDir, "delegated_subtask", true)
-}
-
-// Digest shape: the full contract block on a session's
-// first injection, a single fingerprint line afterwards,
-// so long sessions do not pay the full listing on every
-// prompt assembly. In-memory per plugin process; a process
-// restart deliberately re-injects the full block.
-const fullDigestSessions = new Set()
-
-function buildInjectedDigest(input) {
-  const root = findRepoRoot(input)
-  if (!root) {
-    return ""
-  }
-  const contextKey = resolveContextKey(input)
-  const firstInjection = contextKey ? !fullDigestSessions.has(contextKey) : true
-  if (firstInjection) {
-    if (contextKey) {
-      fullDigestSessions.add(contextKey)
-    }
-    return buildContractDigest(input)
-  }
-  const { contracts } = loadContractRegistry(root)
-  return `<contract-fingerprint value="${contractFingerprint(root, contracts)}"/>`
-}
-
 // Editor-phase spec-check: opencode sessions get the same
 // single-line violation hint zcode and claude-code
 // receive. Best-effort — a missing runtime, a timeout, or
@@ -1018,7 +291,7 @@ function runEditSpecCheck(root, filePath) {
     }
     const entry = resolve(
       root,
-      ".cowork-flow",
+      DIR_WORKFLOW,
       process.platform === "win32" ? "run.cmd" : "run"
     )
     if (!existsSync(entry)) {
@@ -1107,19 +380,13 @@ export function registerPayloadSkills(config) {
   config.skills = skills
 }
 
-// The plugin adapter imports the hook helpers; these three
-// are the unit-test surface (fingerprint parity with the
-// python and zcode implementations, and stage-contract
-// fitting). opencode never reads this module.
+// The plugin adapter imports the hook helpers; these are
+// the unit-test surface (transport, fail-open, shell env,
+// edit-phase delegation). opencode never reads this module.
 export {
-  buildInjectedDigest,
-  buildRuntimeWorkflowState,
+  renderViaInject,
   editedFilePath,
   findRepoRoot,
   injectShellEnv,
   runEditSpecCheck,
-  contractFingerprint,
-  stableStringify,
-  stageContractBlock,
-  decisionAnchorBlock
 }

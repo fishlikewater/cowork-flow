@@ -25,8 +25,8 @@ class HostIdentity:
     adapter: label reported by the injection layer (inject.py --host / the
         runtime-context record's adapter field).
     policy_module: workflow-state policy module; None means default_policy.
-    injects_context: whether the host routes through inject.py. opencode
-        renders context from its own JS plugin, so it is not an --host choice.
+    injects_context: whether the host routes through inject.py. Every host
+        does; the flag stays so a future host can opt out explicitly.
     session_env: environment variables carrying a per-session id, in priority
         order, as seen by the host's Bash/CLI processes.
     input_keys: every hook-payload key this host may emit, ambiguous ones
@@ -66,8 +66,8 @@ HOST_IDENTITIES: tuple[HostIdentity, ...] = (
         id="opencode",
         prefix="opencode",
         adapter="opencode.task",
-        policy_module=None,
-        injects_context=False,
+        policy_module="adapters.host.opencode_policy",
+        injects_context=True,
         session_env=("OPENCODE_SESSION_ID",),
         input_keys=(
             "OPENCODE_SESSION_ID",

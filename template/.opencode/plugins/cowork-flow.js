@@ -7,12 +7,11 @@
 // re-exported helper would be called as a plugin and break
 // host bootstrap.
 import {
-  buildInjectedDigest,
-  buildRuntimeWorkflowState,
   editedFilePath,
   findRepoRoot,
   injectShellEnv,
   registerPayloadSkills,
+  renderViaInject,
   runEditSpecCheck
 } from "../cowork-flow/plugin-core.js"
 
@@ -27,8 +26,16 @@ export const CoworkFlowPlugin = async () => {
     "shell.env": async (input, output) => {
       injectShellEnv(input, output)
     },
+    // The injection itself: the shim forwards the event to
+    // the project's Python runtime (inject.py --host
+    // opencode) and pushes whatever it printed into the
+    // system transform. A missing/failing runtime stays
+    // silent and never breaks prompt assembly.
     "experimental.chat.system.transform": async (input, output) => {
-      output.system.push([buildInjectedDigest(input), buildRuntimeWorkflowState(input)].filter(Boolean).join("\n\n"))
+      const text = await renderViaInject(input)
+      if (text) {
+        output.system.push(text)
+      }
     },
     "tool.execute.after": async (input, output) => {
       const filePath = editedFilePath(input)

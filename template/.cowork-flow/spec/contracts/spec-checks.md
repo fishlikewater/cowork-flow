@@ -269,8 +269,9 @@ characters with `();` characters stripped; a missing file adds no annotation. Th
 digest is an entry-name index, not the prose, and is hard-capped by
 scope-rules.json `stageContract.budget`; over budget, the whole line yields
 (Scope/Gates lines are never dropped). The python/zcode output comes from a single
-Python entrypoint, and the opencode mirror's byte-exact equality with it is locked
-by a matrix case (`test/stage-contract.test.js` matrix).
+Python entrypoint, locked by the `test/stage-contract.test.js` matrix; opencode
+transports that same entrypoint's output, so byte-exact equality holds by
+construction.
 
 ## Appendix D: open decision
 

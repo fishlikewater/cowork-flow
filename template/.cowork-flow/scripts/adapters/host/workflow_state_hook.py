@@ -39,6 +39,7 @@ DEFAULT_CONTRACT_REGISTRY = {
             "readWhen": [
                 "before formal subagent dispatch",
                 "when checking subagent health",
+                "when adding host runtime-context support",
             ],
         },
         {

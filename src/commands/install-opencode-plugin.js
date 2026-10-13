@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { parseInstallArgs, pathExists } from '../lib/install-support.js';
+import { templateRoot } from '../lib/paths.js';
 import { payloadSourceDir } from '../lib/plugin-payload.js';
 
 const PLUGIN_NAME = 'cowork-flow';
@@ -151,6 +152,16 @@ export async function runInstallOpenCodePlugin(args = []) {
   await rm(payloadPath(home), { recursive: true, force: true });
   await cp(join(pluginSrc, 'plugins', 'cowork-flow.js'), pluginPath(home));
   await cp(join(pluginSrc, PAYLOAD_RELATIVE), payloadPath(home), { recursive: true });
+
+  // The payload is a transport shim: outside any cowork-flow
+  // project the not-initialized context is rendered by a cached
+  // runtime copy, refreshed from the authoritative template tree
+  // at install time (zcode parity). The project's own runtime
+  // copy always wins when one exists.
+  const mainScriptsSrc = join(templateRoot, '.cowork-flow', 'scripts');
+  if (await pathExists(mainScriptsSrc)) {
+    await cp(mainScriptsSrc, join(payloadPath(home), 'runtime', 'scripts'), { recursive: true, force: true });
+  }
 
   console.log(`✓ cowork-flow OpenCode plugin installed to ${home}`);
   console.log('  Loads in the next OpenCode session; no marketplace, registry or enable step.');

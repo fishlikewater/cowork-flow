@@ -5,9 +5,9 @@ into a session: the transport shape, the event timing matrix, the contract
 digest shape rules (full block vs fingerprint line), and the fingerprint
 serialization norm. The workflow facts are rendered by ONE Python source —
 `adapters/host/inject.py` over `workflow_state_hook.py` +
-`services.fact_view.py` — consumed by the zcode transport shim (node),
-claude-code, codex, dsh, kimi-code, and qoder; the opencode JS plugin remains the one
-independent mirror, locked to the same bytes by cross-host behavior tests.
+`services.fact_view.py` — consumed by every declared host: the zcode
+transport shim (node), the opencode plugin transform shim, claude-code,
+codex, dsh, kimi-code, and qoder.
 
 This document is a meta-protocol: it describes the injection layer itself and
 is intentionally **not** registered in `contract-registry.json` (registering it
@@ -20,7 +20,7 @@ would make the digest self-referential).
 | zcode | process hook shim (`inject-context.mjs`) → `inject.py --host zcode`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` |
 | codex | thin wrapper (`inject-workflow-state.py`) → `inject.py --host codex`, stdout JSON | same shape |
 | claude-code | thin wrapper (`inject-workflow-state.py`) → `inject.py --host claude-code`, stdout JSON | same shape |
-| opencode | plugin `experimental.chat.system.transform` + `shell.env` | system-prompt section push / env object |
+| opencode | plugin `experimental.chat.system.transform` → shim (`cowork-flow/plugin-core.js`) → `inject.py --host opencode`, bare-text stdout | system-prompt section push; `shell.env` exports the context key to shell commands |
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 | kimi-code | user-level `config.toml` (`$KIMI_CODE_HOME`, default `~/.kimi-code/`) `[[hooks]]` row on `UserPromptSubmit` → shim (`cowork-flow-inject.mjs`) → `inject.py --host kimi-code` | bare-text stdout appended to the prompt context, no `hookSpecificOutput` envelope |
 | qoder | machine-level plugin `hooks/hooks.json` (node, `${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` plus a top-level `systemMessage` (a CLI-visible trace; the model context is unchanged); `PostToolUse` is not blockable there, so the edit advisory rides `additionalContext` on exit 0 |
@@ -45,11 +45,11 @@ is discarded, so only a blockable event can inject and `UserPromptSubmit` is
 the sole channel.
 
 Exit-status contract, split by install scope. The machine-level shims (Qoder,
-ZCode, Kimi Code) are **fail-open**: they run in every workspace, so they meet
-project runtimes older than themselves, and a project-side failure — an
+ZCode, Kimi Code, OpenCode) are **fail-open**: they run in every workspace, so
+they meet project runtimes older than themselves, and a project-side failure — an
 argparse rejection of the host argument, a crash, a timeout — must not fail the
 event they only decorate. Each keeps the child's message on stderr (the host's
-run log) and exits 0 with nothing injected. Exit-status blocking is reserved
+run log) and completes the event with nothing injected. Exit-status blocking is reserved
 for the project-level edit gate (`spec_only_post_tool_use`, installed by
 `init` / `sync` for claude-code and codex): that wrapper sits next to the
 runtime it calls, so hook and runtime cannot skew.
@@ -68,12 +68,12 @@ test-locked: the contract digest **fingerprint value** and the
 |---|---|---|
 | zcode | always (main + delegated) | `policy: repeat fingerprint every hook; read full spec files only before listed actions.` |
 | codex / claude-code / kimi-code / dsh / qoder (Python core) | always (main + delegated) | `policy: repeat this short digest every hook; read full spec files only before listed actions.` |
-| opencode | delegated subagent sessions only | `policy: repeat this short digest every plugin transform; read full spec files only before listed actions.` |
+| opencode | always (main + delegated) | `policy: repeat this short digest every plugin transform; read full spec files only before listed actions.` |
 
-The opencode plugin has no ordinary-session injection channel: its
-`shell.env`/transform coverage is scoped to delegated subagent sessions, and
-the in-memory session set re-injects the full digest after a process restart
-(deliberate, see "Change guard").
+The opencode transform fires on every prompt assembly, so its main sessions
+receive the same workflow-state block as every other host; the wording keeps
+"every plugin transform" because the plugin has no hook-event vocabulary of
+its own.
 
 ## Host identity resolution
 
@@ -127,8 +127,8 @@ and must pass `COWORK_FLOW_CONTEXT_ID` (or `COWORK_FLOW_HOST=kimi-code`)
 explicitly. With a known host, every key that host declares is interpretable,
 ambiguous ones included. A declared host id that is not registered fails
 closed — no identity — and an unknown host never inherits another host's
-prefix. Callers that bypass `inject.py` (the dsh preset plugin, the opencode
-JS plugin) pass `hook_input` directly or stay on their own env identity.
+prefix. Callers that bypass `inject.py` (the dsh preset plugin) pass
+`hook_input` directly or stay on their own env identity.
 
 ### Degradation invariant
 
@@ -144,8 +144,8 @@ Prefixes are the registry's `prefix` field and `platform_from_context_key`
 maps back through the same table (unknown prefix → `manual`). `claude-code`
 uses the prefix `claude`, a historical quirk preserved verbatim.
 `injects_context` marks the hosts that route through `inject.py` and is exactly
-the `--host` choice set; opencode is absent because its JS plugin renders
-context itself.
+the `--host` choice set; every declared host routes there today, and the flag
+stays so a future host can opt out explicitly.
 
 Host ids are also mirrored in `.cowork-flow/spec/runtime/host-assets.json`,
 which owns asset layout. The two lists are locked together by
@@ -162,7 +162,7 @@ event is the session state file probe.
 |---|---|---|---|
 | zcode | `SessionStart` hook event (startup / clear / compact) | PostToolUse on lifecycle commands | event name: SessionStart → full; otherwise fingerprint |
 | claude-code | `SessionStart` hook event | — | event name from hook input: SessionStart → full; otherwise fingerprint |
-| opencode | none (transform only) | every prompt assembly | in-memory per-session set: first injection full, later fingerprint |
+| opencode | none (transform only) | every prompt assembly | session state file probe: no activation file → full; file present → fingerprint |
 | codex | none (`UserPromptSubmit` only) | — | session state file probe: no activation file → full; file present → fingerprint |
 | dsh | `agent/session-start`, `agent/inbox/claimed` | `tools/result` on lifecycle commands | refresh source: session-start events → full; tools/result → fingerprint |
 | kimi-code | none (`UserPromptSubmit` only) | — | session state file probe: no activation file → full; file present → fingerprint |
@@ -185,8 +185,7 @@ Two shapes, both sha256-based:
    byte-identical everywhere.
 
 The `<workflow-state>` block is emitted independently of digest shape on
-zcode / codex / claude-code / dsh / kimi-code; the opencode line covers
-delegated subagent sessions only.
+zcode / codex / claude-code / dsh / kimi-code / opencode.
 
 ## Workflow-state structured header (stage 1)
 
@@ -199,8 +198,7 @@ XML attributes; the body keeps the human-readable breadcrumb prose.
   from the hook input or environment and is omitted otherwise (hosts that
   cannot resolve an identity never guess one — the attribute is the machine
   handle for re-binding with `COWORK_FLOW_CONTEXT_ID`). Attribute values are
-  XML-escaped (`& < > "`). The opencode JS mirror does not emit `session`
-  (delegated-only transport; documented behavioral difference, not drift).
+  XML-escaped (`& < > "`).
 - The legacy `Task:` / `Status:` / `Source:` label lines are gone — machines
   parse the attributes, humans read the body. There is no bare `Scope:`
   line in the body: the stage-contract block owns the scope declaration
@@ -239,12 +237,14 @@ Rejected: <rejected option name>; ...             (first 6 names)
 ```
 
 - Extracted from `decision-anchor.md` with the line-level parser frozen in
-  `services/fact_view.py` (`parse_decision_anchor`); the zcode and opencode JS
-  lines carry an identical parser shape.
+  `services/fact_view.py` (`parse_decision_anchor`) — the only parser; every
+  host line renders through it.
 - The `AC evidence:` row appears only for tasks that declare AC rows, right
   after the `Acceptance:` row, and renders byte-identically across the
-  python / zcode-shim / opencode lines (matrix-locked). Schema and gate
-  semantics live in `evidence-completion.md`.
+  python / zcode-shim lines (matrix-locked); the opencode transform spawns
+  the same Python entry, so its bytes are identical by construction (render-
+  tested in `test/opencode-plugin.test.js`). Schema and gate semantics live
+  in `evidence-completion.md`.
 - Missing anchor file, no extractable essentials, or terminal statuses
   (`completed`) inject nothing.
 
@@ -306,10 +306,10 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   byte-identical across host lines for the whole fixture matrix
   (`test/fixtures/stage-contract-matrix.json` drives the equality test:
   canonical, `./`-prefixed, invalid-boundary, over-budget, emoji,
-  missing-anchor, empty-scope, delegated-readonly). The zcode line now runs
-  through the same Python source as the python line (transport shim), so the
-  matrix's remaining cross-host assertion is opencode's JS mirror against
-  the single source — a mirror, not a mechanism.
+  missing-anchor, empty-scope, delegated-readonly). Both JS-delivered lines
+  (zcode hook shim, opencode plugin transform) run through the same Python
+  source as the python line, so the matrix locks python/zcode and the
+  opencode line inherits the bytes by construction.
 
 The authoritative per-file verdict lives in the MCP `task_scope` tool
 (`services.fact_view.file_scope_whitelist` — same semantics, live data).
@@ -318,16 +318,14 @@ The authoritative per-file verdict lives in the MCP `task_scope` tool
 
 sha256 over (1) the registry `contracts` array serialized with
 **recursively sorted keys** (Python `json.dumps(..., sort_keys=True,
-ensure_ascii=False)`; the opencode plugin uses the equivalent
-`stableStringify`), then (2) each contract file's raw bytes in registry
+ensure_ascii=False)`), then (2) each contract file's raw bytes in registry
 order; a missing file hashes as the literal string `missing:<path>`. The
 fingerprint is the first 16 hex chars of the digest.
 
-Serialization must be byte-identical across implementations: same
-key order, same escaping (ASCII-safe content), same UTF-8 encoding. The
-cross-host test (`test/contract-fingerprint.test.js`) asserts this and is the
-regression lock against drift between the opencode mirror and the Python
-single source.
+The computation lives only in the Python source. The cross-host test
+(`test/contract-fingerprint.test.js`) locks the zcode shim against it, and
+the opencode render tests pin the value the transform injects, so no second
+implementation can drift.
 
 ## Change guard
 

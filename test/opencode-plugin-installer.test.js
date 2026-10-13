@@ -66,6 +66,10 @@ test("install-opencode-plugin writes the plugin file and its payload", async () 
     assert.match(plugin, /CoworkFlowPlugin/)
     await access(join(home, ...CORE_RELATIVE))
     await access(join(home, ...SKILL_RELATIVE))
+    // The shim's not-initialized render outside any project comes from this
+    // cached runtime copy (zcode parity), refreshed from the template at
+    // install time.
+    await access(join(home, "cowork-flow", "runtime", "scripts", "adapters", "host", "inject.py"))
 
     // Only our two entries are added: the config directory belongs to the user
     // and to the host, and this installer writes nothing else into it.
@@ -120,10 +124,19 @@ test("install-opencode-plugin converges on the shipped payload", async () => {
     await withXdgConfigHome(root, () => runInstallOpenCodePlugin(["--force"]))
 
     const shipped = join(packageRoot, "presets", "opencode")
+    // Convergence target: the shipped payload plus the runtime-scripts cache
+    // the installer copies out of the template tree (the shim's fallback
+    // renderer outside any cowork-flow project).
+    const expected = await tree(join(shipped, "cowork-flow"))
+    for (const [relative, content] of Object.entries(
+      await tree(join(packageRoot, "template", ".cowork-flow", "scripts"))
+    )) {
+      expected[`runtime/scripts/${relative}`] = content
+    }
     assert.deepEqual(
       await tree(join(home, "cowork-flow")),
-      await tree(join(shipped, "cowork-flow")),
-      "the installed payload must be the shipped payload"
+      expected,
+      "the installed payload must be the shipped payload plus the runtime cache"
     )
     assert.equal(
       await readFile(pluginPath(home), "utf8"),

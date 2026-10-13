@@ -70,7 +70,8 @@ direct lifecycle checks:
   `AC evidence: <with evidence>/<total>` after the `Acceptance:` row, plus
   ` missing=<comma-separated ids, at most 5>` when any are missing; the three lines
   (Python / zcode shim / opencode plugin) render byte-identically in the same
-  format, locked by matrix tests.
+  format — the Python renderer and the zcode shim are locked by matrix tests,
+  and the opencode plugin transports that same output.
 - `run state <task> --json` / the MCP fact view: `evidenceCoverage: {total,
   withEvidence, missing[]}`; `null` when no AC is declared.
 
