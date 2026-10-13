@@ -1,46 +1,74 @@
 # Task Board Contract
 
-**共享看板：`task next --list --json` 与 MCP `task_list` 是同一份看板事实的两种渲染——第二个执行者不跑 `run state` 就能看出"谁在占用、有没有卡住、证据到哪了"。依赖边把任务的先后关系变成 start 的可裁决门禁。**
+**Shared board: `task next --list --json` and the MCP `task_list` are two
+renderings of the same board facts — a second executor can see "who holds what,
+is anything stuck, how far has the evidence come" without running `run state`.
+Dependency edges turn the ordering between tasks into an adjudicable gate on
+start.**
 
-单一实现（`services/task_board.py` + `services/task_graph.py`）供两个表面复用，字段值必须同源一致。
+A single implementation (`services/task_board.py` + `services/task_graph.py`) is
+reused by both surfaces, so field values must stay consistent from one source.
 
-## 看板字段（每条任务记录新增）
+## Board fields (added to every task record)
 
-| 字段 | 含义 | 边界 |
+| Field | Meaning | Boundary |
 |---|---|---|
-| `executor` | 当前归属执行者（`task.json.executor`，无则 `null`） | 由 start / `--takeover` / `--adopt` 写入 |
-| `ownerSessionActive` | 是否有会话绑定这条任务（`sessions/` 中 `active_task_path` 指向它） | **提示位，非裁决**：显式传目录工作的会话永不绑定，`false` 只表示"无绑定指向"，不表示任务已成孤儿 |
-| `evidenceCoverage` | `{total, withEvidence, missing[]}`；未声明 AC 的任务为 `null` | 与 `run state` / 注入覆盖行同源（`ac_evidence`） |
-| `blocked` | 是否存在未完成依赖 | 见下"依赖语义" |
-| `blockedBy` | 未完成依赖的任务名列表 | 按声明顺序；缺失目标也算未完成 |
+| `executor` | the currently owning executor (`task.json.executor`, `null` when unset) | written by start / `--takeover` / `--adopt` |
+| `ownerSessionActive` | whether any session is bound to this task (`active_task_path` in `sessions/` points at it) | **a hint, not a verdict**: a session working with an explicit directory is never bound, so `false` only means "no binding points here" and never that the task is orphaned |
+| `evidenceCoverage` | `{total, withEvidence, missing[]}`; `null` for a task with no declared AC | same source as `run state` / the injected coverage row (`ac_evidence`) |
+| `blocked` | whether an unfinished dependency exists | see "dependency semantics" below |
+| `blockedBy` | names of the tasks whose dependencies are unfinished | in declaration order; a missing target also counts as unfinished |
 
-既有字段（`name`/`path`/`status`/`assignee`/`parent`/`children`/`childrenDone`/`childrenTotal`/`depth`/`active`）语义不变。
+The pre-existing fields (`name`/`path`/`status`/`assignee`/`parent`/`children`/
+`childrenDone`/`childrenTotal`/`depth`/`active`) keep their semantics.
 
-## 依赖边
+## Dependency edges
 
-**声明**（唯一的运行时入口，创建时一次定下）：
+**Declaration** (the only runtime entry point; fixed once at creation time):
 
 ```bash
 ./.cowork-flow/run task next --run --title "<title>" --slug <slug> \
   --depends-on <task-name> [--depends-on <task-name> ...]
 ```
 
-- `--depends-on` 取**完整任务目录名**（`task next --list` 的 `name` 列；不猜前缀/后缀），可重复。
-- 声明期 fail-closed，任一校验失败则创建失败且不落盘：
-  - `TASK-CREATE-DEPENDENCY-001` 目标不存在（在 `tasks/` 与 `tasks/archive/**` 都找不到）；
-  - `TASK-CREATE-DEPENDENCY-002` 自依赖（写自己的目录名或 slug）；
-  - `TASK-CREATE-DEPENDENCY-003` 环（沿着既有 `dependsOn` 边能回到新任务）。
-- 写入 `task.json` 的 `dependsOn`（字符串数组，归一化去重保序）；缺失该字段等价于无依赖——存量任务零影响。
-- 跨仓库/跨项目依赖不支持；改写依赖没有运行时命令（1.9.x 候补），修复路径是本地编辑 `task.json`（事实层文件，手改合法；改完环或悬空目标会在 start 处按未完成处理）。
+- `--depends-on` takes the **full task directory name** (the `name` column of
+  `task next --list`; no prefix/suffix guessing) and may be repeated.
+- Declaration is fail-closed: any failed validation fails the creation and writes
+  nothing:
+  - `TASK-CREATE-DEPENDENCY-001` the target does not exist (not found in either
+    `tasks/` or `tasks/archive/**`);
+  - `TASK-CREATE-DEPENDENCY-002` self-dependency (its own directory name or slug);
+  - `TASK-CREATE-DEPENDENCY-003` a cycle (following the existing `dependsOn` edges
+    leads back to the new task).
+- Written into `task.json` as `dependsOn` (a string array, normalized, deduplicated,
+  order preserved); a missing field is equivalent to no dependency — existing tasks
+  are unaffected.
+- Cross-repository/cross-project dependencies are unsupported, and there is no
+  runtime command to rewrite dependencies (a 1.9.x candidate); the repair path is
+  editing `task.json` locally (a fact-layer file where a hand edit is legitimate —
+  a cycle or dangling target introduced that way is treated as unfinished at the
+  start gate).
 
-**门禁**（只约束进入 `in_progress` 这一个迁移点）：
+**Gate** (it constrains exactly one transition point, entry into `in_progress`):
 
-- 依赖项状态全部为 `completed` 才允许 start；归档任务保留 `completed`，因此归档的完成依赖仍然有效。
-- 未完成时 fail-closed：`LIFECYCLE-DEPENDENCY-001`，blocker 文本 `task depends on unfinished work: <names>`；同一条文本同时出现在 `task next <dir>` 的导航 payload（blockers）与 `--run` 的报错里。
-- 已启动的任务不受回溯影响（检查发生在 start 的 preflight；幂等重跑不经过它）。
-- `--adopt`、review、complete 不受依赖约束——依赖只回答"能不能开始"，不回答"能不能收尾"。
-- 导航形态：planning 状态且存在 blocker（含依赖）时，`task next <dir>` 报的动作是 `edit_planning_artifacts`（与 readiness blocker 既有语义一致：被阻塞期间先做规划工作），blocker 文本是事实来源。
+- Start is allowed only once every dependency is `completed`; an archived task
+  keeps `completed`, so an archived dependency still counts as done.
+- While unfinished, it fails closed: `LIFECYCLE-DEPENDENCY-001`, with the blocker
+  text `task depends on unfinished work: <names>`; that same text appears both in
+  the navigation payload of `task next <dir>` (blockers) and in the `--run` error.
+- An already-started task is not affected retroactively (the check happens in the
+  start preflight; an idempotent re-run does not go through it).
+- `--adopt`, review, and complete are not constrained by dependencies —
+  dependencies answer "can this begin", not "can this wrap up".
+- Navigation shape: with a planning status and any blocker present (dependencies
+  included), `task next <dir>` reports the action `edit_planning_artifacts`
+  (consistent with the existing readiness-blocker semantics: do planning work while
+  blocked), and the blocker text is the fact source.
 
-## 交接凭证（adopt 输出）
+## Handover receipt (adopt output)
 
-`task next <dir> --run --adopt` 成功后除归属重绑与基线重置（见 `task-adopt.md`）外，打印 Handover 段：原执行者 → 新执行者、原基线 → 新基线、剩余未勾选 AC 列表与计数、证据覆盖 `n/m`。收养者不需要额外查询即可接手。
+After a successful `task next <dir> --run --adopt`, on top of the ownership rebind
+and baseline reset (see `task-adopt.md`), a Handover section is printed: former
+executor → new executor, former baseline → new baseline, the list and count of
+remaining unchecked ACs, and the evidence coverage `n/m`. The adopter can pick up
+without any further query.

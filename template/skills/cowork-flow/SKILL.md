@@ -26,6 +26,7 @@ Classify the request into exactly one intent:
 - `clarify`: refine goals, boundaries, or acceptance criteria.
 - `plan`: create or revise an executable plan.
 - `implement`: change code or task artifacts.
+- `archive`: archive a completed task and snapshot its bound plan.
 - `review`: verify implementation or complete review gates.
 - `doubt_review`: run standalone advisory doubt review without lifecycle check dispatch.
 - `debug`: diagnose a failure or repeated unsuccessful attempt.

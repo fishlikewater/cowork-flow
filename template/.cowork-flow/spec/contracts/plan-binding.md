@@ -1,19 +1,23 @@
 # Plan Binding Contract
 
-计划绑定让开发计划进入实施路径，但不把计划变成第二套流程内核。
+Plan binding brings a development plan into the implementation path without turning
+the plan into a second workflow kernel.
 
-## 权威边界
+## Authority boundaries
 
-- `decision-anchor.md` 继续承载目标、验收标准和范围判断。
-- `implement.jsonl` 继续承载 review/complete 的硬文件范围。
-- `.cowork-flow/plans/*.md` 承载实施顺序、文件边界、验证命令和禁止漂移说明。
-- `task.json.meta.planFile` 只记录 repo-relative 计划路径。
+- `decision-anchor.md` keeps carrying the goal, acceptance criteria, and scope
+  judgement.
+- `implement.jsonl` keeps carrying the hard file scope for review/complete.
+- `.cowork-flow/plans/*.md` carries the implementation order, file boundaries,
+  verification commands, and anti-drift notes.
+- `task.json.meta.planFile` records only the repo-relative plan path.
 
-## 创建阶段
+## Creation phase
 
-- 普通 `task create` 可以创建没有计划的 planning task。
-- `task create --from-plan <path>` 是显式绑定请求；`<path>` 必须存在、位于仓库内，并位于 `.cowork-flow/plans/` 下。
-- 成功绑定后，runtime 写入：
+- A plain `task create` may create a planning task with no plan.
+- `task create --from-plan <path>` is an explicit binding request; `<path>` must
+  exist, lie inside the repository, and lie under `.cowork-flow/plans/`.
+- On a successful binding the runtime writes:
 
 ```json
 {
@@ -23,45 +27,57 @@
 }
 ```
 
-## 规划期绑定
+## Binding during planning
 
-- 未在创建时绑定的 planning task 可执行
-  `./.cowork-flow/run task next <task-dir> --run --from-plan <path>` 补绑计划。
-- 校验与创建阶段一致：路径存在、位于仓库内、`.cowork-flow/plans/` 下且非空。
-- 绑定只写 `task.json.meta.planFile`（保留 meta 其它键），不改任务状态；
-  绑定后重新运行 `task next <task-dir> --run` 继续。
-- 非 planning 任务携带 `--from-plan` 被拒绝（next action 不是
-  `edit_planning_artifacts` 时 runner 报错）。
+- A planning task not bound at creation time can bind a plan later with
+  `./.cowork-flow/run task next <task-dir> --run --from-plan <path>`.
+- Validation matches the creation phase: the path exists, lies inside the
+  repository, is under `.cowork-flow/plans/`, and is non-empty.
+- The binding writes only `task.json.meta.planFile` (keeping the other meta keys)
+  and does not change task status; re-run `task next <task-dir> --run` afterwards
+  to continue.
+- A non-planning task carrying `--from-plan` is refused (the runner errors when the
+  next action is not `edit_planning_artifacts`).
 
-## 启动实施前
+## Before starting implementation
 
-Normal / High-risk task 从 `planning` 进入 `in_progress` 前必须满足：
+A Normal / High-risk task must satisfy the following before moving from `planning`
+into `in_progress`:
 
-- `task.json.meta.planFile` 存在。
-- `planFile` 是 repo-relative `.cowork-flow/plans/` 路径。
-- 计划文件存在且非空。
-- `decision-anchor.md` 包含 `## 目标` 和 `## 验收标准`。
-- `implement.jsonl` 通过既有 context validation。
+- `task.json.meta.planFile` exists.
+- `planFile` is a repo-relative `.cowork-flow/plans/` path.
+- The plan file exists and is non-empty.
+- `decision-anchor.md` contains `## 目标` and `## 验收标准`.
+- `implement.jsonl` passes the existing context validation.
 
-Tiny task 可以没有 planFile，但仍必须满足现有 anchor 与 implement 范围要求。
+A Tiny task may have no planFile, but must still satisfy the existing anchor and
+implement-scope requirements.
 
-## 实施恢复
+## Implementation recovery
 
-当 active task 绑定了 `meta.planFile`，恢复清单必须提示先读取当前计划，再读取 `decision-anchor.md` 和 JSONL context。恢复输出只列路径，不展开计划正文。
+When the active task has a bound `meta.planFile`, the recovery checklist must point
+at reading the current plan first, then `decision-anchor.md` and the JSONL context.
+The recovery output lists paths only and never expands the plan prose.
 
-## 归档阶段
+## Archive phase
 
-- 归档任务时，runtime 把 `meta.planFile` 指向的计划文件按字节复制为归档任务目录下的 `plan.md` 快照，使归档记录自包含。
-- 快照是复制不是移动：`.cowork-flow/plans/` 原件与 `meta.planFile` 指针保持不变。
-- `meta.planFile` 缺失、为空或指向不存在的文件时跳过快照，归档照常完成。
-- 快照写入失败按既有归档事务回滚（TASK-ARCHIVE-PLAN-001）；回滚时删除已写入的快照。
+- When archiving a task, the runtime byte-copies the plan file pointed at by
+  `meta.planFile` into the archive task directory as a `plan.md` snapshot, making
+  the archive record self-contained.
+- The snapshot is a copy, not a move: the original under `.cowork-flow/plans/` and
+  the `meta.planFile` pointer stay unchanged.
+- When `meta.planFile` is missing, empty, or points at a nonexistent file, the
+  snapshot is skipped and archiving completes normally.
+- A failed snapshot write rolls back under the existing archive transaction
+  (TASK-ARCHIVE-PLAN-001); the rollback deletes the snapshot already written.
 
-## v1 非目标
+## v1 non-goals
 
-- 不解析计划 step 状态。
-- 不做 Markdown AST 或 DSL。
-- 不比较 AC 文本与计划任务正文。
-- 不匹配验证命令和证据记录。
-- 不引入 plan approval 数据模型。
+- No parsing of plan step status.
+- No Markdown AST or DSL.
+- No comparing AC text against plan task prose.
+- No matching verification commands against evidence records.
+- No plan-approval data model.
 
-这些能力只能在 warning 噪音和真实收益被验证后再考虑。
+These capabilities are considered only after warning noise and real payoff have been
+validated.

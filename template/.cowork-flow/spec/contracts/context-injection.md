@@ -209,7 +209,7 @@ XML attributes; the body keeps the human-readable breadcrumb prose.
 
 ```text
 <workflow-state task=".cowork-flow/tasks/08-28-demo" status="in_progress" source="runtime-session" session="zcode_probe">
-活动任务正在执行。...
+An active task is in progress. ...
 </workflow-state>
 ```
 

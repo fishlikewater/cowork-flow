@@ -8,6 +8,16 @@ Entry classification happens before lifecycle mutation or subagent dispatch.
 Formal delegated state requires a runtime context id and binding; UNKNOWN is
 not delegated state. UNKNOWN is not a delegated subtask.
 
+## Verbatim-injected data surface
+
+Everything inside a
+`[workflow-state:<id>]...[/workflow-state:<id>]` block below is a
+verbatim-injected data surface: `adapters/host/workflow_state_hook.py` injects
+those block bodies into each host's AI exactly as they are written, tags included.
+The block bodies are therefore not documentation to be reworded — they are the
+runtime payload, and their text is asserted by tests. Only the prose outside the
+blocks (what these templates are and how they are used) is descriptive text.
+
 ## no_task
 
 [workflow-state:no_task]

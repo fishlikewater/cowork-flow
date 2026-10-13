@@ -23,7 +23,7 @@ SPEC_CHECKS_CONTRACT = (
     / "spec-checks.md"
 )
 
-QUICK_START_HEADING = "### 从零到第一条检查（可直接抄）"
+QUICK_START_HEADING = "### From zero to the first check (copy-paste)"
 
 
 PY = sys.executable
@@ -698,8 +698,8 @@ class SpecCheckTest(unittest.TestCase):
         # test_a_command_that_prints_the_prefix_doubles_it).
         contract = SPEC_CHECKS_CONTRACT.read_text(encoding="utf-8")
         self.assertIn(QUICK_START_HEADING, contract)
-        self.assertIn("前缀由框架加", contract)
-        self.assertIn("命令只输出违规内容", contract)
+        self.assertIn("the framework adds the", contract)
+        self.assertIn("prints violations only", contract)
         self.assertIn("files", _quick_start_example(f'"{PY}" -c "pass"'))
 
     def test_a_command_that_prints_the_prefix_doubles_it(self) -> None:
