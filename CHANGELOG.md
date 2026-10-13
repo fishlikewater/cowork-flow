@@ -8,6 +8,7 @@
 
 ### Changed
 
+- **安装器共享助手收敛（内部）**：9 份 `install-*.js` 的机械重复收进 `src/lib/`，可观测行为（stdout 文案、守卫顺序、退出码）逐字冻结，既有测试零修改通过。① `writeJsonAtomic` 单源化到 `install-support.js`（写前 mkdir 父目录 + 临时文件换名），zcode/qoder/dsh-preset 的本地副本删除。② 新增 `payload-install.js`（含 `pruneEmptyDir`）：claude-code/kimi-code/opencode 三份同构安装器走共享"头部 → 归属守卫 → dry-run → 物化 → 报告"骨架，三家逐字重复的句子只保留一份（守卫拒绝、强制覆盖提示、未安装提示、完成行），各自收敛为 90 行薄壳（原 129/142/169 行）；marketplace/registry/bundle 等宿主语义留在原模块。③ kimi-hook 与 dsh-hook 的托管块手术（定位/替换/移除）共享 `upsertManagedBlock` / `removeManagedBlock`，各自的块渲染与行尾锚定保留，重复安装幂等与卸载字节复原语义不变。
 - **OpenCode 插件收敛为 zcode 同形态传输 shim**：插件内 1125 行 JS 手写渲染/绑定（registry 加载、指纹计算、stage-contract、decision-anchor、运行时绑定 JSON-pair 写入）全部删除，`experimental.chat.system.transform` 改为 spawn 项目内 `inject.py --host opencode` 并原样注入其 stdout；`plugin-core.js` 只剩宿主能力胶水（传输、`shell.env` 上下文键导出、edit 期 spec-check 代理、载荷技能目录注册）。配套变化：① `inject.py --host opencode` 成为合法选项，新增 `opencode_policy`（digest 措辞保留 "every plugin transform"；无 SessionStart 事件，digest 形状由会话状态文件探测推导；stdout 即注入故 `emit_text`）。② 行为变化：主会话现在同样收到 `<workflow-state>` 注入（此前仅 delegated 子代理会话有），digest 全量/指纹判定由「进程内 per-session 集合」改为跨进程可靠的「会话激活文件探测」，workflow-state 头按统一规则携带 `session` 属性。③ `DEFAULT_CONTRACT_REGISTRY` 兜底单源化：JS 副本随渲染删除，只剩 Python 一份，`tests/test_contract_registry.py` 把它与 `contract-registry.json` 逐条锁定防漂移。④ 机器级安装载荷新增 `cowork-flow/runtime/scripts` 缓存副本（安装时从 template 刷新，zcode 同形态），项目外渲染 not-initialized 上下文；项目内始终以项目自身运行时副本为准。契约同步见 `.cowork-flow/spec/contracts/context-injection.md`。升级动作：`cwf host add opencode --force` 刷新机器级载荷后重启 OpenCode。
 
 ## [1.8.1] - 2026-10-08

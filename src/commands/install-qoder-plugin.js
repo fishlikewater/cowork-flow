@@ -1,8 +1,8 @@
-import { cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { parseInstallArgs, pathExists } from '../lib/install-support.js';
+import { parseInstallArgs, pathExists, writeJsonAtomic } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 
@@ -87,13 +87,6 @@ async function loadConfigs(paths) {
 // docs, so every write keeps unknown keys and unrelated
 // entries verbatim: cowork-flow may only own its own key
 // inside a file it did not create.
-async function writeJsonAtomic(path, data) {
-  await mkdir(dirname(path), { recursive: true });
-  const temp = `${path}.cowork-flow.tmp`;
-  await writeFile(temp, JSON.stringify(data, null, 2) + '\n', 'utf8');
-  await rename(temp, path);
-}
-
 function registryEntry(existing, installPath, version, now) {
   const previous = Array.isArray(existing) ? existing[0] : null;
   return {

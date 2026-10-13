@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { parseInstallArgs, pathExists } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
 import { readPackageInfo } from '../lib/package-info.js';
+import { removeManagedBlock, upsertManagedBlock } from '../lib/payload-install.js';
 
 const SHIM_NAME = 'cowork-flow-inject.mjs';
 const SHIM_SRC = join(packageRoot, 'presets', 'kimi-code', 'hooks', SHIM_NAME);
@@ -117,7 +118,7 @@ function hookRowEnd(lines, start) {
 
 
 /**
- * Locate the managed block inside the config text.
+ * Locate the managed block inside the config's lines.
  *
  * The config is edited as text on purpose: a TOML
  * round-trip would rewrite every pretty-printed entry of
@@ -128,8 +129,7 @@ function hookRowEnd(lines, start) {
  * `[[hooks]]` row whose command names this shim. Null when
  * neither exists.
  */
-function findManagedBlock(text, home) {
-  const lines = text.split('\n');
+function locateBlock(lines, home) {
   const marked = lines.findIndex((line) => line.trim() === MANAGED_START);
   if (marked !== -1) {
     let end = marked + 1;
@@ -153,40 +153,37 @@ function findManagedBlock(text, home) {
 }
 
 
-function withBlock(text, home) {
-  const block = hookBlock(home).split('\n');
-  const range = findManagedBlock(text, home);
-  if (range !== null) {
-    const lines = text.split('\n');
-    if (lines.slice(range.start, range.end).join('\n') === block.join('\n')) {
-      return { text, changed: false, existed: true };
-    }
-    return {
-      text: lines.slice(0, range.start).concat(block).concat(lines.slice(range.end)).join('\n'),
-      changed: true,
-      existed: true
-    };
-  }
+// The TOML append form: one blank line before a fresh block
+// when the file already has content, none when it does not.
+function appendBlock(text, block) {
   const base = text.replace(/\s+$/, '');
-  const appended = base === '' ? block.join('\n') : base + '\n\n' + block.join('\n');
-  return { text: appended + '\n', changed: true, existed: false };
+  return (base === '' ? block : base + '\n\n' + block) + '\n';
+}
+
+
+// Removal folds the seam: surrounding blank lines go, the
+// trailing newline stays, and an emptied file stays empty —
+// a config that only ever held this hook leaves nothing.
+function collapseRemoval(body) {
+  const trimmed = body.replace(/^\n+/, '').replace(/\s+$/, '');
+  return trimmed === '' ? '' : trimmed + '\n';
+}
+
+
+function withBlock(text, home) {
+  return upsertManagedBlock(text, {
+    locate: (lines) => locateBlock(lines, home),
+    block: hookBlock(home),
+    append: appendBlock
+  });
 }
 
 
 function withoutBlock(text, home) {
-  const range = findManagedBlock(text, home);
-  if (range === null) {
-    return { text, changed: false };
-  }
-  const lines = text.split('\n');
-  const kept = lines.slice(0, range.start).concat(lines.slice(range.end));
-  const body = kept.join('\n').replace(/^\n+/, '').replace(/\s+$/, '');
-  if (body === '') {
-    // An empty file left behind would be a config that
-    // only ever held this hook.
-    return { text: '', changed: true };
-  }
-  return { text: body + '\n', changed: true };
+  return removeManagedBlock(text, {
+    locate: (lines) => locateBlock(lines, home),
+    collapse: collapseRemoval
+  });
 }
 
 

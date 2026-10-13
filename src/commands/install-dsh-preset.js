@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
-import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
+import { parseInstallArgs, pathExists, readJsonFile, writeJsonAtomic } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
 import { readPackageInfo } from '../lib/package-info.js';
 
@@ -154,11 +154,10 @@ function renderBundlePackage(version) {
 
 
 async function writeMarker(dir, version) {
-  await writeFile(
-    join(dir, MARKER_FILE),
-    `${JSON.stringify({ version, installedAt: new Date().toISOString() }, null, 2)}\n`,
-    'utf8'
-  );
+  await writeJsonAtomic(join(dir, MARKER_FILE), {
+    version,
+    installedAt: new Date().toISOString(),
+  });
 }
 
 
