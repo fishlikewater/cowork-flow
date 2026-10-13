@@ -109,6 +109,8 @@ checks:
 ## 扩展规则
 
 - 宿主特化只能放在 `spec/runtime/host-assets.json`、`scripts/adapters/`、`template/.<host>/` 或明确的宿主命令模块中。
+- 插件只提供宿主确实支持的字段，不复制未知或无效键。
+- 项目技能只由 `template/skills/` 分发；机器级载荷不复制同名项目技能。
 - `scripts/services|runtime|infra` 和 `src/lib/` 的通用计划、拷贝模块不能出现宿主分支。
 - 新宿主先更新 Host Asset Manifest 与 schema，再补安装器、doctor 和测试；不要在多个文件各写一份宿主清单。
 - 项目差异写入 `AGENTS.md`、`config.yaml`、`spec/` 或项目自有 Skill，不恢复第二套流程文档。
@@ -117,6 +119,6 @@ checks:
 
 ## 测试与字节码
 
-Node 测试位于 `test/`，Python 仓库测试位于 `tests/`。`node --test` 会加载 `test/` 下全部 `.js`，辅助模块也必须无副作用；Python 侧按 pytest 或 unittest 的默认发现规则收集。
-
 测试与技能脚本不得在 `template/`、`presets/` 下留下 `__pycache__` 或 `*.pyc`。Node 测试通过 `test/helpers/bytecode-isolation.js` 重定向缓存；技能脚本通过 `runtime_pythonpath_env(cache_bytecode=False)` 关闭字节码写入。`tests/test_no_legacy_template_paths.py` 负责守住这一边界。
+
+`node --test` 会加载 `test/` 下全部 `.js`，辅助模块也必须无副作用；Python 侧按 pytest 或 unittest 的默认发现规则收集。
