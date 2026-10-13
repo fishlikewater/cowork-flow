@@ -172,11 +172,10 @@ cwf host remove kimi-code --component hook
 
 ```bash
 cwf host add kimi-code
+cwf host remove kimi-code
 ```
 
-Kimi Code 目前只能通过 TUI 安装插件。命令会把载荷放到稳定源目录 `$KIMI_CODE_HOME/plugins/sources/cowork-flow/`，然后打印需要在 Kimi 中执行的 `/plugins install <绝对路径>` 和 `/reload`。
-
-`cwf host remove kimi-code` 会删除源目录并提示宿主侧残留；托管副本和注册表记录需要在 Kimi 中执行 `/plugins remove cowork-flow`。
+命令会物化到 `$KIMI_CODE_HOME/plugins/sources/cowork-flow/`（稳定重装源）与 `$KIMI_CODE_HOME/plugins/managed/cowork-flow/`（宿主加载的副本），并直接写入宿主的插件注册表 `$KIMI_CODE_HOME/plugins/installed.json`，与 Kimi Code 自己的 `/plugins install` 落盘格式一致。重启 Kimi Code 即生效，无需在 TUI 中手工安装。卸载会反向清理两份目录与注册记录。
 
 ## MCP 客户端接入
 

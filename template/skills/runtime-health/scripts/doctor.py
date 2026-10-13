@@ -1263,11 +1263,10 @@ def check_kimi_code_plugin(repo_root: Path) -> list[dict[str, str]]:
     """Kimi Code plugin health. Advisory, and silent while the project never
     selected the Kimi Code host.
 
-    The plugin is a machine-level asset, and Kimi Code installs it from the TUI:
-    `cwf host add kimi-code` materializes a stable source directory, and the user
-    runs `/plugins install <dir>` once. So "materialized but not registered" is a
-    normal, expected state rather than a mistake, and this check names it as
-    such."""
+    The plugin is a machine-level asset: `cwf host add kimi-code` installs the
+    managed copy and writes the registry record itself (no TUI handoff), so a
+    record that is missing, disabled, half-materialized or stale is exactly
+    what this check names."""
     adapter = repo_root / DIR_WORKFLOW / "adapters" / "kimi-code" / "adapter.yaml"
     if not adapter.is_file():
         return []
@@ -1301,8 +1300,7 @@ def check_kimi_code_plugin(repo_root: Path) -> list[dict[str, str]]:
                 root / relative,
                 f"the installed Kimi Code plugin is missing {relative}, so it "
                 "cannot load the bootstrap Skill",
-                "/plugins remove cowork-flow, then /plugins install "
-                + str(home / "plugins" / "sources" / _KIMI_PLUGIN_NAME),
+                "cwf host add kimi-code --force",
             )
 
     try:
@@ -1319,8 +1317,7 @@ def check_kimi_code_plugin(repo_root: Path) -> list[dict[str, str]]:
             f"the Kimi Code plugin was installed from "
             f"{recorded_version or 'an unknown version'} but this project runs "
             f"{project_version}; the plugin does not update with sync or npm",
-            "cwf host add kimi-code --force, then /plugins install "
-            + str(home / "plugins" / "sources" / _KIMI_PLUGIN_NAME),
+            "cwf host add kimi-code --force",
         )
 
     source = home / "plugins" / "sources" / _KIMI_PLUGIN_NAME
@@ -1328,8 +1325,8 @@ def check_kimi_code_plugin(repo_root: Path) -> list[dict[str, str]]:
         return _kimi_plugin_warning(
             "PLUGIN-SOURCES-MISSING",
             source,
-            "the Kimi Code plugin is registered but the source directory it was "
-            "installed from is gone, so reinstalling it would fail",
+            "the cowork-flow Kimi Code plugin is registered but its stable "
+            "reinstall source directory is gone",
             "cwf host add kimi-code",
         )
     return []

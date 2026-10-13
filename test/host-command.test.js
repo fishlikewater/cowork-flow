@@ -91,7 +91,7 @@ test('host add sends each host to its own installer', async (t) => {
     { argv: ['codex'], expect: /Codex plugin/ },
     { argv: ['zcode'], expect: /ZCode plugin/ },
     { argv: ['qoder'], expect: /Qoder plugin/ },
-    { argv: ['kimi-code'], expect: /Kimi Code plugin source/ },
+    { argv: ['kimi-code'], expect: /Kimi Code plugin/ },
   ];
   for (const { argv, expect } of cases) {
     const output = await captureConsole(() => runHostAdd([...argv, '--dry-run']));
@@ -123,7 +123,7 @@ test('host add accepts a host alias and the --component=<value> form', async (t)
   assert.match(alias, /Would install workflow-state hook/);
 
   const kimiAlias = await captureConsole(() => runHostAdd(['kimi', '--dry-run']));
-  assert.match(kimiAlias, /Kimi Code plugin source/);
+  assert.match(kimiAlias, /Kimi Code plugin/);
 });
 
 test('host remove reaches the uninstall path of every component', async (t) => {
@@ -144,7 +144,7 @@ test('host remove reaches the uninstall path of every component', async (t) => {
     { argv: ['codex'], expect: /Would run: codex plugin remove/ },
     { argv: ['zcode'], expect: /Would remove cowork-flow ZCode plugin/ },
     { argv: ['qoder'], expect: /Would remove cowork-flow@cowork-flow-local/ },
-    { argv: ['kimi-code'], expect: /cowork-flow Kimi Code plugin source was not installed/ },
+    { argv: ['kimi-code'], expect: /cowork-flow Kimi Code plugin was not installed/ },
     { argv: ['dsh', '--component', 'preset'], expect: /Would uninstall DSH preset/ },
     { argv: ['dsh', '--component', 'hook'], expect: /Would uninstall workflow-state hook/ }
   ];

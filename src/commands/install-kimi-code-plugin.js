@@ -1,17 +1,25 @@
-import { rm } from 'node:fs/promises';
+import { realpath, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
+import {
+  KIMI_PLUGIN_ID,
+  installedRegistryPath,
+  readInstalledRegistry,
+  removePluginRecord,
+  upsertPluginRecord
+} from '../lib/kimi-installed-registry.js';
 import { foreignTargetRefusal, installPayloadDir, uninstallPayloadDir } from '../lib/payload-install.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 
 const PLUGIN_NAME = 'cowork-flow';
 const MANIFEST_MARKER = 'cowork-flow';
-const LABEL = 'Kimi Code plugin source';
+const LABEL = 'Kimi Code plugin';
 
-// Rendered by `host add`/`host remove`; the installer's own vocabulary.
+// Rendered by `host add`/`host remove`; the installer's
+// own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
@@ -21,11 +29,21 @@ function kimiHome() {
   return configured ? resolve(configured) : join(homedir(), '.kimi-code');
 }
 
-// The host re-reads this source directory on every reinstall,
-// so it must survive upgrades; deliberately NOT
-// `plugins/managed/` (the host's own copy, doctor's half-installed case).
+// The stable reinstall source, kept for the registry's
+// `originalSource` and for a user who still runs the host's
+// own `/plugins install` by hand; deliberately NOT
+// `plugins/managed/` (the host's copy carries its own
+// lifecycle).
 function sourceDir(home) {
   return join(home, 'plugins', 'sources', PLUGIN_NAME);
+}
+
+// The host's installed copy. On every start the host parses
+// each registry record's manifest under this tree, so the
+// record we write must point at a freshly stamped copy here
+// — `sources/` alone is not loaded by anything.
+function managedDir(home) {
+  return join(home, 'plugins', 'managed', PLUGIN_NAME);
 }
 
 
@@ -36,26 +54,36 @@ async function ownsInstall(target, manifestRelative) {
 }
 
 
-// Kimi Code has no CLI subcommand for plugins: installation
-// is TUI-only. This installer materializes the source and
-// hands over the one slash command that does the rest (the
-// host copies, validates and registers the payload).
-function printInstallInstruction(target) {
-  console.log('  Install it in Kimi Code (one time):');
-  console.log(`    /plugins install ${target}`);
-  console.log('  Then run /reload. Verify with /plugins list.');
-}
-
-
 export async function runInstallKimiPlugin(args = []) {
   const { dryRun, force, uninstall: remove } = parseInstallArgs(args);
   const home = kimiHome();
   const target = sourceDir(home);
+  const managed = managedDir(home);
   const { sourceDir: pluginSrc, manifest } = pluginPayload('kimi-code');
   const { version } = await readPackageInfo();
 
   if (remove) {
-    return uninstallPayloadDir({
+    // Fail closed before any deletion, the mirror of the install path: a
+    // merge into a registry we cannot read would drop the other plugins it
+    // holds, so a deletion we cannot follow with a clean record removal must
+    // not start.
+    await readInstalledRegistry(home);
+
+    await uninstallPayloadDir({
+      target: managed, label: LABEL, dryRun, force,
+      ownsInstall: () => ownsInstall(managed, manifest),
+      refusal: () => foreignTargetRefusal({
+        target: managed, probe: manifest, name: MANIFEST_MARKER, noun: 'directory'
+      }),
+      onPreview: () => {
+        console.log(`[dry-run] Would remove ${managed}`);
+      },
+      remove: async () => {
+        await rm(managed, { recursive: true, force: true });
+        console.log(`✓ cowork-flow ${LABEL} removed (${managed})`);
+      }
+    });
+    await uninstallPayloadDir({
       target, label: LABEL, dryRun, force,
       ownsInstall: () => ownsInstall(target, manifest),
       refusal: () => foreignTargetRefusal({
@@ -63,28 +91,62 @@ export async function runInstallKimiPlugin(args = []) {
       }),
       onPreview: () => {
         console.log(`[dry-run] Would remove ${target}`);
-        console.log('  The installed copy stays in Kimi Code; remove it there with /plugins remove cowork-flow.');
       },
       remove: async () => {
         await rm(target, { recursive: true, force: true });
         console.log(`✓ cowork-flow ${LABEL} removed (${target})`);
-        // The host's remove only drops the registry record; its
-        // managed copy and this source directory stay on disk.
-        console.log('  Still registered in Kimi Code? Run /plugins remove cowork-flow, then delete');
-        console.log(`  ${join(home, 'plugins', 'managed', PLUGIN_NAME)} if it remains.`);
       }
     });
+
+    if (dryRun) {
+      console.log(`[dry-run] Would drop the ${KIMI_PLUGIN_ID} record from ${installedRegistryPath(home)}.`);
+      return 0;
+    }
+
+    const dropped = await removePluginRecord(home, KIMI_PLUGIN_ID);
+    console.log(dropped
+      ? `  Registry record removed from ${installedRegistryPath(home)}.`
+      : `  No ${KIMI_PLUGIN_ID} record in ${installedRegistryPath(home)}; nothing to drop.`);
+    console.log('  Restart Kimi Code to drop the plugin from its list.');
+    return 0;
   }
+
+  // Fail closed before the first write: the host refuses a
+  // registry it cannot parse, and merging into (or replacing)
+  // one we cannot parse would drop the other plugins it holds.
+  await readInstalledRegistry(home);
 
   if (!(await pathExists(pluginSrc))) {
     throw new Error(`Kimi Code plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
   }
 
-  return installPayloadDir({
+  await installPayloadDir({
     target, source: pluginSrc, label: LABEL, sourceKind: 'Source', dryRun, force,
     ownsInstall: () => ownsInstall(target, manifest),
-    onPreview: () => printInstallInstruction(target),
-    onInstalled: () => stampPayloadManifest(target, manifest, version),
-    onDone: () => printInstallInstruction(target)
+    onInstalled: () => stampPayloadManifest(target, manifest, version)
   });
+  await installPayloadDir({
+    target: managed, source: pluginSrc, label: LABEL, sourceKind: 'Managed copy', dryRun, force,
+    ownsInstall: () => ownsInstall(managed, manifest),
+    onInstalled: () => stampPayloadManifest(managed, manifest, version)
+  });
+
+  if (dryRun) {
+    console.log(`[dry-run] Would register ${KIMI_PLUGIN_ID} in ${installedRegistryPath(home)} (enabled).`);
+    return 0;
+  }
+
+  // The record mirrors what the host's own install writes for
+  // a local directory; the host re-reads the managed copy on
+  // every start and needs no further handshake.
+  await upsertPluginRecord(home, {
+    id: KIMI_PLUGIN_ID,
+    root: await realpath(managed),
+    source: 'local-path',
+    enabled: true,
+    originalSource: target
+  });
+  console.log(`  Registered in ${installedRegistryPath(home)} (enabled).`);
+  console.log('  Restart Kimi Code to load the plugin.');
+  return 0;
 }
