@@ -7,10 +7,6 @@ import { test } from 'node:test';
 
 import './helpers/bytecode-isolation.js';
 import { packageRoot } from '../src/lib/paths.js';
-import {
-  stageContractBlock as opencodeStageContract,
-  decisionAnchorBlock,
-} from '../template/.opencode/cowork-flow/plugin-core.js';
 
 const NODE = process.execPath;
 const SCRIPTS = join(packageRoot, 'template', '.cowork-flow', 'scripts');
@@ -30,10 +26,13 @@ function pythonCommand() {
   return ['python3'];
 }
 
-// One matrix case drives every host line: python build_hook_context, the zcode
-// hook over stdin, and the opencode stageContractBlock called directly. Every
-// line must produce a byte-identical <stage-contract> block, and the case's
-// assert fields must hold on the python output (the semantic source).
+// One matrix case drives every host line: python build_hook_context and the
+// zcode hook over stdin. Every line must produce a byte-identical
+// <stage-contract> block, and the case's assert fields must hold on the
+// python output (the semantic source). The opencode plugin renders through
+// the same Python entry (its transform spawns inject.py), so its parity is
+// covered by the render tests in opencode-plugin.test.js instead of a third
+// arm here.
 function writeMatrixFixture(root, caseDef) {
   const workflow = join(root, '.cowork-flow');
   const taskPath = caseDef.taskPath || '.cowork-flow/tasks/08-30-demo';
@@ -101,7 +100,7 @@ function writeMatrixFixture(root, caseDef) {
   if (caseDef.status === 'delegated_subtask') {
     // Delegated lines bind a runtime context (subagent record) instead of a
     // main session, so python/zcode resolve status="delegated_subtask" and
-    // render the read-only variant — matching the opencode direct call.
+    // render the read-only variant.
     const subagentsDir = join(workflow, '.runtime', 'subagents');
     mkdirSync(subagentsDir, { recursive: true });
     writeFileSync(
@@ -196,18 +195,6 @@ function runZcodeBlock(root, caseDef) {
   return extractStageContract(context);
 }
 
-function runOpencodeBlock(root, caseDef) {
-  const taskPath = caseDef.taskPath || '.cowork-flow/tasks/08-30-demo';
-  const block = opencodeStageContract(
-    root,
-    taskPath,
-    caseDef.status,
-    caseDef.status === 'delegated_subtask'
-  );
-  assert.ok(block, 'opencode stage-contract must be present');
-  return block;
-}
-
 function assertCase(block, assertDef) {
   if (assertDef.closed) {
     assert.ok(block.endsWith('</stage-contract>'), 'block must be closed');
@@ -297,7 +284,7 @@ function runZcodeAnchor(root) {
   return extractDecisionAnchor(JSON.parse(zcode.stdout).hookSpecificOutput.additionalContext);
 }
 
-test('decision-anchor AC evidence line is byte-identical across python/zcode/opencode', () => {
+test('decision-anchor AC evidence line is byte-identical across python/zcode', () => {
   const caseDef = {
     name: 'anchor-evidence',
     status: 'in_progress',
@@ -317,10 +304,9 @@ test('decision-anchor AC evidence line is byte-identical across python/zcode/ope
   };
   const pythonRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-py-'));
   const zcodeRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-js-'));
-  const opencodeRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-oc-'));
   try {
     const taskPath = '.cowork-flow/tasks/08-30-demo';
-    for (const root of [pythonRoot, zcodeRoot, opencodeRoot]) {
+    for (const root of [pythonRoot, zcodeRoot]) {
       writeMatrixFixture(root, caseDef);
       writeFileSync(
         join(root, '.cowork-flow', '.runtime', 'sessions', 'probe.json'),
@@ -334,15 +320,12 @@ test('decision-anchor AC evidence line is byte-identical across python/zcode/ope
 
     const pythonBlock = runPythonAnchor(pythonRoot);
     const zcodeBlock = runZcodeAnchor(zcodeRoot);
-    const opencodeBlock = decisionAnchorBlock(opencodeRoot, taskPath, 'in_progress');
 
     assert.match(pythonBlock, /AC evidence: 1\/2 missing=AC-002/);
     assert.equal(zcodeBlock, pythonBlock, 'zcode anchor must equal python');
-    assert.equal(opencodeBlock, pythonBlock, 'opencode anchor must equal python');
   } finally {
     rmSync(pythonRoot, { recursive: true, force: true });
     rmSync(zcodeRoot, { recursive: true, force: true });
-    rmSync(opencodeRoot, { recursive: true, force: true });
   }
 });
 
@@ -351,13 +334,12 @@ function escapeRegex(text) {
 }
 
 for (const caseDef of matrix.cases) {
-  test(`matrix case ${caseDef.name}: byte-identical across python/zcode/opencode + assertions`, () => {
+  test(`matrix case ${caseDef.name}: byte-identical across python/zcode + assertions`, () => {
     const pythonRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-py-'));
     const zcodeRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-js-'));
-    const opencodeRoot = mkdtempSync(join(tmpdir(), 'cowork-flow-mx-oc-'));
     try {
       const taskPath = caseDef.taskPath || '.cowork-flow/tasks/08-30-demo';
-      for (const root of [pythonRoot, zcodeRoot, opencodeRoot]) {
+      for (const root of [pythonRoot, zcodeRoot]) {
         writeMatrixFixture(root, caseDef);
         // The python host resolves the bare key "probe"; the zcode host
         // prefixes it — both need a bound session file.
@@ -373,15 +355,12 @@ for (const caseDef of matrix.cases) {
 
       const pythonBlock = runPythonBlock(pythonRoot, caseDef);
       const zcodeBlock = runZcodeBlock(zcodeRoot, caseDef);
-      const opencodeBlock = runOpencodeBlock(opencodeRoot, caseDef);
 
       assert.equal(zcodeBlock, pythonBlock, `${caseDef.name}: zcode must equal python`);
-      assert.equal(opencodeBlock, pythonBlock, `${caseDef.name}: opencode must equal python`);
       assertCase(pythonBlock, caseDef.assert);
     } finally {
       rmSync(pythonRoot, { recursive: true, force: true });
       rmSync(zcodeRoot, { recursive: true, force: true });
-      rmSync(opencodeRoot, { recursive: true, force: true });
     }
   });
 }

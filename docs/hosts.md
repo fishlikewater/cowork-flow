@@ -101,6 +101,8 @@ cwf host remove opencode
 
 插件在 `config` hook 中注册随载荷提供的 `cowork-flow-bootstrap` 技能目录，因此没有初始化 cowork-flow 的仓库也能看到启动入口。安装后新开会话。
 
+插件本身只是传输 shim：注入文本由项目内 Python 运行时 `inject.py --host opencode` 渲染（zcode 同形态）。载荷同时携带 `cowork-flow/runtime/scripts` 缓存副本，在项目外渲染 not-initialized 上下文；项目内始终以项目自身的运行时副本为准。
+
 OpenCode 可能在插件目录中生成 `package.json`、`bun.lock` 和 `node_modules/`。这些是宿主文件，安装器不会修改或清理。多插件加载顺序以及全局与项目同名技能的优先级尚未实测。
 
 ## ZCode

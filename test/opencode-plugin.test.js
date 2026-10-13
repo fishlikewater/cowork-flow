@@ -1,10 +1,12 @@
-﻿import assert from "node:assert/strict"
-import { access, chmod, mkdir, mkdtemp, readdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises"
+import assert from "node:assert/strict"
+import { cpSync } from "node:fs"
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
 import { pathToFileURL } from "node:url"
 
+import "./helpers/bytecode-isolation.js"
 import { packageRoot } from "../src/lib/paths.js"
 import { CoworkFlowPlugin } from "../template/.opencode/plugins/cowork-flow.js"
 
@@ -19,7 +21,36 @@ const PAYLOAD_PLUGIN = join(PAYLOAD_ROOT, "plugins", "cowork-flow.js")
 const PAYLOAD_CORE = join(PAYLOAD_ROOT, "cowork-flow", "plugin-core.js")
 const PLUGIN_MODULES = [PROJECT_PLUGIN, PAYLOAD_PLUGIN].map((file) => pathToFileURL(file).href)
 const PLUGIN_MODULE = PLUGIN_MODULES[0]
+const TEMPLATE_SCRIPTS = join(packageRoot, "template", ".cowork-flow", "scripts")
 
+// The transform spawns the Python runtime with this process's environment; a
+// developer running the suite inside a bound cowork-flow session has
+// COWORK_FLOW_* set, and the env layer outranks the hook payload, so every
+// render here runs with those variables removed (plus any test overrides).
+async function withScrubbedEnv(overrides, fn) {
+  const saved = {}
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("COWORK_FLOW_")) {
+      saved[key] = process.env[key]
+      delete process.env[key]
+    }
+  }
+  Object.assign(process.env, overrides)
+  try {
+    return await fn()
+  } finally {
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("COWORK_FLOW_")) {
+        delete process.env[key]
+      }
+    }
+    Object.assign(process.env, saved)
+  }
+}
+
+// A fixture with the Python runtime installed the way init/sync would install
+// it: the transform's render path is the real inject.py over the fixture's own
+// registry, so the assertions below pin the Python output, not a JS re-read.
 async function createRegistryRepo(t) {
   const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-plugin-"))
   t.after(async () => {
@@ -30,6 +61,7 @@ async function createRegistryRepo(t) {
   await mkdir(specDir, { recursive: true })
   await mkdir(join(specDir, "runtime"), { recursive: true })
   await mkdir(join(specDir, "contracts"), { recursive: true })
+  cpSync(TEMPLATE_SCRIPTS, join(root, ".cowork-flow", "scripts"), { recursive: true })
   const registryContent = JSON.stringify(
     {
       schemaVersion: 1,
@@ -58,10 +90,38 @@ async function createRegistryRepo(t) {
   return root
 }
 
-async function renderPluginContext(cwd, input = {}) {
+// A fixture whose inject.py is a fake that echoes its argv and stdin payload,
+// so the transport contract (what the shim forwards, what it does with stdout)
+// is tested without involving the Python runtime.
+const FAKE_INJECT = [
+  "import json, sys",
+  "payload = json.load(sys.stdin)",
+  'print("SHIM_SENTINEL " + json.dumps({"argv": sys.argv[1:], "payload": payload}, sort_keys=True))',
+  "",
+].join("\n")
+
+async function createShimRepo(t, script = FAKE_INJECT) {
+  const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-shim-"))
+  t.after(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+  const injectDir = join(root, ".cowork-flow", "scripts", "adapters", "host")
+  await mkdir(injectDir, { recursive: true })
+  await writeFile(join(injectDir, "inject.py"), script, "utf8")
+  return root
+}
+
+async function renderPluginContext(cwd, input = {}, envOverrides = {}) {
   const plugin = await CoworkFlowPlugin()
   const output = { system: [] }
-  await plugin["experimental.chat.system.transform"]({ cwd, ...input }, output)
+  await withScrubbedEnv(envOverrides, () =>
+    plugin["experimental.chat.system.transform"]({ cwd, ...input }, output)
+  )
+  return output
+}
+
+async function renderContextText(cwd, input = {}) {
+  const output = await renderPluginContext(cwd, input)
   assert.equal(output.system.length, 1)
   return output.system[0]
 }
@@ -74,43 +134,127 @@ async function renderShellEnv(cwd, input = {}) {
   return output.env
 }
 
+// The shim forwards render failures to the host log through console.error
+// (zcode shim parity); tests capture that channel to pin the diagnostics.
+async function captureConsoleError(fn) {
+  const lines = []
+  const original = console.error
+  console.error = (...args) => {
+    lines.push(args.map(String).join(" "))
+  }
+  try {
+    const result = await fn()
+    return { result, lines }
+  } finally {
+    console.error = original
+  }
+}
+
 function extractFingerprint(context) {
   const match = context.match(/<contract-digest fingerprint="([^"]+)">/)
   assert.ok(match, "expected contract digest fingerprint")
   return match[1]
 }
 
-// Reports whether this filesystem refuses to stage and replace a document under
-// the permissions the caller just applied — a new file, or a read-only one.
-// Filesystems that honour neither (a privileged container, for example) leave
-// the guard unprovable, and the caller skips instead of asserting nothing.
-async function writeRefusedHere(directory) {
-  const probe = join(directory, "write-probe.json")
-  const temporary = `${probe}.tmp`
-  try {
-    await writeFile(temporary, "{}\n", "utf8")
-  } catch {
-    return true
-  }
-  try {
-    await writeFile(probe, "{}\n", "utf8")
-    await chmod(probe, 0o444)
-    try {
-      await rename(temporary, probe)
-      return false
-    } catch {
-      return true
-    }
-  } finally {
-    await unlink(temporary).catch(() => {})
-    await unlink(probe).catch(() => {})
-  }
-}
+test("transform forwards the event to inject.py and injects its stdout", async (t) => {
+  const root = await createShimRepo(t)
+
+  const output = await renderPluginContext(root, { sessionID: "child-session", prompt: "hello" })
+
+  assert.equal(output.system.length, 1)
+  const text = output.system[0]
+  assert.ok(text.startsWith("SHIM_SENTINEL "), `expected the fake script stdout, got: ${text}`)
+  const echoed = JSON.parse(text.slice("SHIM_SENTINEL ".length))
+  assert.deepEqual(echoed.argv, ["--host", "opencode"])
+  assert.equal(echoed.payload.hook_event_name, "UserPromptSubmit")
+  assert.equal(echoed.payload.cwd, root)
+  // Host input keys ride the payload unchanged: the Python identity table
+  // (session ids, runtime-context keys, prompt) resolves them downstream.
+  assert.equal(echoed.payload.sessionID, "child-session")
+  assert.equal(echoed.payload.prompt, "hello")
+})
+
+test("transform stays silent when no inject.py is resolvable", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-empty-"))
+  t.after(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+  await mkdir(join(root, ".cowork-flow"), { recursive: true })
+
+  const output = await renderPluginContext(root)
+
+  assert.deepEqual(output.system, [])
+})
+
+test("transform skips injection but forwards diagnostics when inject.py fails", async (t) => {
+  const root = await createShimRepo(
+    t,
+    "import sys\nsys.stderr.write('BOOM-DIAGNOSTIC\\n')\nsys.exit(3)\n"
+  )
+
+  const { result: output, lines } = await captureConsoleError(() =>
+    renderPluginContext(root)
+  )
+
+  assert.deepEqual(output.system, [])
+  const log = lines.join("\n")
+  assert.ok(log.includes("BOOM-DIAGNOSTIC"), `expected child stderr in the host log, got: ${log}`)
+  assert.ok(
+    log.includes("inject.py exited 3; skipping injection"),
+    `expected the skip diagnostic in the host log, got: ${log}`
+  )
+})
+
+test("transform kills a stuck render instead of holding the prompt", async (t) => {
+  const root = await createShimRepo(t, "import time\ntime.sleep(60)\n")
+
+  const started = Date.now()
+  const { result: output, lines } = await captureConsoleError(() =>
+    renderPluginContext(root)
+  )
+  const elapsed = Date.now() - started
+
+  assert.deepEqual(output.system, [])
+  assert.ok(
+    elapsed < 30000,
+    `expected the shim timeout to bound the wait well under the 60s sleep, took ${elapsed}ms`
+  )
+  assert.ok(
+    lines.join("\n").includes("inject.py timed out; skipping injection"),
+    `expected the timeout diagnostic in the host log, got: ${lines.join("\n")}`
+  )
+})
+
+test("an interpreter candidate that never starts logs no skip diagnostic", async (t) => {
+  const root = await createShimRepo(t)
+
+  const { result: output, lines } = await captureConsoleError(() =>
+    renderPluginContext(root, {}, { COWORK_FLOW_PYTHON: "cowork-flow-missing-python-9x" })
+  )
+
+  assert.equal(
+    output.system.length,
+    1,
+    `expected a later interpreter candidate to render, got: ${JSON.stringify(output.system)}`
+  )
+  assert.ok(
+    !lines.join("\n").includes("skipping injection"),
+    `expected no skip diagnostic for a never-started candidate, got: ${lines.join("\n")}`
+  )
+})
+
+test("transform honors the COWORK_FLOW_HOOKS kill switch", async (t) => {
+  const root = await createShimRepo(t)
+
+  const output = await renderPluginContext(root, {}, { COWORK_FLOW_HOOKS: "0" })
+
+  assert.deepEqual(output.system, [])
+})
 
 test("opencode plugin injects registry-driven contract digest", async (t) => {
   const root = await createRegistryRepo(t)
 
-  const context = await renderPluginContext(root)
+  const context = await renderContextText(root)
 
   assert.match(context, /<cowork-runtime host="opencode" adapter="opencode\.task">/)
   assert.match(context, /<contract-digest fingerprint="[a-f0-9]{16}">/)
@@ -126,23 +270,24 @@ test("opencode plugin surfaces registry warning when missing", async (t) => {
     await rm(root, { recursive: true, force: true })
   })
   await mkdir(join(root, ".cowork-flow", "spec"), { recursive: true })
+  cpSync(TEMPLATE_SCRIPTS, join(root, ".cowork-flow", "scripts"), { recursive: true })
 
-  const context = await renderPluginContext(root)
+  const context = await renderContextText(root)
 
-  assert.match(context, /warning: contract registry unavailable or invalid/)
+  assert.match(context, /warning: contract registry unavailable/)
   assert.match(context, /using fallback digest/)
 })
 
 test("opencode plugin fingerprint changes when referenced spec changes", async (t) => {
   const root = await createRegistryRepo(t)
 
-  const before = await renderPluginContext(root)
+  const before = await renderContextText(root)
   await writeFile(
     join(root, ".cowork-flow", "spec", "contracts", "test-contract.md"),
     "FULL_SPEC_SENTINEL changed body that still must not be injected.\n",
     "utf8"
   )
-  const after = await renderPluginContext(root)
+  const after = await renderContextText(root)
 
   assert.notEqual(extractFingerprint(before), extractFingerprint(after))
   assert.doesNotMatch(after, /FULL_SPEC_SENTINEL/)
@@ -171,7 +316,7 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   )
   await writeFile(join(runtimeDir, "rtx_plugin.json"), runtimeContextContent, "utf8")
 
-  const context = await renderPluginContext(root, {
+  const context = await renderContextText(root, {
     opencode_session_id: "child-session",
     prompt: "cowork_runtime_context_id: rtx_plugin\ncowork_host_context_key: opencode_prompt_key",
   })
@@ -182,6 +327,8 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   // Scope ownership moved into the stage-contract block: "Scope: subagent"
   // lines are gone; absent task artifacts render no block at all.
   assert.doesNotMatch(context, /Scope: subagent/)
+  // The bind is the Python storage layer's write: one session record keyed by
+  // the host context key, and the runtime context flipped to bound.
   const session = JSON.parse(
     await readFile(
       join(root, ".cowork-flow", ".runtime", "sessions", "opencode_prompt_key.json"),
@@ -190,6 +337,8 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   )
   assert.equal(session.scope, "subagent")
   assert.equal(session.runtime_context_id, "rtx_plugin")
+  assert.equal(session.platform, "opencode")
+  assert.equal(session.status, "bound")
   assert.equal(session._state.schema_version, 1)
   assert.equal(Number.isInteger(session._state.revision), true)
   await assert.rejects(
@@ -198,63 +347,8 @@ test("opencode plugin injects and binds runtime subagent state", async (t) => {
   const runtimeContext = JSON.parse(
     await readFile(join(root, ".cowork-flow", ".runtime", "subagents", "rtx_plugin.json"), "utf8")
   )
+  assert.equal(runtimeContext.status, "bound")
   assert.equal(runtimeContext.bound_context_key, "opencode_prompt_key")
-})
-
-// A bind writes two documents that only mean something together: the session
-// record the adapter reads and the context binding it points at. When the
-// second write fails, the first must not survive — two independent writes left
-// exactly that half state behind.
-test("a failed runtime bind leaves no session record behind", async (t) => {
-  const root = await createRegistryRepo(t)
-  const runtimeDir = join(root, ".cowork-flow", ".runtime", "subagents")
-  const sessionsDir = join(root, ".cowork-flow", ".runtime", "sessions")
-  await mkdir(runtimeDir, { recursive: true })
-  const contextPath = join(runtimeDir, "rtx_plugin.json")
-  await writeFile(
-    contextPath,
-    JSON.stringify(
-      {
-        schema_version: 2,
-        runtime_context_id: "rtx_plugin",
-        scope: "subagent",
-        host: "opencode",
-        status: "pending",
-        bound_context_key: null
-      },
-      null,
-      2
-    ),
-    "utf8"
-  )
-
-  // Which guard refuses the write differs by platform: POSIX honours the
-  // directory's write bit, Windows the read-only attribute of the file being
-  // replaced. Both are applied, and the probe decides whether either took.
-  await chmod(runtimeDir, 0o555)
-  await chmod(contextPath, 0o444)
-  try {
-    if (!(await writeRefusedHere(runtimeDir))) {
-      t.skip("this filesystem accepts the write")
-      return
-    }
-
-    await assert.rejects(() =>
-      renderPluginContext(root, {
-        prompt: "cowork_runtime_context_id: rtx_plugin\ncowork_host_context_key: opencode_prompt_key"
-      })
-    )
-
-    const context = JSON.parse(await readFile(contextPath, "utf8"))
-    assert.equal(context.status, "pending")
-    assert.equal(context.bound_context_key, null)
-    // Neither the session record nor a leaked lock/staged temporary survives.
-    assert.deepEqual(await readdir(sessionsDir), [])
-    assert.deepEqual(await readdir(runtimeDir), ["rtx_plugin.json"])
-  } finally {
-    await chmod(contextPath, 0o644)
-    await chmod(runtimeDir, 0o755)
-  }
 })
 
 test("opencode plugin exposes main session env to shell commands", async (t) => {
@@ -312,7 +406,11 @@ test("tool.execute.after skips an edit without a file path", async (t) => {
 })
 
 test("tool.execute.after preserves tool output when the runtime is absent", async (t) => {
-  const root = await createRegistryRepo(t)
+  const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-plugin-"))
+  t.after(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+  await mkdir(join(root, ".cowork-flow"), { recursive: true })
   // The fixture has no .cowork-flow/run entry, so the checker must stay
   // silent instead of failing the edit path.
   const output = await runToolExecuteAfter(

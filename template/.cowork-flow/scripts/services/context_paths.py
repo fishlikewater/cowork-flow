@@ -12,8 +12,8 @@ CONTEXT_ENTRY_TYPES = frozenset(("file", "directory", "planned-file", "deleted-f
 
 # JSON-equal to the shipped scope-rules.json at
 # .cowork-flow/spec/runtime/ (same rules, different
-# formatting); python and the zcode/opencode JS mirrors
-# share one rule source, locked by test_scope_rules.py.
+# formatting); every host consumes the Python rendering,
+# locked by test_scope_rules.py.
 DEFAULT_SCOPE_RULES: dict = {
     "schemaVersion": 1,
     "scopeFilter": {
@@ -222,7 +222,7 @@ def normalize_context_file_scope_entry(
 
     Directory entries are valid context, but they do not authorize arbitrary
     changed files for lifecycle review. The allowed type set comes from
-    scope-rules.json (single source shared with the JS mirrors)."""
+    scope-rules.json (the single rule source)."""
     entry_type = entry.get("type", "file")
     file_path = entry.get("file")
     if not isinstance(file_path, str) or not file_path:

@@ -6,6 +6,10 @@
 
 - **多执行者协作事实（1.9.0 主线）**：把 executor / evidence / adopt 语义补成团队协调原语，让 `.cowork-flow/tasks/` 在多 agent 场景下当共享看板。① **看板归属可见**：`task next --list --json` 与 MCP `task_list`（同一实现）每条记录新增 `executor` / `ownerSessionActive`（提示位：是否有会话绑定该任务，不裁决孤儿）/ `evidenceCoverage` / `blocked` / `blockedBy`——第二个执行者不跑 `run state` 就能看出谁在占用、有没有卡住、证据到哪了。② **依赖边**：`task next --run --title ... --depends-on <task>`（可重复，完整目录名）在创建时写入 `task.json` 的 `dependsOn`，声明期 fail-closed（目标不存在 / 自依赖 / 环分别报 `TASK-CREATE-DEPENDENCY-001/002/003`，失败不落盘；归档任务按已完成依赖解析）；start 门禁 `LIFECYCLE-DEPENDENCY-001`——依赖未全部 completed 时阻断进入 in_progress，导航 payload 与 `--run` 报同一 blocker 文本，已启动任务不受回溯影响，adopt/review/complete 不受约束。③ **交接凭证**：adopt 成功后打印 Handover 段（原执行者 → 新执行者、原基线 → 新基线、剩余未勾选 AC、证据覆盖 n/m）。契约见 `.cowork-flow/spec/contracts/task-board.md`。
 
+### Changed
+
+- **OpenCode 插件收敛为 zcode 同形态传输 shim**：插件内 1125 行 JS 手写渲染/绑定（registry 加载、指纹计算、stage-contract、decision-anchor、运行时绑定 JSON-pair 写入）全部删除，`experimental.chat.system.transform` 改为 spawn 项目内 `inject.py --host opencode` 并原样注入其 stdout；`plugin-core.js` 只剩宿主能力胶水（传输、`shell.env` 上下文键导出、edit 期 spec-check 代理、载荷技能目录注册）。配套变化：① `inject.py --host opencode` 成为合法选项，新增 `opencode_policy`（digest 措辞保留 "every plugin transform"；无 SessionStart 事件，digest 形状由会话状态文件探测推导；stdout 即注入故 `emit_text`）。② 行为变化：主会话现在同样收到 `<workflow-state>` 注入（此前仅 delegated 子代理会话有），digest 全量/指纹判定由「进程内 per-session 集合」改为跨进程可靠的「会话激活文件探测」，workflow-state 头按统一规则携带 `session` 属性。③ `DEFAULT_CONTRACT_REGISTRY` 兜底单源化：JS 副本随渲染删除，只剩 Python 一份，`tests/test_contract_registry.py` 把它与 `contract-registry.json` 逐条锁定防漂移。④ 机器级安装载荷新增 `cowork-flow/runtime/scripts` 缓存副本（安装时从 template 刷新，zcode 同形态），项目外渲染 not-initialized 上下文；项目内始终以项目自身运行时副本为准。契约同步见 `.cowork-flow/spec/contracts/context-injection.md`。升级动作：`cwf host add opencode --force` 刷新机器级载荷后重启 OpenCode。
+
 ## [1.8.1] - 2026-10-08
 
 ### Added

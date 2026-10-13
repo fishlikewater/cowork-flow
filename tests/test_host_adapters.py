@@ -77,12 +77,12 @@ class HostAdaptersTest(unittest.TestCase):
         inject = importlib.import_module("adapters.host.inject")
         self.assertEqual(context_adapters(), inject.HOST_ADAPTERS)
         self.assertEqual(
-            {"claude-code", "codex", "dsh", "kimi-code", "qoder", "zcode"},
+            {"claude-code", "codex", "dsh", "kimi-code", "opencode", "qoder", "zcode"},
             set(inject.HOST_ADAPTERS),
         )
-        # opencode renders context from its own JS plugin, so it must not be
-        # an inject.py --host choice even though the registry knows it.
-        self.assertNotIn("opencode", inject.HOST_ADAPTERS)
+        # opencode's JS plugin is a transport shim: rendering goes through
+        # inject.py like every other host.
+        self.assertIn("opencode", inject.HOST_ADAPTERS)
 
     def test_policy_modules_derive_from_registry(self) -> None:
         from runtime.host_identity import host_ids, policy_modules
@@ -95,6 +95,7 @@ class HostAdaptersTest(unittest.TestCase):
                 "claude-code": "adapters.host.claude_code_policy",
                 "codex": "adapters.host.codex_policy",
                 "kimi-code": "adapters.host.kimi_code_policy",
+                "opencode": "adapters.host.opencode_policy",
                 "qoder": "adapters.host.qoder_policy",
             },
             declared,
@@ -109,10 +110,11 @@ class HostAdaptersTest(unittest.TestCase):
         # missing module would silently degrade to default_policy.
         self.assertIsNotNone(hook.resolve_policy("codex").preamble)
         self.assertEqual("dsh", hook.resolve_policy("dsh").host)
-        # Bare-text stdout is Kimi Code's transport contract alone; every
-        # other policy host keeps the JSON envelope.
+        # Bare-text stdout is the transport contract of Kimi Code (appended to
+        # the prompt) and opencode (shim forwards it into the system transform);
+        # every other policy host keeps the JSON envelope.
         self.assertEqual(
-            {"kimi-code"},
+            {"kimi-code", "opencode"},
             {
                 host_id
                 for host_id in declared
@@ -545,10 +547,10 @@ class HostAdaptersTest(unittest.TestCase):
 
             # The opencode plugin is split in two on purpose: opencode calls
             # every export of a file inside plugins/ as a plugin factory, so the
-            # host-facing hooks stay in the adapter while the runtime logic lives
-            # in a namespaced module the host never scans. The hook names are
-            # asserted on the adapter (that is the host contract surface); the
-            # runtime markers are asserted across both files.
+            # host-facing hooks stay in the adapter while the transport logic
+            # lives in a namespaced module the host never scans. The hook names
+            # are asserted on the adapter (that is the host contract surface);
+            # the shim markers are asserted across both files.
             adapter = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
             core = (base / "cowork-flow" / "plugin-core.js").read_text(encoding="utf-8")
             plugin = adapter + core
@@ -557,15 +559,16 @@ class HostAdaptersTest(unittest.TestCase):
             self.assertIn("sessionID", plugin)
             self.assertIn("COWORK_FLOW_CONTEXT_ID", plugin)
             self.assertIn("OPENCODE_SESSION_ID", plugin)
-            self.assertIn(".cowork-flow\", \"spec\", \"runtime\", \"contract-registry.json", plugin)
-            self.assertIn("contract-digest", plugin)
-            self.assertIn("fingerprint", plugin)
-            self.assertIn("read_before", plugin)
+            # The plugin is a transport shim: rendering is delegated to the
+            # project's Python runtime, so the JS side carries the spawn
+            # contract and none of the old render internals.
+            self.assertIn('"inject.py"', plugin)
+            self.assertIn('"--host", "opencode"', plugin)
+            self.assertIn('"tool.execute.after"', adapter)
+            self.assertIn("spec-check", plugin)
             self.assertNotIn("COWORK_ENTRY_CONTRACT_V1", plugin)
-            self.assertIn("RUNTIME_CONTEXT_DISPATCH_V2", plugin)
-            self.assertIn("resolveRuntimeContextId", plugin)
-            self.assertIn("bindRuntimeContext", plugin)
-            self.assertIn("runtime-context-invalid", plugin)
+            self.assertNotIn("DEFAULT_CONTRACT_REGISTRY", plugin)
+            self.assertNotIn("bindRuntimeContext", plugin)
 
     def test_claude_code_assets_encode_fixed_agent_contract(self) -> None:
         for base in (ROOT / "template" / ".claude",):

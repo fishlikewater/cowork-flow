@@ -26,6 +26,10 @@ PYTHON_CORE_POLICY_LINE = (
     "policy: repeat this short digest every hook; "
     "read full spec files only before listed actions."
 )
+OPENCODE_POLICY_LINE = (
+    "policy: repeat this short digest every plugin transform; "
+    "read full spec files only before listed actions."
+)
 
 
 class InjectEntryTest(unittest.TestCase):
@@ -125,7 +129,8 @@ class InjectEntryTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("Host-neutral workflow-context injection entry.", result.stdout)
         self.assertIn(
-            "--host {claude-code,codex,dsh,kimi-code,qoder,zcode}", result.stdout
+            "--host {claude-code,codex,dsh,kimi-code,opencode,qoder,zcode}",
+            result.stdout,
         )
 
     # -- digest shape per host ------------------------------------------------
@@ -376,6 +381,33 @@ class InjectEntryTest(unittest.TestCase):
         self.assertNotIn("<cowork-runtime", second_context)
         self.assertRegex(
             second_context, r'<contract-fingerprint value="[0-9a-f]{16}"/>'
+        )
+
+    def test_opencode_first_injection_full_then_fingerprint_via_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            first = self._run_inject(root, {}, host="opencode")
+
+            sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+            sessions.mkdir(parents=True, exist_ok=True)
+            (sessions / "opencode_s1.json").write_text(
+                '{"scope": "main"}\n', encoding="utf-8"
+            )
+            second = self._run_inject(root, {"sessionID": "s1"}, host="opencode")
+
+        # emit_text: the transform pushes stdout verbatim, so both renders are
+        # bare text. No session-start event on opencode either: the
+        # activation-file probe decides the shape.
+        self.assertEqual(0, first.returncode, first.stderr)
+        self.assertIn("<contract-digest fingerprint=", first.stdout)
+        self.assertIn(OPENCODE_POLICY_LINE, first.stdout)
+        self.assertFalse(first.stdout.lstrip().startswith("{"))
+        self.assertEqual(0, second.returncode, second.stderr)
+        self.assertNotIn("<cowork-runtime", second.stdout)
+        self.assertRegex(
+            second.stdout, r'<contract-fingerprint value="[0-9a-f]{16}"/>'
         )
 
     # -- session identity -------------------------------------------------------
@@ -803,6 +835,23 @@ class InjectEntryTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode)
         self.assertEqual("", result.stdout.strip())
+
+    def test_opencode_without_workflow_root_emits_not_initialized_bare_text(
+        self,
+    ) -> None:
+        # The machine-level payload's cached runtime copy renders this for a
+        # session outside any cowork-flow project — the reason emit_text and
+        # emit_not_initialized are both set on the opencode policy.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plain = Path(temp_dir) / "plain"
+            plain.mkdir()
+
+            result = self._run_inject(plain, {}, host="opencode", project_dir=plain)
+
+        self.assertEqual(0, result.returncode)
+        self.assertIn(NOT_INITIALIZED_TEXT, result.stdout)
+        self.assertIn("Status: not_initialized", result.stdout)
+        self.assertFalse(result.stdout.lstrip().startswith("{"))
 
     # -- zcode-only ported behaviors ------------------------------------------
 

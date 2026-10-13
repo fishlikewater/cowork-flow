@@ -170,6 +170,7 @@ class HostIdentityTest(unittest.TestCase):
                 "codex": "codex.spawn_agent",
                 "dsh": "dsh.preset",
                 "kimi-code": "kimi-code.hooks",
+                "opencode": "opencode.task",
                 "qoder": "qoder.hooks",
             },
             self.host_identity.context_adapters(),
