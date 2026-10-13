@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 
 import { parseInstallArgs, pathExists } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
+import { removeManagedBlock, upsertManagedBlock } from '../lib/payload-install.js';
 
 const PLUGIN_SRC = join(packageRoot, 'presets', 'dsh', 'plugins', 'workflow-state.js');
 const ROW_ID = 'workflow-state-hook';
@@ -48,8 +49,7 @@ function hookRowBlock(pluginPath) {
 
 
 /**
- * Locate the managed hook block inside a patch file's
- * text.
+ * Locate the managed hook block inside a patch file's lines.
  *
  * The block is the marker comment (when present), the
  * id-less insert patch line, and the hook row with its
@@ -58,8 +58,7 @@ function hookRowBlock(pluginPath) {
  * round-trip would destroy the `!!js` expressions DSH
  * compositions use.
  */
-function findManagedBlock(text) {
-  const lines = text.split('\n');
+function locateBlock(lines) {
   const start = lines.findIndex((line) => line.trim() === '- id: ' + ROW_ID);
   if (start === -1) {
     return null;
@@ -89,29 +88,17 @@ function findManagedBlock(text) {
 }
 
 
-function patchWithRow(text, pluginPath) {
-  const block = hookRowBlock(pluginPath);
-  const range = findManagedBlock(text);
-  if (range !== null) {
-    const lines = text.split('\n');
-    return lines.slice(0, range.start)
-      .concat(block.split('\n'))
-      .concat(lines.slice(range.end))
-      .join('\n');
-  }
-  const base = text.replace(/\s+$/, '');
-  return (base + '\n' + block + '\n').replace(/^\n+/, '');
+// The YAML append form: a single newline joins the block to
+// whatever the file already ends with.
+function appendBlock(text, block) {
+  return (text.replace(/\s+$/, '') + '\n' + block + '\n').replace(/^\n+/, '');
 }
 
 
-function patchWithoutRow(text) {
-  const range = findManagedBlock(text);
-  if (range === null) {
-    return text;
-  }
-  const lines = text.split('\n');
-  const kept = lines.slice(0, range.start).concat(lines.slice(range.end));
-  const merged = kept.join('\n').replace(/\n{3,}/g, '\n\n');
+// Removal collapses blank runs to at most one; when only our
+// block was in the file, nothing remains.
+function collapseRemoval(body) {
+  const merged = body.replace(/\n{3,}/g, '\n\n');
   if (merged.trim() === '') {
     return '';
   }
@@ -121,8 +108,12 @@ function patchWithoutRow(text) {
 
 async function upsertRow(patchFile, pluginPath) {
   const before = (await readIfExists(patchFile)) ?? '';
-  const after = patchWithRow(before, pluginPath);
-  if (after === before) {
+  const { text: after, changed } = upsertManagedBlock(before, {
+    locate: locateBlock,
+    block: hookRowBlock(pluginPath),
+    append: appendBlock
+  });
+  if (!changed) {
     return false;
   }
   await writeFile(patchFile, after, 'utf8');
@@ -135,8 +126,11 @@ async function removeRow(patchFile) {
   if (before === null) {
     return null;
   }
-  const after = patchWithoutRow(before);
-  if (after === before) {
+  const { text: after, changed } = removeManagedBlock(before, {
+    locate: locateBlock,
+    collapse: collapseRemoval
+  });
+  if (!changed) {
     return false;
   }
   if (after === '') {

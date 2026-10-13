@@ -1,4 +1,5 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import { parseFlags } from './cli-flags.js';
 
@@ -22,6 +23,18 @@ export async function pathExists(target) {
   } catch {
     return false;
   }
+}
+
+
+// The one JSON writer for every installer: create the parent
+// directory, serialize in the shared pretty format, and swap
+// the file in through a temp name so a failed write cannot
+// leave a half-written registry behind.
+export async function writeJsonAtomic(path, data) {
+  await mkdir(dirname(path), { recursive: true });
+  const temp = `${path}.cowork-flow.tmp`;
+  await writeFile(temp, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  await rename(temp, path);
 }
 
 

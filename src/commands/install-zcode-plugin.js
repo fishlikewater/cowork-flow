@@ -1,8 +1,8 @@
-import { cp, mkdir, writeFile, rm, readdir } from 'node:fs/promises';
+import { cp, mkdir, rm, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
-import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
+import { parseInstallArgs, pathExists, readJsonFile, writeJsonAtomic } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { templateRoot } from '../lib/paths.js';
 import { marketplaceIconUrl, pluginManifest, readPluginMetadata } from '../lib/plugin-metadata.js';
@@ -25,10 +25,6 @@ function getZCodePluginsRoot() {
 
 async function getZCodeCacheDir() {
   return join(getZCodePluginsRoot(), 'cache', ZCODE_MARKETPLACE, PLUGIN_NAME);
-}
-
-async function writeJsonAtomic(path, data) {
-  await writeFile(path, JSON.stringify(data, null, 2) + '\n', 'utf8');
 }
 
 function dirname(path) {
