@@ -158,9 +158,19 @@ context = build_hook_context(
 )
 print(context)
 `;
-  const python = spawnSync(pythonCommand()[0], [...pythonCommand().slice(1), '-c', script], { encoding: 'utf8' });
+  const python = spawnSync(pythonCommand()[0], [...pythonCommand().slice(1), '-c', script], { encoding: 'utf8', env: probeEnv() });
   assert.equal(python.status, 0, `python probe failed: ${python.stderr}`);
   return extractStageContract(python.stdout);
+}
+
+// A probe must not inherit this checkout's own workflow session: a
+// developer running the suite from inside a bound session has
+// COWORK_FLOW_* set, and the env layer outranks the probe's payload.
+function probeEnv(overrides = {}) {
+  const clean = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith('COWORK_FLOW_'))
+  );
+  return { ...clean, ...overrides };
 }
 
 function runZcodeBlock(root, caseDef) {
@@ -170,7 +180,7 @@ function runZcodeBlock(root, caseDef) {
     hook_event_name: 'UserPromptSubmit',
     ...(delegated ? {} : { session_id: 'probe' }),
   };
-  const env = delegated ? { ...process.env, COWORK_FLOW_RUNTIME_CONTEXT_ID: 'rtx_probe' } : undefined;
+  const env = probeEnv(delegated ? { COWORK_FLOW_RUNTIME_CONTEXT_ID: 'rtx_probe' } : {});
   const zcode = spawnSync(
     NODE,
     [hook],
@@ -266,7 +276,7 @@ context = build_hook_context(
 )
 print(context)
 `;
-  const python = spawnSync(pythonCommand()[0], [...pythonCommand().slice(1), '-c', script], { encoding: 'utf8' });
+  const python = spawnSync(pythonCommand()[0], [...pythonCommand().slice(1), '-c', script], { encoding: 'utf8', env: probeEnv() });
   assert.equal(python.status, 0, `python probe failed: ${python.stderr}`);
   return extractDecisionAnchor(python.stdout);
 }
@@ -279,6 +289,7 @@ function runZcodeAnchor(root) {
     {
       encoding: 'utf8',
       cwd: root,
+      env: probeEnv(),
       input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'probe' }),
     }
   );

@@ -87,7 +87,7 @@ class DecisionAnchorSchemaTest(unittest.TestCase):
             self.assertNotIn("## 相关文件", content)
             self.assertNotIn("自动搬运", content)
             self.assertNotIn("删除 `prd.md`", content)
-            self.assertIn("正式版不自动迁移旧 `prd.md`", content)
+            self.assertIn("The formal release does not auto-migrate a legacy `prd.md`", content)
             self.assertIn("fail-closed", content)
 
 

@@ -1,87 +1,146 @@
 # Decision Anchor Contract
 
-**每个 task 必须有 `decision-anchor.md`，它是执行时防止漂移的唯一权威决策来源。**
+**Every task must have a `decision-anchor.md`: the single authoritative decision
+source that prevents drift during execution.**
 
-它合并并替代了原来的 `prd.md`，同时承载"做什么"和"为什么不这么做"两个职责，压缩任务产物数量。
+It merges and replaces the former `prd.md`, carrying both "what to do" and "why not
+the alternatives", which compresses the number of task artifacts.
 
 ## Schema
+
+These section names are literal: the runtime parser matches them exactly, so a
+translated heading would simply stop being read.
 
 ```markdown
 # Decision Anchor
 
 ## 目标
-<一句话>
+<one sentence>
 
 ## 验收标准
-- [ ] AC-001: <可验证>
-- [ ] AC-002: <可验证>
+- [ ] AC-001: <verifiable>
+- [ ] AC-002: <verifiable>
 
-## 被拒方案（可选）
-- **方案B**: <简述> — 拒绝原因: <为什么>
+## 被拒方案
+- **Option B**: <summary> — rejected because: <why>
 
-## 关键假设（可选）
-- <假设1>
+## 关键假设
+- <assumption 1>
 
-## 范围边界（可选）
-- 范围内: <列出>
-- 范围外: <列出>
+## 范围边界
+- In scope: <list>
+- Out of scope: <list>
 
-## 验证命令（可选）
+## 验证命令
 - `<command>` → <expected>
 ```
 
-## 章节要求
+## Section requirements
 
-| 章节 | 必填 | 原因 |
+| Section | Required | Why |
 |------|------|------|
-| `## 目标` | 必备 | 没有目标就没有验收基准 |
-| `## 验收标准` | 必备 | 没有验收标准 task_start 会被阻断 |
-| `## 被拒方案` | 可选 | brainstorming 任务必填，防止执行时重新考虑被拒方案 |
-| `## 关键假设` | 可选 | 复杂任务填写，暴露隐性约束 |
-| `## 范围边界` | 可选 | 防止范围蔓延 |
-| `## 验证命令` | 可选 | 复杂任务填写，作为自动验证依据 |
+| `## 目标` | required | no goal, no acceptance baseline |
+| `## 验收标准` | required | `task_start` is blocked without acceptance criteria |
+| `## 被拒方案` | optional | required for brainstorming tasks, so a rejected option is not reconsidered during execution |
+| `## 关键假设` | optional | filled in for complex tasks to surface implicit constraints; not read by the runtime parser |
+| `## 范围边界` | optional | prevents scope creep |
+| `## 验证命令` | optional | filled in for complex tasks, as the basis for automated verification |
 
-### 机器可读行格式（注入用）
+### Machine-readable line formats (for injection)
 
-`## 验证命令` 与 `## 范围边界` 会被 stage-contract 注入与 MCP 事实视图解析（`services/fact_view.parse_decision_anchor`）。行格式约定：
+`## 验证命令` and `## 范围边界` are parsed by stage-contract injection and by the MCP
+fact view (`services/fact_view.parse_decision_anchor`). Line-format conventions:
 
-- `## 验证命令`：每行一条命令（可带 `- ` 前缀），截 120 字符，最多 5 条；命令由实现 agent 自行执行（自声明自查），reviewer 核对执行证据
-- `## 范围边界`：仅取首个非空行，截 160 字符
+- `## 验证命令`: one command per line (an optional `- ` prefix), truncated to 120
+  characters, at most 5 lines; the implementing agent runs them itself
+  (self-declared, self-checked) and the reviewer verifies the execution evidence.
+- `## 范围边界`: only the first non-empty line is taken, truncated to 160
+  characters.
 
-## 场景
+## Scenarios
 
-| 场景 | 来源 | 填充内容 |
+| Scenario | Source | What gets filled in |
 |------|------|---------|
-| 有 brainstorming | 从讨论结论提取 | 全部章节 |
-| 无 brainstorming（需求明确） | 从需求描述和 plan 提取 | 最小：目标 + 验收标准 |
+| Has brainstorming | extracted from the discussion outcome | every section |
+| No brainstorming (requirements already clear) | extracted from the requirement description and the plan | the minimum: goal + acceptance criteria |
 
-## 产物压缩
+## Artifact compression
 
-合并前（6个文件）：`prd.md` + `implement.jsonl` + `check.jsonl` + `debug.jsonl` + `task.json`
+Before merging (6 files): `prd.md` + `implement.jsonl` + `check.jsonl` +
+`debug.jsonl` + `task.json`
 
-合并后（5个文件）：`decision-anchor.md` + `implement.jsonl` + `check.jsonl` + `debug.jsonl` + `task.json`
+After merging (5 files): `decision-anchor.md` + `implement.jsonl` + `check.jsonl` +
+`debug.jsonl` + `task.json`
 
-**净减 1 个文件类型。相关文件追踪现在由 implement.jsonl 统一负责。**
+**A net reduction of one file type. Related-file tracking is now owned entirely by
+`implement.jsonl`.**
 
-## Lifecycle Check 联动
+## Lifecycle check coupling
 
-- `task next <dir> --run` 启动任务时的 preflight 检查 `decision-anchor.md` 非空，并要求 `## 目标` 和 `## 验收标准` 章节存在。
-- **门禁档案 `meta.gateProfile`**：新建任务写入 `"strict"`；未标记的任务按 `"legacy"` 处理——存量任务不被追溯重新门禁，档案可经事实视图查询。strict 任务在章节检查之上再要求：`## 验收标准` 至少一条可解析的 `- [ ] AC-xxx: ...` 行、AC id 不重复、该章节内没有非 AC 的列表行，且必须声明 `dev_type`（否则 `task specs` 的 dev-type 派发静默变短）。
-- `## 验收标准` 行的勾选状态（`- [ ]` / `- [x]`）与证据记录（任务目录 `evidence.jsonl`）是完成门禁的事实源：存在未勾选 AC（`LIFECYCLE-AC-001`）、已声明 AC 缺证据（`LIFECYCLE-AC-002`）、strict 任务读不到 AC 行（`LIFECYCLE-AC-003`）或 AC 证据模块不可用（`LIFECYCLE-AC-004`）时完成被阻断。schema 与豁免见 `evidence-completion.md`。
-- **复核凭证的变更指纹**（strict 任务完成时要求最新凭证与当前状态一致，`LIFECYCLE-REVIEW-003`）输入 = git 可见变更（路径 + 内容摘要）+ 本锚点的目标与 AC 正文 + 绑定计划的内容摘要 + `dev_type` + 被引用 spec 的**正文摘要** + `implement.jsonl` 的内容摘要。`spec/**` 与 `tasks/**` 都被 gitignore，后两项因此必须显式入指纹，否则改写被引用 spec 的正文、或扩大声明范围，都不会使旧凭证失效。
-- 指纹**排除项**（机制）：变更集排除 `.cowork-flow/tasks/**` 整段、`.cowork-flow/.runtime/**` 与 `.cowork-flow/logs/**`——任务目录内的产物（`task.json`、`evidence.jsonl`、`review.jsonl`、`check.jsonl`、`debug.jsonl`，以及 anchor 的**路径层**）与运行期元数据都不计入，否则凭证一记录就自我失效。`implement.jsonl` 的路径层同样被排除，其**内容**改由 `scope` 分量计入。
-- 推论（预期成本，非缺陷）：**`implement.jsonl` 的任意字节变化**（追加/删除范围条目、改 `reason` 措辞、`task context add` 自动追加的 domain guide 条目）**或被引用 spec 正文的改写，都会使既有凭证失效**，需在最终状态重跑一次复核。证据追加、AC 勾选与运行期元数据不在此列。
-- **轻量档 `meta.taskType: "tiny"`**：只对 `strict` 任务生效（`legacy` + `tiny` 仍是兼容路径）。轻量任务**仍是 strict**——它免的是复核凭证、AC 证据与 `dev_type` 三项，**不免** spec-check、文件范围门禁与"AC 行非空"（`LIFECYCLE-AC-003`/`004` 照旧）。计划文件绑定不在三项之内，但沿用 tiny 既有的字段级豁免，故轻量任务同样不要求 `planFile`。`tiny` **只在创建期声明**（`task next --run --task-type tiny`），没有事后修改入口；轻量档在 `task next --list`（文本 `[light]` 标记与 `--json` 的 `lightProfile`）与 doctor 的任务卫生输出中可见。判定唯一来源是 `task_gate_profiles.is_light_task`（`strict` + 字段为 `tiny`）；启动 preflight 的计划文件豁免仍用字段级判定 `declares_light_profile`，以便存量 pre-strict tiny 任务行为不变。**不得**把轻量档用于触碰 runtime / 门禁 / spec 的任务——这一条靠可见性与复核约束，不是机检门禁。
-- `cowork-implement` 读取：见 .cowork-flow/spec/contracts/subagent-dispatch.md
-- `cowork-check` 读取：同上
-- `debug.jsonl` 引用：可选，偏差诊断时写入 anchor 锚点差异
+- The preflight for `task next <dir> --run` checks that `decision-anchor.md` is
+  non-empty and requires the `## 目标` and `## 验收标准` sections to be present.
+- **Gate profile `meta.gateProfile`**: a newly created task is written as
+  `"strict"`; an unmarked task is treated as `"legacy"` — existing tasks are not
+  retro-fitted with the stricter gate, and the profile is queryable through the
+  fact view. On top of the section check, a strict task additionally requires: at
+  least one parseable `- [ ] AC-xxx: ...` row in `## 验收标准`, no duplicate AC ids,
+  no non-AC list rows in that section, and a declared `dev_type` (otherwise
+  `task specs` dev-type dispatch silently comes back shorter).
+- A `## 验收标准` row's checkbox state (`- [ ]` / `- [x]`) and the evidence records
+  (the task directory's `evidence.jsonl`) are the fact source of the completion
+  gate: completion is blocked when an unchecked AC exists (`LIFECYCLE-AC-001`), a
+  declared AC has no evidence (`LIFECYCLE-AC-002`), a strict task cannot read any
+  AC row (`LIFECYCLE-AC-003`), or the AC-evidence module is unavailable
+  (`LIFECYCLE-AC-004`). Schema and exemptions are in `evidence-completion.md`.
+- **Review receipt change fingerprint** (a strict task requires its latest receipt
+  to match the current state at completion, `LIFECYCLE-REVIEW-003`). Input = the
+  git-visible change set (paths + content digests) + this anchor's goal and AC text
+  + the content digest of the bound plan + `dev_type` + the **content digest** of
+  every referenced spec + the content digest of `implement.jsonl`. Both `spec/**`
+  and `tasks/**` are gitignored, which is why the last two must enter the
+  fingerprint explicitly — otherwise rewriting a referenced spec's prose, or
+  widening the declared scope, would leave a stale receipt valid.
+- Fingerprint **exclusions** (mechanism): the change set excludes the whole
+  `.cowork-flow/tasks/**` tree, `.cowork-flow/.runtime/**`, and
+  `.cowork-flow/logs/**` — task-directory artifacts (`task.json`,
+  `evidence.jsonl`, `review.jsonl`, `check.jsonl`, `debug.jsonl`, and the anchor's
+  **path entry**) and runtime metadata are not counted, or a receipt would
+  invalidate itself the moment it was recorded. `implement.jsonl`'s path entry is
+  excluded the same way; its **content** is counted instead through the `scope`
+  component.
+  A **consequence** (expected cost, not a defect): **any byte change in
+  `implement.jsonl`** (appending or removing a scope entry, rewording a `reason`,
+  a domain-guide entry auto-appended by `task context add`) **or a rewrite of a
+  referenced spec's prose invalidates an existing receipt**, requiring one more
+  review run against the final state. Appending evidence, ticking ACs, and runtime
+  metadata are not in that set.
+- **Light profile `meta.taskType: "tiny"`**: applies to `strict` tasks only
+  (`legacy` + `tiny` stays a compatibility path). A light task **is still strict**
+  — what it waives are three things: the review receipt, AC evidence, and
+  `dev_type`. It does **not** waive spec-check, the file-scope gate, or "AC rows
+  are non-empty" (`LIFECYCLE-AC-003`/`004` still apply). Plan-file binding is not
+  among the three, but the pre-existing field-level exemption for tiny applies, so
+  a light task does not require `planFile` either. `tiny` **can only be declared at
+  creation time** (`task next --run --task-type tiny`) with no later edit path; the
+  light profile is visible in `task next --list` (a `[light]` text marker and
+  `lightProfile` in `--json`) and in doctor's task-hygiene output. The single
+  decision source is `task_gate_profiles.is_light_task` (`strict` + the field is
+  `tiny`); the start-preflight plan-file exemption still uses the field-level
+  `declares_light_profile` so existing pre-strict tiny tasks keep behaving as
+  before. The light profile **must not** be used for a task touching runtime /
+  gates / specs — that rule rests on visibility and review, not on a machine gate.
+- Read by `cowork-implement`: see .cowork-flow/spec/contracts/subagent-dispatch.md
+- Read by `cowork-check`: same as above
+- `debug.jsonl` reference: optional; on deviation diagnosis it records the anchor
+  delta
 
-## 正式版行为
+## Formal-release behavior
 
-正式版不自动迁移旧 `prd.md`。任务启动时只认可 `decision-anchor.md`
-作为权威决策来源；如果任务目录只有 `prd.md` 而缺少
-`decision-anchor.md`，`task next <dir> --run` 必须 fail-closed 并报告
-`decision-anchor.md is missing or empty`。
+The formal release does not auto-migrate a legacy `prd.md`. When a task is
+started, only `decision-anchor.md` is recognized as the authoritative decision
+source; if a task directory has only `prd.md` and no `decision-anchor.md`,
+`task next <dir> --run` must fail-closed and report
+`decision-anchor.md is missing or empty`.
 
-已有旧任务需要人工把 `prd.md` 内容转换为 `decision-anchor.md`，并补齐
-`## 目标` 与 `## 验收标准` 后再启动。
+An existing legacy task needs a human to convert the `prd.md` content into
+`decision-anchor.md`, fill in `## 目标` and `## 验收标准`, and only then start.

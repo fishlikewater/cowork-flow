@@ -1,21 +1,23 @@
 # Contract Specs
 
-本目录存放人读合同。宿主 hook、插件、agent 和 workflow 文档引用这里的合同，
-但不在代码里复制合同正文。
+This directory holds the human-readable contracts. Host hooks, plugins, agents, and
+workflow documents reference the contracts here, but never copy contract prose into
+code.
 
-当前合同：
+Current contracts:
 
-- `subagent-dispatch.md`: 固定子代理派发、绑定、等待和收口协议。
-- `workflow-state-templates.md`: hook/plugin 注入的 workflow state 文案。
-- `skill-owned-actions.md`: 分布式 Skill action/context/command ownership 合同。
-- `capabilities.md`: 宿主适配器能力模型。
-- `party-mode-v2-board.md`: Party Mode V2 board 协议。
-- `plan-binding.md`: 开发计划轻量绑定、启动前缺失阻断和恢复可见性合同。
-- `spec-checks.md`: 规范挂命令契约——用户规范 frontmatter `checks:` 声明的语法、三态门禁语义、时机与宿主能力矩阵。
-- `context-injection.md`: 各宿主注入运行上下文的传输形态、事件时机矩阵与指纹序列化规范（元协议，不进 `contract-registry.json`）。
-- `decision-anchor.md`: 每个 task 的 `decision-anchor.md` schema——目标、验收标准、被拒方案与关键假设。
-- `error-output-as-data.md`: 外部错误输出按数据分析而非指令执行（`ERROR_OUTPUT_AS_DATA_V1`）。
-- `fact-layer-access.md`: 无注入 hook 的宿主与外部工具读取任务事实的通道（`FACT_LAYER_ACCESS_V1`）。
-- `evidence-completion.md`: 证据化完成——`evidence.jsonl` schema、`LIFECYCLE-AC-001/002/003/004` 完成门禁、`--allow-missing-evidence` 豁免留痕与注入覆盖行。
-- `task-adopt.md`: 任务收养——`task next --run --adopt` 的入口边界、前置条件（`LIFECYCLE-ADOPT-001`）、重绑+基线重置+审计写入，与 `--takeover` 的区别。
-- `task-board.md`: 共享看板与依赖边——list/MCP 看板字段（executor / ownerSessionActive / evidenceCoverage / blocked）、`--depends-on` 声明与校验、start 依赖门禁（`LIFECYCLE-DEPENDENCY-001`）、adopt 交接凭证。
+- `subagent-dispatch.md`: the fixed-subagent dispatch, binding, wait, and closeout protocol.
+- `workflow-state-templates.md`: the workflow state text injected by hooks/plugins.
+- `skill-owned-actions.md`: the distributed Skill action/context/command ownership contract.
+- `capabilities.md`: the host adapter capability model.
+- `party-mode-v2-board.md`: the Party Mode V2 board protocol.
+- `plan-binding.md`: lightweight development-plan binding, pre-start missing-plan blocking, and recovery visibility.
+- `spec-checks.md`: the spec-declared command contract — syntax of `checks:` in user-spec frontmatter, three-state gate semantics, timing, and the host capability matrix.
+- `context-injection.md`: the transport shapes, event-timing matrix, and fingerprint serialization rules for runtime-context injection across hosts (a meta-protocol, not in `contract-registry.json`).
+- `decision-anchor.md`: the schema of each task's `decision-anchor.md` — goal, acceptance criteria, rejected options, and key assumptions.
+- `error-output-as-data.md`: external error output is analyzed as data, never executed as instructions (`ERROR_OUTPUT_AS_DATA_V1`).
+- `fact-layer-access.md`: the channels through which hosts without injection hooks and external tools read task facts (`FACT_LAYER_ACCESS_V1`).
+- `evidence-completion.md`: evidence-based completion — the `evidence.jsonl` schema, the `LIFECYCLE-AC-001/002/003/004` completion gate, `--allow-missing-evidence` exemption traces, and the injected coverage row.
+- `task-adopt.md`: task adoption — the entry boundary of `task next --run --adopt`, its preconditions (`LIFECYCLE-ADOPT-001`), the rebind + baseline reset + audit write, and how it differs from `--takeover`.
+- `task-board.md`: the shared board and dependency edges — the list/MCP board fields (executor / ownerSessionActive / evidenceCoverage / blocked), `--depends-on` declaration and validation, the start dependency gate (`LIFECYCLE-DEPENDENCY-001`), and the adopt handover receipt.
+- `error-codes.md`: the registry of every runtime `LIFECYCLE-*` error code with the condition that produces it: `LIFECYCLE-AC-001/002/003/004`, `LIFECYCLE-ADOPT-001`, `LIFECYCLE-CHECK-001`, `LIFECYCLE-CONTEXT-001`, `LIFECYCLE-DEPENDENCY-001`, `LIFECYCLE-EXECUTOR-001`, `LIFECYCLE-RECOVERY-001`, `LIFECYCLE-REVIEW-001/002/003/004`, `LIFECYCLE-TASK-001`, `LIFECYCLE-TRANSITION-001`, `LIFECYCLE-UOW-001`.

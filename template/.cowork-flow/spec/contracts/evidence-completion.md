@@ -1,52 +1,84 @@
 # Evidence Completion Contract
 
-**任务完成从"流程走完"升级为"证据齐全"：decision-anchor 的验收标准（AC）是机器可查询的事实，完成门禁校验每个 AC 的证据记录存在性。**
+**Task completion moves from "the process ran" to "the evidence is complete": the
+decision-anchor acceptance criteria (AC) are machine-queryable facts, and the
+completion gate verifies that an evidence record exists for every AC.**
 
-机器只裁决存在性事实（AC 声明、勾选状态、证据条目有无）；一条证据是否真正证明对应 AC，由 review 判断。
+The machine only decides existence facts (AC declared, checkbox state, evidence
+entry present or not); whether one piece of evidence really proves its AC is a
+review judgement.
 
-## 证据记录：`evidence.jsonl`
+## Evidence records: `evidence.jsonl`
 
-任务目录下的追加式 JSONL 文件，由实现方（主会话或子代理）在实现过程中写入，runtime 只读：
+An append-only JSONL file in the task directory, written by the implementer (main
+session or subagent) during implementation; the runtime only reads it:
 
 ```json
-{"ac": "AC-001", "kind": "test", "ref": "tests/test_ac_evidence.py", "note": "覆盖计算三态断言", "recordedAt": "2026-10-06", "by": "cwf-cli-1004"}
+{"ac": "AC-001", "kind": "test", "ref": "tests/test_ac_evidence.py", "note": "covers the three-state assertion", "recordedAt": "2026-10-06", "by": "cwf-cli-1004"}
 ```
 
-| 字段 | 必填 | 含义 |
+| Field | Required | Meaning |
 |---|---|---|
-| `ac` | 是 | 对应的 AC id（`AC-xxx`，与 decision-anchor 一致） |
-| `kind` | 是 | `test`（自动化测试）、`command`（命令及退出码）、`manual`（手工验证记录） |
-| `ref` | 是 | 证据指向：测试文件/用例、命令、手工记录位置；非空字符串 |
-| `note` | 否 | 核心断言一句话 |
-| `recordedAt` | 否 | ISO 日期 |
-| `by` | 否 | 写入者会话/执行者标识 |
+| `ac` | yes | the corresponding AC id (`AC-xxx`, matching the decision-anchor) |
+| `kind` | yes | `test` (automated test), `command` (command plus exit code), `manual` (hand-recorded verification) |
+| `ref` | yes | where the evidence points: test file/case, command, or the location of the manual record; a non-empty string |
+| `note` | no | the core assertion in one sentence |
+| `recordedAt` | no | ISO date |
+| `by` | no | writer session/actor identifier |
 
-坏行、缺字段、未知 `kind` 的记录被读取端跳过（与 context JSONL 容错一致），门禁只看有效记录。
+Malformed rows, missing fields, and unknown `kind` values are skipped by the
+reader (matching the context JSONL tolerance); the gate only looks at valid
+records.
 
-## 完成门禁
+## Completion gate
 
-`task next <dir> --run` 的完成动作在直接生命周期检查中追加四条稳定 code：
+The completion action of `task next <dir> --run` appends four stable codes to the
+direct lifecycle checks:
 
-| code | 触发事实 | 豁免 |
+| code | Triggering fact | Exemption |
 |---|---|---|
-| `LIFECYCLE-AC-001` | 存在未勾选的 AC 行 | 无——完成工作本身，或勾选已完成的行 |
-| `LIFECYCLE-AC-002` | 存在已声明但无任何有效证据记录的 AC | `--allow-missing-evidence`（记入 task.json `meta.evidenceExempt`，含 `at`、`flag`、`by` 与 `missing` 明细） |
-| `LIFECYCLE-AC-003` | `gateProfile=strict` 且 decision-anchor 读不到 AC 行 | 无——strict 任务在启动期已被要求声明 AC，完成期读不到只有三种可能：anchor 被改写、任务被错误创建、或 anchor 不可解码（编码损坏） |
-| `LIFECYCLE-AC-004` | `gateProfile=strict` 且 ac_evidence 模块不可导入 | 无——与 `SPEC-CHECK-EXECUTOR-ERROR` 同类：模块故障不是"没得查"；文案含原始异常，修好 runtime 安装后重跑 |
+| `LIFECYCLE-AC-001` | an unchecked AC row exists | none — do the work, or tick the completed rows |
+| `LIFECYCLE-AC-002` | a declared AC has no valid evidence record | `--allow-missing-evidence` (recorded in task.json `meta.evidenceExempt`, with `at`, `flag`, `by`, and the `missing` detail list) |
+| `LIFECYCLE-AC-003` | `gateProfile=strict` and decision-anchor yields no AC row | none — a strict task was already required to declare ACs at start, so reading none at completion has only three explanations: the anchor was rewritten, the task was created wrongly, or the anchor is undecodable (corrupted encoding) |
+| `LIFECYCLE-AC-004` | `gateProfile=strict` and the ac_evidence module cannot be imported | none — same family as `SPEC-CHECK-EXECUTOR-ERROR`: a broken module is not "nothing to check"; the message carries the original exception, and you rerun once the runtime install is fixed |
 
-- 前两个 code 可同时出现；`--allow-missing-evidence` 只豁免 `LIFECYCLE-AC-002`，不豁免 `003`/`004`。
-- **兼容路径**：无 `gateProfile` 的 legacy 任务（全部存量任务）在 decision-anchor 缺失、未声明任何 AC 行、或 ac_evidence 模块不可读时都不触发本门禁，逐条与本契约引入前一致。
-- **严格路径**：`gateProfile=strict` 的任务在完成阶段重新校验 AC 的存在性与证据模块可用性——启动期的 AC 声明要求不因完成期读不到而失效。
-- 豁免留痕 `meta.evidenceExempt` 与 spec-check 的 `specCheckExempt` 同型：重试不累积，最新一次完成结果为准。
-- **豁免记录要点名"豁免了哪几条、谁批的"**：`meta.evidenceExempt` = `{"at", "flag": "--allow-missing-evidence", "by": <执行者或 null>, "missing": [<AC id>…]}`。`by` 取会话执行者解析结果，解析不到写 `null`——**不**用 `creator`/`assignee` 冒充。完成输出与归档输出都逐条打印这份记录（完成输出读刚落盘的 `task.json`），因此"记录了什么"与"打印了什么"不可能各说一套；无豁免时不打印任何豁免行。结构与 spec-check 侧的 `meta.specCheckExempt` 明细规则一致，见 `spec-checks.md`。
+- The first two codes can appear together; `--allow-missing-evidence` waives
+  `LIFECYCLE-AC-002` only, never `003`/`004`.
+- **Compatibility path**: a legacy task with no `gateProfile` (every pre-existing
+  task) triggers none of these gates when the decision-anchor is missing, declares
+  no AC row, or the ac_evidence module is unreadable — item by item identical to
+  the behavior before this contract.
+- **Strict path**: a `gateProfile=strict` task re-verifies AC existence and
+  evidence-module availability at completion — the start-time AC declaration
+  requirement does not lapse because completion cannot read it.
+- The `meta.evidenceExempt` trace has the same shape as spec-check's
+  `specCheckExempt`: retries do not accumulate, the latest completion result wins.
+- **An exemption record must name which items were waived and who approved it**:
+  `meta.evidenceExempt` = `{"at", "flag": "--allow-missing-evidence",
+  "by": <actor or null>, "missing": [<AC id>…]}`. `by` is the resolved session
+  actor, or `null` when none resolves — **not** a stand-in borrowed from
+  `creator`/`assignee`. Both the completion output and the archive output print
+  this record item by item (the completion output reads the `task.json` just
+  written), so "what was recorded" and "what was printed" cannot tell two different
+  stories; with no exemption, no exemption rows are printed at all. The structure
+  matches the `meta.specCheckExempt` detail rules on the spec-check side; see
+  `spec-checks.md`.
 
-## 注入与事实视图
+## Injection and fact view
 
-- decision-anchor 注入块：声明了 AC 的任务在 `Acceptance:` 行后追加一行 `AC evidence: <有证据数>/<总数>`，有缺失时附 ` missing=<id 逗号列表，最多 5 个>`；三线（Python / zcode shim / opencode 插件）逐字节同格式，由矩阵测试锁定。
-- `run state <task> --json` / MCP 事实视图：`evidenceCoverage: {total, withEvidence, missing[]}`；未声明 AC 时为 `null`。
+- Decision-anchor injection block: a task that declares ACs appends one row
+  `AC evidence: <with evidence>/<total>` after the `Acceptance:` row, plus
+  ` missing=<comma-separated ids, at most 5>` when any are missing; the three lines
+  (Python / zcode shim / opencode plugin) render byte-identically in the same
+  format, locked by matrix tests.
+- `run state <task> --json` / the MCP fact view: `evidenceCoverage: {total,
+  withEvidence, missing[]}`; `null` when no AC is declared.
 
-## 边界
+## Boundaries
 
-- runtime 不代写证据，不执行 AC 对应命令"代打"记录。
-- 不解析 AC 正文语义；`AC-xxx` 行的勾选框缺失时按未完成解析。
-- 本契约不改变 spec-check 语义；MCP 写工具仍默认拒绝（`fact-layer-access.md`）。
+- The runtime never writes evidence for you, and never "plays out" the command
+  behind an AC to fabricate a record.
+- It does not parse AC prose semantics; a missing checkbox on an `AC-xxx` row
+  parses as incomplete.
+- This contract does not change spec-check semantics; MCP write tools still refuse
+  by default (`fact-layer-access.md`).

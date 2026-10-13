@@ -1,41 +1,67 @@
-# Spec Check 契约（规范挂命令）
+# Spec Check Contract (spec-declared commands)
 
-## 它做什么
+## What it does
 
-用户规范（`.cowork-flow/spec/` 下 `backend/`、`frontend/`、自建目录）可通过 frontmatter 的
-`checks:` 声明检查命令。机制只执行声明、不解析规范正文——规则变化 = 用户改同一个文件里的命令，天然同步。
+User specs (the `backend/` and `frontend/` directories under `.cowork-flow/spec/`,
+plus any project-owned directory) may declare check commands in frontmatter under
+`checks:`. The mechanism only executes declarations and never parses spec prose —
+so a rule change is a command change in the same file, and the two stay in sync by
+construction.
 
-## 什么时候挂
+## When to attach a declaration
 
-条款能用命令退出码判定时（lint / 测试 / 类型检查 / schema 校验）就值得挂 `checks:`。两条硬约束：
+A clause is worth a `checks:` declaration whenever a command exit code can decide
+it (lint / tests / type check / schema validation). Two hard constraints:
 
-- **声明的命令不存在 = `unchecked` = 阻断 `complete`**：挂之前先确认命令在当前仓库能跑通。
-- **edit-only 不是门禁**：`when: edit` 只是编辑期 best-effort 提示——Bash 直写绕过 PostToolUse、无编辑期快跑能力的宿主（见附录 A）都收不到这层反馈，收口期也不补跑；需要硬门禁的检查必须声明 `when: lifecycle` 或默认 `both`。
+- **A declared command that does not exist = `unchecked` = blocks `complete`**:
+  confirm the command runs in the current repository before declaring it.
+- **edit-only is not a gate**: `when: edit` is a best-effort edit-time hint only —
+  Bash writes bypass PostToolUse, and hosts without an edit-time fast path
+  (see Appendix A) receive none of this feedback; the closeout phase does not
+  re-run it either. A check that must hard-block has to declare
+  `when: lifecycle`, or the default `both`.
 
-## 语法
+## Syntax
 
 ```markdown
 ---
 checks:
   - cmd: npm run lint --silent
-    files: "src/"          # 可选：适用范围，目录前缀或扩展名（"*.ts"），逗号分隔
-    timeout: 60            # 可选：秒，默认 30，硬顶 120
-    when: both             # 可选：edit | lifecycle | both（默认 both）
-    cmd.win: npm run lint  # 可选：Windows 覆盖命令
+    files: "src/"          # optional: scope, a directory prefix or an extension ("*.ts"), comma-separated
+    timeout: 60            # optional: seconds, default 30, hard cap 120
+    when: both             # optional: edit | lifecycle | both (default both)
+    cmd.win: npm run lint  # optional: Windows override command
 ---
 
-# 规范正文（机制不读）
+# Spec prose (the mechanism never reads it)
 ```
 
-- `files` 只支持两种形式：目录前缀（`src/`，以 `/` 结尾或自动补齐）与扩展名（`*.ts`）。完整 glob 形态（`**`、`[]`）解析为错误、声明不执行、doctor 报告——绝不回退为"匹配一切"；多值（`files: "src/", "lib/"`）每个 token 按同一引号规则去引号后生效。
-- 引号规则：仅值整体为单对引号时去引号；`"python" -c "..."` 这类含多对引号的命令值原样保留，由执行器按 shell 规则拆分。
-- `when: edit` 在编辑期（PostToolUse）对命中 `files` 的改动文件就地执行，超时被钳制到 2.5 秒（为解释器启动与 cmd 包装留 spawn 预算）；慢命令请声明 `when: lifecycle`。
-- **文件必须 UTF-8 无 BOM**：BOM 开头的 frontmatter 会被解析器静默忽略（声明数 0、无解析错误）——声明无声失效。挂完声明请跑一次 `spec-check` 确认被解析。
+- `files` accepts exactly two forms: a directory prefix (`src/`, ending in `/` or
+  auto-completed to it) and an extension (`*.ts`). Full glob forms (`**`, `[]`)
+  parse as an error, the declaration does not run, and doctor reports it — never a
+  fallback to "match everything"; for multi-value declarations
+  (`files: "src/", "lib/"`) each token is unquoted under the same quoting rule
+  before it takes effect.
+- Quoting rule: a value is unquoted only when the whole value is a single quoted
+  pair; command values carrying several quoted pairs, such as
+  `"python" -c "..."`, are kept verbatim and split by the executor under shell
+  rules.
+- `when: edit` runs at edit time (PostToolUse) on the changed files that hit
+  `files`, with the timeout clamped to 2.5 seconds (spawn budget for interpreter
+  startup and the cmd wrapper); slow commands should declare `when: lifecycle`.
+- **The file must be UTF-8 without BOM**: frontmatter starting with a BOM is
+  silently ignored by the parser (zero declarations, no parse error) — the
+  declaration fails without a word. After declaring, run `spec-check` once to
+  confirm it was parsed.
 
-### 从零到第一条检查（可直接抄）
+### From zero to the first check (copy-paste)
 
-1. 在 `.cowork-flow/spec/` 下建一个规范文件（自建子目录或直接放根下，如 `spec/team-gate.md`）。`contracts/`、`runtime/`、`schemas/` 是机器目录、不扫；其余任意层级与子目录都扫。文件存 UTF-8 无 BOM。
-2. 把下面这段抄进去，`cmd` 换成当前仓库真能跑通的命令，`files` 限定到该规范管的那一层：
+1. Create a spec file under `.cowork-flow/spec/` (a project-owned subdirectory, or
+   directly at the root, e.g. `spec/team-gate.md`). `contracts/`, `runtime/`, and
+   `schemas/` are machine directories and are not scanned; every other level and
+   subdirectory is. Save the file as UTF-8 without BOM.
+2. Copy the block below into it, replace `cmd` with a command that really runs in
+   this repository, and narrow `files` to the layer that spec governs:
 
 ```markdown
 ---
@@ -45,77 +71,210 @@ checks:
     when: both
 ---
 
-# 团队规范正文（机制不读）
+# Team spec prose (the mechanism never reads it)
 ```
 
-3. 跑 `./.cowork-flow/run spec-check`：应看到 `1 passed, 0 violations, 0 unchecked`，不再是 `no checks declared`。再故意制造一次违规，确认它确实报 `violation`——恒过的声明是装饰，不是检查。
+3. Run `./.cowork-flow/run spec-check`: you should see
+   `1 passed, 0 violations, 0 unchecked` instead of `no checks declared`. Then
+   break the rule once on purpose and confirm it really reports a `violation` — a
+   declaration that always passes is decoration, not a check.
 
-**命令只输出违规内容，`spec-check[<spec>] violation:` 前缀由框架加**：`cmd` 自己 print 这个前缀，会和框架前缀叠加成 `spec-check[team-gate.md] violation: spec-check[team-gate.md] violation: ...`。命令的职责只有退出码（0=pass，非 0=violation）与可读输出；前缀、分类、三态判定、节流都在框架侧。
+**The command prints violations only; the framework adds the
+`spec-check[<spec>] violation:` prefix**: a `cmd` that prints that prefix itself
+stacks on top of the framework's, producing
+`spec-check[team-gate.md] violation: spec-check[team-gate.md] violation: ...`.
+A command's only duties are an exit code (0 = pass, non-zero = violation) and
+readable output; the prefix, the classification, the three-state verdict, and the
+throttle all live on the framework side.
 
-## 三态与门禁
+## Three states and the gate
 
-| 状态 | 含义 | complete 门禁 |
+| State | Meaning | complete gate |
 | --- | --- | --- |
-| `pass` | 退出码 0 | 通过 |
-| `violation` | 退出码非 0 | **阻断**（状态不推进） |
-| `unchecked` | 命令不存在/解释器缺失/超时 | **阻断**；显式 `--allow-unchecked` 可放行，豁免留痕进 task.json `meta.specCheckExempt`（含逐条明细，见下） |
+| `pass` | exit code 0 | passes |
+| `violation` | non-zero exit code | **blocks** (status does not advance) |
+| `unchecked` | command missing / interpreter missing / timeout | **blocks**; an explicit `--allow-unchecked` lets it through and records the exemption in task.json `meta.specCheckExempt` (item by item, see below) |
 
-unchecked 永不冒充 pass（"没跑成"不是"通过"）；frontmatter 畸形视该 spec 为无检查并进 doctor 报告，不炸流程。解析失败是独立于三态之外的信号：`files` 形态非法等声明解析错误归入 `parseErrors`，不折进 `pass`/`unchecked`，退出码与 `unchecked` 同为 2。文本模式与 `--json` 必须使用同一退出码，且文本模式必须打印解析错误行（`spec-check: N parse error(s): <spec>: <error>`）——只打印 `0 passed, 0 violations, 0 unchecked` 会让畸形声明看起来像干净通过。
+`unchecked` never masquerades as `pass` ("did not run" is not "passed"); malformed
+frontmatter treats that spec as having no checks and lands in the doctor report
+without breaking the flow. A parse failure is a signal separate from the three
+states: declaration parse errors such as an illegal `files` form belong to
+`parseErrors`, are not folded into `pass`/`unchecked`, and exit with code 2 like
+`unchecked`. Text mode and `--json` must use the same exit code, and text mode
+must print the parse-error lines (`spec-check: N parse error(s): <spec>: <error>`)
+— printing only `0 passed, 0 violations, 0 unchecked` would make a malformed
+declaration look like a clean pass.
 
-退出码契约：`0` 全部 pass；`1` 存在 violation；`2` 存在 unchecked、`parseErrors` 或执行器失败。`--allow-unchecked` 只豁免 unchecked 的阻断，不豁免解析错误。
+Exit code contract: `0` everything passed; `1` a violation exists; `2` unchecked
+entries, `parseErrors`, or an executor failure exist. `--allow-unchecked` waives
+only the `unchecked` block, never a parse error.
 
-**执行器整体失败是独立阻断**：spec-check 模块导入失败或运行抛错时，收口门禁降级为 `summary.executorError` 置位 + `classification: executor-failure` + 退出码 2，并以 `SPEC-CHECK-EXECUTOR-ERROR` 阻断 `complete`。它**不接受** `--allow-unchecked`——该开关豁免的是"声明的命令跑不起来"，不是"检查器本身坏了"；降级报告里合成的 `unchecked: 1` 只是计数占位，不再单独报一条，阻断消息也不提该开关。
+**A whole-executor failure is a separate block**: when the spec-check module fails
+to import or raises, the closeout gate degrades to `summary.executorError` set plus
+`classification: executor-failure` plus exit code 2, and blocks `complete` with
+`SPEC-CHECK-EXECUTOR-ERROR`. It does **not** accept `--allow-unchecked` — that flag
+waives "a declared command could not run", not "the checker itself broke"; the
+synthetic `unchecked: 1` in the degraded report is only a counting placeholder, is
+not reported as its own entry, and the block message does not mention the flag.
 
-**豁免记录必须点名"豁免了什么"**：`meta.specCheckExempt` = `{"at", "flag": "--allow-unchecked", "by": <执行者或 null>, "unchecked": N, "uncheckedItems": [{"spec", "cmd"}…], "truncated"?}`；`meta.evidenceExempt` = `{"at", "flag": "--allow-missing-evidence", "by": <执行者或 null>, "missing": [<AC id>…]}`。明细条目上限 10 条，超出置 `truncated: true`；单条命令按 80 字符截断且**不切开首个 token**（那个 token 是程序名，正是"什么没验证"的答案）。`by` 取会话执行者解析结果，解析不到写 `null`——**不**用 `creator`/`assignee` 冒充。完成输出与归档输出打印**同一份记录的同一批行**（完成输出直接读刚落盘的 `task.json`），因此"记录了什么"与"打印了什么"不可能各说一套；无豁免时不打印任何豁免行。
+**An exemption record must name what it waived**: `meta.specCheckExempt` =
+`{"at", "flag": "--allow-unchecked", "by": <actor or null>, "unchecked": N,
+"uncheckedItems": [{"spec", "cmd"}…], "truncated"?}`; `meta.evidenceExempt` =
+`{"at", "flag": "--allow-missing-evidence", "by": <actor or null>,
+"missing": [<AC id>…]}`. The item list is capped at 10 entries; beyond that
+`truncated: true` is set. A single command is clipped at 80 characters and **never
+splits the first token** (that token is the program name — which is precisely the
+answer to "what went unverified"). `by` is the resolved session actor, or `null`
+when none resolves — **not** a stand-in borrowed from `creator`/`assignee`. The
+completion output and the archive output print **the same rows of the same record**
+(the completion output reads the `task.json` just written), so "what was recorded"
+and "what was printed" cannot tell two different stories; with no exemption, no
+exemption rows are printed at all.
 
-**每次运行都带一个分类事实**：`summary.classification` ∈ `parse-error` / `executor-failure` / `zero-declaration` / `violation` / `unchecked` / `pass` / `empty`，`--json` 直接可查。`empty` 是合法状态：有声明但本阶段无一执行（如 lifecycle 运行下的 `when: edit` 声明）。读取早于该字段的报告走 `report_classification()`，返回 `legacy`——缺字段本身是事实，不从计数反推（反推等于把旧报告升格成猜测）。
+**Every run carries one classification fact**: `summary.classification` ∈
+`parse-error` / `executor-failure` / `zero-declaration` / `violation` /
+`unchecked` / `pass` / `empty`, queryable directly through `--json`. `empty` is a
+legitimate state: declarations exist but none ran in this phase (for example
+`when: edit` declarations under a lifecycle run). Reading a report older than that
+field goes through `report_classification()`, which returns `legacy` — a missing
+field is itself a fact, and is never reverse-engineered from the counts (that
+would promote an old report into a guess).
 
-**零声明是合法状态，但必须显式可见**：仓库无任何生效声明时退出码为 `0`，文本模式输出独立事实行 `spec-check: no checks declared (<N> spec files scanned)`，与"有声明且全过"的 `spec-check: <n> passed, 0 violations, 0 unchecked` 可区分；`--json` 顶层含 `specFiles`、summary 含 `declarations`。零声明 ≠ 干净通过——它意味着规范链上当前没有可机检约束，是需要被看见的事实，而不是可冒充通过的绿色。
+**Zero declarations is a legitimate state, but it must be visible**: a repository
+with no effective declarations exits with code `0`, and text mode prints the
+standalone fact line `spec-check: no checks declared (<N> spec files scanned)`,
+distinguishable from `spec-check: <n> passed, 0 violations, 0 unchecked`; `--json`
+carries `specFiles` at the top level and `declarations` in the summary. Zero
+declarations ≠ clean pass — it means the spec chain currently holds no
+machine-checkable constraint, a fact that needs to be seen rather than a green
+that can be claimed.
 
-## 时机与输出
+## Timing and output
 
-- **编辑期**（PostToolUse）：仅 `when: edit`/`both` 且改动命中 `files` 时执行，违规输出单行 `spec-check[<spec>] violation: <首个违规行>`；执行器缺失或超时静默，绝不阻断编辑流。宿主差异与节流细节见附录 A。
-- **收口期**（task complete）：全量执行，结果进 `meta.specCheckSummary` 遥测；阻断消息只列未过项摘要。豁免必须同时**可见**：`--allow-unchecked` / `--allow-missing-evidence` 生效时，完成输出按上面的记录结构逐条打印（`Exempted: …` 标题行 + `  - <spec>: <cmd>` / `  - <AC id>` 明细行，点名 `meta.specCheckExempt` / `meta.evidenceExempt` 与执行者），归档输出再打印同一批行——只写进 task.json 的豁免，对正在看命令的人等于干净通过。
-- **手动查询**：`./.cowork-flow/run spec-check [--file <path>] [--json] [--verbose]`（退出码见上）。
+- **Edit time** (PostToolUse): runs only for `when: edit`/`both` when the change
+  hits `files`, printing a single
+  `spec-check[<spec>] violation: <first violation line>`; a missing executor or a
+  timeout stays silent and never blocks the edit stream. Host differences and
+  throttle details are in Appendix A.
+- **Closeout** (task complete): full run, results recorded in the
+  `meta.specCheckSummary` telemetry; the block message lists only a summary of the
+  failing entries. Exemptions must also be **visible**: while
+  `--allow-unchecked` / `--allow-missing-evidence` apply, the completion output
+  prints that record item by item (an `Exempted: …` header line plus
+  `  - <spec>: <cmd>` / `  - <AC id>` detail rows, naming
+  `meta.specCheckExempt` / `meta.evidenceExempt` and the actor), and the archive
+  output prints the same rows again — an exemption written only into task.json is a
+  clean pass to whoever is watching the command.
+- **Manual query**: `./.cowork-flow/run spec-check [--file <path>] [--json]
+  [--verbose]` (exit codes as above).
 
-## 声明归使用方维护
+## Declarations belong to the consumer
 
-- **模板不预置声明**：模板自带的 spec 文件不含生效的 `checks:` 声明——模板无法预知项目命令，而命令缺失会归 `unchecked` 并阻断 `complete`。请把声明写进自建 spec 文件（如 `spec/team-xxx.md` 或自建子目录），sync 不触碰，声明随规范正文一起由使用方维护。
-- **sync 保护前缀与具名例外**：`spec/` 整体是 sync 保护前缀，已存在的 spec 文件不会被 `sync` 覆盖（模板里 spec 的更新只对 `init` 新装生效）；唯一具名例外是 `spec/contracts/` 下列入 `spec/runtime/host-assets.json` `syncPolicy.safeFiles` 的条目（本文件与 `workflow-state-templates.md`），它们随 sync 更新，使契约修正能到达已安装项目。
-- **识别并挂声明是主会话 AI 的职责**：声明归项目所有。review / 规范维护时，主会话 AI 负责识别可机检条款并补 `checks:` 声明（条款正文不擅自改——发现条款与实现冲突时按 review 流程提出，由用户决策）；仅主会话写入 spec，delegated 子代理只上报候选、不越 scope。完整职责见 `task-review` 与 `spec-sync` Skill。
-- **质量纪律四条**：① 在干净树上跑出 `pass`；② 用一个反例证明该检查确实能报错（不是恒过的装饰）；③ 用 `files` 限定适用范围；④ 挂后跑一次 `spec-check` 确认声明被解析（防 BOM / `files` 形态错误静默失效）。复核报告按「条款 → 命令 → 反例」三元组列出：`clause`（条款）、`command`（判定命令）、`negativeProof`（破坏该条款时命令报什么）——与 `task-review` 的 Review Report Format 和 `subagent check-review --finding` 用同一组键。无法用命令判定的条款写明理由（`command`/`negativeProof` 为 `null`），不留空行；可机检却给不出命令的条款本身就是一条 finding。
+- **The template ships no declarations**: the spec files the template carries
+  contain no effective `checks:` declaration — the template cannot know a
+  project's commands, and a missing command lands in `unchecked` and blocks
+  `complete`. Declare them in project-owned spec files (e.g. `spec/team-xxx.md` or
+  a project-owned subdirectory); sync never touches those, and the declarations are
+  maintained by the consumer alongside the spec prose.
+- **sync-protected prefix and the named exception**: `spec/` as a whole is a
+  sync-protected prefix, so existing spec files are not overwritten by `sync`
+  (spec updates in the template only take effect for a fresh `init`); the single
+  named exception is the entries under `spec/contracts/` listed in
+  `spec/runtime/host-assets.json` `syncPolicy.safeFiles` (this file and
+  `workflow-state-templates.md`), which do track sync so contract corrections can
+  reach installed projects.
+- **Recognizing clauses and attaching declarations is the main-session AI's job**:
+  declarations belong to the project. During review / spec maintenance, the main
+  session AI identifies machine-checkable clauses and adds the `checks:`
+  declaration (it does not rewrite the clause prose on its own — a conflict between
+  a clause and the implementation goes through the review flow for the user to
+  decide); only the main session writes specs, and a delegated subagent only
+  reports candidates without exceeding its scope. The full duty is in the
+  `task-review` and `spec-sync` Skills.
+- **Four quality disciplines**: ① produce a `pass` on a clean tree; ② prove the
+  check really can fail with one negative case (not an always-passing decoration);
+  ③ narrow the coverage with `files`; ④ run `spec-check` once after declaring to
+  confirm it was parsed (guards against silent BOM / `files`-form failures). The
+  review report lists the `clause → command → negativeProof` triple: `clause` (the
+  clause), `command` (the deciding command), `negativeProof` (what the command
+  reports when that clause is broken) — the same key set `task-review`'s Review
+  Report Format and `subagent check-review --finding` use. A clause no command can
+  decide must state why (`command`/`negativeProof` are `null`) instead of leaving
+  the row blank; a clause that is machine-checkable yet yields no command is itself
+  a finding.
 
-## 附录 A 宿主能力矩阵
+## Appendix A: host capability matrix
 
-| 宿主 | digest 注入 | 编辑期快跑 | 收口强制 |
+| Host | digest injection | edit-time fast path | closeout enforcement |
 | --- | --- | --- | --- |
-| zcode | 有（Specs 行 h2 digest） | 有（PostToolUse 短路径；**仅主会话**） | 有 |
-| claude-code | 有（Python 单源） | 有（PostToolUse，exit 2 反馈） | 有 |
-| codex | 有 | 有（PostToolUse，`apply_patch\|Write\|Edit` → exit 2 stderr） | 有 |
-| opencode | 有 | 有（插件 `tool.execute.after` 单行追加到工具结果） | 有 |
-| dsh | 有（预设注入） | 有（预设插件 `tools/post-execute` → `additionalContexts`） | 有 |
-| kimi-code | 有（UserPromptSubmit hook → `inject.py --host kimi-code`） | 无（未注册 PostToolUse；观察型事件 stdout 被丢弃） | 有 |
-| qoder | 有（插件 hook → `inject.py --host qoder`） | 有（`PostToolUse` 非阻断事件，告警走 `additionalContext`、exit 0） | 有 |
+| zcode | yes (Specs line h2 digest) | yes (PostToolUse short path; **main session only**) | yes |
+| claude-code | yes (Python single source) | yes (PostToolUse, exit 2 feedback) | yes |
+| codex | yes | yes (PostToolUse, `apply_patch\|Write\|Edit` → exit 2 stderr) | yes |
+| opencode | yes | yes (plugin `tool.execute.after` appends one line to the tool result) | yes |
+| dsh | yes (preset injection) | yes (preset plugin `tools/post-execute` → `additionalContexts`) | yes |
+| kimi-code | yes (UserPromptSubmit hook → `inject.py --host kimi-code`) | no (no PostToolUse registered; observational-event stdout is discarded) | yes |
+| qoder | yes (plugin hook → `inject.py --host qoder`) | yes (`PostToolUse` non-blocking event, warning via `additionalContext`, exit 0) | yes |
 
-zcode / codex / claude-code 经 Python 单源共享 `run_edit_checks`；opencode 在插件内以 CLI 拉取同一执行器（`run spec-check --phase edit --throttled`），dsh 经预设插件的 `tools/post-execute` 调同一 Python 协议，qoder 经插件 hook 的 `PostToolUse` 调同一执行器（该事件在 Qoder 不可阻断，告警以 `additionalContext` 随 exit 0 返回，而非 claude-code/codex 的 stderr + exit 2）——具备编辑期快跑的六家共享同一节流状态与三态语义，不各自实现检查逻辑；kimi-code 只走收口强制与子代理自查。
+zcode / codex / claude-code share `run_edit_checks` through the Python single
+source; opencode pulls the same executor from inside its plugin via the CLI
+(`run spec-check --phase edit --throttled`), dsh calls the same Python protocol
+through its preset plugin's `tools/post-execute`, and qoder calls the same executor
+through its plugin hook's `PostToolUse` (that event is not blockable on Qoder, so
+the warning comes back as `additionalContext` with exit 0 rather than
+claude-code/codex's stderr + exit 2) — the six hosts with an edit-time fast path
+share one throttle state and one three-state semantics instead of implementing
+check logic each; kimi-code only gets closeout enforcement and the subagent
+self-check.
 
-编辑期节流：同一文件 10 秒内只报一次；节流状态在 `.cowork-flow/.runtime/spec-edit-throttle.json`，检查完整跑过才写节流——执行器崩溃不消费时间窗，重试仍会执行。delegated 子代理会话同样收到 spec 违规反馈（子代理是主力写码者）；scope 警告保持 main-only。zcode 主会话的 hook 身份（对话自身 session id）不会被绑定——激活发生在 Bash 侧显式身份下——显示与编辑期警告按最新主会话兜底；claude/codex 保持严格会话身份（其 Bash env 携带同一 session id）。zcode 经 shim 转发到单源入口（`inject.py`），scope 警告与 spec 警告合并进同一个 additionalContext 载荷；claude 走 exit 2 stderr 反馈。
+Edit-time throttle: the same file is reported at most once per 10 seconds; the
+throttle state lives in `.cowork-flow/.runtime/spec-edit-throttle.json`, and the
+window is written only after the check ran to completion — a crashing executor
+does not consume the window and a retry still executes. Delegated subagent sessions
+receive spec-violation feedback too (subagents are the main code writers); scope
+warnings stay main-only. The zcode main session's hook identity (the conversation's
+own session id) is never bound — activation happens under an explicit identity on
+the Bash side — so display and edit-time warnings fall back to the latest main
+session; claude/codex keep a strict session identity (their Bash env carries the
+same session id). zcode forwards through a shim to the single-source entrypoint
+(`inject.py`), merging scope warnings and spec warnings into one additionalContext
+payload; claude uses exit 2 stderr feedback.
 
-## 附录 B delegated 编辑期缺口与补偿
+## Appendix B: the delegated edit-time gap and its compensation
 
-**delegated 子代理编辑期缺口（zcode 实测，2026-09-09 两轮）**：ZCode 的插件 hook 只在主会话工具流上派发（事件模型七事件均挂主会话；子代理是独立内部会话流 `sess_subagent_agent_*`），Agent 子代理的 Edit/Write 收不到 `spec-check[...] violation` 行——runtime 绑定与检查逻辑均正常，缺的是宿主派发。补偿机制（subagent-dispatch.md 契约固化）：
+**Delegated subagent edit-time gap (measured on zcode, two rounds on 2026-09-09)**:
+the ZCode plugin hook only dispatches on the main-session tool stream (all seven
+event types attach to the main session; a subagent is a separate internal session
+stream, `sess_subagent_agent_*`), so an Agent child's Edit/Write never receives the
+`spec-check[...] violation` line — runtime binding and check logic are both fine;
+what is missing is the host dispatch. The compensating mechanisms (frozen in the
+subagent-dispatch.md contract):
 
-1. 子代理完成前自查：`./.cowork-flow/run spec-check` 全量并修复（拉取路径，实测有效）；
-2. 父会话验收前再查：violation 视为验收阻塞（反馈时点从收口提前到返回）；
-3. 实现类任务 Verify 命令默认含 spec-check 自查；
-4. 收口硬门禁兜底不变（violation 阻断 complete）。
+1. Self-check before a subagent finishes: run `./.cowork-flow/run spec-check` in
+   full and fix everything (the pull path; verified to work);
+2. A second check before the parent session accepts: violations count as acceptance
+   blockers (feedback moves from closeout up to return);
+3. Implementation tasks' Verify commands include the spec-check self-check by
+   default;
+4. The closeout hard gate still backstops everything unchanged (a violation blocks
+   `complete`).
 
-治理方向：向宿主提需求扩展子代理工具流的 hook 派发；落地后第 1 条自动退化为冗余保险。
+Governance direction: ask the host to extend hook dispatch to the subagent tool
+stream; once delivered, item 1 degrades automatically into a redundant safety net.
 
-## 附录 C digest 注入
+## Appendix C: digest injection
 
-进入 in_progress 后，stage-contract 的 Specs 行升级为 `Specs: <spec>(<h2 标题树>); …`：最多 6 个 h2 条目、每条截断 24 字符、剔除 `();` 字符；文件缺失不加注解。digest 是条目名索引不是正文，受 scope-rules.json `stageContract.budget` 硬顶，超预算整行让位（Scope/Gates 行永不丢）。python/zcode 输出同源于单一 Python 入口，opencode 镜像与它逐字相等由 matrix 用例锁定（`test/stage-contract.test.js` matrix）。
+After entering `in_progress`, the stage-contract Specs line upgrades to
+`Specs: <spec>(<h2 heading tree>); …`: at most 6 h2 entries, each truncated to 24
+characters with `();` characters stripped; a missing file adds no annotation. The
+digest is an entry-name index, not the prose, and is hard-capped by
+scope-rules.json `stageContract.budget`; over budget, the whole line yields
+(Scope/Gates lines are never dropped). The python/zcode output comes from a single
+Python entrypoint, and the opencode mirror's byte-exact equality with it is locked
+by a matrix case (`test/stage-contract.test.js` matrix).
 
-## 附录 D 开放决策
+## Appendix D: open decision
 
-**收口期聚合预算**：收口期全量执行没有聚合预算——声明多且慢的仓库 complete 会线性变慢；是否给收口加并行/预算上限留给后续产品决策，当前保持简单串行。
+**Closeout aggregation budget**: a closeout runs everything with no aggregation
+budget — repositories with many slow declarations get linearly slower at
+`complete`. Whether to give closeout parallelism or a budget ceiling is left to a
+later product decision; today it stays simple and serial.

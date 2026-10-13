@@ -31,6 +31,7 @@
 
 状态路由：
 
+- `not_initialized` → **阻断**。项目尚未执行 `cwf project init` / `project sync`；hook 只报告不代建，请先补齐安装。
 - `no_task` → **阻断**。拒绝写代码；引导 brainstorming → plan → `task next --run --title ...` 创建任务，再对目标任务执行 `task next <dir> --run`。
 - `delegated_subtask` → 按子代理规则执行，派发方核验绑定。
 - `planning` → **阻断**。decision-anchor.md 和 implement.jsonl 就绪前不允许实现或派发 cowork-implement。

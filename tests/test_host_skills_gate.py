@@ -151,7 +151,7 @@ class HostSkillsGateTest(unittest.TestCase):
             / "spec-checks.md"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("条款 → 命令 → 反例", contract)
+        self.assertIn("clause → command → negativeProof", contract)
         for marker in ("`clause`", "`command`", "`negativeProof`"):
             self.assertIn(marker, contract, f"{marker} missing from the contract")
 

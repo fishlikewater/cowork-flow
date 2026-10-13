@@ -1,64 +1,92 @@
 # Task Adopt Contract
 
-**收养（adopt）是显式的归属修复动作：把一个由其它执行者占有、且已激活未完成的任务接管过来——重绑 executor、把评审基线重置到收养时 HEAD、保留状态、留下审计字段。**
+**Adoption is the explicit ownership-repair action: take over a task that another
+executor holds and that is already active and unfinished — rebind the executor,
+reset the review baseline to the current HEAD, keep the status, and leave audit
+fields behind.**
 
-收养不是生命周期迁移：它不推进 status、不豁免任何检查，也不与其它动作链式同发。它是 1.9.0 多执行者协作就绪的前置（多执行者生命周期领地），承载 2026-10-06 归档两个滞留任务时只能手改 task.json meta 的操作。
+Adoption is not a lifecycle transition: it does not advance status, it exempts no
+check, and it does not chain with other actions in one invocation. It is the
+prerequisite for the 1.9.0 multi-executor collaboration story (multi-executor
+lifecycle ownership), and it carries the operation that had to hand-edit task.json
+meta when two stale tasks were archived on 2026-10-06.
 
-## 入口与动作边界
+## Entry point and action boundary
 
 ```bash
 ./.cowork-flow/run task next <task-dir> --run --adopt
 ```
 
-- `--adopt` 由 `task next --run` 的投递层（`task_next_runner`）在动作解析前拦截，直接执行收养动作；不进入导航默认动作序列，也不与 review/complete/archive 迁移同发（下一步由使用者显式发起）。
-- 无 `--run` 时 `--adopt` 与其它执行旗标一致：只读导航，不产生副作用。
-- 组合拒绝（fail-closed，退出码 1，不改状态）：携带 create/plan 输入（`--title`/`--slug`/`--assignee`/`--priority`/`--description`/`--parent`/`--from-plan`）或批启动旗标（`--auto`/`--approved`）——收养与创建/批启动语义不同，需分两步。
+- `--adopt` is intercepted by the `task next --run` delivery layer
+  (`task_next_runner`) before action resolution and runs the adoption action
+  directly; it neither enters the navigation default action sequence nor chains
+  with a review/complete/archive transition (the next step is an explicit user
+  action).
+- Without `--run`, `--adopt` behaves like every other execution flag: read-only
+  navigation with no side effects.
+- Combination refusal (fail-closed, exit code 1, state untouched): carrying
+  create/plan inputs (`--title`/`--slug`/`--assignee`/`--priority`/`--description`/
+  `--parent`/`--from-plan`) or batch-startup flags (`--auto`/`--approved`) —
+  adoption and create/batch-startup have different semantics and need two steps.
 
-## 前置条件（`LIFECYCLE-ADOPT-001`）
+## Preconditions (`LIFECYCLE-ADOPT-001`)
 
-| 事实 | 要求 |
+| Fact | Requirement |
 |---|---|
-| 任务状态 | `in_progress` 或 `review`（已激活未完成；planning/completed/stale 拒绝） |
-| 任务 executor | 已记录且非空（无归属的任务没有可收养对象） |
-| 收养者身份 | 可解析且 ≠ 当前 executor；显式 `--executor <label>` 优先，否则取会话身份 |
-| 身份来源 | process-fallback（共享进程标签）拒绝收养——归属必须来自真实会话身份或显式 label |
-| 执行上下文 | delegated（worker/subagent）拒绝收养（`TASK-EXECUTION-001`，与其它生命周期变更一致） |
+| Task status | `in_progress` or `review` (active and unfinished; planning/completed/stale are refused) |
+| Task executor | recorded and non-empty (a task with no ownership has nothing to adopt) |
+| Adopter identity | resolvable and ≠ the current executor; an explicit `--executor <label>` wins, otherwise the session identity is used |
+| Identity source | process-fallback (the shared process label) refuses adoption — ownership must come from a real session identity or an explicit label |
+| Execution context | delegated (worker/subagent) refuses adoption (`TASK-EXECUTION-001`, consistent with every other lifecycle mutation) |
 
-拒绝时不写 task.json、不改状态、不动会话绑定；blockers 说明具体原因。
+On refusal, task.json is not written, the status is not changed, and the session
+binding is not touched; the blockers state the concrete reason.
 
-## 收养写入（单次 UnitOfWork）
+## What adoption writes (one UnitOfWork)
 
-| 字段 | 写入 |
+| Field | Written value |
 |---|---|
-| `executor` | 收养者身份 |
-| `meta.previousExecutor` | 原 executor（审计：原执行者） |
-| `meta.previousBaseline` | 原 `meta.baselineCommit`（无则 `null`） |
-| `meta.adoptedAt` | UTC 时间戳 `YYYY-MM-DDTHH:MM:SSZ` |
-| `meta.baselineCommit` | **重置**为收养时 HEAD；无 git/无 HEAD 时写 `null`（降级 status-only） |
-| `status` | 不变 |
-| `_state.revision` / `_state.operation_id` | 修订递增，operation_id 含 `adopt` 标记（审计可追溯） |
+| `executor` | the adopter's identity |
+| `meta.previousExecutor` | the former executor (audit: the previous owner) |
+| `meta.previousBaseline` | the former `meta.baselineCommit` (`null` when there was none) |
+| `meta.adoptedAt` | UTC timestamp `YYYY-MM-DDTHH:MM:SSZ` |
+| `meta.baselineCommit` | **reset** to the HEAD at adoption time; `null` when there is no git/no HEAD (degraded to status-only) |
+| `status` | unchanged |
+| `_state.revision` / `_state.operation_id` | the revision increments, and the operation_id carries the `adopt` tag (audit-traceable) |
 
-结果 code `LIFECYCLE-EXECUTOR-ADOPTED`；`transition.changed=false`（不推进状态的事实位）；`check_result` 为 `null`（不豁免检查）。
+Result code `LIFECYCLE-EXECUTOR-ADOPTED`; `transition.changed=false` (the fact slot
+that does not advance status); `check_result` is `null` (no check is exempted).
 
-## 基线与"永不覆盖"不变量的关系
+## The baseline and the "never overwrite" invariant
 
-- start 路径的写一次逻辑不变：**重复 start 永不覆盖已有 `meta.baselineCommit`**，既有测试零改动锁定该不变量。
-- 收养是唯一经审计的显式重置路径：重置前把原值记入 `meta.previousBaseline`。
-- 重置后的评审窗口 = 收养时未提交改动 + 收养之后的提交。收养前**已提交**的改动不进入本任务窗口（它们在 git 历史中，需由提交记录单独追溯）——这是收养的已知边界。
-- 收养后基线再次回到"写一次"语义：后续 start 不会再次滑动。
+- The start path's write-once logic is unchanged: **a repeated start never
+  overwrites an existing `meta.baselineCommit`**, and the existing tests lock that
+  invariant with zero edits.
+- Adoption is the only audited explicit reset path: before resetting, the original
+  value is recorded in `meta.previousBaseline`.
+- The review window after the reset = uncommitted changes at adoption time plus
+  commits after adoption. Changes **already committed** before adoption do not
+  enter this task's window (they live in git history and must be traced through the
+  commit log separately) — this is the known boundary of adoption.
+- After adoption the baseline returns to write-once semantics: a later start does
+  not slide it again.
 
-## 会话绑定
+## Session binding
 
-收养成功后 CLI 把收养者会话绑定到该任务（与 `task next <dir>` 改绑、`task create` 创建后绑定同型），使后续 `task next <dir> --run` 可省略目录继续 review/complete/archive 链。
+On successful adoption the CLI binds the adopter's session to that task (the same
+shape as a rebind by `task next <dir>` or the binding after `task create`), so a
+later `task next <dir> --run` can omit the directory and continue the
+review/complete/archive chain.
 
-## 与 `--takeover` 的区别
+## Difference from `--takeover`
 
 | | `--takeover` | `--adopt` |
 |---|---|---|
-| 适用动作 | start_task（含幂等重跑） | 独立动作（本契约） |
-| 状态要求 | 任意（只在 start 激活点生效） | `in_progress` / `review` |
-| 基线 | 不动 | 重置到 HEAD（审计保留原值） |
-| 审计字段 | 无 | `previousExecutor` / `previousBaseline` / `adoptedAt` |
-| 结果 code | `LIFECYCLE-EXECUTOR-TAKEN-OVER` | `LIFECYCLE-EXECUTOR-ADOPTED` |
+| Applies to | start_task (including an idempotent re-run) | a standalone action (this contract) |
+| Status requirement | any (it only takes effect at the start activation point) | `in_progress` / `review` |
+| Baseline | untouched | reset to HEAD (the old value is kept for audit) |
+| Audit fields | none | `previousExecutor` / `previousBaseline` / `adoptedAt` |
+| Result code | `LIFECYCLE-EXECUTOR-TAKEN-OVER` | `LIFECYCLE-EXECUTOR-ADOPTED` |
 
-`--takeover` 语义保持原样；`--adopt` 是超集动作但不改写 takeover 路径（不变量与既有测试零改动）。
+`--takeover` semantics stay as they were; `--adopt` is a superset action that does
+not rewrite the takeover path (invariants and existing tests unchanged).
