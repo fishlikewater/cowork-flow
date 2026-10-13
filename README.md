@@ -61,19 +61,13 @@ cwf project init . --platform codex --developer alice
 
 ### 3. 完成宿主设置
 
-Codex、Claude Code 和 OpenCode 在当前项目中已经能使用 `project init` 交付的内容。需要全局引导入口时，再执行表中的可选命令。
+Codex、Claude Code 和 OpenCode 在初始化的项目里就能用；ZCode、Qoder、DeepSeek Harness 和 Kimi Code 还需要安装机器级组件：
 
-| 宿主 | 建议命令 | 说明 |
-|---|---|---|
-| Codex | `cwf host add codex` | 可选，用于全局引导入口 |
-| Claude Code | `cwf host add claude-code` | 可选，用于全局引导入口 |
-| OpenCode | `cwf host add opencode` | 可选，用于全局引导入口 |
-| ZCode | `cwf host add zcode` | 初始化后执行，并新开会话 |
-| Qoder | `cwf host add qoder` | 初始化后执行；信任工作区并重启 Qoder |
-| DeepSeek Harness | `cwf host add dsh` | 初始化后执行；新会话中选择 Cowork Flow 预设 |
-| Kimi Code | `cwf host add kimi-code --component hook` | 初始化后执行；完成后重载配置或新开会话 |
+```bash
+cwf host add <host>
+```
 
-不同宿主的安装位置、重启要求和特殊情况见 [宿主接入](docs/hosts.md)。
+每个宿主的准确命令、重启要求和特殊情况见 [宿主接入](docs/hosts.md)。
 
 ### 4. 在宿主里开始
 
@@ -114,7 +108,7 @@ cwf project sync .
 | 技能、插件、hook 或项目文件状态异常 | 运行 `./.cowork-flow/run doctor --all` |
 | 不确定命令或参数怎么写 | 运行 `cwf --help` 或 `cwf <group> <command> --help` |
 
-宿主相关问题优先查 [宿主接入](docs/hosts.md)。需要了解工作原理时再看 [工作原理与扩展点](docs/architecture.md)。
+宿主相关问题优先查 [宿主接入](docs/hosts.md)。需要了解工作原理时再看 [架构与扩展](docs/architecture.md)。
 
 <details>
 <summary>命令速查</summary>
@@ -123,7 +117,7 @@ cwf project sync .
 |---|---|
 | `cwf project init [target] --platform <host> [--developer <name>] [--dry-run] [--force]` | 初始化项目 |
 | `cwf project sync [target] [--dry-run] [--force]` | 更新项目内由 cowork-flow 管理的文件 |
-| `cwf host add <host> [--component <name>] [--dry-run] [--force]` | 安装机器级宿主组件 |
+| `cwf host add <host> [--component <name>] [--dry-run] [--force] [--prune-old] [--uninstall]` | 安装机器级宿主组件 |
 | `cwf host remove <host> [--component <name>] [--dry-run] [--force]` | 卸载机器级宿主组件 |
 | `cwf host list [target] [--json]` | 查看支持的宿主和项目选择情况 |
 | `cwf self update [--dry-run]` | 更新全局安装的 CLI |
@@ -153,10 +147,10 @@ cwf project sync .
 | 文档 | 内容 |
 |---|---|
 | [文档索引](docs/index.md) | 全部文档入口 |
-| [工作原理与扩展点](docs/architecture.md) | 项目文件如何组织、规范检查如何工作 |
+| [架构与扩展](docs/architecture.md) | 项目文件如何组织、规范检查如何工作 |
 | [宿主接入](docs/hosts.md) | 各宿主的安装、重启、排障和卸载方式 |
-| [开发与发布](docs/release.md) | 测试、CI 和维护者命令 |
-| [贡献指南](CONTRIBUTING.md) | 本地开发、提交和 PR 检查 |
+| [发布与维护](docs/release.md) | 测试、CI 和维护者命令 |
+| [参与开发](CONTRIBUTING.md) | 本地开发、提交和 PR 检查 |
 | [更新日志](CHANGELOG.md) | 版本变化 |
 
 ## 许可

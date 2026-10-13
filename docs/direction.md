@@ -1,32 +1,12 @@
 # cowork-flow 方向规划：Agent 运行时上下文与协作事实层
 
-> 状态：**已批准（Approved）** · 创建：2026-08-27 · 决策记录：注入格式取舍选**方案 A**（结构化事实头 + 人读摘要体，分级降级）
-> 本文档是后续阶段立项的权威输入。任何方向的修订必须先更新本文档再立项。
+> 状态：**已批准** · 创建：2026-08-27 · 最近更新：2026-10-13
+> 本文档是后续阶段立项的权威输入。任何方向的修订必须先更新本文档，再立项。
+> 已完成阶段的实施细节与提交记录见 [CHANGELOG](../CHANGELOG.md)；本文只保留仍然生效的定位、取舍、边界和待决项。
 
 ---
 
-## 0. 状态追踪（防遗忘，后续会话先看这里）
-
-| 阶段 | 状态 | 关联任务 / 提交 | 下一动作 |
-|---|---|---|---|
-| 阶段 0：定位与协议收敛 | ✅ 完成 | 08-27-stage0-positioning-protocol（0c7ae64） | — |
-| 阶段 1：事实层 API 化 + 注入结构化 | ✅ 完成 | 1a: 08-28-stage1a-state-fact-view（60753fa）；1b: 08-28-stage1b-structured-fact-header（5cb25ea） | — |
-| 阶段 2：多执行者语义 | ✅ 完成 | 08-28-stage2-multi-executor（fd4d6af）：executor 归属 / 冲突拦截 / --takeover / 无会话 start / evidence 证据位 | — |
-| 阶段 3：协议生态适配 | ✅ 完成（观察期持续） | 08-29-stage3-mcp-fact-access（a88474e）：`run mcp-state` 无依赖 MCP 只读服务 + `fact-layer-access.md` 接入契约 | 观察 AGNTCY 等协议收敛；写工具默认拒绝，需重开契约 |
-| 本规划文档落库 | ✅ 完成 | 08-27-direction-doc | — |
-| 1.5→1.7 宿主广度 + 发布链（七宿主） | ✅ 完成 | CHANGELOG 1.5.0-1.7.2 | — |
-| 1.7.3 维护：ZCode shim .mjs + 项目根查找修复 | ✅ 完成 | 10-04-zcode-shim-mjs（d0716a9） | — |
-| 1.8.0 立项：证据化完成 | ✅ 完成 | 10-05-direction-1-8-0 / 10-05-evidence-completion | — |
-| 1.8.0 主线实现：证据化完成 | ✅ 完成 | 10-05-evidence-completion（baa386d，CI test + windows-core 全绿）；已随 1.8.0 发布（cfe1ac1） | — |
-| 1.8.x 收尾：Skill 证据补课 + spec-check 采纳闭环 | ✅ 完成 | 10-06-skill-evidence-training（09937d0）、10-08 spec-check 闭环（08f9d9b） | — |
-| 1.9.0 前置：task adopt 命令 | ✅ 完成 | 10-06-task-adopt-command（e6e5132）：`--adopt` 重绑执行者 + 基线重置 + 审计；契约 task-adopt.md | 1.9.0 主线（多执行者协作）立项 |
-| 1.8.1 补丁：`--allow-missing-evidence` 解析修复 + adopt | 🔄 本次发布 | 10-08-fix-evidence-flag-parser（dc594a4）；tag v1.8.1 → CI 发布 npm | 确认 CI 全绿与 npm latest=1.8.1 |
-
-**当前结论**：方向路线图阶段 0-3 全部落地。项目当前形态：「多主机 Agent 协作的运行时上下文与协作事实层」——事实视图（CLI + MCP）、结构化注入、跨宿主一致性治理、执行者归属与证据位均已就绪并有测试锁定。后续演进见「不做什么」边界与观察期事项。
-
----
-
-## 1. 定位（一句话）
+## 1. 定位
 
 > **cowork-flow 不约束模型怎么想；它保证任何主机上的任何 agent，在任何会话、任何时刻，从同一份权威事实起步。**
 
@@ -34,148 +14,52 @@
 |---|---|---|
 | 叙事 | 帮你建流程（流程模板） | 运行时上下文与协作事实层 |
 | 手段 | 任务流、门禁、规格文档 | 状态注入、事实一致性、跨宿主治理 |
-| 目的 | 让协作"守规矩" | 让协作"从正确状态起步" |
+| 目的 | 让协作“守规矩” | 让协作“从正确状态起步” |
 | 模型能力上升时 | 约束类价值递减（模型自己会守规矩） | 事实类价值递增（状态是模型编不出来的） |
 
-**为什么必须现在调整**：项目的消费方正在从"人"变成"agent"。注入格式还停留在给人看的文本（`<workflow-state>` 的 label:value 行 + 散文，全五宿主一致；唯一严格机器可读的是 fingerprint 属性行）。事实层（task.json+revision、state-snapshot、operations 日志、implement.jsonl、contract-registry、host-assets）已经建起来，但散落成文件约定，没有统一机器出口；决策事实（decision-anchor）完全不在注入体系内。
+判断标准：项目的消费方是 agent 而不是人。所以注入格式、事实出口和契约一律以「机器可解析优先、人读可降级」为准。
 
-## 2. 背景：大模型发展对项目的五个冲击
+## 2. 已拍板取舍
 
-1. **模型能力上升** → "约束模型"价值递减（门禁、防呆、状态机防漂移——模型越强越不需要被管），"喂状态"价值递增（上下文质量成为 agent 质量的第一杠杆）。
-2. **人机对话 → agent 集群执行**（远程/后台/并行/批处理/CI 触发）→ 会话模型需支持无会话执行者、多执行者协作、委派与收归。
-3. **上下文工程成为学科**（token 预算、注入时机、摘要压缩、状态新鲜度）→ 项目已有的五宿主 hook 注入、digest 指纹、快照单源正是"运行时上下文中枢"，应提升为产品主线。
-4. **协议标准化**（MCP 成事实标准、hooks.json 类扩展点演化、agent 间协议涌现）→ 契约格式自持、host 适配保持薄层；不自创跨 agent 协议。
-5. **模型质量波动** → 门禁仍是安全网（每个新版本可能有行为回归），保留但不作为卖点投资。
+- **注入格式：方案 A（结构化事实头 + 人读摘要体，分级降级）**——结构化优先，通道不允许时退化为属性行或纯摘要。
+  - 否决「全 JSON 注入」：dsh / codex 的纯文本通道浪费 token，破坏紧凑散文面包屑的可读性。
+  - 否决「保持文本，只加 `--json` 出口」：核心价值主张落不到注入本身。
+- **事实层出口**：CLI + JSON 协议先行（零依赖），MCP 作为薄适配后置。
+- **三线收敛**：先「协议规范单源 + 三线按规范实现」，代码级共享后议（成本高，收益已在协议一致性上兑现）。
 
-## 3. 现状资产盘点（2026-08-27 探查实录）
+## 3. 明确不做什么
 
-### 3.1 注入层
+1. 不做「更聪明的提示词 / AGENTS.md 写作术」——模型能力会追平，且无数据资产。
+2. 不自创跨 agent 通信标准——协议博弈期，等生态收敛。
+3. 不做任务执行引擎——不替代 agent 干活，只保证它从正确状态起步。
+4. 不深化纯流程门禁——保留为安全网，停止投资。
 
-| Host | 注入机制 | 触发时机 | 格式 |
-|---|---|---|---|
-| zcode | 插件 process hook（JS，inject-context.js） | SessionStart 全量 / 每条消息单行指纹 / PostToolUse 生命周期命令刷新 | stdout JSON，内部文本块 |
-| codex | hooks.json 命令（Python） | 仅 UserPromptSubmit | 全量 digest（无 slim） |
-| claude-code | settings.json hook（Python） | SessionStart + 每条消息 | 全量 digest（无 slim） |
-| opencode | 插件（JS） | 每次 prompt 组装 + shell.env | 全量 digest（无 slim） |
-| dsh | 预设插件（内嵌 Python 协议） | session-start / inbox-claimed / 生命周期命令工具结果 | systemPrompt section 文本 |
-
-**已知债**：三线零代码共享（zcode JS / opencode JS / python 线）——指纹序列化策略不一致（`JSON.stringify` 不排序 vs `sort_keys` vs `stableStringify`，跨 host 指纹有分叉风险）；slim 指纹形态只有 zcode 有；codex 事件名硬编码丢弃事件维度；state-snapshot 只有 zcode 消费（Python 线仍 TAG_RE 解析 templates.md，是已确认的漂移面）。
-
-### 3.2 事实层（任务状态模型）
-
-- **权威事实（生命周期内不变）**：id/name、title、creator、assignee、createdAt、priority、description；决策事实 decision-anchor.md（目标/AC/被拒方案/假设/范围）；绑定事实 `task.json.meta.planFile`；写入痕迹 `_state.revision`+`operation_id` 与 operations/ 操作日志（追加式）。
-- **流程状态（有明确写者）**：status（planning→in_progress→review→completed，单向禁回退）、completedAt、children/parent、会话绑定（sessions/*.json、subagents/*.json）、state-snapshot.json、归档位置。
-- **死字段待清理**：`commit`（声明存在、无写入方）、`scope`、`relatedFiles`（已被 implement.jsonl 取代）、`subtasks`（无写入方）。
-- **模型**：单主人同步推进（start 必须会话身份；review/complete 已支持无会话）；子代理为受缚叶执行者（authority 五项全 false，证据生产不推进状态）；并发正确性靠 CAS+锁+UoW 恢复，已成熟。
-- **机器出口现状**：JSON 有 task.json、snapshot、implement.jsonl、sessions/subagents、operations、`task next --json`、contract-registry、host-assets；**仅人读无解析**：decision-anchor.md（只查章节字符串）、plans/*.md（v1 显式不解析）。
-
-### 3.3 治理层
-
-- 分层哲学已验证：**机器只裁决事实，判断交给 review 双人证**。
-- 硬契约：host-assets.json（能力矩阵，doctor 交叉校验）、contract-registry.json（指纹清单）、schemas/、lifecycle 文件范围白名单、plan-binding gate、发布链（release:check + CHANGELOG + 三处版本同步）。
-- 软规范：backend/frontend/game（review 强审查、非机器 gate）、references/（loadWhen 驱动）。
-- 模型能力上升时：纯防呆类（guides、error-output-as-data 类）价值递减；跨宿主一致性类（host-assets 校验、分布漂移检测、syncPolicy 保护、registry 指纹）价值递增。
-
-## 4. 为什么这是最优方向（候选否决）
+## 4. 候选否决
 
 | 候选 | 否决理由 |
 |---|---|
 | AgentOps / 可观测性 | 无运行遥测资产，从头建等于换赛道，与工作流引擎定位断裂 |
-| 任务编排引擎 | 与主机自带编排重叠；状态模型翻成分布式系统复杂度爆炸 |
+| 任务编排引擎 | 与宿主自带编排重叠；状态模型翻成分布式系统复杂度爆炸 |
 | 纯治理合规层 | 纯门禁价值随模型自觉性上升递减；无独特性 |
-| ✅ 事实层 + 注入 | 全仓最厚资产都在这；跨主机一致性是任何单主机工具给不了的**结构性差异**；与上下文工程趋势同向且落在可执行的事实层 |
+| ✅ 事实层 + 注入 | 全仓最厚的资产都在这；跨宿主一致性是任何单宿主工具给不了的结构性差异 |
 
-## 5. 三支柱
+## 5. 版本线
 
-| 支柱 | 内涵 | 已有资产 | 缺口 |
-|---|---|---|---|
-| **事实层** | 权威状态与决策的可查询存储 | task.json+revision、snapshot、operations、implement.jsonl、registry、host-assets | 无统一机器出口；decision-anchor 无解析；死字段 |
-| **注入协议** | 按时机/角色/token 预算把事实注入任意 host | 五宿主注入齐备、digest 指纹、快照信任链、会话隔离 | 人读文本格式；三线拷贝；slim 不对称；决策事实不注入 |
-| **一致性治理** | 跨宿主/跨会话/跨模型的事实一致性 | doctor 交叉校验、同步保护、文件范围门禁、发布链 | 指纹序列化不一致；快照单宿主消费；无跨 host 注入行为断言 |
+- **1.8.x 已发布**：证据化完成（AC 事实化、`evidence.jsonl`、完成门禁）与 spec-check 采纳闭环。
+- **1.9.0 主线已实现，待发布**：多执行者协作事实——看板归属可见、依赖边、交接凭证。详见 [CHANGELOG](../CHANGELOG.md) 的 `[Unreleased]` 段。
+- 各版本的交付明细一律以 CHANGELOG 为准，本文不重复。
 
-## 6. 演进路线
+## 6. 待决项与缓行
 
-### 阶段 0：定位与协议收敛（低风险、高杠杆）
-- 交付：README 定位改写；新增 `spec/contracts/context-injection.md`（冻结块结构、事件时机矩阵、slim 策略、序列化规范，三线按规范对齐）；修一致性债（指纹序列化统一 sort_keys、Python 线补 slim、codex 补事件名）。
-- 验收：新增跨 host 注入行为测试——同一仓库五宿主指纹一致、slim 触发一致。
+- **待维护者拍板：文档英文化 / 双语。** 英文社区是 spec-driven development 讨论的主场，但与 `AGENTS.md` 的「文档语言：中文」约定冲突，需单独立项评估。
+  - 2026-10-13 澄清：「文档语言：中文」约束的是下游宿主工作时**产出文档**的语言，不要求把随包分发的产品载荷（`template/skills/`、`template/.cowork-flow/spec/contracts/`、`presets/`）翻译成中文。产品载荷是否英文化仍待拍板。
+- **维持缓行**：MCP 写工具（须先重开 `fact-layer-access` 契约）、新宿主接入、自创跨 agent 协议。
+- **观察项（触发条件已到）**：机器可解析 AC 是与 Spec Kit / OpenSpec 互操作的第一块砖（spec 制品 ↔ decision-anchor 映射），符合「SDD 工具之下的状态层」定位。原定「待 agent-teams 排期落定后议」，而 1.9.0 多执行者协作主线已实现，可排入讨论。
 
-### 阶段 1：事实层 API 化 + 注入结构化
-- 交付：`cowork-flow state <task> --json`（task.json+snapshot+sessions+plan 绑定+registry 汇总为一份事实视图）；workflow-state 块升级为**结构化事实头 + 紧凑人读体**（协议允许分级降级，纯文本通道退化为属性行）；决策事实条件注入（planning/in_progress 时注入 decision-anchor 要点，完成后收缩）。
-- 验收：任何 host 的 agent 可经上下文与 CLI 拿到"任务是什么、为什么、边界在哪"，且机器可解析。
+## 7. 度量指标
 
-### 阶段 2：多执行者语义
-- 交付：owner/executor 归属字段；无会话推进放开（CLI/CI 触发）；多会话协作同一任务的协调（任务级锁/合并协议，复用 CAS+UoW）；子代理证据位独立于状态位。
-- 验收：两会话可显式接管同一任务不踩踏；子代理证据可独立推进"证据位"。
-
-### 阶段 3：协议生态适配（观察期，不承诺）
-- 交付：MCP 服务暴露事实层（只读查询先行，`state --json` 的薄壳）；观察 AGNTCY 等，不自创协议；保持 adapter 薄。
-- 验收：任何 MCP 客户端可查任务状态；生态协议出现时 2 天内可接入。
-
-## 7. 已拍板取舍
-
-- **注入格式（已决策：方案 A）**：结构化事实头 + 人读摘要体双格式，分级降级——结构化优先，通道不允许时退化为属性行/纯摘要。
-  - 否决 B（全 JSON 注入）：dsh/codex 纯文本通道浪费 token，破坏现有紧凑散文面包屑可读性。
-  - 否决 C（保持文本只加 --json 出口）：核心价值主张落不到注入本身。
-- **事实层出口（推荐）**：CLI + JSON 协议先行（零依赖），MCP 为阶段 3 的薄适配，不先建。
-- **三线收敛（推荐）**：先"协议规范单源 + 三线按规范实现"，代码级共享后议（成本高、收益在协议一致性先兑现）。
-
-## 8. 明确不做什么
-
-1. 不做"更聪明的提示词/AGENTS.md 写作术"——模型能力会追平，且无数据资产。
-2. 不自创跨 agent 通信标准——协议博弈期，等收敛。
-3. 不做任务执行引擎——不替代 agent 干活，只保证它从正确状态起步。
-4. 不深化纯流程门禁——保留为安全网，停止投资。
-
-## 9. 度量指标
-
-1. **跨宿主行为一致**：五宿主指纹/slim 触发有测试断言，0 漂移。
-2. **新 host 接入成本**：从数天降到小时级（协议规范完备度直接度量）。
-3. **注入 token 成本**：长会话注入体积不随消息数线性增长（slim 全覆盖）。
-4. **事实新鲜度事故**：多会话任务污染/踩踏事故率趋零。
-
-## 10. 2026-10 修订：1.8.0 方向（证据化完成）
-
-> 修订背景：阶段 0-3 之后，1.5→1.7 三条版本线投入宿主广度（七宿主）与发布链，广度路线边际收益递减；生态出现确定性信号，方向回到事实层纵深。本节为 1.8.0 立项的权威依据。
-
-### 10.1 生态输入（2026-10 复核）
-
-1. **spec-driven development 主流化**：GitHub Spec Kit、AWS Kiro、OpenSpec、Tessl 押同一注——spec 与代码作为可跟踪制品共同演化；市场口径是"builder 们正从自由式 vibe coding 走向结构化工作流"。cowork-flow 的 decision-anchor + plan-binding 在此赛道上，结构性差异是宿主中立、状态在仓库内——定位为这些 SDD 工具**之下的状态层**，不与其竞争。
-2. **agent 团队 / 后台 agent 兴起**：Claude Code Agent Teams 官方口径 teammates ephemeral by design，靠 git 与文件协调；"持久共享状态"成为公认缺口。cowork-flow 的任务状态在仓库、跨会话可续、executor 归属与冲突拦截（阶段 2 资产）正是该缺口的产品化。
-3. **质量与隐藏 bug 是 vibe coding 头号风险叙事**："验证证据"正在成为完成的定义。这与分层哲学（机器裁决事实、review 双人证）同向，但 AC 目前只是 decision-anchor 里的 markdown 勾选框，机器不解析。
-
-### 10.2 1.8.0 主线：证据化完成
-
-- **定义**：任务完成从"流程走完"升级为"证据齐全"——decision-anchor 的 AC 成为机器可查询事实，完成门禁校验每个 AC 关联到可验证证据（测试 / 命令输出 / evidence 记录），缺失时阻断或显式放行（对齐 spec-check 的 unchecked 语义）。
-- **最小设计立场**：不发明新格式——AC 沿用 decision-anchor 现有 `- [ ] AC-xxx:` checklist 形态做解析；证据落在任务目录 `evidence.jsonl`（每行 `{ac, kind, ref, recordedAt}`，追加式）；无 decision-anchor 或无 AC 的旧任务自动跳过（兼容路径，不产生虚假阻断）。
-- **注入面**：review / 完成阶段注入 AC 覆盖事实行（n/m 有证据）；contract digest 随之变化，需同步跨宿主一致性测试与 `spec/contracts/context-injection.md` 契约。
-- **为什么先做它**：自洽（不依赖宿主团队功能节奏）、直接回应"AI 生成代码怎么算完成"的行业焦虑、是候选 B 的前置（evidence 事实格式先定，团队协调才有可信的交接凭证）。
-
-### 10.3 候选与缓行
-
-- **候选 B（1.9.0 候选主线）：agent-teams 就绪**——把 executor / evidence / takeover 语义补成团队协调原语（任务认领、交接、依赖边），让多 agent 场景把 `.cowork-flow/tasks/` 当共享看板。延后理由：生态节奏不完全可控，且需要 1.8.0 的证据格式做地基。
-- **维持缓行**：MCP 写工具（重开 fact-layer-access 契约才可议）、新宿主接入、自创跨 agent 协议。
-- **新增待决项（维护者拍板，不并入 1.8.0）**：文档英文化 / 双语——npm 周下载约 273（2026-10-03 口径），英文社区是 SDD 讨论主场；与 AGENTS.md「文档语言：中文」约定冲突，单独立项时再议。
-
-### 10.4 度量补充
-
-5. **采用**：npm 周下载与激活项目数——1.8.0 之后用数字验证"深度路线"是否兑现。
-
-### 10.5 2026-10-06 增补：1.8.x 收尾与 1.9.0 排期
-
-- **1.8.0 主线已实现**（10-05-evidence-completion，baa386d）：AC 事实化、`evidence.jsonl`、完成门禁 `LIFECYCLE-AC-001/002`、三线注入覆盖行、`evidenceCoverage` 事实视图；主线任务自身以新门禁完成（四 AC 证据齐全，无豁免）。
-- **1.8.0 发布判据**：CI 双平台（已绿）+ 真实宿主冒烟（维护者：带 AC 任务在 ZCode/Qoder 实跑一轮，观察覆盖行与门禁体验）+ Skill 证据补课合入。
-- **1.9.0 主线候选：agent-teams 就绪**，按 10.3 排期；前置小任务 = **task adopt 命令**（孤儿任务收养：显式重绑执行者 + 陈旧基线降级 + 审计留痕）。需求证据：2026-10-06 归档两个滞留任务时，takeover 只重绑执行者，陈旧基线需手改 task.json meta 才能走降级归档——该操作目前无运行时命令承载。10.5 增补时立项（10-06-task-adopt-command），设计注意"基线永不覆盖"不变量与显式收养语义的边界。
-- **Skill 证据补课**（10-06-skill-evidence-training）：1.8.0 只改了运行时与契约，教 agent 写证据的目前只有门禁报错文案；task-review 等 Skill 正文需补 evidence.jsonl 约定。
-- **维持**：文档英文化待维护者拍板（与 AGENTS.md 文档语言约定冲突）；缓行清单不变。**观察项**：1.8.0 的机器可解析 AC 是与 Spec Kit / OpenSpec 互操作的第一块砖（spec 制品 ↔ decision-anchor 映射），符合"SDD 工具之下的状态层"定位，待 agent-teams 排期落定后议。
-
-## 11. 修订记录
-
-- 2026-08-27：创建。基于三路只读探查（注入层/状态模型/治理层）+ 大模型趋势分析；用户拍板方案 A；落库任务 08-27-direction-doc。
-- 2026-08-27：阶段 0 完成并更新状态追踪。交付：README 定位改写、`spec/contracts/context-injection.md` 协议契约、指纹序列化三线统一（跨 host 一致性测试锁定）、Python 线/opencode/dsh slim、codex 事件名。任务 08-27-stage0-positioning-protocol（0c7ae64）。
-- 2026-08-28：阶段 1 完成并更新状态追踪。1a：`run state [task] --json` 事实视图（60753fa）。1b：`<workflow-state>` 属性事实头 + `<decision-anchor>` 决策要点注入，三线一致，协议契约同步（5cb25ea）。
-- 2026-08-28：阶段 2 完成并更新状态追踪。executor 归属（start 写入会话 key / 显式 `--executor`）、`LIFECYCLE-EXECUTOR-001` 冲突拦截（幂等重跑同样拦截）、`--takeover` 接管（含已激活任务）、无会话 CI start、`subagent evidence` 证据位、`run state` Executor 行（fd4d6af）。
-- 2026-08-29：阶段 3 完成并更新状态追踪——路线图阶段 0-3 全部落地。`run mcp-state` 无依赖 MCP stdio 只读服务（task_state / task_list）、`spec/contracts/fact-layer-access.md` 接入契约（只读保证 + 薄 adapter 立场）（a88474e）。观察期事项：AGNTCY 等跨 agent 协议收敛后按薄壳接入；MCP 写工具默认拒绝，提案须先重开 fact-layer-access 契约。
-- 2026-08-29：MCP 全局入口补充——npm CLI 新增 `cowork-flow mcp-state` 透传命令（cwd 向上定位项目运行时、stdio inherit、退出码透传），MCP 客户端全局注册一次即可服务所有项目，消除逐项目 `.mcp.json` 配置（9a1fa86）。
-- 2026-08-29：后续方向 P0-P3 执行完毕。**P0**：1.1.0 发布——dev→master 合并、CHANGELOG 1.1.0 段（含 1.0.0 载体错位注明）、tag v1.1.0 与 GitHub Release 创建；publish CI 首跑曝光 node:full 存量问题（dsh-hook 依赖 gitignored 运行时、Windows 无法 exec shebang 脚本、test runner IPC 崩溃）并全部修复——双平台门禁现已全绿。**发布确认：npm registry `cowork-flow@1.1.0` 已上线（dist-tag latest），AC-004 闭合，发版任务归档。** **P1**：`docs/mcp-client-setup.md`（codex/opencode/claude-code/zcode 真实注册格式）+ `test/mcp-client-matrix.test.js` 客户端等效启动验证。**P1'**：publish.yml 链路实测核对并写入 README 发布节。**P2**：flaky 组合复跑 5 轮未复现（记录为单次现象）；doctor 会话卫生无残留。**P3**：观察期边界维持——MCP 写工具默认拒绝，AGNTCY 等协议收敛后按薄壳接入。- 2026-10-05：2026-10 修订落库（任务 10-05-direction-1-8-0）。1.7.3 维护完成（10-04-zcode-shim-mjs，d0716a9：ZCode shim 改 .mjs、findWorkflowRoot off-by-one 修复）；1.8.0 主线定为**证据化完成**，主线任务 10-05-evidence-completion 立项（planning 就绪待启动）；候选 B（agent-teams 就绪）列为 1.9.0 候选主线；文档英文化列为待决项，待维护者拍板。方向文档自本次起恢复版本控制（087ef72 untrack 后首次入库）。
-- 2026-10-06：10.5 增补落库（任务 10-06-direction-post-1-8-0）。1.8.0 主线实现完成（10-05-evidence-completion，baa386d，CI 双平台全绿）；立项 10-06-skill-evidence-training（1.8.0 收尾）与 10-06-task-adopt-command（1.9.0 前置）；1.8.0 发布判据 = CI + 真实宿主冒烟 + Skill 补课。
-- 2026-10-08：1.8.0 已发布（cfe1ac1，tag v1.8.0，CI publish 全绿，npm latest=1.8.0）。发布后排查发现 `--allow-missing-evidence` 被误注册为 `--allow-unchecked` 解析别名的遗留缺陷（AC 证据豁免从 CLI 不可达 + 误授 spec-check 豁免），修复入库（10-08-fix-evidence-flag-parser，dc594a4，parser 级与命令贯通级回归测试锁定）。1.9.0 前置 task adopt 完成（10-06-task-adopt-command，e6e5132）：`task next --run --adopt` 独立动作——重绑执行者、评审基线重置到收养时 HEAD（审计保留原值）、状态不变、误用 fail-closed（`LIFECYCLE-ADOPT-001`）；契约 `spec/contracts/task-adopt.md`，含与 `--takeover` 的边界。本次发布 1.8.1 同时携带两项交付（CHANGELOG 分列 Added/Fixed）；1.9.0 主线（多执行者协作就绪）待立项。
+1. **跨宿主行为一致**：各宿主的指纹与 slim 触发有测试断言，0 漂移。
+2. **新宿主接入成本**：从数天降到小时级（协议规范完备度直接度量）。
+3. **注入 token 成本**：长会话注入体积不随消息数线性增长。
+4. **事实新鲜度事故**：多会话任务污染 / 踩踏事故率趋零。
+5. **采用**：npm 周下载与激活项目数——用数字验证「深度路线」是否兑现。

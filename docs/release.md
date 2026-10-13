@@ -1,6 +1,6 @@
 # 发布与维护
 
-本文面向 cowork-flow 仓库维护者。普通用户只需要 [README](../README.md)；提交代码前先看 [贡献指南](../CONTRIBUTING.md)。
+本文面向 cowork-flow 仓库维护者。普通用户只需要 [README](../README.md)；提交代码前先看 [参与开发](../CONTRIBUTING.md)。
 
 ## 发布前检查
 
