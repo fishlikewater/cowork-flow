@@ -1,10 +1,11 @@
 import assert from "node:assert/strict"
-import { access, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
 
 import { runInstallKimiPlugin } from "../src/commands/install-kimi-code-plugin.js"
+import { installedRegistryPath } from "../src/lib/kimi-installed-registry.js"
 import { packageRoot } from "../src/lib/paths.js"
 import { readPackageInfo } from "../src/lib/package-info.js"
 import { readPluginMetadata } from "../src/lib/plugin-metadata.js"
@@ -42,6 +43,18 @@ async function seedKimiHome() {
 
 function sourceDir(home) {
   return join(home, "plugins", "sources", PLUGIN_NAME)
+}
+
+function managedDir(home) {
+  return join(home, "plugins", "managed", PLUGIN_NAME)
+}
+
+async function readRegistry(home) {
+  return readJson(installedRegistryPath(home))
+}
+
+function coworkFlowRecord(registry) {
+  return registry.plugins.find((entry) => entry.id === PLUGIN_NAME)
 }
 
 async function tree(dir, prefix = "") {
@@ -142,28 +155,48 @@ test("the kimi-code manifest declares only what the host parser reads", async ()
   }
 })
 
-test("install-kimi-plugin materializes a stable source directory", async () => {
+test("install-kimi-plugin installs the managed copy and registers it with the host", async () => {
   const { home, foreign } = await seedKimiHome()
   try {
     await withKimiHome(home, () => runInstallKimiPlugin([]))
 
+    // sources/ stays the stable reinstall source the registry's originalSource
+    // names; the host itself never loads it.
     const target = sourceDir(home)
     assert.equal((await readJson(join(target, ...MANIFEST_RELATIVE))).name, PLUGIN_NAME)
     await access(join(target, ...SKILL_RELATIVE))
-    // The registry records the path a plugin was installed from and re-reads it
-    // on reinstall, so this directory has to be the payload — not the host's
-    // managed tree, which is the host's own copy.
-    await assert.rejects(access(join(home, "plugins", "managed")))
+
+    // managed/ is the copy the host's loader parses on every start, stamped with
+    // the package version so doctor can tell an up-to-date install from a stale one.
+    const managed = managedDir(home)
+    const { version } = await readPackageInfo()
+    const managedManifest = await readJson(join(managed, ...MANIFEST_RELATIVE))
+    assert.equal(managedManifest.name, PLUGIN_NAME)
+    assert.equal(managedManifest.version, version)
+    await access(join(managed, ...SKILL_RELATIVE))
+
+    // One registry record, in the host's own field shape, pointing at managed/.
+    const registry = await readRegistry(home)
+    assert.equal(registry.version, 1)
+    const record = coworkFlowRecord(registry)
+    assert.deepEqual(Object.keys(record), [
+      "id", "root", "source", "enabled", "installedAt", "updatedAt", "originalSource"
+    ])
+    assert.equal(record.root, await realpath(managed))
+    assert.equal(record.source, "local-path")
+    assert.equal(record.enabled, true)
+    assert.equal(record.originalSource, target)
+    assert.match(record.installedAt, /^\d{4}-\d{2}-\d{2}T/)
+
     assert.equal(await readFile(join(foreign, "kimi.plugin.json"), "utf8"), '{"name":"their-plugin"}\n')
   } finally {
     await rm(home, { recursive: true, force: true })
   }
 })
 
-test("install-kimi-plugin prints the one slash command that finishes the install", async () => {
-  // Kimi Code has no CLI subcommand for plugins, so the installer cannot finish
-  // the job itself. The printed command has to name the directory it just wrote,
-  // with an absolute path: the host rejects a relative plugin root outright.
+test("install-kimi-plugin registers the plugin itself, with no slash-command handoff", async () => {
+  // The registry record above is what the host's loader reads; the output must
+  // not send the user into the TUI to finish an install that is already done.
   const { home } = await seedKimiHome()
   const lines = []
   const original = console.log
@@ -175,12 +208,13 @@ test("install-kimi-plugin prints the one slash command that finishes the install
   }
 
   const output = lines.join("\n")
-  assert.match(output, new RegExp(`/plugins install ${sourceDir(home).replace(/\\/g, "\\\\")}`))
-  assert.match(output, /\/reload/)
+  assert.match(output, /Registered in /)
+  assert.match(output, /Restart Kimi Code/)
+  assert.doesNotMatch(output, /\/plugins install/)
   await rm(home, { recursive: true, force: true })
 })
 
-test("install-kimi-plugin dry-run writes nothing but still prints the command", async () => {
+test("install-kimi-plugin dry-run writes nothing anywhere", async () => {
   const { home } = await seedKimiHome()
   const lines = []
   const original = console.log
@@ -192,8 +226,75 @@ test("install-kimi-plugin dry-run writes nothing but still prints the command", 
   }
 
   await assert.rejects(access(sourceDir(home)))
-  assert.match(lines.join("\n"), /\/plugins install /)
+  await assert.rejects(access(managedDir(home)))
+  await assert.rejects(access(installedRegistryPath(home)))
+  assert.match(lines.join("\n"), /\[dry-run\] Would register/)
   await rm(home, { recursive: true, force: true })
+})
+
+test("reinstall keeps the first install time, the enable state and one record", async () => {
+  const { home } = await seedKimiHome()
+  try {
+    const foreign = {
+      id: "their-plugin",
+      root: "C:\\elsewhere",
+      source: "github",
+      enabled: false,
+      installedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      originalSource: "https://github.com/their/plugin"
+    }
+    await mkdir(join(home, "plugins"), { recursive: true })
+    await writeFile(installedRegistryPath(home), JSON.stringify({
+      version: 1,
+      plugins: [foreign, {
+        id: PLUGIN_NAME,
+        root: "C:\\old",
+        source: "local-path",
+        enabled: false,
+        installedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        originalSource: "C:\\old"
+      }]
+    }, null, 2), "utf8")
+
+    await withKimiHome(home, () => runInstallKimiPlugin([]))
+
+    const registry = await readRegistry(home)
+    assert.equal(registry.plugins.length, 2)
+    // The neighbor's record round-trips byte for byte.
+    assert.deepEqual(registry.plugins.find((entry) => entry.id === "their-plugin"), foreign)
+    const record = coworkFlowRecord(registry)
+    // A disabled plugin stays disabled on reinstall (the host's own
+    // `enabled: existing?.enabled ?? true`), and the first install time sticks.
+    assert.equal(record.enabled, false)
+    assert.equal(record.installedAt, "2026-01-01T00:00:00.000Z")
+    assert.notEqual(record.updatedAt, "2026-01-01T00:00:00.000Z")
+    assert.equal(record.root, await realpath(managedDir(home)))
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test("a registry the host would reject fails the install before any write", async () => {
+  const { home } = await seedKimiHome()
+  try {
+    await mkdir(join(home, "plugins"), { recursive: true })
+    const junk = "{ definitely not JSON"
+    await writeFile(installedRegistryPath(home), junk, "utf8")
+
+    await assert.rejects(
+      () => withKimiHome(home, () => runInstallKimiPlugin([])),
+      /not valid JSON/
+    )
+    // Neither the file nor either payload copy may be touched: a merge into a
+    // registry we cannot read would drop whatever other plugins it holds.
+    assert.equal(await readFile(installedRegistryPath(home), "utf8"), junk)
+    await assert.rejects(access(sourceDir(home)))
+    await assert.rejects(access(managedDir(home)))
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
 })
 
 test("install-kimi-plugin converges on the shipped payload", async () => {
@@ -204,6 +305,7 @@ test("install-kimi-plugin converges on the shipped payload", async () => {
     await withKimiHome(home, () => runInstallKimiPlugin(["--force"]))
 
     assert.deepEqual(await tree(sourceDir(home)), await tree(payloadRoot))
+    assert.deepEqual(await tree(managedDir(home)), await tree(payloadRoot))
   } finally {
     await rm(home, { recursive: true, force: true })
   }
@@ -238,11 +340,23 @@ test("install-kimi-plugin refuses a foreign directory at its source path", async
   }
 })
 
-test("uninstall removes the source and says the host copy is not its to delete", async () => {
-  const { home, foreign } = await seedKimiHome()
+test("uninstall removes the record and both copies, and keeps the neighbors", async () => {
+  const { home } = await seedKimiHome()
+  const foreign = {
+    id: "their-plugin",
+    root: "C:\\elsewhere",
+    source: "github",
+    enabled: false,
+    installedAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    originalSource: "https://github.com/their/plugin"
+  }
   const lines = []
   const original = console.log
   try {
+    await mkdir(join(home, "plugins"), { recursive: true })
+    await writeFile(installedRegistryPath(home), JSON.stringify({ version: 1, plugins: [foreign] }, null, 2), "utf8")
+
     await withKimiHome(home, () => runInstallKimiPlugin([]))
     console.log = (line) => lines.push(String(line))
     await withKimiHome(home, () => runInstallKimiPlugin(["--uninstall"]))
@@ -250,12 +364,84 @@ test("uninstall removes the source and says the host copy is not its to delete",
     console.log = original
   }
 
+  // Both payload copies and the record are gone; the neighbor's record
+  // round-trips byte for byte.
   await assert.rejects(access(sourceDir(home)))
-  assert.equal(await readFile(join(foreign, "kimi.plugin.json"), "utf8"), '{"name":"their-plugin"}\n')
-  // Kimi Code's own remove only drops the registry record; the managed copy and
-  // the source stay on disk. The output must not imply a clean sweep.
+  await assert.rejects(access(managedDir(home)))
+  const registry = await readRegistry(home)
+  assert.deepEqual(registry.plugins, [foreign])
+  assert.equal(registry.version, 1)
+
   const output = lines.join("\n")
-  assert.match(output, /\/plugins remove cowork-flow/)
-  assert.match(output, /managed/)
+  assert.match(output, /Registry record removed/)
+  assert.match(output, /Restart Kimi Code/)
+  assert.doesNotMatch(output, /\/plugins remove/)
+  await rm(home, { recursive: true, force: true })
+})
+
+test("uninstall refuses a foreign directory at the managed path until --force", async () => {
+  const { home } = await seedKimiHome()
+  try {
+    await withKimiHome(home, () => runInstallKimiPlugin([]))
+
+    // Someone else takes over the managed path after our install.
+    await rm(managedDir(home), { recursive: true, force: true })
+    await mkdir(managedDir(home), { recursive: true })
+    await writeFile(join(managedDir(home), "theirs.md"), "not ours\n", "utf8")
+
+    await assert.rejects(
+      () => withKimiHome(home, () => runInstallKimiPlugin(["--uninstall"])),
+      /not the cowork-flow plugin/
+    )
+    // A refusal means nothing was touched: copies, record and the foreign file.
+    await access(sourceDir(home))
+    assert.ok(coworkFlowRecord(await readRegistry(home)))
+    assert.equal(await readFile(join(managedDir(home), "theirs.md"), "utf8"), "not ours\n")
+
+    await withKimiHome(home, () => runInstallKimiPlugin(["--uninstall", "--force"]))
+    await assert.rejects(access(managedDir(home)))
+    await assert.rejects(access(sourceDir(home)))
+    assert.equal(coworkFlowRecord(await readRegistry(home)), undefined)
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test("a registry the host would reject fails uninstall before any deletion", async () => {
+  const { home } = await seedKimiHome()
+  try {
+    await withKimiHome(home, () => runInstallKimiPlugin([]))
+
+    await writeFile(installedRegistryPath(home), "{ nope", "utf8")
+    await assert.rejects(
+      () => withKimiHome(home, () => runInstallKimiPlugin(["--uninstall"])),
+      /not valid JSON/
+    )
+    // Nothing was deleted: deleting first would leave a corrupt registry
+    // pointing at plugin roots that no longer exist.
+    await access(sourceDir(home))
+    await access(managedDir(home))
+    assert.equal(await readFile(installedRegistryPath(home), "utf8"), "{ nope")
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test("uninstall without a record still removes the copies and says so", async () => {
+  const { home } = await seedKimiHome()
+  const lines = []
+  const original = console.log
+  try {
+    await withKimiHome(home, () => runInstallKimiPlugin([]))
+    await rm(installedRegistryPath(home), { force: true })
+    console.log = (line) => lines.push(String(line))
+    await withKimiHome(home, () => runInstallKimiPlugin(["--uninstall"]))
+  } finally {
+    console.log = original
+  }
+
+  await assert.rejects(access(sourceDir(home)))
+  await assert.rejects(access(managedDir(home)))
+  assert.match(lines.join("\n"), /No cowork-flow record/)
   await rm(home, { recursive: true, force: true })
 })
