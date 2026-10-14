@@ -4,6 +4,13 @@
 
 ### Added
 
+## [1.9.2] - 2026-10-14
+
+### Added
+
+- **子代理切片机检与派发工具（派发默认化 M2）**：把"并行切片互不踩"从计划措辞变成运行时事实。① **切片所有权机检**：`subagent init --slice <name> --owns <path>...` 把所有权声明写进 `assignment`；同一任务内，若新 implement 上下文声明的 `owned_paths` 与任一未关闭 implement 上下文的声明相等或互为目录前缀（`\`/`/` 与尾斜杠归一，绝对与相对 `--execution-task-dir` 按同一把钥匙比较），初始化 fail-closed 报 `SUBAGENT-SLICE-001` 且被拒上下文不落盘；关闭（close）即释放路径，未声明 `--owns` 的既有调用不受任何影响。② **派发 prompt 渲染**：`subagent prompt <runtime_context_id>` 输出可直接粘贴的子代理提示——transport 两行原文 + "先读 assignment"指引 + goal/expected_output/切片，保持宿主无关（不写宿主专有协议串）。③ **敞口盘点**：`subagent list [--task <dir>] [--open]` 列上下文 id / status / agent_type / 任务 / slice 与 owns 摘要。④ **卫生提示**：doctor 对"completed 任务仍有未关闭子代理上下文"新增 warning `TASK-HYGIENE-COMPLETED-WITH-OPEN-SUBAGENTS`（只提示不门禁，exit 语义不变；hint 指向 `subagent list --task`）。契约同步：`subagent-dispatch.md` 新增 Implement Slices 段、`error-codes.md` 登记 `SUBAGENT-SLICE-001`、`agent-dispatch` 技能补 owned_paths 编辑边界。
+- **派发等待语义转为 converge（异步派发默认化）**：`subagent-dispatch.md` 的 Return Acceptance 首条从"用 wait 原语等待"改为汇合点语义——只要求收敛到子代理结果（wait 原语或宿主完成信号），前台/后台由宿主决定，不再暗示同步阻塞；路由技能 `cowork-flow` 的 Delegation 段新增三条：长任务优先后台派发（完成信号即汇合点、acceptance 在汇合后）；等待期主会话可做安全区工作（只读调查、运行时目录产物、独立 worktree）；汇合前不进子代理的场地（不改 tracked 树与本任务 anchor/计划、不做当前树 git 写与生命周期转换、不新开任务）。
+
 ## [1.9.1] - 2026-10-14
 
 ### Fixed
@@ -338,6 +345,7 @@
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
 [Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.1...HEAD
+[1.9.2]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.0...v1.8.1
