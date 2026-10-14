@@ -211,6 +211,28 @@ class SubagentSliceTest(unittest.TestCase):
                     ).is_file()
                 )
 
+    def test_absolute_task_dir_matches_a_relative_claim(self) -> None:
+        """`--execution-task-dir` may be absolute; the same task is still the
+        same task, so its open slices must block."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            service = self.RuntimeContextService(root)
+            service.initialize(
+                "rtx_absolute",
+                _context(
+                    "rtx_absolute",
+                    task_dir=str(root / TASK),
+                    owned=["src/api"],
+                ),
+            )
+
+            with self.assertRaises(self.RuntimeContextError) as raised:
+                service.initialize(
+                    "rtx_relative",
+                    _context("rtx_relative", task_dir=TASK, owned=["src/api"]),
+                )
+            self.assertEqual("SUBAGENT-SLICE-001", raised.exception.code)
+
     def test_owned_paths_overlap_uses_directory_boundaries(self) -> None:
         self.assertEqual(
             [("src\\api\\", "src/api")],

@@ -1738,6 +1738,13 @@ class RuntimeHealthTest(unittest.TestCase):
                         "task_dir": ".cowork-flow/tasks/10-15-running",
                     },
                 ),
+                (
+                    "rtx_absolute",
+                    {
+                        "status": "bound",
+                        "task_dir": str(root / ".cowork-flow" / "tasks" / "10-14-done"),
+                    },
+                ),
             ):
                 (subagents / f"{name}.json").write_text(
                     json.dumps(
@@ -1752,6 +1759,10 @@ class RuntimeHealthTest(unittest.TestCase):
 
             issues = self.doctor.check_task_hygiene(root)
             stdout = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+                io.StringIO()
+            ):
+                all_result = self.doctor._all_check_result(root)
             with contextlib.redirect_stdout(stdout):
                 result = self.doctor._run_task_hygiene_checks(root, structured=True)
 
@@ -1762,6 +1773,18 @@ class RuntimeHealthTest(unittest.TestCase):
             if issue["kind"] == "completed_with_open_subagents"
         ]
         self.assertEqual(0, result)
+        self.assertIn(
+            "completed_with_open_subagents",
+            {issue["kind"] for issue in all_result["issues"]["taskHygiene"]},
+        )
+        self.assertEqual(
+            [],
+            [
+                error
+                for error in all_result["errors"]
+                if "subagent" in str(error.get("message", ""))
+            ],
+        )
         self.assertEqual(1, len(open_issues))
         self.assertEqual(".cowork-flow/tasks/10-14-done", open_issues[0]["path"])
         self.assertEqual(
@@ -1771,6 +1794,7 @@ class RuntimeHealthTest(unittest.TestCase):
         self.assertEqual("warning", open_issues[0]["severity"])
         self.assertEqual("runtime-health:task-hygiene", open_issues[0]["contract"])
         self.assertIn("rtx_open", open_issues[0]["message"])
+        self.assertIn("rtx_absolute", open_issues[0]["message"])
         self.assertNotIn("rtx_closed", open_issues[0]["message"])
         self.assertNotIn("rtx_running", open_issues[0]["message"])
         self.assertTrue(

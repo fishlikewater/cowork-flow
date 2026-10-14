@@ -233,11 +233,25 @@ def _session_task_paths(repo_root: Path) -> set[str]:
     return active
 
 
-def _normalized_task_path(value: str) -> str:
+def _normalized_task_path(value: str, repo_root: Path) -> str:
+    """One task, one key: recorded task dirs may be absolute."""
     normalized = value.strip().replace("\\", "/")
     while normalized.startswith("./"):
         normalized = normalized[2:]
-    return normalized.strip("/")
+    normalized = normalized.strip("/")
+    if not normalized:
+        return ""
+    candidate = Path(normalized)
+    if candidate.is_absolute():
+        try:
+            normalized = (
+                candidate.resolve()
+                .relative_to(repo_root.resolve())
+                .as_posix()
+            )
+        except ValueError:
+            return normalized
+    return normalized
 
 
 def _open_subagent_contexts_by_task(repo_root: Path) -> dict[str, list[str]]:
@@ -254,9 +268,9 @@ def _open_subagent_contexts_by_task(repo_root: Path) -> dict[str, list[str]]:
         if not isinstance(task_path, str) or not task_path.strip():
             continue
         context_id = str(data.get("runtime_context_id") or path.stem)
-        open_by_task.setdefault(_normalized_task_path(task_path), []).append(
-            context_id
-        )
+        open_by_task.setdefault(
+            _normalized_task_path(task_path, repo_root), []
+        ).append(context_id)
     return open_by_task
 
 
@@ -329,7 +343,9 @@ def check_task_hygiene(repo_root: Path) -> list[dict[str, str]]:
                     hint=f"./.cowork-flow/run task next {task} --run --intent archive",
                 )
             )
-            open_ids = open_subagents.get(_normalized_task_path(task))
+            open_ids = open_subagents.get(
+                _normalized_task_path(task, repo_root)
+            )
             if open_ids:
                 issues.append(
                     _task_hygiene_issue(

@@ -180,7 +180,7 @@ class RuntimeContextService:
         claimed = self._owned_paths(context)
         if not claimed:
             return []
-        task_dir = normalize_relative_path(str(context.get("task_dir") or ""))
+        task_dir = self._normalized_task_dir(str(context.get("task_dir") or ""))
         if not task_dir:
             return []
         conflicts: list[tuple[str, str, str]] = []
@@ -192,7 +192,7 @@ class RuntimeContextService:
                 continue
             if other.get("status") == "closed":
                 continue
-            if normalize_relative_path(str(other.get("task_dir") or "")) != task_dir:
+            if self._normalized_task_dir(str(other.get("task_dir") or "")) != task_dir:
                 continue
             for claimed_path, other_path in owned_paths_overlap(
                 claimed,
@@ -200,6 +200,25 @@ class RuntimeContextService:
             ):
                 conflicts.append((other_id, claimed_path, other_path))
         return conflicts
+
+    def _normalized_task_dir(self, value: str) -> str:
+        """One task, one key: `--execution-task-dir` may arrive absolute."""
+        normalized = normalize_relative_path(value)
+        if not normalized:
+            return ""
+        candidate = Path(normalized)
+        if candidate.is_absolute():
+            try:
+                return normalize_relative_path(
+                    str(
+                        candidate.resolve().relative_to(
+                            self.repo_root.resolve()
+                        )
+                    )
+                )
+            except ValueError:
+                return normalized
+        return normalized
 
     @staticmethod
     def _owned_paths(context: dict) -> list[str]:
