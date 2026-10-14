@@ -105,7 +105,9 @@ blocks completion regardless.
 
 ## Return Acceptance And Closeout
 
-- Wait for the child result with the adapter wait primitive.
+- Converge on the child result before acceptance — via the wait primitive or
+  the host's completion signal; the dispatch form (foreground or background)
+  is host-determined.
 - Confirm no stray running children with the adapter list primitive.
 - Verify the child report by checking files, commands, and results; do not
   trust completed text alone.
