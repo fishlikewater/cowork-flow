@@ -211,6 +211,68 @@ class SubagentSliceTest(unittest.TestCase):
                     ).is_file()
                 )
 
+    def test_slash_rooted_absolute_paths_are_recognized(self) -> None:
+        """Absoluteness must be decided on the raw value on every platform:
+        stripping leading slashes first turns `/tmp/x` into `tmp/x` and
+        silently disables the same-task comparison (POSIX CI roots)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            service = self.RuntimeContextService(root)
+            self.assertTrue(
+                service._task_dir_is_absolute(
+                    "/tmp/ci/.cowork-flow/tasks/10-14-demo"
+                )
+            )
+            self.assertTrue(service._task_dir_is_absolute(str(root / TASK)))
+            self.assertTrue(
+                service._task_dir_is_absolute(str(root / TASK).replace("\\", "/"))
+            )
+            self.assertFalse(service._task_dir_is_absolute(TASK))
+
+    def test_slash_form_absolute_task_dir_blocks_a_relative_claim(self) -> None:
+        """The slash form of an absolute path is still the same task."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            service = self.RuntimeContextService(root)
+            service.initialize(
+                "rtx_slash_abs",
+                _context(
+                    "rtx_slash_abs",
+                    task_dir=str(root / TASK).replace("\\", "/"),
+                    owned=["src/api"],
+                ),
+            )
+
+            with self.assertRaises(self.RuntimeContextError) as raised:
+                service.initialize(
+                    "rtx_rel",
+                    _context("rtx_rel", task_dir=TASK, owned=["src/api"]),
+                )
+            self.assertEqual("SUBAGENT-SLICE-001", raised.exception.code)
+
+    def test_list_contexts_finds_absolute_recorded_task_dir(self) -> None:
+        """The doctor hint `subagent list --task <task>` must work for the
+        very contexts the doctor warning fires on."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            service = self.RuntimeContextService(root)
+            service.initialize(
+                "rtx_absolute",
+                _context("rtx_absolute", task_dir=str(root / TASK)),
+            )
+
+            by_relative = service.list_contexts(task_dir=TASK)
+            by_absolute = service.list_contexts(task_dir=str(root / TASK))
+
+            self.assertEqual(
+                ["rtx_absolute"],
+                [c["runtime_context_id"] for c in by_relative],
+            )
+            self.assertEqual(
+                ["rtx_absolute"],
+                [c["runtime_context_id"] for c in by_absolute],
+            )
+
     def test_absolute_task_dir_matches_a_relative_claim(self) -> None:
         """`--execution-task-dir` may be absolute; the same task is still the
         same task, so its open slices must block."""

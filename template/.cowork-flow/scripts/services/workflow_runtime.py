@@ -201,24 +201,33 @@ class RuntimeContextService:
                 conflicts.append((other_id, claimed_path, other_path))
         return conflicts
 
+    @staticmethod
+    def _task_dir_is_absolute(value: str) -> bool:
+        """Decide on the raw value, before any slash stripping.
+
+        Stripping first would turn a slash-rooted POSIX path into a
+        relative-looking one and silently disable the same-task comparison.
+        """
+        raw = value.strip().replace("\\", "/")
+        if raw.startswith("/"):
+            return True
+        return Path(raw).is_absolute()
+
     def _normalized_task_dir(self, value: str) -> str:
         """One task, one key: `--execution-task-dir` may arrive absolute."""
-        normalized = normalize_relative_path(value)
-        if not normalized:
-            return ""
-        candidate = Path(normalized)
-        if candidate.is_absolute():
+        raw = value.strip().replace("\\", "/")
+        if self._task_dir_is_absolute(raw):
             try:
                 return normalize_relative_path(
                     str(
-                        candidate.resolve().relative_to(
-                            self.repo_root.resolve()
-                        )
+                        Path(raw)
+                        .resolve()
+                        .relative_to(self.repo_root.resolve())
                     )
                 )
             except ValueError:
-                return normalized
-        return normalized
+                return normalize_relative_path(raw)
+        return normalize_relative_path(raw)
 
     @staticmethod
     def _owned_paths(context: dict) -> list[str]:
@@ -239,12 +248,12 @@ class RuntimeContextService:
         open_only: bool = False,
     ) -> list[dict]:
         """Subagent runtime contexts for inventory views (read-only)."""
-        wanted = normalize_relative_path(task_dir) if task_dir else None
+        wanted = self._normalized_task_dir(task_dir) if task_dir else None
         contexts: list[dict] = []
         for context in iter_subagent_contexts(self.repo_root):
             if open_only and context.get("status") == "closed":
                 continue
-            if wanted is not None and normalize_relative_path(
+            if wanted is not None and self._normalized_task_dir(
                 str(context.get("task_dir") or "")
             ) != wanted:
                 continue
