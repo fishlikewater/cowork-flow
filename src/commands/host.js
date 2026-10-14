@@ -61,7 +61,7 @@ export const HOST_COMPONENTS = {
     default: 'plugin',
     components: {
       plugin: { summary: 'Kimi Code plugin: the bootstrap Skill it loads at session start', flags: KIMI_PLUGIN_FLAGS, run: runInstallKimiPlugin },
-      hook: { summary: 'Kimi Code context-injection hook (fallback when no plugin is installed)', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook }
+      hook: { summary: 'Kimi Code context-injection hook as a user-level config.toml [[hooks]] row', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook }
     }
   }
 };
