@@ -1688,6 +1688,97 @@ class RuntimeHealthTest(unittest.TestCase):
             ],
         )
 
+    def test_task_hygiene_warns_on_completed_task_with_open_subagent_contexts(
+        self,
+    ) -> None:
+        """An open subagent context on a finished task is named; closed
+        contexts and still-running tasks are not, and it stays a warning."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            tasks = root / ".cowork-flow" / "tasks"
+            completed = tasks / "10-14-done"
+            running = tasks / "10-15-running"
+            for task_dir, status in (
+                (completed, "completed"),
+                (running, "in_progress"),
+            ):
+                task_dir.mkdir(parents=True)
+                (task_dir / "task.json").write_text(
+                    json.dumps({"status": status, "assignee": "codex"}),
+                    encoding="utf-8",
+                )
+                for name in (
+                    "decision-anchor.md",
+                    "implement.jsonl",
+                    "check.jsonl",
+                    "debug.jsonl",
+                ):
+                    (task_dir / name).write_text("# x\n", encoding="utf-8")
+            subagents = root / ".cowork-flow" / ".runtime" / "subagents"
+            subagents.mkdir(parents=True)
+            for name, payload in (
+                (
+                    "rtx_open",
+                    {
+                        "status": "bound",
+                        "task_dir": ".cowork-flow/tasks/10-14-done",
+                    },
+                ),
+                (
+                    "rtx_closed",
+                    {
+                        "status": "closed",
+                        "task_dir": ".cowork-flow/tasks/10-14-done",
+                    },
+                ),
+                (
+                    "rtx_running",
+                    {
+                        "status": "bound",
+                        "task_dir": ".cowork-flow/tasks/10-15-running",
+                    },
+                ),
+            ):
+                (subagents / f"{name}.json").write_text(
+                    json.dumps(
+                        {
+                            "runtime_context_id": name,
+                            "scope": "subagent",
+                            **payload,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            issues = self.doctor.check_task_hygiene(root)
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = self.doctor._run_task_hygiene_checks(root, structured=True)
+
+        payload = json.loads(stdout.getvalue())
+        open_issues = [
+            issue
+            for issue in payload["issues"]
+            if issue["kind"] == "completed_with_open_subagents"
+        ]
+        self.assertEqual(0, result)
+        self.assertEqual(1, len(open_issues))
+        self.assertEqual(".cowork-flow/tasks/10-14-done", open_issues[0]["path"])
+        self.assertEqual(
+            "TASK-HYGIENE-COMPLETED-WITH-OPEN-SUBAGENTS",
+            open_issues[0]["code"],
+        )
+        self.assertEqual("warning", open_issues[0]["severity"])
+        self.assertEqual("runtime-health:task-hygiene", open_issues[0]["contract"])
+        self.assertIn("rtx_open", open_issues[0]["message"])
+        self.assertNotIn("rtx_closed", open_issues[0]["message"])
+        self.assertNotIn("rtx_running", open_issues[0]["message"])
+        self.assertTrue(
+            open_issues[0]["hint"].startswith("./.cowork-flow/run ")
+        )
+        self.assertIn("completed_with_open_subagents", {i["kind"] for i in issues})
+        self.assertEqual([], [i for i in issues if i["severity"] == "error"])
+
     def test_task_hygiene_surfaces_the_light_profile_without_failing_health(
         self,
     ) -> None:

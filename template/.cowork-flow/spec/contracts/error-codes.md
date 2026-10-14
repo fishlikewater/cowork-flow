@@ -1,7 +1,7 @@
 # Runtime Error Codes
 
-Every `LIFECYCLE-*` error code the runtime can put in a result's `code` field, with
-the condition that produces it. A code is a stable contract: consumers match on the
+Every runtime error code that can reach a result's `code` field, with the
+condition that produces it. A code is a stable contract: consumers match on the
 code, never on the message text.
 
 Codes are defined in `scripts/services/*.py` and surface in CLI output, `--json`
@@ -28,6 +28,7 @@ results, and the closeout blockers.
 | `LIFECYCLE-TASK-001` | The task directory passed to a lifecycle command does not exist. | `services/task_lifecycle.py:529` |
 | `LIFECYCLE-TRANSITION-001` | The task's current status cannot transition to the target status of the stage being run. | `services/task_lifecycle.py:641` |
 | `LIFECYCLE-UOW-001` | The `UnitOfWork` write fails: task metadata cannot be re-read before commit/takeover, changed under it (optimistic-concurrency conflict), or `unit.commit()` raises. | `services/task_lifecycle.py:942` (also `:949`, `:998`, `:1051`, `:1059`, `:1095`) |
+| `SUBAGENT-SLICE-001` | A `cowork-implement` runtime context is initialized with `owned_paths` that equal, or nest with, the `owned_paths` of an open (not yet closed) implement context of the same task; nothing is written for the rejected context. | `services/workflow_runtime.py:144` |
 
 ## Non-error `LIFECYCLE-*` codes
 

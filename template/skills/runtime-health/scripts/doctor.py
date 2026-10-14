@@ -233,6 +233,33 @@ def _session_task_paths(repo_root: Path) -> set[str]:
     return active
 
 
+def _normalized_task_path(value: str) -> str:
+    normalized = value.strip().replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized.strip("/")
+
+
+def _open_subagent_contexts_by_task(repo_root: Path) -> dict[str, list[str]]:
+    """Open subagent runtime contexts, keyed by their task directory."""
+    directory = repo_root / ".cowork-flow" / ".runtime" / "subagents"
+    open_by_task: dict[str, list[str]] = {}
+    if not directory.is_dir():
+        return open_by_task
+    for path in sorted(directory.glob("*.json")):
+        data = _task_metadata(path)
+        if data.get("status") == "closed":
+            continue
+        task_path = data.get("task_dir")
+        if not isinstance(task_path, str) or not task_path.strip():
+            continue
+        context_id = str(data.get("runtime_context_id") or path.stem)
+        open_by_task.setdefault(_normalized_task_path(task_path), []).append(
+            context_id
+        )
+    return open_by_task
+
+
 def _task_hygiene_issue(
     *,
     kind: str,
@@ -268,6 +295,7 @@ def check_task_hygiene(repo_root: Path) -> list[dict[str, str]]:
     if not tasks_dir.is_dir():
         return []
     bound_tasks = _session_task_paths(repo_root)
+    open_subagents = _open_subagent_contexts_by_task(repo_root)
     issues: list[dict[str, str]] = []
     for task_dir in sorted(tasks_dir.iterdir()):
         if not task_dir.is_dir() or task_dir.name == "archive":
@@ -301,6 +329,20 @@ def check_task_hygiene(repo_root: Path) -> list[dict[str, str]]:
                     hint=f"./.cowork-flow/run task next {task} --run --intent archive",
                 )
             )
+            open_ids = open_subagents.get(_normalized_task_path(task))
+            if open_ids:
+                issues.append(
+                    _task_hygiene_issue(
+                        kind="completed_with_open_subagents",
+                        task=task,
+                        status=status,
+                        message=(
+                            "completed task still has open subagent context(s): "
+                            + ", ".join(open_ids)
+                        ),
+                        hint=f"./.cowork-flow/run subagent list --task {task}",
+                    )
+                )
         if status in {"in_progress", "review"} and task not in bound_tasks:
             issues.append(
                 _task_hygiene_issue(

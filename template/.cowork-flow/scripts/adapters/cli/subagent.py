@@ -34,6 +34,7 @@ from services.review_receipt import ReviewReceiptError, submit_review_receipt
 from services.workflow_runtime import (
     RuntimeContextError,
     RuntimeContextService,
+    normalize_relative_path,
 )
 from adapters.cli.execution_context_args import build_internal_execution_context_parser
 from infra.paths import get_repo_root
@@ -201,6 +202,23 @@ def _initial_context(
         {"file": item, "reason": "prompt-named context"}
         for item in args.allowed_context
     ]
+    assignment: dict = {
+        "title": args.title,
+        "goal": args.goal or args.title,
+        "allowed_context": allowed_context,
+        "expected_output": args.expected_output,
+        "source": args.source,
+    }
+    slice_name = (getattr(args, "slice", None) or "").strip()
+    if slice_name:
+        assignment["slice"] = slice_name
+    owned_paths = [
+        normalize_relative_path(path)
+        for path in (getattr(args, "owns", None) or [])
+        if path.strip()
+    ]
+    if owned_paths:
+        assignment["owned_paths"] = owned_paths
     return {
         "schema_version": 2,
         "runtime_context_id": runtime_context_id,
@@ -215,13 +233,7 @@ def _initial_context(
             "kind": "prompt",
             "key": "cowork_runtime_context_id",
         },
-        "assignment": {
-            "title": args.title,
-            "goal": args.goal or args.title,
-            "allowed_context": allowed_context,
-            "expected_output": args.expected_output,
-            "source": args.source,
-        },
+        "assignment": assignment,
         "authority": {
             "may_start_task": False,
             "may_resume_main": False,
@@ -290,6 +302,76 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
         return 1
     print(json.dumps(context, ensure_ascii=False, indent=2) + "\n", end="")
+    return 0
+
+
+def cmd_prompt(args: argparse.Namespace) -> int:
+    """Render a paste-ready dispatch prompt for one runtime context.
+
+    Host-neutral by design: the two transport lines the runtime parses,
+    then generic pointers the child resolves itself via the CLI.
+    """
+    repo_root = get_repo_root()
+    try:
+        context = _find_subagent(repo_root, args.subagent_id)
+    except FileNotFoundError:
+        print(f"Error: subagent not found: {args.subagent_id}", file=sys.stderr)
+        return 1
+    assignment = context.get("assignment")
+    assignment = assignment if isinstance(assignment, dict) else {}
+    host_context_key = _suggest_host_context_key(
+        str(context.get("host") or ""),
+        args.subagent_id,
+    )
+    lines = [
+        f"cowork_runtime_context_id: {args.subagent_id}",
+        f"cowork_host_context_key: {host_context_key}",
+        "",
+        "First read your assignment; do not infer it from this prompt:",
+        f".cowork-flow/run subagent status {args.subagent_id}",
+        f"Goal: {assignment.get('goal') or context.get('title') or ''}",
+        f"Expected output: {assignment.get('expected_output') or ''}",
+    ]
+    slice_name = assignment.get("slice")
+    owned = [str(path) for path in (assignment.get("owned_paths") or [])]
+    if slice_name or owned:
+        lines.append(f"Slice: {slice_name or '(unnamed)'}")
+        if owned:
+            lines.append(f"Owned paths: {', '.join(owned)}")
+    print("\n".join(lines))
+    return 0
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    repo_root = get_repo_root()
+    task_dir = getattr(args, "task", None)
+    if task_dir:
+        candidate = Path(task_dir)
+        if candidate.is_absolute():
+            try:
+                candidate = candidate.resolve().relative_to(repo_root.resolve())
+            except ValueError:
+                pass
+        task_dir = candidate.as_posix()
+    contexts = RuntimeContextService(repo_root).list_contexts(
+        task_dir=task_dir,
+        open_only=bool(getattr(args, "open", False)),
+    )
+    if not contexts:
+        print("no subagent contexts")
+        return 0
+    for context in contexts:
+        assignment = context.get("assignment")
+        assignment = assignment if isinstance(assignment, dict) else {}
+        owned = [str(path) for path in (assignment.get("owned_paths") or [])]
+        print(
+            f"{context.get('runtime_context_id', '?')}  "
+            f"{context.get('status', 'unknown')}  "
+            f"{context.get('agent_type', 'unknown')}  "
+            f"{context.get('task_dir') or '-'}  "
+            f"slice={assignment.get('slice') or '-'}  "
+            f"owns={','.join(owned) or '-'}"
+        )
     return 0
 
 
@@ -421,6 +503,13 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--goal")
     init.add_argument("--expected-output", default="Files changed, validation commands, and blockers.")
     init.add_argument("--allowed-context", action="append", default=[])
+    init.add_argument("--slice", default=None, help="Slice name this child owns")
+    init.add_argument(
+        "--owns",
+        action="append",
+        default=[],
+        help="Owned repository-relative path (repeatable); overlapping claims of an open implement context fail closed",
+    )
     init.add_argument("--host", default=None)
     init.add_argument("--adapter", default=None)
     init.set_defaults(func=cmd_init)
@@ -428,6 +517,21 @@ def build_parser() -> argparse.ArgumentParser:
     status = subparsers.add_parser("status", help="Print subagent runtime context")
     status.add_argument("subagent_id")
     status.set_defaults(func=cmd_status)
+
+    prompt = subparsers.add_parser(
+        "prompt",
+        help="Render a paste-ready dispatch prompt for a runtime context",
+    )
+    prompt.add_argument("subagent_id")
+    prompt.set_defaults(func=cmd_prompt)
+
+    listing = subparsers.add_parser(
+        "list",
+        help="List subagent runtime contexts (open-first inventory)",
+    )
+    listing.add_argument("--task", default=None, help="Only contexts of this task directory")
+    listing.add_argument("--open", action="store_true", help="Only contexts not yet closed")
+    listing.set_defaults(func=cmd_list)
 
     update = subparsers.add_parser("update", help="Update subagent runtime status")
     update.add_argument("subagent_id")
