@@ -176,8 +176,9 @@ Execution strategy guide:
 - Do not require the user to predeclare parallel execution; evaluate parallel feasibility while writing the plan.
 - Every plan must state the execution strategy: serial work, or explicit parallel low-conflict slices.
 - Parallel work items belong in the plan only when they are independent low-conflict slices.
-- Each parallel item must name file ownership, dependencies, expected outputs, and verification commands.
+- Each parallel item must name file ownership, dependencies, expected outputs, and verification commands, plus its dispatch: `main` (self-executed) or `cowork-implement` (one child per slice, briefed through the runtime context assignment).
 - Use separate sessions, and use a separate `git worktree` when independent tasks may write overlapping project areas.
+- Two tasks cannot run in parallel inside one working tree: the file-scope gate reads every working-tree change, so a second task's files fail the first task's review. Cross-task parallelism uses separate worktrees or clones, coordinated through the task board (`--depends-on`, `blockedBy`).
 - After parallel items finish, include one final integrated verification step before Check/Finish.
 
 ## Self-Review

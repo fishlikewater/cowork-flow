@@ -45,5 +45,17 @@ operation directly or report the blocker; never guess a second workflow entry.
 Before editing for implement, read `implement.jsonl` and every listed `file` entry.
 If `test-first` is listed, read it and write the red test before production code.
 
+## Delegation
+
+Dispatch follows the plan's execution strategy:
+
+- Parallel slices: dispatch one `cowork-implement` per slice, carrying the
+  slice brief in the runtime context assignment; the protocol is
+  `.cowork-flow/spec/contracts/subagent-dispatch.md`.
+- Before completion, arrange the `cowork-check` dispatch the completion gate
+  requires — do not wait for the blocker to tell you.
+- Research-heavy work: dispatch two or three `cowork-research` children for
+  independent questions instead of widening the main context.
+
 Public Skills carry workflow guidance. Runtime Gates carry hard enforcement.
 Do not recreate an internal protocol layer or another process authority.

@@ -16,8 +16,9 @@ Use this Skill only inside fixed subagents such as `cowork-implement`,
    before doing task work. On Windows, use `.\.cowork-flow\run.cmd`.
 3. If binding fails, or the bound context is missing, closed, invalid, or names
    another agent type, report `needs_context` and stop.
-4. Read the task directory from the bound runtime context; do not infer it from
-   prompt text.
+4. Read the task directory and the assignment (`goal`, `expected_output`) from
+   the bound runtime context (`./.cowork-flow/run subagent status <id>`); do not
+   infer them from prompt text.
 
 ## Boundaries
 
