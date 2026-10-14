@@ -4,6 +4,13 @@
 
 ### Added
 
+## [1.9.1] - 2026-10-14
+
+### Fixed
+
+- **CI 与发布校验在 Node 20 全红（1.9.0 发布阻断）**：`compliance-e2e` 用例嵌套的 `node --test` 断言写死了 Node 22+ 默认 reporter 的 `✔`/`﹣` 标记，CI 的 Node 20 默认输出 TAP（`ok N -`），断言恒失败——v1.9.0 的 test / windows-core / verify 各环节全红、publish 跳过、npm 未上架。嵌套 spawn 现在显式钉 `--test-reporter=spec`，Node 20 / 24 双绿。
+- **Windows 上 Kimi Code hook 重复安装会双注册**：TOML basic string 把安装路径的反斜杠转义成 `\\`，归属比较此前只做单斜杠替换，`\\` 折叠成 `//` 后与单斜杠形式不相等，自身的 `[[hooks]]` 行恒不被识别——第二次安装追加第二行钩子（双次注入）。分隔符归一化改为折叠连续 `[\\/]+`，并新增"无标记旧行被接管而非复制"的回归测试。
+
 ## [1.9.0] - 2026-10-14
 
 ### Added
@@ -330,7 +337,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.3...v1.8.0

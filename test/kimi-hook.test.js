@@ -227,6 +227,35 @@ test('installing twice leaves the config byte-identical and rewrites the marker'
 });
 
 
+// A release that predates the managed block wrote the same shim command as a
+// bare row, with no markers. Reinstalling must claim that row — locate it and
+// replace it with the managed block — not append a second identical
+// registration, which would run the shim twice per prompt.
+test('an unmarked legacy row for this shim is adopted instead of duplicated', async (t) => {
+  const home = await createKimiHome(t);
+  await mkdir(home, { recursive: true });
+  const legacy = [
+    '[providers.moonshot]',
+    'api_key = "sk-test"',
+    '',
+    '[[hooks]]',
+    'event = "UserPromptSubmit"',
+    'command = "node \\"' + shimPath(home).replace(/\\/g, '\\\\') + '\\""',
+    'timeout = 30',
+    '',
+  ].join('\n');
+  await writeFile(join(home, 'config.toml'), legacy, 'utf8');
+
+  const result = await install(t, home);
+
+  assert.match(result.stdout, /block updated/);
+  const config = await readConfig(home);
+  assert.equal(config.split('\n').filter((line) => line.trim() === '[[hooks]]').length, 1, config);
+  assert.match(config, /cowork-flow: kimi hook start/);
+  assert.ok(config.startsWith('[providers.moonshot]\napi_key = "sk-test"\n'), config);
+});
+
+
 test('an existing hand-written config keeps its content and its hook rows', async (t) => {
   const home = await createKimiHome(t);
   await mkdir(home, { recursive: true });
