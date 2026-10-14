@@ -219,7 +219,9 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_workflow_requires_runtime_context_closeout(self) -> None:
         required_markers = (
-            "Wait for the child result with the adapter wait primitive.",
+            "Converge on the child result before acceptance",
+            "the dispatch form (foreground or background)",
+            "is host-determined.",
             "Confirm no stray running children with the adapter list primitive.",
             "Verify the child report by checking files, commands, and results",
             "close the child with the adapter cancel/close",

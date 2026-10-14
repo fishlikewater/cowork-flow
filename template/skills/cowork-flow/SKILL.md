@@ -56,6 +56,15 @@ Dispatch follows the plan's execution strategy:
   requires — do not wait for the blocker to tell you.
 - Research-heavy work: dispatch two or three `cowork-research` children for
   independent questions instead of widening the main context.
+- Long-running children: prefer background dispatch when the host supports it;
+  the completion signal is the convergence point and acceptance runs after it.
+  Use foreground dispatch for short work or hosts without a background mode.
+- While a child runs, the main session keeps working on things that never
+  touch the child's ground: read-only investigation, runtime-directory work
+  (evidence, board, plan drafts, follow-up task drafts), separate worktrees.
+- Until convergence, stay off the child's ground: no edits to the tracked
+  worktree or this task's anchor/plan, no current-tree git writes or lifecycle
+  transitions, and do not start other tasks.
 
 Public Skills carry workflow guidance. Runtime Gates carry hard enforcement.
 Do not recreate an internal protocol layer or another process authority.
