@@ -4,14 +4,30 @@
 
 ### Added
 
+## [1.9.0] - 2026-10-14
+
+### Added
+
 - **多执行者协作事实（1.9.0 主线）**：把 executor / evidence / adopt 语义补成团队协调原语，让 `.cowork-flow/tasks/` 在多 agent 场景下当共享看板。① **看板归属可见**：`task next --list --json` 与 MCP `task_list`（同一实现）每条记录新增 `executor` / `ownerSessionActive`（提示位：是否有会话绑定该任务，不裁决孤儿）/ `evidenceCoverage` / `blocked` / `blockedBy`——第二个执行者不跑 `run state` 就能看出谁在占用、有没有卡住、证据到哪了。② **依赖边**：`task next --run --title ... --depends-on <task>`（可重复，完整目录名）在创建时写入 `task.json` 的 `dependsOn`，声明期 fail-closed（目标不存在 / 自依赖 / 环分别报 `TASK-CREATE-DEPENDENCY-001/002/003`，失败不落盘；归档任务按已完成依赖解析）；start 门禁 `LIFECYCLE-DEPENDENCY-001`——依赖未全部 completed 时阻断进入 in_progress，导航 payload 与 `--run` 报同一 blocker 文本，已启动任务不受回溯影响，adopt/review/complete 不受约束。③ **交接凭证**：adopt 成功后打印 Handover 段（原执行者 → 新执行者、原基线 → 新基线、剩余未勾选 AC、证据覆盖 n/m）。契约见 `.cowork-flow/spec/contracts/task-board.md`。
+- **严格任务门禁与验收闭环（10 月门禁轮）**：新建任务默认 `strict`——创建期必须声明 dev_type（`backend|frontend|fullstack|test|spec`，报 `TASK-CREATE-DEVTYPE-001`）；完成期重新校验 decision-anchor 与证据：仍有未勾选 AC 报 `LIFECYCLE-AC-001`、已声明 AC 缺 `evidence.jsonl` 记录报 `002`（唯一可被 `--allow-missing-evidence` 豁免的码）、strict 任务读不到 AC 行报 `003`、证据模块不可导入报 `004`。轻量路径 `meta.taskType=tiny`：strict+tiny 免复核凭证与 AC 证据，但只能创建期声明、`task next --list` 与 doctor 可见、不得用于触碰 runtime/门禁/spec 的任务。
+- **独立复核凭证与变更指纹**：`subagent check-review` 把 cowork-check 的结论写入 `review.jsonl`，完成门禁消费——无凭证报 `LIFECYCLE-REVIEW-001`、最新一条非 pass 报 `002`、指纹过期报 `003`、来源回查失败报 `004`；接收侧守卫 `REVIEW-RECEIPT-001..007`（上下文形态 / agent 类型 / 任务绑定 / 真实 runtime 绑定回查），`by` 字段不算独立性证据。16 hex 变更指纹的分量 = 变更内容摘要 + anchor 目标与 AC 正文 + plan 摘要 + dev_type + 被引用规范正文 + implement.jsonl 摘要——改代码 / 规范 / AC 即凭证失效，需重跑复核。
+- **spec-check 可遵循闭环（spec-check 后续）**：每次运行携带 `summary.classification` 分类事实（`parse-error` / `executor-failure` / `zero-declaration` / `violation` / `unchecked` / `pass` / `empty`，`--json` 可查）；整只执行器损坏单独阻断（executor-failure，`--allow-unchecked` 不豁免）；豁免明细（flag / by）在完成与归档同源打印；零声明处给出下游 AI 的指路，契约 quick-start 示例可从交付文件整段抽用。
 
 ### Changed
 
+- **技能面收敛（16→14）**：删除 `decision-audit`（与 `adversarial-review` 是同一段 CLAIM/DOUBT 复核循环的两份文本）与 `game-design`（连同 `spec/game/` 5 个文件）；`cowork-flow-maintenance` 路由收紧为 `template/**` + `presets/**`；固定代理提示统一指向 `adversarial-review`。
+- **复核报告三元组**：`subagent check-review --finding` 的每条 finding 必须携带 clause / command / negativeProof（无命令可判的显式给 null），把取证方式写进复核契约。
+- **发布门禁覆盖自实例与实例路径**：`release:check` 增加 self-instance-drift（自实例镜像须与 `template/` 一致，`source:refresh` 消除漂移）与 doctor error 级阻断；PR CI 与发布共用同一门禁。
+- **文档事实源收敛与契约英文化**：README / AGENTS / docs / spec 四层去重消死、统一称谓、控制面唯一化；契约正文英文化并补英文版 README；新增 `spec/contracts/error-codes.md` 汇总全部 `LIFECYCLE-*` 码（code 是稳定契约、消息文本不承诺稳定）。
 - **子代理派发默认化（技能层）**：`cowork-flow` 技能新增 Delegation 段——计划并行切片逐片派发 `cowork-implement`（切片简报走运行时上下文 assignment，协议引用 `subagent-dispatch.md`）、完成前的 `cowork-check` 派发显式写入流程（不再靠撞门禁）、调研型任务可 `cowork-research` 扇出（2–3 个），协议传输细节仍由 `subagent init` 输出与 `subagent-dispatch.md` 承载、路由技能不复刻；`task-planning` 的 Parallel Work 补两条：并行项注明 dispatch（`main` | `cowork-implement`）、同一工作树内不可并行两个任务（范围门禁读取工作树全量变更，跨任务并行走独立 worktree/clone + 看板依赖边）；`agent-dispatch` 绑定步骤改为从运行时上下文读取 assignment（`goal` / `expected_output`）；`orchestration-patterns` 模式 1 使用场景改为可操作触发、模式 2 验证清单补收束与单树约束。零 runtime 代码变更。
-- **安装器共享助手收敛（内部）**：9 份 `install-*.js` 的机械重复收进 `src/lib/`，可观测行为（stdout 文案、守卫顺序、退出码）逐字冻结，既有测试零修改通过。① `writeJsonAtomic` 单源化到 `install-support.js`（写前 mkdir 父目录 + 临时文件换名），zcode/qoder/dsh-preset 的本地副本删除。② 新增 `payload-install.js`（含 `pruneEmptyDir`）：claude-code/kimi-code/opencode 三份同构安装器走共享"头部 → 归属守卫 → dry-run → 物化 → 报告"骨架，三家逐字重复的句子只保留一份（守卫拒绝、强制覆盖提示、未安装提示、完成行），各自收敛为 90 行薄壳（原 129/142/169 行）；marketplace/registry/bundle 等宿主语义留在原模块。③ kimi-hook 与 dsh-hook 的托管块手术（定位/替换/移除）共享 `upsertManagedBlock` / `removeManagedBlock`，各自的块渲染与行尾锚定保留，重复安装幂等与卸载字节复原语义不变。
+- **安装器共享助手收敛（内部）**：9 份 `install-*.js` 的机械重复收进 `src/lib/`，可观测行为（stdout 文案、守卫顺序、退出码）逐字冻结，既有测试零修改通过。① `writeJsonAtomic` 单源化到 `install-support.js`（写前 mkdir 父目录 + 临时文件换名），zcode/qoder/dsh-preset 的本地副本删除。② 新增 `payload-install.js`（含 `pruneEmptyDir`）：claude-code/kimi-code/opencode 三份同构安装器走共享"头部 → 归属守卫 → dry-run → 物化 → 报告"骨架，三家逐字重复的句子只保留一份（守卫拒绝、强制覆盖提示、未安装提示、完成行），各自收敛为 90 行薄壳（原 129/142/169 行）；marketplace/registry/bundle 等宿主语义留在原模块。③ kimi-hook 与 dsh-hook 的托管块手术（定位/替换/移除）共享 `upsertManagedBlock` / `removeManagedBlock`，各自的块渲染与行尾锚定保留，重复安装幂等与卸载字节复原语义不变。④ 复核收尾删除死配置点与孤儿 import（`13f3b7c`）。
 - **OpenCode 插件收敛为 zcode 同形态传输 shim**：插件内 1125 行 JS 手写渲染/绑定（registry 加载、指纹计算、stage-contract、decision-anchor、运行时绑定 JSON-pair 写入）全部删除，`experimental.chat.system.transform` 改为 spawn 项目内 `inject.py --host opencode` 并原样注入其 stdout；`plugin-core.js` 只剩宿主能力胶水（传输、`shell.env` 上下文键导出、edit 期 spec-check 代理、载荷技能目录注册）。配套变化：① `inject.py --host opencode` 成为合法选项，新增 `opencode_policy`（digest 措辞保留 "every plugin transform"；无 SessionStart 事件，digest 形状由会话状态文件探测推导；stdout 即注入故 `emit_text`）。② 行为变化：主会话现在同样收到 `<workflow-state>` 注入（此前仅 delegated 子代理会话有），digest 全量/指纹判定由「进程内 per-session 集合」改为跨进程可靠的「会话激活文件探测」，workflow-state 头按统一规则携带 `session` 属性。③ `DEFAULT_CONTRACT_REGISTRY` 兜底单源化：JS 副本随渲染删除，只剩 Python 一份，`tests/test_contract_registry.py` 把它与 `contract-registry.json` 逐条锁定防漂移。④ 机器级安装载荷新增 `cowork-flow/runtime/scripts` 缓存副本（安装时从 template 刷新，zcode 同形态），项目外渲染 not-initialized 上下文；项目内始终以项目自身运行时副本为准。契约同步见 `.cowork-flow/spec/contracts/context-injection.md`。升级动作：`cwf host add opencode --force` 刷新机器级载荷后重启 OpenCode。
-- **Kimi Code 插件直装**：`cwf host add kimi-code` 一步完成插件安装，不再需要 TUI 手工执行 `/plugins install`。命令物化两份载荷（`plugins/sources/` 稳定重装源 + `plugins/managed/` 宿主加载副本）并直接写入宿主注册表 `$KIMI_CODE_HOME/plugins/installed.json`——落盘格式与 Kimi Code 自身安装逻辑逐字段一致（读自宿主源码 `agent-core-v2` 的 plugin store/manifest/manager）：记录含 `id/root/source:"local-path"/enabled/installedAt/updatedAt/originalSource`，按 id 合并、保留其他插件记录与未知顶层字段、首装时间与启用状态在重装时保留、注册表不可解析时 fail-closed 且原文件不动；`--uninstall` 反向移除记录并删除两份目录（外来目录仍受守卫保护，`--force` 才覆盖）。doctor 的半装/陈旧指引与 `docs/hosts.md` 同步为 `cwf host add kimi-code [--force]`。升级动作：`cwf host add kimi-code --force` 后重启 Kimi Code。
+- **Kimi Code 插件直装**：`cwf host add kimi-code` 一步完成插件安装，不再需要 TUI 手工执行 `/plugins install`。命令物化两份载荷（`plugins/sources/` 稳定重装源 + `plugins/managed/` 宿主加载副本）并直接写入宿主注册表 `$KIMI_CODE_HOME/plugins/installed.json`——落盘格式与 Kimi Code 自身安装逻辑逐字段一致（读自宿主源码 `agent-core-v2` 的 plugin store/manifest/manager）：记录含 `id/root/source:"local-path"/enabled/installedAt/updatedAt/originalSource`，按 id 合并、保留其他插件记录与未知顶层字段、首装时间与启用状态在重装时保留、注册表不可解析时 fail-closed 且原文件不动；`--uninstall` 反向移除记录并删除两份目录（外来目录仍受守卫保护，`--force` 才覆盖）。doctor 的半装/陈旧指引与 `docs/hosts.md` 同步为 `cwf host add kimi-code [--force]`。升级动作：`cwf host add kimi-code --force` 后重启 Kimi Code。③ 后续文档收口：`host` 组件自述与 `docs/hosts.md` 不再把 hook 描述成「插件缺位时的 fallback」——hook 即注入唯一路径（`2fa9606`、`3ba305a`）。
+
+### Fixed
+
+- **测试自身两处不可信缺陷（P0）**：hook 用例被 shell 会话变量干扰造成的环境假红（改为整体清空宿主环境键的隔离夹具）；删除一条在 gitignore 目录写文件的空转断言（无论规则是否生效都不可能失败），替换为可被定点破坏变红的用例。
+- **`review-check` 非单调位置崩溃**：多行非 ASCII 字符串的字面量剥离保留了错误的字节偏移，导致工具整条崩溃（`73627d7`）。
 
 ## [1.8.1] - 2026-10-08
 
@@ -314,7 +330,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.3...v1.8.0
 [1.7.3]: https://github.com/fishlikewater/cowork-flow/compare/v1.7.2...v1.7.3
