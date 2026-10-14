@@ -20,6 +20,7 @@ from runtime.session_state import (
     FIELD_RUNTIME_CONTEXT_ID,
     FIELD_SCOPE,
     SCOPE_SUBAGENT,
+    iter_subagent_contexts,
     logical_subagent_context_key,
     platform_from_context_key,
     resolve_context_key,
@@ -36,6 +37,38 @@ class RuntimeContextError(RuntimeError):
         self.code = code
         self.detail = detail
         super().__init__(f"{code}: {detail}")
+
+
+def normalize_relative_path(path: str) -> str:
+    """Repository-relative form used to compare ownership claims."""
+    normalized = path.strip().replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized.strip("/")
+
+
+def slice_paths_overlap(left: str, right: str) -> bool:
+    """True when two owned paths are equal or one contains the other."""
+    a = normalize_relative_path(left)
+    b = normalize_relative_path(right)
+    if not a or not b:
+        return False
+    return a == b or a.startswith(b + "/") or b.startswith(a + "/")
+
+
+def owned_paths_overlap(
+    left: tuple[str, ...] | list[str],
+    right: tuple[str, ...] | list[str],
+) -> list[tuple[str, str]]:
+    """Every overlapping (left, right) pair of owned-path claims."""
+    overlaps: list[tuple[str, str]] = []
+    for a in left:
+        if not isinstance(a, str):
+            continue
+        for b in right:
+            if isinstance(b, str) and slice_paths_overlap(a, b):
+                overlaps.append((a, b))
+    return overlaps
 
 
 @dataclass(frozen=True)
@@ -105,6 +138,17 @@ class RuntimeContextService:
                 logical_context_key=logical_context_key,
             )
 
+        conflicts = self.slice_conflicts(runtime_context_id, context)
+        if conflicts:
+            raise RuntimeContextError(
+                "SUBAGENT-SLICE-001",
+                "owned_paths overlap an open implement context of this task: "
+                + "; ".join(
+                    f"{other_id} owns {other_path}, overlaps {claimed_path}"
+                    for other_id, claimed_path, other_path in conflicts
+                ),
+            )
+
         unit = self._unit(
             self._operation_id("init", runtime_context_id),
             "runtime-context-init",
@@ -119,6 +163,74 @@ class RuntimeContextService:
             context=dict(context),
             logical_context_key=logical_context_key,
         )
+
+    def slice_conflicts(
+        self,
+        runtime_context_id: str,
+        context: dict,
+    ) -> list[tuple[str, str, str]]:
+        """(other_id, claimed_path, conflicting_path) for open sibling slices.
+
+        Only implement contexts that declare `owned_paths` take part: an
+        init without an ownership claim can neither conflict nor be
+        conflicted with, and a closed context has released its paths.
+        """
+        if context.get("agent_type") != "cowork-implement":
+            return []
+        claimed = self._owned_paths(context)
+        if not claimed:
+            return []
+        task_dir = normalize_relative_path(str(context.get("task_dir") or ""))
+        if not task_dir:
+            return []
+        conflicts: list[tuple[str, str, str]] = []
+        for other in iter_subagent_contexts(self.repo_root):
+            other_id = str(other.get("runtime_context_id") or "")
+            if not other_id or other_id == runtime_context_id:
+                continue
+            if other.get("agent_type") != "cowork-implement":
+                continue
+            if other.get("status") == "closed":
+                continue
+            if normalize_relative_path(str(other.get("task_dir") or "")) != task_dir:
+                continue
+            for claimed_path, other_path in owned_paths_overlap(
+                claimed,
+                self._owned_paths(other),
+            ):
+                conflicts.append((other_id, claimed_path, other_path))
+        return conflicts
+
+    @staticmethod
+    def _owned_paths(context: dict) -> list[str]:
+        assignment = context.get("assignment")
+        owned = (
+            assignment.get("owned_paths")
+            if isinstance(assignment, dict)
+            else None
+        )
+        if not isinstance(owned, list):
+            return []
+        return [path for path in owned if isinstance(path, str) and path.strip()]
+
+    def list_contexts(
+        self,
+        *,
+        task_dir: str | None = None,
+        open_only: bool = False,
+    ) -> list[dict]:
+        """Subagent runtime contexts for inventory views (read-only)."""
+        wanted = normalize_relative_path(task_dir) if task_dir else None
+        contexts: list[dict] = []
+        for context in iter_subagent_contexts(self.repo_root):
+            if open_only and context.get("status") == "closed":
+                continue
+            if wanted is not None and normalize_relative_path(
+                str(context.get("task_dir") or "")
+            ) != wanted:
+                continue
+            contexts.append(context)
+        return contexts
 
     def update(
         self,

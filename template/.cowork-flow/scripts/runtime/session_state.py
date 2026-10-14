@@ -207,6 +207,25 @@ def _read_json(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def iter_subagent_contexts(repo_root: Path) -> list[dict]:
+    """Every readable subagent runtime context, ordered by context id.
+
+    The id falls back to the file name when the record omits it, so a
+    record still lists under the id its callers already know.
+    """
+    directory = subagent_contexts_dir(repo_root)
+    if not directory.is_dir():
+        return []
+    contexts: list[dict] = []
+    for path in sorted(directory.glob("*.json")):
+        data = _read_json(path)
+        if not data:
+            continue
+        data.setdefault("runtime_context_id", path.stem)
+        contexts.append(data)
+    return contexts
+
+
 def _write_json(
     path: Path,
     data: dict,

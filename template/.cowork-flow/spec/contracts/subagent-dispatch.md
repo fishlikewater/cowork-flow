@@ -38,6 +38,28 @@ verifies that support. If `subagent init` emits a suggested host context key,
 the parent may use that key unless the host adapter has a stronger stable child
 session key.
 
+## Implement Slices
+
+An implement context may declare the ownership slice it works on inside
+`assignment`: `slice` (a name) and `owned_paths` (repository-relative paths),
+recorded by `subagent init --slice <name> --owns <path>...`. The runtime then
+machine-checks slice cleanliness instead of leaving it to prose:
+
+- Initializing an implement context whose `owned_paths` equal, or nest with,
+  those of an open (not yet closed) implement context of the same task fails
+  closed with `SUBAGENT-SLICE-001`; nothing is written for the rejected
+  context.
+- A context that declares no `owned_paths` claims nothing, so it neither
+  conflicts with nor blocks anyone — existing plain `init` calls keep working
+  unchanged.
+- Closing a context releases its paths; a finished slice no longer blocks a
+  re-run of the same slice.
+
+`subagent list [--task <task-dir>] [--open]` inventories contexts with their
+status and ownership summary, and `subagent prompt <runtime_context_id>`
+renders the transport lines plus the assignment pointers as a paste-ready
+dispatch prompt.
+
 ## Binding Gate
 
 The child hook or plugin may resolve `cowork_runtime_context_id` early and bind
