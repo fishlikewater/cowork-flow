@@ -234,24 +234,23 @@ def _session_task_paths(repo_root: Path) -> set[str]:
 
 
 def _normalized_task_path(value: str, repo_root: Path) -> str:
-    """One task, one key: recorded task dirs may be absolute."""
-    normalized = value.strip().replace("\\", "/")
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-    normalized = normalized.strip("/")
-    if not normalized:
-        return ""
-    candidate = Path(normalized)
-    if candidate.is_absolute():
+    """One task, one key: recorded task dirs may be absolute.
+
+    Absoluteness is decided on the raw value before any slash stripping, so
+    a slash-rooted POSIX path is not mistaken for a relative one.
+    """
+    raw = value.strip().replace("\\", "/")
+    if raw.startswith("/") or Path(raw).is_absolute():
         try:
-            normalized = (
-                candidate.resolve()
-                .relative_to(repo_root.resolve())
-                .as_posix()
+            return (
+                Path(raw).resolve().relative_to(repo_root.resolve()).as_posix()
             )
         except ValueError:
-            return normalized
-    return normalized
+            pass
+    normalized = raw
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized.strip("/")
 
 
 def _open_subagent_contexts_by_task(repo_root: Path) -> dict[str, list[str]]:
