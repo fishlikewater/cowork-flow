@@ -212,11 +212,11 @@ def _initial_context(
     slice_name = (getattr(args, "slice", None) or "").strip()
     if slice_name:
         assignment["slice"] = slice_name
-    owned_paths = [
-        normalize_relative_path(path)
-        for path in (getattr(args, "owns", None) or [])
-        if path.strip()
-    ]
+    owned_paths: list[str] = []
+    for path in getattr(args, "owns", None) or []:
+        normalized = normalize_relative_path(path)
+        if normalized:
+            owned_paths.append(normalized)
     if owned_paths:
         assignment["owned_paths"] = owned_paths
     return {
