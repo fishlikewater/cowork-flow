@@ -389,8 +389,11 @@ test('a missing interpreter skips only the scenarios that need the runtime', asy
   // nested `node --test` suppress its own reporter, which would turn this
   // assertion into a check of an empty string.
   delete env.NODE_TEST_CONTEXT;
+  // The marker assertions below read the spec reporter's `✔`/`﹣` lines. The
+  // unpiped default reporter prints TAP through Node 20 and spec from 22 on,
+  // so the reporter is pinned rather than trusting the version default.
   const ran = spawnSync(process.execPath, [
-    '--test', '--test-name-pattern', 'upgrades in place', 'test/compliance-e2e.test.js'
+    '--test', '--test-reporter=spec', '--test-name-pattern', 'upgrades in place', 'test/compliance-e2e.test.js'
   ], { cwd: repoRoot, encoding: 'utf8', env });
   assert.equal(ran.status, 0, ran.stderr);
   assert.match(ran.stdout, /✔ an installed instance upgrades in place/);

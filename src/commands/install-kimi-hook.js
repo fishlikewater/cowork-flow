@@ -117,6 +117,17 @@ function hookRowEnd(lines, start) {
 }
 
 
+// A TOML basic string escapes every backslash, so a Windows install path
+// reaches the config as `C:\\Users\\...`. A plain backslash-to-slash pass
+// turns each escaped pair into `//`, which never matches the single-slash
+// form of the same path — the row would go unrecognised and a second install
+// would append instead of adopting it. Collapse runs of either separator so
+// both spellings compare equal.
+function normalizeSeparators(text) {
+  return text.replace(/[\\/]+/g, '/');
+}
+
+
 /**
  * Locate the managed block inside the config's lines.
  *
@@ -138,14 +149,14 @@ function locateBlock(lines, home) {
     }
     return { start: marked, end: Math.min(end + 1, lines.length) };
   }
-  const owns = shimDest(home).replace(/\\/g, '/');
+  const owns = normalizeSeparators(shimDest(home));
   for (let index = 0; index < lines.length; index += 1) {
     if (lines[index].trim() !== '[[hooks]]') {
       continue;
     }
     const end = hookRowEnd(lines, index);
     const row = lines.slice(index, end).join('\n');
-    if (row.includes(MANAGED_START) || row.replace(/\\/g, '/').includes(owns)) {
+    if (row.includes(MANAGED_START) || normalizeSeparators(row).includes(owns)) {
       return { start: index, end };
     }
   }
