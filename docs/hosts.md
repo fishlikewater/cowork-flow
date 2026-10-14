@@ -175,7 +175,7 @@ cwf host add kimi-code
 cwf host remove kimi-code
 ```
 
-命令会物化到 `$KIMI_CODE_HOME/plugins/sources/cowork-flow/`（稳定重装源）与 `$KIMI_CODE_HOME/plugins/managed/cowork-flow/`（宿主加载的副本），并直接写入宿主的插件注册表 `$KIMI_CODE_HOME/plugins/installed.json`，与 Kimi Code 自己的 `/plugins install` 落盘格式一致。重启 Kimi Code 即生效，无需在 TUI 中手工安装。卸载会反向清理两份目录与注册记录。
+命令会物化到 `$KIMI_CODE_HOME/plugins/sources/cowork-flow/`（稳定重装源）与 `$KIMI_CODE_HOME/plugins/managed/cowork-flow/`（宿主加载的副本），并直接写入宿主的插件注册表 `$KIMI_CODE_HOME/plugins/installed.json`，与 Kimi Code 自身的安装落盘格式一致。重启 Kimi Code 即生效，无需在 TUI 中手工安装。卸载会反向清理两份目录与注册记录。
 
 ## MCP 客户端接入
 
@@ -257,9 +257,9 @@ claude mcp add -s user cowork-flow -- cwf mcp serve
 | Qoder | `PLUGIN-NOT-INSTALLED` / `PLUGIN-PAYLOAD-MISSING` / `PLUGIN-PAYLOAD-INCOMPLETE` / `PLUGIN-DISABLED` / `PLUGIN-STALE` | 插件安装、启用、载荷或版本异常 |
 | DSH 预设 | `PRESET-UNKNOWN-VERSION` / `PRESET-STALE` | 预设缺少版本标记或版本落后 |
 | DSH / Kimi hook | `HOOK-NOT-INSTALLED` / `HOOK-SHIM-MISSING` / `HOOK-UNKNOWN-VERSION` / `HOOK-STALE` | hook 区块、脚本、版本标记或版本不匹配 |
-| Kimi 插件 | `PLUGIN-NOT-INSTALLED` / `PLUGIN-DISABLED` / `PLUGIN-PAYLOAD-INCOMPLETE` / `PLUGIN-STALE` / `PLUGIN-SOURCES-MISSING` | 尚未完成 TUI 安装、插件被禁用、载荷不完整、版本落后或源目录丢失 |
+| Kimi 插件 | `PLUGIN-NOT-INSTALLED` / `PLUGIN-DISABLED` / `PLUGIN-PAYLOAD-INCOMPLETE` / `PLUGIN-STALE` / `PLUGIN-SOURCES-MISSING` | 插件未注册、被禁用、载荷不完整、版本落后或源目录丢失 |
 
-Kimi Code 刚运行 `cwf host add kimi-code`、但还没在 TUI 执行 `/plugins install` 时，`PLUGIN-NOT-INSTALLED` 属于正常中间状态。
+`PLUGIN-NOT-INSTALLED` 表示注册表里还没有 cowork-flow 记录；`cwf host add kimi-code` 一次即可完成安装与注册。
 
 </details>
 
