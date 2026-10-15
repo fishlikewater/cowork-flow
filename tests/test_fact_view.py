@@ -343,6 +343,53 @@ class StageContractBuildTest(unittest.TestCase):
         self.assertIn("Scope: ", block)
         self.assertIn("Gates: edits outside Scope are review blockers", block)
 
+    def test_budget_sweep_keeps_block_parseable(self) -> None:
+        """Every budget must still render a block consumers can match. The
+        opening tag carries the task identity and the Gates row carries the
+        edit policy, so a body-wide cut would silently delete one of them
+        while still "ending with the closing tag"."""
+        whitelist = [{"file": "src/module-0/" + "p" * 70 + ".py", "type": "file"}]
+        for budget in (1, 19, 40, 90, 120, 200, 300, 400, 3400):
+            with self.subTest(budget=budget):
+                block = self._build(whitelist, budget=budget)
+                self.assertRegex(
+                    block,
+                    r'<stage-contract task="[^"]*">[\s\S]*?</stage-contract>',
+                )
+                self.assertIn("Scope: ", block)
+                self.assertIn(
+                    "Gates: edits outside Scope are review blockers", block
+                )
+
+    def test_budget_below_floor_returns_whole_block(self) -> None:
+        """Below the size the fixed rows need, the block is returned whole
+        and exceeds the budget: the guard rows outrank it, and the failure
+        mode stays "over budget" instead of "block consumers cannot see"."""
+        whitelist = [{"file": "src/module-0/" + "p" * 70 + ".py", "type": "file"}]
+        block = self._build(whitelist, budget=40)
+        self.assertGreater(len(block), 40)
+        self.assertRegex(
+            block, r'<stage-contract task="[^"]*">[\s\S]*?</stage-contract>'
+        )
+        self.assertIn("Scope: ", block)
+        self.assertIn("Gates: edits outside Scope are review blockers", block)
+        # The same input fits once the budget can hold the fixed rows.
+        roomy = self._build(whitelist, budget=400)
+        self.assertLessEqual(len(roomy), 400)
+
+    def test_budget_cut_never_drops_the_scope_row_label(self) -> None:
+        """A cut landing inside the entry's leading whitespace would rstrip
+        the row label away, leaving a bare `Scope:` that `^Scope: (.+)$`
+        consumers cannot match — a dropped guard row by another name."""
+        whitelist = [{"file": " src/a.py", "type": "file"}]
+        for budget in range(260, 300):
+            with self.subTest(budget=budget):
+                block = self._build(whitelist, budget=budget)
+                self.assertIn("Scope: ", block)
+                self.assertIn(
+                    "Gates: edits outside Scope are review blockers", block
+                )
+
     def test_readonly_variant_for_delegated(self) -> None:
         block = self._build(
             [{"file": "src/a.py", "type": "file"}],

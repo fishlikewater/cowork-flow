@@ -257,11 +257,15 @@ def _fit_stage_contract(
     budget: int = STAGE_CONTRACT_BUDGET,
 ) -> list[str]:
     """Degrade an over-budget block without ever emitting a malformed one:
-    the closing tag and the guard rows (Scope/Gates) always survive. Order:
-    1) drop removable rows (Specs/Verify) from the tail; 2) shrink Scope
-    entries one by one (min 1); 3) last-resort codepoint cut that keeps the
-    closing tag. Single renderer: the host shims transport this output
-    unchanged, so the row-role rules and the drop order live here only."""
+    the opening tag, the closing tag and the guard rows (Scope/Gates) always
+    survive intact. Order: 1) drop removable rows (Specs/Verify) from the
+    tail; 2) shrink Scope entries one by one (min 1); 3) last-resort cut of
+    the Scope row's text, and nothing else. The block is returned whole and
+    may exceed the budget when the fixed rows alone do not fit, and also when
+    that cut would shave the `Scope: ` label itself off the row (guards and
+    parseability outrank the budget). Single renderer: the host shims
+    transport this output unchanged, so the row-role rules and the drop
+    order live here only."""
     if len("\n".join(lines)) <= budget:
         return lines
     removable = [
@@ -289,18 +293,25 @@ def _fit_stage_contract(
         lines = candidate
     if len("\n".join(lines)) <= budget:
         return lines
-    closing = lines[-1]
-    # The final join inserts one newline between the cut body
-    # and the closing tag; reserve it so the block stays
-    # within budget byte-for-byte.
-    room = budget - len(closing) - 1
-    body = "\n".join(lines[:-1])
-    if len(body) <= room:
+    # Last resort: cut the Scope row, not the whole body. The opening tag
+    # names the task and the Gates row carries the edit policy, so a
+    # body-wide cut emits a block consumers cannot match (truncated tag) or
+    # silently drops a guard row. When the fixed rows alone do not fit, the
+    # block is returned whole and may exceed the budget.
+    fixed = [line for line in lines if not line.startswith("Scope:")]
+    room = budget - len("\n".join(fixed)) - 1
+    if room < len("Scope: ") + 1:
         return lines
-    head = body[:room].rstrip()
-    if not head:
+    cut = [
+        line[:room].rstrip() if line.startswith("Scope:") else line
+        for line in lines
+    ]
+    # rstrip can shave the row label off when the cut lands inside leading
+    # whitespace; a Scope row that no longer matches `Scope: ` counts as a
+    # dropped row, so the block is returned whole instead.
+    if not any(line.startswith("Scope: ") for line in cut):
         return lines
-    return [head, closing]
+    return cut
 
 
 def _stage_contract_lines(
