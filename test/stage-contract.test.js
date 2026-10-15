@@ -43,6 +43,21 @@ function writeMatrixFixture(root, caseDef) {
   mkdirSync(join(workflow, '.runtime', 'sessions'), { recursive: true });
   mkdirSync(join(workflow, 'spec', 'contracts'), { recursive: true });
   mkdirSync(join(workflow, 'spec', 'runtime'), { recursive: true });
+  if (caseDef.budget) {
+    // Render this case under a pinned budget by walking the real load path:
+    // the shipped rules file with only its budget replaced.
+    const shipped = JSON.parse(
+      readFileSync(
+        join(packageRoot, 'template', '.cowork-flow', 'spec', 'runtime', 'scope-rules.json'),
+        'utf8'
+      )
+    );
+    shipped.stageContract.budget = caseDef.budget;
+    writeFileSync(
+      join(workflow, 'spec', 'runtime', 'scope-rules.json'),
+      JSON.stringify(shipped)
+    );
+  }
   const taskDir = join(workflow, taskPath.replace(/^\.cowork-flow\//, ''));
   mkdirSync(taskDir, { recursive: true });
   const underlying = caseDef.underlying || caseDef.status;
@@ -357,7 +372,10 @@ for (const caseDef of matrix.cases) {
       const zcodeBlock = runZcodeBlock(zcodeRoot, caseDef);
 
       assert.equal(zcodeBlock, pythonBlock, `${caseDef.name}: zcode must equal python`);
-      assertCase(pythonBlock, caseDef.assert);
+      assertCase(pythonBlock, {
+        maxLen: caseDef.budget ?? matrix.budget,
+        ...caseDef.assert,
+      });
     } finally {
       rmSync(pythonRoot, { recursive: true, force: true });
       rmSync(zcodeRoot, { recursive: true, force: true });

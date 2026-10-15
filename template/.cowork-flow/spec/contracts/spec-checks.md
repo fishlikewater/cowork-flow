@@ -176,13 +176,15 @@ that can be claimed.
   `complete`. Declare them in project-owned spec files (e.g. `spec/team-xxx.md` or
   a project-owned subdirectory); sync never touches those, and the declarations are
   maintained by the consumer alongside the spec prose.
-- **sync-protected prefix and the named exception**: `spec/` as a whole is a
+- **sync-protected prefix and the named exceptions**: `spec/` as a whole is a
   sync-protected prefix, so existing spec files are not overwritten by `sync`
-  (spec updates in the template only take effect for a fresh `init`); the single
-  named exception is the entries under `spec/contracts/` listed in
-  `spec/runtime/host-assets.json` `syncPolicy.safeFiles` (this file and
-  `workflow-state-templates.md`), which do track sync so contract corrections can
-  reach installed projects.
+  (spec updates in the template only take effect for a fresh `init`); the named
+  exceptions are the entries listed in `spec/runtime/host-assets.json`
+  `syncPolicy.safeFiles` — the two `spec/contracts/` files (`this file and
+  workflow-state-templates.md`) plus `spec/runtime/scope-rules.json` — which do
+  track sync so contract corrections and budget defaults can reach installed
+  projects. A project that tunes `scope-rules.json` locally therefore loses those
+  edits on the next `sync`.
 - **Recognizing clauses and attaching declarations is the main-session AI's job**:
   declarations belong to the project. During review / spec maintenance, the main
   session AI identifies machine-checkable clauses and adds the `checks:`

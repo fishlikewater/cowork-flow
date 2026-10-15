@@ -137,7 +137,7 @@ class ScopeRulesTest(unittest.TestCase):
             root = Path(temp_dir)
             rules = json.loads(DEFAULT_RULES_TEXT)
             # 400 fits open + Gates + close and forces Scope shrinking
-            # (the default 1200 would not trim this fixture).
+            # (the shipped budget is far larger than this fixture).
             rules["stageContract"]["budget"] = 400
             whitelist = [
                 {"file": f"src/module-{i}/long-{'x' * 40}-name.py", "type": "file"}

@@ -1,5 +1,5 @@
 {
-  "budget": 1200,
+  "budget": 3400,
   "cases": [
     {
       "name": "canonical",
@@ -41,7 +41,6 @@
       },
       "assert": {
         "closed": true,
-        "maxLen": 1200,
         "scopeMin": 1,
         "scopeExact": "Scope: src/demo.py; src/next.py; .cowork-flow/spec/backend/index.md; .cowork-flow/spec/guides/index.md [agent-mutable]",
         "gates": true,
@@ -60,7 +59,6 @@
       ],
       "assert": {
         "closed": true,
-        "maxLen": 1200,
         "scopeMin": 1,
         "scopeContains": "Scope: src/a.py [agent-mutable]"
       }
@@ -98,7 +96,6 @@
       ],
       "assert": {
         "closed": true,
-        "maxLen": 1200,
         "scopeExact": "Scope: (empty) [agent-mutable]"
       }
     },
@@ -162,9 +159,10 @@
           "run uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"
         ]
       },
+      "budget": 400,
       "assert": {
         "closed": true,
-        "maxLen": 1200,
+        "noVerify": true,
         "gates": true,
         "scopeMin": 1
       }
@@ -180,7 +178,6 @@
       ],
       "assert": {
         "closed": true,
-        "maxLen": 1200,
         "scopeContains": "src/emoji-🎯-x.py"
       }
     },
@@ -195,7 +192,6 @@
       ],
       "assert": {
         "closed": true,
-        "maxLen": 1200,
         "scopeContains": "Scope: src/a.py [agent-mutable]",
         "noVerify": true
       }
@@ -206,7 +202,6 @@
       "entries": [],
       "assert": {
         "closed": true,
-        "maxLen": 1200,
         "scopeExact": "Scope: (empty) [agent-mutable]"
       }
     },
@@ -235,7 +230,6 @@
       },
       "assert": {
         "closed": true,
-        "maxLen": 1200,
         "scopeContains": "Scope: src/demo.py",
         "specsExact": "Specs: .cowork-flow/spec/backend/error-handling.md(目标/推荐做法); .cowork-flow/spec/missing-spec.md"
       }
@@ -258,7 +252,6 @@
       },
       "assert": {
         "closed": true,
-        "maxLen": 1200,
         "scopeContains": "Scope: src/demo.py [read-only]",
         "gatesReadonly": "scope is inherited from the parent task (read-only reference)",
         "noAgentMutable": true

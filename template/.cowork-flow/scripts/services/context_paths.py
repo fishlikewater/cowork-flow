@@ -24,10 +24,10 @@ DEFAULT_SCOPE_RULES: dict = {
         "trailingSlashRejectedTypes": ["planned-file", "deleted-file"],
     },
     "stageContract": {
-        "budget": 1200,
+        "budget": 3400,
         "scopeLimit": 8,
         "specLimit": 4,
-        "verifyLimit": 3,
+        "verifyLimit": 10,
     },
 }
 
