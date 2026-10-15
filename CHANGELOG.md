@@ -4,6 +4,10 @@
 
 ### Added
 
+### Changed
+
+- **kimi-code 裸命令一次装齐（组合组件）**：`kimi-code` 新增组合组件 `all` 并把 default 从 `plugin` 改指它——`cwf host add kimi-code` 一条命令先装上下文注入 hook（config.toml 托管块 + shim + marker），再装插件（sources/managed 两份载荷 + 宿主注册表记录），`cwf host remove kimi-code` 一次卸两者。组合器只做定向旗标剥除：`--force` 自动只达插件段（hook 无该旗标），未知旗标仍原样透传给 installer 报错；显式 `--component plugin` / `--component hook` 的单装语义不变（plugin 单装不写 config.toml）。`host list` 的组件列因此显示 `plugin, hook, all`。`docs/hosts.md` 的宿主表与 Kimi 段改为裸命令主推，升级路径写明 `cwf host add kimi-code --force`。
+
 ## [1.9.2] - 2026-10-14
 
 ### Added
@@ -344,7 +348,7 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.1...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.2...HEAD
 [1.9.2]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.1...v1.9.0

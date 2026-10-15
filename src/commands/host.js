@@ -13,6 +13,8 @@ import { runInstallOpenCodePlugin, FLAGS as OPENCODE_PLUGIN_FLAGS } from './inst
 import { runInstallQoderPlugin, FLAGS as QODER_PLUGIN_FLAGS } from './install-qoder-plugin.js';
 import { runInstallZCodePlugin, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zcode-plugin.js';
 
+const KIMI_ALL_FLAGS = [...new Set([...KIMI_HOOK_FLAGS, ...KIMI_PLUGIN_FLAGS])].sort();
+
 
 // Which machine-level integrations a host has.
 // Deliberately not part of host-assets.json: that manifest
@@ -58,10 +60,11 @@ export const HOST_COMPONENTS = {
     }
   },
   'kimi-code': {
-    default: 'plugin',
+    default: 'all',
     components: {
       plugin: { summary: 'Kimi Code plugin: the bootstrap Skill it loads at session start', flags: KIMI_PLUGIN_FLAGS, run: runInstallKimiPlugin },
-      hook: { summary: 'Kimi Code context-injection hook as a user-level config.toml [[hooks]] row', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook }
+      hook: { summary: 'Kimi Code context-injection hook as a user-level config.toml [[hooks]] row', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook },
+      all: { summary: 'Kimi Code hook plus plugin, installed in one command (the default)', flags: KIMI_ALL_FLAGS, run: runInstallKimiAll }
     }
   }
 };
@@ -76,6 +79,24 @@ export const HOST_FLAGS = [...new Set(
     (host) => Object.values(host.components).flatMap((component) => component.flags)
   )
 )].sort();
+
+
+function withoutForceFlag(args) {
+  return args.filter((arg) => arg !== '--force' && !arg.startsWith('--force='));
+}
+
+
+// kimi-code's default component: the hook (injection, the
+// required half) first, then the plugin, in one command.
+// Both installers stay the only validators — unknown flags
+// pass through untouched and are rejected by whichever
+// installer reaches them — but `--force` cannot: the hook
+// has no such flag, so the combined path strips it for the
+// hook segment only, and the plugin still receives it.
+async function runInstallKimiAll(args) {
+  await runInstallKimiHook(withoutForceFlag(args));
+  await runInstallKimiPlugin(args);
+}
 
 
 function resolveHost(token) {

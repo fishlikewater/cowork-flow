@@ -19,7 +19,7 @@
 | ZCode | 需要 | `cwf host add zcode` |
 | Qoder | 需要 | `cwf host add qoder` |
 | DeepSeek Harness | 需要 | `cwf host add dsh` |
-| Kimi Code | 工作流注入需要 hook；全局插件可选 | `cwf host add kimi-code --component hook` |
+| Kimi Code | 需要 | `cwf host add kimi-code`（一条命令装齐 hook 与插件） |
 
 ## 通用命令
 
@@ -159,23 +159,27 @@ hook 行是否进入 agent 提示按版本分线：实测 DSH 0.1.1-rc.1 不收�
 
 ## Kimi Code
 
-工作流状态注入使用 hook 组件：
-
-```bash
-cwf host add kimi-code --component hook
-cwf host remove kimi-code --component hook
-```
-
-安装或更新后重载配置或新开会话。该组件总是重写自己的 hook 区块，不接受 `--force`。
-
-如果还需要在未初始化项目中提供全局引导技能，可以另外安装插件：
+裸命令一次装齐两部分：先装上下文注入 hook（必需），再装插件：
 
 ```bash
 cwf host add kimi-code
 cwf host remove kimi-code
 ```
 
-命令会物化到 `$KIMI_CODE_HOME/plugins/sources/cowork-flow/`（稳定重装源）与 `$KIMI_CODE_HOME/plugins/managed/cowork-flow/`（宿主加载的副本），并直接写入宿主的插件注册表 `$KIMI_CODE_HOME/plugins/installed.json`，与 Kimi Code 自身的安装落盘格式一致。重启 Kimi Code 即生效，无需在 TUI 中手工安装。卸载会反向清理两份目录与注册记录。
+安装或更新后重载配置或新开会话。hook 组件总是重写自己的 hook 区块，不写插件；插件组件在未初始化项目中提供全局引导技能。单独安装某一半时用 `--component`：
+
+```bash
+cwf host add kimi-code --component plugin
+cwf host add kimi-code --component hook
+```
+
+hook 组件不接受 `--force`（它总是接管重写自己的区块）；裸命令里的 `--force` 只作用于插件段：
+
+```bash
+cwf host add kimi-code --force
+```
+
+插件会物化到 `$KIMI_CODE_HOME/plugins/sources/cowork-flow/`（稳定重装源）与 `$KIMI_CODE_HOME/plugins/managed/cowork-flow/`（宿主加载的副本），并直接写入宿主的插件注册表 `$KIMI_CODE_HOME/plugins/installed.json`，与 Kimi Code 自身的安装落盘格式一致。重启 Kimi Code 即生效，无需在 TUI 中手工安装。卸载会反向清理两份目录与注册记录。
 
 ## MCP 客户端接入
 

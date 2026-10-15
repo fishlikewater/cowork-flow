@@ -41,9 +41,11 @@ const HOST_NOTE = `Hosts: ${Object.entries(HOST_COMPONENTS)
   .join('; ')}.`;
 // The union across hosts contains one gap: kimi-code's
 // hook has no --force, so the help names it instead of
-// letting the user hit a usage error.
+// letting the user hit a usage error. kimi-code's default
+// component routes --force to the plugin segment only.
 const HOST_FORCE_NOTE = '`--force` applies to every component except kimi-code\'s hook, '
-  + 'which overwrites unconditionally and therefore does not accept the flag.';
+  + 'which overwrites unconditionally and therefore does not accept the flag; '
+  + 'kimi-code\'s default component consumes it for the plugin only.';
 
 export const COMMANDS = [
   {
