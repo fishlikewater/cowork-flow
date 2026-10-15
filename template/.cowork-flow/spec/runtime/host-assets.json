@@ -461,7 +461,8 @@
       ".cowork-flow/run",
       ".cowork-flow/run.cmd",
       ".cowork-flow/spec/contracts/spec-checks.md",
-      ".cowork-flow/spec/contracts/workflow-state-templates.md"
+      ".cowork-flow/spec/contracts/workflow-state-templates.md",
+      ".cowork-flow/spec/runtime/scope-rules.json"
     ],
     "safePrefixes": [
       ".cowork-flow/"

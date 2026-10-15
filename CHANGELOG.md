@@ -6,6 +6,7 @@
 
 ### Changed
 
+- **stage-contract 注入容量放宽（Verify 行 10 条 / 块预算 3400 字）**：`Verify:` 行从"渲染 3 条 / 解析 5 条 / 全块 1200 字"放宽到"渲染 10 条 / 解析 10 条 / 全块 3400 字"，让 `decision-anchor.md` 的 `## 验证命令` 段放得下"先读规范再逐条核对改动"的强提醒加真实校验命令，不再静默丢弃第 4 条之后的命令（单条仍截断在 120 字）。三处预算来源同改并互锁：模板 `spec/runtime/scope-rules.json`、`context_paths.DEFAULT_SCOPE_RULES`、`fact_view.STAGE_CONTRACT_VERIFY_LIMIT`/`STAGE_CONTRACT_BUDGET`，新增"默认值↔常量"一致性测试补上第三条断链。`scope-rules.json` 进 `syncPolicy.safeFiles`，已有项目一次普通 `cwf project sync` 即拿到新默认值；代价是该文件的本地调优会在下次 sync 被覆盖（`context-injection.md` 与 `spec-checks.md` 已写明）。降级测试改为钉住自选预算并额外断言输入确实超预算，不再随生产常量漂移（原先升预算会让它们静默恒真）。
 - **kimi-code 裸命令一次装齐（组合组件）**：`kimi-code` 新增组合组件 `all` 并把 default 从 `plugin` 改指它——`cwf host add kimi-code` 一条命令先装上下文注入 hook（config.toml 托管块 + shim + marker），再装插件（sources/managed 两份载荷 + 宿主注册表记录），`cwf host remove kimi-code` 一次卸两者。组合器只做定向旗标剥除：`--force` 自动只达插件段（hook 无该旗标），未知旗标仍原样透传给 installer 报错；显式 `--component plugin` / `--component hook` 的单装语义不变（plugin 单装不写 config.toml）。`host list` 的组件列因此显示 `plugin, hook, all`。`docs/hosts.md` 的宿主表与 Kimi 段改为裸命令主推，升级路径写明 `cwf host add kimi-code --force`。
 
 ## [1.9.2] - 2026-10-14

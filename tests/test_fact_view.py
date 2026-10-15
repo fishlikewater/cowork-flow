@@ -78,6 +78,13 @@ class ParseDecisionAnchorTest(unittest.TestCase):
         parsed = parse_decision_anchor("## 目标\n" + "x" * 500)
         self.assertEqual(300, len(parsed["goal"]))
 
+    def test_verify_command_max_caps_parsed_commands(self) -> None:
+        commands = [f"cmd-{i} " + "x" * 100 for i in range(12)]
+        parsed = parse_decision_anchor(
+            "## 验证命令\n" + "\n".join(f"- {command}" for command in commands)
+        )
+        self.assertEqual(commands[:10], parsed["validationCommands"])
+
 
 class BuildFactViewTest(unittest.TestCase):
     def _make_project(self, root: Path) -> Path:
@@ -254,6 +261,13 @@ class StageContractBuildTest(unittest.TestCase):
     sessions, and spec pointers skip directory entries."""
 
     TASK_PATH = ".cowork-flow/tasks/08-30-demo"
+    # Degradation is asserted against a pinned budget so these cases keep
+    # exercising _fit_stage_contract when the shipped budget changes; 700 is
+    # the smallest value that still renders the guard rows whole here. The
+    # same fixture is also built unbounded, so each case proves its input
+    # really is over the pinned budget instead of passing by construction.
+    DEGRADE_BUDGET = 700
+    UNBOUNDED_BUDGET = 10**6
 
     def _build(
         self,
@@ -261,13 +275,16 @@ class StageContractBuildTest(unittest.TestCase):
         spec_files=(),
         anchor=None,
         mutable=True,
+        budget=None,
     ) -> str:
+        rules = {"stageContract": {"budget": budget}} if budget else None
         return build_stage_contract(
             self.TASK_PATH,
             whitelist,
             list(spec_files),
             anchor or {"validationCommands": []},
             mutable=mutable,
+            rules=rules,
         )
 
     def test_under_budget_keeps_exact_legacy_shape(self) -> None:
@@ -291,8 +308,14 @@ class StageContractBuildTest(unittest.TestCase):
         anchor = {
             "validationCommands": [f"cmd {'v' * 118}" for _ in range(3)]
         }
-        block = self._build(whitelist, spec_files, anchor)
-        self.assertLessEqual(len(block), 1200)
+        block = self._build(
+            whitelist, spec_files, anchor, budget=self.DEGRADE_BUDGET
+        )
+        unbounded = self._build(
+            whitelist, spec_files, anchor, budget=self.UNBOUNDED_BUDGET
+        )
+        self.assertGreater(len(unbounded), self.DEGRADE_BUDGET)
+        self.assertLessEqual(len(block), self.DEGRADE_BUDGET)
         self.assertTrue(block.endswith("</stage-contract>"))
         self.assertIn("Gates: edits outside Scope are review blockers", block)
         self.assertIn(
@@ -303,11 +326,19 @@ class StageContractBuildTest(unittest.TestCase):
 
     def test_extreme_over_budget_shrinks_scope_keeps_guard_rows(self) -> None:
         whitelist = [{"file": "s" * 300, "type": "file"} for _ in range(8)]
+        anchor = {"validationCommands": ["x" * 120] * 3}
         block = self._build(
             whitelist,
-            anchor={"validationCommands": ["x" * 120] * 3},
+            anchor=anchor,
+            budget=self.DEGRADE_BUDGET,
         )
-        self.assertLessEqual(len(block), 1200)
+        unbounded = self._build(
+            whitelist,
+            anchor=anchor,
+            budget=self.UNBOUNDED_BUDGET,
+        )
+        self.assertGreater(len(unbounded), self.DEGRADE_BUDGET)
+        self.assertLessEqual(len(block), self.DEGRADE_BUDGET)
         self.assertTrue(block.endswith("</stage-contract>"))
         self.assertIn("Scope: ", block)
         self.assertIn("Gates: edits outside Scope are review blockers", block)

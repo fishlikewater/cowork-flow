@@ -19,7 +19,7 @@ from typing import Any
 
 GOAL_TRUNCATE = 300
 VERIFY_COMMAND_TRUNCATE = 120
-VERIFY_COMMAND_MAX = 5
+VERIFY_COMMAND_MAX = 10
 SCOPE_BOUNDARY_TRUNCATE = 160
 ANCHOR_SECTIONS = ("目标", "验收标准", "被拒方案", "验证命令", "范围边界")
 ACCEPTANCE_RE = re.compile(
@@ -225,8 +225,8 @@ def spec_entries_for_task(
 
 STAGE_CONTRACT_SCOPE_LIMIT = 8
 STAGE_CONTRACT_SPECS_LIMIT = 4
-STAGE_CONTRACT_VERIFY_LIMIT = 3
-STAGE_CONTRACT_BUDGET = 1200
+STAGE_CONTRACT_VERIFY_LIMIT = 10
+STAGE_CONTRACT_BUDGET = 3400
 GATES_TEXT = (
     "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow "
     "files are protected; spec/ edits may be allowed by review policy; "

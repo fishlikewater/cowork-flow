@@ -23,6 +23,8 @@ HOOK_PATH = (
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+from services.fact_view import STAGE_CONTRACT_BUDGET  # noqa: E402
+
 
 def _load_module():
     spec = importlib.util.spec_from_file_location(
@@ -356,7 +358,7 @@ class WorkflowStateHookTest(unittest.TestCase):
                     active.split("<stage-contract", 1)[1].split("</stage-contract>", 1)[0]
                 )
                 + len("<stage-contract></stage-contract>"),
-                1200,
+                STAGE_CONTRACT_BUDGET,
             )
 
             # Terminal states inject nothing.

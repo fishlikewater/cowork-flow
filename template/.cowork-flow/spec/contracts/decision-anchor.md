@@ -52,7 +52,7 @@ translated heading would simply stop being read.
 fact view (`services/fact_view.parse_decision_anchor`). Line-format conventions:
 
 - `## 验证命令`: one command per line (an optional `- ` prefix), truncated to 120
-  characters, at most 5 lines; the implementing agent runs them itself
+  characters, at most 10 lines; the implementing agent runs them itself
   (self-declared, self-checked) and the reviewer verifies the execution evidence.
 - `## 范围边界`: only the first non-empty line is taken, truncated to 160
   characters.

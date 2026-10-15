@@ -280,7 +280,7 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
 - **Gates**: static preview text, identical on all hosts; the delegated
   variant replaces the self-declaration sentence with "scope is inherited
   from the parent task (read-only reference)".
-- **Verify**: `## 验证命令` lines from decision-anchor (first 3, 120 chars
+- **Verify**: `## 验证命令` lines from decision-anchor (first 10, 120 chars
   each) — the agent's own declared self-checks; omitted when none.
 - **Per-edit warning (zcode only)**: PostToolUse on Edit/Write/MultiEdit
   injects at most one line when the edited file is outside the scope
@@ -294,14 +294,16 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   warning; the matcher is the single switch. This bullet covers the scope
   warning only; the spec-check violation line is a separate channel that
   also reaches codex and opencode sessions (see spec-checks.md).
-- Budget: the whole block stays ≤ 1200 characters. Over-budget inputs
+- Budget: the whole block stays ≤ 3400 characters. Over-budget inputs
   degrade by dropping Verify, then Specs, then shrinking Scope entries
   (min 1) — the closing tag and the Gates row always survive; tests assert
   the block stays well-formed. The scope-filter rules and the stage-contract
   budget/limits come from `.cowork-flow/spec/runtime/scope-rules.json`, the
   single source consumed at runtime; a missing or malformed file degrades to
   embedded defaults that are byte-identical with the shipped file (locked by
-  `tests/test_scope_rules.py`).
+  `tests/test_scope_rules.py`). The file is template-managed
+  (`syncPolicy.safeFiles`): `cwf project sync` refreshes it, so local edits to
+  it do not survive a sync.
 - Absent for `no_task` / `planning` / `completed` states. Block content is
   byte-identical across host lines for the whole fixture matrix
   (`test/fixtures/stage-contract-matrix.json` drives the equality test:
