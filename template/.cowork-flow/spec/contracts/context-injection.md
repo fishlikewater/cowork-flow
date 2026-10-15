@@ -296,8 +296,14 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   also reaches codex and opencode sessions (see spec-checks.md).
 - Budget: the whole block stays ≤ 3400 characters. Over-budget inputs
   degrade by dropping Verify, then Specs, then shrinking Scope entries
-  (min 1) — the closing tag and the Gates row always survive; tests assert
-  the block stays well-formed. The scope-filter rules and the stage-contract
+  (min 1), then truncating the Scope row's own text. The opening tag, the
+  closing tag and the Gates row always survive intact — a body-wide cut
+  would either truncate the tag every consumer matches on (making the block
+  invisible to them) or silently drop the edit-policy row, so neither is
+  allowed. Below the size those fixed rows themselves need, or when the cut
+  would shave the `Scope: ` label off the row, the block is returned whole
+  and may exceed the budget: guard rows and parseability outrank the budget.
+  The scope-filter rules and the stage-contract
   budget/limits come from `.cowork-flow/spec/runtime/scope-rules.json`, the
   single source consumed at runtime; a missing or malformed file degrades to
   embedded defaults that are byte-identical with the shipped file (locked by
