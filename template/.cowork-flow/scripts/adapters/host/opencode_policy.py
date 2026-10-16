@@ -12,12 +12,23 @@ session file probe (session_start_event=None), as with codex.
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
+from adapters.host.edit_scope import edit_scope_warning
 from adapters.host.policy_base import HostPolicy
 
 OPENCODE_DIGEST_POLICY = (
     "policy: repeat this short digest every plugin transform; "
     "read full spec files only before listed actions."
 )
+
+
+def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
+    """PostToolUse transport for the plugin's tool.execute.after hook: the
+    edit-scope advisory is bare text (emit_text), appended to the finished
+    tool output by the shim. Exit 0 — never blocks the edit."""
+    return edit_scope_warning(root, hook_input), 0
 
 
 POLICY = HostPolicy(
@@ -29,4 +40,5 @@ POLICY = HostPolicy(
     emit_not_initialized=True,
     # stdout is the injection itself: the shim forwards it verbatim.
     emit_text=True,
+    post_tool_use=post_tool_use,
 )

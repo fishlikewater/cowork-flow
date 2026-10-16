@@ -29,6 +29,22 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs"
+            ],
+            "timeout": 30,
+            "statusMessage": "cowork-flow: 编辑越界自查"
+          }
+        ]
+      }
     ]
   }
 }

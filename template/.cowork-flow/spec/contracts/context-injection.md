@@ -291,16 +291,27 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   from the parent task (read-only reference)".
 - **Verify**: `## 验证命令` lines from decision-anchor (first 10, 120 chars
   each) — the agent's own declared self-checks; omitted when none.
-- **Per-edit warning (zcode only)**: PostToolUse on Edit/Write/MultiEdit
-  injects at most one line when the edited file is outside the scope
-  (`editScopeWarning: plugin`; every other host declares `unsupported` —
-  their fallback is this static stage-contract preview). Bash-initiated
-  writes (redirection, tee) are a declared residual gap: the warning covers
-  Edit/Write/MultiEdit tool invocations only. The PostToolUse matcher text
-  (`Bash|Edit|Write|MultiEdit`) is asserted by template tests but depends on
-  the ZCode runtime's tool names — there is no external runtime contract to
-  verify them against, so a runtime rename would silently disable the
-  warning; the matcher is the single switch.
+- **Per-edit warning**: PostToolUse on an edit tool injects at most one
+  line when the edited file is outside the task's declared scope —
+  a frozen single line shared by every host, differing only in transport:
+  zcode / claude-code / codex / qoder return it as
+  `hookSpecificOutput.additionalContext`, opencode (bare-text `emit_text`)
+  appends it to the finished tool output, and dsh attaches it to the tool
+  result as a plugin notice. `editScopeWarning: plugin` is declared for
+  those six hosts; kimi-code declares `unsupported` because the host drops
+  PostToolUse stdout. Silence rules: no active in_progress/review task, a
+  subagent session, an in-scope path, or no extractable path; every failure
+  stays silent and every host exits 0 — the edit has already happened. No
+  host refreshes the workflow-state digest from this hook: the advisory is
+  the whole payload (state refreshes on the next injecting event, or on
+  dsh's `tools/result`).
+  Bash-initiated writes (redirection, tee) are a declared residual gap: the
+  warning covers edit tool invocations only. Each host's matcher text
+  (`Edit|Write|MultiEdit`, codex's `apply_patch|Write|Edit`, qoder's
+  `Edit|Write`) is asserted by template tests but depends on that host's
+  runtime's tool names — there is no external runtime contract to verify
+  them against, so a runtime rename would silently disable the warning; the
+  matcher is the single switch.
 - Budget: the whole block stays ≤ 3400 characters. Over-budget inputs
   degrade by dropping Verify, then Specs, then shrinking Scope entries
   (min 1), then truncating the Scope row's own text. The opening tag, the

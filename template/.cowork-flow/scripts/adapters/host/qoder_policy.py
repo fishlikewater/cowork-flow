@@ -15,13 +15,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from adapters.host.edit_scope import edit_scope_warning
 from adapters.host.policy_base import HostPolicy
 from adapters.host.workflow_state_hook import hook_state_summary
 
 QODER_PREAMBLE = (
     (
         "<qoder-runtime>\n"
-        "hooks: SessionStart, UserPromptSubmit\n"
+        "hooks: SessionStart, UserPromptSubmit, PostToolUse\n"
         "</qoder-runtime>"
     ),
 )
@@ -29,6 +30,13 @@ QODER_PREAMBLE = (
 
 def preamble(root: Path) -> tuple[str, ...]:
     return QODER_PREAMBLE
+
+
+def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
+    """PostToolUse transport: the edit-scope advisory rides the standard
+    additionalContext envelope, exit 0 (never a systemMessage — that gate
+    stays on the two injecting events)."""
+    return edit_scope_warning(root, hook_input), 0
 
 
 # The task directory name is user-chosen and unbounded, and the host renders
@@ -55,5 +63,6 @@ def system_message(root: Path, hook_input: dict[str, Any], event_name: str) -> s
 POLICY = HostPolicy(
     host="qoder",
     preamble=preamble,
+    post_tool_use=post_tool_use,
     system_message=system_message,
 )

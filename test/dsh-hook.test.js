@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { apply, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
+import { apply, editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditScopeCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 // The workflow runtime under the repository root is a gitignored live
@@ -248,6 +248,7 @@ test('apply wires every refresh event and registers the workflow-state section',
       'agent/created',
       'agent/inbox/claimed',
       'agent/session-start',
+      'tools/post-execute',
       'tools/result'
     ]
   );
@@ -305,4 +306,125 @@ test(
     assert.match(second, /<cowork-runtime host="dsh"/);
   }
 );
+
+
+// A project with one in-progress task, a single-file whitelist, and the main
+// plus subagent session bindings the scope check reads.
+async function createScopeProject(t) {
+  const dir = await createWorkflowProject(t);
+  const taskDir = join(dir, '.cowork-flow', 'tasks', '09-01-demo');
+  await mkdir(taskDir, { recursive: true });
+  await writeFile(
+    join(taskDir, 'task.json'),
+    JSON.stringify({ status: 'in_progress' }) + '\n',
+    'utf8'
+  );
+  await writeFile(
+    join(taskDir, 'implement.jsonl'),
+    JSON.stringify({ file: 'src/child.py', type: 'file' }) + '\n',
+    'utf8'
+  );
+  const sessions = join(dir, '.cowork-flow', '.runtime', 'sessions');
+  await mkdir(sessions, { recursive: true });
+  for (const [key, scope] of [['dsh_s1', 'main'], ['dsh_child', 'subagent']]) {
+    await writeFile(
+      join(sessions, `${key}.json`),
+      JSON.stringify({
+        active_task_path: '.cowork-flow/tasks/09-01-demo',
+        scope,
+        last_seen_at: '2026-09-08T00:00:00+00:00'
+      }) + '\n',
+      'utf8'
+    );
+  }
+  return dir;
+}
+
+
+const SCOPE_WARNING = (path) =>
+  `⚠️ ${path} is outside the task's declared scope. ` +
+  "If intended, declare it in the task's `implement.jsonl` (agent-mutable) " +
+  'or revert the edit.';
+
+
+test('editedFilePath reads only fs edit tools carrying a file path', () => {
+  assert.equal(editedFilePath({ name: 'write', arguments: { file_path: 'src/a.py' } }), 'src/a.py');
+  assert.equal(editedFilePath({ name: 'edit', arguments: { file_path: '  src/a.py ' } }), 'src/a.py');
+  assert.equal(editedFilePath({ name: 'bash', arguments: { file_path: 'src/a.py' } }), '');
+  assert.equal(editedFilePath({ name: 'write', arguments: {} }), '');
+  assert.equal(editedFilePath(undefined), '');
+});
+
+
+test('runEditScopeCheck reports an out-of-scope edit and stays silent otherwise', async (t) => {
+  const project = await createScopeProject(t);
+  const previous = process.env.DSH_SESSION_ID;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.DSH_SESSION_ID;
+    } else {
+      process.env.DSH_SESSION_ID = previous;
+    }
+    resetWorkingPython();
+  });
+
+  process.env.DSH_SESSION_ID = 's1';
+  resetWorkingPython();
+  assert.equal(
+    await runEditScopeCheck(project, 'src/outside.py'),
+    SCOPE_WARNING('src/outside.py')
+  );
+  assert.equal(await runEditScopeCheck(project, 'src/child.py'), '');
+  assert.equal(await runEditScopeCheck(project, ''), '');
+
+  // A delegated session follows its own slice, so the advisory stays silent
+  // there (same rule as zcode's PostToolUse short path).
+  process.env.DSH_SESSION_ID = 'child';
+  assert.equal(await runEditScopeCheck(project, 'src/outside.py'), '');
+});
+
+
+test('apply merges the edit-scope notice into the finished tool result', async (t) => {
+  const project = await createScopeProject(t);
+  const previous = process.env.DSH_SESSION_ID;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.DSH_SESSION_ID;
+    } else {
+      process.env.DSH_SESSION_ID = previous;
+    }
+    resetWorkingPython();
+  });
+  process.env.DSH_SESSION_ID = 's1';
+  resetWorkingPython();
+
+  const { ctx, handlers } = createFakeCtx();
+  apply(ctx);
+  const postExecute = handlers.get('tools/post-execute');
+  assert.equal(typeof postExecute, 'function');
+
+  // Non-edit tools never spawn the checker, and the downstream decision rides
+  // through untouched.
+  const untouched = await postExecute(
+    { agent: { cwd: project }, name: 'bash', arguments: {} },
+    null,
+    async () => ({ kind: 'accept', additionalContexts: [{ id: 'downstream' }] })
+  );
+  assert.deepEqual(untouched, { kind: 'accept', additionalContexts: [{ id: 'downstream' }] });
+
+  // An out-of-scope edit adds one plugin notice ahead of the downstream
+  // contexts; the downstream result itself is preserved.
+  const result = await postExecute(
+    { agent: { cwd: project }, name: 'write', arguments: { file_path: 'src/outside.py' } },
+    null,
+    async () => ({ kind: 'accept', additionalContexts: [{ id: 'downstream' }] })
+  );
+  assert.equal(result.kind, 'accept');
+  assert.equal(result.additionalContexts.length, 2);
+  assert.equal(result.additionalContexts[1].id, 'downstream');
+  const notice = result.additionalContexts[0];
+  assert.equal(notice.role, 'user');
+  assert.equal(notice.source.summary, 'edit-scope');
+  assert.equal(notice.content[0].text, SCOPE_WARNING('src/outside.py'));
+});
 

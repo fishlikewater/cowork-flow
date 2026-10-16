@@ -13,7 +13,7 @@ capabilities:
   runtimeContextDispatch: native
   runtimeContextBinding: shim
   runtimeContextCleanup: shim
-  editScopeWarning: unsupported
+  editScopeWarning: plugin
 dispatch:
   primitive: subagent
   memoryPath: AGENTS.md

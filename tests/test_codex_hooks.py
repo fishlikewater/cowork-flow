@@ -590,14 +590,23 @@ class CodexHooksTest(unittest.TestCase):
             command,
         )
 
-    def test_hook_config_declares_no_post_tool_use(self) -> None:
-        """The edit-phase spec feedback channel was removed with `spec-check`.
+    def test_hook_config_registers_post_tool_use_for_file_edits(self) -> None:
+        """The edit-phase scope advisory rides PostToolUse.
 
-        Re-declaring PostToolUse here would re-arm a hook that no longer has an
-        implementation behind it.
+        The matcher covers codex's patch tool plus the plain write/edit
+        surfaces, and the command is the same project-relative runner as
+        UserPromptSubmit — a missing or stale runtime stays fail-open.
         """
         hooks = json.loads((TEMPLATE / ".codex" / "hooks.json").read_text(encoding="utf-8"))
-        self.assertEqual(["UserPromptSubmit"], list(hooks["hooks"]))
+        self.assertEqual(["UserPromptSubmit", "PostToolUse"], list(hooks["hooks"]))
+        entry = hooks["hooks"]["PostToolUse"][0]
+        self.assertEqual("apply_patch|Write|Edit", entry["matcher"])
+        hook = entry["hooks"][0]
+        self.assertEqual(
+            ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
+            hook["command"],
+        )
+        self.assertEqual(5, hook["timeout"])
 
     def test_hook_config_command_executes_without_bare_python(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

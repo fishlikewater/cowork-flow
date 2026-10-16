@@ -300,8 +300,8 @@ class InjectEntryTest(unittest.TestCase):
 
     def test_qoder_system_message_stays_off_non_injection_paths(self) -> None:
         # Edit-phase advisories keep their shape: only the two injecting
-        # events carry the user-visible message. The edit-phase spec channel
-        # was removed with `spec-check`, so PostToolUse emits nothing at all.
+        # events carry the user-visible message. PostToolUse carries the
+        # scope advisory as additionalContext alone — never a systemMessage.
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
@@ -745,32 +745,112 @@ class InjectEntryTest(unittest.TestCase):
             context, r'<contract-fingerprint value="[0-9a-f]{16}"/>'
         )
 
-    def test_qoder_post_tool_use_has_no_edit_advisory(self) -> None:
-        # The edit-phase spec advisory was removed with `spec-check`; a
-        # PostToolUse event must not carry a systemMessage or a payload.
+    def test_scope_warning_line_is_shared_by_every_inject_py_edit_host(self) -> None:
+        # Same frozen line, four transports: envelope except opencode (bare text).
+        hosts = (
+            ("claude-code", "CLAUDE_SESSION_ID", "claude"),
+            ("codex", "CODEX_SESSION_ID", "codex"),
+            ("qoder", "QODER_SESSION_ID", "qoder"),
+            ("opencode", "OPENCODE_SESSION_ID", "opencode"),
+        )
+        for host, env_name, prefix in hosts:
+            with self.subTest(host=host):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    self._make_project(root)
+                    self._write_session(
+                        root, f"{prefix}_s1", ".cowork-flow/tasks/09-01-demo"
+                    )
+                    self._write_task_whitelist(
+                        root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
+                    )
+                    self._write_session(
+                        root,
+                        f"{prefix}_child",
+                        ".cowork-flow/tasks/09-01-demo",
+                        scope="subagent",
+                    )
+
+                    def run(session: str, path: str) -> subprocess.CompletedProcess:
+                        return self._run_inject(
+                            root,
+                            {
+                                "hook_event_name": "PostToolUse",
+                                "tool_name": "Edit",
+                                "tool_input": {"file_path": path},
+                                "session_id": session,
+                            },
+                            host=host,
+                            env_extra={env_name: session},
+                        )
+
+                    outside = run("s1", "src/outside.py")
+                    inside = run("s1", "src/child.py")
+                    delegated = run("child", "src/outside.py")
+                expected = (
+                    "⚠️ src/outside.py is outside the task's declared scope. "
+                    "If intended, declare it in the task's `implement.jsonl` "
+                    "(agent-mutable) or revert the edit."
+                )
+                self.assertEqual(0, outside.returncode, outside.stderr)
+                self.assertEqual("", outside.stderr)
+                if host == "opencode":
+                    self.assertEqual(expected, outside.stdout.strip())
+                else:
+                    envelope = json.loads(outside.stdout)["hookSpecificOutput"]
+                    self.assertEqual("PostToolUse", envelope["hookEventName"])
+                    self.assertEqual(expected, envelope["additionalContext"])
+                    # The user-visible systemMessage gate stays on the two
+                    # injecting events; an advisory must not reach it.
+                    self.assertNotIn("systemMessage", outside.stdout)
+                self.assertEqual("", inside.stdout.strip())
+                self.assertEqual("", delegated.stdout.strip())
+
+    def test_codex_scope_warning_reads_paths_from_the_patch_text(self) -> None:
+        # apply_patch carries its paths inside the patch body, so the shared
+        # extractor must read them out of the patch text (multi-file patch
+        # included) or codex edits would never be checked at all.
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
-            self._write_session(
-                root, "qoder_s1", ".cowork-flow/tasks/09-01-demo"
+            self._write_session(root, "codex_s1", ".cowork-flow/tasks/09-01-demo")
+            self._write_task_whitelist(
+                root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
             )
 
-            result = self._run_inject(
+            data = self._run_json(
                 root,
                 {
                     "hook_event_name": "PostToolUse",
-                    "tool_name": "Edit",
-                    "tool_input": {"file_path": "src/a.py"},
+                    "tool_name": "apply_patch",
+                    "tool_input": {
+                        "input": (
+                            "*** Begin Patch\n"
+                            "*** Update File: src/child.py\n"
+                            "@@\n-a\n+b\n"
+                            "*** Update File: src/outside.py\n"
+                            "@@\n-c\n+d\n"
+                            "*** End Patch"
+                        )
+                    },
                     "session_id": "s1",
                 },
-                host="qoder",
-                env_extra={"QODER_SESSION_ID": "s1"},
+                host="codex",
+                env_extra={"CODEX_SESSION_ID": "s1"},
             )
 
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual("", result.stderr)
-        self.assertNotIn("systemMessage", result.stdout)
-        self.assertEqual("", result.stdout.strip())
+        context = data["hookSpecificOutput"]["additionalContext"]
+        # The whole payload is the one line for the out-of-scope file: the
+        # in-scope first entry of the patch must not win, and no second line
+        # may appear.
+        self.assertEqual(
+            [
+                "⚠️ src/outside.py is outside the task's declared scope. "
+                "If intended, declare it in the task's `implement.jsonl` "
+                "(agent-mutable) or revert the edit."
+            ],
+            context.splitlines(),
+        )
 
     # -- not initialized ------------------------------------------------------
 

@@ -3,15 +3,17 @@
 
 Rendering stays in workflow_state_hook.py; this module owns only the codex
 transport specifics — the dispatch-mode preamble (config-driven, the codex
-wrapper surfaces it above every injection) and the probe-based session-start
+wrapper surfaces it above every injection), the probe-based session-start
 detection (codex registers UserPromptSubmit only, so the digest shape derives
-from the session state file probe).
+from the session state file probe), and the PostToolUse edit-scope advisory.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
+from adapters.host.edit_scope import edit_scope_warning
 from adapters.host.policy_base import HostPolicy
 from adapters.host.workflow_state_hook import _load_common
 
@@ -43,8 +45,16 @@ def preamble(root: Path) -> tuple[str, ...]:
     )
 
 
+def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
+    """PostToolUse transport: the edit-scope advisory rides the standard
+    additionalContext envelope, exit 0. apply_patch payloads carry their
+    paths inside the patch text, which the shared extractor covers."""
+    return edit_scope_warning(root, hook_input), 0
+
+
 POLICY = HostPolicy(
     host="codex",
     session_start_event=None,  # probe the session state file instead
     preamble=preamble,
+    post_tool_use=post_tool_use,
 )

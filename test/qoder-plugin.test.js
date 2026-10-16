@@ -45,10 +45,10 @@ async function makeProject(root) {
   });
 }
 
-test('qoder hook config runs the plugin shim without a shell', async () => {
+test('qoder hook config runs the plugin shim for every declared event', async () => {
   const hooksConfig = await readJson(join(pluginRoot, 'hooks', 'hooks.json'));
 
-  for (const eventName of ['SessionStart', 'UserPromptSubmit']) {
+  for (const eventName of ['SessionStart', 'UserPromptSubmit', 'PostToolUse']) {
     const entries = hooksConfig.hooks[eventName];
     assert.ok(Array.isArray(entries) && entries.length >= 1, `${eventName} declared`);
     for (const group of entries) {
@@ -64,6 +64,12 @@ test('qoder hook config runs the plugin shim without a shell', async () => {
       }
     }
   }
+  // The edit-phase scope advisory is matcher-bounded to the tools Qoder
+  // exposes; a wider matcher would spawn the shim on unrelated tool calls.
+  assert.deepEqual(
+    hooksConfig.hooks.PostToolUse.map((entry) => entry.matcher),
+    ['Edit|Write']
+  );
 });
 
 test('qoder plugin manifest declares only components that ship', async () => {
