@@ -31,8 +31,12 @@ class LifecycleRuleRemovalTest(FlowScriptTestCase):
 
         self.assertFalse(result.blocked)
         self.assertEqual(0, result.exit_code)
-        self.assertFalse(hasattr(result, "violations"))
-        self.assertFalse(hasattr(result, "executions"))
+        self.assertNotIn("violations", vars(result))
+        self.assertNotIn("executions", vars(result))
+        self.assertEqual(
+            {"stage", "blockers", "issues", "evidence_exemption"},
+            set(vars(result)),
+        )
 
     def test_lifecycle_check_runner_does_not_read_runtime_rules_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -71,6 +75,12 @@ class LifecycleRuleRemovalTest(FlowScriptTestCase):
         self.assertIn("user_spec_review", skill)
         self.assertNotIn("machine_gate_review", skill)
         self.assertNotIn("complexity signals", skill)
+        self.assertRegex(
+            skill,
+            "- `user_spec_review`: applicable spec files, per-requirement "
+            "result, findings, and the \"clause → command → negative proof\" "
+            "list",
+        )
 
 
 if __name__ == "__main__":

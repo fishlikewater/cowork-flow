@@ -135,12 +135,26 @@ class HostSkillsGateTest(unittest.TestCase):
                 any(line.startswith(f"- `{marker}`:") for line in lines),
                 f"`{marker}` has no definition bullet in Review Report Format",
             )
+        defined = set()
+        for line in lines:
+            match = re.match(r"- `([^`]+)`:", line)
+            if match:
+                defined.add(match.group(1))
+        # The section defines exactly these three keys: a fourth definition
+        # bullet would mean the report format carries an undeclared key.
+        self.assertEqual({"clause", "command", "negativeProof"}, defined)
         # The receipt path must name the same keys where they are used.
         receipt_cli = (
             SCRIPTS / "adapters" / "cli" / "subagent.py"
         ).read_text(encoding="utf-8")
         for marker in ("clause", "command", "negativeProof"):
             self.assertIn(marker, receipt_cli, f"{marker} missing from check-review")
+        # The CLI hands the three keys to the agent as one sentence, so the
+        # definition above and the surface that consumes it cannot drift apart.
+        self.assertRegex(
+            receipt_cli,
+            re.escape("report keys: clause, command, negativeProof"),
+        )
 
     def _skill_manifests(self) -> list:
         module = importlib.import_module("infra.skill_manifest")
@@ -218,6 +232,9 @@ class HostSkillsGateTest(unittest.TestCase):
 
         self.assertNotIn("review evidence", text)
         self.assertIn("review results belong in `review.jsonl`", text)
+        # Exactly one pointer to the review evidence channel: a duplicated
+        # destination would let the skill hand out two competing answers.
+        self.assertEqual(1, text.count("review results belong in `review.jsonl`"))
 
     def test_task_planning_gate_names_the_plan_as_the_task_list(self) -> None:
         """The plan owns the task list; `implement.jsonl` owns this task's scope.
@@ -237,6 +254,12 @@ class HostSkillsGateTest(unittest.TestCase):
         section = skill.split("## Plan Approval Gate", 1)[1].split("\n## ", 1)[0]
         self.assertNotIn("Every task in `implement.jsonl`", section)
         self.assertIn("Every task in the plan", section)
+        # The gate states the condition once, against the plan: a second mention
+        # would reintroduce the unsatisfiable "task list lives in
+        # implement.jsonl" reading, and its absence alone would not catch a
+        # duplicated or diluted wording.
+        self.assertEqual(1, section.count("Every task in the plan"))
+        self.assertEqual(0, section.count("Every task in `implement.jsonl`"))
 
 
 if __name__ == "__main__":

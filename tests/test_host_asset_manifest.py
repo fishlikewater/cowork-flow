@@ -315,6 +315,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
     def test_sync_policy_obsoletes_removed_skill_registry_contracts(self) -> None:
         manifest = self.host_manifest.load_host_manifest(TEMPLATE)
+        obsolete = list(manifest.sync_policy.obsolete_files)
 
         self.assertNotIn(
             ".cowork-flow/spec/runtime/skill-registry.json",
@@ -332,6 +333,12 @@ class HostAssetManifestTest(unittest.TestCase):
             ".agents/skills/decision-review",
             manifest.sync_policy.obsolete_files,
         )
+        # Each removed artifact is listed for deletion exactly once: a dropped
+        # entry leaves the stale copy in every installed project, and a
+        # duplicated one makes the deletion plan ambiguous.
+        self.assertEqual(1, obsolete.count(".cowork-flow/spec/runtime/skill-registry.json"))
+        self.assertEqual(1, obsolete.count(".cowork-flow/spec/schemas/skill-registry.schema.json"))
+        self.assertEqual(1, obsolete.count(".agents/skills/decision-review"))
 
     def test_semantic_validation_rejects_missing_command_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

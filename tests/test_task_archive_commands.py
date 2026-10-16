@@ -131,6 +131,14 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             )
 
         rendered = stderr.getvalue()
+        self.assertEqual(
+            "\033[0;31mError: Failed to archive task: archive finalizer "
+            "failed\033[0m\n"
+            "Rollback issues:\n"
+            f"- context_restore: {Path('active/task/implement.jsonl')} ? "
+            "context restore denied\n",
+            rendered,
+        )
         self.assertIsNone(result)
         self.assertIn("archive finalizer failed", rendered)
         self.assertIn("Rollback issues:", rendered)

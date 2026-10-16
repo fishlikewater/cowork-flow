@@ -116,6 +116,7 @@ class ScopeRulesTest(unittest.TestCase):
 
         files = [entry["file"] for entry in whitelist]
         self.assertIn("src/a*.py", files, "emptied wildcard list must admit it")
+        self.assertEqual(["src/a*.py", "src/real.py"], files)
 
     def test_allowed_types_rule_rejects_planned_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -130,7 +131,7 @@ class ScopeRulesTest(unittest.TestCase):
             )
 
         self.assertIsNone(normalized)
-        self.assertIn("unsupported type", error or "")
+        self.assertEqual("unsupported type 'planned-file'", error)
 
     def test_budget_rule_triggers_trimming(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -156,6 +157,16 @@ class ScopeRulesTest(unittest.TestCase):
         self.assertIn("Gates:", block)
         self.assertIn("Scope: ", block)
         self.assertLess(block.count("; "), 8, "scope entries were shrunk")
+        self.assertEqual(
+            "Scope: src/module-0/long-"
+            + "x" * 40
+            + "-name.py (+7 more in implement.jsonl) [agent-mutable]",
+            next(
+                line
+                for line in block.splitlines()
+                if line.startswith("Scope: ")
+            ),
+        )
 
     def test_direct_validator_consumes_rules(self) -> None:
         empty_wildcards = {"scopeFilter": {"wildcardChars": []}}

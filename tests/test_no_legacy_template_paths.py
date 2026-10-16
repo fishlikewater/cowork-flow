@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+import re
 import unittest
 from pathlib import Path
 
@@ -106,6 +108,19 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
         self.assertNotIn("has_prd", text)
         self.assertNotIn("prd_path", text)
         self.assertNotIn("include_prd_hint", text)
+        snapshot = {
+            node.name: node
+            for node in ast.walk(ast.parse(text))
+            if isinstance(node, ast.ClassDef)
+        }["ActiveTaskSnapshot"]
+        self.assertEqual(
+            {"path", "data", "has_decision_anchor"},
+            {
+                statement.target.id
+                for statement in snapshot.body
+                if isinstance(statement, ast.AnnAssign)
+            },
+        )
 
     def test_template_does_not_ship_superpowers_seed(self) -> None:
         self.assertFalse((TEMPLATE / ".superpowers").exists())
@@ -143,6 +158,10 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             self.assertIn("No shell pipes, redirects, or command chaining", text)
             self.assertNotIn("verification:", text)
             self.assertNotIn("Project-specific commands", text)
+            self.assertEqual(
+                ["codex", "party_mode_v2"],
+                re.findall(r"^([a-z0-9_]+):", text, re.MULTILINE),
+            )
 
     def test_workspace_journal_scaffold_is_removed(self) -> None:
         self.assertFalse((ROOT / "template" / ".cowork-flow" / "workspace" / "index.md").exists())

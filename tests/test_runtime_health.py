@@ -2074,6 +2074,16 @@ class RuntimeHealthTest(unittest.TestCase):
         self.assertIn("project", statuses)
         self.assertNotIn("absent", statuses)
         self.assertNotIn("duplicate", statuses)
+        self.assertEqual(
+            [
+                {
+                    "kind": "mcp",
+                    "status": "project",
+                    "message": "project .mcp.json registers the fact layer",
+                }
+            ],
+            issues,
+        )
 
     def test_mcp_registration_reports_duplicate_global_and_project(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2090,6 +2100,9 @@ class RuntimeHealthTest(unittest.TestCase):
 
         statuses = {issue["status"] for issue in issues}
         self.assertIn("duplicate", statuses)
+        self.assertEqual(
+            ["project", "duplicate"], [issue["status"] for issue in issues]
+        )
 
     def test_mcp_registration_absent_is_advisory_not_fatal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2104,14 +2117,16 @@ class RuntimeHealthTest(unittest.TestCase):
 
         statuses = {issue["status"] for issue in issues}
         self.assertIn("absent", statuses)
+        self.assertEqual(["absent"], [issue["status"] for issue in issues])
         # Advisory only: MCP registration issues never appear in the fatal
         # error list, whatever else the doctor reports about the fixture.
-        self.assertFalse(
+        self.assertEqual(
+            [],
             [
                 error
                 for error in result["errors"]
                 if error.get("kind") == "mcp"
-            ]
+            ],
         )
 
 

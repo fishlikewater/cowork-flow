@@ -66,6 +66,20 @@ class SpecReviewContractTest(unittest.TestCase):
         self.assertIn("用户自然语言规范不在本目录注册", runtime_index)
         self.assertNotIn("rules.json", runtime_index)
         self.assertNotIn("rules.schema.json", schema_index)
+        self.assertEqual(
+            ["contract-registry.json", "host-assets.json"],
+            re.findall(r"^- `([^`]+)`", runtime_index, re.MULTILINE),
+            runtime_index,
+        )
+        self.assertEqual(
+            [
+                "adapter.schema.json",
+                "host-assets.schema.json",
+                "party-mode-v2-actions.schema.json",
+            ],
+            re.findall(r"^- `([^`]+)`", schema_index, re.MULTILINE),
+            schema_index,
+        )
 
     def test_host_assets_obsoletes_removed_gate_and_rule_assets(self) -> None:
         manifest = json.loads((SPEC / "runtime" / "host-assets.json").read_text(encoding="utf-8"))
@@ -267,6 +281,10 @@ class SpecReviewContractTest(unittest.TestCase):
             "machine_gate_review",
         ):
             self.assertNotIn(forbidden, skill)
+        self.assertEqual(
+            ["check.jsonl", "evidence.jsonl", "implement.jsonl"],
+            sorted(set(re.findall(r"[\w.-]+\.jsonl", skill))),
+        )
 
     def test_review_helper_contract_stays_advisory_not_gate(self) -> None:
         contract = (
@@ -279,6 +297,12 @@ class SpecReviewContractTest(unittest.TestCase):
         self.assertIn("no task-local review evidence file", contract)
         self.assertIn("pass/fail completion verdict", contract)
         self.assertIn("natural-language spec hard gate", contract)
+        self.assertRegex(
+            contract,
+            r"They must remain\s+read-only helpers: no task-local review evidence "
+            r"file, lifecycle state mutation,\s+natural-language spec hard gate, "
+            r"or pass/fail completion verdict\.",
+        )
 
     def test_runtime_health_contract_distinguishes_template_source_from_optional_local_runtime(self) -> None:
         contract = (
@@ -296,6 +320,17 @@ class SpecReviewContractTest(unittest.TestCase):
         ):
             self.assertIn(marker, contract)
             self.assertIn(marker, skill)
+        self.assertRegex(
+            contract,
+            r"checkout health must not force-track `\.cowork-flow/` runtime files: "
+            r"local live\s+runtime is compared only when present, and Skill replica "
+            r"parity is checked for\s+every detected installed Skill target\.",
+        )
+        self.assertRegex(
+            skill,
+            r"Source checkout health must not force-track `\.cowork-flow/` runtime "
+            r"files; ignored local live\s+runtime files are checked only when present\.",
+        )
 
     def test_removed_gate_modules_do_not_exist_in_template(self) -> None:
         gates_dir = TEMPLATE / ".cowork-flow" / "scripts" / "common" / "gates"

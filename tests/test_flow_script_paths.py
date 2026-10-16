@@ -106,3 +106,14 @@ class FlowScriptPathsTest(FlowScriptTestCase):
         self.assertIn("AGENTS.md", files)
         self.assertIn(".cowork-flow/spec/guides/index.md", files)
         self.assertIn(".cowork-flow/spec/guides/pre-implementation-checklist.md", files)
+        self.assertEqual(
+            [
+                ".cowork-flow/spec/guides/index.md",
+                ".cowork-flow/spec/guides/pre-implementation-checklist.md",
+            ],
+            [
+                file
+                for file in files
+                if file.startswith(".cowork-flow/spec/guides/")
+            ],
+        )
