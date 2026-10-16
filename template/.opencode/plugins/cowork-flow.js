@@ -9,6 +9,7 @@
 import {
   injectShellEnv,
   registerPayloadSkills,
+  renderEditScopeWarning,
   renderViaInject
 } from "../cowork-flow/plugin-core.js"
 
@@ -32,6 +33,16 @@ export const CoworkFlowPlugin = async () => {
       const text = await renderViaInject(input)
       if (text) {
         output.system.push(text)
+      }
+    },
+    // Editor-phase scope advisory: the tool already ran, so
+    // the single out-of-scope line is appended to its output
+    // and the call is never blocked. Non-edit tools and a
+    // missing/failing runtime stay silent.
+    "tool.execute.after": async (input, output) => {
+      const warning = await renderEditScopeWarning(input)
+      if (warning) {
+        output.output = [output.output, warning].filter(Boolean).join("\n")
       }
     },
   }

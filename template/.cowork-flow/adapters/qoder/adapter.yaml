@@ -13,7 +13,7 @@ capabilities:
   runtimeContextDispatch: native
   runtimeContextBinding: shim
   runtimeContextCleanup: native
-  editScopeWarning: unsupported
+  editScopeWarning: plugin
 dispatch:
   primitive: subagent
   # Host assets ship as a machine-level plugin; their layout is owned by

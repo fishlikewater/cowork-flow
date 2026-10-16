@@ -579,13 +579,22 @@ class ClaudeHooksTest(unittest.TestCase):
             _header_attrs(context),
         )
 
-    def test_settings_config_uses_cowork_flow_python_runner_for_both_events(self) -> None:
+    def test_settings_config_uses_cowork_flow_python_runner_for_every_event(self) -> None:
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
-        # The edit-phase spec feedback channel went away with `spec-check`;
-        # PostToolUse must not be re-declared here.
-        self.assertEqual(["UserPromptSubmit", "SessionStart"], list(settings["hooks"]))
-        for event_name in ("UserPromptSubmit", "SessionStart"):
-            command = settings["hooks"][event_name][0]["hooks"][0]["command"]
+        # PostToolUse is the edit-phase scope advisory: the same
+        # project-relative runner with a matcher bounded to the edit tools, so
+        # non-edit tools never pay for a spawn and a missing runtime stays
+        # fail-open (exit 0, nothing shown).
+        self.assertEqual(
+            ["UserPromptSubmit", "SessionStart", "PostToolUse"],
+            list(settings["hooks"]),
+        )
+        matchers = {"PostToolUse": "Edit|Write|MultiEdit"}
+        for event_name in ("UserPromptSubmit", "SessionStart", "PostToolUse"):
+            entry = settings["hooks"][event_name][0]
+            if event_name in matchers:
+                self.assertEqual(matchers[event_name], entry["matcher"])
+            command = entry["hooks"][0]["command"]
             self.assertEqual(self.CLAUDE_HOOK_COMMAND, command)
             self.assertIn("${CLAUDE_PROJECT_DIR:-.}", command)
             self.assertFalse(command.startswith(".cowork-flow/run"))

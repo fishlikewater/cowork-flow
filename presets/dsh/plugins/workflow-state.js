@@ -17,6 +17,11 @@
 // the text is byte-stable, so the static prompt prefix
 // stays cacheable.
 //
+// It also carries the editor-phase scope advisory on the finished tool
+// result (`tools/post-execute`): one line when an edited file is outside
+// the active task's declared scope, silent otherwise. The tool already
+// ran, so the notice only decorates the next request and never blocks.
+//
 // Degradation is silent: no `.cowork-flow` root, a missing
 // Python, a broken runtime, or the `COWORK_FLOW_HOOKS=0` /
 // `COWORK_FLOW_DISABLE_HOOKS=1` switches all yield an
@@ -24,6 +29,7 @@
 // back to running the navigator manually.
 
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
@@ -84,6 +90,55 @@ print(build_hook_context(
     ),
     session_start=full_digest,
 ))
+`;
+
+// The edit path sits on the finished tool result, so it
+// gets a short leash: a slow checker is dropped rather
+// than delaying the edit the model already made.
+const EDIT_TIMEOUT_MS = 2500;
+const EDIT_EXEC_OPTIONS = {
+  timeout: EDIT_TIMEOUT_MS,
+  windowsHide: true,
+  maxBuffer: 1024 * 1024,
+};
+
+// Editor-phase scope protocol: same root discovery, then the shared
+// edit-scope entry the other hosts reach through their PostToolUse
+// hook, so DSH sessions get the identical single-line advisory. Prints
+// at most one line; exits 0 either way.
+const PYTHON_EDIT_SCOPE_PROTOCOL = `\
+import sys
+from pathlib import Path
+
+# The advisory line starts with a character outside the Windows ANSI
+# codepage (the warning sign), so stdout must be UTF-8 regardless of the
+# console: otherwise the print raises and the warning is swallowed.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace", newline="")
+
+cwd = sys.argv[1]
+file_path = sys.argv[2]
+current = Path(cwd).resolve()
+root = None
+while True:
+    if (current / ".cowork-flow").is_dir():
+        root = current
+        break
+    if current == current.parent:
+        break
+    current = current.parent
+if root is None:
+    raise SystemExit(0)
+sys.path.insert(0, str(root / ".cowork-flow" / "scripts"))
+try:
+    from adapters.host.edit_scope import edit_scope_warning
+    print(edit_scope_warning(root, {
+        "cwd": cwd,
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Write",
+        "tool_input": {"file_path": file_path},
+    }))
+except Exception:
+    pass
 `;
 
 // The first interpreter that ran the protocol
@@ -245,6 +300,93 @@ export async function runWorkflowState(cwd, full = true) {
 }
 
 
+const EDIT_TOOL_NAMES = new Set(['write', 'edit']);
+
+
+/**
+ * Path of the file a finished tool call edited, or '' for
+ * anything else. DSH's fs tools expose `file_path`; other
+ * tool surfaces are ignored.
+ */
+export function editedFilePath(exec) {
+  const name = exec && typeof exec.name === 'string' ? exec.name : '';
+  if (!EDIT_TOOL_NAMES.has(name)) {
+    return '';
+  }
+  const args = exec && exec.arguments;
+  const value = args && typeof args === 'object' ? args.file_path : null;
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
+
+/**
+ * Editor-phase scope check for one edited file. Returns the
+ * single-line warning, or '' when there is nothing to say:
+ * no root, no interpreter, no active task, a clean run, or
+ * a timeout. Never throws.
+ */
+export async function runEditScopeCheck(cwd, filePath) {
+  if (hooksDisabled() || !cwd || !filePath) {
+    return '';
+  }
+  const resolved = resolve(cwd);
+  if ((await findCoworkRoot(resolved)) === null) {
+    return '';
+  }
+  const attempt = (candidate) => new Promise((resolvePromise) => {
+    execFile(
+      candidate.command,
+      [...candidate.args, '-c', PYTHON_EDIT_SCOPE_PROTOCOL, cwd, filePath],
+      EDIT_EXEC_OPTIONS,
+      (error, stdout) => {
+        if (error) {
+          resolvePromise({ missing: error.code === 'ENOENT', output: '' });
+          return;
+        }
+        resolvePromise({ missing: false, output: stdout.trim() });
+      },
+    );
+  });
+  if (workingPython !== null) {
+    const result = await attempt(workingPython);
+    if (!result.missing) {
+      return result.output;
+    }
+    workingPython = null;
+  }
+  for (const candidate of discoverCandidates()) {
+    const result = await attempt(candidate);
+    if (result.missing) {
+      continue;
+    }
+    workingPython = candidate;
+    return result.output;
+  }
+  return '';
+}
+
+
+/**
+ * One identified user message carrying a plugin notice.
+ * DSH's own createUserMessage lives in a package this
+ * preset deliberately does not import, so the shape is
+ * built here with node's uuid.
+ */
+function noticeMessage(text) {
+  return {
+    id: randomUUID(),
+    role: 'user',
+    content: [{ type: 'text', text }],
+    source: {
+      kind: 'plugin',
+      plugin: 'cowork-flow',
+      form: 'notice',
+      summary: 'edit-scope',
+    },
+  };
+}
+
+
 export function apply(ctx) {
   // One cache entry per agent: { text, inflight, queued,
   // full }. `full` picks the digest shape for the next
@@ -301,6 +443,35 @@ export function apply(ctx) {
       return;
     }
     refresh(agent, false);
+  });
+
+  // Editor-phase scope check: the tool already ran, so this
+  // only adds context for the next request and never blocks
+  // the call. The waterfall awaits next() first.
+  ctx.on('tools/post-execute', async (exec, _result, next) => {
+    const downstream = await next();
+    const agent = exec && exec.agent;
+    const filePath = editedFilePath(exec);
+    if (!agent || !agent.cwd || !filePath) {
+      return downstream;
+    }
+    let warning = '';
+    try {
+      warning = await runEditScopeCheck(agent.cwd, filePath);
+    } catch {
+      warning = '';
+    }
+    if (!warning) {
+      return downstream;
+    }
+    const contexts = [
+      noticeMessage(warning),
+      ...((downstream && downstream.additionalContexts) || []),
+    ];
+    if (downstream && downstream.kind === 'block') {
+      return { ...downstream, additionalContexts: contexts };
+    }
+    return { ...(downstream || { kind: 'accept' }), additionalContexts: contexts };
   });
 
   ctx.effect(() => ctx.systemPrompt.section({

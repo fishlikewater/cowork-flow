@@ -121,12 +121,14 @@ class HostAdaptersTest(unittest.TestCase):
                 if hook.resolve_policy(host_id).emit_text
             },
         )
-        # Only zcode keeps a PostToolUse handler (the edit-phase scope
-        # advisory). Every other host's edit-phase channel went away with the
-        # spec-check mechanism, so a re-declared callable here would re-arm a
-        # hook with no implementation behind it.
+        # PostToolUse handlers: the edit-phase scope advisory rides inject.py's
+        # policy slot for every host whose runtime consumes a hook payload
+        # (zcode, claude-code, codex, qoder, opencode). dsh keeps its own
+        # preset-plugin protocol (no inject.py host entry) and kimi-code's
+        # runtime drops PostToolUse stdout, so both stay out — declaring a
+        # callable for them would arm a hook with no transport behind it.
         self.assertEqual(
-            ["zcode"],
+            ["zcode", "opencode", "claude-code", "codex", "qoder"],
             [
                 host_id
                 for host_id in declared
@@ -354,6 +356,9 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertEqual("COWORK_FLOW_RUNTIME_CONTEXT_ID", runtime_context["envKey"])
                 self.assertEqual("cowork_runtime_context_id", runtime_context["metadataKey"])
                 self.assertEqual("fail_closed", adapter["fallback"]["whenRuntimeContextMissing"])
+                # kimi-code drops PostToolUse stdout; every other host arms
+                # the edit-scope advisory.
+                self.assertEqual("unsupported" if host == "kimi-code" else "plugin", capabilities["editScopeWarning"])
                 if host == "claude-code":
                     self.assertEqual(".claude/settings.json", adapter["dispatch"]["settingsPath"])
                     self.assertEqual(".claude/hooks", adapter["dispatch"]["hooksPath"])
@@ -367,7 +372,6 @@ class HostAdaptersTest(unittest.TestCase):
                     self.assertEqual("subagent", adapter["dispatch"]["primitive"])
                     self.assertEqual(".kimi-code/agents", adapter["dispatch"]["agentsPath"])
                     self.assertEqual("shim", capabilities["stateInjection"])
-                    self.assertEqual("unsupported", capabilities["editScopeWarning"])
                 if host == "qoder":
                     self.assertEqual("subagent", adapter["dispatch"]["primitive"])
                     # Qoder host assets live in the machine-level plugin payload,
@@ -375,7 +379,6 @@ class HostAdaptersTest(unittest.TestCase):
                     self.assertEqual("AGENTS.md", adapter["dispatch"]["memoryPath"])
                     self.assertEqual("plugin", capabilities["stateInjection"])
                     self.assertEqual("shim", capabilities["runtimeContextBinding"])
-                    self.assertEqual("unsupported", capabilities["editScopeWarning"])
 
     def test_adapter_dispatch_paths_are_project_relative_and_exist(self) -> None:
         """dispatch.*Path names where a host's assets live inside a generated
@@ -567,11 +570,11 @@ class HostAdaptersTest(unittest.TestCase):
             adapter = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
             core = (base / "cowork-flow" / "plugin-core.js").read_text(encoding="utf-8")
             plugin = adapter + core
-            # Exact hook surface: the shim must expose these three keys and
-            # nothing else, so a re-added `tool.execute.after` or a stray
-            # export fails here rather than silently arming a dead channel.
+            # Exact hook surface: the shim must expose these four keys and
+            # nothing else, so a stray export fails here instead of arming a
+            # dead channel (`tool.execute.after` is the edit-scope advisory).
             self.assertEqual(
-                {"config", "shell.env", "experimental.chat.system.transform"},
+                {"config", "shell.env", "experimental.chat.system.transform", "tool.execute.after"},
                 set(re.findall(r'^\s+"([^"]+)": async \(', adapter, re.M)),
             )
             self.assertIn("sessionID", plugin)
@@ -582,10 +585,12 @@ class HostAdaptersTest(unittest.TestCase):
             # contract and none of the old render internals.
             self.assertIn('"inject.py"', plugin)
             self.assertIn('"--host", "opencode"', plugin)
-            # The edit-phase spec feedback hook (`tool.execute.after`) was
-            # removed with `spec-check`; the plugin is now the system-transform
-            # shim alone, and re-adding the hook would re-arm a dead channel.
-            self.assertNotIn('"tool.execute.after"', adapter)
+            # The edit-phase hook is the scope advisory alone (no spec checks):
+            # it synthesizes a PostToolUse payload and appends the single line
+            # inject.py printed. Any spec-check residue here would mean a dead
+            # channel was re-armed.
+            self.assertIn('"tool.execute.after"', adapter)
+            self.assertIn("hook_event_name: \"PostToolUse\"", plugin)
             self.assertNotIn("spec-check", plugin)
             self.assertNotIn("COWORK_ENTRY_CONTRACT_V1", plugin)
             self.assertNotIn("DEFAULT_CONTRACT_REGISTRY", plugin)

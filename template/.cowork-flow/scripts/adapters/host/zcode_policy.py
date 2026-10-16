@@ -4,26 +4,20 @@
 Rendering stays in workflow_state_hook.py (single source shared with the
 other hosts); this module owns only what is zcode-specific — the digest
 policy wording, the newest-session fallback for unbound hook sessions, the
-rebind hints and essential-files check ported from the zcode JS hook, the
-scope edit warning, and the PostToolUse transport contract the zcode shim
-relies on.
+rebind hints and essential-files check ported from the zcode JS hook, and
+the PostToolUse transport contract the zcode shim relies on.
 """
 
 from __future__ import annotations
 
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
+from adapters.host.edit_scope import edit_scope_warning
 from adapters.host.policy_base import HostPolicy
-from adapters.host.workflow_state_hook import (
-    STAGE_CONTRACT_STATES,
-    _get_active_task_with_fallback,
-    _session_scope,
-    build_hook_context,
-)
+from adapters.host.workflow_state_hook import build_hook_context
 
 # Wording frozen by context-injection.md: zcode drops the
 # registry warning and asks for the fingerprint every hook.
@@ -161,60 +155,12 @@ def essential_files_warning(root: Path) -> str:
     )
 
 
-def edit_scope_warning(root: Path, hook_input: dict[str, Any]) -> str:
-    """Per-edit out-of-scope warning (zcode-only capability). Port of the
-    zcode hook's editScopeWarning: at most one line when the edited file is
-    outside the task's file-scope whitelist. Silence rules match the JS
-    source, including the newest-session display fallback for sessions with
-    no resolvable identity. Never raises."""
-    try:
-        task_path, status, _source = _get_active_task_with_fallback(
-            root, hook_input, POLICY.fallback_for_unbound
-        )
-    except Exception:
-        return ""
-    if not task_path or status not in STAGE_CONTRACT_STATES:
-        return ""
-    if _session_scope(root, hook_input) == "subagent":
-        return ""
-    tool_input = hook_input.get("tool_input")
-    file_path = (
-        tool_input.get("file_path") if isinstance(tool_input, dict) else None
-    )
-    if not isinstance(file_path, str) or not file_path.strip():
-        return ""
-    # Hosts pass absolute edit paths; whitelist entries are
-    # repo-relative. Same normalization as run_edit_checks.
-    normalized = file_path.replace("\\", "/").strip()
-    try:
-        normalized = (
-            Path(normalized).resolve().relative_to(root.resolve()).as_posix()
-        )
-    except (ValueError, OSError):
-        pass
-    try:
-        from services.fact_view import file_scope_whitelist, path_in_scope
-
-        whitelist = file_scope_whitelist(root, root / task_path)
-        if path_in_scope(whitelist, normalized).get("inScope"):
-            return ""
-    except Exception:
-        return ""
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-    return (
-        f"⚠️ {normalized} is outside the task's declared scope. "
-        "If intended, declare it in the task's `implement.jsonl` (agent-mutable) "
-        "or revert the edit."
-    )
-
-
 def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
-    """zcode PostToolUse transport: Edit/Write/MultiEdit get the scope
-    warning; Bash events refresh the full state only for workflow
-    lifecycle commands (the shim pre-filters the common case, this keeps
-    the entry correct standalone). Edit storms must not multiply the
-    injection payload."""
+    """zcode PostToolUse transport: Edit/Write/MultiEdit get the shared
+    scope warning (with zcode's newest-session fallback); Bash events
+    refresh the full state only for workflow lifecycle commands (the shim
+    pre-filters the common case, this keeps the entry correct standalone).
+    Edit storms must not multiply the injection payload."""
     tool_name = str(hook_input.get("tool_name") or "")
     tool_input = hook_input.get("tool_input")
     file_path = (
@@ -225,7 +171,12 @@ def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
         and isinstance(file_path, str)
         and file_path.strip()
     ):
-        return edit_scope_warning(root, hook_input), 0
+        return (
+            edit_scope_warning(
+                root, hook_input, fallback_for_unbound=POLICY.fallback_for_unbound
+            ),
+            0,
+        )
     if not is_lifecycle_bash(hook_input):
         return "", 0
     claim_after_lifecycle_bash(root, hook_input)

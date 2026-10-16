@@ -251,6 +251,120 @@ test("transform honors the COWORK_FLOW_HOOKS kill switch", async (t) => {
   assert.deepEqual(output.system, [])
 })
 
+// The edit-phase advisory's tool-call surface: only fs edit tools carry a
+// file path, and the plugin translates that into the PostToolUse payload the
+// project runtime checks.
+async function runToolExecuteAfter(cwd, input, output = { output: "" }, envOverrides = {}) {
+  const plugin = await CoworkFlowPlugin()
+  assert.equal(typeof plugin["tool.execute.after"], "function")
+  await withScrubbedEnv(envOverrides, () =>
+    plugin["tool.execute.after"]({ cwd, ...input }, output)
+  )
+  return output
+}
+
+// A project with one in-progress task, a single-file whitelist, and the main
+// plus subagent session bindings the scope check reads.
+async function createScopeRepo(t) {
+  const root = await createRegistryRepo(t)
+  const taskDir = join(root, ".cowork-flow", "tasks", "09-01-demo")
+  await mkdir(taskDir, { recursive: true })
+  await writeFile(
+    join(taskDir, "task.json"),
+    JSON.stringify({ status: "in_progress" }),
+    "utf8"
+  )
+  await writeFile(
+    join(taskDir, "implement.jsonl"),
+    JSON.stringify({ file: "src/child.py", type: "file" }) + "\n",
+    "utf8"
+  )
+  const sessions = join(root, ".cowork-flow", ".runtime", "sessions")
+  await mkdir(sessions, { recursive: true })
+  for (const [id, scope] of [["s1", "main"], ["child", "subagent"]]) {
+    await writeFile(
+      join(sessions, `opencode_${id}.json`),
+      JSON.stringify({
+        active_task_path: ".cowork-flow/tasks/09-01-demo",
+        scope,
+        last_seen_at: "2026-09-08T00:00:00+00:00"
+      }),
+      "utf8"
+    )
+  }
+  return root
+}
+
+const SCOPE_WARNING = (path) =>
+  `⚠️ ${path} is outside the task's declared scope. ` +
+  "If intended, declare it in the task's `implement.jsonl` (agent-mutable) " +
+  "or revert the edit."
+
+test("tool.execute.after forwards a synthesized PostToolUse payload to inject.py", async (t) => {
+  const root = await createShimRepo(t)
+
+  const output = await runToolExecuteAfter(root, {
+    tool: "edit",
+    args: { filePath: "src/outside.py" }
+  })
+
+  assert.ok(
+    output.output.includes("SHIM_SENTINEL "),
+    `expected the fake script stdout, got: ${output.output}`
+  )
+  const echoed = JSON.parse(
+    output.output.slice(output.output.indexOf("SHIM_SENTINEL ") + "SHIM_SENTINEL ".length)
+  )
+  assert.deepEqual(echoed.argv, ["--host", "opencode"])
+  assert.equal(echoed.payload.hook_event_name, "PostToolUse")
+  assert.equal(echoed.payload.tool_input.file_path, "src/outside.py")
+  assert.equal(echoed.payload.cwd, root)
+})
+
+test("tool.execute.after appends the out-of-scope line the project runtime renders", async (t) => {
+  const root = await createScopeRepo(t)
+
+  const output = await runToolExecuteAfter(
+    root,
+    { tool: "edit", args: { filePath: "src/outside.py" } },
+    { output: "tool result" },
+    { OPENCODE_SESSION_ID: "s1" }
+  )
+
+  assert.equal(
+    output.output,
+    ["tool result", SCOPE_WARNING("src/outside.py")].join("\n")
+  )
+})
+
+test("tool.execute.after stays silent for non-edit tools, in-scope paths and subagents", async (t) => {
+  const root = await createScopeRepo(t)
+
+  const untouched = await runToolExecuteAfter(
+    root,
+    { tool: "bash", args: { command: "ls" } },
+    { output: "ok" },
+    { OPENCODE_SESSION_ID: "s1" }
+  )
+  assert.equal(untouched.output, "ok")
+
+  const inScope = await runToolExecuteAfter(
+    root,
+    { tool: "edit", args: { filePath: "src/child.py" } },
+    { output: "ok" },
+    { OPENCODE_SESSION_ID: "s1" }
+  )
+  assert.equal(inScope.output, "ok")
+
+  const delegated = await runToolExecuteAfter(
+    root,
+    { tool: "edit", args: { filePath: "src/outside.py" } },
+    { output: "ok" },
+    { OPENCODE_SESSION_ID: "child" }
+  )
+  assert.equal(delegated.output, "ok")
+})
+
 test("opencode plugin injects registry-driven contract digest", async (t) => {
   const root = await createRegistryRepo(t)
 

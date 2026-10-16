@@ -1,10 +1,11 @@
 // Transport shim behind the opencode plugin. Every workflow fact
 // (contract digest, workflow-state, decision anchor, stage contract,
-// runtime-context bind) is rendered by the Python source
-// <scripts>/adapters/host/inject.py --host opencode; this module moves
-// bytes only. What stays here is what the Python side cannot reach:
-// the config-hook skills registration and the shell.env context-key
-// export.
+// runtime-context bind, edit-scope warning) is rendered by the Python
+// source <scripts>/adapters/host/inject.py --host opencode; this module
+// moves bytes only. What stays here is what the Python side cannot
+// reach: the config-hook skills registration, the shell.env context-key
+// export, and the tool-shape translation for the tool.execute.after
+// edit-scope delegation.
 //
 // This module must NOT live under plugins/: opencode
 // treats every file directly inside plugins/ as a plugin
@@ -174,8 +175,9 @@ function runInject(candidate, script, payload) {
 // inject.py and hand back whatever it printed. The payload spreads the
 // host input so every session/runtime-context key the Python identity
 // table knows arrives unchanged; hook_event_name and cwd are the two
-// fields the hook contract requires.
-async function renderViaInject(input) {
+// fields the hook contract requires. `overrides` swaps the event name
+// and adds the tool fields the PostToolUse contract needs.
+async function renderViaInject(input, overrides = null) {
   if (
     process.env.COWORK_FLOW_HOOKS === "0" ||
     process.env.COWORK_FLOW_DISABLE_HOOKS === "1"
@@ -187,9 +189,11 @@ async function renderViaInject(input) {
   if (!script) {
     return ""
   }
+  const extra = overrides && typeof overrides === "object" ? overrides : {}
   const payload = {
     ...(input && typeof input === "object" ? input : {}),
-    hook_event_name: "UserPromptSubmit",
+    ...extra,
+    hook_event_name: extra.hook_event_name || "UserPromptSubmit",
     cwd: inputCwd(input) || (root === pluginRoot ? null : root) || process.cwd(),
   }
   for (const candidate of pythonCandidates()) {
@@ -200,6 +204,34 @@ async function renderViaInject(input) {
     return result.stdout.trim()
   }
   return ""
+}
+
+// Editor-phase scope warning: opencode sessions get the same
+// single-line out-of-scope advisory the other hosts receive on
+// PostToolUse. Best-effort — a missing runtime, a timeout, or any
+// error stays silent and never blocks the edit that already happened.
+const EDIT_TOOL_NAMES = new Set(["edit", "write"])
+
+function editedFilePath(input) {
+  const tool = typeof input?.tool === "string" ? input.tool : ""
+  if (!EDIT_TOOL_NAMES.has(tool)) {
+    return ""
+  }
+  const args = input?.args
+  const candidate = args && typeof args === "object" ? args.filePath : null
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : ""
+}
+
+async function renderEditScopeWarning(input) {
+  const filePath = editedFilePath(input)
+  if (!filePath) {
+    return ""
+  }
+  return renderViaInject(input, {
+    hook_event_name: "PostToolUse",
+    tool_name: typeof input?.tool === "string" ? input.tool : "edit",
+    tool_input: { file_path: filePath },
+  })
 }
 
 function sanitize(value) {
@@ -304,10 +336,12 @@ export function registerPayloadSkills(config) {
 }
 
 // The plugin adapter imports the hook helpers; these are
-// the unit-test surface (transport, fail-open, shell env).
-// opencode never reads this module.
+// the unit-test surface (transport, fail-open, shell env,
+// edit-scope delegation). opencode never reads this module.
 export {
   renderViaInject,
+  editedFilePath,
+  renderEditScopeWarning,
   findRepoRoot,
   injectShellEnv,
 }
