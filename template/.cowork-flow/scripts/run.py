@@ -32,7 +32,6 @@ COMMAND_SCRIPTS = {
     "state": "adapters/cli/state.py",
     "mcp-state": "adapters/mcp/state_server.py",
     "subagent": "adapters/cli/subagent.py",
-    "spec-check": "adapters/cli/spec_check.py",
 }
 RESERVED_COMMAND_NAMES = (*COMMAND_SCRIPTS, "python", "help", "-h", "--help")
 
@@ -51,7 +50,6 @@ Common commands:
   resume
   task
   state
-  spec-check
   get-context
   get-developer
   init-developer

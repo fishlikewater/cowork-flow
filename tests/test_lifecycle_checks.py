@@ -6,7 +6,6 @@ import importlib
 import io
 import json
 import os
-import sys
 import tempfile
 import unittest
 from datetime import datetime
@@ -87,7 +86,6 @@ class LifecycleChecksTest(FlowScriptTestCase):
         self,
         root: Path,
         *,
-        allow_unchecked: bool = False,
         allow_missing_evidence: bool = False,
         context_id: str | None = "main",
     ) -> tuple[int, str, str]:
@@ -107,40 +105,12 @@ class LifecycleChecksTest(FlowScriptTestCase):
                     result = self.task.cmd_complete(
                         argparse.Namespace(
                             dir=None,
-                            allow_unchecked=allow_unchecked,
                             allow_missing_evidence=allow_missing_evidence,
                         )
                     )
         finally:
             os.chdir(previous_cwd)
         return result, stdout.getvalue(), stderr.getvalue()
-
-    def test_allow_unchecked_reaches_complete_check(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            self._write_allowed_file_task(root, task_dir, "review")
-            calls: list[dict] = []
-
-            class FakeCheckRunner:
-                def complete(self, _task_dir: Path, **kwargs):
-                    calls.append(kwargs)
-                    return SimpleNamespace(blocked=False, blockers=())
-
-            service_module = importlib.import_module("services.task_lifecycle")
-            service = service_module.TaskLifecycleService(
-                root,
-                check_runner=FakeCheckRunner(),
-            )
-
-            result = service.complete(
-                task_dir,
-                allow_unchecked_specs=True,
-            )
-
-            self.assertTrue(result.ok, result.blockers)
-            self.assertEqual(1, len(calls))
-            self.assertIs(True, calls[0]["allow_unchecked_specs"])
 
     def _write_ac_gate_task(
         self,
@@ -433,7 +403,14 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertEqual(1, len(calls))
             self.assertIs(True, calls[0]["allow_missing_evidence"])
-            self.assertIs(False, calls[0]["allow_unchecked_specs"])
+            # The spec-check exemption flag is gone: the parser must reject it
+            # rather than accept a flag nothing consults.
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as raised:
+                    self.task.build_parser().parse_args(
+                        ["next", "--run", "--allow-unchecked"]
+                    )
+            self.assertEqual(2, raised.exception.code)
 
     def test_degraded_git_snapshot_blocks_strict_completion(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -738,157 +715,6 @@ class LifecycleChecksTest(FlowScriptTestCase):
             ]
             self.assertEqual(1, len(archived_dirs))
 
-    @staticmethod
-    def _write_spec_check_fixture(root: Path, command: str) -> None:
-        spec_dir = root / ".cowork-flow" / "spec" / "backend"
-        spec_dir.mkdir(parents=True, exist_ok=True)
-        (spec_dir / "gate.md").write_text(
-            "---\n"
-            "checks:\n"
-            f"  - cmd: {command}\n"
-            "---\n\n# gate\n",
-            encoding="utf-8",
-        )
-
-    def test_complete_blocked_by_spec_check_violation_without_status_mutation(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            self._write_allowed_file_task(root, task_dir, "review")
-            self._write_session_task(root)
-            self._write_spec_check_fixture(
-                root, f'"{sys.executable}" -c "import sys; print(\'boom\'); sys.exit(1)"'
-            )
-
-            result, _stdout, stderr = self._run_complete(root)
-
-            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
-            self.assertEqual(1, result, stderr)
-            self.assertEqual("review", data["status"], "violation must not advance status")
-            self.assertIsNone(data["completedAt"])
-            self.assertIn("spec checks report 1 violation(s)", stderr)
-            self.assertIn("backend/gate.md", stderr)
-            self.assertIn("boom", stderr)
-
-    def test_unchecked_spec_commands_block_until_explicit_exempt(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            self._write_allowed_file_task(root, task_dir, "review")
-            self._write_session_task(root)
-            self._write_spec_check_fixture(
-                root, "definitely-not-a-real-command-xyz --flag"
-            )
-
-            blocked, _stdout, stderr = self._run_complete(root)
-
-            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
-            self.assertEqual(1, blocked, stderr)
-            self.assertEqual("review", data["status"])
-            self.assertIn("spec checks report 1 unchecked command(s)", stderr)
-            self.assertIn("--allow-unchecked", stderr)
-
-            exempt_result, _stdout, exempt_stderr = self._run_complete(
-                root,
-                allow_unchecked=True,
-            )
-
-            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
-            self.assertEqual(0, exempt_result, exempt_stderr)
-            self.assertEqual("completed", data["status"])
-            self.assertEqual(1, data["meta"]["specCheckExempt"]["unchecked"])
-            self.assertEqual(1, data["meta"]["specCheckSummary"]["unchecked"])
-
-    def test_spec_exemption_is_visible_in_completion_output(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            self._write_allowed_file_task(root, task_dir, "review")
-            self._write_session_task(root)
-            self._write_spec_check_fixture(
-                root, "definitely-not-a-real-command-xyz --flag"
-            )
-
-            result, stdout, stderr = self._run_complete(root, allow_unchecked=True)
-
-            self.assertEqual(0, result, stderr)
-            self.assertIn("1 unchecked spec-check command(s)", stdout)
-            self.assertIn("meta.specCheckExempt", stdout)
-
-    def test_recorded_exemptions_are_visible_in_archive_output(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            self._write_allowed_file_task(root, task_dir, "review")
-            self._write_session_task(root)
-            self._write_spec_check_fixture(
-                root, "definitely-not-a-real-command-xyz --flag"
-            )
-            completed, _stdout, stderr = self._run_complete(
-                root, allow_unchecked=True
-            )
-            self.assertEqual(0, completed, stderr)
-            self._init_git_repo(root)
-            self._commit_all(root, "baseline")
-
-            previous_cwd = Path.cwd()
-            try:
-                os.chdir(root)
-                with (
-                    contextlib.redirect_stdout(io.StringIO()),
-                    contextlib.redirect_stderr(io.StringIO()) as archive_stderr,
-                ):
-                    code = self.task.cmd_archive(
-                        argparse.Namespace(name="05-19-demo", commit=False)
-                    )
-            finally:
-                os.chdir(previous_cwd)
-
-            output = archive_stderr.getvalue()
-            self.assertEqual(0, code, output)
-            self.assertIn("meta.specCheckExempt", output)
-            self.assertIn("1 unchecked spec-check command(s)", output)
-
-    def test_completion_names_the_commands_it_exempted_and_the_actor(self) -> None:
-        """The count alone is not the fact: the record and the output both
-        have to name which declarations went unverified, and who waived them."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            self._write_allowed_file_task(root, task_dir, "review")
-            self._write_session_task(root)
-            self._write_spec_check_fixture(
-                root, "definitely-not-a-real-command-xyz --flag"
-            )
-
-            result, stdout, stderr = self._run_complete(root, allow_unchecked=True)
-
-            self.assertEqual(0, result, stderr)
-            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
-            record = data["meta"]["specCheckExempt"]
-            self.assertEqual("--allow-unchecked", record["flag"])
-            self.assertEqual("main", record["by"])
-            self.assertEqual(
-                [
-                    {
-                        "spec": "backend/gate.md",
-                        "cmd": "definitely-not-a-real-command-xyz --flag",
-                    }
-                ],
-                record["uncheckedItems"],
-            )
-            # The output is the record, line for line — not a re-derivation.
-            for line in importlib.import_module("services.lifecycle_checks").exemption_report_lines(data["meta"]):
-                self.assertIn(line, stdout)
-            self.assertIn(
-                "  - backend/gate.md: definitely-not-a-real-command-xyz --flag",
-                stdout,
-            )
-            # The actor is recorded for both kinds, so it must be shown for
-            # both: a spec-only exemption names it just as an evidence-only
-            # one does.
-            self.assertIn("by main", stdout)
-
     def test_completion_records_the_missing_ac_ids_flag_and_actor(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -951,78 +777,26 @@ class LifecycleChecksTest(FlowScriptTestCase):
         self.assertTrue(any("by null" in line for line in lines), lines)
         self.assertFalse(any("someone-else" in line for line in lines), lines)
 
-    def test_an_over_long_exemption_list_is_truncated_and_says_so(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            self._write_allowed_file_task(root, task_dir, "review")
-            self._write_session_task(root)
-            spec_dir = root / ".cowork-flow" / "spec" / "backend"
-            spec_dir.mkdir(parents=True, exist_ok=True)
-            for index in range(12):
-                (spec_dir / f"gate-{index}.md").write_text(
-                    "---\n"
-                    "checks:\n"
-                    f"  - cmd: definitely-not-a-real-command-{index}\n"
-                    "---\n\n# gate\n",
-                    encoding="utf-8",
-                )
-
-            result, stdout, stderr = self._run_complete(root, allow_unchecked=True)
-
-            self.assertEqual(0, result, stderr)
-            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
-            record = data["meta"]["specCheckExempt"]
-            self.assertEqual(12, record["unchecked"])
-            self.assertEqual(10, len(record["uncheckedItems"]))
-            self.assertIs(True, record["truncated"])
-            item_lines = [
-                line for line in stdout.splitlines() if line.startswith("  - backend/")
-            ]
-            self.assertEqual(10, len(item_lines))
-            self.assertIn("the list is truncated", stdout)
-            self.assertEqual(
-                item_lines,
-                [
-                    f"  - {item['spec']}: {item['cmd']}"
-                    for item in record["uncheckedItems"]
-                ],
-            )
-
     def test_completion_without_exemptions_prints_no_exemption_lines(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             self._write_allowed_file_task(root, task_dir, "review")
             self._write_session_task(root)
-            self._write_spec_check_fixture(
-                root, f'"{sys.executable}" -c "import sys; sys.exit(0)"'
-            )
 
             result, stdout, stderr = self._run_complete(root)
 
             self.assertEqual(0, result, stderr)
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
             self.assertNotIn("Exempted:", stdout)
-            self.assertEqual([], importlib.import_module("services.lifecycle_checks").exemption_report_lines(data["meta"]))
-
-    def test_passing_spec_checks_record_summary_on_completion(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
-            self._write_allowed_file_task(root, task_dir, "review")
-            self._write_session_task(root)
-            self._write_spec_check_fixture(
-                root, f'"{sys.executable}" -c "import sys; sys.exit(0)"'
+            # Nothing was waived, so the task carries no exemption record at
+            # all and the renderer has nothing to show.
+            self.assertEqual(
+                [],
+                importlib.import_module(
+                    "services.lifecycle_checks"
+                ).exemption_report_lines(data.get("meta")),
             )
-
-            result, _stdout, stderr = self._run_complete(root)
-
-            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
-            self.assertEqual(0, result, stderr)
-            self.assertEqual("completed", data["status"])
-            self.assertEqual(1, data["meta"]["specCheckSummary"]["pass"])
-            self.assertNotIn("specCheckExempt", data["meta"])
 
     def test_archive_prints_the_same_exemption_details_completion_did(self) -> None:
         """Archiving must not shrink the record back to a count."""
@@ -1031,12 +805,8 @@ class LifecycleChecksTest(FlowScriptTestCase):
             task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
             self._write_ac_gate_task(root, task_dir, checked=True)
             self._write_session_task(root)
-            self._write_spec_check_fixture(
-                root, "definitely-not-a-real-command-xyz --flag"
-            )
             completed, completion_stdout, stderr = self._run_complete(
                 root,
-                allow_unchecked=True,
                 allow_missing_evidence=True,
             )
             self.assertEqual(0, completed, stderr)

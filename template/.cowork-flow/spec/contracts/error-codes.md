@@ -44,6 +44,4 @@ to them:
 ## Exemptions
 
 `LIFECYCLE-AC-002` is the only code in this set a flag can waive
-(`--allow-missing-evidence`); spec-check's `--allow-unchecked` waives `unchecked`
-declarations, not a `LIFECYCLE-*` code. Details are in `evidence-completion.md` and
-`spec-checks.md`.
+(`--allow-missing-evidence`). Details are in `evidence-completion.md`.

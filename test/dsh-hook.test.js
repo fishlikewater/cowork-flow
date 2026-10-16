@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { apply, editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditSpecCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
+import { apply, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 // The workflow runtime under the repository root is a gitignored live
@@ -203,62 +203,6 @@ test('isLifecycleCommand recognises workflow lifecycle invocations', () => {
   assert.equal(isLifecycleCommand(42), false);
 });
 
-test('editedFilePath reads only fs edit tools carrying a file path', () => {
-  assert.equal(
-    editedFilePath({ name: 'write', arguments: { file_path: 'src/a.py' } }),
-    'src/a.py',
-  );
-  assert.equal(
-    editedFilePath({ name: 'edit', arguments: { file_path: 'src/a.py' } }),
-    'src/a.py',
-  );
-  assert.equal(editedFilePath({ name: 'bash', arguments: { command: 'ls' } }), '');
-  assert.equal(editedFilePath({ name: 'write', arguments: {} }), '');
-  assert.equal(editedFilePath({ name: 'write', arguments: { file_path: '   ' } }), '');
-  assert.equal(editedFilePath({}), '');
-  assert.equal(editedFilePath(undefined), '');
-});
-
-test('runEditSpecCheck stays silent outside a cowork-flow root', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-dsh-edit-'));
-  t.after(async () => {
-    await rm(dir, { recursive: true, force: true });
-  });
-
-  assert.equal(await runEditSpecCheck(dir, 'src/a.py'), '');
-});
-
-test('runEditSpecCheck reports a declared check for an edited file', async (t) => {
-  const root = await createWorkflowProject(t);
-  await writeFile(
-    join(root, '.cowork-flow', 'spec', 'edit-check.md'),
-    [
-      '---',
-      'checks:',
-      // The current Node binary, not `sh -c`: this suite also runs on the
-      // Windows PR and publish jobs, where sh does not exist. There the check
-      // produced no output at all, and the empty warning matched neither
-      // branch below — the test failed on Windows and passed everywhere else.
-      `  - cmd: "${process.execPath}" -e "process.exit(1)"`,
-      '    files: "src/"',
-      '    when: edit',
-      '---',
-      '',
-      '# Edit check fixture',
-      '',
-    ].join('\n'),
-    'utf8',
-  );
-  resetWorkingPython();
-
-  const warning = await runEditSpecCheck(root, 'src/a.py');
-
-  // Either a violation line or an unchecked line depending on platform
-  // tooling; both prove the protocol reached the shared executor.
-  assert.match(warning, /spec-check\[/);
-});
-
-
 function createFakeCtx() {
   const handlers = new Map();
   let section;
@@ -304,7 +248,6 @@ test('apply wires every refresh event and registers the workflow-state section',
       'agent/created',
       'agent/inbox/claimed',
       'agent/session-start',
-      'tools/post-execute',
       'tools/result'
     ]
   );
@@ -331,22 +274,6 @@ test('apply degrades silently when the session cwd is not a cowork-flow root', a
   await new Promise((resolve) => { setTimeout(resolve, 300); });
 
   assert.equal(section().text({ agent }), '');
-});
-
-
-test('tools/post-execute returns the downstream decision untouched for non-edit calls', async () => {
-  const { ctx, handlers } = createFakeCtx();
-  apply(ctx);
-  const waterfall = handlers.get('tools/post-execute');
-  const downstream = { kind: 'block', additionalContexts: [{ text: 'downstream' }] };
-
-  const result = await waterfall(
-    { agent: { cwd: process.cwd() }, name: 'read', arguments: {} },
-    null,
-    async () => downstream
-  );
-
-  assert.deepEqual(result, downstream);
 });
 
 

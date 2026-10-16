@@ -108,23 +108,6 @@ does not defend against a forged runtime record — writing
 `.cowork-flow/.runtime/**` is out of scope here and would need a signed or
 externally rooted record, which is a separate contract.
 
-## Delegated Spec Self-Check
-
-Delegated subagent tool calls receive no edit-phase hook feedback on hosts
-whose plugin hooks cover only the main session stream (verified on zcode:
-plugin PostToolUse fires for main-session tool calls but never for
-Agent-tool children). The reliable pull path is the CLI: before reporting
-completion, `cowork-implement` (and any child that changes files) runs
-
-```text
-./.cowork-flow/run spec-check
-```
-
-fixes every reported violation, and re-runs until the summary is clean or the
-remaining violations are reported as blockers. This is a protocol behavior,
-not a second lifecycle gate — the closeout gate re-runs the same checks and
-blocks completion regardless.
-
 ## Return Acceptance And Closeout
 
 - Converge on the child result before acceptance — via the wait primitive or
@@ -133,10 +116,12 @@ blocks completion regardless.
 - Confirm no stray running children with the adapter list primitive.
 - Verify the child report by checking files, commands, and results; do not
   trust completed text alone.
-- Before accepting delegated output, run `./.cowork-flow/run spec-check` in
-  the main session and treat every violation as an acceptance blocker: the
-  child receives no edit-phase hook feedback, so acceptance-time checking is
-  the earliest reliable checkpoint for delegated work.
+- Before accepting delegated output, verify the child's changed paths against
+  the task scope and the applicable `spec/` requirements from the diff
+  (`git diff --stat` / `task next <dir> --validate`): child sessions receive no
+  edit-phase hook feedback on hosts whose plugin hooks cover only the main
+  session stream, so acceptance-time review is the earliest reliable checkpoint
+  for delegated work.
 - After completion or failure, close the child with the adapter cancel/close
   primitive and clean the runtime context sessions.
 - The child remains a leaf executor and must not dispatch, wait for, list, or

@@ -71,40 +71,7 @@
 
 `config.yaml`、`.developer`、规范、任务和计划按同步策略保护。`--force` 会扩大覆盖范围，因此已有项目应先用 `--dry-run` 查看变更。
 
-## 规范挂命令
-
-项目可以在 `.cowork-flow/spec/` 下的规范文件中声明检查命令。执行器只读取声明，不解析规范正文。
-
-```markdown
----
-checks:
-  - cmd: npm run lint --silent
-    files: "src/"
-    timeout: 60
-    when: both
----
-```
-
-可用字段：
-
-| 字段 | 含义 |
-|---|---|
-| `cmd` | 要执行的命令 |
-| `files` | 目录前缀或扩展名，如 `src/`、`*.ts`；多个值用逗号分隔 |
-| `timeout` | 秒数，默认 30，最长 120 |
-| `when` | `edit`、`lifecycle` 或 `both`，默认 `both` |
-
-唯一执行入口是 `./.cowork-flow/run spec-check`：
-
-| 结果 | 含义 | 是否阻断完成 |
-|---|---|---|
-| `pass` | 命令执行成功 | 否 |
-| `violation` | 命令执行失败且有违规 | 是 |
-| `unchecked` | 命令缺失、解释器缺失或超时 | 是，需显式放行 |
-
-`when: edit` 是编辑期提示，超时上限为 2.5 秒，不代替收口检查。收口阶段会执行全部声明，并把结果写入任务记录。
-
-模板不预置生效的项目检查命令，因为模板无法知道目标项目使用什么工具。需要检查时，在项目自己的 `spec/` 文件中声明。完整契约见 `.cowork-flow/spec/contracts/spec-checks.md`。
+`.cowork-flow/spec/` 前缀整体受同步保护：既有项目里的规范文件不会被 `sync` 覆盖，模板侧的规范更新只对全新 `init` 生效。具名例外是 `spec/runtime/host-assets.json` 中 `syncPolicy.safeFiles` 列出的文件——`spec/contracts/workflow-state-templates.md` 与 `spec/runtime/scope-rules.json`——它们随 `sync` 更新，使契约勘误与预算默认值能到达已装项目；代价是本地调过 `scope-rules.json` 的项目会在下一次 `sync` 丢掉这些改动。
 
 ## 扩展规则
 

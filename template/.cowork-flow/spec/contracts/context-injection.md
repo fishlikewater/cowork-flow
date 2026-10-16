@@ -23,7 +23,7 @@ would make the digest self-referential).
 | opencode | plugin `experimental.chat.system.transform` → shim (`cowork-flow/plugin-core.js`) → `inject.py --host opencode`, bare-text stdout | system-prompt section push; `shell.env` exports the context key to shell commands |
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 | kimi-code | user-level `config.toml` (`$KIMI_CODE_HOME`, default `~/.kimi-code/`) `[[hooks]]` row on `UserPromptSubmit` → shim (`cowork-flow-inject.mjs`) → `inject.py --host kimi-code` | bare-text stdout appended to the prompt context, no `hookSpecificOutput` envelope |
-| qoder | machine-level plugin `hooks/hooks.json` (node, `${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` plus a top-level `systemMessage` (a CLI-visible trace; the model context is unchanged); `PostToolUse` is not blockable there, so the edit advisory rides `additionalContext` on exit 0 |
+| qoder | machine-level plugin `hooks/hooks.json` (node, `${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` plus a top-level `systemMessage` (a CLI-visible trace; the model context is unchanged) |
 
 The qoder row carries one delta beyond the shared envelope: `systemMessage`,
 emitted only on the two injecting events (`SessionStart`, `UserPromptSubmit`)
@@ -277,7 +277,15 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   can self-declare scope on the parent's behalf.
 - **Specs**: `.cowork-flow/spec/` pointer entries from implement.jsonl
   (first 4, same canonicality filter as Scope). Read them before coding; the
-  full files are not injected.
+  full files are not injected. Once the task is `in_progress`, the line
+  upgrades to `Specs: <spec>(<h2 heading tree>); …`: at most 6 h2 entries,
+  each truncated to 24 characters with `();` characters stripped; a missing
+  file adds no annotation. The digest is an entry-name index, not the prose,
+  and is hard-capped by `scope-rules.json` `stageContract.budget`; over
+  budget the whole line yields. The python/zcode output comes from a single
+  Python entrypoint, locked by the `test/stage-contract.test.js` matrix;
+  opencode transports that same entrypoint's output, so byte-exact equality
+  holds by construction.
 - **Gates**: static preview text, identical on all hosts; the delegated
   variant replaces the self-declaration sentence with "scope is inherited
   from the parent task (read-only reference)".
@@ -292,9 +300,7 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   (`Bash|Edit|Write|MultiEdit`) is asserted by template tests but depends on
   the ZCode runtime's tool names — there is no external runtime contract to
   verify them against, so a runtime rename would silently disable the
-  warning; the matcher is the single switch. This bullet covers the scope
-  warning only; the spec-check violation line is a separate channel that
-  also reaches codex and opencode sessions (see spec-checks.md).
+  warning; the matcher is the single switch.
 - Budget: the whole block stays ≤ 3400 characters. Over-budget inputs
   degrade by dropping Verify, then Specs, then shrinking Scope entries
   (min 1), then truncating the Scope row's own text. The opening tag, the

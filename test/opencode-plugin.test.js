@@ -379,48 +379,6 @@ test("opencode party mode v2 command points to runtime board", async () => {
   }
 })
 
-async function runToolExecuteAfter(cwd, input, output = {}) {
-  const plugin = await CoworkFlowPlugin()
-  assert.equal(typeof plugin["tool.execute.after"], "function")
-  await plugin["tool.execute.after"]({ cwd, ...input }, output)
-  return output
-}
-
-test("tool.execute.after leaves non-edit tools untouched", async (t) => {
-  const root = await createRegistryRepo(t)
-  const output = await runToolExecuteAfter(root, {
-    tool: "bash",
-    args: { command: "ls" },
-  })
-  assert.equal(output.output, undefined)
-})
-
-test("tool.execute.after skips an edit without a file path", async (t) => {
-  const root = await createRegistryRepo(t)
-  const output = await runToolExecuteAfter(
-    root,
-    { tool: "edit", args: {} },
-    { output: "original" }
-  )
-  assert.equal(output.output, "original")
-})
-
-test("tool.execute.after preserves tool output when the runtime is absent", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "cowork-flow-opencode-plugin-"))
-  t.after(async () => {
-    await rm(root, { recursive: true, force: true })
-  })
-  await mkdir(join(root, ".cowork-flow"), { recursive: true })
-  // The fixture has no .cowork-flow/run entry, so the checker must stay
-  // silent instead of failing the edit path.
-  const output = await runToolExecuteAfter(
-    root,
-    { tool: "edit", args: { filePath: "src/a.py" } },
-    { output: "original" }
-  )
-  assert.equal(output.output, "original")
-})
-
 // opencode walks every export of a plugin module and calls each one as a plugin
 // factory, then iterates the returned hooks objects. A non-function export
 // throws inside that loop, and a factory that returns undefined or null makes

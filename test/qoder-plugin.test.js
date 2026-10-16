@@ -48,7 +48,7 @@ async function makeProject(root) {
 test('qoder hook config runs the plugin shim without a shell', async () => {
   const hooksConfig = await readJson(join(pluginRoot, 'hooks', 'hooks.json'));
 
-  for (const eventName of ['SessionStart', 'UserPromptSubmit', 'PostToolUse']) {
+  for (const eventName of ['SessionStart', 'UserPromptSubmit']) {
     const entries = hooksConfig.hooks[eventName];
     assert.ok(Array.isArray(entries) && entries.length >= 1, `${eventName} declared`);
     for (const group of entries) {
@@ -62,31 +62,6 @@ test('qoder hook config runs the plugin shim without a shell', async () => {
         assert.deepEqual(hook.args, ['${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs']);
         assert.ok(hook.timeout >= 1 && hook.timeout <= 30, `${eventName} must stay bounded`);
       }
-    }
-  }
-});
-
-test('qoder PostToolUse matcher only names tools Qoder exposes', async () => {
-  const hooksConfig = await readJson(join(pluginRoot, 'hooks', 'hooks.json'));
-  const documentedTools = new Set([
-    'Read', 'Grep', 'Glob', 'Bash', 'Write', 'Edit', 'WebFetch', 'WebSearch', 'Agent'
-  ]);
-  const matchers = hooksConfig.hooks.PostToolUse.map((group) => group.matcher);
-
-  assert.ok(
-    matchers.some((matcher) => matcher.split('|').includes('Edit')),
-    'edit-phase spec checks need Edit'
-  );
-  assert.ok(
-    matchers.some((matcher) => matcher.split('|').includes('Write')),
-    'edit-phase spec checks need Write'
-  );
-  for (const matcher of matchers) {
-    for (const tool of matcher.split('|')) {
-      assert.ok(
-        documentedTools.has(tool),
-        `"${tool}" is not a Qoder tool name; matchers copied from another host never fire`
-      );
     }
   }
 });

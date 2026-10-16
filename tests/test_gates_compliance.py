@@ -594,212 +594,8 @@ class LightTaskGateTest(_StrictTaskFixture):
         )
 
 
-class SpecCheckFactTest(unittest.TestCase):
-    """A spec-check executor that never ran must not read as "nothing to check"."""
-
-    def _report(self) -> dict:
-        from services.lifecycle_checks import _spec_check_report
-
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            with mock.patch(
-                "services.spec_check.run_checks",
-                side_effect=RuntimeError("executor exploded"),
-            ):
-                return _spec_check_report(root)
-
-    def test_executor_failure_is_classified_not_folded_into_unchecked(self) -> None:
-        report = self._report()
-
-        self.assertEqual("executor-failure", report["summary"]["classification"])
-        self.assertEqual(1, report["summary"]["executorError"])
-
-    def test_executor_failure_blocks_completion_even_with_allow_unchecked(self) -> None:
-        from services.lifecycle_checks import _spec_check_completion_issues
-
-        issues = _spec_check_completion_issues(
-            self._report(),
-            allow_unchecked_specs=True,
-        )
-
-        self.assertEqual(
-            ["SPEC-CHECK-EXECUTOR-ERROR"], [issue.code for issue in issues]
-        )
-
-    def test_executor_failure_does_not_offer_the_exemption_flag(self) -> None:
-        from services.lifecycle_checks import _spec_check_completion_issues
-
-        issues = _spec_check_completion_issues(
-            self._report(),
-            allow_unchecked_specs=False,
-        )
-
-        # One precise blocker: the synthetic unchecked count is not a second
-        # finding, and the message must not advertise the flag that would
-        # wave the failure through as "nothing to check".
-        self.assertEqual(
-            ["SPEC-CHECK-EXECUTOR-ERROR"], [issue.code for issue in issues]
-        )
-        self.assertNotIn("--allow-unchecked", issues[0].message)
-
-    def test_a_real_unchecked_command_stays_exemptible(self) -> None:
-        from services.lifecycle_checks import _spec_check_completion_issues
-
-        report = {
-            "parseErrors": [],
-            "results": [],
-            "summary": {
-                "pass": 0,
-                "violation": 0,
-                "unchecked": 1,
-                "declarations": 1,
-                "classification": "unchecked",
-            },
-        }
-
-        self.assertEqual(
-            [],
-            _spec_check_completion_issues(report, allow_unchecked_specs=True),
-        )
-        self.assertEqual(
-            ["SPEC-CHECK-UNCHECKED"],
-            [
-                issue.code
-                for issue in _spec_check_completion_issues(
-                    report, allow_unchecked_specs=False
-                )
-            ],
-        )
-
-    def test_executor_failure_yields_no_recorded_exemption(self) -> None:
-        from services.lifecycle_checks import _spec_check_exemption
-
-        self.assertIsNone(
-            _spec_check_exemption(self._report(), allow_unchecked_specs=True)
-        )
-
-
-def _unchecked_report(*commands: tuple[str, str]) -> dict:
-    """A report whose unchecked results are exactly the given (spec, cmd)."""
-    results = [
-        {"spec": spec, "cmd": cmd, "status": "unchecked"} for spec, cmd in commands
-    ]
-    return {
-        "parseErrors": [],
-        "results": results,
-        "summary": {
-            "pass": 0,
-            "violation": 0,
-            "unchecked": len(results),
-            "declarations": len(results),
-            "classification": "unchecked",
-        },
-    }
-
-
-class ExemptionRecordTest(unittest.TestCase):
-    """A waived gate must record what it waived, not only how many."""
-
-    def test_every_unchecked_command_is_listed_by_spec_and_command(self) -> None:
-        from services.lifecycle_checks import _spec_check_exemption
-
-        exemption = _spec_check_exemption(
-            _unchecked_report(
-                ("backend/gate.md", "missing-cmd --flag"),
-                ("runtime/other.md", "node -e \"\" "),
-            ),
-            allow_unchecked_specs=True,
-        )
-
-        self.assertEqual(2, exemption["unchecked"])
-        self.assertEqual("--allow-unchecked", exemption["flag"])
-        self.assertEqual(
-            [
-                {"spec": "backend/gate.md", "cmd": "missing-cmd --flag"},
-                {"spec": "runtime/other.md", "cmd": 'node -e ""'},
-            ],
-            exemption["uncheckedItems"],
-        )
-        self.assertNotIn("truncated", exemption)
-
-    def test_only_unchecked_results_are_listed(self) -> None:
-        """The detail is the exemption, so a passing or violating command —
-        neither of which was waived — must not appear in it."""
-        from services.lifecycle_checks import _spec_check_exemption
-
-        report = _unchecked_report(("backend/gate.md", "missing-cmd"))
-        report["results"].insert(
-            0, {"spec": "backend/pass.md", "cmd": "true", "status": "pass"}
-        )
-        report["results"].append(
-            {"spec": "backend/bad.md", "cmd": "false", "status": "violation"}
-        )
-        report["summary"]["pass"] = 1
-        report["summary"]["violation"] = 1
-
-        exemption = _spec_check_exemption(report, allow_unchecked_specs=True)
-
-        self.assertEqual(
-            [{"spec": "backend/gate.md", "cmd": "missing-cmd"}],
-            exemption["uncheckedItems"],
-        )
-
-    def test_the_item_list_is_capped_and_says_so(self) -> None:
-        from services.lifecycle_checks import _spec_check_exemption
-
-        exemption = _spec_check_exemption(
-            _unchecked_report(
-                *[(f"backend/spec-{index}.md", f"cmd-{index}") for index in range(12)]
-            ),
-            allow_unchecked_specs=True,
-        )
-
-        self.assertEqual(12, exemption["unchecked"])
-        self.assertEqual(10, len(exemption["uncheckedItems"]))
-        self.assertIs(True, exemption["truncated"])
-        self.assertEqual(
-            "backend/spec-0.md", exemption["uncheckedItems"][0]["spec"]
-        )
-
-    def test_a_long_command_is_clipped_but_keeps_its_program(self) -> None:
-        from services.lifecycle_checks import _spec_check_exemption
-
-        long_tail = "node --eval " + "x" * 200
-        huge_program = "p" * 120 + " --flag"
-        exemption = _spec_check_exemption(
-            _unchecked_report(
-                ("backend/long.md", long_tail),
-                ("backend/huge.md", huge_program),
-            ),
-            allow_unchecked_specs=True,
-        )
-
-        clipped, kept = exemption["uncheckedItems"]
-        self.assertEqual("node", clipped["cmd"].split(" ")[0])
-        self.assertLessEqual(len(clipped["cmd"]), 81)
-        self.assertNotEqual(long_tail, clipped["cmd"])
-        # A first token longer than the clip is never split: that token is the
-        # program, which is the whole point of listing the command.
-        self.assertTrue(kept["cmd"].startswith("p" * 120 + "…"))
-        self.assertEqual("--flag", huge_program.split(" ")[1])
-        self.assertNotIn("--flag", kept["cmd"])
-
-    def test_whitespace_in_a_command_is_collapsed(self) -> None:
-        from services.lifecycle_checks import _spec_check_exemption
-
-        exemption = _spec_check_exemption(
-            _unchecked_report(("backend/gate.md", "node   --eval\n  'x'")),
-            allow_unchecked_specs=True,
-        )
-
-        self.assertEqual(
-            "node --eval 'x'", exemption["uncheckedItems"][0]["cmd"]
-        )
-
-
 class _FakeCheckResult:
-    def __init__(self, *, spec_exemption=None, evidence_exemption=None) -> None:
-        self.spec_exemption = spec_exemption
+    def __init__(self, *, evidence_exemption=None) -> None:
         self.evidence_exemption = evidence_exemption
 
 
@@ -811,16 +607,11 @@ class ExemptionMetaPayloadTest(unittest.TestCase):
 
         payloads = exemption_meta_payloads(
             _FakeCheckResult(
-                spec_exemption={
-                    "unchecked": 1,
-                    "uncheckedItems": [{"spec": "a.md", "cmd": "cmd"}],
-                    # Sentinel flags: the builder must pass the gate's own
-                    # value through, so a re-hardcoded constant here would
-                    # silently satisfy a test that used the real ones.
-                    "flag": "--sentinel-spec-flag",
-                },
                 evidence_exemption={
                     "missing": ["AC-002"],
+                    # Sentinel flag: the builder must pass the gate's own
+                    # value through, so a re-hardcoded constant here would
+                    # silently satisfy a test that used the real one.
                     "flag": "--sentinel-evidence-flag",
                 },
             ),
@@ -829,12 +620,6 @@ class ExemptionMetaPayloadTest(unittest.TestCase):
 
         self.assertEqual(
             {
-                "specCheckExempt": {
-                    "flag": "--sentinel-spec-flag",
-                    "by": "zcode_sess_demo",
-                    "unchecked": 1,
-                    "uncheckedItems": [{"spec": "a.md", "cmd": "cmd"}],
-                },
                 "evidenceExempt": {
                     "flag": "--sentinel-evidence-flag",
                     "by": "zcode_sess_demo",

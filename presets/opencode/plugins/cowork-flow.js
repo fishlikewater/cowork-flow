@@ -7,12 +7,9 @@
 // re-exported helper would be called as a plugin and break
 // host bootstrap.
 import {
-  editedFilePath,
-  findRepoRoot,
   injectShellEnv,
   registerPayloadSkills,
-  renderViaInject,
-  runEditSpecCheck
+  renderViaInject
 } from "../cowork-flow/plugin-core.js"
 
 export const CoworkFlowPlugin = async () => {
@@ -35,16 +32,6 @@ export const CoworkFlowPlugin = async () => {
       const text = await renderViaInject(input)
       if (text) {
         output.system.push(text)
-      }
-    },
-    "tool.execute.after": async (input, output) => {
-      const filePath = editedFilePath(input)
-      if (!filePath) {
-        return
-      }
-      const warning = await runEditSpecCheck(findRepoRoot(input), filePath)
-      if (warning) {
-        output.output = [output.output, warning].filter(Boolean).join("\n")
       }
     },
   }

@@ -185,9 +185,12 @@ class ClaudeHooksTest(unittest.TestCase):
 
             data = self._run_hook(root, {"hook_event_name": "SessionStart"})
 
+        self.assertEqual("SessionStart", data["hookSpecificOutput"]["hookEventName"])
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("warning:", context)
-        self.assertIn("contract registry unavailable", context)
+        self.assertRegex(
+            context,
+            r"warning: contract registry unavailable at [^;]+; using fallback digest",
+        )
 
     def test_hook_keeps_bounded_prompt_on_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -207,7 +210,8 @@ class ClaudeHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn('status=\"no_task\"', context)
+        self.assertRegex(context, r'<workflow-state[^>]*status="no_task"')
+        self.assertRegex(context, r'source="(missing-context|empty-session)"')
         self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
 
@@ -293,7 +297,7 @@ class ClaudeHooksTest(unittest.TestCase):
             )
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn('status=\"delegated_subtask\"', context)
+        self.assertRegex(context, r'<workflow-state[^>]*status="delegated_subtask"')
         self.assertIn("runtime-context-invalid", context)
         self.assertNotIn(NO_TASK_GATE_TEXT, context)
 
@@ -318,7 +322,7 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook(root, {"prompt": "为什么会有这种误解，我希望避免这种误解"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn('status=\"no_task\"', context)
+        self.assertRegex(context, r'<workflow-state[^>]*status="no_task"')
         self.assertNotIn('status=\"delegated_subtask\"', context)
 
     def test_hook_reads_utf8_prompt_bytes_before_classification(self) -> None:
@@ -338,8 +342,8 @@ class ClaudeHooksTest(unittest.TestCase):
             data = self._run_hook_bytes(root, {"session_id": "demo-session", "prompt": "先归档提交"})
 
         context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn('task=\".cowork-flow/tasks/06-04-demo\"', context)
-        self.assertIn('status=\"in_progress\"', context)
+        self.assertRegex(context, r'<workflow-state[^>]*status="in_progress"')
+        self.assertRegex(context, r'task="\.cowork-flow/tasks/06-04-demo"')
         self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertNotIn('source=\"unclassified\"', context)
 
@@ -528,6 +532,9 @@ class ClaudeHooksTest(unittest.TestCase):
 
     def test_settings_config_uses_cowork_flow_python_runner_for_both_events(self) -> None:
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        # The edit-phase spec feedback channel went away with `spec-check`;
+        # PostToolUse must not be re-declared here.
+        self.assertEqual(["UserPromptSubmit", "SessionStart"], list(settings["hooks"]))
         for event_name in ("UserPromptSubmit", "SessionStart"):
             command = settings["hooks"][event_name][0]["hooks"][0]["command"]
             self.assertEqual(self.CLAUDE_HOOK_COMMAND, command)
@@ -587,82 +594,6 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIsNotNone(before_match)
         self.assertIsNotNone(after_match)
         self.assertNotEqual(before_match.group(1), after_match.group(1))
-
-    def _run_hook_raw(
-        self, root: Path, payload: dict[str, object]
-    ) -> subprocess.CompletedProcess:
-        env = self._hook_env()
-        return subprocess.run(
-            [sys.executable, str(HOOK)],
-            input=json.dumps({"cwd": str(root), **payload}),
-            text=True,
-            encoding="utf-8",
-            capture_output=True,
-            cwd=root,
-            env=env,
-            timeout=30,
-        )
-
-    def _spec_edit_fixture(self, root: Path, command: str) -> None:
-        spec_dir = root / ".cowork-flow" / "spec" / "backend"
-        spec_dir.mkdir(parents=True, exist_ok=True)
-        (spec_dir / "edit-gate.md").write_text(
-            "---\n"
-            "checks:\n"
-            f"  - cmd: {command}\n"
-            "    when: edit\n"
-            "    files: src/\n"
-            "---\n\n# gate\n",
-            encoding="utf-8",
-        )
-
-    def _post_tool_use_payload(self, session_id: str) -> dict[str, object]:
-        return {
-            "hook_event_name": "PostToolUse",
-            "tool_name": "Edit",
-            "tool_input": {"file_path": "src/a.py"},
-            "session_id": session_id,
-        }
-
-    def test_post_tool_use_reports_spec_violation_then_throttles(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            self._make_project(root)
-            session = self._write_active_task_session(root, status="in_progress")
-            self._spec_edit_fixture(
-                root,
-                f'"{sys.executable}" -c "import sys; print(\'hook-boom\'); sys.exit(1)"',
-            )
-
-            first = self._run_hook_raw(
-                root, self._post_tool_use_payload(str(session["session_id"]))
-            )
-            self.assertEqual(2, first.returncode, first.stderr)
-            self.assertEqual("", first.stdout.strip())
-            self.assertEqual(1, len(first.stderr.strip().splitlines()))
-            self.assertIn("backend/edit-gate.md", first.stderr)
-            self.assertIn("hook-boom", first.stderr)
-
-            second = self._run_hook_raw(
-                root, self._post_tool_use_payload(str(session["session_id"]))
-            )
-            self.assertEqual(0, second.returncode, second.stderr)
-            self.assertEqual("", second.stderr)
-
-    def test_post_tool_use_stays_silent_without_active_task(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            self._make_project(root)
-            self._spec_edit_fixture(
-                root,
-                f'"{sys.executable}" -c "import sys; print(\'should-not-run\'); sys.exit(1)"',
-            )
-
-            result = self._run_hook_raw(
-                root, self._post_tool_use_payload("no-task-session")
-            )
-            self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual("", result.stderr)
 
     def test_hook_runtime_files_template_are_valid(self) -> None:
         # Verify template files exist

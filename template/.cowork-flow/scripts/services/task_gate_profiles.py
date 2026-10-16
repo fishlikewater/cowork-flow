@@ -64,7 +64,7 @@ def is_light_task(task_data: dict) -> bool:
 
     A light task still runs under the strict profile: it skips the review
     receipt, the acceptance-evidence and the dev_type gates, and nothing
-    else. The spec-check, file-scope and acceptance-row gates stay in force,
+    else. The file-scope and acceptance-row gates stay in force,
     so this is a narrower reading list rather than an exemption channel.
     """
     if resolve_gate_profile(task_data) != GATE_PROFILE_STRICT:

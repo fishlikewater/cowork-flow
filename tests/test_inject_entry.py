@@ -262,12 +262,12 @@ class InjectEntryTest(unittest.TestCase):
 
     def test_qoder_system_message_stays_off_non_injection_paths(self) -> None:
         # Edit-phase advisories keep their shape: only the two injecting
-        # events carry the user-visible message.
+        # events carry the user-visible message. The edit-phase spec channel
+        # was removed with `spec-check`, so PostToolUse emits nothing at all.
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
             self._write_session(root, "qoder_s1", ".cowork-flow/tasks/09-01-demo")
-            self._make_failing_edit_gate(root)
 
             result = self._run_inject(
                 root,
@@ -282,7 +282,7 @@ class InjectEntryTest(unittest.TestCase):
             )
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertNotIn("systemMessage", json.loads(result.stdout))
+        self.assertNotIn("systemMessage", result.stdout)
 
     def test_qoder_system_message_is_limited_to_the_two_injecting_events(self) -> None:
         # Pin the event gate itself: every other event the host may fire in a
@@ -702,67 +702,15 @@ class InjectEntryTest(unittest.TestCase):
             context, r'<contract-fingerprint value="[0-9a-f]{16}"/>'
         )
 
-    def test_claude_post_tool_use_spec_violation_reports_on_stderr_exit_2(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            self._make_project(root)
-            self._write_session(
-                root, "claude_s1", ".cowork-flow/tasks/09-01-demo"
-            )
-            spec_dir = root / ".cowork-flow" / "spec" / "backend"
-            spec_dir.mkdir(parents=True, exist_ok=True)
-            (spec_dir / "edit-gate.md").write_text(
-                "---\n"
-                "checks:\n"
-                f"  - cmd: \"{sys.executable}\" -c \"import sys; print('boom'); sys.exit(1)\"\n"
-                "    when: edit\n"
-                "    files: src/\n"
-                "---\n\n# gate\n",
-                encoding="utf-8",
-            )
-
-            result = self._run_inject(
-                root,
-                {
-                    "hook_event_name": "PostToolUse",
-                    "tool_name": "Edit",
-                    "tool_input": {"file_path": "src/a.py"},
-                    "session_id": "s1",
-                },
-                host="claude-code",
-                env_extra={"CLAUDE_SESSION_ID": "s1"},
-            )
-
-        self.assertEqual(2, result.returncode, result.stderr)
-        self.assertEqual("", result.stdout.strip())
-        self.assertEqual(1, len(result.stderr.strip().splitlines()))
-        self.assertIn("backend/edit-gate.md", result.stderr)
-
-    def _make_failing_edit_gate(self, root: Path) -> None:
-        spec_dir = root / ".cowork-flow" / "spec" / "backend"
-        spec_dir.mkdir(parents=True, exist_ok=True)
-        (spec_dir / "edit-gate.md").write_text(
-            "---\n"
-            "checks:\n"
-            f"  - cmd: \"{sys.executable}\" -c \"import sys; print('boom'); sys.exit(1)\"\n"
-            "    when: edit\n"
-            "    files: src/\n"
-            "---\n\n# gate\n",
-            encoding="utf-8",
-        )
-
-    def test_qoder_post_tool_use_spec_violation_uses_additional_context_exit_0(
-        self,
-    ) -> None:
-        # Qoder's PostToolUse is not a blockable event: exit 2 is ignored there,
-        # so the edit advisory must arrive as additionalContext on exit 0.
+    def test_qoder_post_tool_use_has_no_edit_advisory(self) -> None:
+        # The edit-phase spec advisory was removed with `spec-check`; a
+        # PostToolUse event must not carry a systemMessage or a payload.
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
             self._write_session(
                 root, "qoder_s1", ".cowork-flow/tasks/09-01-demo"
             )
-            self._make_failing_edit_gate(root)
 
             result = self._run_inject(
                 root,
@@ -778,32 +726,7 @@ class InjectEntryTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("", result.stderr)
-        envelope = json.loads(result.stdout)["hookSpecificOutput"]
-        self.assertEqual("PostToolUse", envelope["hookEventName"])
-        self.assertIn("backend/edit-gate.md", envelope["additionalContext"])
-
-    def test_qoder_post_tool_use_without_violation_stays_silent(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            self._make_project(root)
-            self._write_session(
-                root, "qoder_s1", ".cowork-flow/tasks/09-01-demo"
-            )
-
-            result = self._run_inject(
-                root,
-                {
-                    "hook_event_name": "PostToolUse",
-                    "tool_name": "Edit",
-                    "tool_input": {"file_path": "README.md"},
-                    "session_id": "s1",
-                },
-                host="qoder",
-                env_extra={"QODER_SESSION_ID": "s1"},
-            )
-
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual("", result.stderr)
+        self.assertNotIn("systemMessage", result.stdout)
         self.assertEqual("", result.stdout.strip())
 
     # -- not initialized ------------------------------------------------------
@@ -1000,93 +923,6 @@ class InjectEntryTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def _write_spec_fixture(
-        self, root: Path, files: str, marker: str
-    ) -> None:
-        spec_dir = root / ".cowork-flow" / "spec" / "backend"
-        spec_dir.mkdir(parents=True, exist_ok=True)
-        (spec_dir / "edit-gate.md").write_text(
-            "---\n"
-            "checks:\n"
-            f"  - cmd: \"{sys.executable}\" -c \"import sys; print('{marker}'); sys.exit(1)\"\n"
-            f"    when: edit\n"
-            f"    files: \"{files}\"\n"
-            "---\n\n# gate\n",
-            encoding="utf-8",
-        )
-
-    def test_zcode_spec_warning_reaches_subagent_session(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            self._make_project(root)
-            self._write_session(
-                root,
-                "zcode_child",
-                ".cowork-flow/tasks/09-01-demo",
-                scope="subagent",
-            )
-            spec_dir = root / ".cowork-flow" / "spec" / "backend"
-            spec_dir.mkdir(parents=True, exist_ok=True)
-            (spec_dir / "edit-gate.md").write_text(
-                "---\n"
-                "checks:\n"
-                f"  - cmd: \"{sys.executable}\" -c \"import sys; print('gate-boom'); sys.exit(1)\"\n"
-                "    when: edit\n"
-                "    files: src/\n"
-                "---\n\n# gate\n",
-                encoding="utf-8",
-            )
-
-            result = self._run_inject(
-                root,
-                {
-                    "hook_event_name": "PostToolUse",
-                    "tool_name": "Edit",
-                    "tool_input": {"file_path": "src/outside.py"},
-                    "session_id": "child",
-                },
-                env_extra={"ZCODE_SESSION_ID": "child"},
-            )
-
-        self.assertEqual(0, result.returncode)
-        payload = json.loads(result.stdout)
-        context = payload["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("backend/edit-gate.md", context)
-        self.assertIn("gate-boom", context)
-        # Scope warnings stay main-only: the delegated session gets the spec
-        # violation, never the scope line.
-        self.assertNotIn("outside the task's declared scope", context)
-
-    def test_zcode_spec_warning_reaches_unbound_hook_session(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            self._make_project(root)
-            self._write_session(
-                root,
-                "zcode_main",
-                ".cowork-flow/tasks/09-01-demo",
-                last_seen_at="2026-09-08T01:00:00+00:00",
-            )
-            self._write_task_whitelist(
-                root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
-            )
-            self._write_spec_fixture(root, "src/", "gate-boom")
-
-            data = self._run_json(
-                root,
-                {
-                    "hook_event_name": "PostToolUse",
-                    "tool_name": "Edit",
-                    "tool_input": {"file_path": "src/child.py"},
-                    "session_id": "hookconv",
-                },
-            )
-
-        context = data["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("backend/edit-gate.md", context)
-        self.assertIn("gate-boom", context)
-        self.assertNotIn("outside the task's declared scope", context)
-
     def test_zcode_scope_warning_reaches_unbound_hook_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1100,7 +936,6 @@ class InjectEntryTest(unittest.TestCase):
             self._write_task_whitelist(
                 root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
             )
-            self._write_spec_fixture(root, "lib/", "gate-silent")
 
             data = self._run_json(
                 root,
@@ -1114,7 +949,6 @@ class InjectEntryTest(unittest.TestCase):
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("src/outside.py is outside the task's declared scope", context)
-        self.assertNotIn("spec-check[", context)
 
     def test_zcode_scope_warning_accepts_absolute_in_scope_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1129,9 +963,8 @@ class InjectEntryTest(unittest.TestCase):
             self._write_task_whitelist(
                 root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
             )
-            self._write_spec_fixture(root, "src/", "gate-boom")
 
-            data = self._run_json(
+            result = self._run_inject(
                 root,
                 {
                     "hook_event_name": "PostToolUse",
@@ -1143,10 +976,10 @@ class InjectEntryTest(unittest.TestCase):
                 },
             )
 
-        context = data["hookSpecificOutput"]["additionalContext"]
-        # The whitelisted file must not be flagged despite the absolute path.
-        self.assertNotIn("outside the task's declared scope", context)
-        self.assertIn("spec-check[", context)
+        self.assertEqual(0, result.returncode, result.stderr)
+        # The whitelisted file must not be flagged despite the absolute path,
+        # so an in-scope edit carries no payload at all.
+        self.assertEqual("", result.stdout.strip())
 
     def test_zcode_scope_warning_reports_absolute_out_scope_path_relatively(
         self,
@@ -1163,7 +996,6 @@ class InjectEntryTest(unittest.TestCase):
             self._write_task_whitelist(
                 root, ".cowork-flow/tasks/09-01-demo", ["src/child.py"]
             )
-            self._write_spec_fixture(root, "lib/", "gate-silent")
 
             data = self._run_json(
                 root,
@@ -1183,22 +1015,11 @@ class InjectEntryTest(unittest.TestCase):
         )
         self.assertNotIn(str(root), context)
 
-    def test_zcode_merged_scope_and_spec_warning_share_one_payload(self) -> None:
+    def test_zcode_bound_session_edit_warning_rides_one_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             self._make_project(root)
             self._write_session(root, "zcode_s1", ".cowork-flow/tasks/09-01-demo")
-            spec_dir = root / ".cowork-flow" / "spec" / "backend"
-            spec_dir.mkdir(parents=True, exist_ok=True)
-            (spec_dir / "edit-gate.md").write_text(
-                "---\n"
-                "checks:\n"
-                f"  - cmd: \"{sys.executable}\" -c \"import sys; print('gate-boom'); sys.exit(1)\"\n"
-                "    when: edit\n"
-                "    files: src/\n"
-                "---\n\n# gate\n",
-                encoding="utf-8",
-            )
 
             result = self._run_inject(
                 root,
@@ -1213,10 +1034,13 @@ class InjectEntryTest(unittest.TestCase):
 
         self.assertEqual(0, result.returncode)
         payload = json.loads(result.stdout)
-        context = payload["hookSpecificOutput"]["additionalContext"]
+        envelope = payload["hookSpecificOutput"]
+        self.assertEqual("PostToolUse", envelope["hookEventName"])
+        context = envelope["additionalContext"]
+        # One advisory on one payload: the scope line is the whole edit-phase
+        # channel now that spec-check (and its violation list) is gone.
         self.assertIn("outside the task's declared scope", context)
-        self.assertIn("backend/edit-gate.md", context)
-        self.assertIn("gate-boom", context)
+        self.assertNotIn("spec-check", context)
 
     def test_kill_switch_exits_silently(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

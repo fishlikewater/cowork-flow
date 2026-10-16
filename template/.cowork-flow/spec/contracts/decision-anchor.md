@@ -117,7 +117,7 @@ After merging (5 files): `decision-anchor.md` + `implement.jsonl` + `check.jsonl
 - **Light profile `meta.taskType: "tiny"`**: applies to `strict` tasks only
   (`legacy` + `tiny` stays a compatibility path). A light task **is still strict**
   — what it waives are three things: the review receipt, AC evidence, and
-  `dev_type`. It does **not** waive spec-check, the file-scope gate, or "AC rows
+  `dev_type`. It does **not** waive the file-scope gate or "AC rows
   are non-empty" (`LIFECYCLE-AC-003`/`004` still apply). Plan-file binding is not
   among the three, but the pre-existing field-level exemption for tiny applies, so
   a light task does not require `planFile` either. `tiny` **can only be declared at

@@ -11,7 +11,6 @@
 - [ ] `npm run test:fast`
 - [ ] `npm run release:check`（触及 `template/`、`presets/`、`src/commands/` 时）
 - [ ] `python -m pytest -q`（触及 `template/.cowork-flow/` 或 `tests/` 时）
-- [ ] `./.cowork-flow/run spec-check`（改动落在 spec 声明范围内时）
 
 <!-- 贴原始结果，写明 skip 数与未执行项。平台 skip 不得记作通过。 -->
 
