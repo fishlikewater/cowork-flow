@@ -4,6 +4,10 @@
 
 ### Added
 
+## [2.0.0] - 2026-10-16
+
+### Added
+
 - **编辑期越界警告覆盖 6 宿主（抽共享模块）**：`spec-check` 删除后编辑期只剩 zcode 的 scope 越界提示（其余宿主 `unsupported`），现在把同一语义接到 claude-code / codex / qoder / opencode / dsh——编辑工具落盘后，若活动任务为 `in_progress`/`review` 且被改文件不在其 `implement.jsonl` 白名单内，回**一行** `⚠️ <rel> is outside the task's declared scope. If intended, declare it in the task's `implement.jsonl` (agent-mutable) or revert the edit.`；在范围、无任务、planning/completed、子代理会话、任何异常或超时一律静默——非阻塞、fail-open、全宿主 exit 0。判定逻辑从 `zcode_policy.py` 抽到共享模块 `adapters/host/edit_scope.py`（新增 `extract_edited_paths`：`file_path`/`filePath`/`path` 加 codex `apply_patch` 的 `*** Update File:` 文本，去重保序），zcode 改为引用后对 zcode 实际载荷输出逐字节相同（共享模块语义上是超集：额外识别 `path` 键与 apply_patch 文本路径，zcode 载荷不触发；其既有测试零改动全绿）。**通道**：claude-code / codex / qoder / opencode 走 `inject.py` 的 policy `post_tool_use` 槽（前三个回 `hookSpecificOutput.additionalContext` 信封，opencode 因 `emit_text` 得裸文本并追加到 `tool.execute.after` 的工具输出），dsh 在其 preset 插件的 `tools/post-execute` 里经 Python heredoc 直调共享模块，以 plugin notice 并入 `additionalContexts`。能力声明：`host-assets.json` 六个宿主 `editScopeWarning: plugin`，kimi-code 保持 `unsupported`（宿主丢弃 PostToolUse stdout）；`context-injection.md` 的 Per-edit warning 段同步改写。**迁移**：宿主侧载荷需 `cwf host add <host> --force` 重装（claude-code 的 `.claude/settings.json`、codex 的 `.codex/hooks.json`、qoder 的机器级插件 hooks.json、opencode 与 dsh 的插件文件都在载荷内）。Bash 重定向/tee 写文件仍不在覆盖范围（既有残余缺口）。
 
 ### Changed
@@ -361,7 +365,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.2...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.2...v2.0.0
 [1.9.2]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.8.1...v1.9.0
