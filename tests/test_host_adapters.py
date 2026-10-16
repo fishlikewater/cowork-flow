@@ -121,11 +121,19 @@ class HostAdaptersTest(unittest.TestCase):
                 if hook.resolve_policy(host_id).emit_text
             },
         )
-        # Qoder's PostToolUse is not blockable, so its advisory must ride the
-        # envelope: a policy callable plus exit-0 transport, not the stderr/exit
-        # 2 path claude-code and codex share.
+        # Only zcode keeps a PostToolUse handler (the edit-phase scope
+        # advisory). Every other host's edit-phase channel went away with the
+        # spec-check mechanism, so a re-declared callable here would re-arm a
+        # hook with no implementation behind it.
+        self.assertEqual(
+            ["zcode"],
+            [
+                host_id
+                for host_id in declared
+                if hook.resolve_policy(host_id).post_tool_use is not None
+            ],
+        )
         qoder_policy = hook.resolve_policy("qoder")
-        self.assertIsNotNone(qoder_policy.post_tool_use)
         self.assertEqual("SessionStart", qoder_policy.session_start_event)
         self.assertFalse(qoder_policy.emit_text)
 
@@ -554,8 +562,13 @@ class HostAdaptersTest(unittest.TestCase):
             adapter = (base / "plugins" / "cowork-flow.js").read_text(encoding="utf-8")
             core = (base / "cowork-flow" / "plugin-core.js").read_text(encoding="utf-8")
             plugin = adapter + core
-            self.assertIn("experimental.chat.system.transform", adapter)
-            self.assertIn('"shell.env"', adapter)
+            # Exact hook surface: the shim must expose these three keys and
+            # nothing else, so a re-added `tool.execute.after` or a stray
+            # export fails here rather than silently arming a dead channel.
+            self.assertEqual(
+                {"config", "shell.env", "experimental.chat.system.transform"},
+                set(re.findall(r'^\s+"([^"]+)": async \(', adapter, re.M)),
+            )
             self.assertIn("sessionID", plugin)
             self.assertIn("COWORK_FLOW_CONTEXT_ID", plugin)
             self.assertIn("OPENCODE_SESSION_ID", plugin)
@@ -564,8 +577,11 @@ class HostAdaptersTest(unittest.TestCase):
             # contract and none of the old render internals.
             self.assertIn('"inject.py"', plugin)
             self.assertIn('"--host", "opencode"', plugin)
-            self.assertIn('"tool.execute.after"', adapter)
-            self.assertIn("spec-check", plugin)
+            # The edit-phase spec feedback hook (`tool.execute.after`) was
+            # removed with `spec-check`; the plugin is now the system-transform
+            # shim alone, and re-adding the hook would re-arm a dead channel.
+            self.assertNotIn('"tool.execute.after"', adapter)
+            self.assertNotIn("spec-check", plugin)
             self.assertNotIn("COWORK_ENTRY_CONTRACT_V1", plugin)
             self.assertNotIn("DEFAULT_CONTRACT_REGISTRY", plugin)
             self.assertNotIn("bindRuntimeContext", plugin)

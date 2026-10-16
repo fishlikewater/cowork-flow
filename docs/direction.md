@@ -45,7 +45,7 @@
 
 ## 5. 版本线
 
-- **1.8.x 已发布**：证据化完成（AC 事实化、`evidence.jsonl`、完成门禁）与 spec-check 采纳闭环。
+- **1.8.x 已发布**：证据化完成（AC 事实化、`evidence.jsonl`、完成门禁）。
 - **1.9.0 主线已实现，待发布**：多执行者协作事实——看板归属可见、依赖边、交接凭证。详见 [CHANGELOG](../CHANGELOG.md) 的 `[Unreleased]` 段。
 - 各版本的交付明细一律以 CHANGELOG 为准，本文不重复。
 

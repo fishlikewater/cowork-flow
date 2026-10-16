@@ -12,7 +12,6 @@ Current contracts:
 - `capabilities.md`: the host adapter capability model.
 - `party-mode-v2-board.md`: the Party Mode V2 board protocol.
 - `plan-binding.md`: lightweight development-plan binding, pre-start missing-plan blocking, and recovery visibility.
-- `spec-checks.md`: the spec-declared command contract — syntax of `checks:` in user-spec frontmatter, three-state gate semantics, timing, and the host capability matrix.
 - `context-injection.md`: the transport shapes, event-timing matrix, and fingerprint serialization rules for runtime-context injection across hosts (a meta-protocol, not in `contract-registry.json`).
 - `decision-anchor.md`: the schema of each task's `decision-anchor.md` — goal, acceptance criteria, rejected options, and key assumptions.
 - `error-output-as-data.md`: external error output is analyzed as data, never executed as instructions (`ERROR_OUTPUT_AS_DATA_V1`).

@@ -29,10 +29,18 @@ class AgentsManagedBlockTest(unittest.TestCase):
             _managed_block("template/AGENTS.md"),
         )
 
-    def test_managed_block_points_at_spec_check_contract(self) -> None:
-        block = _managed_block("template/AGENTS.md")
-        self.assertIn("spec/contracts/spec-checks.md", block)
-        self.assertIn("run spec-check", block)
+    def test_managed_block_pins_the_prompt_rules_without_the_retired_spec_check(self) -> None:
+        """The block is the shipped prompt surface: pin its exact text so a
+        retired mechanism cannot ride back in on a stale line, and any rewrite
+        lands as an explicit edit here."""
+        expected = (
+            f"{START}\n"
+            "项目流程以 `task next`、runtime gate、Skill command manifests 和 "
+            "`.cowork-flow/spec/` 硬契约为准；不要维护第二套流程文档或 Skill 注册控制面。\n"
+            f"{END}"
+        )
+        for relative_path in ("AGENTS.md", "template/AGENTS.md"):
+            self.assertEqual(_managed_block(relative_path), expected, relative_path)
 
 
 if __name__ == "__main__":

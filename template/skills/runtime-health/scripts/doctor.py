@@ -672,52 +672,6 @@ def check_runtime(repo_root: Path) -> list[str]:
     return errors
 
 
-def check_spec_checks(repo_root: Path) -> list[dict[str, str]]:
-    """Spec-check declaration health: parse errors and command entry
-    existence. Execution belongs to `run spec-check`; doctor only proves
-    the declarations can run, before a completion gate finds out they
-    cannot."""
-    issues: list[dict[str, str]] = []
-    import shutil
-
-    try:
-        from services.spec_check import collect_spec_declarations
-    except Exception as error:
-        return [
-            {
-                "kind": "spec-checks",
-                "spec": "",
-                "message": f"spec-check service unavailable: {error}",
-            }
-        ]
-    for spec_decls in collect_spec_declarations(repo_root):
-        for message in spec_decls.errors:
-            issues.append(
-                {"kind": "spec-checks", "spec": spec_decls.spec, "message": message}
-            )
-        for decl in spec_decls.decls:
-            entry = (decl.cmd_win if sys.platform == "win32" else decl.cmd) or decl.cmd
-            first_token = entry.split()[0] if entry.split() else ""
-            if not first_token:
-                issues.append(
-                    {
-                        "kind": "spec-checks",
-                        "spec": spec_decls.spec,
-                        "message": f"empty command declaration: {decl.cmd!r}",
-                    }
-                )
-                continue
-            if shutil.which(first_token) is None:
-                issues.append(
-                    {
-                        "kind": "spec-checks",
-                        "spec": spec_decls.spec,
-                        "message": f"command entry not found: {first_token}",
-                    }
-                )
-    return issues
-
-
 def _global_mcp_registered() -> bool:
     """Tolerant probe of user-level host configs for a cowork-flow MCP
     entry. Read-only; missing files simply mean "not registered"."""
@@ -1654,7 +1608,6 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     task_hygiene_issues = check_task_hygiene(repo_root)
     state_recovery_issues = check_state_recovery(repo_root)
     session_hygiene_issues = check_session_hygiene(repo_root)
-    spec_check_issues = check_spec_checks(repo_root)
     mcp_issues = check_mcp_registration(repo_root)
     dsh_preset_issues = check_dsh_preset(repo_root)
     kimi_hook_issues = check_kimi_hook(repo_root)
@@ -1675,7 +1628,6 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
         {"kind": "distribution", "message": error}
         for error in distribution_errors
     )
-    errors.extend({"kind": "spec-checks", **issue} for issue in spec_check_issues)
     return {
         "ok": not errors,
         "errors": errors,
@@ -1684,7 +1636,6 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "taskHygiene": task_hygiene_issues,
             "stateRecovery": state_recovery_issues,
             "sessionHygiene": session_hygiene_issues,
-            "specChecks": spec_check_issues,
             "mcpRegistration": mcp_issues,
             "dshPreset": dsh_preset_issues,
             "kimiHook": kimi_hook_issues,

@@ -207,20 +207,21 @@ class TaskNavigationTest(FlowScriptTestCase):
         self.assertEqual("Demo task", args.title)
         self.assertEqual("demo-task", args.slug)
 
-    def test_task_next_parser_keeps_exemption_flags_independent(self) -> None:
+    def test_task_next_parser_keeps_only_the_evidence_exemption_flag(self) -> None:
         parser = self.task.build_parser()
 
         missing_evidence_args = parser.parse_args(
             ["next", "--run", "--allow-missing-evidence"]
         )
         self.assertIs(True, missing_evidence_args.allow_missing_evidence)
-        self.assertIs(False, missing_evidence_args.allow_unchecked)
+        self.assertNotIn("allow_unchecked", vars(missing_evidence_args))
 
-        unchecked_args = parser.parse_args(
-            ["next", "--run", "--allow-unchecked"]
-        )
-        self.assertIs(True, unchecked_args.allow_unchecked)
-        self.assertIs(False, unchecked_args.allow_missing_evidence)
+        # The spec-check exemption flag went away with the mechanism; the
+        # parser must reject it rather than silently accept a no-op flag.
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                parser.parse_args(["next", "--run", "--allow-unchecked"])
+        self.assertEqual(2, raised.exception.code)
 
     def test_task_next_parser_accepts_adopt_flag(self) -> None:
         args = self.task.build_parser().parse_args(["next", "--run", "--adopt"])

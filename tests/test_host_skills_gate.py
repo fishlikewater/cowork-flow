@@ -142,42 +142,6 @@ class HostSkillsGateTest(unittest.TestCase):
         for marker in ("clause", "command", "negativeProof"):
             self.assertIn(marker, receipt_cli, f"{marker} missing from check-review")
 
-    def test_spec_check_contract_states_the_same_triple(self) -> None:
-        contract = (
-            TEMPLATE
-            / ".cowork-flow"
-            / "spec"
-            / "contracts"
-            / "spec-checks.md"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn("clause → command → negativeProof", contract)
-        for marker in ("`clause`", "`command`", "`negativeProof`"):
-            self.assertIn(marker, contract, f"{marker} missing from the contract")
-
-    def test_template_ships_no_spec_check_declarations(self) -> None:
-        """A shipped declaration would be `unchecked` in every install.
-
-        The template cannot know a project's toolchain, so a template-owned
-        `checks:` entry either blocks `complete` for everyone or is a
-        decorative always-pass. Declarations belong to the project.
-        """
-        module = importlib.import_module("services.spec_check")
-        try:
-            collected = module.collect_spec_declarations(TEMPLATE)
-        finally:
-            sys.modules.pop("services.spec_check", None)
-
-        self.assertEqual(
-            [],
-            [
-                (spec.spec, decl.cmd)
-                for spec in collected
-                for decl in spec.decls
-            ],
-        )
-        self.assertEqual([], [spec.errors for spec in collected if spec.errors])
-
     def _skill_manifests(self) -> list:
         module = importlib.import_module("infra.skill_manifest")
         try:

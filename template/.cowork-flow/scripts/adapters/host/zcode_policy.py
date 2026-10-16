@@ -5,8 +5,8 @@ Rendering stays in workflow_state_hook.py (single source shared with the
 other hosts); this module owns only what is zcode-specific — the digest
 policy wording, the newest-session fallback for unbound hook sessions, the
 rebind hints and essential-files check ported from the zcode JS hook, the
-merged scope+spec edit warning, and the PostToolUse transport contract the
-zcode shim relies on.
+scope edit warning, and the PostToolUse transport contract the zcode shim
+relies on.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from adapters.host.workflow_state_hook import (
     _get_active_task_with_fallback,
     _session_scope,
     build_hook_context,
-    spec_edit_warning,
 )
 
 # Wording frozen by context-injection.md: zcode drops the
@@ -210,21 +209,9 @@ def edit_scope_warning(root: Path, hook_input: dict[str, Any]) -> str:
     )
 
 
-def merged_edit_warning(root: Path, hook_input: dict[str, Any]) -> str:
-    """zcode PostToolUse Edit/Write/MultiEdit context: the scope warning and
-    the spec-check warning merged into one additionalContext payload, at
-    most one line each, joined by a newline (port of the zcode hook's
-    mergedEditWarning)."""
-    scope_line = edit_scope_warning(root, hook_input)
-    spec_line = spec_edit_warning(root, hook_input, POLICY)
-    if scope_line and spec_line:
-        return f"{scope_line}\n{spec_line}"
-    return scope_line or spec_line
-
-
 def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
-    """zcode PostToolUse transport: Edit/Write/MultiEdit get the merged
-    edit warning; Bash events refresh the full state only for workflow
+    """zcode PostToolUse transport: Edit/Write/MultiEdit get the scope
+    warning; Bash events refresh the full state only for workflow
     lifecycle commands (the shim pre-filters the common case, this keeps
     the entry correct standalone). Edit storms must not multiply the
     injection payload."""
@@ -238,7 +225,7 @@ def post_tool_use(root: Path, hook_input: dict[str, Any]) -> tuple[str, int]:
         and isinstance(file_path, str)
         and file_path.strip()
     ):
-        return merged_edit_warning(root, hook_input), 0
+        return edit_scope_warning(root, hook_input), 0
     if not is_lifecycle_bash(hook_input):
         return "", 0
     claim_after_lifecycle_bash(root, hook_input)

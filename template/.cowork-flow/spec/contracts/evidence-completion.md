@@ -40,7 +40,7 @@ direct lifecycle checks:
 | `LIFECYCLE-AC-001` | an unchecked AC row exists | none — do the work, or tick the completed rows |
 | `LIFECYCLE-AC-002` | a declared AC has no valid evidence record | `--allow-missing-evidence` (recorded in task.json `meta.evidenceExempt`, with `at`, `flag`, `by`, and the `missing` detail list) |
 | `LIFECYCLE-AC-003` | `gateProfile=strict` and decision-anchor yields no AC row | none — a strict task was already required to declare ACs at start, so reading none at completion has only three explanations: the anchor was rewritten, the task was created wrongly, or the anchor is undecodable (corrupted encoding) |
-| `LIFECYCLE-AC-004` | `gateProfile=strict` and the ac_evidence module cannot be imported | none — same family as `SPEC-CHECK-EXECUTOR-ERROR`: a broken module is not "nothing to check"; the message carries the original exception, and you rerun once the runtime install is fixed |
+| `LIFECYCLE-AC-004` | `gateProfile=strict` and the ac_evidence module cannot be imported | none — a broken module is not "nothing to check"; the message carries the original exception, and you rerun once the runtime install is fixed |
 
 - The first two codes can appear together; `--allow-missing-evidence` waives
   `LIFECYCLE-AC-002` only, never `003`/`004`.
@@ -51,8 +51,8 @@ direct lifecycle checks:
 - **Strict path**: a `gateProfile=strict` task re-verifies AC existence and
   evidence-module availability at completion — the start-time AC declaration
   requirement does not lapse because completion cannot read it.
-- The `meta.evidenceExempt` trace has the same shape as spec-check's
-  `specCheckExempt`: retries do not accumulate, the latest completion result wins.
+- The `meta.evidenceExempt` trace does not accumulate: retries leave only the
+  latest completion result.
 - **An exemption record must name which items were waived and who approved it**:
   `meta.evidenceExempt` = `{"at", "flag": "--allow-missing-evidence",
   "by": <actor or null>, "missing": [<AC id>…]}`. `by` is the resolved session
@@ -60,9 +60,7 @@ direct lifecycle checks:
   `creator`/`assignee`. Both the completion output and the archive output print
   this record item by item (the completion output reads the `task.json` just
   written), so "what was recorded" and "what was printed" cannot tell two different
-  stories; with no exemption, no exemption rows are printed at all. The structure
-  matches the `meta.specCheckExempt` detail rules on the spec-check side; see
-  `spec-checks.md`.
+  stories; with no exemption, no exemption rows are printed at all.
 
 ## Injection and fact view
 
@@ -81,5 +79,5 @@ direct lifecycle checks:
   behind an AC to fabricate a record.
 - It does not parse AC prose semantics; a missing checkbox on an `AC-xxx` row
   parses as incomplete.
-- This contract does not change spec-check semantics; MCP write tools still refuse
-  by default (`fact-layer-access.md`).
+- This contract does not change the file-scope gate or the AC gate; MCP write
+  tools still refuse by default (`fact-layer-access.md`).

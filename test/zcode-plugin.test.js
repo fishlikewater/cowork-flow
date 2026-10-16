@@ -271,8 +271,8 @@ test('zcode hook uses prompt runtime context for delegated subtask injection', a
   assert.match(payload.hookSpecificOutput.additionalContext, /Runtime context: ctx-zcode-test/);
 });
 
-test('zcode edit short path merges spec-check advisory into additionalContext', async (t) => {
-  const projectRoot = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-spec-edit-'));
+test('zcode edit short path reports an out-of-scope edit as additionalContext', async (t) => {
+  const projectRoot = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-scope-edit-'));
   t.after(async () => {
     await rm(projectRoot, { recursive: true, force: true });
   });
@@ -282,7 +282,7 @@ test('zcode edit short path merges spec-check advisory into additionalContext', 
     join(projectRoot, '.cowork-flow', 'scripts'),
     { recursive: true }
   );
-  const taskDir = join(projectRoot, '.cowork-flow', 'tasks', '06-03-spec-edit');
+  const taskDir = join(projectRoot, '.cowork-flow', 'tasks', '06-03-scope-edit');
   await mkdir(taskDir, { recursive: true });
   await writeFile(
     join(taskDir, 'task.json'),
@@ -292,25 +292,8 @@ test('zcode edit short path merges spec-check advisory into additionalContext', 
   const sessionsDir = join(projectRoot, '.cowork-flow', '.runtime', 'sessions');
   await mkdir(sessionsDir, { recursive: true });
   await writeFile(
-    join(sessionsDir, 'zcode_spec-edit-session.json'),
-    JSON.stringify({ active_task_path: '.cowork-flow/tasks/06-03-spec-edit' }) + '\n',
-    'utf8'
-  );
-  const specDir = join(projectRoot, '.cowork-flow', 'spec', 'backend');
-  await mkdir(specDir, { recursive: true });
-  await writeFile(
-    join(specDir, 'edit-gate.md'),
-    [
-      '---',
-      'checks:',
-      `  - cmd: "${process.execPath}" -e "console.log('zcode-edit-boom'); process.exit(1)"`,
-      '    when: edit',
-      '    files: src/',
-      '---',
-      '',
-      '# gate',
-      ''
-    ].join('\n'),
+    join(sessionsDir, 'zcode_scope-edit-session.json'),
+    JSON.stringify({ active_task_path: '.cowork-flow/tasks/06-03-scope-edit' }) + '\n',
     'utf8'
   );
 
@@ -319,28 +302,14 @@ test('zcode edit short path merges spec-check advisory into additionalContext', 
       hook_event_name: 'PostToolUse',
       tool_name: 'Edit',
       tool_input: { file_path: join(projectRoot, 'src', 'a.py') },
-      session_id: 'spec-edit-session'
+      session_id: 'scope-edit-session'
     },
     { cwd: projectRoot }
   );
 
   const context = payload.hookSpecificOutput.additionalContext;
-  assert.match(context, /spec-check\[backend\/edit-gate\.md\] violation: zcode-edit-boom/);
-  assert.equal(context.split('\n').length <= 2, true, context);
-
-  const throttled = runZCodeHook(
-    {
-      hook_event_name: 'PostToolUse',
-      tool_name: 'Edit',
-      tool_input: { file_path: join(projectRoot, 'src', 'a.py') },
-      session_id: 'spec-edit-session'
-    },
-    { cwd: projectRoot }
-  );
-  assert.doesNotMatch(
-    throttled.hookSpecificOutput.additionalContext,
-    /spec-check\[/
-  );
+  assert.match(context, /src\/a\.py is outside the task's declared scope/);
+  assert.doesNotMatch(context, /spec-check/);
 });
 
 test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t) => {

@@ -74,6 +74,9 @@ class SpecReviewContractTest(unittest.TestCase):
         safe_files = set(sync_policy["safeFiles"])
 
         self.assertNotIn(".cowork-flow/spec/runtime/rules.json", safe_files)
+        # Retirement and preservation are mutually exclusive: a path claimed
+        # by both sets would make the sync outcome undefined.
+        self.assertEqual(set(), obsolete & safe_files)
         for path in (
             ".cowork-flow/spec/runtime/rules.json",
             ".cowork-flow/spec/schemas/rules.schema.json",
@@ -85,6 +88,37 @@ class SpecReviewContractTest(unittest.TestCase):
             ".cowork-flow/scripts/common/gates/validate_coding_standards.py",
         ):
             self.assertIn(path, obsolete)
+
+        # The spec-check mechanism is gone: its contract and its two modules
+        # must be retired from installs rather than shipped, so a project that
+        # upgrades gets them deleted instead of left behind.
+        for path in (
+            ".cowork-flow/spec/contracts/spec-checks.md",
+            ".cowork-flow/scripts/services/spec_check.py",
+            ".cowork-flow/scripts/adapters/cli/spec_check.py",
+        ):
+            self.assertIn(path, obsolete)
+            self.assertNotIn(path, safe_files)
+
+    def test_contract_registry_drops_the_spec_checks_contract(self) -> None:
+        registry = json.loads(
+            (SPEC / "runtime" / "contract-registry.json").read_text(encoding="utf-8")
+        )
+        ids = [contract["id"] for contract in registry["contracts"]]
+
+        self.assertNotIn("SPEC_CHECKS_V1", ids)
+        self.assertEqual(
+            [],
+            [
+                contract["path"]
+                for contract in registry["contracts"]
+                if "spec-checks" in contract["path"]
+            ],
+        )
+        # The remaining contracts still ship their entries.
+        self.assertEqual(9, len(ids))
+        for remaining in ("RUNTIME_CONTEXT_DISPATCH_V2", "PLAN_BINDING_LITE_V1"):
+            self.assertIn(remaining, ids)
 
     def test_runtime_spec_documents_real_storage_layer_path(self) -> None:
         runtime_index = (SPEC / "runtime" / "index.md").read_text(encoding="utf-8")
@@ -117,7 +151,10 @@ class SpecReviewContractTest(unittest.TestCase):
             "anti-rationalization",
             "verification-before-completion",
             "machine-checkable",
-            "main-session duty",
+            "name the command that decides it",
+            "what that command reports when the clause is broken",
+            "a machine-checkable clause left with no deciding command is itself a finding",
+            "Review never rewrites the clause text",
             "clause → command",
         )
         forbidden_markers = (
@@ -126,22 +163,31 @@ class SpecReviewContractTest(unittest.TestCase):
             "backend/frontend/guides",
             "needs_user_judgment",
             "not dynamic hard validators",
+            # The declaration mechanism and its edit-phase command were
+            # removed; the duty is now to name the deciding command inline.
+            "`checks:`",
+            "spec-check",
         )
 
         self.assertEqual([], [marker for marker in required_markers if marker not in skill])
         self.assertEqual([], [marker for marker in forbidden_markers if marker in skill])
 
-    def test_spec_sync_skill_declares_checkable_clause_duty(self) -> None:
+    def test_spec_sync_skill_declares_no_check_declaration_duty(self) -> None:
+        """Sync still owns concrete spec updates, but the `checks:` frontmatter
+        declaration went away with `spec-check`; re-teaching it would point
+        agents at a mechanism that no longer runs."""
         skill = (TEMPLATE / "skills" / "spec-sync" / "SKILL.md").read_text(
             encoding="utf-8"
         )
 
         required_markers = (
-            "machine-checkable",
-            "`checks:`",
-            "main session only",
+            "Show the contract or command shape.",
+            "State tests or checks that protect the behavior.",
+            "Check for duplicate guidance and remove stale wording before finishing.",
         )
         self.assertEqual([], [marker for marker in required_markers if marker not in skill])
+        for stale_marker in ("`checks:`", "spec-check", "main session only"):
+            self.assertNotIn(stale_marker, skill)
 
     def test_task_review_skill_uses_task_next_for_lifecycle_blockers(self) -> None:
         skill = (TEMPLATE / "skills" / "task-review" / "SKILL.md").read_text(

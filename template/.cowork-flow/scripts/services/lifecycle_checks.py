@@ -46,13 +46,8 @@ PROTECTED_WORKFLOW_PATTERNS = (
 )
 
 # A recorded exemption names what it waived: the flag that allowed it, the
-# actor who applied it, and the concrete items. The item list is capped so a
-# pathological repo cannot turn one completion into pages of output, and a
-# single command is clipped so one long declaration cannot do the same.
-SPEC_EXEMPTION_FLAG = "--allow-unchecked"
+# actor who applied it, and the concrete items.
 EVIDENCE_EXEMPTION_FLAG = "--allow-missing-evidence"
-SPEC_EXEMPTION_ITEM_LIMIT = 10
-SPEC_EXEMPTION_COMMAND_LIMIT = 80
 
 
 @dataclass(frozen=True)
@@ -71,9 +66,7 @@ class LifecycleCheckResult:
     stage: str
     blockers: tuple[str, ...] = ()
     issues: tuple[LifecycleCheckIssue, ...] = ()
-    spec_check: dict | None = None
     evidence_exemption: dict | None = None
-    spec_exemption: dict | None = None
 
     def __post_init__(self) -> None:
         if self.issues and not self.blockers:
@@ -124,20 +117,9 @@ class LifecycleCheckRunner:
         task_dir: Path,
         *,
         allow_spec_file_modifications: bool | None = None,
-        allow_unchecked_specs: bool | None = None,
         allow_missing_evidence: bool | None = None,
         execution_policy: LifecycleExecutionPolicy | None = None,
     ) -> LifecycleCheckResult:
-        spec_report = _spec_check_report(self.repo_root)
-        allow_unchecked = (
-            bool(allow_unchecked_specs)
-            if allow_unchecked_specs is not None
-            else _policy_allows_unchecked(execution_policy)
-        )
-        spec_issues = _spec_check_completion_issues(
-            spec_report,
-            allow_unchecked_specs=allow_unchecked,
-        )
         ac_issues, evidence_exemption = _ac_evidence_completion_facts(
             task_dir,
             allow_missing_evidence=(
@@ -161,15 +143,9 @@ class LifecycleCheckRunner:
                     self.repo_root,
                     task_dir,
                 ))
-                + list(spec_issues)
                 + list(ac_issues)
             ),
-            spec_check=spec_report,
             evidence_exemption=evidence_exemption,
-            spec_exemption=_spec_check_exemption(
-                spec_report,
-                allow_unchecked_specs=allow_unchecked,
-            ),
         )
 
 
@@ -180,12 +156,6 @@ def _policy_allows_spec_changes(
     if execution_policy is not None:
         return execution_policy.allow_spec_file_modifications
     return bool(allow_spec_file_modifications)
-
-
-def _policy_allows_unchecked(
-    execution_policy: LifecycleExecutionPolicy | None,
-) -> bool:
-    return bool(execution_policy is not None and execution_policy.allow_unchecked_specs)
 
 
 def _policy_allows_missing_evidence(
@@ -299,83 +269,6 @@ def _ac_evidence_completion_facts(
     return issues, exemption
 
 
-def _spec_check_report(repo_root: Path) -> dict | None:
-    """Run the lifecycle-phase spec checks. A structural failure degrades to
-    an unchecked report — never to a silently passing gate."""
-    try:
-        from services.spec_check import run_checks
-    except Exception:  # pragma: no cover - import surface must stay lazy
-        return {"schemaVersion": 1, "phase": "lifecycle", "results": [],
-                "parseErrors": [], "summary": {"pass": 0, "violation": 0,
-                "unchecked": 1, "executorError": 1,
-                "classification": "executor-failure"}}
-    try:
-        return run_checks(repo_root, phase="lifecycle")
-    except Exception as error:  # fail closed: unchecked, not pass
-        return {"schemaVersion": 1, "phase": "lifecycle", "results": [],
-                "parseErrors": [], "summary": {"pass": 0, "violation": 0,
-                "unchecked": 1, "executorError": 1, "error": str(error),
-                "classification": "executor-failure"}}
-
-
-def _exemption_command(cmd: object) -> str:
-    """One declared command, clipped so a long line cannot swamp the output.
-
-    The clip never splits the first token: that token names the program, which
-    is the part that says what could not be verified.
-    """
-    text = " ".join(str(cmd or "").split())
-    if len(text) <= SPEC_EXEMPTION_COMMAND_LIMIT:
-        return text
-    head = text.split(" ", 1)[0]
-    return text[: max(SPEC_EXEMPTION_COMMAND_LIMIT, len(head))] + "…"
-
-
-def _unchecked_exemption_items(spec_report: dict) -> tuple[list[dict], bool]:
-    """The unchecked declarations, capped, plus whether anything was dropped."""
-    items = [
-        {
-            "spec": item.get("spec") or "?",
-            "cmd": _exemption_command(item.get("cmd")),
-        }
-        for item in spec_report.get("results") or []
-        if isinstance(item, dict) and item.get("status") == "unchecked"
-    ]
-    return items[:SPEC_EXEMPTION_ITEM_LIMIT], len(items) > SPEC_EXEMPTION_ITEM_LIMIT
-
-
-def _spec_check_exemption(
-    spec_report: dict | None,
-    *,
-    allow_unchecked_specs: bool,
-) -> dict | None:
-    """The exemption this completion applied, or None.
-
-    Single source for both the persisted telemetry and the delivery output:
-    a waived gate that is recorded but never shown reads as a clean pass, and
-    one that is shown as a bare count reads as a clean pass to whoever has to
-    check it afterwards. An executor failure is never exemptible, so it never
-    yields one.
-    """
-    if not spec_report or not allow_unchecked_specs:
-        return None
-    summary = spec_report.get("summary") or {}
-    if int(summary.get("executorError") or 0):
-        return None
-    unchecked = int(summary.get("unchecked") or 0)
-    if not unchecked:
-        return None
-    items, truncated = _unchecked_exemption_items(spec_report)
-    exemption = {
-        "unchecked": unchecked,
-        "uncheckedItems": items,
-        "flag": SPEC_EXEMPTION_FLAG,
-    }
-    if truncated:
-        exemption["truncated"] = True
-    return exemption
-
-
 def _actor_text(actor: object) -> str:
     """The recorded actor, or `null` — never a stand-in identity."""
     return "null" if actor is None else str(actor)
@@ -390,23 +283,6 @@ def exemption_report_lines(meta: dict | None) -> list[str]:
     """
     meta = meta if isinstance(meta, dict) else {}
     lines: list[str] = []
-    spec_exempt = meta.get("specCheckExempt")
-    if isinstance(spec_exempt, dict):
-        lines.append(
-            f"Exempted: {spec_exempt.get('unchecked', 0)} unchecked "
-            f"spec-check command(s) via {spec_exempt.get('flag')} "
-            "(recorded in task.json meta.specCheckExempt, "
-            f"by {_actor_text(spec_exempt.get('by'))})"
-        )
-        items = spec_exempt.get("uncheckedItems") or []
-        for item in items:
-            if isinstance(item, dict):
-                lines.append(f"  - {item.get('spec')}: {item.get('cmd')}")
-        if spec_exempt.get("truncated"):
-            lines.append(
-                f"  - (more than {len(items)} unchecked commands; the list is "
-                "truncated — see meta.specCheckExempt.uncheckedItems)"
-            )
     evidence_exempt = meta.get("evidenceExempt")
     if isinstance(evidence_exempt, dict):
         missing = evidence_exempt.get("missing") or []
@@ -436,101 +312,10 @@ def exemption_meta_payloads(
     such as the creator or assignee.
     """
     payloads: dict[str, dict] = {}
-    spec_exemption = getattr(check_result, "spec_exemption", None)
-    if spec_exemption:
-        payloads["specCheckExempt"] = {"by": executor, **spec_exemption}
     evidence_exemption = getattr(check_result, "evidence_exemption", None)
     if evidence_exemption:
         payloads["evidenceExempt"] = {"by": executor, **evidence_exemption}
     return payloads
-
-
-def _spec_check_parse_error_issue(parse_errors: list) -> LifecycleCheckIssue | None:
-    """The blocking fact for declarations the parser could not read."""
-    if not parse_errors:
-        return None
-    details = []
-    for item in parse_errors:
-        if isinstance(item, dict):
-            spec = item.get("spec") or "?"
-            error = item.get("error") or "unknown parse error"
-            details.append(f"{spec}: {error}")
-    suffix = "; ".join(details[:3])
-    return LifecycleCheckIssue(
-        code="SPEC-CHECK-PARSE-ERROR",
-        message=(
-            f"spec checks report {len(parse_errors)} parse error(s)"
-            + (f": {suffix}" if suffix else "")
-        ),
-    )
-
-
-def _spec_check_executor_issue(summary: dict) -> LifecycleCheckIssue | None:
-    """The blocking fact for a spec-check executor that never ran.
-
-    Not waivable: --allow-unchecked exempts a command that could not run, not
-    an executor that is broken. The `unchecked: 1` in a degraded report is a
-    placeholder for "no verdict", so it never becomes a finding of its own.
-    """
-    if not int(summary.get("executorError") or 0):
-        return None
-    return LifecycleCheckIssue(
-        code="SPEC-CHECK-EXECUTOR-ERROR",
-        message=(
-            "spec-check executor failed; the declared checks did not run, so "
-            "this is not an exemption-eligible unchecked result — fix the "
-            "spec-check executor and rerun"
-        ),
-    )
-
-
-def _spec_check_completion_issues(
-    spec_report: dict | None,
-    *,
-    allow_unchecked_specs: bool,
-) -> list[LifecycleCheckIssue]:
-    if not spec_report:
-        return []
-    summary = spec_report.get("summary") or {}
-    issues: list[LifecycleCheckIssue] = []
-    parse_error_issue = _spec_check_parse_error_issue(
-        spec_report.get("parseErrors") or []
-    )
-    if parse_error_issue is not None:
-        issues.append(parse_error_issue)
-    executor_issue = _spec_check_executor_issue(summary)
-    if executor_issue is not None:
-        issues.append(executor_issue)
-    violation = int(summary.get("violation") or 0)
-    unchecked = int(summary.get("unchecked") or 0)
-    if violation:
-        first_lines = []
-        for item in spec_report.get("results") or []:
-            if item.get("status") == "violation":
-                detail = item.get("firstViolationLine") or item.get("reason") or ""
-                first_lines.append(f"{item.get('spec')}: {detail}")
-        issues.append(
-            LifecycleCheckIssue(
-                code="SPEC-CHECK-VIOLATION",
-                message=(
-                    "spec checks report "
-                    f"{violation} violation(s): {'; '.join(first_lines[:3])}"
-                ),
-            )
-        )
-    if unchecked and executor_issue is None and not allow_unchecked_specs:
-        issues.append(
-            LifecycleCheckIssue(
-                code="SPEC-CHECK-UNCHECKED",
-                message=(
-                    f"spec checks report {unchecked} unchecked command(s) "
-                    "(missing/timeout); rerun spec-check, or pass "
-                    "--allow-unchecked to complete with the exemption recorded"
-                ),
-            )
-        )
-    return issues
-
 
 
 def task_changed_paths(repo_root: Path, task_dir: Path) -> tuple[list[str], bool]:

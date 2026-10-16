@@ -234,7 +234,6 @@ class TaskLifecycleService:
         *,
         completed_at: str | None = None,
         allow_spec_file_modifications: bool | None = None,
-        allow_unchecked_specs: bool = False,
         allow_missing_evidence: bool = False,
         execution_context: object | None = None,
     ) -> LifecycleResult:
@@ -243,7 +242,6 @@ class TaskLifecycleService:
             task,
             completed_at=completed_at,
             allow_spec_file_modifications=allow_spec_file_modifications,
-            allow_unchecked_specs=allow_unchecked_specs,
             allow_missing_evidence=allow_missing_evidence,
             execution_context=execution_context,
         )
@@ -255,7 +253,6 @@ class TaskLifecycleService:
         *,
         preflight: Preflight | None = None,
         allow_spec_file_modifications: bool | None = None,
-        allow_unchecked_specs: bool = False,
         allow_missing_evidence: bool = False,
         completed_at: str | None = None,
         execution_context: object | None = None,
@@ -268,7 +265,6 @@ class TaskLifecycleService:
             self.repo_root,
             execution_context,
             allow_spec_file_modifications=allow_spec_file_modifications,
-            allow_unchecked_specs=allow_unchecked_specs,
             allow_missing_evidence=allow_missing_evidence,
         )
         prepared = self._prepare_transition(
@@ -667,7 +663,6 @@ class TaskLifecycleService:
                 allow_spec_file_modifications=(
                     execution_policy.allow_spec_file_modifications
                 ),
-                allow_unchecked_specs=execution_policy.allow_unchecked_specs,
                 allow_missing_evidence=execution_policy.allow_missing_evidence,
                 execution_policy=execution_policy,
             )
@@ -749,32 +744,20 @@ class TaskLifecycleService:
                     persisted["meta"] = meta
         if stage.name == COMPLETE_STAGE.name:
             meta = dict(persisted.get("meta") or {})
-            spec_report = getattr(check_result, "spec_check", None)
-            if isinstance(spec_report, dict):
-                # Overwrite-on-each-completion telemetry: retry loops must
-                # not accumulate, the latest gate result wins.
-                meta["specCheckSummary"] = dict(
-                    spec_report.get("summary") or {}
-                )
-                # Resolved here rather than reusing resolved_executor: the
-                # complete stage does not activate a session, so that one is
-                # always None and the actor would never be recorded.
-                payloads = exemption_meta_payloads(
-                    check_result,
-                    executor=self._resolve_executor(executor),
-                )
-                if "evidenceExempt" in payloads:
-                    meta["evidenceExempt"] = {
-                        "at": datetime.now(timezone.utc).strftime(
-                            "%Y-%m-%dT%H:%M:%SZ"
-                        ),
-                        **payloads["evidenceExempt"],
-                    }
-                if "specCheckExempt" in payloads:
-                    meta["specCheckExempt"] = {
-                        "at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                        **payloads["specCheckExempt"],
-                    }
+            # Resolved here rather than reusing resolved_executor: the
+            # complete stage does not activate a session, so that one is
+            # always None and the actor would never be recorded.
+            payloads = exemption_meta_payloads(
+                check_result,
+                executor=self._resolve_executor(executor),
+            )
+            if "evidenceExempt" in payloads:
+                meta["evidenceExempt"] = {
+                    "at": datetime.now(timezone.utc).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    **payloads["evidenceExempt"],
+                }
                 persisted["meta"] = meta
         return persisted
 

@@ -3,9 +3,8 @@
 // runtime-context bind) is rendered by the Python source
 // <scripts>/adapters/host/inject.py --host opencode; this module moves
 // bytes only. What stays here is what the Python side cannot reach:
-// the config-hook skills registration, the shell.env context-key
-// export, and the edit-phase spec-check the tool.execute.after hook
-// delegates to the project runtime.
+// the config-hook skills registration and the shell.env context-key
+// export.
 //
 // This module must NOT live under plugins/: opencode
 // treats every file directly inside plugins/ as a plugin
@@ -262,82 +261,6 @@ function injectShellEnv(input, output) {
   }
 }
 
-// Editor-phase spec-check: opencode sessions get the same
-// single-line violation hint zcode and claude-code
-// receive. Best-effort — a missing runtime, a timeout, or
-// any error stays silent and never blocks the edit that
-// already happened.
-const EDIT_TOOL_NAMES = new Set(["edit", "write"])
-const EDIT_CHECK_TIMEOUT_MS = 2500
-
-function editedFilePath(input) {
-  const tool = typeof input?.tool === "string" ? input.tool : ""
-  if (!EDIT_TOOL_NAMES.has(tool)) {
-    return ""
-  }
-  const args = input?.args
-  const candidate = args && typeof args === "object" ? args.filePath : null
-  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : ""
-}
-
-function runEditSpecCheck(root, filePath) {
-  return new Promise((resolvePromise) => {
-    let settled = false
-    const finish = (value) => {
-      if (!settled) {
-        settled = true
-        resolvePromise(value)
-      }
-    }
-    const entry = resolve(
-      root,
-      DIR_WORKFLOW,
-      process.platform === "win32" ? "run.cmd" : "run"
-    )
-    if (!existsSync(entry)) {
-      finish("")
-      return
-    }
-    let child
-    try {
-      child = spawn(
-        entry,
-        ["spec-check", "--phase", "edit", "--file", filePath, "--throttled"],
-        {
-          cwd: root,
-          stdio: ["ignore", "pipe", "ignore"],
-          shell: process.platform === "win32",
-        }
-      )
-    } catch {
-      finish("")
-      return
-    }
-    const timer = setTimeout(() => {
-      try {
-        child.kill()
-      } catch {
-        // the edit must not be held up by a stuck checker
-      }
-      finish("")
-    }, EDIT_CHECK_TIMEOUT_MS)
-    let stdout = ""
-    if (child.stdout) {
-      child.stdout.on("data", (chunk) => {
-        stdout += String(chunk)
-      })
-    }
-    child.on("error", () => {
-      clearTimeout(timer)
-      finish("")
-    })
-    child.on("close", () => {
-      clearTimeout(timer)
-      finish(stdout.trim())
-    })
-  })
-}
-
 // The payload's own skills directory, located from this
 // module's file path and not from the repository root: the
 // machine install puts this file in
@@ -381,12 +304,10 @@ export function registerPayloadSkills(config) {
 }
 
 // The plugin adapter imports the hook helpers; these are
-// the unit-test surface (transport, fail-open, shell env,
-// edit-phase delegation). opencode never reads this module.
+// the unit-test surface (transport, fail-open, shell env).
+// opencode never reads this module.
 export {
   renderViaInject,
-  editedFilePath,
   findRepoRoot,
   injectShellEnv,
-  runEditSpecCheck,
 }
