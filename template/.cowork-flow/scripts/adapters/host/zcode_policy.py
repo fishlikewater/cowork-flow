@@ -205,7 +205,7 @@ def edit_scope_warning(root: Path, hook_input: dict[str, Any]) -> str:
         normalized = normalized[2:]
     return (
         f"⚠️ {normalized} is outside the task's declared scope. "
-        "If intended, add it with `task context add` (agent-mutable) "
+        "If intended, declare it in the task's `implement.jsonl` (agent-mutable) "
         "or revert the edit."
     )
 

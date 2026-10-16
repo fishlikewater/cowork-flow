@@ -13,6 +13,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from services.fact_view import (  # noqa: E402
+    _cut_scope_rows,
     build_fact_view,
     build_stage_contract,
     parse_decision_anchor,
@@ -289,10 +290,12 @@ class StageContractBuildTest(unittest.TestCase):
 
     def test_under_budget_keeps_exact_legacy_shape(self) -> None:
         block = self._build([{"file": "src/demo.py", "type": "file"}])
-        self.assertTrue(block.endswith("</stage-contract>"))
-        self.assertIn("Scope: src/demo.py [agent-mutable]", block)
+        lines = block.splitlines()
+        self.assertEqual(lines[0], f'<stage-contract task="{self.TASK_PATH}">')
+        self.assertEqual(lines[-1], "</stage-contract>")
+        self.assertRegex(block, r"(?m)^Scope: src/demo\.py \[agent-mutable\]$")
         self.assertIn(
-            "scope is agent-mutable (self-declared via task context add)",
+            "scope is agent-mutable (declare more in implement.jsonl)",
             block,
         )
 
@@ -319,7 +322,7 @@ class StageContractBuildTest(unittest.TestCase):
         self.assertTrue(block.endswith("</stage-contract>"))
         self.assertIn("Gates: edits outside Scope are review blockers", block)
         self.assertIn(
-            "scope is agent-mutable (self-declared via task context add)",
+            "scope is agent-mutable (declare more in implement.jsonl)",
             block,
         )
         self.assertRegex(block, r"Scope: src/module-0")
@@ -385,17 +388,49 @@ class StageContractBuildTest(unittest.TestCase):
         for budget in range(260, 300):
             with self.subTest(budget=budget):
                 block = self._build(whitelist, budget=budget)
-                self.assertIn("Scope: ", block)
+                self.assertRegex(block, r"(?m)^Scope: .+$")
                 self.assertIn(
                     "Gates: edits outside Scope are review blockers", block
                 )
+
+    def test_budget_below_floor_never_shortens_a_long_scope_row(self) -> None:
+        """The floor is not redundant with the label check. With a negative
+        `room` the slice is `line[:-k]`, which keeps a long row's front —
+        label included — so the label check alone would wave through a row
+        chopped at the tail and still over budget. Only the floor stops
+        that, by returning the block whole."""
+        long_path = "src/module-0/" + "p" * 380 + ".py"
+        block = self._build([{"file": long_path, "type": "file"}], budget=40)
+        self.assertGreater(len(block), 40)
+        self.assertIn(f"Scope: {long_path} [agent-mutable]", block)
+        self.assertIn("Gates: edits outside Scope are review blockers", block)
+
+    def test_scope_row_cut_accounts_for_every_scope_row(self) -> None:
+        """The room left after the fixed rows is shared by every Scope row.
+        The renderer emits exactly one, so the multi-row shape is handed to
+        the helper directly: under the single-row formula the extra row's
+        width overshoots the budget while both rows stay truncated."""
+        lines = [
+            '<stage-contract task=".cowork-flow/tasks/08-30-demo">',
+            "Scope: src/" + "a" * 80 + " [agent-mutable]",
+            "Scope: src/" + "b" * 80 + " [agent-mutable]",
+            "Gates: " + "g" * 100,
+            "</stage-contract>",
+        ]
+        cut = _cut_scope_rows(lines, budget=300)
+        self.assertIsNotNone(cut)
+        assert cut is not None
+        self.assertLessEqual(len("\n".join(cut)), 300)
+        self.assertEqual(
+            2, sum(1 for line in cut if line.startswith("Scope: "))
+        )
 
     def test_readonly_variant_for_delegated(self) -> None:
         block = self._build(
             [{"file": "src/a.py", "type": "file"}],
             mutable=False,
         )
-        self.assertIn("Scope: src/a.py [read-only]", block)
+        self.assertRegex(block, r"(?m)^Scope: src/a\.py \[read-only\]$")
         self.assertIn(
             "scope is inherited from the parent task (read-only reference)",
             block,
@@ -476,26 +511,57 @@ class SpecEntriesForTaskDevTypeTest(unittest.TestCase):
     def test_fullstack_dev_type_adds_both_packs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            _, files = self._files(root, "fullstack")
+            resolved, files = self._files(root, "fullstack")
 
-        self.assertIn(".cowork-flow/spec/backend/index.md", files)
-        self.assertIn(".cowork-flow/spec/frontend/index.md", files)
+        self.assertEqual("fullstack", resolved)
+        self.assertEqual(
+            [
+                ".cowork-flow/spec/backend/index.md",
+                ".cowork-flow/spec/frontend/index.md",
+            ],
+            [
+                f
+                for f in files
+                if f.startswith(".cowork-flow/spec/backend/")
+                or f.startswith(".cowork-flow/spec/frontend/")
+            ],
+        )
 
     def test_spec_dev_type_adds_contract_indexes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            _, files = self._files(root, "spec")
+            resolved, files = self._files(root, "spec")
 
-        self.assertIn(".cowork-flow/spec/contracts/index.md", files)
+        self.assertEqual("spec", resolved)
+        self.assertEqual(
+            [
+                ".cowork-flow/spec/index.md",
+                ".cowork-flow/spec/contracts/index.md",
+                ".cowork-flow/spec/schemas/index.md",
+            ],
+            [
+                f
+                for f in files
+                if f.startswith(".cowork-flow/spec/")
+                and not f.startswith(".cowork-flow/spec/guides/")
+            ],
+        )
 
     def test_absent_dev_type_yields_no_spec_pointers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             resolved, files = self._files(root, None)
 
-        self.assertIsNone(resolved)
-        self.assertNotIn(".cowork-flow/spec/backend/index.md", files)
-        self.assertNotIn(".cowork-flow/spec/frontend/index.md", files)
+        self.assertEqual(None, resolved)
+        self.assertEqual(
+            [
+                f
+                for f in files
+                if f.startswith(".cowork-flow/spec/backend/")
+                or f.startswith(".cowork-flow/spec/frontend/")
+            ],
+            [],
+        )
 
 
 if __name__ == "__main__":

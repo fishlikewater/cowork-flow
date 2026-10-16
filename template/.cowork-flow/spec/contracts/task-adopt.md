@@ -74,7 +74,7 @@ that does not advance status); `check_result` is `null` (no check is exempted).
 ## Session binding
 
 On successful adoption the CLI binds the adopter's session to that task (the same
-shape as a rebind by `task next <dir>` or the binding after `task create`), so a
+shape as a rebind by `task next <dir>` or the binding at task creation), so a
 later `task next <dir> --run` can omit the directory and continue the
 review/complete/archive chain.
 

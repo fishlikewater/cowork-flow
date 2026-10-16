@@ -14,8 +14,9 @@ the plan into a second workflow kernel.
 
 ## Creation phase
 
-- A plain `task create` may create a planning task with no plan.
-- `task create --from-plan <path>` is an explicit binding request; `<path>` must
+- A plain task creation (`task next --title … --slug …`) may create a planning
+  task with no plan.
+- `task next --from-plan <path>` is an explicit binding request; `<path>` must
   exist, lie inside the repository, and lie under `.cowork-flow/plans/`.
 - On a successful binding the runtime writes:
 

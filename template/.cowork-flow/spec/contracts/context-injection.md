@@ -260,7 +260,7 @@ review time:
 <stage-contract task=".cowork-flow/tasks/08-30-demo">
 Scope: src/demo.py; src/next.py (+1 more in implement.jsonl) [agent-mutable]
 Specs: .cowork-flow/spec/backend/index.md (+1 more)
-Gates: edits outside Scope are review blockers; CLAUDE.md and workflow files are protected; spec/ edits may be allowed by review policy; scope is agent-mutable (self-declared via task context add)
+Gates: edits outside Scope are review blockers; CLAUDE.md and workflow files are protected; spec/ edits may be allowed by review policy; scope is agent-mutable (declare more in implement.jsonl)
 Verify: npm run test:fast; python3 -m pytest tests/ -q
 </stage-contract>
 ```
@@ -270,8 +270,9 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   absolute paths, drive letters, wildcards, unsupported types — authorize
   nothing and are dropped, matching `context_paths.normalize_context_file_scope_entry`),
   first 8 + `(+N more)`. The scope is **agent-mutable** on main
-  (`task context add` can extend it) — it is a self-declared boundary, not a
-  hard fence; the label says so. Delegated sessions inherit the parent
+  (appending a scope entry to `implement.jsonl` extends it) — it is a
+  self-declared boundary, not a hard fence; the label says so. Delegated
+  sessions inherit the parent
   task's scope and see it as `[read-only]` — the child must not believe it
   can self-declare scope on the parent's behalf.
 - **Specs**: `.cowork-flow/spec/` pointer entries from implement.jsonl
@@ -300,9 +301,10 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   closing tag and the Gates row always survive intact — a body-wide cut
   would either truncate the tag every consumer matches on (making the block
   invisible to them) or silently drop the edit-policy row, so neither is
-  allowed. Below the size those fixed rows themselves need, or when the cut
-  would shave the `Scope: ` label off the row, the block is returned whole
-  and may exceed the budget: guard rows and parseability outrank the budget.
+  allowed. Below the size those fixed rows plus a minimal `Scope: X` row
+  need, or when the cut would shave a `Scope: ` label off any row, the block
+  is returned whole and may exceed the budget: guard rows and parseability
+  outrank the budget.
   The scope-filter rules and the stage-contract
   budget/limits come from `.cowork-flow/spec/runtime/scope-rules.json`, the
   single source consumed at runtime; a missing or malformed file degrades to

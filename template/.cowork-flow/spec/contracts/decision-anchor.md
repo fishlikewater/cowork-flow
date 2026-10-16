@@ -110,7 +110,7 @@ After merging (5 files): `decision-anchor.md` + `implement.jsonl` + `check.jsonl
   component.
   A **consequence** (expected cost, not a defect): **any byte change in
   `implement.jsonl`** (appending or removing a scope entry, rewording a `reason`,
-  a domain-guide entry auto-appended by `task context add`) **or a rewrite of a
+  a domain-guide entry) **or a rewrite of a
   referenced spec's prose invalidates an existing receipt**, requiring one more
   review run against the final state. Appending evidence, ticking ACs, and runtime
   metadata are not in that set.

@@ -230,7 +230,7 @@ STAGE_CONTRACT_BUDGET = 3400
 GATES_TEXT = (
     "Gates: edits outside Scope are review blockers; CLAUDE.md and workflow "
     "files are protected; spec/ edits may be allowed by review policy; "
-    "scope is agent-mutable (self-declared via task context add)"
+    "scope is agent-mutable (declare more in implement.jsonl)"
 )
 # Delegated subtasks render the parent scope as a read-only
 # reference: a child must not believe it can self-declare
@@ -259,13 +259,12 @@ def _fit_stage_contract(
     """Degrade an over-budget block without ever emitting a malformed one:
     the opening tag, the closing tag and the guard rows (Scope/Gates) always
     survive intact. Order: 1) drop removable rows (Specs/Verify) from the
-    tail; 2) shrink Scope entries one by one (min 1); 3) last-resort cut of
-    the Scope row's text, and nothing else. The block is returned whole and
-    may exceed the budget when the fixed rows alone do not fit, and also when
-    that cut would shave the `Scope: ` label itself off the row (guards and
-    parseability outrank the budget). Single renderer: the host shims
-    transport this output unchanged, so the row-role rules and the drop
-    order live here only."""
+    tail; 2) shrink Scope entries one by one (min 1); 3) `_cut_scope_rows`
+    shortens the Scope rows' own text, and nothing else -- it returns None
+    when even that cannot keep the block usable, and the block is then
+    returned as is, over budget (guards and parseability outrank it).
+    Single renderer: the host shims transport this output unchanged, so the
+    row-role rules and the drop order live here only."""
     if len("\n".join(lines)) <= budget:
         return lines
     removable = [
@@ -293,24 +292,42 @@ def _fit_stage_contract(
         lines = candidate
     if len("\n".join(lines)) <= budget:
         return lines
-    # Last resort: cut the Scope row, not the whole body. The opening tag
-    # names the task and the Gates row carries the edit policy, so a
-    # body-wide cut emits a block consumers cannot match (truncated tag) or
-    # silently drops a guard row. When the fixed rows alone do not fit, the
-    # block is returned whole and may exceed the budget.
+    cut = _cut_scope_rows(lines, budget)
+    return lines if cut is None else cut
+
+
+def _cut_scope_rows(lines: list[str], budget: int) -> list[str] | None:
+    """Last resort: shorten the text of every Scope row so the block fits.
+
+    Returns None -- the caller then returns the block whole and lets it
+    exceed the budget -- in three cases: there is no Scope row to cut at all
+    (a shape the renderer never emits), the fixed rows plus a minimal
+    `Scope: X` row do not fit, or the cut would shave a `Scope: ` label off a
+    row (`rstrip` landing inside the entry's leading whitespace). A body-wide
+    cut is never allowed: it would truncate the tag every consumer matches
+    on, and a label-less row counts as a dropped guard row. The floor is not
+    redundant with the label check -- a negative `room` slices from the row's
+    tail, so without it a long row would go through chopped and still over
+    budget. Guard rows and parseability outrank the budget.
+    """
     fixed = [line for line in lines if not line.startswith("Scope:")]
-    room = budget - len("\n".join(fixed)) - 1
+    scope_count = len(lines) - len(fixed)
+    if scope_count == 0:
+        return None
+    # Every Scope row is shortened to the same width, so the room left after
+    # the fixed rows and the separators is shared between them.
+    room = (budget - len("\n".join(fixed)) - scope_count) // scope_count
     if room < len("Scope: ") + 1:
-        return lines
+        return None
     cut = [
         line[:room].rstrip() if line.startswith("Scope:") else line
         for line in lines
     ]
-    # rstrip can shave the row label off when the cut lands inside leading
-    # whitespace; a Scope row that no longer matches `Scope: ` counts as a
-    # dropped row, so the block is returned whole instead.
-    if not any(line.startswith("Scope: ") for line in cut):
-        return lines
+    if any(
+        original.startswith("Scope:") and not shortened.startswith("Scope: ")
+        for original, shortened in zip(lines, cut)
+    ):
+        return None
     return cut
 
 
