@@ -154,6 +154,17 @@ class LifecycleChecksTest(FlowScriptTestCase):
             codes = {issue.code for issue in result.issues}
             self.assertIn("LIFECYCLE-AC-001", codes)
             self.assertNotIn("LIFECYCLE-AC-002", codes)
+            self.assertEqual(
+                [
+                    (
+                        "LIFECYCLE-AC-001",
+                        None,
+                        "decision-anchor has 1 unchecked acceptance criterion(ies): AC-001; "
+                        "finish them and tick the checkbox, or record evidence in evidence.jsonl",
+                    )
+                ],
+                [(issue.code, issue.path, issue.message) for issue in result.issues],
+            )
 
     def test_complete_blocks_on_checked_ac_without_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -171,6 +182,18 @@ class LifecycleChecksTest(FlowScriptTestCase):
             ac002 = next(i for i in result.issues if i.code == "LIFECYCLE-AC-002")
             self.assertIn("evidence.jsonl", ac002.message)
             self.assertIn("--allow-missing-evidence", ac002.message)
+            self.assertEqual(
+                [
+                    (
+                        "LIFECYCLE-AC-002",
+                        None,
+                        "1 acceptance criterion(ies) lack evidence records: AC-001; append "
+                        "{ac, kind: test|command|manual, ref, note?, recordedAt, by} records to "
+                        "evidence.jsonl, or pass --allow-missing-evidence to record the exemption",
+                    )
+                ],
+                [(issue.code, issue.path, issue.message) for issue in result.issues],
+            )
 
     def test_complete_ac_gate_skipped_without_acceptance_criteria(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -185,6 +208,8 @@ class LifecycleChecksTest(FlowScriptTestCase):
             codes = {issue.code for issue in result.issues}
             self.assertNotIn("LIFECYCLE-AC-001", codes)
             self.assertNotIn("LIFECYCLE-AC-002", codes)
+            self.assertEqual([], list(result.issues))
+            self.assertEqual(0, len(result.blockers))
 
     def test_fingerprint_covers_declared_scope_and_spec_content(self) -> None:
         """`.cowork-flow/**` never reaches the change set, so the fingerprint
@@ -441,6 +466,17 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertIn(
                 "GIT-SNAPSHOT-DEGRADED",
                 {issue.code for issue in result.issues},
+            )
+            self.assertEqual(
+                [
+                    (
+                        "GIT-SNAPSHOT-DEGRADED",
+                        None,
+                        "Git snapshot degraded; cannot verify the complete file scope "
+                        "because the baseline diff is unavailable",
+                    )
+                ],
+                [(issue.code, issue.path, issue.message) for issue in result.issues],
             )
 
     def test_allowed_file_scope_authorizes_known_exact_context_paths(self) -> None:
@@ -941,6 +977,17 @@ class LifecycleChecksTest(FlowScriptTestCase):
                 blocked.blockers,
             )
             self.assertFalse(allowed.blocked)
+            self.assertEqual(
+                [
+                    (
+                        "protected_workflow_file",
+                        "AGENTS.md",
+                        "Protected workflow/spec file changed outside main session: AGENTS.md",
+                    )
+                ],
+                [(issue.code, issue.path, issue.message) for issue in blocked.issues],
+            )
+            self.assertEqual([], list(allowed.issues))
 
     def test_cmd_review_rejects_coordinator_flag_for_bound_subagent_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

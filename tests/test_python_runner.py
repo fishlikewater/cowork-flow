@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -103,6 +104,16 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertNotIn("task.py", content)
         self.assertNotIn(":run_task", content)
         self.assertNotIn("REST_ARGS", content)
+        self.assertIn(
+            'set "RUNNER_SCRIPT=%WORKFLOW_DIR%scripts\\run.py"',
+            content.splitlines(),
+        )
+        label = re.search(r"MIN_PYTHON_LABEL=Python (\d+\.\d+)\+", content)
+        guard = re.search(r"sys\.version_info >= \((\d+), (\d+)\)", content)
+        self.assertEqual(
+            (label and label.group(1), guard and ".".join(guard.groups())),
+            ("3.9", "3.9"),
+        )
 
     def test_shared_python_runner_maps_commands_to_workflow_scripts(self) -> None:
         self.assertTrue(PYTHON_RUNNER.is_file())
@@ -117,6 +128,29 @@ class PythonRunnerTest(unittest.TestCase):
         self.assertNotIn("_resolve_manifest_script", content)
         self.assertNotIn("project-context", content)
         self.assertNotIn("project_context.py", content)
+        mapping = dict(
+            re.findall(r'^\s*"([\w-]+)": "([\w/.-]+\.py)",$', content, re.MULTILINE)
+        )
+        self.assertEqual(
+            {
+                "resume": "adapters/cli/resume.py",
+                "task": "adapters/cli/task.py",
+                "get-context": "adapters/cli/get_context.py",
+                "get_context": "adapters/cli/get_context.py",
+                "get-developer": "adapters/cli/get_developer.py",
+                "get_developer": "adapters/cli/get_developer.py",
+                "init-developer": "adapters/cli/init_developer.py",
+                "init_developer": "adapters/cli/init_developer.py",
+                "state": "adapters/cli/state.py",
+                "mcp-state": "adapters/mcp/state_server.py",
+                "subagent": "adapters/cli/subagent.py",
+            },
+            mapping,
+        )
+        self.assertEqual(
+            [],
+            [script for script in mapping.values() if not (SCRIPTS / script).is_file()],
+        )
 
     def test_removed_project_context_command_is_rejected(self) -> None:
         result = subprocess.run(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import re
 import sys
 import tempfile
 import unittest
@@ -46,6 +47,11 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
             self.assertTrue((task_dir / "prd.md").is_file())
             self.assertFalse((task_dir / "decision-anchor.md").exists())
             self.assertIn("decision-anchor.md is missing or empty", blockers)
+            self.assertEqual(["decision-anchor.md is missing or empty"], blockers[:1])
+            self.assertEqual(
+                "# Legacy PRD\n## Goal\nTest\n",
+                (task_dir / "prd.md").read_text(encoding="utf-8"),
+            )
 
     def test_task_start_blockers_missing_anchor_and_no_legacy(self) -> None:
         """没有 prd.md 也没有 decision-anchor.md 时报 missing。"""
@@ -58,6 +64,8 @@ class DecisionAnchorDriftPreventionTest(unittest.TestCase):
             failure = self.policy.start_readiness_failure(root, task_dir)
             blockers = list(failure.blockers)
             self.assertIn("decision-anchor.md is missing or empty", blockers)
+            self.assertEqual(["decision-anchor.md is missing or empty"], blockers[:1])
+            self.assertEqual("TASK-START-001", failure.code)
 
 
 
@@ -89,6 +97,13 @@ class DecisionAnchorSchemaTest(unittest.TestCase):
             self.assertNotIn("删除 `prd.md`", content)
             self.assertIn("The formal release does not auto-migrate a legacy `prd.md`", content)
             self.assertIn("fail-closed", content)
+            self.assertEqual(
+                [["目标", "验收标准", "被拒方案", "关键假设", "范围边界", "验证命令"]],
+                [
+                    re.findall(r"^## (\S+)$", block, re.MULTILINE)
+                    for block in re.findall(r"```markdown\n(.*?)```", content, re.DOTALL)
+                ],
+            )
 
 
 if __name__ == "__main__":

@@ -133,6 +133,13 @@ party_mode_v2:
             self.assertIn("party_mode_v2:", text)
             self.assertIn("min_agents: 3", text)
             self.assertIn("max_rounds: 5", text)
+            with tempfile.TemporaryDirectory() as temp_name:
+                config = self.config.get_party_mode_v2_config(
+                    self._repo(Path(temp_name), text)
+                )
+            self.assertEqual(3, config["min_agents"])
+            self.assertEqual(5, config["max_rounds"])
+            self.assertIs(True, config["fresh_context_per_round"])
 
 
 if __name__ == "__main__":

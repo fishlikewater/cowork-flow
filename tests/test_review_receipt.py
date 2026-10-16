@@ -209,6 +209,10 @@ class ReviewReceiptTest(unittest.TestCase):
 
         self.assertIsNotNone(reason)
         self.assertIn("does not exist", reason)
+        self.assertEqual(
+            "runtime context 'rtx_never_dispatched' does not exist",
+            reason,
+        )
 
     def test_binding_issue_flags_a_context_never_bound_to_a_session(self) -> None:
         # `active` is submittable at write time, but no host session ever
@@ -223,6 +227,11 @@ class ReviewReceiptTest(unittest.TestCase):
 
         self.assertIsNotNone(reason)
         self.assertIn("never bound", reason)
+        self.assertEqual(
+            f"runtime context {CONTEXT_ID!r} was never bound to a host session, "
+            "so no checker is known to have run",
+            reason,
+        )
 
     def test_binding_issue_flags_a_context_bound_to_another_task(self) -> None:
         other = self.root / ".cowork-flow" / "tasks" / "other-task"
@@ -235,6 +244,10 @@ class ReviewReceiptTest(unittest.TestCase):
 
         self.assertIsNotNone(reason)
         self.assertIn("not bound to this task", reason)
+        self.assertEqual(
+            f"runtime context {CONTEXT_ID!r} is not bound to this task",
+            reason,
+        )
 
     def test_binding_issue_accepts_a_checker_closed_after_the_review(self) -> None:
         self._bound_checker()
@@ -255,6 +268,10 @@ class ReviewReceiptTest(unittest.TestCase):
 
         self.assertIsNotNone(reason)
         self.assertIn("cowork-check", reason)
+        self.assertEqual(
+            f"runtime context {CONTEXT_ID!r} is not a cowork-check context",
+            reason,
+        )
 
 
 if __name__ == "__main__":

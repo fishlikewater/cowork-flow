@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import itertools
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -291,6 +292,12 @@ class SkillRoutingTest(unittest.TestCase):
         self.assertIn("Before editing for implement", text)
         self.assertIn("read `implement.jsonl` and every listed `file` entry", text)
         self.assertIn("If `test-first` is listed", text)
+        self.assertRegex(
+            text,
+            r"(?m)^Before editing for implement, read `implement\.jsonl` and every "
+            r"listed `file` entry\.\nIf `test-first` is listed, read it and write the "
+            r"red test before production code\.$",
+        )
 
     def test_review_actions_expose_advisory_diagnostics_command(self) -> None:
         navigation = self._navigation()
@@ -317,7 +324,7 @@ class SkillRoutingTest(unittest.TestCase):
             SCRIPTS / "kernel" / "workflow_route.py"
         ).read_text(encoding="utf-8")
 
-        for forbidden in (
+        forbidden_tokens = (
             "activatedSkill",
             "recommendedSkill",
             "./.cowork-flow/run",
@@ -326,7 +333,16 @@ class SkillRoutingTest(unittest.TestCase):
             '"task-planning"',
             '"adversarial-review"',
             '"batch-execution"',
-        ):
+        )
+        self.assertEqual(
+            {token: 0 for token in forbidden_tokens},
+            {token: source.count(token) for token in forbidden_tokens},
+        )
+        self.assertEqual(
+            ["ACTION_TRANSITIONS = {"],
+            re.findall(r"(?m)^ACTION_TRANSITIONS = \{$", source),
+        )
+        for forbidden in forbidden_tokens:
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
 
@@ -347,6 +363,8 @@ class SkillRoutingTest(unittest.TestCase):
                 self.assertNotIn("internalProtocols", route)
                 self.assertIsNone(route["recommendedSkill"])
                 self.assertIn("answer_questions", route["allowedOperations"])
+                self.assertEqual("answer_questions", route["nextAction"])
+                self.assertFalse(route["action"]["mutatesState"])
 
     def test_delegated_context_cannot_mutate_main_lifecycle(self) -> None:
         navigation = self._navigation()
@@ -362,6 +380,15 @@ class SkillRoutingTest(unittest.TestCase):
             self.assertTrue(
                 forbidden.isdisjoint(route["allowedOperations"]),
                 (status, route),
+            )
+            self.assertEqual(
+                ["answer_questions", "debug_failure", "discuss_options"]
+                + (
+                    ["doubt_review", "execute_delegated_work"]
+                    if status == "delegated_subtask"
+                    else []
+                ),
+                route["allowedOperations"],
             )
             if status == "delegated_subtask":
                 self.assertIn("execute_delegated_work", route["allowedOperations"])
@@ -379,6 +406,10 @@ class SkillRoutingTest(unittest.TestCase):
             self.assertIsNone(route["recommendedSkill"])
             self.assertIn(
                 f"intent implement is not allowed while status is {status}",
+                route["blockers"],
+            )
+            self.assertEqual(
+                [f"intent implement is not allowed while status is {status}"],
                 route["blockers"],
             )
 

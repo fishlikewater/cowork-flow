@@ -74,6 +74,13 @@ class AcceptanceRowBlockersTest(unittest.TestCase):
         blockers = acceptance_row_blockers(
             _anchor(["验收标准见计划文件。"])
         )
+        self.assertEqual(
+            [
+                "decision-anchor.md declares no acceptance criterion; a "
+                "strict task needs at least one `- [ ] AC-xxx: ...` row"
+            ],
+            blockers,
+        )
         self.assertIn("declares no acceptance criterion", blockers[0])
 
     def test_valid_rows_pass(self) -> None:
@@ -102,6 +109,9 @@ class AcceptanceRowBlockersTest(unittest.TestCase):
             any("duplicate acceptance criterion id" in b for b in blockers),
             blockers,
         )
+        self.assertEqual(
+            ["duplicate acceptance criterion id(s): AC-001"], blockers
+        )
         self.assertIn("AC-001", blockers[0])
 
     def test_malformed_list_row_blocks(self) -> None:
@@ -122,6 +132,13 @@ class AcceptanceRowBlockersTest(unittest.TestCase):
 
     def test_missing_section_blocks_as_empty(self) -> None:
         blockers = acceptance_row_blockers("# Decision Anchor\n\n## 目标\n\n演示。\n")
+        self.assertEqual(
+            [
+                "decision-anchor.md declares no acceptance criterion; a "
+                "strict task needs at least one `- [ ] AC-xxx: ...` row"
+            ],
+            blockers,
+        )
         self.assertIn("declares no acceptance criterion", blockers[0])
 
 
@@ -454,6 +471,8 @@ class StartGateIntegrationTest(unittest.TestCase):
         self.assertFalse(declares_light_profile(task_data))
         self.assertFalse(is_light_task(task_data))
         self.assertNotIn("taskType", task_data.get("meta", {}))
+        self.assertEqual(GATE_PROFILE_STRICT, resolve_gate_profile(task_data))
+        self.assertEqual({"gateProfile": "strict"}, task_data["meta"])
 
 
 if __name__ == "__main__":

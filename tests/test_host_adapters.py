@@ -528,8 +528,13 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertIn("only public workflow router", text)
             self.assertNotIn(LEGACY_DISPATCH, text)
             self.assertNotIn(LEGACY_ACK, text)
-            for marker in banned:
-                self.assertNotIn(marker, text)
+            # Same coverage as a per-marker assertNotIn, but the failure names
+            # exactly which host primitive leaked into the surface.
+            self.assertEqual(
+                [],
+                [marker for marker in banned if marker in text],
+                f"{path.name} names a host-specific dispatch primitive",
+            )
 
     def test_opencode_assets_encode_fixed_agent_contract(self) -> None:
         for base in (ROOT / "template" / ".opencode",):
@@ -667,6 +672,7 @@ class HostAdaptersTest(unittest.TestCase):
             ROOT / "template" / ".codex" / "hooks" / "inject-workflow-state.py",
             ROOT / "template" / ".claude" / "hooks" / "inject-workflow-state.py",
         )
+        expected_host = {".codex": "codex", ".claude": "claude-code"}
         self.assertTrue(hook_paths)
         for hook_path in hook_paths:
             hook = hook_path.read_text(encoding="utf-8")
@@ -676,3 +682,11 @@ class HostAdaptersTest(unittest.TestCase):
             )
             self.assertIn("--host", hook)
             self.assertNotIn("def _load_contract_registry", hook)
+            # Each host hook is a pure delegate: it forwards to the shared entry
+            # exactly once, naming its own host. A swapped host id or a second
+            # call would change the shaping the renderer applies while the
+            # substring checks above stayed green.
+            self.assertEqual(
+                [f'return inject_main(["--host", "{expected_host[hook_path.parents[1].name]}"])'],
+                re.findall(r'return inject_main\(\[[^\]]*\]\)', hook),
+            )

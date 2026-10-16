@@ -291,23 +291,33 @@ class TaskCommandsTest(FlowScriptTestCase):
                 os.chdir(previous_cwd)
 
             self.assertEqual(0, result)
-            run_hooks.assert_not_called()
+            self.assertEqual([], run_hooks.mock_calls)
 
     def test_lifecycle_commands_do_not_define_domain_policy_helpers(self) -> None:
         lifecycle_commands = importlib.import_module(
             "adapters.cli.task_lifecycle_commands"
         )
 
-        for helper in (
+        policy_helpers = (
             "_allow_spec_file_modifications",
             "_task_start_blockers",
             "_task_context_validation_issues",
             "_refresh_task_artifact_placeholders",
             "_optional_readiness_blockers",
             "_start_preflight",
-        ):
+        )
+
+        self.assertEqual(
+            [],
+            [
+                helper
+                for helper in policy_helpers
+                if helper in vars(lifecycle_commands)
+            ],
+        )
+        for helper in policy_helpers:
             with self.subTest(helper=helper):
-                self.assertFalse(hasattr(lifecycle_commands, helper))
+                self.assertNotIn(helper, vars(lifecycle_commands))
 
     def test_context_commands_are_not_public_parser_commands(self) -> None:
         parser = self.task.build_parser()

@@ -413,6 +413,31 @@ class DevTypeWiringTest(unittest.TestCase):
             task_dir = self._create(Path(temp_dir), dev_type="backend")
 
             self.assertNotIn("scope", self._task_json(task_dir))
+            self.assertEqual(
+                {
+                    "_state",
+                    "assignee",
+                    "children",
+                    "commit",
+                    "completedAt",
+                    "createdAt",
+                    "creator",
+                    "dependsOn",
+                    "description",
+                    "dev_type",
+                    "id",
+                    "meta",
+                    "name",
+                    "notes",
+                    "parent",
+                    "priority",
+                    "relatedFiles",
+                    "status",
+                    "subtasks",
+                    "title",
+                },
+                set(self._task_json(task_dir)),
+            )
 
     def test_create_rejects_unknown_dev_type(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

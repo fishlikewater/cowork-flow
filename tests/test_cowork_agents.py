@@ -180,6 +180,19 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn(marker, text, f"{marker} missing from template/skills/party-mode/SKILL.md")
         for marker in forbidden_markers:
             self.assertNotIn(marker, text, f"{marker} should stay out of template/skills/party-mode/SKILL.md")
+        self.assertEqual(
+            [
+                "party-v2 advance",
+                "party-v2 finalize",
+                "party-v2 init",
+                "party-v2 monitor",
+                "party-v2 post",
+                "party-v2 record-action-result",
+                "party-v2 respond",
+                "party-v2 view",
+            ],
+            sorted(set(re.findall(r"party-v2 [a-z-]+", text))),
+        )
         self.assertFalse(
             (ROOT / "template" / "skills" / "party-mode-v2" / "SKILL.md").exists()
         )
@@ -189,6 +202,11 @@ class CoworkAgentsTest(unittest.TestCase):
         )
 
     def test_agents_require_runtime_context_and_disable_multi_agent(self) -> None:
+        expected_descriptions = {
+            "cowork-research": "Cowork-flow researcher for runtime-context bound research tasks.",
+            "cowork-implement": "Cowork-flow implementer for runtime-context bound implementation tasks.",
+            "cowork-check": "Cowork-flow checker for runtime-context bound review tasks.",
+        }
         for path in (
             ROOT / "template" / ".codex" / "agents" / "cowork-research.toml",
             ROOT / "template" / ".codex" / "agents" / "cowork-implement.toml",
@@ -196,6 +214,7 @@ class CoworkAgentsTest(unittest.TestCase):
         ):
             data = load_agent_toml(path)
             description = data.get("description", "")
+            self.assertEqual(expected_descriptions[path.stem], description, str(path))
             self.assertIn("runtime-context", description, str(path))
             self.assertNotIn("Active task", description, str(path))
             self.assertNotIn("active task", description, str(path))
@@ -228,6 +247,11 @@ class CoworkAgentsTest(unittest.TestCase):
                 self.assertIn(marker, prompt, f"{marker} missing from {path}")
             for marker in forbidden_markers:
                 self.assertNotIn(marker, prompt, f"{marker} should stay out of {path}")
+            self.assertRegex(
+                prompt,
+                r"(?m)^- Do not create task-local review artifacts, `tdd\.jsonl`, "
+                r"or TDD evidence records in `check\.jsonl`\.$",
+            )
 
     def test_cowork_check_requires_test_intent_review(self) -> None:
         required_markers = (
@@ -259,6 +283,11 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("resume", text)
             self.assertIn("multi_agent = false", text)
             self.assertIn("enabled = false", text)
+            self.assertRegex(
+                text,
+                r"(?m)^- MUST NOT run task start, task finish, task archive, "
+                r"or unscoped resume\.$",
+            )
 
     def test_agents_require_agent_dispatch_skill(self) -> None:
         fixed_agents = {
@@ -278,6 +307,13 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn(workflow_role, text)
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
+            dispatch_skill = (
+                ROOT / ".agents" / "skills" / "agent-dispatch" / "SKILL.md"
+            ).read_text(encoding="utf-8")
+            self.assertEqual(
+                ["agent-dispatch"],
+                re.findall(r"(?m)^name: (\S+)$", dispatch_skill),
+            )
 
     def test_fixed_agents_share_required_skill_contracts(self) -> None:
         role_contracts = {

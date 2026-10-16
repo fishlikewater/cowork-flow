@@ -171,6 +171,14 @@ class StageContractMatrixTest(unittest.TestCase):
             )
         self.assertIn("Verify:", block)
         self.assertLessEqual(len(block), STAGE_CONTRACT_BUDGET)
+        self.assertEqual(
+            ["Verify: " + "; ".join(["c" * 120] * STAGE_CONTRACT_VERIFY_LIMIT)],
+            [
+                line
+                for line in block.splitlines()
+                if line.startswith("Verify: ")
+            ],
+        )
 
     def test_every_matrix_case_satisfies_its_asserts(self) -> None:
         for case in self.matrix["cases"]:

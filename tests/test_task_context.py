@@ -62,6 +62,27 @@ class TaskContextServiceTest(unittest.TestCase):
                     check_files = {
                         entry["file"] for entry in service.entries(task_dir, "check")
                     }
+                    for stream in ("implement", "check"):
+                        with self.subTest(dev_type=dev_type, stream=stream):
+                            self.assertEqual(
+                                [
+                                    {
+                                        "file": (
+                                            ".agents/skills/test-first/SKILL.md"
+                                        ),
+                                        "reason": (
+                                            "Auto-routed context-only "
+                                            "red-green guide"
+                                        ),
+                                    }
+                                ],
+                                [
+                                    entry
+                                    for entry in service.entries(task_dir, stream)
+                                    if entry["file"]
+                                    == ".agents/skills/test-first/SKILL.md"
+                                ],
+                            )
 
                 self.assertIn(".agents/skills/test-first/SKILL.md", implement_files)
                 self.assertIn(".agents/skills/test-first/SKILL.md", check_files)

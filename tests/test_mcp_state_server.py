@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,17 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 SERVER_PATH = SCRIPTS / "adapters" / "mcp" / "state_server.py"
+
+BASE_SPEC_FILES = frozenset(
+    {
+        "AGENTS.md",
+        ".cowork-flow/spec/guides/index.md",
+        ".cowork-flow/spec/guides/pre-implementation-checklist.md",
+        ".agents/skills/cowork-flow/SKILL.md",
+        ".agents/skills/spec-sync/SKILL.md",
+        ".agents/skills/test-first/SKILL.md",
+    }
+)
 
 
 def _load_module():
@@ -235,6 +247,7 @@ class HandleRequestTest(unittest.TestCase):
         spec_files = [entry["file"] for entry in payload["specs"]]
         self.assertIn("AGENTS.md", spec_files)
         self.assertNotIn(".cowork-flow/spec/backend/index.md", spec_files)
+        self.assertEqual(BASE_SPEC_FILES, set(spec_files))
 
     def test_tools_call_task_specs_malformed_dev_type_degrades(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -264,6 +277,7 @@ class HandleRequestTest(unittest.TestCase):
         spec_files = [entry["file"] for entry in payload["specs"]]
         self.assertIn("AGENTS.md", spec_files)
         self.assertNotIn(".cowork-flow/spec/backend/index.md", spec_files)
+        self.assertEqual(BASE_SPEC_FILES, set(spec_files))
 
     def test_tools_call_task_scope_rejects_outside_repo(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -306,6 +320,10 @@ class HandleRequestTest(unittest.TestCase):
             self.assertTrue(response["result"]["isError"])
             self.assertIn(
                 "task-outside-repo",
+                response["result"]["content"][0]["text"],
+            )
+            self.assertEqual(
+                "ValueError: task-outside-repo",
                 response["result"]["content"][0]["text"],
             )
 
@@ -359,6 +377,10 @@ class HandleRequestTest(unittest.TestCase):
             )
         self.assertTrue(response["result"]["isError"])
         self.assertIn("ValueError", response["result"]["content"][0]["text"])
+        self.assertRegex(
+            response["result"]["content"][0]["text"],
+            r"^ValueError: task\.json not found under .*08-29-missing$",
+        )
 
     def test_unknown_method_returns_rpc_error_and_notifications_stay_silent(self) -> None:
         error = self.module.handle_request(
@@ -409,6 +431,10 @@ class IdentityGateTest(unittest.TestCase):
         self.assertIsNone(payload["task"])
         self.assertIn("no-active-task", payload["reason"])
         self.assertIn("identity-untrusted", payload["reason"])
+        self.assertEqual(
+            "no-active-task (identity-untrusted: process_fallback)",
+            payload["reason"],
+        )
 
     def test_task_state_implicit_trusted_identity_resolves_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -454,6 +480,10 @@ class IdentityGateTest(unittest.TestCase):
         )
         self.assertIn(
             "identity-untrusted", response["result"]["content"][0]["text"]
+        )
+        self.assertEqual(
+            "ValueError: no-active-task (identity-untrusted: process_fallback)",
+            response["result"]["content"][0]["text"],
         )
 
     def test_task_list_active_only_marked_for_trusted_identity(self) -> None:

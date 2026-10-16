@@ -57,19 +57,32 @@ class RuntimeTopologyTest(unittest.TestCase):
             SCRIPTS / "adapters" / "cli" / "task_lifecycle_commands.py"
         )
 
-        self.assertTrue(lifecycle_commands.is_file())
-        for forbidden in (
+        lifecycle_command_markers = (
             "def cmd_start(",
             "def cmd_review(",
             "def cmd_complete(",
             "def cmd_finish(",
             "def cmd_current(",
+        )
+        forbidden_markers = lifecycle_command_markers + (
             "TaskLifecycleService",
             "TaskContextService",
             "from datetime import datetime",
             "get_active_task",
             "clear_active_task",
-        ):
+        )
+
+        self.assertTrue(lifecycle_commands.is_file())
+        lifecycle_source = lifecycle_commands.read_text(encoding="utf-8")
+        self.assertEqual(
+            [],
+            [
+                marker
+                for marker in lifecycle_command_markers
+                if marker not in lifecycle_source
+            ],
+        )
+        for forbidden in forbidden_markers:
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, task_source)
 
@@ -101,6 +114,21 @@ class RuntimeTopologyTest(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+        self.assertEqual(
+            {
+                "USER_INTENTS",
+                "INTENT_OPERATIONS",
+                "ACTION_TRANSITIONS",
+                "RUNNABLE_ACTIONS",
+            },
+            {
+                target.id
+                for node in ast.parse(source).body
+                if isinstance(node, ast.Assign)
+                for target in node.targets
+                if isinstance(target, ast.Name)
+            },
+        )
 
     def test_services_do_not_import_adapters(self) -> None:
         self.assertEqual(

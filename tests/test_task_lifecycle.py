@@ -652,6 +652,12 @@ class TaskLifecycleServiceTest(unittest.TestCase):
             self.assertFalse(
                 check_runner.calls[0][2]["allow_spec_file_modifications"]
             )
+            self.assertEqual(1, len(check_runner.calls))
+            self.assertEqual("task_review", check_runner.calls[0][0])
+            self.assertEqual(
+                result.execution_policy.allow_spec_file_modifications,
+                check_runner.calls[0][2]["allow_spec_file_modifications"],
+            )
 
     def test_worker_execution_context_cannot_mutate_task_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

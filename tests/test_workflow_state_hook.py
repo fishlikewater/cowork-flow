@@ -101,6 +101,12 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn("STOP - no active task.", context)
         self.assertIn('<cowork-runtime host="codex" adapter="codex.hook">', context)
         self.assertIn('fingerprint="', context)
+        self.assertEqual(
+            '<workflow-state status="no_task" source="missing-context">\n'
+            "STOP - no active task.\n"
+            "</workflow-state>",
+            "<workflow-state" + context.split("<workflow-state", 1)[1],
+        )
 
     def test_bound_session_renders_task_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -137,6 +143,13 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn('task=\".cowork-flow/tasks/07-10-demo\"', context)
         self.assertIn('status=\"in_progress\"', context)
         self.assertIn("活动任务正在执行。", context)
+        self.assertEqual(
+            '<workflow-state task=".cowork-flow/tasks/07-10-demo"'
+            ' status="in_progress" source="session" session="probe">\n'
+            "活动任务正在执行。\n"
+            "</workflow-state>",
+            "<workflow-state" + context.split("<workflow-state", 1)[1],
+        )
 
     def test_workflow_state_header_carries_session_attribute(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -175,6 +188,12 @@ class WorkflowStateHookTest(unittest.TestCase):
                 )
 
         self.assertNotIn("session=", context)
+        self.assertEqual(
+            '<workflow-state status="no_task" source="missing-context">\n'
+            "STOP - no active task.\n"
+            "</workflow-state>",
+            "<workflow-state" + context.split("<workflow-state", 1)[1],
+        )
 
     def test_invalid_runtime_context_renders_guard_rail_body(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -191,6 +210,14 @@ class WorkflowStateHookTest(unittest.TestCase):
 
         self.assertIn('status=\"delegated_subtask\"', context)
         self.assertIn("Runtime context is missing, closed, or invalid.", context)
+        self.assertEqual(
+            "Run ./.cowork-flow/run task next --json for the current workflow route.\n"
+            "Runtime context: rtx-missing\n"
+            "Runtime context is missing, closed, or invalid. "
+            "Do not run standalone lifecycle commands, resume, archive, commit, or spawn.\n"
+            "</workflow-state>",
+            context.split("<workflow-state", 1)[1].split(">\n", 1)[1],
+        )
 
     def test_session_start_emits_full_digest_block(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -209,6 +236,15 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn('<cowork-runtime host="codex" adapter="codex.hook">', context)
         self.assertIn("<contract-digest fingerprint=", context)
         self.assertIn("<workflow-state status=", context)
+        self.assertRegex(
+            context,
+            r'^<cowork-runtime host="codex" adapter="codex\.hook">\n'
+            r'<contract-digest fingerprint="[a-f0-9]{16}">\n'
+            r"policy: repeat this short digest every hook; "
+            r"read full spec files only before listed actions\.\n"
+            r"</contract-digest>\n"
+            r"</cowork-runtime>\n\n",
+        )
 
     def test_non_session_start_emits_fingerprint_line_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -320,6 +356,19 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn("Goal: 把注入做成结构化事实头。", context)
         self.assertIn("AC-001", context)
         self.assertIn("Rejected: 方案B（双写行）", context)
+        self.assertEqual(
+            '<decision-anchor task=".cowork-flow/tasks/07-10-demo">\n'
+            "Goal: 把注入做成结构化事实头。\n"
+            "Acceptance: AC-001 三线属性头一致; AC-002 决策要点条件注入\n"
+            "AC evidence: 0/2 missing=AC-001,AC-002\n"
+            "Rejected: 方案B（双写行）\n"
+            "</decision-anchor>",
+            "<decision-anchor"
+            + context.split("<decision-anchor", 1)[1].split(
+                "</decision-anchor>", 1
+            )[0]
+            + "</decision-anchor>",
+        )
 
     def test_stage_contract_injected_for_active_states_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -353,6 +402,20 @@ class WorkflowStateHookTest(unittest.TestCase):
             self.assertIn('<stage-contract task=".cowork-flow/tasks/07-10-demo">', active)
             self.assertIn("Scope: src/demo.py [agent-mutable]", active)
             self.assertIn("Gates: edits outside Scope are review blockers", active)
+            self.assertEqual(
+                '<stage-contract task=".cowork-flow/tasks/07-10-demo">\n'
+                "Scope: src/demo.py [agent-mutable]\n"
+                "Gates: edits outside Scope are review blockers; "
+                "CLAUDE.md and workflow files are protected; "
+                "spec/ edits may be allowed by review policy; "
+                "scope is agent-mutable (declare more in implement.jsonl)\n"
+                "</stage-contract>",
+                "<stage-contract"
+                + active.split("<stage-contract", 1)[1].split(
+                    "</stage-contract>", 1
+                )[0]
+                + "</stage-contract>",
+            )
             self.assertLessEqual(
                 len(
                     active.split("<stage-contract", 1)[1].split("</stage-contract>", 1)[0]
@@ -374,6 +437,14 @@ class WorkflowStateHookTest(unittest.TestCase):
                 session_start=False,
             )
             self.assertNotIn("<stage-contract", done)
+            self.assertRegex(
+                done,
+                r'<workflow-state task="\.cowork-flow/tasks/07-10-demo"'
+                r' status="completed" source="session"( session="[^"]*")?>\n'
+                r"Run \./\.cowork-flow/run task next --json "
+                r"for the current workflow route\.\n"
+                r"</workflow-state>",
+            )
 
     def test_decision_anchor_shows_ac_evidence_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -403,6 +474,15 @@ class WorkflowStateHookTest(unittest.TestCase):
             )
 
         self.assertIn("AC evidence: 1/2 missing=AC-002", block)
+        self.assertEqual(
+            '<decision-anchor task=".cowork-flow/tasks/07-10-demo">\n'
+            "Goal: 把注入做成结构化事实头。\n"
+            "Acceptance: AC-001 三线属性头一致; AC-002 决策要点条件注入\n"
+            "AC evidence: 1/2 missing=AC-002\n"
+            "Rejected: 方案B（双写行）\n"
+            "</decision-anchor>",
+            block,
+        )
 
     def test_decision_anchor_ac_evidence_without_records_lists_all_missing(
         self,
@@ -421,6 +501,15 @@ class WorkflowStateHookTest(unittest.TestCase):
             )
 
         self.assertIn("AC evidence: 0/2 missing=AC-001,AC-002", block)
+        self.assertEqual(
+            '<decision-anchor task=".cowork-flow/tasks/07-10-demo">\n'
+            "Goal: 把注入做成结构化事实头。\n"
+            "Acceptance: AC-001 三线属性头一致; AC-002 决策要点条件注入\n"
+            "AC evidence: 0/2 missing=AC-001,AC-002\n"
+            "Rejected: 方案B（双写行）\n"
+            "</decision-anchor>",
+            block,
+        )
 
     def test_decision_anchor_without_evidence_file_omits_nothing(self) -> None:
         """Coverage degrades to 0/n without an evidence file — the anchor
@@ -440,6 +529,15 @@ class WorkflowStateHookTest(unittest.TestCase):
 
         self.assertIn("</decision-anchor>", block)
         self.assertIn("AC evidence: 0/2", block)
+        self.assertEqual(
+            '<decision-anchor task=".cowork-flow/tasks/07-10-demo">\n'
+            "Goal: 把注入做成结构化事实头。\n"
+            "Acceptance: AC-001 三线属性头一致; AC-002 决策要点条件注入\n"
+            "AC evidence: 0/2 missing=AC-001,AC-002\n"
+            "Rejected: 方案B（双写行）\n"
+            "</decision-anchor>",
+            block,
+        )
 
     def test_decision_anchor_skipped_for_terminal_states(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -468,6 +566,14 @@ class WorkflowStateHookTest(unittest.TestCase):
             )
 
         self.assertNotIn("<decision-anchor", context)
+        self.assertRegex(
+            context,
+            r'<workflow-state task="\.cowork-flow/tasks/07-10-demo"'
+            r' status="completed" source="session"( session="[^"]*")?>\n'
+            r"Run \./\.cowork-flow/run task next --json "
+            r"for the current workflow route\.\n"
+            r"</workflow-state>",
+        )
 
     def test_stage_contract_delegated_renders_readonly_variant(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -499,6 +605,16 @@ class WorkflowStateHookTest(unittest.TestCase):
         )
         self.assertNotIn("[agent-mutable]", block)
         self.assertNotIn("self-declared", block)
+        self.assertEqual(
+            '<stage-contract task=".cowork-flow/tasks/07-10-demo">\n'
+            "Scope: src/demo.py [read-only]\n"
+            "Gates: edits outside Scope are review blockers; "
+            "CLAUDE.md and workflow files are protected; "
+            "spec/ edits may be allowed by review policy; "
+            "scope is inherited from the parent task (read-only reference)\n"
+            "</stage-contract>",
+            block,
+        )
 
     def test_stage_contract_degraded_on_undecodable_anchor_keeps_guards(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -532,6 +648,17 @@ class WorkflowStateHookTest(unittest.TestCase):
         self.assertIn("Gates: edits outside Scope are review blockers", block)
         self.assertNotIn("Verify:", block)
         self.assertNotIn("stage-contract degraded", trace)
+        self.assertEqual(
+            '<stage-contract task=".cowork-flow/tasks/07-10-demo">\n'
+            "Scope: src/demo.py [agent-mutable]\n"
+            "Gates: edits outside Scope are review blockers; "
+            "CLAUDE.md and workflow files are protected; "
+            "spec/ edits may be allowed by review policy; "
+            "scope is agent-mutable (declare more in implement.jsonl)\n"
+            "</stage-contract>",
+            block,
+        )
+        self.assertEqual("", trace)
 
     def test_decision_anchor_undecodable_degrades_quietly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

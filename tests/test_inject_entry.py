@@ -146,6 +146,11 @@ class InjectEntryTest(unittest.TestCase):
         self.assertIn(
             '<cowork-runtime host="zcode" adapter="zcode.plugin">', context
         )
+        lines = context.splitlines()
+        self.assertEqual(
+            '<cowork-runtime host="zcode" adapter="zcode.plugin">', lines[0]
+        )
+        self.assertEqual(ZCODE_POLICY_LINE, lines[2])
         self.assertIn(ZCODE_POLICY_LINE, context)
         self.assertNotIn(PYTHON_CORE_POLICY_LINE, context)
         self.assertIn("<contract-digest fingerprint=", context)
@@ -165,6 +170,10 @@ class InjectEntryTest(unittest.TestCase):
         # zcode drops the registry-warning line (context-injection.md)
         self.assertNotIn("warning:", context)
         self.assertIn(ZCODE_POLICY_LINE, context)
+        self.assertEqual(
+            ["RUNTIME_CONTEXT_DISPATCH_V2", "FACT_LAYER_ACCESS_V1"],
+            re.findall(r"^- ([A-Z0-9_]+):", context, re.M),
+        )
 
     def test_claude_host_digest_keeps_default_policy_and_warning(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -184,6 +193,24 @@ class InjectEntryTest(unittest.TestCase):
         self.assertIn(
             '<cowork-runtime host="claude-code" adapter="claude-code.hooks">',
             context,
+        )
+        registry_path = (
+            root.resolve()
+            / ".cowork-flow"
+            / "spec"
+            / "runtime"
+            / "contract-registry.json"
+        )
+        self.assertEqual(
+            [
+                "warning: contract registry unavailable at "
+                f"{registry_path}; using fallback digest"
+            ],
+            [
+                line
+                for line in context.splitlines()
+                if line.startswith("warning: ")
+            ],
         )
 
     def test_qoder_session_start_uses_json_envelope_and_python_core_policy(self) -> None:
@@ -221,6 +248,17 @@ class InjectEntryTest(unittest.TestCase):
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn(".cowork-flow/tasks/09-01-demo", context)
+        self.assertEqual(
+            [
+                '<workflow-state task=".cowork-flow/tasks/09-01-demo" '
+                'status="in_progress" source="session" session="qoder_s1">'
+            ],
+            [
+                line
+                for line in context.splitlines()
+                if line.startswith("<workflow-state")
+            ],
+        )
 
     def test_qoder_system_message_reports_the_injected_state(self) -> None:
         # Qoder renders a hook's top-level systemMessage to the user, so the
@@ -329,6 +367,11 @@ class InjectEntryTest(unittest.TestCase):
         self.assertNotIn("\n", message)
         self.assertTrue(message.endswith("…"), message)
         self.assertIn(f"task={'x' * 99}…", message)
+        self.assertEqual(
+            "cowork-flow: 工作流状态已注入 · status=in_progress · task="
+            f"{'x' * 99}…",
+            message,
+        )
 
     def test_only_qoder_declares_a_user_visible_system_message(self) -> None:
         # The message is a host delta: every other host keeps its previous
@@ -793,6 +836,13 @@ class InjectEntryTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn(REBIND_HINTS_HEADER, context)
         self.assertIn("- .cowork-flow/tasks/09-07-other (planning)", context)
+        lines = context.splitlines()
+        rebind_rows = lines[
+            lines.index(REBIND_HINTS_HEADER) + 1 : lines.index("</workflow-state>")
+        ]
+        self.assertEqual(
+            ["- .cowork-flow/tasks/09-07-other (planning)"], rebind_rows
+        )
 
     def test_claude_no_task_body_has_no_rebind_hints(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -808,6 +858,14 @@ class InjectEntryTest(unittest.TestCase):
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertNotIn(REBIND_HINTS_HEADER, context)
+        self.assertEqual(
+            [],
+            [
+                line
+                for line in context.splitlines()
+                if line.startswith("- .cowork-flow/tasks/")
+            ],
+        )
 
     def test_missing_task_dir_renders_missing_message(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -829,6 +887,19 @@ class InjectEntryTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn(MISSING_TASK_TEXT, context)
         self.assertIn('status="no_task"', context)
+        self.assertEqual(
+            [
+                '<workflow-state task=".cowork-flow/tasks/09-01-gone" '
+                'status="no_task" source="session" session="zcode_gone">',
+                "Session 指向的任务目录不存在（.cowork-flow/tasks/09-01-gone）。",
+            ],
+            [
+                line
+                for line in context.splitlines()
+                if line.startswith("<workflow-state")
+                or line.startswith(MISSING_TASK_TEXT)
+            ],
+        )
 
     def test_zcode_missing_session_key_falls_back_to_newest_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -846,6 +917,17 @@ class InjectEntryTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn('task=".cowork-flow/tasks/09-01-keeper"', context)
         self.assertIn('status="in_progress"', context)
+        self.assertEqual(
+            [
+                '<workflow-state task=".cowork-flow/tasks/09-01-keeper" '
+                'status="in_progress" source="session-fallback">'
+            ],
+            [
+                line
+                for line in context.splitlines()
+                if line.startswith("<workflow-state")
+            ],
+        )
 
     def test_zcode_two_main_bindings_unbound_session_does_not_follow(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -873,6 +955,25 @@ class InjectEntryTest(unittest.TestCase):
         self.assertNotIn("<workflow-state task=", context)
         self.assertNotIn('source="session-fallback"', context)
         self.assertIn(REBIND_HINTS_HEADER, context)
+        self.assertEqual(
+            [],
+            [
+                line
+                for line in context.splitlines()
+                if line.startswith("<workflow-state task=")
+            ],
+        )
+        self.assertEqual(
+            [
+                "- .cowork-flow/tasks/09-01-demo (in_progress)",
+                "- .cowork-flow/tasks/09-02-other (in_progress)",
+            ],
+            [
+                line
+                for line in context.splitlines()
+                if line.startswith("- .cowork-flow/tasks/")
+            ],
+        )
 
     def test_zcode_essential_files_warning_appended(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -884,6 +985,18 @@ class InjectEntryTest(unittest.TestCase):
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("⚠️ 缺少必要文件：AGENTS.md", context)
+        self.assertEqual(
+            [
+                "⚠️ 缺少必要文件：AGENTS.md, .cowork-flow/run。",
+                "请立即创建这些文件以保障工作流正常运行。",
+            ],
+            [
+                line
+                for line in context.splitlines()
+                if line.startswith("⚠️")
+                or line.startswith("请立即创建这些文件")
+            ],
+        )
 
     def test_zcode_scope_warning_silent_for_subagent_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -949,6 +1062,14 @@ class InjectEntryTest(unittest.TestCase):
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("src/outside.py is outside the task's declared scope", context)
+        self.assertEqual(
+            [
+                "⚠️ src/outside.py is outside the task's declared scope. "
+                "If intended, declare it in the task's `implement.jsonl` "
+                "(agent-mutable) or revert the edit."
+            ],
+            context.splitlines(),
+        )
 
     def test_zcode_scope_warning_accepts_absolute_in_scope_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1014,6 +1135,14 @@ class InjectEntryTest(unittest.TestCase):
             "src/outside.py is outside the task's declared scope", context
         )
         self.assertNotIn(str(root), context)
+        self.assertEqual(
+            [
+                "⚠️ src/outside.py is outside the task's declared scope. "
+                "If intended, declare it in the task's `implement.jsonl` "
+                "(agent-mutable) or revert the edit."
+            ],
+            context.splitlines(),
+        )
 
     def test_zcode_bound_session_edit_warning_rides_one_payload(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

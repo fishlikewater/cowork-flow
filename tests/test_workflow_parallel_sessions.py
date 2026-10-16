@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import unittest
@@ -31,9 +32,18 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn(skill_id, skill_ids)
         self.assertTrue((ROOT / "template" / "skills" / "party-mode" / "manifest.json").is_file())
         self.assertTrue((ROOT / "template" / "skills" / "runtime-health" / "manifest.json").is_file())
+        self.assertEqual(
+            [],
+            [
+                skill_id
+                for skill_id in ("brainstorming", "task-planning", "cowork-flow", "task-review", "batch-execution")
+                if not (ROOT / "template" / "skills" / skill_id / "manifest.json").is_file()
+            ],
+        )
 
         cowork_skill = (ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("only public workflow router", cowork_skill)
+        self.assertEqual(1, cowork_skill.count("only public workflow router"))
         self.assertIn("Skill command manifests", cowork_skill)
         self.assertIn("authoritative flow surfaces", cowork_skill)
         self.assertNotIn("Registry", cowork_skill)
@@ -55,6 +65,13 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("obsoleteFiles", json.dumps(host_assets, ensure_ascii=False))
         self.assertNotIn("兼容升级", readme)
         self.assertNotIn("兼容迁移", json.dumps(host_assets, ensure_ascii=False))
+
+        obsolete_files = host_assets["syncPolicy"]["obsoleteFiles"]
+        self.assertEqual(len(obsolete_files), len(set(obsolete_files)))
+        self.assertEqual(
+            [],
+            [entry for entry in obsolete_files if (ROOT / "template" / entry).exists()],
+        )
 
 
     def test_public_docs_do_not_teach_removed_task_subcommands(self) -> None:
@@ -85,6 +102,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
                 text = path.read_text(encoding="utf-8")
                 for snippet in removed_command_snippets:
                     self.assertNotIn(snippet, text)
+
+        self.assertEqual(
+            {"next"},
+            {
+                subcommand
+                for path in docs
+                for subcommand in re.findall(r"\./\.cowork-flow/run task ([a-z-]+)", path.read_text(encoding="utf-8"))
+            },
+        )
 
     def test_public_docs_describe_current_runtime_layout(self) -> None:
         # The runtime layering is internal implementation detail, so it lives in
@@ -133,6 +159,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertIn("UNKNOWN is not a delegated", text)
             self.assertNotIn(LEGACY_HARD, text)
             self.assertNotIn(LEGACY_SOFT, text)
+            self.assertEqual(
+                {"no_task", "delegated_subtask", "planning", "in_progress", "review", "completed"},
+                set(re.findall(r"\[workflow-state:([a-z_]+)\]", text)),
+            )
 
     def test_brainstorming_skill_owns_clarification_gate(self) -> None:
         required_markers = (
@@ -147,6 +177,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         for marker in required_markers:
             self.assertIn(marker, skill_text, f"{marker} missing from {path}")
         self.assertNotIn("workflow.md", skill_text)
+        self.assertEqual(1, skill_text.count("active clarification gate"))
+        self.assertGreater(
+            skill_text.index("Hand off to `task-planning`"),
+            skill_text.index("active clarification gate"),
+        )
 
     def test_workflow_requires_runtime_context_dispatch_gate(self) -> None:
         required_markers = (
@@ -165,6 +200,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
+            self.assertEqual(1, text.count("subagent bind <runtime_context_id> <host_context_key>"))
+            self.assertGreater(
+                text.index("Verified binding is the formal dispatch acceptance event"),
+                text.index("subagent bind <runtime_context_id> <host_context_key>"),
+            )
 
     def test_zcode_plugin_payload_does_not_vendor_project_assets(self) -> None:
         for relative_path in ("AGENTS.md", "CLAUDE.md", ".cowork-flow"):
@@ -185,6 +225,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
+            self.assertEqual(
+                1,
+                text.count("Formal dispatch uses `cowork-research`, `cowork-implement`, or `cowork-check`."),
+            )
+            self.assertGreater(
+                text.index("cannot satisfy formal Implement or Check completion"),
+                text.index("Generic `worker`, `default`, or `explorer` dispatch is advisory only"),
+            )
 
     def test_party_mode_is_single_runtime_board_advisory_workflow(self) -> None:
         skill_text = (ROOT / "template" / "skills" / "party-mode" / "SKILL.md").read_text(encoding="utf-8")
@@ -216,6 +264,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             self.assertNotIn("spawn_agent", text)
             self.assertNotIn("wait_agent", text)
             self.assertNotIn("close_agent", text)
+            self.assertEqual(1, skill_text.count("runtime-controlled"))
+            self.assertGreater(
+                text.index("does not satisfy Implement or Check completion"),
+                text.index("The public `party-mode` skill delegates discussion state"),
+            )
 
     def test_workflow_requires_runtime_context_closeout(self) -> None:
         required_markers = (
@@ -234,6 +287,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
+            self.assertGreater(
+                text.index("Confirm no stray running children with the adapter list primitive."),
+                text.index("Converge on the child result before acceptance"),
+            )
+            self.assertGreater(
+                text.index("close the child with the adapter cancel/close"),
+                text.index("Verify the child report by checking files, commands, and results"),
+            )
 
         for path in (
             ROOT / "template" / ".cowork-flow" / "config.yaml",
@@ -241,6 +302,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("Formal subagent identity is runtime-context based", text)
             self.assertNotIn(LEGACY_POST_ACK, text)
+            self.assertEqual(1, text.count("Formal subagent identity is runtime-context based"))
 
     def test_lifecycle_runtime_common_modules_exist_in_template(self) -> None:
         required_markers = {
@@ -273,6 +335,8 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn('commit "-"', text)
         self.assertNotIn('add-session --title "<title>" --commit "-"', text)
         self.assertNotIn("add_session", text)
+        self.assertEqual(1, text.count("git status --porcelain=v1 -uall"))
+        self.assertRegex(text, r"(?m)^\| G5 \| .*\| git status --porcelain=v1 -uall \|$")
 
     def test_add_session_and_workspace_journal_are_not_public_flow(self) -> None:
         docs = [
@@ -309,6 +373,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("git status --porcelain=v1 -uall", text)
         self.assertIn("staged、unstaged、untracked", text)
         self.assertNotIn("git diff --name-only", text)
+        self.assertRegex(
+            text,
+            r"(?m)^\| G5 \| Git status snapshot .*staged、unstaged、untracked \| git status --porcelain=v1 -uall \|$",
+        )
+        self.assertGreater(
+            text.index("git status --porcelain=v1 -uall"),
+            text.index("staged、unstaged、untracked"),
+        )
 
     def test_local_bootstrap_files_match_template_when_present(self) -> None:
         local_root = ROOT / ".cowork-flow"
@@ -426,6 +498,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
+            self.assertEqual(
+                [1 for _ in required_markers],
+                [text.count(marker) for marker in required_markers],
+                str(path),
+            )
 
     def test_cowork_flow_skill_routes_without_copying_agent_protocol(self) -> None:
         text = (
@@ -439,6 +516,11 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn(".cowork-flow/run subagent init", text)
         self.assertNotIn("cowork_host_context_key", text)
         self.assertNotIn("adapter wait/list/cancel primitives", text)
+        self.assertEqual(1, text.count("./.cowork-flow/run task next --json"))
+        self.assertEqual(
+            {"next"},
+            set(re.findall(r"\./\.cowork-flow/run task ([a-z-]+)", text)),
+        )
 
     def test_brainstorming_skill_requires_clarification_output(self) -> None:
         required_markers = (
@@ -456,6 +538,16 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         text = (ROOT / "template" / "skills" / "brainstorming" / "SKILL.md").read_text(encoding="utf-8")
         for marker in required_markers:
             self.assertIn(marker, text, f"{marker} missing from template/skills/brainstorming/SKILL.md")
+        output_fields = (
+            "Key assumptions",
+            "Scope boundary",
+            "Recommended direction and rejected alternatives",
+            "Acceptance criteria",
+            "Open questions, risks, or blockers",
+        )
+        positions = [text.index(field) for field in output_fields]
+        self.assertEqual(sorted(positions), positions)
+        self.assertEqual(len(set(positions)), len(positions))
 
     def test_planning_and_brainstorming_use_guides_before_implementation(self) -> None:
         planning = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
@@ -483,6 +575,14 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("separate `git worktree`", text)
         self.assertNotIn("low-conflict slices", text)
         self.assertNotIn("final integrated verification", text)
+        self.assertEqual(
+            ["task-planning"],
+            sorted(
+                path.parent.name
+                for path in (ROOT / "template" / "skills").glob("*/SKILL.md")
+                if "git worktree" in path.read_text(encoding="utf-8")
+            ),
+        )
 
     def test_entry_boundary_skill_is_removed(self) -> None:
         self.assertFalse((ROOT / "template" / "skills" / ENTRY_BOUNDARY / "SKILL.md").exists())
@@ -493,6 +593,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("check_distribution", text)
         self.assertIn("action_owners", text)
         self.assertIn("workflow-state-templates.md", text)
+        self.assertEqual(
+            [],
+            [
+                marker
+                for marker in ("party_mode_v2", "common/gates", "skill-registry", "rules.json")
+                if marker in text
+            ],
+        )
+        self.assertGreater(text.index("action_owners(repo_root)"), text.index("def check_distribution"))
 
     def test_task_planning_routes_to_fixed_agents(self) -> None:
         text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
@@ -504,6 +613,12 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertNotIn("spawn_agent", text)
         self.assertNotIn("fork_turns=\"none\"", text)
         self.assertNotIn("subagent-driven-development", text)
+        self.assertRegex(
+            text,
+            r"(?m)^> For formal fixed-agent work: create a runtime context with `\.cowork-flow/run subagent init`, "
+            r"pass `cowork_runtime_context_id: <runtime_context_id>` through the active Host Adapter, "
+            r"then dispatch `cowork-implement` or `cowork-check`\. Close the runtime context after verification\.$",
+        )
 
     def test_template_does_not_ship_standalone_workflow_authority(self) -> None:
         self.assertFalse((ROOT / "template" / ".cowork-flow" / "workflow.md").exists())
@@ -519,6 +634,24 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("dependencies", text)
         self.assertIn("expected outputs", text)
         self.assertIn("final integrated verification", text)
+        parallel_section = text[text.index("## Parallel Work"):text.index("## Self-Review")]
+        self.assertEqual(
+            [],
+            [
+                marker
+                for marker in (
+                    "Do not require the user to predeclare parallel execution",
+                    "Every plan must state the execution strategy",
+                    "git worktree",
+                    "low-conflict slices",
+                    "file ownership",
+                    "dependencies",
+                    "expected outputs",
+                    "final integrated verification",
+                )
+                if marker not in parallel_section
+            ],
+        )
 
     def test_task_planning_skills_require_parallel_scope_fields(self) -> None:
         text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
@@ -549,3 +682,19 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("expected outputs", text)
         self.assertIn("verification commands", text)
         self.assertNotRegex(text, r"[\u4e00-\u9fff]")
+        self.assertEqual(
+            [
+                "File Boundaries",
+                "Key Symbols",
+                "Implementation Notes",
+                "Test Proof",
+                "Verification Command",
+                "Completion Conditions",
+                "Prohibited Drift",
+            ],
+            re.findall(
+                r"\*\*(File Boundaries|Key Symbols|Implementation Notes|Test Proof|"
+                r"Verification Command|Completion Conditions|Prohibited Drift)\*\*",
+                text,
+            ),
+        )

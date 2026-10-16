@@ -19,6 +19,14 @@ LEGACY_POST_ACK = "post" + "_ack_execution_grace_ms"
 NO_TASK_GATE_TEXT = "MUST NOT 编辑文件、实现代码、重构代码、派发子代理。"
 
 
+def _header_attrs(context: str) -> dict[str, str]:
+    """Attributes of the rendered <workflow-state> tag, as the hook wrote them."""
+    match = re.search(r"<workflow-state[^>]*>", context)
+    if match is None:
+        raise AssertionError(f"no <workflow-state> tag in hook context:\n{context}")
+    return dict(re.findall(r'(\w+)="([^"]*)"', match.group(0)))
+
+
 class CodexHooksTest(unittest.TestCase):
     def _make_project(self, root: Path) -> None:
         (root / ".cowork-flow").mkdir(parents=True)
@@ -183,6 +191,16 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("warning:", context)
         self.assertIn("contract registry unavailable", context)
+        # Exactly one warning, naming the registry file that was removed and
+        # the fallback it degraded to: a bare "warning:" would not say which
+        # registry failed. The path prefix is matched loosely because Windows
+        # reports the same temp directory in both long and 8.3 forms.
+        warnings = re.findall(
+            r"^warning: contract registry unavailable at [^;]+; using fallback digest$",
+            context,
+            re.M,
+        )
+        self.assertEqual(1, len(warnings))
 
     def test_hook_keeps_bounded_prompt_on_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -205,6 +223,12 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn('status=\"no_task\"', context)
         self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertIn(NO_TASK_GATE_TEXT, context)
+        # A bounded delegation brief is still a main-session prompt: it must
+        # land on the no-task state from the probe, gate text included.
+        self.assertEqual(
+            {"status": "no_task", "source": "missing-context"},
+            _header_attrs(context),
+        )
 
     def test_hook_binds_runtime_context_from_prompt_before_main_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -253,9 +277,29 @@ class CodexHooksTest(unittest.TestCase):
                 },
             )
 
+            session = json.loads(
+                (root / ".cowork-flow" / ".runtime" / "sessions" / "codex_structured-child.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn('status=\"delegated_subtask\"', context)
         self.assertIn('source=\"runtime-context:rtx_structured\"', context)
+        # The structured field must bind through to the session record: the
+        # header names the context's own task and session key, and the bind is
+        # persisted as bound before the state is rendered.
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/05-29-demo",
+                "status": "delegated_subtask",
+                "source": "runtime-context:rtx_structured",
+                "session": "codex_structured-child",
+            },
+            _header_attrs(context),
+        )
+        self.assertEqual("bound", session["status"])
+        self.assertEqual(".cowork-flow/tasks/05-29-demo", session["active_task_path"])
 
     def test_hook_prefers_prompt_host_context_key_over_session_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -313,6 +357,20 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn('status=\"delegated_subtask\"', context)
         self.assertIn("runtime-context-invalid", context)
         self.assertNotIn(NO_TASK_GATE_TEXT, context)
+        # A named-but-unknown runtime context must fail closed with the id that
+        # was asked for, so the caller can see which context was rejected.
+        self.assertEqual(
+            {
+                "status": "delegated_subtask",
+                "source": "runtime-context-invalid:missing_runtime",
+            },
+            _header_attrs(context),
+        )
+        self.assertRegex(
+            context,
+            r"Runtime context is missing, closed, or invalid\. "
+            r"Do not run standalone lifecycle commands, resume, archive, commit, or spawn\.",
+        )
 
     def test_hook_keeps_explorer_brief_as_no_task_without_runtime_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -334,6 +392,12 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn('status=\"no_task\"', context)
         self.assertNotIn('status=\"delegated_subtask\"', context)
+        # An explorer brief without runtime context is the main no-task state:
+        # no role label in the prompt may flip it into a delegated subtask.
+        self.assertEqual(
+            {"status": "no_task", "source": "missing-context"},
+            _header_attrs(context),
+        )
 
     def test_hook_keeps_unclassified_nonempty_prompt_on_no_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -358,6 +422,12 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn('status=\"no_task\"', context)
         self.assertNotIn('status=\"delegated_subtask\"', context)
+        # Bare Chinese prose stays on the main no-task state with the probe
+        # source, not merely "somewhere no_task".
+        self.assertEqual(
+            {"status": "no_task", "source": "missing-context"},
+            _header_attrs(context),
+        )
 
     def test_hook_reads_utf8_prompt_bytes_before_classification(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -380,6 +450,18 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn('status=\"in_progress\"', context)
         self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertNotIn('source=\"unclassified\"', context)
+        # UTF-8 prompt bytes must survive into classification without changing
+        # the resolved facts: a mangled prompt would drop the session probe and
+        # re-tag the source.
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/06-04-demo",
+                "status": "in_progress",
+                "source": "session",
+                "session": "codex_demo-session",
+            },
+            _header_attrs(context),
+        )
 
     def test_hook_honors_explicit_main_session_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -408,6 +490,18 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn('status=\"in_progress\"', context)
         self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertNotIn('source=\"unclassified\"', context)
+        # The main-session phrasing must leave the session probe untouched:
+        # the header still comes from codex_demo-session.json, not from a
+        # prompt classification path.
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/06-04-demo",
+                "status": "in_progress",
+                "source": "session",
+                "session": "codex_demo-session",
+            },
+            _header_attrs(context),
+        )
 
     def test_hook_reads_workflow_state_templates_as_single_prompt_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -427,6 +521,11 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("state-template-source-smoke", context)
         self.assertNotIn("wrong source", context)
+        # The edited template is the only source of the state block: its text
+        # renders exactly once and the shipped wording is gone from the whole
+        # payload rather than shadowed by a second copy elsewhere.
+        self.assertEqual(1, context.count("state-template-source-smoke"))
+        self.assertNotIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_renders_each_main_status_from_workflow_state_template(self) -> None:
         statuses = ("no_task", "planning", "in_progress", "review", "completed")
@@ -484,6 +583,12 @@ class CodexHooksTest(unittest.TestCase):
         self.assertTrue(command.endswith("inject-workflow-state.py"), command)
         self.assertFalse(command.startswith("python "))
         self.assertIn(".codex/hooks/", command)
+        # The whole command is the contract: project-relative runner, then the
+        # script path, with no interpreter or absolute path in front of it.
+        self.assertEqual(
+            ".cowork-flow/run python .codex/hooks/inject-workflow-state.py",
+            command,
+        )
 
     def test_hook_config_declares_no_post_tool_use(self) -> None:
         """The edit-phase spec feedback channel was removed with `spec-check`.
@@ -551,6 +656,18 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn('task=\".cowork-flow/tasks/05-29-demo\"', context)
         self.assertIn('status=\"in_progress\"', context)
         self.assertIn("action owner Skill", context)
+        # The payload's session_id must resolve to codex_demo-session.json and
+        # its task: every attribute of the header comes from that record, so a
+        # different session key would still satisfy the substring checks.
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/05-29-demo",
+                "status": "in_progress",
+                "source": "session",
+                "session": "codex_demo-session",
+            },
+            _header_attrs(context),
+        )
 
     def test_hook_reads_codex_dispatch_mode_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -566,6 +683,12 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("<codex-dispatch-mode>inline</codex-dispatch-mode>", context)
         self.assertNotIn("<codex-mode>", context)
+        # config.yaml's value drives the very first injected line; a hint that
+        # merely appears somewhere would not prove the config is the source.
+        self.assertEqual(
+            "<codex-dispatch-mode>inline</codex-dispatch-mode>",
+            context.splitlines()[0],
+        )
 
     def test_hook_emits_runtime_context_identity_block(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -579,6 +702,18 @@ class CodexHooksTest(unittest.TestCase):
         self.assertIn(
             "runtime_context_identity: formal subagent sessions bind before workflow-state injection",
             context,
+        )
+        runtime_blocks = re.findall(r"<codex-runtime>.*?</codex-runtime>", context, re.S)
+        self.assertEqual(1, len(runtime_blocks), context)
+        # Both identity lines are the block's whole contract: an extra or
+        # renamed line would change what the host is told about its own role.
+        self.assertEqual(
+            "<codex-runtime>\n"
+            "dispatch_mode_meaning: workflow dispatch hint, not current thread role\n"
+            "runtime_context_identity: formal subagent sessions bind before "
+            "workflow-state injection\n"
+            "</codex-runtime>",
+            runtime_blocks[0],
         )
         self.assertNotIn(LEGACY_POST_ACK, context)
 
@@ -596,6 +731,16 @@ class CodexHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("<codex-dispatch-mode>sub-agent</codex-dispatch-mode>", context)
         self.assertIn('status=\"no_task\"', context)
+        # An unknown runtime key must not shift the dispatch hint: it stays the
+        # first injected line and the declared default still wins.
+        self.assertEqual(
+            "<codex-dispatch-mode>sub-agent</codex-dispatch-mode>",
+            context.splitlines()[0],
+        )
+        self.assertEqual(
+            {"status": "no_task", "source": "missing-context"},
+            _header_attrs(context),
+        )
         self.assertNotIn(LEGACY_POST_ACK, context)
 
     def test_hook_contract_digest_fingerprint_tracks_spec_changes(self) -> None:

@@ -17,6 +17,14 @@ HOOK = TEMPLATE / ".claude" / "hooks" / "inject-workflow-state.py"
 NO_TASK_GATE_TEXT = "MUST NOT 编辑文件、实现代码、重构代码、派发子代理。"
 
 
+def _header_attrs(context: str) -> dict[str, str]:
+    """Attributes of the rendered <workflow-state> tag, as the hook wrote them."""
+    match = re.search(r"<workflow-state[^>]*>", context)
+    if match is None:
+        raise AssertionError(f"no <workflow-state> tag in hook context:\n{context}")
+    return dict(re.findall(r'(\w+)="([^"]*)"', match.group(0)))
+
+
 class ClaudeHooksTest(unittest.TestCase):
     CLAUDE_HOOK_COMMAND = (
         '"${CLAUDE_PROJECT_DIR:-.}/.cowork-flow/run" python '
@@ -374,6 +382,18 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn('status=\"in_progress\"', context)
         self.assertNotIn('status=\"delegated_subtask\"', context)
         self.assertNotIn('source=\"unclassified\"', context)
+        # The main-session phrasing must leave the session probe untouched:
+        # the header still comes from claude_demo-session.json, not from a
+        # prompt classification path.
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/06-04-demo",
+                "status": "in_progress",
+                "source": "session",
+                "session": "claude_demo-session",
+            },
+            _header_attrs(context),
+        )
 
     def test_hook_reads_workflow_state_templates_as_single_prompt_source(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -393,6 +413,11 @@ class ClaudeHooksTest(unittest.TestCase):
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn("state-template-source-smoke", context)
         self.assertNotIn("wrong source", context)
+        # The edited template is the only source of the state block: its text
+        # renders exactly once and the shipped wording is gone from the whole
+        # payload rather than shadowed by a second copy elsewhere.
+        self.assertEqual(1, context.count("state-template-source-smoke"))
+        self.assertNotIn(NO_TASK_GATE_TEXT, context)
 
     def test_hook_renders_each_main_status_from_workflow_state_template(self) -> None:
         statuses = ("no_task", "planning", "in_progress", "review", "completed")
@@ -476,6 +501,18 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn('task=\".cowork-flow/tasks/06-03-demo\"', context)
         self.assertIn('status=\"in_progress\"', context)
         self.assertIn("action owner Skill", context)
+        # The generic session_id resolves through the host-declared stamp to
+        # claude_demo-session.json: all four attributes come from that one
+        # session record, so a wrong session key would still pass assertIn.
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/06-03-demo",
+                "status": "in_progress",
+                "source": "session",
+                "session": "claude_demo-session",
+            },
+            _header_attrs(context),
+        )
 
     def test_hook_resolves_a_bare_generic_session_id(self) -> None:
         # The payload carries only the generic session_id and no host session
@@ -529,6 +566,18 @@ class ClaudeHooksTest(unittest.TestCase):
         self.assertIn('task=\".cowork-flow/tasks/06-03-demo\"', context)
         self.assertIn('status=\"in_progress\"', context)
         self.assertIn("action owner Skill", context)
+        # The claude_code_session_id payload only names the active task when it
+        # resolves to claude_code-session.json: the session attribute must be
+        # that file's key, and the source must be the session probe.
+        self.assertEqual(
+            {
+                "task": ".cowork-flow/tasks/06-03-demo",
+                "status": "in_progress",
+                "source": "session",
+                "session": "claude_code-session",
+            },
+            _header_attrs(context),
+        )
 
     def test_settings_config_uses_cowork_flow_python_runner_for_both_events(self) -> None:
         settings = json.loads((TEMPLATE / ".claude" / "settings.json").read_text(encoding="utf-8"))

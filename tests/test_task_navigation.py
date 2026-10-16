@@ -103,6 +103,14 @@ class TaskNavigationTest(FlowScriptTestCase):
             )
             self.assertIn("COWORK_FLOW_CONTEXT_ID", blocker_text)
             self.assertIn("workflow-state", blocker_text)
+            self.assertEqual(1, len(payload["blockers"]))
+            self.assertRegex(
+                blocker_text,
+                r"^session identity is process-fallback \(shared\); set "
+                r"COWORK_FLOW_CONTEXT_ID to the session value shown in the "
+                r"workflow-state header \(or pass <task-dir> explicitly "
+                r"when acting on an existing task\)$",
+            )
 
     def test_cmd_next_json_explicit_dir_overrides_fallback_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
