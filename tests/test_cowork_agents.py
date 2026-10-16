@@ -308,7 +308,7 @@ class CoworkAgentsTest(unittest.TestCase):
             for marker in required_markers:
                 self.assertIn(marker, text, f"{marker} missing from {path}")
             dispatch_skill = (
-                ROOT / ".agents" / "skills" / "agent-dispatch" / "SKILL.md"
+                ROOT / "template" / "skills" / "agent-dispatch" / "SKILL.md"
             ).read_text(encoding="utf-8")
             self.assertEqual(
                 ["agent-dispatch"],
