@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { apply, editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditScopeCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
+import { apply, candidateUnavailable, editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditScopeCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 // The workflow runtime under the repository root is a gitignored live
@@ -53,10 +53,6 @@ async function createWorkflowProject(t) {
 
 test(
   'produces the workflow-state block for a cowork-flow root',
-  // Windows' WindowsApps python3 stub runs but serves no protocol, which the
-  // interpreter discovery legitimately treats as "interpreter works, protocol
-  // failed". Real dsh injection on Windows needs its own fix (product side).
-  { skip: process.platform === 'win32' && 'windows python3 stub breaks discovery' },
   async (t) => {
     const project = await createWorkflowProject(t);
     const text = await runWorkflowState(project);
@@ -102,6 +98,18 @@ test('honours the hook disable switches', async (t) => {
       process.env[name] = value;
     }
   }
+});
+
+
+test('candidateUnavailable keeps the discovery verdict for each failure shape', () => {
+  // ENOENT and exit code 3 are "this candidate cannot run the protocol".
+  assert.equal(candidateUnavailable({ code: 'ENOENT' }), true);
+  assert.equal(candidateUnavailable({ code: 3 }), true);
+  // Any other non-zero exit means the interpreter ran: the candidate counts
+  // as working and the runtime's empty answer stands (see the degrade test).
+  assert.equal(candidateUnavailable({ code: 1 }), false);
+  // Timeouts decide nothing about availability.
+  assert.equal(candidateUnavailable({ code: 'ETIMEDOUT', killed: true }), false);
 });
 
 
@@ -322,10 +330,6 @@ test('apply degrades silently when the session cwd is not a cowork-flow root', a
 
 test(
   'a session refresh replaces the cached block instead of accumulating',
-  // Windows' WindowsApps python3 stub runs but serves no protocol, which the
-  // interpreter discovery legitimately treats as "interpreter works, protocol
-  // failed". Real dsh injection on Windows needs its own fix (product side).
-  { skip: process.platform === 'win32' && 'windows python3 stub breaks discovery' },
   async (t) => {
     const project = await createWorkflowProject(t);
     const { ctx, handlers, section } = createFakeCtx();

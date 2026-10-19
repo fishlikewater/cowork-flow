@@ -61,6 +61,18 @@ const ASSET_DRIFT_KEYS = ['wouldCopy', 'wouldRemoveObsolete'];
 const ASSET_REPORT_KEYS = ['wouldSkipProtected', 'wouldKeep', 'warnings'];
 
 export function assetDriftVerdict(readiness) {
+  // A missing key is not "no drift": this gate reads the report shape, so a
+  // renamed key would otherwise turn every future drift into a silent pass.
+  // Fail with the shape it expected instead.
+  const missing = ASSET_DRIFT_KEYS.filter((key) => !Array.isArray(readiness?.[key]));
+  if (missing.length > 0) {
+    return {
+      name: 'self-instance-asset-drift',
+      status: 'fail',
+      detail: `project sync . --dry-run readiness is missing ${missing.join(', ')}; `
+        + 'the report shape changed and this gate cannot judge drift'
+    };
+  }
   const drifted = ASSET_DRIFT_KEYS.filter((key) => entries(readiness, key).length > 0);
   const notes = ASSET_REPORT_KEYS.filter((key) => entries(readiness, key).length > 0);
   if (drifted.length === 0) {

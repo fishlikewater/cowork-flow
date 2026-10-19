@@ -203,6 +203,16 @@ function discoverCandidates() {
 }
 
 
+// ENOENT = the interpreter does not exist, exit code 3 = it is older than
+// the protocol's floor; both mean "try the next candidate". Any other
+// failure — a different non-zero exit or a timeout — means the interpreter
+// ran but the protocol failed: the candidate works, the runtime does not,
+// so it is not skipped. `attempt`'s edit-scope variant shares this mapping.
+export function candidateUnavailable(error) {
+  return error.code === 'ENOENT' || error.code === 3;
+}
+
+
 function tryPython(candidate, cwd, full = true) {
   return new Promise((resolve) => {
     execFile(
@@ -211,15 +221,7 @@ function tryPython(candidate, cwd, full = true) {
       EXEC_OPTIONS,
       (error, stdout) => {
         if (error) {
-          // ENOENT = the interpreter does not exist, exit
-          // code 3 = it is older than the protocol's floor;
-          // both mean "try the next candidate". Any other
-          // failure means the interpreter ran but the protocol
-          // failed — the candidate works, the runtime does not.
-          resolve({
-            missing: error.code === 'ENOENT' || error.code === 3,
-            output: ''
-          });
+          resolve({ missing: candidateUnavailable(error), output: '' });
           return;
         }
         resolve({ missing: false, output: stdout.trim() });
@@ -364,12 +366,7 @@ export async function runEditScopeCheck(cwd, filePath) {
       EDIT_EXEC_OPTIONS,
       (error, stdout) => {
         if (error) {
-          // ENOENT and exit code 3 (below the protocol's floor) both
-          // mean "this candidate cannot run it — try the next one".
-          resolvePromise({
-            missing: error.code === 'ENOENT' || error.code === 3,
-            output: ''
-          });
+          resolvePromise({ missing: candidateUnavailable(error), output: '' });
           return;
         }
         resolvePromise({ missing: false, output: stdout.trim() });

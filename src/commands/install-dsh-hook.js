@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { homedir } from 'node:os';
 
+import { getDshHome } from '../lib/dsh-home.js';
 import { parseInstallArgs, pathExists } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
 import { removeManagedBlock, upsertManagedBlock } from '../lib/payload-install.js';
@@ -17,11 +17,6 @@ const MANAGED_MARK = '# cowork-flow: managed workflow-state-hook row. Run "cowor
 // Rendered by `host add`/`host remove`; the installer's
 // own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
-
-
-function getDshHome() {
-  return process.env.DSH_HOME || join(homedir(), '.dsh');
-}
 
 
 async function readIfExists(file) {

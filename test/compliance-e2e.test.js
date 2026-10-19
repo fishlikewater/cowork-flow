@@ -303,6 +303,13 @@ test('release:check carries the drift and doctor gates, and they refuse real fai
   });
   assert.equal(protectedOnly.status, 'pass');
   assert.match(protectedOnly.detail, /wouldSkipProtected/);
+  // The report shape is part of the contract: a renamed or non-array key must
+  // fail loudly, not read as "no drift" forever.
+  const renamed = assetDriftVerdict({ wouldCopy: [], wouldRename: [] });
+  assert.equal(renamed.status, 'fail');
+  assert.match(renamed.detail, /wouldRemoveObsolete/);
+  assert.match(renamed.detail, /cannot judge drift/);
+  assert.equal(assetDriftVerdict({ wouldCopy: [], wouldRemoveObsolete: null }).status, 'fail');
 
   assert.equal(doctorVerdict({ ok: true, errors: [] }).status, 'pass');
   assert.equal(doctorVerdict({ ok: false, errors: [{ code: 'RUNTIME-TOPOLOGY-001' }] }).status, 'fail');

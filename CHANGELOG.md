@@ -7,6 +7,12 @@
 - **发布门禁补"活副本资产漂移"verdict**：`release-gates` 新增 `self-instance-asset-drift`——以 `node bin/cowork-flow.js project sync . --dry-run` 的 readiness 为准，`wouldCopy`/`wouldRemoveObsolete` 非空即 fail 并点名文件（`wouldSkipProtected`/`wouldKeep` 只报告不阻断）。覆盖 `.claude/**`、`.codex/**`、skills 等 `dev refresh` 看不到的活副本，避免发布第 5 步 `sync --force` 静默覆写；`scripts/release.sh` 失败提示补 `node bin/cowork-flow.js project sync .` 修复指引。
 - **doctor 增补 zcode 插件新鲜度检查**：`check_zcode_plugin` 以 payload 盖章清单 `.zcode-plugin/plugin.json` 的版本对比项目 `.cowork-flow/.version` → `PLUGIN-STALE`（hint `cwf host add zcode --force`）；未声明 zcode 静默，声明未安装报 `PLUGIN-NOT-INSTALLED`，清单不可读报 `PLUGIN-UNKNOWN-VERSION`。与 opencode/qoder 同为 advisory，不进 error 级。
 
+### Changed
+
+- **`assetDriftVerdict` 缺键改为 fail-closed**：readiness 少 `wouldCopy`/`wouldRemoveObsolete`（或给非数组）时不再静默判"无漂移"，改判门禁失效并点名缺失键（`cannot judge drift`），并把逐 key 单钉、e2e fail 断言补进测试。
+- **dsh 候选可用性映射抽为 `candidateUnavailable` 并恢复 Windows 覆盖**：`ENOENT`/退出码 3 → 换下一个候选；其余非零退出（含超时）→ 候选按"可用但协议失败、不注入"处理（语义不变，仅抽函数加注释）；新增跨平台单测钉住四种输入，`test/dsh-hook.test.js` 两条过期的 Windows skip 移除（取证：node 探测 WindowsApps `python3` 别名得 `ENOENT`、回落到真实 `python` 3.12）。
+- **重复工具函数收敛**：`sha256` 只留 `src/lib/asset-plan.js` 的导出，`src/lib/plan-applier.js` 改为复用；`getDshHome` 抽到新增的 `src/lib/dsh-home.js`，两个 dsh 安装器共用。
+
 ## [2.0.0] - 2026-10-16
 
 ### Added

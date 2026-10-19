@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 const VERSION_PATH = '.cowork-flow/.version';
 const MATERIALIZED_ACTIONS = new Set(['create', 'update']);
 
-function sha256(content) {
+export function sha256(content) {
   return createHash('sha256').update(content).digest('hex');
 }
 

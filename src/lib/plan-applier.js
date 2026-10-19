@@ -1,8 +1,7 @@
-import { createHash } from 'node:crypto';
 import * as defaultFileSystem from 'node:fs/promises';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 
-import { planActions } from './asset-plan.js';
+import { planActions, sha256 } from './asset-plan.js';
 
 const MATERIALIZED_ACTIONS = new Set(['create', 'update']);
 const VERSION_PATH = '.cowork-flow/.version';
@@ -14,10 +13,6 @@ const TRANSACTION_STATUSES = new Set([
   'rollback-failed',
   'committed'
 ]);
-
-function sha256(content) {
-  return createHash('sha256').update(content).digest('hex');
-}
 
 async function pathExists(fileSystem, path) {
   try {

@@ -1,8 +1,8 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
+import { getDshHome } from '../lib/dsh-home.js';
 import { parseInstallArgs, pathExists, readJsonFile, writeJsonAtomic } from '../lib/install-support.js';
 import { packageRoot } from '../lib/paths.js';
 import { readPackageInfo } from '../lib/package-info.js';
@@ -32,11 +32,6 @@ const DESKTOP_PERSONA_KEY = /(- id: persona\n(?:.*\n)*? {4})text: /;
 // Rendered by `host add`/`host remove`; the installer's
 // own vocabulary.
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
-
-
-function getDshHome() {
-  return process.env.DSH_HOME || join(homedir(), '.dsh');
-}
 
 
 function getDshPresetRoot() {

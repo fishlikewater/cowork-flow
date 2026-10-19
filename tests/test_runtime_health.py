@@ -504,6 +504,13 @@ class ZcodePluginCheckTest(unittest.TestCase):
             issues[0]["path"],
         )
 
+    def test_missing_project_version_skips_the_comparison(self) -> None:
+        # A project that never recorded a version has nothing to compare
+        # against; the check stays silent rather than inventing drift.
+        (self.project / ".cowork-flow" / ".version").unlink()
+        self._install(version="1.4.0")
+        self.assertEqual([], self._check())
+
     def test_text_output_prints_the_zcode_plugin_section(self) -> None:
         self._install(version="1.4.0")
         stdout = io.StringIO()
