@@ -343,11 +343,12 @@ test('publish workflow lets a tag push through every job gate', async () => {
 // publish time. This gate keeps every suite named by some bucket, or exempted
 // with a reason.
 //
-// It does NOT claim per-case Windows coverage. Naming a file is not running all
-// of it: test:integration carries --test-name-pattern, so it executes 2 of the
-// 43 cases in init.test.js + sync.test.js, and the other 41 only run in the
-// ubuntu full pass. The patterned-bucket assertion below keeps that partial
-// bucket from spreading.
+// It does NOT claim per-case coverage for the patterned bucket:
+// test:integration carries --test-name-pattern (2 of the 43 cases in
+// init.test.js + sync.test.js). test:windows:core runs those two files in
+// full, so the remaining 41 cases cover Windows as well, and the
+// patterned-bucket assertion below keeps a second partial bucket from
+// spreading.
 test('publish workflow binds checkout and package version to an explicit release ref', async () => {
   const publish = (await readFile(join(packageRoot, '.github', 'workflows', 'publish.yml'), 'utf8'))
     .replaceAll('\r\n', '\n');

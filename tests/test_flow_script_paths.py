@@ -70,8 +70,6 @@ class FlowScriptPathsTest(FlowScriptTestCase):
                     result = self.task.cmd_init_context(
                         argparse.Namespace(dir=str(task_dir), type="docs")
                     )
-            except Exception:
-                pass
             finally:
                 os.chdir(previous_cwd)
 

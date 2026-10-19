@@ -122,6 +122,23 @@ verify_release_provenance() {
 # overwrite or silently absorb local work.
 require_clean_worktree
 
+# The self-instance must agree with template/ before the refresh below rewrites
+# it: source:refresh overwrites the live copies, so work that only ever landed
+# in .cowork-flow/ or the Skill replicas would be silently discarded here and
+# the release would ship the template's version instead. The worktree is clean
+# at this point, so drift can only mean "committed template/ changes not yet
+# refreshed" or "edits made to the live copies".
+run_step node scripts/release-gates.js || {
+  printf '%s\n' \
+    "error: self-instance drift blocked the release before source:refresh could rewrite it." \
+    "hint: the drift list above names the live-copy files that differ from template/." \
+    "hint: if they carry work you meant to keep, port it into template/ first —" \
+    "      source:refresh overwrites the live copies and would discard it." \
+    "hint: if they are only stale (template/ moved ahead), run 'npm run source:refresh' and retry." \
+    >&2
+  exit 1
+}
+
 # Live Skill replicas (.agents/skills, .claude/skills) are gitignored and
 # drift from template/skills across checkouts. The full test gate loads every
 # replica and fails on any conflict, so refresh them before running it.
