@@ -8,13 +8,33 @@ import { test } from 'node:test';
 import { apply, candidateUnavailable, editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditScopeCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
 import { packageRoot } from '../src/lib/paths.js';
 
+// The hook's python child writes bytecode into the temp project
+// (`.cowork-flow/scripts/**/__pycache__`) and can still hold it when the test
+// ends: Windows refuses the unlink with EBUSY, and on POSIX a write racing the
+// recursive rm can end it on ENOTEMPTY. Retry the transient lock instead of
+// failing the test on it; anything else is a real error and rethrows.
+async function removeDirWithRetries(dir, removeImpl = rm) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      await removeImpl(dir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(error?.code)) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+  throw new Error(`cleanup of ${dir} is still blocked by a lock after 20 attempts`);
+}
+
 // The workflow runtime under the repository root is a gitignored live
 // checkout (source-refresh), so CI checkouts do not have it. Every test that
 // needs a real workflow project builds one from the committed template.
 async function createWorkflowProject(t) {
   const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-dsh-hook-'));
   t.after(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await removeDirWithRetries(dir);
   });
   const workflow = join(dir, '.cowork-flow');
   await mkdir(workflow, { recursive: true });
@@ -49,6 +69,40 @@ async function createWorkflowProject(t) {
   );
   return dir;
 }
+
+
+test("cleanup retries past a lock the plugin's python child can hold", async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-dsh-hook-locked-'));
+  await writeFile(join(dir, 'held.pyc'), 'bytecode', 'utf8');
+
+  let attempts = 0;
+  const flakyRemove = async (target, options) => {
+    attempts += 1;
+    if (attempts < 3) {
+      const error = new Error('resource busy or locked');
+      error.code = 'EBUSY';
+      throw error;
+    }
+    return rm(target, options);
+  };
+  await removeDirWithRetries(dir, flakyRemove);
+  assert.equal(attempts, 3);
+  await assert.rejects(() => access(dir), { code: 'ENOENT' });
+
+  // A failure that is not the transient lock does not wait: it rethrows on
+  // the first attempt so a real error stays visible.
+  let foreign = 0;
+  await assert.rejects(
+    () => removeDirWithRetries(dir, async () => {
+      foreign += 1;
+      const error = new Error('permission denied for another reason');
+      error.code = 'EACCES';
+      throw error;
+    }),
+    /permission denied for another reason/
+  );
+  assert.equal(foreign, 1);
+});
 
 
 test(
