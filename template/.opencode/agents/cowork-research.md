@@ -26,4 +26,4 @@ Rules:
 
 - Do not use the `task` tool or invoke subagents.
 - Do not edit code, specs, task state, or git state.
-- Do not run task start, finish, archive, unscoped resume, commit, or push.
+- Do not run task lifecycle transitions, unscoped resume, commit, or push.

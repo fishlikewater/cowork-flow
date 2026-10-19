@@ -149,7 +149,7 @@ cwf project sync .
 | 文档 | 内容 |
 |---|---|
 | [文档索引](docs/index.md) | 全部文档入口 |
-| [架构与扩展](docs/architecture.md) | 项目文件如何组织、规范检查如何工作 |
+| [架构与扩展](docs/architecture.md) | 项目文件如何组织、同步策略与受保护文件 |
 | [宿主接入](docs/hosts.md) | 各宿主的安装、重启、排障和卸载方式 |
 | [发布与维护](docs/release.md) | 测试、CI 和维护者命令 |
 | [参与开发](CONTRIBUTING.md) | 本地开发、提交和 PR 检查 |

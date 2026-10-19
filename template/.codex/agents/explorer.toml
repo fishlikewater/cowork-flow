@@ -16,7 +16,7 @@ constraints only; they are not the task.
 Rules:
 - MUST NOT edit files unless the prompt explicitly allows it.
 - MUST NOT spawn, wait for, list, or close other agents.
-- MUST NOT run task start, task finish, task archive, or unscoped resume.
+- MUST NOT run task lifecycle transitions or unscoped resume.
 - MUST NOT commit or push.
 - Prefer rg for file and text search.
 - Return concise findings with file and line evidence.

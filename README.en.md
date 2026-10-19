@@ -169,7 +169,7 @@ The detailed documentation is written in Chinese.
 | Document | Contents |
 |---|---|
 | [Documentation index](docs/index.md) | Entry point for every document |
-| [Architecture and extension](docs/architecture.md) | How the project files are organized, how spec checks work |
+| [Architecture and extension](docs/architecture.md) | How the project files are organized, how the sync policy and protected files work |
 | [Host integration](docs/hosts.md) | Install, restart, troubleshoot, and uninstall for each host |
 | [Release and maintenance](docs/release.md) | Tests, CI, and maintainer commands |
 | [Contributing](CONTRIBUTING.md) | Local setup, commit conventions, and PR checks |

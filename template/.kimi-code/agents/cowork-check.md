@@ -24,6 +24,6 @@ Execution:
 Rules:
 
 - Do not invoke subagents.
-- Do not run task start, finish, archive, unscoped resume, commit, or push.
+- Do not run task lifecycle transitions, unscoped resume, commit, or push.
 - Treat backend/frontend natural-language specs as checklist context, not dynamic hard validators.
 - Do not accept shallow tests that would still pass when target behavior breaks.

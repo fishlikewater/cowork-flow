@@ -49,10 +49,10 @@ ZCode, Kimi Code, OpenCode) are **fail-open**: they run in every workspace, so
 they meet project runtimes older than themselves, and a project-side failure — an
 argparse rejection of the host argument, a crash, a timeout — must not fail the
 event they only decorate. Each keeps the child's message on stderr (the host's
-run log) and completes the event with nothing injected. Exit-status blocking is reserved
-for the project-level edit gate (`spec_only_post_tool_use`, installed by
-`init` / `sync` for claude-code and codex): that wrapper sits next to the
-runtime it calls, so hook and runtime cannot skew.
+run log) and completes the event with nothing injected. Exit-status blocking
+was removed in 2.0.0: the project-level edit hooks (`init` / `sync` install
+them for claude-code and codex next to the runtime they call) are advisory as
+well and always exit 0.
 
 The string block inside every transport follows the same shape: an optional
 runtime preamble, the contract digest (full block or fingerprint line, see

@@ -285,7 +285,7 @@ class CoworkAgentsTest(unittest.TestCase):
             self.assertIn("enabled = false", text)
             self.assertRegex(
                 text,
-                r"(?m)^- MUST NOT run task start, task finish, task archive, "
+                r"(?m)^- MUST NOT run task lifecycle transitions "
                 r"or unscoped resume\.$",
             )
 

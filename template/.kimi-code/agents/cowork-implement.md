@@ -25,6 +25,6 @@ Execution:
 Rules:
 
 - Do not invoke subagents.
-- Do not run task start, finish, archive, unscoped resume, commit, or push.
+- Do not run task lifecycle transitions, unscoped resume, commit, or push.
 - Do not create task-local review artifacts, `tdd.jsonl`, or TDD evidence records in `check.jsonl`.
 - Do not claim completion without current verification.
