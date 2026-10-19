@@ -67,6 +67,13 @@ if sys.version_info < (3, 10):
 
 from pathlib import Path
 
+# The block carries CJK copy, so stdout must be UTF-8 whatever the console
+# codepage says: on a cp1252 console (the CI runner's default) print()
+# raises, and the caller reads the traceback as "interpreter ran, protocol
+# failed" and injects nothing. newline="" keeps the payload bytes identical
+# across platforms, like the edit-scope protocol below.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace", newline="")
+
 cwd = sys.argv[1]
 full_digest = len(sys.argv) > 2 and sys.argv[2] != "0"
 current = Path(cwd).resolve()

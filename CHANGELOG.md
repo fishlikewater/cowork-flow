@@ -13,6 +13,11 @@
 - **dsh 候选可用性映射抽为 `candidateUnavailable` 并恢复 Windows 覆盖**：`ENOENT`/退出码 3 → 换下一个候选；其余非零退出（含超时）→ 候选按"可用但协议失败、不注入"处理（语义不变，仅抽函数加注释）；新增跨平台单测钉住四种输入，`test/dsh-hook.test.js` 两条过期的 Windows skip 移除（取证：node 探测 WindowsApps `python3` 别名得 `ENOENT`、回落到真实 `python` 3.12）。
 - **重复工具函数收敛**：`sha256` 只留 `src/lib/asset-plan.js` 的导出，`src/lib/plan-applier.js` 改为复用；`getDshHome` 抽到新增的 `src/lib/dsh-home.js`，两个 dsh 安装器共用。
 
+### Fixed
+
+- **dsh 完整协议 stdout 固定 UTF-8，恢复非 CJK 控制台下的工作流注入**：`<workflow-state>` 块含中文文案，Windows 默认 ANSI 代码页（CI runner 为 cp1252）下 `print()` 抛 `UnicodeEncodeError`，调用方按既有语义读作"解释器能跑但协议失败 → 不注入"，dsh 会话静默丢失整块注入——上面移除 Windows skip 后两条用例在 runner 上暴露的正是这个缺陷（原 skip 注释归因于 WindowsApps `python3` 桩，实测不符）。修法对齐同文件 edit-scope 协议与 `inject.py` 的既有写法，在完整协议开头补 `sys.stdout.reconfigure(encoding="utf-8", errors="replace", newline="")`；新增回归用例在 `PYTHONIOENCODING=ascii` 下钉住该契约（红证：改动前该用例失败）。顺带把 `newline=""` 的 LF 语义带进来，块字节在 Windows 与 POSIX 上一致。
+- **release 编排用例补 `scripts/release-gates.js` 桩**：`0c81b29` 给 `release.sh` 加的首道漂移门禁在 Linux 上必飞——夹具只复制 `release.sh`，`node scripts/release-gates.js` 报 `Cannot find module` 被读作漂移阻断，3 条用例红（was: 该门禁已无任何用例钉住其接线）。夹具补同款 `process.exit(0)` 桩，并在"defaults to patch"用例断言门禁先于 `source:refresh` 运行。
+
 ## [2.0.0] - 2026-10-16
 
 ### Added

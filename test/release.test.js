@@ -32,6 +32,14 @@ async function createReleaseProject(t, options = {}) {
     await readFile(join(packageRoot, 'scripts', 'release.sh'), 'utf8'),
     { encoding: 'utf8', mode: 0o755 }
   );
+  // The drift gate judges this repository's self-instance tree, which the
+  // fixture deliberately does not build; the release.sh orchestration only
+  // requires it to exit cleanly, mirroring how npm/git are faked above.
+  await writeFile(
+    join(repo, 'scripts', 'release-gates.js'),
+    '#!/usr/bin/env node\nprocess.exit(0);\n',
+    { encoding: 'utf8', mode: 0o755 }
+  );
   // Release-test stub: sync semantics are covered by test/sync.test.js; the
   // release.sh orchestration only requires the self-instance mirror step to
   // exit cleanly, mirroring how npm/git are faked above.
@@ -201,6 +209,13 @@ test('release shell script defaults to patch and syncs template version before p
 
   assert.match(result.stdout, /> npm run source:refresh/);
   assert.match(result.stdout, /> npm run test:all/);
+  // The drift gate must run before source:refresh rewrites the live copies:
+  // it is what stops a release that would discard work only in .cowork-flow/.
+  const gateLine = result.stdout.indexOf('> node scripts/release-gates.js');
+  assert.ok(
+    gateLine !== -1 && gateLine < result.stdout.indexOf('> npm run source:refresh'),
+    'release.sh must run the drift gate before source:refresh'
+  );
   assert.equal(await readFile(join(repo, 'template', '.cowork-flow', '.version'), 'utf8'), '0.0.6\n');
   assert.deepEqual(await readCommands(fakeCommands.logPath), [
     'npm run source:refresh',

@@ -192,6 +192,34 @@ test('degrades to empty text when the protocol fails', async (t) => {
 });
 
 
+// The block carries CJK copy (task titles and status lines), so a console
+// whose ANSI codepage cannot encode it makes print() raise. The CI runner's
+// cp1252 console hit exactly that, and the hook read the traceback as
+// "interpreter ran, protocol failed" and injected nothing. stdout must be
+// UTF-8 no matter what the console claims.
+test('prints the block under a console encoding that cannot carry it', async (t) => {
+  const project = await createWorkflowProject(t);
+  const previousEncoding = process.env.PYTHONIOENCODING;
+  t.after(() => {
+    restore('PYTHONIOENCODING', previousEncoding);
+    resetWorkingPython();
+  });
+
+  process.env.PYTHONIOENCODING = 'ascii';
+  resetWorkingPython();
+
+  assert.match(await runWorkflowState(project), /<workflow-state[^>]*>/);
+
+  function restore(name, value) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
+});
+
+
 test('skips the interpreter entirely outside a cowork-flow root', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-hook-noroot-'));
   const marker = join(dir, 'ran-marker');
