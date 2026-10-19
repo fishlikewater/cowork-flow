@@ -30,9 +30,20 @@ jobs:
       # command publish.yml runs before npm publish. POSIX-only cases are
       # covered on this job. Its self-instance gates (drift, doctor) skip here:
       # a CI checkout has no .cowork-flow/ — it is gitignored — and those two
-      # only mean something against a maintainer's working tree.
+      # only mean something against a maintainer's working tree. The output is
+      # captured so the reporter below can turn the real failing lines into
+      # check annotations: step logs need a login, annotations do not.
       - name: Run full release gate
-        run: npm run release:check
+        run: |
+          set -o pipefail
+          npm run release:check 2>&1 | tee gate.log
+
+      - name: Report failing lines
+        if: failure()
+        run: |
+          grep -nE "^not ok |✖ |^FAIL|Error:|error:|assert" gate.log | head -12 > failing-lines.txt || true
+          tail -20 gate.log >> failing-lines.txt
+          while IFS= read -r line; do echo "::error::$line"; done < failing-lines.txt
 
       - name: Run Python repository tests
         run: |
@@ -60,8 +71,22 @@ jobs:
         with:
           python-version: "3.10"
 
+      # Same capture-and-report pair as the Linux job; bash keeps pipefail
+      # semantics explicit, and the reporter lifts the failing lines into
+      # check annotations that are readable without a login.
       - name: Run Windows core verification
-        run: npm run test:windows:core
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:windows:core 2>&1 | tee windows-core.log
+
+      - name: Report failing lines
+        if: failure()
+        shell: bash
+        run: |
+          grep -nE "^not ok |✖ |^FAIL|Error:|error:|assert" windows-core.log | head -12 > failing-lines.txt || true
+          tail -20 windows-core.log >> failing-lines.txt
+          while IFS= read -r line; do echo "::error::$line"; done < failing-lines.txt
 
       - name: Run Python repository tests
         run: |
