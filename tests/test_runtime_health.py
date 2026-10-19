@@ -412,6 +412,119 @@ class QoderPluginCheckTest(unittest.TestCase):
             self.assertNotIn("qoder-plugin", str(error))
 
 
+class ZcodePluginCheckTest(unittest.TestCase):
+    """ZCode plugin diagnostics. The plugin is a machine-level asset installed
+    once into the ZCode config directory, so the check must stay silent for
+    projects that never selected the ZCode host and must never turn a lagging
+    install into a hard error."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.zcode_home = root / "zcode-home"
+        self.project = root / "project"
+        adapter = self.project / ".cowork-flow" / "adapters" / "zcode"
+        adapter.mkdir(parents=True)
+        (adapter / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: zcode\n", encoding="utf-8"
+        )
+        (self.project / ".cowork-flow" / ".version").write_text("1.5.0\n", encoding="utf-8")
+
+    def _check(self) -> list[dict[str, str]]:
+        with mock.patch.dict("os.environ", {"ZCODE_HOME": str(self.zcode_home)}):
+            return self.doctor.check_zcode_plugin(self.project)
+
+    def _install(self, *, version: str = "1.5.0", manifest: bool = True) -> None:
+        payload = (
+            self.zcode_home / "cli" / "plugins" / "cache" / "cowork-flow-local"
+            / "cowork-flow" / version
+        )
+        payload.mkdir(parents=True)
+        if manifest:
+            (payload / ".zcode-plugin").mkdir()
+            (payload / ".zcode-plugin" / "plugin.json").write_text(
+                json.dumps({"name": "cowork-flow", "version": version}), encoding="utf-8"
+            )
+        marketplace = (
+            self.zcode_home / "cli" / "plugins" / "marketplaces" / "cowork-flow-local"
+            / "marketplace.json"
+        )
+        marketplace.parent.mkdir(parents=True)
+        marketplace.write_text(
+            json.dumps(
+                {
+                    "name": "cowork-flow-local",
+                    "plugins": [
+                        {
+                            "name": "cowork-flow",
+                            "version": version,
+                            "source": {"source": "directory", "path": str(payload)},
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_project_without_zcode_adapter_is_silent(self) -> None:
+        (self.project / ".cowork-flow" / "adapters" / "zcode" / "adapter.yaml").unlink()
+        self.assertEqual([], self._check())
+
+    def test_declared_host_without_install_reports_not_installed(self) -> None:
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("PLUGIN-NOT-INSTALLED", issues[0]["code"])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("cwf host add zcode", issues[0]["commandHint"])
+        self.assertTrue(str(issues[0]["path"]).endswith("marketplace.json"), issues[0]["path"])
+
+    def test_healthy_install_reports_nothing(self) -> None:
+        self._install()
+        self.assertEqual([], self._check())
+
+    def test_stale_payload_version_reports_stale(self) -> None:
+        self._install(version="1.4.0")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("1.4.0", issues[0]["message"])
+        self.assertIn("1.5.0", issues[0]["message"])
+        self.assertEqual("cwf host add zcode --force", issues[0]["commandHint"])
+
+    def test_payload_without_a_readable_manifest_reports_unknown_version(self) -> None:
+        self._install(manifest=False)
+        issues = self._check()
+        self.assertEqual(["PLUGIN-UNKNOWN-VERSION"], [issue["code"] for issue in issues])
+        self.assertTrue(
+            str(issues[0]["path"]).replace("\\", "/").endswith(".zcode-plugin/plugin.json"),
+            issues[0]["path"],
+        )
+
+    def test_text_output_prints_the_zcode_plugin_section(self) -> None:
+        self._install(version="1.4.0")
+        stdout = io.StringIO()
+        with mock.patch.dict("os.environ", {"ZCODE_HOME": str(self.zcode_home)}), \
+                contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
+            self.doctor._run_checks(self.project)
+        lines = stdout.getvalue().splitlines()
+        self.assertTrue(
+            any(line.startswith("ZCode plugin (PLUGIN-STALE):") for line in lines), lines
+        )
+        self.assertIn("  fix: cwf host add zcode --force", lines)
+
+    def test_plugin_check_never_enters_doctor_errors(self) -> None:
+        self._install(version="1.4.0")
+        with mock.patch.dict("os.environ", {"ZCODE_HOME": str(self.zcode_home)}):
+            result = self.doctor._all_check_result(self.project)
+        self.assertEqual("PLUGIN-STALE", result["issues"]["zcodePlugin"][0]["code"])
+        for error in result["errors"]:
+            self.assertNotIn("zcode-plugin", str(error))
+
+
 class CodexPluginCheckTest(unittest.TestCase):
     """Codex plugin diagnostics. The plugin is a machine-level asset registered in
     `~/.codex/config.toml`, so the check must stay silent for projects that never
@@ -1101,6 +1214,10 @@ class SkillDeliveryCheckTest(unittest.TestCase):
             / "cowork-flow" / version
         )
         payload.mkdir(parents=True)
+        (payload / ".zcode-plugin").mkdir()
+        (payload / ".zcode-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "cowork-flow", "version": version}), encoding="utf-8"
+        )
         if skills:
             for name in skill_names:
                 skill_dir = payload / "skills" / name
@@ -1260,6 +1377,16 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
             self.doctor._run_checks(project)
         lines = stdout.getvalue().splitlines()
+        # Bind each fix line to the section above it: the ZCode plugin section
+        # prints the same `cwf host add zcode --force` hint, so a text filter
+        # over the whole output would pull in lines from another check.
+        delivered: list[str] = []
+        for index, line in enumerate(lines):
+            if "Skill delivery" not in line:
+                continue
+            delivered.append(line)
+            if index + 1 < len(lines) and lines[index + 1].startswith("  fix:"):
+                delivered.append(lines[index + 1])
         self.assertEqual(
             [
                 "Skill delivery (PLUGIN-SKILLS-LEGACY): the zcode plugin payload "
@@ -1268,7 +1395,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
                 "is redundant and may come from another release",
                 "  fix: cwf host add zcode --force",
             ],
-            [line for line in lines if "Skill delivery" in line or "fix: cwf host add zcode" in line],
+            delivered,
         )
 
 

@@ -17,7 +17,7 @@
 | `npm run test:windows:core` | 涉及 Windows、路径、换行或发布行为 |
 | `python -m pytest -q` | 改动 `template/.cowork-flow/`、`tests/` 或 Python 契约 |
 | `npm run test:all` | 准备发布时的完整 Node、模板和打包检查 |
-| `npm run release:check` | 发布信心门禁：`test:all` 加上测试表达不了的检查——自实例相对 `template/` 的漂移，以及 `doctor --all` 的 error 级问题 |
+| `npm run release:check` | 发布信心门禁：`test:all` 加上测试表达不了的检查——自实例与活副本资产（`.claude/**`、`.codex/**`、skills）相对 `template/` 的漂移，以及 `doctor --all` 的 error 级问题 |
 
 平台前提不满足时，测试可能明确跳过。跳过项必须原样记录，不能当作通过。
 

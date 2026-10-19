@@ -250,9 +250,8 @@ async function materializePlugin({ pluginSrc, destDir, cacheRoot, manifest, vers
   // folder; keep workflow runtime files out of scaffold.
   await rm(join(destDir, "scaffold", ".cowork-flow"), { recursive: true, force: true });
 
-  // The presets/zcode/hooks/runtime/scripts copy is stale;
-  // overwrite it with the authoritative version from the
-  // template.
+  // The preset ships no runtime payload, so materialize
+  // the authoritative workflow scripts from the template.
   const mainScriptsSrc = join(templateRoot, ".cowork-flow", "scripts");
   const pluginScriptsDest = join(destDir, "hooks", "runtime", "scripts");
   if (await pathExists(mainScriptsSrc)) {

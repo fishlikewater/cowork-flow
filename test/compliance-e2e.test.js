@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { doctorVerdict, driftVerdict } from '../scripts/release-gates.js';
+import { assetDriftVerdict, doctorVerdict, driftVerdict } from '../scripts/release-gates.js';
 import { createTempDir, exists, readText } from './helpers/fs.js';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -272,6 +272,38 @@ test('release:check carries the drift and doctor gates, and they refuse real fai
   assert.equal(retained.status, 'pass');
   assert.match(retained.detail, /wouldKeep/);
 
+  // The live copies `sync --force` rewrites (.claude/**, .codex/**, skills) are
+  // judged by their own verdict off the same readiness shape; each key is pinned
+  // on its own for the same reason as above.
+  assert.equal(assetDriftVerdict({ wouldCopy: [], wouldRemoveObsolete: [] }).status, 'pass');
+  for (const key of ['wouldCopy', 'wouldRemoveObsolete']) {
+    const single = assetDriftVerdict({
+      wouldCopy: [],
+      wouldRemoveObsolete: [],
+      [key]: [{ path: '.claude/agents/cowork-check.md' }]
+    });
+    assert.equal(single.status, 'fail', `${key} must count as asset drift`);
+    assert.match(single.detail, new RegExp(`${key}=1`));
+    assert.match(single.detail, /project sync/);
+  }
+  // The failing detail has to name what drifted: a count alone sends its reader
+  // hunting through a two-hundred-entry readiness report.
+  assert.match(
+    assetDriftVerdict({
+      wouldCopy: [{ path: '.claude/agents/cowork-check.md' }],
+      wouldRemoveObsolete: []
+    }).detail,
+    /\.claude\/agents\/cowork-check\.md/
+  );
+  // Protected files are a normal state of every instance, not drift.
+  const protectedOnly = assetDriftVerdict({
+    wouldCopy: [],
+    wouldRemoveObsolete: [],
+    wouldSkipProtected: [{ path: '.cowork-flow/.developer' }]
+  });
+  assert.equal(protectedOnly.status, 'pass');
+  assert.match(protectedOnly.detail, /wouldSkipProtected/);
+
   assert.equal(doctorVerdict({ ok: true, errors: [] }).status, 'pass');
   assert.equal(doctorVerdict({ ok: false, errors: [{ code: 'RUNTIME-TOPOLOGY-001' }] }).status, 'fail');
   // `ok` alone is not the verdict: an error-severity issue fails even if a
@@ -280,6 +312,7 @@ test('release:check carries the drift and doctor gates, and they refuse real fai
 
   const ran = spawn(process.execPath, [join(repoRoot, 'scripts', 'release-gates.js')], { cwd: repoRoot });
   assert.match(ran.stdout, /release-gates: self-instance-drift (pass|fail|skip)/);
+  assert.match(ran.stdout, /release-gates: self-instance-asset-drift (pass|fail|skip)/);
   assert.match(ran.stdout, /release-gates: doctor (pass|fail|skip)/);
   // The exit code has to follow the verdicts it just printed: a run that
   // reported a failure and still exited 0 would be a gate nobody hears.
@@ -293,8 +326,10 @@ test('release:check carries the drift and doctor gates, and they refuse real fai
 // stub fail the way the real tools do: a nonzero exit with the report on stdout.
 async function gateHarness(t, {
   readiness,
+  syncReadiness = readiness,
   doctor,
   cliStatus = 0,
+  syncStatus = cliStatus,
   runnerStatus = 0
 }) {
   const root = await createTempDir(t);
@@ -305,10 +340,15 @@ async function gateHarness(t, {
     join(repoRoot, 'scripts', 'release-gates.js'),
     join(root, 'scripts', 'release-gates.js')
   );
+  // Both dry-run gates read the same report shape, so the stub answers each run
+  // from its own fixture and each can fail without the other: a shared payload
+  // would blur which verdict actually fired.
   await writeFile(
     join(root, 'bin', 'cowork-flow.js'),
-    `process.stdout.write('readiness=' + ${JSON.stringify(JSON.stringify(readiness))} + '\\n');\n`
-      + `process.exit(${cliStatus});\n`,
+    "const sync = process.argv.includes('sync');\n"
+      + `const payload = sync ? ${JSON.stringify(JSON.stringify(syncReadiness))} : ${JSON.stringify(JSON.stringify(readiness))};\n`
+      + "process.stdout.write('readiness=' + payload + '\\n');\n"
+      + 'process.exit(sync ? ' + syncStatus + ' : ' + cliStatus + ');\n',
     'utf8'
   );
   const doctorJson = JSON.stringify(doctor);
@@ -335,6 +375,7 @@ test('the release gates fail closed and say so in the exit code', async (t) => {
   });
   assert.equal(clean.status, 0, clean.stdout + clean.stderr);
   assert.match(clean.stdout, /self-instance-drift pass/);
+  assert.match(clean.stdout, /self-instance-asset-drift pass/);
   assert.match(clean.stdout, /doctor pass/);
 
   const drifted = await gateHarness(t, {
@@ -348,6 +389,21 @@ test('the release gates fail closed and say so in the exit code', async (t) => {
   assert.equal(drifted.status, 1, drifted.stdout + drifted.stderr);
   assert.match(drifted.stdout, /self-instance-drift fail/);
   assert.match(drifted.stdout, /wouldCopy=1/);
+
+  // A live copy the self-instance check never looks at: the sync verdict has to
+  // fail on it alone, naming the file step 5 would otherwise overwrite.
+  const assetDrifted = await gateHarness(t, {
+    readiness: { wouldCopy: [], wouldRemoveObsolete: [], hostAssetRefresh: [] },
+    syncReadiness: {
+      wouldCopy: [{ path: '.claude/agents/cowork-check.md' }],
+      wouldRemoveObsolete: []
+    },
+    doctor: { ok: true, errors: [] }
+  });
+  assert.equal(assetDrifted.status, 1, assetDrifted.stdout + assetDrifted.stderr);
+  assert.match(assetDrifted.stdout, /self-instance-drift pass/);
+  assert.match(assetDrifted.stdout, /self-instance-asset-drift fail/);
+  assert.match(assetDrifted.stdout, /\.claude\/agents\/cowork-check\.md/);
 
   const sick = await gateHarness(t, {
     readiness: { wouldCopy: [], wouldRemoveObsolete: [], hostAssetRefresh: [] },
@@ -370,6 +426,17 @@ test('a gate that fails on a nonzero exit still carries the report', async (t) =
   assert.equal(driftCrashed.status, 1, driftCrashed.stdout + driftCrashed.stderr);
   assert.match(driftCrashed.stdout, /self-instance-drift fail/);
   assert.match(driftCrashed.stdout, /dev refresh --dry-run exited 1: readiness=/);
+
+  const assetCrashed = await gateHarness(t, {
+    readiness: { wouldCopy: [], wouldRemoveObsolete: [], hostAssetRefresh: [] },
+    syncStatus: 1,
+    doctor: { ok: true, errors: [] }
+  });
+  assert.equal(assetCrashed.status, 1, assetCrashed.stdout + assetCrashed.stderr);
+  assert.match(assetCrashed.stdout, /self-instance-asset-drift fail/);
+  assert.match(assetCrashed.stdout, /project sync . --dry-run exited 1: readiness=/);
+  // One crashed gate must not swallow the others: doctor still reports.
+  assert.match(assetCrashed.stdout, /doctor pass/);
 
   const doctorCrashed = await gateHarness(t, {
     readiness: { wouldCopy: [], wouldRemoveObsolete: [], hostAssetRefresh: [] },

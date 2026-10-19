@@ -4,6 +4,9 @@
 
 ### Added
 
+- **发布门禁补"活副本资产漂移"verdict**：`release-gates` 新增 `self-instance-asset-drift`——以 `node bin/cowork-flow.js project sync . --dry-run` 的 readiness 为准，`wouldCopy`/`wouldRemoveObsolete` 非空即 fail 并点名文件（`wouldSkipProtected`/`wouldKeep` 只报告不阻断）。覆盖 `.claude/**`、`.codex/**`、skills 等 `dev refresh` 看不到的活副本，避免发布第 5 步 `sync --force` 静默覆写；`scripts/release.sh` 失败提示补 `node bin/cowork-flow.js project sync .` 修复指引。
+- **doctor 增补 zcode 插件新鲜度检查**：`check_zcode_plugin` 以 payload 盖章清单 `.zcode-plugin/plugin.json` 的版本对比项目 `.cowork-flow/.version` → `PLUGIN-STALE`（hint `cwf host add zcode --force`）；未声明 zcode 静默，声明未安装报 `PLUGIN-NOT-INSTALLED`，清单不可读报 `PLUGIN-UNKNOWN-VERSION`。与 opencode/qoder 同为 advisory，不进 error 级。
+
 ## [2.0.0] - 2026-10-16
 
 ### Added

@@ -135,6 +135,9 @@ run_step node scripts/release-gates.js || {
     "hint: if they carry work you meant to keep, port it into template/ first —" \
     "      source:refresh overwrites the live copies and would discard it." \
     "hint: if they are only stale (template/ moved ahead), run 'npm run source:refresh' and retry." \
+    "hint: self-instance-asset-drift means a live asset copy (.claude/**, .codex/**, skills)" \
+    "      differs from its source; run 'node bin/cowork-flow.js project sync .' to adopt the" \
+    "      source, or port the copy's work into the source first if it must be kept." \
     >&2
   exit 1
 }

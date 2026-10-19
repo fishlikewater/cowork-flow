@@ -1052,6 +1052,82 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
     return []
 
 
+_ZCODE_PLUGIN_CONTRACT = "runtime-health:zcode-plugin"
+
+
+def _zcode_warning(code: str, path: Path, message: str, hint: str) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_ZCODE_PLUGIN_CONTRACT,
+        )
+    ]
+
+
+def _zcode_marketplace_path() -> Path:
+    home = Path(os.environ.get("ZCODE_HOME") or (Path.home() / ".zcode"))
+    return (
+        home
+        / "cli"
+        / "plugins"
+        / "marketplaces"
+        / "cowork-flow-local"
+        / "marketplace.json"
+    )
+
+
+def check_zcode_plugin(repo_root: Path) -> list[dict[str, str]]:
+    """ZCode plugin health. Advisory, and silent while the project never selected
+    the ZCode host: the plugin is a machine-level asset installed once into the
+    ZCode config directory, so it never updates through sync or npm.
+
+    Staleness is judged on the payload's stamped manifest version rather than
+    per file: the payload also carries a materialized copy of the project
+    runtime, and that copy may legitimately differ from this project."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "zcode" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
+
+    marketplace = _zcode_marketplace_path()
+    payload = _machine_plugin_payload("zcode")
+    if payload is None:
+        return _zcode_warning(
+            "PLUGIN-NOT-INSTALLED",
+            marketplace,
+            "this project declares the ZCode host, but no cowork-flow plugin is "
+            "installed in the ZCode config directory, so ZCode sessions inject no "
+            "workflow context",
+            "cwf host add zcode",
+        )
+
+    manifest_relative = _payload_manifest("zcode", repo_root) or ".zcode-plugin/plugin.json"
+    manifest = payload / manifest_relative
+    recorded = _marker_version(manifest)
+    if recorded is None:
+        return _zcode_warning(
+            "PLUGIN-UNKNOWN-VERSION",
+            manifest,
+            "the installed ZCode plugin carries no readable manifest version, so "
+            "its injection logic may predate the current release",
+            "cwf host add zcode --force",
+        )
+    project_version = _project_version(repo_root)
+    if project_version and recorded != project_version:
+        return _zcode_warning(
+            "PLUGIN-STALE",
+            manifest,
+            f"the ZCode plugin was installed from {recorded} but this project "
+            f"runs {project_version}; the plugin does not update with sync or npm, "
+            "so injection may lag the project runtime",
+            "cwf host add zcode --force",
+        )
+    return []
+
+
 _CLAUDE_CODE_PLUGIN_CONTRACT = "runtime-health:claude-code-plugin"
 _CLAUDE_CODE_PLUGIN_NAME = "cowork-flow"
 _CLAUDE_CODE_SKILL = "skills/cowork-flow-bootstrap/SKILL.md"
@@ -1478,15 +1554,7 @@ def _machine_plugin_payload(platform_id: str) -> Path | None:
         payload = Path(str(entry.get("installPath") or "")) if entry else None
         return payload if payload is not None and payload.is_dir() else None
     if platform_id == "zcode":
-        home = Path(os.environ.get("ZCODE_HOME") or (Path.home() / ".zcode"))
-        marketplace = (
-            home
-            / "cli"
-            / "plugins"
-            / "marketplaces"
-            / "cowork-flow-local"
-            / "marketplace.json"
-        )
+        marketplace = _zcode_marketplace_path()
         try:
             data = json.loads(marketplace.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, ValueError):
@@ -1615,6 +1683,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     codex_plugin_issues = check_codex_plugin(repo_root)
     claude_code_plugin_issues = check_claude_code_plugin(repo_root)
     opencode_plugin_issues = check_opencode_plugin(repo_root)
+    zcode_plugin_issues = check_zcode_plugin(repo_root)
     kimi_code_plugin_issues = check_kimi_code_plugin(repo_root)
     skill_delivery_issues = check_skill_delivery(repo_root)
     errors: list[dict[str, object]] = []
@@ -1643,6 +1712,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "codexPlugin": codex_plugin_issues,
             "claudeCodePlugin": claude_code_plugin_issues,
             "opencodePlugin": opencode_plugin_issues,
+            "zcodePlugin": zcode_plugin_issues,
             "kimiCodePlugin": kimi_code_plugin_issues,
             "skillDelivery": skill_delivery_issues,
         },
@@ -1682,6 +1752,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["opencodePlugin"]:
         print(f"OpenCode plugin ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["zcodePlugin"]:
+        print(f"ZCode plugin ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["kimiCodePlugin"]:
