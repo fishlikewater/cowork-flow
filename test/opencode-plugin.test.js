@@ -243,6 +243,27 @@ test("an interpreter candidate that never starts logs no skip diagnostic", async
   )
 })
 
+test("an interpreter below the Python floor is skipped for the next candidate", async (t) => {
+  // The launcher requires Python 3.10+ and the shim reuses that floor: a
+  // candidate that starts but cannot run the check (Node here) falls through
+  // like a missing binary instead of ending the candidate walk.
+  const root = await createShimRepo(t)
+
+  const { result: output, lines } = await captureConsoleError(() =>
+    renderPluginContext(root, {}, { COWORK_FLOW_PYTHON: process.execPath })
+  )
+
+  assert.equal(
+    output.system.length,
+    1,
+    `expected a later interpreter candidate to render, got: ${JSON.stringify(output.system)}`
+  )
+  assert.ok(
+    !lines.join("\n").includes("skipping injection"),
+    `expected the skipped candidate to stay quiet, got: ${lines.join("\n")}`
+  )
+})
+
 test("transform honors the COWORK_FLOW_HOOKS kill switch", async (t) => {
   const root = await createShimRepo(t)
 

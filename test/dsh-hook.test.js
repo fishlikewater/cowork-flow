@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { access, cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -163,6 +164,47 @@ test('skips the interpreter entirely outside a cowork-flow root', async (t) => {
     }
   }
 });
+
+test(
+  'skips a discovered interpreter below the protocol floor for the next candidate',
+  { skip: process.platform === 'win32' ? 'stub interpreters need a POSIX shell' : false },
+  async (t) => {
+    // The protocol's own guard exits 3 when the interpreter is below the
+    // floor; the shim must read that like a missing binary and try the next
+    // candidate, not contribute nothing.
+    const project = await createWorkflowProject(t);
+    const dir = await mkdtemp(join(tmpdir(), 'cowork-flow-dsh-floor-'));
+    const names = ['COWORK_FLOW_PYTHON', 'PYTHON'];
+    const previousEnv = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+    const previousPath = process.env.PATH;
+    t.after(async () => {
+      await rm(dir, { recursive: true, force: true });
+      for (const [name, value] of Object.entries(previousEnv)) {
+        if (value === undefined) {
+          delete process.env[name];
+        } else {
+          process.env[name] = value;
+        }
+      }
+      process.env.PATH = previousPath;
+      resetWorkingPython();
+    });
+
+    // A `python3` that exits with the floor guard's code, and a `python` that
+    // delegates to the real interpreter: the rendered digest proves the
+    // fall-through.
+    const real = execFileSync('which', ['python3']).toString().trim();
+    await writeFile(join(dir, 'python3'), '#!/bin/sh\nexit 3\n', { mode: 0o755 });
+    await writeFile(join(dir, 'python'), `#!/bin/sh\nexec ${real} "$@"\n`, { mode: 0o755 });
+    for (const name of names) {
+      delete process.env[name];
+    }
+    process.env.PATH = `${dir}:${previousPath || ''}`;
+    resetWorkingPython();
+
+    assert.match(await runWorkflowState(project), /<workflow-state/);
+  }
+);
 
 
 test('findCoworkRoot climbs to the nearest cowork-flow root', async (t) => {

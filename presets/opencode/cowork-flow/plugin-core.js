@@ -16,7 +16,7 @@
 // install, so the adapter's relative import resolves in
 // both.
 
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -24,6 +24,27 @@ import { fileURLToPath } from "node:url"
 const DIR_WORKFLOW = ".cowork-flow"
 // One prompt assembly must not wait longer than a host hook event.
 const INJECT_TIMEOUT_MS = 4800
+// The .cowork-flow/run floor, reused here: a candidate that cannot run
+// Python 3.10+ is skipped like a missing binary, so a stale `python3`
+// never hides a working `python` further down the list.
+const MIN_PYTHON_CHECK =
+  "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"
+
+function interpreterIsUsable(candidate) {
+  try {
+    const probe = spawnSync(candidate[0], [...candidate.slice(1), "-c", MIN_PYTHON_CHECK], {
+      timeout: INJECT_TIMEOUT_MS,
+      windowsHide: true,
+    })
+    // A probe killed by its own timeout reached no verdict — a loaded machine,
+    // not a bad interpreter — so let the real spawn decide; it carries the
+    // same timeout and its own diagnostics.
+    if (probe.error && probe.error.code === "ETIMEDOUT") return true
+    return !probe.error && probe.status === 0
+  } catch {
+    return false
+  }
+}
 
 // Last-resort repository root: this module lives at
 // <payload>/cowork-flow/plugin-core.js, next to plugins/,
@@ -197,12 +218,18 @@ async function renderViaInject(input, overrides = null) {
     cwd: inputCwd(input) || (root === pluginRoot ? null : root) || process.cwd(),
   }
   for (const candidate of pythonCandidates()) {
+    if (!interpreterIsUsable(candidate)) {
+      continue
+    }
     const result = await runInject(candidate, script, payload)
     if (!result.ran) {
       continue
     }
     return result.stdout.trim()
   }
+  console.error(
+    "cowork-flow opencode plugin: no Python 3.10+ interpreter found; skipping injection"
+  )
   return ""
 }
 

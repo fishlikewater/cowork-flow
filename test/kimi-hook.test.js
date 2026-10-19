@@ -367,6 +367,20 @@ test('the shim injects kimi-code context inside a cowork-flow project', async (t
   assert.match(result.stdout, /^<cowork-runtime host="kimi-code" adapter="kimi-code\.hooks"/);
 });
 
+test('the shim skips an interpreter below the Python floor for the next candidate', async (t) => {
+  // The shim reuses the launcher's floor (Python 3.10+). An interpreter that
+  // starts but cannot run the check — Node here — must be skipped like a
+  // missing binary so a later candidate still delivers the context.
+  const project = await createWorkflowProject(t);
+  const env = { ...process.env, COWORK_FLOW_PYTHON: process.execPath };
+  delete env.COWORK_FLOW_HOOKS;
+
+  const result = await feedShim(project, env);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^<cowork-runtime host="kimi-code" adapter="kimi-code\.hooks"/);
+});
+
 
 test('the shim stays silent outside a cowork-flow project', async (t) => {
   const outside = await mkdtemp(join(tmpdir(), 'cowork-flow-kimi-outside-'));

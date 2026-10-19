@@ -21,7 +21,7 @@ async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
 }
 
-function runShim(input, cwd) {
+function runShim(input, cwd, extraEnv = {}) {
   // The current Node binary runs the shim; the shim itself locates a Python
   // interpreter for the project runtime, so the test must not pre-resolve one.
   return spawnSync(process.execPath, [SHIM], {
@@ -30,6 +30,7 @@ function runShim(input, cwd) {
     encoding: 'utf8',
     env: {
       ...process.env,
+      ...extraEnv,
       COWORK_FLOW_CONTEXT_ID: '',
       COWORK_FLOW_RUNTIME_CONTEXT_ID: '',
       QODER_PROJECT_DIR: '',
@@ -155,6 +156,27 @@ test('qoder shim renders the project workflow state through the project runtime'
     // Qoder shows a hook's top-level systemMessage to the user; it is the only
     // trace of an injection, since the injected context itself stays silent.
     assert.equal(payload.systemMessage, 'cowork-flow: 工作流状态已注入 · status=no_task');
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test('qoder shim skips an interpreter below the Python floor', async () => {
+  // The launcher requires Python 3.10+ and the shim reuses that floor: a
+  // COWORK_FLOW_PYTHON that starts but cannot run the check (Node here) is
+  // skipped like a missing binary, so the next candidate still renders.
+  const project = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-floor-'));
+  try {
+    await makeProject(project);
+    const result = runShim(
+      { hook_event_name: 'SessionStart', cwd: project, session_id: 's1' },
+      project,
+      { COWORK_FLOW_PYTHON: process.execPath }
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const envelope = JSON.parse(result.stdout).hookSpecificOutput;
+    assert.match(envelope.additionalContext, /<workflow-state status="no_task"/);
   } finally {
     await rm(project, { recursive: true, force: true });
   }

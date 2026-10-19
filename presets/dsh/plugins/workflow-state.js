@@ -52,12 +52,19 @@ const NO_ROOT_MARKER = '__COWORK_FLOW_NO_ROOT__';
 const NO_ROOT_TTL_MS = 30_000;
 const noRootCache = new Map();
 
-// Python 3.9+ protocol reused from the host hook adapters.
+// Python 3.10+ protocol reused from the host hook adapters.
 // It resolves the `.cowork-flow` root from the given cwd,
 // loads the shared workflow_state_hook module, and prints
-// the full hook context block.
+// the full hook context block. The version guard runs first
+// and exits 3 so the caller can tell "interpreter below the
+// floor" (try the next candidate) apart from "the runtime
+// failed" (contribute nothing).
 const PYTHON_PROTOCOL = `\
 import sys
+
+if sys.version_info < (3, 10):
+    raise SystemExit(3)
+
 from pathlib import Path
 
 cwd = sys.argv[1]
@@ -105,9 +112,15 @@ const EDIT_EXEC_OPTIONS = {
 // Editor-phase scope protocol: same root discovery, then the shared
 // edit-scope entry the other hosts reach through their PostToolUse
 // hook, so DSH sessions get the identical single-line advisory. Prints
-// at most one line; exits 0 either way.
+// at most one line; exits 0 either way. The version guard exits 3 (an
+// interpreter below the floor, not a runtime verdict), which the
+// caller treats like a missing binary: try the next candidate.
 const PYTHON_EDIT_SCOPE_PROTOCOL = `\
 import sys
+
+if sys.version_info < (3, 10):
+    raise SystemExit(3)
+
 from pathlib import Path
 
 # The advisory line starts with a character outside the Windows ANSI
@@ -198,11 +211,15 @@ function tryPython(candidate, cwd, full = true) {
       EXEC_OPTIONS,
       (error, stdout) => {
         if (error) {
-          // ENOENT = the interpreter does not exist (try
-          // the next one). Any other failure means the
-          // interpreter ran but the protocol failed — the
-          // candidate works, the runtime does not.
-          resolve({ missing: error.code === 'ENOENT', output: '' });
+          // ENOENT = the interpreter does not exist, exit
+          // code 3 = it is older than the protocol's floor;
+          // both mean "try the next candidate". Any other
+          // failure means the interpreter ran but the protocol
+          // failed — the candidate works, the runtime does not.
+          resolve({
+            missing: error.code === 'ENOENT' || error.code === 3,
+            output: ''
+          });
           return;
         }
         resolve({ missing: false, output: stdout.trim() });
@@ -296,6 +313,13 @@ export async function runWorkflowState(cwd, full = true) {
     workingPython = candidate;
     return normalize(result.output);
   }
+  // Nothing in the candidate list could run the protocol: contribute
+  // nothing, but say why once — a Python below the floor (or none at
+  // all) is a misconfiguration the session owner can fix, and total
+  // silence hides it.
+  process.stderr.write(
+    'cowork-flow dsh hook: no Python 3.10+ interpreter found; skipping workflow-state injection\n'
+  );
   return '';
 }
 
@@ -340,7 +364,12 @@ export async function runEditScopeCheck(cwd, filePath) {
       EDIT_EXEC_OPTIONS,
       (error, stdout) => {
         if (error) {
-          resolvePromise({ missing: error.code === 'ENOENT', output: '' });
+          // ENOENT and exit code 3 (below the protocol's floor) both
+          // mean "this candidate cannot run it — try the next one".
+          resolvePromise({
+            missing: error.code === 'ENOENT' || error.code === 3,
+            output: ''
+          });
           return;
         }
         resolvePromise({ missing: false, output: stdout.trim() });

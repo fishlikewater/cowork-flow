@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { access, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -92,6 +92,7 @@ function spawnZCodeHook(input, options = {}) {
     encoding: 'utf8',
     env: {
       ...process.env,
+      ...(options.env || {}),
       ZCODE_PLUGIN_ROOT: join(packageRoot, 'presets', 'zcode'),
       ZCODE_PROJECT_DIR: '',
       COWORK_FLOW_RUNTIME_CONTEXT_ID: ''
@@ -136,6 +137,91 @@ test('zcode shim fails open when the project runtime rejects the host', async (t
   assert.match(result.stderr, /invalid choice: 'zcode'/);
   assert.match(result.stderr, /exited 2/);
 });
+
+async function makeProject(project) {
+  await mkdir(join(project, '.cowork-flow'), { recursive: true });
+  await cp(
+    join(templateRoot, '.cowork-flow', 'scripts'),
+    join(project, '.cowork-flow', 'scripts'),
+    { recursive: true }
+  );
+}
+
+test('a first candidate below the Python floor falls through to the next interpreter', async (t) => {
+  // The launcher requires Python 3.10+ and the shim reuses that floor: a
+  // COWORK_FLOW_PYTHON that starts but cannot run the check (Node here) is
+  // skipped like a missing binary instead of ending the candidate walk.
+  const projectRoot = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-floor-'));
+  t.after(async () => {
+    await rm(projectRoot, { recursive: true, force: true });
+  });
+  await makeProject(projectRoot);
+
+  const result = spawnZCodeHook(
+    { hook_event_name: 'UserPromptSubmit', cwd: projectRoot, prompt: 'hi' },
+    { cwd: projectRoot, env: { COWORK_FLOW_PYTHON: process.execPath } }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.match(payload.hookSpecificOutput.additionalContext, /<workflow-state status="no_task"/);
+});
+
+test('an empty candidate walk names the reason instead of staying silent', async (t) => {
+  // With no interpreter reachable at all the walk ends empty; the shim must
+  // stay fail-open (exit 0) and say why once, because silence is what makes a
+  // missing Python invisible.
+  const projectRoot = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-nopython-'));
+  t.after(async () => {
+    await rm(projectRoot, { recursive: true, force: true });
+  });
+  await makeProject(projectRoot);
+
+  const result = spawnZCodeHook(
+    { hook_event_name: 'UserPromptSubmit', cwd: projectRoot, prompt: 'hi' },
+    { cwd: projectRoot, env: { PATH: '', COWORK_FLOW_PYTHON: '' } }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '');
+  assert.match(result.stderr, /no Python 3\.10\+ interpreter found/);
+});
+
+test(
+  'a discovered interpreter below the Python floor falls through to the next candidate',
+  { skip: process.platform === 'win32' ? 'stub interpreters need a POSIX shell' : false },
+  async (t) => {
+    // A `python3` that fails the floor probe and a `python` that delegates to
+    // the real interpreter: the rendered context proves the discovered
+    // candidate was skipped instead of ending the walk.
+    const projectRoot = await mkdtemp(join(tmpdir(), 'cowork-flow-zcode-floor-path-'));
+    t.after(async () => {
+      await rm(projectRoot, { recursive: true, force: true });
+    });
+    await makeProject(projectRoot);
+
+    const binDir = join(projectRoot, 'fake-bin');
+    await mkdir(binDir, { recursive: true });
+    const real = execFileSync('which', ['python3']).toString().trim();
+    await writeFile(join(binDir, 'python3'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    await writeFile(join(binDir, 'python'), `#!/bin/sh\nexec ${real} "$@"\n`, { mode: 0o755 });
+
+    const result = spawnZCodeHook(
+      { hook_event_name: 'UserPromptSubmit', cwd: projectRoot, prompt: 'hi' },
+      {
+        cwd: projectRoot,
+        env: {
+          PATH: `${binDir}:${process.env.PATH || ''}`,
+          COWORK_FLOW_PYTHON: ''
+        }
+      }
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const payload = JSON.parse(result.stdout);
+    assert.match(payload.hookSpecificOutput.additionalContext, /<workflow-state status="no_task"/);
+  }
+);
 
 test('zcode scaffold source does not commit workflow bootstrap files', async () => {
   const sourceScaffold = join(packageRoot, 'presets', 'zcode', 'scaffold');

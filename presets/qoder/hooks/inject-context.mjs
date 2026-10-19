@@ -33,6 +33,27 @@ const HOST = "qoder";
 const DIR_WORKFLOW = ".cowork-flow";
 // hooks.json grants 30s per event.
 const SPAWN_TIMEOUT_MS = 25000;
+// The .cowork-flow/run floor, reused here: a candidate that cannot run
+// Python 3.10+ is skipped like a missing binary, so a stale `python3`
+// never hides a working `python` further down the list.
+const MIN_PYTHON_CHECK = "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)";
+
+function interpreterIsUsable(candidate) {
+  try {
+    const probe = spawnSync(
+      candidate[0],
+      [...candidate.slice(1), "-c", MIN_PYTHON_CHECK],
+      { timeout: SPAWN_TIMEOUT_MS, windowsHide: true }
+    );
+    // A probe killed by its own timeout reached no verdict — a loaded machine,
+    // not a bad interpreter — so let the real spawn decide; it carries the
+    // same timeout and its own diagnostics.
+    if (probe.error && probe.error.code === "ETIMEDOUT") return true;
+    return !probe.error && probe.status === 0;
+  } catch {
+    return false;
+  }
+}
 
 function readHookInput() {
   if (process.stdin.isTTY) return { raw: "", parsed: {} };
@@ -113,6 +134,7 @@ function main() {
   if (!existsSync(injectScript)) process.exit(0);
 
   for (const candidate of pythonCandidates()) {
+    if (!interpreterIsUsable(candidate)) continue;
     let result;
     try {
       result = spawnSync(
@@ -142,8 +164,12 @@ function main() {
     }
     process.exit(0);
   }
-  // No interpreter could run the entry: stay silent rather
-  // than break the host's event stream (fail-open).
+  // No candidate could run the entry: stay fail-open, but say why once
+  // instead of hiding a misconfiguration (a Python below the floor, or
+  // none at all).
+  process.stderr.write(
+    "cowork-flow qoder hook: no Python 3.10+ interpreter found; skipping injection\n"
+  );
   process.exit(0);
 }
 
