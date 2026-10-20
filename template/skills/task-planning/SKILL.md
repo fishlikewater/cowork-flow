@@ -116,7 +116,7 @@ Then list task briefs, followed by integrated verification and completion checks
   <command>
   ```
 
-  When changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, add the deciding command or a `规范核对：... → pass / not_applicable（附理由）` line here; it is a strong review reminder, not a hard gate.
+  When changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, add the deciding command or a spec/gate check line (`pass` / `not_applicable` with reason; format example in `decision-anchor.md`) here; it is a strong review reminder, not a hard gate.
 
   **Completion Conditions**
   - <2-4 checkable conditions>
@@ -130,7 +130,7 @@ Then list task briefs, followed by integrated verification and completion checks
 
 - For Tiny tasks, keep the brief short but still name exact file boundaries, completion conditions, and verification commands.
 - For behavior changes, include a failing test before implementation when behavior can be tested.
-- For implementation tasks whose changed files are covered by `.cowork-flow/spec/` requirements, name the covered spec files in the plan and add the clause check to the task's **Verification Command** and the plan's **Final Verification**: run the deciding command when one exists, otherwise check clause by clause and record `pass` / `not_applicable` with reason. This is a strong review reminder, not a separate hard gate.
+- For implementation tasks whose changed files are covered by `.cowork-flow/spec/` requirements, name the covered spec files in the plan and add the clause check to the task's `Verification Command` and the plan's `Final Verification`: run the deciding command when one exists, otherwise check clause by clause and record `pass` / `not_applicable` with reason. This is a strong review reminder, not a separate hard gate.
 - Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mock calls without behavior, or snapshot empty structure.
 - For complex problems, test depth first: business invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.
 - Map behavior-changing tests to stable `decision-anchor.md` acceptance IDs when useful; do not create `tdd.jsonl` or write TDD evidence records into `check.jsonl`.
