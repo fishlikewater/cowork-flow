@@ -45,7 +45,7 @@ Start with a concise brief:
 | **Task Type** | Tiny / Normal / High-risk: <reason> |
 | **Strategy** | Serial / Parallel: <why> |
 | **Success Criteria** | AC-001 / AC-002 / AC-003 |
-| **Final Verification** | `<command>` -> exit 0; `<command>` -> exit 0 |
+| **Final Verification** | `<command>` -> exit 0; clause-by-clause check against applicable `.cowork-flow/spec/<dev_type>/` rules and project gates -> `pass` / `not_applicable` per clause |
 | **Primary Risk** | Low / Medium / High: <one sentence> |
 
 ## Goal
@@ -116,6 +116,8 @@ Then list task briefs, followed by integrated verification and completion checks
   <command>
   ```
 
+  When changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, add the deciding command or a spec/gate check line (`pass` / `not_applicable` with reason; format example in `decision-anchor.md`) here; it is a strong review reminder, not a hard gate.
+
   **Completion Conditions**
   - <2-4 checkable conditions>
 
@@ -128,7 +130,7 @@ Then list task briefs, followed by integrated verification and completion checks
 
 - For Tiny tasks, keep the brief short but still name exact file boundaries, completion conditions, and verification commands.
 - For behavior changes, include a failing test before implementation when behavior can be tested.
-- For implementation tasks whose changed files are covered by `.cowork-flow/spec/` requirements, name the covered spec files in the plan so review can check them clause by clause.
+- For implementation tasks whose changed files are covered by `.cowork-flow/spec/` requirements, name the covered spec files in the plan and add the clause check to the task's `Verification Command` and the plan's `Final Verification`: run the deciding command when one exists, otherwise check clause by clause and record `pass` / `not_applicable` with reason. This is a strong review reminder, not a separate hard gate.
 - Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mock calls without behavior, or snapshot empty structure.
 - For complex problems, test depth first: business invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.
 - Map behavior-changing tests to stable `decision-anchor.md` acceptance IDs when useful; do not create `tdd.jsonl` or write TDD evidence records into `check.jsonl`.
@@ -190,3 +192,4 @@ Before handoff:
 3. Confirm every Normal or High-risk task has file boundaries, key symbols, implementation notes, test proof, completion conditions, and prohibited drift.
 4. Check names, paths, command syntax, and expected outputs.
 5. Confirm the plan says to stop and report back when code facts conflict with the plan, a plan-external file becomes necessary, or a test fails for an unplanned reason.
+6. Confirm Final Verification carries the applicable `.cowork-flow/spec/<dev_type>/` clause check, or states why no spec file applies.

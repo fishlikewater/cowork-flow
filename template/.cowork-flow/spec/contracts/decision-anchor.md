@@ -33,6 +33,7 @@ translated heading would simply stop being read.
 
 ## 验证命令
 - `<command>` → <expected>
+- 规范核对：逐条核对 `.cowork-flow/spec/<dev_type>/` 适用规范 → pass / not_applicable（附理由）
 ```
 
 ## Section requirements
@@ -44,7 +45,7 @@ translated heading would simply stop being read.
 | `## 被拒方案` | optional | required for brainstorming tasks, so a rejected option is not reconsidered during execution |
 | `## 关键假设` | optional | filled in for complex tasks to surface implicit constraints; not read by the runtime parser |
 | `## 范围边界` | optional | prevents scope creep |
-| `## 验证命令` | optional | filled in for complex tasks, as the basis for automated verification |
+| `## 验证命令` | optional | filled in for complex tasks, as the basis for automated verification; when the changed files are covered by `.cowork-flow/spec/backend/` or `frontend/` rules, it must also carry the spec/gate check for the task's `dev_type` (deciding command, or clause-by-clause `pass` / `not_applicable` with reason) |
 
 ### Machine-readable line formats (for injection)
 
@@ -54,6 +55,11 @@ fact view (`services/fact_view.parse_decision_anchor`). Line-format conventions:
 - `## 验证命令`: one command per line (an optional `- ` prefix), truncated to 120
   characters, at most 10 lines; the implementing agent runs them itself
   (self-declared, self-checked) and the reviewer verifies the execution evidence.
+  When the changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, the
+  section must also carry the spec/gate check for the task's `dev_type`: a deciding
+  command, or a `规范核对:` line reviewed clause by clause (`pass` /
+  `not_applicable` + reason). This is a strong review reminder, not a `spec-check`
+  hard gate.
 - `## 范围边界`: only the first non-empty line is taken, truncated to 160
   characters.
 

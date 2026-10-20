@@ -4,6 +4,13 @@
 
 ### Added
 
+## [2.2.0] - 2026-10-20
+
+### Changed
+
+- **计划与任务验证段纳入规范门禁检查**：`task-planning` 的计划 `Final Verification`、任务规则与 Self-Review 要求按 `dev_type` 逐条核对 `.cowork-flow/spec/<dev_type>/` 适用规范与项目门禁——改动被规范覆盖时，把决定命令或 `规范核对:` 行写进计划的 Final Verification 与任务简报的 Verification Command，标 `pass` / `not_applicable` 并写理由；`decision-anchor` 契约的 `## 验证命令` 同步要求该检查行，并明确为 review 强提醒而非 `spec-check` 硬门禁，120 字符/10 行限制不变。
+- **模板示例统一展示规范核对行**：`decision-anchor` Schema 的 `## 验证命令` 示例新增 `规范核对:` 行；`task-planning` 任务简报的 `Verification Command` 示例块后补充写法说明，避免新建计划/任务漏写规范检查项。
+
 ## [2.1.0] - 2026-10-19
 
 ### Added
@@ -386,7 +393,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.2...v2.0.0
 [1.9.2]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.1...v1.9.2
