@@ -33,6 +33,7 @@ translated heading would simply stop being read.
 
 ## 验证命令
 - `<command>` → <expected>
+- 规范核对：逐条核对 `.cowork-flow/spec/<dev_type>/` 适用规范 → pass / not_applicable（附理由）
 ```
 
 ## Section requirements

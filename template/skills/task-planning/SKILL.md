@@ -116,6 +116,8 @@ Then list task briefs, followed by integrated verification and completion checks
   <command>
   ```
 
+  When changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, add the deciding command or a `规范核对：... → pass / not_applicable（附理由）` line here; it is a strong review reminder, not a hard gate.
+
   **Completion Conditions**
   - <2-4 checkable conditions>
 
