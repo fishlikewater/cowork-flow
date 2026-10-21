@@ -44,22 +44,22 @@ cwf --version
 先预览将要写入的文件：
 
 ```bash
-cwf project init . --platform codex --developer alice --dry-run
+cwf project init --host codex --developer alice --dry-run
 ```
 
 确认无误后去掉 `--dry-run`：
 
 ```bash
-cwf project init . --platform codex --developer alice
+cwf project init --host codex --developer alice
 ```
 
 把 `codex` 换成你正在使用的宿主：
 
 `codex`、`claude-code`、`opencode`、`zcode`、`qoder`、`kimi-code`、`dsh`。
 
-新项目可以把 `.` 换成 `./my-project`，然后进入该目录。只有确实会在多个宿主中使用时，才需要 `--platform all`。
+命令默认在当前目录初始化；新项目把目标目录作为位置参数传入，例如 `cwf project init ./my-project --host codex`，再进入该目录。省略 `--host` 时，会先按项目里已有的宿主标记（如 `.codex/`、`.claude/`）自动判定；没有标记的交互终端会让你选择，非交互环境则需要显式传入。只有确实会在多个宿主中使用时，才用 `--host all`。
 
-初始化会加入 `AGENTS.md`、`.cowork-flow/` 和对应的宿主文件，不会修改业务代码。`--developer` 可以省略；已有项目建议始终先跑 `--dry-run`。
+初始化会加入 `AGENTS.md`、`.cowork-flow/` 和对应的宿主文件，不会修改业务代码。已有 `.developer` 不会被覆盖；首次初始化时显式 `--developer` 优先于 `git config user.name`。git 也没有身份时，交互终端会提示，非交互环境报错（`--dry-run` 只报告 `would-skip`，不失败）。`--platform` / `--platforms` 是 `--host` 的兼容别名。已有项目建议始终先跑 `--dry-run`。
 
 ### 3. 完成宿主设置
 
@@ -117,7 +117,7 @@ cwf project sync .
 
 | 命令 | 用途 |
 |---|---|
-| `cwf project init [target] --platform <host> [--developer <name>] [--dry-run] [--force]` | 初始化项目 |
+| `cwf project init [target] --host <host> [--developer <name>] [--dry-run] [--force]` | 初始化项目 |
 | `cwf project sync [target] [--dry-run] [--force]` | 更新项目内由 cowork-flow 管理的文件 |
 | `cwf host add <host> [--component <name>] [--dry-run] [--force] [--prune-old] [--uninstall]` | 安装机器级宿主组件 |
 | `cwf host remove <host> [--component <name>] [--dry-run] [--force]` | 卸载机器级宿主组件 |

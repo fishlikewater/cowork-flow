@@ -43,6 +43,6 @@ export async function runSync(args, { io, fileSystem }) {
     const readiness = await buildReadinessReport(plan, { fileSystem });
     io.writeOut(formatReadinessReport(readiness));
   }
-  io.writeOut(`Platforms: ${platforms.length > 0 ? formatPlatformList(platforms) : 'none'}\n`);
+  io.writeOut(`Hosts: ${platforms.length > 0 ? formatPlatformList(platforms) : 'none'}\n`);
   return 0;
 }

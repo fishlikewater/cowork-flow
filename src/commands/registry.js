@@ -35,7 +35,7 @@ const FLAG_HELP = {
 const flag = (name) => ({ name, kind: 'boolean', description: FLAG_HELP[name] });
 const valueFlag = (name, valueName) => ({ name, kind: 'value', valueName, description: FLAG_HELP[name] });
 
-const PLATFORM_TOKENS = `${hostRegistry.platformIds.join('|')}|all`;
+const HOST_TOKENS = `${hostRegistry.platformIds.join('|')}|all`;
 const HOST_NOTE = `Hosts: ${Object.entries(HOST_COMPONENTS)
   .map(([id, host]) => `${id} (${Object.keys(host.components).join(', ')})`)
   .join('; ')}.`;
@@ -51,18 +51,19 @@ export const COMMANDS = [
   {
     path: ['project', 'init'],
     summary: 'Copy the cowork-flow template into a project',
-    usage: `project init [target] --platform <${PLATFORM_TOKENS}> [--developer <name>] [--dry-run] [--force]`,
+    usage: `project init [target] --host <${HOST_TOKENS}> [--developer <name>] [--dry-run] [--force]`,
     flags: [
-      { name: '--platform', kind: 'value', valueName: 'host', repeatable: true, description: 'Host to set the project up for; repeatable and comma-separated' },
-      { name: '--platforms', kind: 'value', valueName: 'host', repeatable: true, description: 'Alias of --platform' },
-      { name: '--developer', kind: 'value', valueName: 'name', description: 'Developer name recorded in .cowork-flow/.developer' },
+      { name: '--host', kind: 'value', valueName: 'host', repeatable: true, description: 'Host to set the project up for; repeatable and comma-separated, auto-detected when omitted' },
+      { name: '--platform', kind: 'value', valueName: 'host', repeatable: true, description: 'Alias of --host' },
+      { name: '--platforms', kind: 'value', valueName: 'host', repeatable: true, description: 'Alias of --host' },
+      { name: '--developer', kind: 'value', valueName: 'name', description: 'Developer name recorded in .cowork-flow/.developer; falls back to git user.name' },
       flag('--dry-run'),
       flag('--force')
     ],
     positional: { min: 0, max: 1, name: '[target]' },
     examples: [
-      'cwf project init . --platform codex --developer alice',
-      'cwf project init ./my-project --platform all --dry-run'
+      'cwf project init --host codex --developer alice',
+      'cwf project init ./my-project --host all --dry-run'
     ],
     run: (args, context) => runInit(args, context)
   },

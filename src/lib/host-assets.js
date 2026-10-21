@@ -172,7 +172,7 @@ function selectionRules(index) {
         const platformId = aliases.get(token);
         if (!platformId) {
           throw new Error(
-            `Unsupported platform: ${token}. Supported platforms: ${platformIds.join(', ')}`
+            `Unsupported host: ${token}. Supported hosts: ${platformIds.join(', ')}`
           );
         }
         selected.add(platformId);
@@ -180,7 +180,7 @@ function selectionRules(index) {
     }
     if (selected.size === 0) {
       throw new Error(
-        `Platform selection required. Run: cwf project init <target> --platform ${platformIds.join('|')}`
+        `Host selection required. Run: cwf project init [target] --host ${platformIds.join('|')}`
       );
     }
     return platformIds.filter((platformId) => selected.has(platformId));

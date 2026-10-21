@@ -539,7 +539,7 @@ test('sync uses manifest-defined extra platform assets', async (t) => {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(await exists(join(target, '.demo-host', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.codex', 'config.toml')), false);
-  assert.match(result.stdout, /Platforms: demo-host/);
+  assert.match(result.stdout, /Hosts: demo-host/);
 });
 
 
@@ -592,7 +592,7 @@ test('sync refreshes codex assets without creating opencode assets', async (t) =
   );
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
-  assert.match(io.stdout, /Platforms: codex/);
+  assert.match(io.stdout, /Hosts: codex/);
   assert.match(io.stdout, /updated=/);
 });
 
@@ -617,7 +617,7 @@ test('sync detects the dsh marker and refreshes dsh assets only', async (t) => {
   assert.equal(await exists(join(target, '.codex')), false);
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.claude')), false);
-  assert.match(io.stdout, /Platforms: dsh/);
+  assert.match(io.stdout, /Hosts: dsh/);
   assert.match(io.stdout, /updated=/);
 });
 
@@ -642,7 +642,7 @@ test('sync refreshes opencode assets without creating codex assets', async (t) =
   );
   assert.equal(await exists(join(target, '.codex')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
-  assert.match(io.stdout, /Platforms: opencode/);
+  assert.match(io.stdout, /Hosts: opencode/);
   assert.match(io.stdout, /updated=/);
 });
 
@@ -712,7 +712,7 @@ test('sync refreshes claude-code assets without creating codex or opencode asset
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.claude', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills')), false);
-  assert.match(io.stdout, /Platforms: claude-code/);
+  assert.match(io.stdout, /Hosts: claude-code/);
   assert.match(io.stdout, /updated=/);
 });
 
@@ -762,7 +762,7 @@ test('sync refreshes all host asset sets when all are installed', async (t) => {
     await readText(join(target, '.claude', 'hooks', 'inject-workflow-state.py')),
     await readText(join(templateRoot, '.claude', 'hooks', 'inject-workflow-state.py'))
   );
-  assert.match(io.stdout, /Platforms: codex, opencode, claude-code/);
+  assert.match(io.stdout, /Hosts: codex, opencode, claude-code/);
   assert.match(io.stdout, /updated=/);
 });
 

@@ -1,9 +1,12 @@
+import { execFile } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 
 import {
   applyPlan,
   buildInitPlan,
+  detectInstalledPlatforms,
   summarizePlan
 } from '../lib/copy-template.js';
 import { readPackageInfo } from '../lib/package-info.js';
@@ -14,6 +17,8 @@ import {
   platformLabel
 } from '../lib/platforms.js';
 import { parseFlags, UsageError } from '../lib/cli-flags.js';
+
+const execFileAsync = promisify(execFile);
 
 // The manifest layer reports a plain Error; re-thrown as a
 // usage error so a bad host name exits with the
@@ -29,15 +34,19 @@ function parsePlatformSelectionOrUsage(values) {
 function parseInitArgs(args) {
   const { flags, positionals } = parseFlags(args, {
     boolean: ['--dry-run', '--force'],
-    value: ['--platform', '--platforms', '--developer'],
-    repeatable: ['--platform', '--platforms'],
+    value: ['--host', '--platform', '--platforms', '--developer'],
+    repeatable: ['--host', '--platform', '--platforms'],
     positional: { min: 0, max: 1, name: '[target]' }
   });
   return {
     developer: flags['--developer'] ?? null,
     dryRun: Boolean(flags['--dry-run']),
     force: Boolean(flags['--force']),
-    platforms: [...(flags['--platform'] ?? []), ...(flags['--platforms'] ?? [])],
+    platforms: [
+      ...(flags['--host'] ?? []),
+      ...(flags['--platform'] ?? []),
+      ...(flags['--platforms'] ?? [])
+    ],
     target: positionals[0] === undefined ? process.cwd() : resolve(positionals[0])
   };
 }
@@ -57,12 +66,38 @@ async function pathExists(path) {
 function normalizeDeveloperName(value) {
   const name = String(value ?? '').trim();
   if (!name) {
-    throw new UsageError('Developer name required. Run: cwf project init <target> --developer <name>');
+    throw new UsageError('Developer name required. Run: cwf project init [target] --developer <name>');
   }
   if (/[\\/]/.test(name)) {
     throw new UsageError('Developer name must not contain path separators');
   }
   return name;
+}
+
+function normalizeGitDeveloper(value) {
+  const name = String(value ?? '').trim();
+  if (!name || /[\\/]/.test(name) || (name.startsWith('<') && name.endsWith('>'))) {
+    return null;
+  }
+  return name;
+}
+
+// `git config user.name` reads the local repository first and falls back to the
+// global config, which is the "nearest identity" this command wants. A missing
+// binary, an unset value, or a directory that vanishes under us all mean "no
+// git identity", never a failed init.
+async function readGitDeveloper(target) {
+  const cwd = await pathExists(target) ? target : process.cwd();
+  try {
+    const { stdout } = await execFileAsync('git', ['config', 'user.name'], {
+      cwd,
+      timeout: 5000,
+      windowsHide: true
+    });
+    return normalizeGitDeveloper(stdout);
+  } catch {
+    return null;
+  }
 }
 
 async function readExistingDeveloper(target) {
@@ -78,19 +113,30 @@ async function readExistingDeveloper(target) {
 async function resolveDeveloperName(options, prompt) {
   const existing = await readExistingDeveloper(options.target);
   if (existing) {
-    return { existing: true, name: existing };
+    return { existing: true, name: existing, source: 'existing' };
   }
 
-  if (options.dryRun && !options.developer) {
-    return { existing: false, name: null };
+  if (options.developer) {
+    return { existing: false, name: normalizeDeveloperName(options.developer), source: 'flag' };
   }
 
-  let name = options.developer;
-  if (!name && typeof prompt === 'function') {
-    name = await prompt('Developer name: ');
+  const gitName = await readGitDeveloper(options.target);
+
+  if (options.dryRun) {
+    return { existing: false, name: gitName, source: gitName ? 'git' : null };
   }
 
-  return { existing: false, name: normalizeDeveloperName(name) };
+  if (typeof prompt === 'function') {
+    const answer = await prompt(`Developer name${gitName ? ` [${gitName}]` : ''}: `);
+    const typed = String(answer ?? '').trim();
+    return {
+      existing: false,
+      name: normalizeDeveloperName(typed || gitName),
+      source: typed ? 'prompt' : 'git'
+    };
+  }
+
+  return { existing: false, name: normalizeDeveloperName(gitName), source: 'git' };
 }
 
 async function resolvePlatforms(options, selectPlatforms) {
@@ -98,10 +144,17 @@ async function resolvePlatforms(options, selectPlatforms) {
     return parsePlatformSelectionOrUsage(options.platforms);
   }
 
+  // Reuse the same marker-based detection `project sync` uses, so init and sync
+  // agree on what "this project already uses" means.
+  const detected = await detectInstalledPlatforms(options.target);
+  if (detected.length > 0) {
+    return detected;
+  }
+
   let selected = null;
   if (typeof selectPlatforms === 'function') {
     selected = await selectPlatforms({
-      message: 'Select platforms to set up',
+      message: 'Select hosts to set up',
       choices: SUPPORTED_PLATFORMS.map((platform) => ({
         label: platformLabel(platform),
         value: platform
@@ -156,13 +209,16 @@ export async function runInitWithOptions(
 
   await applyPlan(plan, { dryRun: options.dryRun, fileSystem });
   io.writeOut(summarizePlan(plan, options.dryRun));
-  io.writeOut(`Platforms: ${formatPlatformList(platforms)}\n`);
+  io.writeOut(`Hosts: ${formatPlatformList(platforms)}\n`);
 
   if (options.dryRun) {
     if (developer.existing) {
       io.writeOut(`dry-run preserve-existing=.cowork-flow/.developer for developer ${developer.name}\n`);
     } else if (developer.name) {
-      io.writeOut(`dry-run would-create=.cowork-flow/.developer for developer ${developer.name}\n`);
+      const source = developer.source === 'git' ? ' (from git user.name)' : '';
+      io.writeOut(`dry-run would-create=.cowork-flow/.developer for developer ${developer.name}${source}\n`);
+    } else {
+      io.writeOut('dry-run would-skip=.cowork-flow/.developer (no developer identity; pass --developer)\n');
     }
     io.writeOut('Next: update AGENTS.md and .cowork-flow/config.yaml for this project.\n');
     return 0;
@@ -171,7 +227,8 @@ export async function runInitWithOptions(
   if (developer.existing) {
     io.writeOut(`Developer already initialized: ${developer.name}\n`);
   } else {
-    io.writeOut(`Developer initialized: ${developer.name}\n`);
+    const source = developer.source === 'git' ? ' (from git user.name)' : '';
+    io.writeOut(`Developer initialized: ${developer.name}${source}\n`);
   }
   io.writeOut('Next: update AGENTS.md and .cowork-flow/config.yaml for this project.\n');
   return 0;

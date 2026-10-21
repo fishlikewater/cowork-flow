@@ -50,25 +50,33 @@ below with `npx cowork-flow` — except for `cwf self update`.
 Preview the files that will be written:
 
 ```bash
-cwf project init . --platform codex --developer alice --dry-run
+cwf project init --host codex --developer alice --dry-run
 ```
 
 Drop `--dry-run` once the list looks right:
 
 ```bash
-cwf project init . --platform codex --developer alice
+cwf project init --host codex --developer alice
 ```
 
 Replace `codex` with the host you use:
 
 `codex`, `claude-code`, `opencode`, `zcode`, `qoder`, `kimi-code`, `dsh`.
 
-For a new project, replace `.` with `./my-project` and enter that directory. Use
-`--platform all` only when the project really will be worked on from several hosts.
+The command initializes the current directory by default. For a new project, pass the
+target directory as a positional argument, for example
+`cwf project init ./my-project --host codex`, then enter that directory. When `--host`
+is omitted, init first looks for host markers already in the project (such as
+`.codex/` or `.claude/`); an interactive terminal offers a picker when none is found,
+and a non-interactive environment needs an explicit host. Use `--host all` only when
+the project really will be worked on from several hosts.
 
 Initialization adds `AGENTS.md`, `.cowork-flow/`, and the matching host files. It does
-not touch application code. `--developer` is optional; on an existing project, always
-run `--dry-run` first.
+not touch application code. An existing `.developer` is never overwritten; on first
+initialization an explicit `--developer` wins over `git config user.name`. With no git
+identity, an interactive terminal prompts and a non-interactive run fails (`--dry-run`
+only reports `would-skip`). `--platform` / `--platforms` remain accepted aliases of
+`--host`. On an existing project, always run `--dry-run` first.
 
 ### 3. Finish host setup
 
@@ -135,7 +143,7 @@ how the project is organized, see [architecture and extension](docs/architecture
 
 | Command | Purpose |
 |---|---|
-| `cwf project init [target] --platform <host> [--developer <name>] [--dry-run] [--force]` | Initialize a project |
+| `cwf project init [target] --host <host> [--developer <name>] [--dry-run] [--force]` | Initialize a project |
 | `cwf project sync [target] [--dry-run] [--force]` | Update the cowork-flow-managed files in a project |
 | `cwf host add <host> [--component <name>] [--dry-run] [--force] [--prune-old] [--uninstall]` | Install a machine-level host component |
 | `cwf host remove <host> [--component <name>] [--dry-run] [--force]` | Remove a machine-level host component |

@@ -66,6 +66,32 @@ function createIo() {
   };
 }
 
+// Isolate the CLI's git lookup from the developer machine: GIT_CONFIG_GLOBAL
+// points at a throwaway file and the system config is disabled.
+async function withGitConfig(t, content, run) {
+  const configDir = await createTempDir(t);
+  const globalConfig = join(configDir, 'gitconfig');
+  await writeFile(globalConfig, content, 'utf8');
+  const previousGlobal = process.env.GIT_CONFIG_GLOBAL;
+  const previousNoSystem = process.env.GIT_CONFIG_NOSYSTEM;
+  process.env.GIT_CONFIG_GLOBAL = globalConfig;
+  process.env.GIT_CONFIG_NOSYSTEM = '1';
+  try {
+    return await run();
+  } finally {
+    if (previousGlobal === undefined) {
+      delete process.env.GIT_CONFIG_GLOBAL;
+    } else {
+      process.env.GIT_CONFIG_GLOBAL = previousGlobal;
+    }
+    if (previousNoSystem === undefined) {
+      delete process.env.GIT_CONFIG_NOSYSTEM;
+    } else {
+      process.env.GIT_CONFIG_NOSYSTEM = previousNoSystem;
+    }
+  }
+}
+
 
 test('init uses manifest-defined extra platform assets', async (t) => {
   const target = join(await createTempDir(t), 'demo');
@@ -77,7 +103,7 @@ test('init uses manifest-defined extra platform assets', async (t) => {
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, '.demo-host', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.codex', 'config.toml')), false);
-  assert.match(result.stdout, /Platforms: demo-host/);
+  assert.match(result.stdout, /Hosts: demo-host/);
 });
 
 
@@ -97,7 +123,7 @@ test('init copies the template into a new target directory', async (t) => {
   const io = createIo();
   const packageInfo = await readPackageInfo();
 
-  const code = await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io });
+  const code = await main(['init', target, '--developer', 'codex', '--host', 'codex'], { io });
 
   assert.equal(code, 0);
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
@@ -135,7 +161,7 @@ test('init copies the template into a new target directory', async (t) => {
   assert.equal(await exists(join(target, '.cowork-flow', 'workspace')), false);
   assert.equal(await readText(join(target, '.cowork-flow', '.version')), `${packageInfo.version}\n`);
   assert.match(io.stdout, /created=/);
-  assert.match(io.stdout, /Platforms: codex/);
+  assert.match(io.stdout, /Hosts: codex/);
   assert.match(io.stdout, /Developer initialized: codex/);
   assert.equal(io.stderr, '');
 });
@@ -165,7 +191,7 @@ test('init copies only opencode host assets when platform is opencode', async (t
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.claude')), false);
   assert.equal(await exists(join(target, 'CLAUDE.md')), false);
-  assert.match(io.stdout, /Platforms: opencode/);
+  assert.match(io.stdout, /Hosts: opencode/);
 });
 
 test('init copies only claude-code host assets when platform is claude-code', async (t) => {
@@ -195,7 +221,7 @@ test('init copies only claude-code host assets when platform is claude-code', as
   assert.equal(await exists(join(target, '.claude', 'settings.json')), true);
   assert.equal(await exists(join(target, '.claude', 'hooks', 'inject-workflow-state.py')), true);
   assert.match(await readText(join(target, 'CLAUDE.md')), /@AGENTS\.md/);
-  assert.match(io.stdout, /Platforms: claude-code/);
+  assert.match(io.stdout, /Hosts: claude-code/);
 });
 
 test('init copies all selected host platforms', async (t) => {
@@ -230,7 +256,7 @@ test('init copies all selected host platforms', async (t) => {
   // not leave a project-level .qoder/ behind, only the adapter declaration.
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'qoder', 'adapter.yaml')), true);
   assert.equal(await exists(join(target, '.qoder')), false);
-  assert.match(io.stdout, /Platforms: codex, opencode, claude-code, dsh/);
+  assert.match(io.stdout, /Hosts: codex, opencode, claude-code, dsh/);
 });
 
 test('init --platform qoder writes the adapter declaration and no .qoder directory', async (t) => {
@@ -302,7 +328,7 @@ test('init installs dsh-only assets when platform is dsh', async (t) => {
   assert.equal(await exists(join(target, '.opencode')), false);
   assert.equal(await exists(join(target, '.zcode')), false);
   assert.equal(await exists(join(target, 'CLAUDE.md')), false);
-  assert.match(io.stdout, /Platforms: dsh/);
+  assert.match(io.stdout, /Hosts: dsh/);
   assert.match(io.stdout, /created=/);
 });
 
@@ -329,7 +355,7 @@ test('init installs kimi-code-only assets when platform is kimi-code', async (t)
   assert.equal(await exists(join(target, '.dsh')), false);
   assert.equal(await exists(join(target, '.zcode')), false);
   assert.equal(await exists(join(target, 'CLAUDE.md')), false);
-  assert.match(io.stdout, /Platforms: kimi-code/);
+  assert.match(io.stdout, /Hosts: kimi-code/);
   assert.match(io.stdout, /created=/);
 });
 
@@ -370,7 +396,7 @@ test('init rejects removed both platform alias', async (t) => {
 
   assert.equal(code, 2);
   assert.equal(await exists(target), false);
-  assert.match(io.stderr, /Unsupported platform: both/);
+  assert.match(io.stderr, /Unsupported host: both/);
 });
 
 test('init installs clean-room cowork-flow skills directly', async (t) => {
@@ -481,7 +507,22 @@ test('init dry-run reports existing developer without rewriting', async (t) => {
   assert.match(io.stdout, /preserve-existing=.cowork-flow\/.developer for developer existing/);
 });
 
-test('init fails without a platform in non-interactive mode', async (t) => {
+test('init auto-detects an existing host marker in non-interactive mode', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  await mkdir(join(target, '.codex'), { recursive: true });
+  const io = createIo();
+
+  const code = await main(['init', target, '--developer', 'codex', '--dry-run'], {
+    io,
+    prompt: null,
+    selectPlatforms: null
+  });
+
+  assert.equal(code, 0, io.stderr);
+  assert.match(io.stdout, /Hosts: codex/);
+});
+
+test('init fails without a host in non-interactive mode when nothing is detected', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();
 
@@ -489,20 +530,51 @@ test('init fails without a platform in non-interactive mode', async (t) => {
 
   assert.equal(code, 2);
   assert.equal(await exists(target), false);
-  assert.match(io.stderr, /Platform selection required/);
-  assert.match(io.stderr, /--platform codex\|opencode\|claude-code\|dsh/);
+  assert.match(io.stderr, /Host selection required/);
+  assert.match(io.stderr, /--host codex\|opencode\|claude-code\|dsh/);
 });
 
-test('init fails without a developer in non-interactive mode', async (t) => {
+test('init falls back to git user.name when --developer is omitted', async (t) => {
   const target = join(await createTempDir(t), 'demo');
+  await mkdir(target, { recursive: true });
   const io = createIo();
 
-  const code = await main(['init', target, '--platform', 'codex'], { io, prompt: null });
+  await withGitConfig(t, '[user]\n\tname = Git Fallback\n', async () => {
+    const code = await main(['init', target, '--platform', 'codex'], { io, prompt: null });
+    assert.equal(code, 0, io.stderr);
+  });
 
-  assert.equal(code, 2);
-  assert.equal(await exists(target), false);
+  assert.match(io.stdout, /Developer initialized: Git Fallback \(from git user\.name\)/);
+  assert.match(await readText(join(target, '.cowork-flow', '.developer')), /^name=Git Fallback\n/);
+});
+
+test('init fails without a developer when git has no identity in non-interactive mode', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  await mkdir(target, { recursive: true });
+  const io = createIo();
+
+  await withGitConfig(t, '', async () => {
+    const code = await main(['init', target, '--platform', 'codex'], { io, prompt: null });
+    assert.equal(code, 2);
+  });
+
+  assert.equal(await exists(join(target, '.cowork-flow')), false);
   assert.match(io.stderr, /Developer name required/);
   assert.match(io.stderr, /--developer <name>/);
+});
+
+test('init dry-run reports a missing developer identity without failing', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  await mkdir(target, { recursive: true });
+  const io = createIo();
+
+  await withGitConfig(t, '', async () => {
+    const code = await main(['init', target, '--host', 'codex', '--dry-run'], { io, prompt: null });
+    assert.equal(code, 0, io.stderr);
+  });
+
+  assert.match(io.stdout, /would-skip=\.cowork-flow\/\.developer/);
+  assert.equal(await exists(join(target, '.cowork-flow')), false);
 });
 
 test('init uses platform selector and then prompts for developer', async (t) => {
@@ -524,7 +596,7 @@ test('init uses platform selector and then prompts for developer', async (t) => 
   });
 
   assert.equal(code, 0);
-  assert.match(selectorCalls[0].message, /Select platforms/);
+  assert.match(selectorCalls[0].message, /Select hosts/);
   assert.equal(selectorCalls[0].choices.length, 7);
   assert.deepEqual(
     selectorCalls[0].choices.map((choice) => choice.value),

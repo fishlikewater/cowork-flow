@@ -52,7 +52,7 @@
 
 ## 6. 待决项与缓行
 
-- **待维护者拍板：中文面文档是否英文化 / 双语。** 英文社区是 spec-driven development 讨论的主场，与 `AGENTS.md` 的「文档语言：中文」约定冲突，需单独立项评估；契约与英文版 README 已先行英文化（`5f602c0`），待决收窄为 `docs/`、`template/AGENTS.md`、`CHANGELOG.md`。
+- **已拍板（2026-10-21）：详细文档维持中文，README 保持中英双语。** 英文社区是 spec-driven development 讨论的主场，但当前详细文档约 590 行、随 npm 以纯 Markdown 发布，全量双语会引入翻译漂移与文档框架成本。决定：`docs/`、`template/AGENTS.md`、`CHANGELOG.md` 维持中文；`README.md` / `README.en.md` 双语同步；不引入 VuePress/mkdocs 或目录式双语。未来若英文需求被证实，采用并列 `docs/*.en.md`，只覆盖安装面文档，并新增“英文文件与中文源文件标题集合一致”的漂移门禁后再落地。
   - 2026-10-13 澄清：「文档语言：中文」约束的是下游宿主工作时**产出文档**的语言，不要求把随包分发的产品载荷（`template/skills/`、`template/.cowork-flow/spec/contracts/`、`presets/`）翻译成中文。
 - **维持缓行**：MCP 写工具（须先重开 `fact-layer-access` 契约）、新宿主接入、自创跨 agent 协议。
 - **观察项（触发条件已到）**：机器可解析 AC 是与 Spec Kit / OpenSpec 互操作的第一块砖（spec 制品 ↔ decision-anchor 映射），符合「SDD 工具之下的状态层」定位。原定「待 agent-teams 排期落定后议」，而 1.9.0 多执行者协作主线已实现，可排入讨论。

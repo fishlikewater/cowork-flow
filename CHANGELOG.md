@@ -4,6 +4,16 @@
 
 ### Added
 
+- **`cwf project init` 宿主自动判定与 `--host` 主旗标**：省略 `--host` 时先按项目已有的宿主标记（与 `project sync` 同一套探测）判定，交互终端再回退到选择器；`--host` 可重复/逗号分隔，`--platform`、`--platforms` 保留为兼容别名。非交互且探测为空时仍明确报 `Host selection required`，不静默猜宿主。
+
+### Changed
+
+- **`--developer` 省略时从 git 身份就近取值**：顺序为已有 `.developer` > 显式参数 > `git config user.name`（已有身份不被覆盖；初次运行会标注 `(from git user.name)`）；无 git 身份时交互终端提示、非交互仍报错，`--dry-run` 只报告 `would-skip` 不失败。`project init` / `project sync` 的输出行由 `Platforms:` 改为 `Hosts:`。
+
+### Fixed
+
+- **bootstrap 技能在非 TTY 下初始化失败**：六份共享的 `cowork-flow-bootstrap` 技能改为提示 agent 传入所在宿主（`npx cowork-flow project init --host <host>`），不再依赖交互选择器或位置参数 `.`，AI 宿主/CI 可直接完成初始化；六份载荷保持字节一致。
+
 ## [2.2.0] - 2026-10-20
 
 ### Changed

@@ -149,7 +149,7 @@ async function defaultSelectPlatforms({ message, choices, defaultSelected = [] }
       const action = applyPickerKey(state, text, key, choices);
       if (action?.outcome === 'cancel') {
         cleanup();
-        reject(new Error('Platform selection cancelled'));
+        reject(new Error('Host selection cancelled'));
         return;
       }
       if (action?.outcome === 'confirm') {

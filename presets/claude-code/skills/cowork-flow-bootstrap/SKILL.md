@@ -17,10 +17,12 @@ workflow entry `./.cowork-flow/run`).
 
 ## No runtime: offer the install
 
-Tell the user this repository has no cowork-flow runtime, then offer:
+Tell the user this repository has no cowork-flow runtime, then offer (replace
+`<host>` with the host you are running in: `codex`, `claude-code`, `opencode`,
+`zcode`, `qoder`, `kimi-code`, or `dsh`):
 
 ```bash
-npx cowork-flow project init .
+npx cowork-flow project init --host <host>
 ```
 
 After init the project carries its own Skills (`.agents/skills/`), the task
