@@ -43,14 +43,14 @@ class SpecReviewContractTest(unittest.TestCase):
         index = (SPEC / "index.md").read_text(encoding="utf-8")
 
         required_markers = (
-            "流程内核只负责",
-            "`backend/`、`frontend/` 中的自然语言规范不注册为 runtime gate",
-            "`task-review` skill 根据当前 diff 和任务范围读取并逐条审查",
-            "`guides/` 属于前置澄清与计划参考",
-            "`decision-anchor.md` 或任务计划",
+            "The workflow kernel only owns machine-checkable facts",
+            "Natural-language specs under `backend/` and `frontend/` are not registered as runtime gates",
+            "the `task-review` skill reads them according to the current diff and task scope and checks each clause",
+            "`guides/` is pre-implementation clarification and planning reference",
+            "`decision-anchor.md` or the task plan",
         )
         forbidden_markers = (
-            "`backend/`、`frontend/`、`guides/` 中的自然语言规范",
+            "Natural-language specs under `backend/`, `frontend/`, and `guides/`",
             "runtime/rules.json",
         )
 
@@ -63,7 +63,7 @@ class SpecReviewContractTest(unittest.TestCase):
 
         self.assertIn("contract-registry.json", runtime_index)
         self.assertIn("host-assets.json", runtime_index)
-        self.assertIn("用户自然语言规范不在本目录注册", runtime_index)
+        self.assertIn("User natural-language specs are not registered in this directory", runtime_index)
         self.assertNotIn("rules.json", runtime_index)
         self.assertNotIn("rules.schema.json", schema_index)
         self.assertEqual(

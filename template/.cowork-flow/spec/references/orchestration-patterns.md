@@ -1,141 +1,141 @@
 # Orchestration Patterns
 
-> 已实现的协作模式声明性目录。
-> 本文件是 spec/contracts/ 系列的人可读摘要——权威定义以 spec/contracts/ 为准。
+> Declarative catalog of the collaboration patterns already implemented.
+> This file is a human-readable summary of the `spec/contracts/` series — the contracts are authoritative.
 
-## 核心原则
+## Core principle
 
-**主会话是唯一的协调者。固定子代理是叶子执行者。用户是流程的最终决策者。**
-
----
-
-## 模式 1：叶子执行器（已实现）
-
-```
-主会话 -> cowork-implement（实现）-> 返回 -> 主会话验证
-主会话 -> cowork-check（验证）     -> 返回 -> 主会话确认
-主会话 -> cowork-research（调研）  -> 返回 -> 主会话综合
-```
-
-**使用场景**: 计划声明了并行低冲突切片（文件所有权干净、各有独立验证）；需要上下文隔离的调研（cowork-research）；完成前必须的独立复核（cowork-check）。
-
-**约束**:
-- R-AG-001: 子代理不能派发其他子代理
-- R-AG-002: 子代理不修改 spec 文件
-- R-AG-003: 子代理不操作 Git
-- R-AG-004: 子代理不提交/归档
-
-**验证**: dispatch 前用 `subagent init --role` 创建 runtime context；child 第一个动作必须是 `subagent bind`；parent 检查 `status: bound`。
+**The main session is the only coordinator. Fixed subagents are leaf executors. The user is the final decision-maker.**
 
 ---
 
-## 模式 2：并行扇出 + 合并（已实现，主会话管理）
+## Pattern 1: Leaf executors (implemented)
 
 ```
-主会话 ─┬─> cowork-implement (task-slice-a) ─┐
-        ├─> cowork-implement (task-slice-b) ─┤─> 所有返回 ─> 集成验证 ─> 主会话综合
-        └─> cowork-research (background)    ─┘
+main session -> cowork-implement (implement) -> return -> main session verifies
+main session -> cowork-check (verify)        -> return -> main session confirms
+main session -> cowork-research (research)   -> return -> main session synthesizes
 ```
 
-**使用场景**: 多个低耦合的实现切片可以并行。
+**When to use**: the plan declares parallel low-conflict slices (clean file ownership, independent verification); research that needs context isolation (cowork-research); the independent review required before completion (cowork-check).
 
-**验证清单**:
-1. 子任务之间无写冲突（不同文件或通过 git worktree 隔离）
-2. 每个子代理产出不同类型的发现
-3. 合并步骤在主 agent 的上下文窗口内可完成
-4. 用户等待时长足够使 parallel wall-clock 收益明显
-5. 收束为单次 cowork-check 复核与单次提交（回执指纹覆盖合并后的变更集）
-6. 同一工作树不能并行两个任务（文件范围门禁读取工作树全量变更）；跨任务并行使用独立 worktree/clone 并经看板依赖边协调
+**Constraints**:
+- R-AG-001: subagents must not dispatch other subagents
+- R-AG-002: subagents must not modify spec files
+- R-AG-003: subagents must not operate Git
+- R-AG-004: subagents must not commit/archive
 
-任一答案为否 → 回退为模式 1 顺序执行。
+**Verification**: create the runtime context with `subagent init --role` before dispatch; the child's first action must be `subagent bind`; the parent checks `status: bound`.
 
 ---
 
-## 模式 3：顺序 skill 链（已实现，用户驱动）
+## Pattern 2: Parallel fan-out + merge (implemented, main-session managed)
 
 ```
-用户执行: task next --run --title ... -> brainstorming -> task-planning -> task next <dir> --run -> implement -> check -> task next <dir> --run --intent review
+main session ─┬─> cowork-implement (task-slice-a) ─┐
+              ├─> cowork-implement (task-slice-b) ─┤─> all return ─> integrated verification ─> main session synthesizes
+              └─> cowork-research (background)    ─┘
 ```
 
-**使用场景**: 阶段之间有依赖关系，用户在阶段间判断有价值。
+**When to use**: multiple low-coupling implementation slices can run in parallel.
 
-**为什么不做生命周期编排 agent**:
-- 编排 agent 会在 hand-off 间总结→丢失细微差异
-- 用户在阶段间的检查点能早期发现方向错误
-- 人工检查的成本 < 走错方向的返工成本
+**Verification checklist**:
+1. No write conflicts between subtasks (different files or isolated through git worktree)
+2. Each subagent produces a different type of finding
+3. The merge step fits within the main agent's context window
+4. The user's wait is long enough for parallel wall-clock gains to matter
+5. Converge on a single cowork-check review and a single commit (the receipt fingerprint covers the merged change set)
+6. Two tasks cannot run in parallel in one worktree (the file-scope gate reads the whole working tree); cross-task parallelism uses separate worktrees/clones and coordinates through board dependency edges
+
+If any answer is no, fall back to Pattern 1 sequential execution.
 
 ---
 
-## 模式 4：Party Mode V2 Board（已实现，咨询性质）
+## Pattern 3: Sequential skill chain (implemented, user-driven)
 
 ```
-主会话 ─> 启动 Discussion（party-v2 runtime board）
-       ─> 子代理通过 board 交流（不直接对话）
-       ─> 主持人监控漂移，不参与决策
-       ─> 产出建议，不改变任务状态
+User runs: task next --run --title ... -> brainstorming -> task-planning -> task next <dir> --run -> implement -> check -> task next <dir> --run --intent review
 ```
 
-**约束**:
-- Board 不能推进任务状态
-- 不能替代 Implement/Check formal gates
-- 主持人不能转述、总结、合成子代理意见
+**When to use**: stages depend on each other, and user judgment between stages is valuable.
+
+**Why there is no lifecycle-orchestration agent**:
+- An orchestration agent summarizes between hand-offs, losing nuance
+- User checkpoints between stages catch wrong directions early
+- The cost of a human check is lower than the rework cost of going the wrong way
 
 ---
 
-## 反模式 A：路由人格（禁止）
+## Pattern 4: Party Mode V2 Board (implemented, advisory)
 
 ```
-/workflow -> 代理人格("需要什么角色?") -> 子人格 -> 代理人格(重述) -> 用户
+main session ─> start Discussion (party-v2 runtime board)
+              ─> subagents communicate through the board (never directly)
+              ─> moderator monitors drift and does not decide
+              ─> produces advice and does not change task state
 ```
 
-**为什么不行**: 纯路由层没有领域价值; 两次重述→信息丢失+~2x token; AGENTS.md 的 workflow-state 路由已覆盖
-
-**替代方案**: 用 `<workflow-state>` 块直接路由，不通过人格。
+**Constraints**:
+- The board cannot advance task state
+- It cannot replace the Implement/Check formal gates
+- The moderator must not relay, summarize, or synthesize subagent opinions
 
 ---
 
-## 反模式 B：人格调用人格（禁止）
+## Anti-pattern A: Router persona (forbidden)
 
 ```
-cowork-check("看到安全相关代码") -> cowork-security-audit
+/workflow -> agent persona ("what role do you need?") -> sub-persona -> agent persona (restates) -> user
 ```
 
-**为什么不行**: 人格设计为产出单一视角; 链式调用破坏此设计; 调用人格传递的摘要丢失上下文; 失败模式相乘
+**Why not**: a pure routing layer has no domain value; double restatement loses information and costs ~2x tokens; the `<workflow-state>` routing in AGENTS.md already covers this
 
-**替代方案**: 当前人格在报告中推荐后续审计；用户或主会话运行第二轮。
+**Alternative**: route directly with the `<workflow-state>` block; do not use personas.
 
 ---
 
-## 反模式 C：Deep nesting（禁止）
+## Anti-pattern B: Persona calling persona (forbidden)
+
+```
+cowork-check("sees security-related code") -> cowork-security-audit
+```
+
+**Why not**: personas are designed to produce a single perspective; chaining breaks that design; summaries passed between personas lose context; failure modes multiply
+
+**Alternative**: the current persona recommends a follow-up audit in its report; the user or main session runs the second round.
+
+---
+
+## Anti-pattern C: Deep nesting (forbidden)
 
 ```
 /ship -> quality-coordinator -> code-reviewer -> security-auditor
 ```
 
-**为什么不行**: 每一层增加延迟和 token 但无决策价值; 深层人格的上下文多次总结后失真
+**Why not**: each layer adds latency and tokens without decision value; deep persona context degrades after repeated summarization
 
-**替代方案**: cowork-flow 当前深度 = 1（主会话 → 叶子子代理）。不引入中间层。
+**Alternative**: cowork-flow's current depth = 1 (main session -> leaf subagent). Do not introduce intermediate layers.
 
 ---
 
-## 决策流
+## Decision flow
 
 ```
-任务是一个视角对一个 artifact？
-├── 是 → 直接调用。停止。
-└── 否 → task 可并列？
-         ├── 否 → 顺序 skill 链（用户驱动）
-         └── 是 → 并行扇-out（主会话协调）
-                  验证清单：
-                  - 子任务无写冲突
-                  - 每 persona 产出不同类型
-                  - 合并步骤 fit in main context
-                  任一不满足 → 回退顺序
+Is the task one perspective on one artifact?
+├── Yes -> call it directly. Stop.
+└── No  -> can the tasks run in parallel?
+          ├── No  -> sequential skill chain (user-driven)
+          └── Yes -> parallel fan-out (main-session coordinated)
+                     Verification checklist:
+                     - subtasks have no write conflicts
+                     - each persona produces a different type
+                     - the merge step fits in the main context
+                     Any failure -> fall back to sequential
 ```
 
-## 参见
+## See also
 
-- `spec/contracts/subagent-dispatch.md` — formal dispatch 协议权威定义
-- `spec/contracts/party-mode-v2-board.md` — Party Mode V2 权威定义
-- `spec/backend/`、`spec/frontend/`、`spec/guides/` — 用户定义规范，由 review skill 按需逐条审查
-- `skills/cowork-flow/SKILL.md` — workflow state 路由
+- `spec/contracts/subagent-dispatch.md` — authoritative formal dispatch protocol
+- `spec/contracts/party-mode-v2-board.md` — authoritative Party Mode V2 definition
+- `spec/backend/`, `spec/frontend/`, `spec/guides/` — user-defined specs, read clause by clause by the review skill
+- `skills/cowork-flow/SKILL.md` — workflow state routing

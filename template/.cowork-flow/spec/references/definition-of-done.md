@@ -1,44 +1,44 @@
 # Definition of Done
 
-> 项目级完成门槛。每项变更在被视为"完成"前必须满足。与 per-task AC 互补但不替代。
+> Project-level completion gates. Every change must satisfy these before it is considered "done". They complement per-task ACs; they do not replace them.
 
-## 通用门槛（所有任务）
+## General gates (all tasks)
 
-| # | 检查项 | 验证 |
+| # | Check | Verification |
 |---|---|---|
-| G1 | 代码实现符合 decision-anchor acceptance criteria | AC 全部为 verified |
-| G2 | 行为变更有对应测试或明确验证命令；高风险任务覆盖失败、边界或回归路径 | `./.cowork-flow/run task next <dir> --validate` 与任务验证命令通过 |
-| G3 | check phase 完成，无 unresolved blocker | `task-review` 结论为 pass，completion lifecycle blocker 为 0 |
-| G4 | 无新引入 lint/type/build 警告 | lint / build 命令通过 |
-| G5 | Git status snapshot 仅含任务相关变更，包括 staged、unstaged、untracked | git status --porcelain=v1 -uall |
+| G1 | Implementation satisfies the decision-anchor acceptance criteria | All ACs are verified |
+| G2 | Behavior changes have corresponding tests or an explicit verification command; high-risk tasks cover failure, boundary, or regression paths | `./.cowork-flow/run task next <dir> --validate` and the task verification commands pass |
+| G3 | Check phase is complete with no unresolved blocker | `task-review` verdict is pass, and the completion lifecycle blocker count is 0 |
+| G4 | No newly introduced lint/type/build warnings | lint / build commands pass |
+| G5 | Git status snapshot contains only task-related changes, including staged, unstaged, and untracked | git status --porcelain=v1 -uall |
 
-## L0 专属（docs/format/comments only）
+## L0 only (docs/format/comments only)
 
-| # | 检查项 |
+| # | Check |
 |---|---|
-| L0-1 | 确认变更不涉及行为（docs/format/comments only）|
-| L0-2 | git diff --check 无空白错误 |
+| L0-1 | Change is confirmed non-behavioral (docs/format/comments only) |
+| L0-2 | `git diff --check` reports no whitespace errors |
 
-## L1 专属（单模块行为变更）
+## L1 only (single-module behavior change)
 
-| # | 检查项 |
+| # | Check |
 |---|---|
-| L1-1 | brainstorming 记录存在 |
-| L1-2 | 修改未扩散到无关模块（git diff 范围与 task.scope 一致）|
+| L1-1 | Brainstorming record exists |
+| L1-2 | Changes do not spread into unrelated modules (git diff range matches task.scope) |
 
-## L2 专属（跨层 / 架构 / 迁移）
+## L2 only (cross-layer / architecture / migration)
 
-| # | 检查项 |
+| # | Check |
 |---|---|
-| L2-1 | proposal.md / spec.md / design.md 齐全 |
-| L2-2 | 结构化决策审查已按 Skill 指导完成或明确记录不适用 |
-| L2-3 | readiness gate 全部通过（`task next <dir> --run` 无 blocker）|
-| L2-4 | spec-sync Skill 已确认规格同步或明确记录无需更新 |
+| L2-1 | proposal.md / spec.md / design.md are complete |
+| L2-2 | Structured decision review completed per Skill guidance, or explicitly recorded as not applicable |
+| L2-3 | All readiness gates pass (no blocker from `task next <dir> --run`) |
+| L2-4 | spec-sync Skill confirms spec synchronization, or explicitly records that no update is needed |
 
-## DoD 与 per-task AC 的区别
+## DoD vs per-task AC
 
 | DoD | AC |
 |---|---|
-| 项目级不变量——本次任务不例外 | decision-anchor 特有的完成条件 |
-| 来源：spec/references/definition-of-done | 来源：<task>/decision-anchor.md |
-| 两者都满足 = 任务真正完成 |
+| Project-level invariant — this task is no exception | Completion conditions specific to the decision-anchor |
+| Source: spec/references/definition-of-done | Source: <task>/decision-anchor.md |
+| Satisfying both = the task is truly complete |

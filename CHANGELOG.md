@@ -6,6 +6,8 @@
 
 ### Changed
 
+- **分发 spec 说明文档英文化（第一步）**：`spec/index.md`、`spec/runtime/index.md`、`spec/schemas/index.md` 与 `spec/references/**` 的说明文字改为英文，保留文件列表、相对链接、DoD 的 G5 标记与协作模式约束编号。`decision-anchor.md` 的六个解析标题、`workflow-state-templates.md` 的注入块、`backend/frontend/guides` 与 `template/AGENTS.md` 本步不动，前两项待双语解析迁移。**可达性**：三个索引随 `project sync` 更新；`references/` 仍受项目同步保护，已装项目不会自动收到英文副本，需手动刷新或重新安装。
+
 - **下游 `project sync` 开始同步框架 spec 资产**：`syncPolicy.protectedPrefixes` 从整个 `.cowork-flow/spec/` 收窄为 `spec/backend/`、`spec/frontend/`、`spec/guides/`、`spec/references/`，让 `spec/contracts/`、`spec/runtime/`（含 `contract-registry.json`、`host-assets.json`、`scope-rules.json`）、`spec/schemas/` 与 `spec/index.md` 随普通 `project sync` 更新——下游不再出现“脚本已升级、契约与宿主 manifest 仍停在安装代际”的混合状态，新增契约、宿主与 schema 能到达已装项目。**迁移**：登记在 `obsoleteFiles` 的过期框架 spec（`spec-checks.md`、`entry-contract.md`、`rules.json`、`skill-registry.json` 及对应 schema）会在下一次 sync 被自动删除，不再要求手动清理；本地修改过框架契约或 `scope-rules.json` 的项目会丢失这些改动，项目定制应写入四个受保护的 spec 目录、`AGENTS.md`、`config.yaml` 或项目自有 Skill。`dev refresh`（源码检出刷新）仍镜像整个 `template/.cowork-flow/spec/`：源码检出里的项目自有 spec 目录也是框架模板内容，因此刷新时不受下游保护前缀限制；任务、计划、`config.yaml`、`.developer` 与 `.runtime` 保持受保护。
 
 ## [2.3.0] - 2026-10-21

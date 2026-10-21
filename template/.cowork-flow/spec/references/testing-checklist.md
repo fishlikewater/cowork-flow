@@ -1,45 +1,45 @@
 # Testing Checklist
 
-> 测试质量快速参考。审查测试文件、编写测试用例或检查行为覆盖时按需加载。
+> Quick reference for test quality. Load on demand when reviewing test files, writing test cases, or checking behavior coverage.
 
-## 测试结构检查
+## Test structure
 
-- 测试名称描述行为：`test_<unit>_<scenario>_<expected>`
-- AAA 排列（Arrange/Act/Assert 之间有视觉分隔）
-- 一个测试只验证一个行为
-- 断言行为契约，而非实现细节
-- mock 验证行为调用，而非 call-count
+- Test names describe behavior: `test_<unit>_<scenario>_<expected>`
+- AAA layout (visual separation between Arrange/Act/Assert)
+- One test verifies one behavior
+- Assert behavior contracts, not implementation details
+- Mocks verify behavior calls, not call counts
 
-## 深度检查
+## Depth
 
-- 不是 `assert True` 通过的测试
-- 不是"只检查函数是否存在"的测试
-- 不是通过 `unittest.mock` 调用计数代替行为验证的测试
-- 不是快照空结构（`assert result == {}`）的测试
-- 不依赖测试执行顺序
-- 不跳过必要的 setup/teardown
-- 断言精确值或行为契约，而非 truthy/falsy
-- 异常路径有至少一个测试覆盖
+- Not a test that passes via `assert True`
+- Not a test that only checks whether a function exists
+- Not a test that uses `unittest.mock` call counts instead of behavior verification
+- Not a test that snapshots an empty structure (`assert result == {}`)
+- Does not depend on test execution order
+- Does not skip necessary setup/teardown
+- Asserts exact values or behavior contracts, not truthy/falsy
+- Has at least one test for the error path
 
-## 反模式
+## Anti-patterns
 
-| 反模式 | 问题 | 替代方案 |
+| Anti-pattern | Problem | Alternative |
 |---|---|---|
-| 设置期望值为硬编码输出 | 测试与实现耦合，实现变更但行为相同时测试失败 | 验证行为契约：输入 -> 期望输出关系 |
-| mock 受测函数的内部调用 | 测试实现而非行为 | mock 留在边界层（API/文件系统/时间） |
-| 多个不相关行为塞一个测试 | 失败时不知道是什么坏了 | 每行为独立测试，名称描述行为 |
-| 断言 `assert True` | 总是通过 | 改为语义断言（assertEqual/assertGreater 等） |
-| 只检查函数存在 `assert module.func` | 不验证行为 | 调用函数验输出或异常 |
-| 不清理全局状态 / fixtures | 测试间污染导致顺序依赖 | 使用 setup/teardown 清理 |
+| Hard-coding expected values to implementation output | Test couples to implementation; it fails when implementation changes but behavior does not | Verify the behavior contract: input -> expected output |
+| Mocking internal calls of the function under test | Tests implementation instead of behavior | Keep mocks at boundaries (API/filesystem/time) |
+| Packing unrelated behaviors into one test | A failure does not reveal what broke | One test per behavior, with a descriptive name |
+| Asserting `assert True` | Always passes | Use semantic assertions (assertEqual/assertGreater, etc.) |
+| Only checking that a function exists (`assert module.func`) | Does not verify behavior | Call the function and verify output or exceptions |
+| Not cleaning up global state / fixtures | Cross-test pollution causes order dependence | Clean up in setup/teardown |
 
-## 范围
+## Scope
 
-- 当前修改的函数/模块有直接单元测试
-- 下游依赖有集成测试
-- 边界条件（空值/极值/并发）有至少一个测试覆盖
+- The changed function/module has a direct unit test
+- Downstream dependencies have integration tests
+- Boundary conditions (empty/extreme values/concurrency) have at least one test
 
-## 参见
+## See also
 
-- `spec/backend/quality-guidelines.md` — 后端测试规范
-- `skills/test-first/SKILL.md` — 完整的 TDD 流程
-- `references/security-checklist.md` — 测试中的安全边界检查
+- `spec/backend/quality-guidelines.md` — backend testing rules
+- `skills/test-first/SKILL.md` — full TDD workflow
+- `references/security-checklist.md` — security boundary checks in tests

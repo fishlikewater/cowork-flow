@@ -1,9 +1,9 @@
 # Schema Specs
 
-本目录存放 JSON Schema。
+This directory holds JSON Schemas.
 
-- `adapter.schema.json`: 宿主适配器声明 schema。
-- `host-assets.schema.json`: Host Asset Manifest schema（`runtime/host-assets.json` 的结构约束）。
-- `party-mode-v2-actions.schema.json`: Party Mode V2 action schema。
+- `adapter.schema.json`: host adapter declaration schema.
+- `host-assets.schema.json`: Host Asset Manifest schema (structural constraints for `runtime/host-assets.json`).
+- `party-mode-v2-actions.schema.json`: Party Mode V2 action schema.
 
-Schema 只描述数据合同，不承载流程说明；流程和行为边界写入 `contracts/`、Skill command manifests 或 `AGENTS.md`。
+Schemas describe data contracts only, not workflow guidance; workflow and behavior boundaries belong in `contracts/`, Skill command manifests, or `AGENTS.md`.

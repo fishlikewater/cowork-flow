@@ -371,15 +371,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("git status --porcelain=v1 -uall", text)
-        self.assertIn("staged、unstaged、untracked", text)
+        self.assertIn("staged, unstaged, and untracked", text)
         self.assertNotIn("git diff --name-only", text)
         self.assertRegex(
             text,
-            r"(?m)^\| G5 \| Git status snapshot .*staged、unstaged、untracked \| git status --porcelain=v1 -uall \|$",
+            r"(?m)^\| G5 \| Git status snapshot .*staged, unstaged, and untracked \| git status --porcelain=v1 -uall \|$",
         )
         self.assertGreater(
             text.index("git status --porcelain=v1 -uall"),
-            text.index("staged、unstaged、untracked"),
+            text.index("staged, unstaged, and untracked"),
         )
 
     def test_local_bootstrap_files_match_template_when_present(self) -> None:

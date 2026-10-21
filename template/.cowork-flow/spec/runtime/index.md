@@ -1,19 +1,17 @@
 # Runtime Specs
 
-本目录存放 workflow runtime 直接读取的机器配置。
+This directory holds machine configuration read directly by the workflow runtime.
 
-- `contract-registry.json`: hook/plugin 注入 contract digest 的注册表。
-- `host-assets.json`: 宿主平台、资产归属、技能读取根与宿主发现通道（`skillReadRoot` / `skillDiscovery[]`，条目为仓库内路径加 `gates` / `evidence`；机器级载荷不作为技能来源参与）、机器级插件载荷声明（`payload`：载荷在包内的目录与插件清单名，无插件载荷的宿主为 `null`；机器安装位置不在此声明）、同步保护策略和旧资产迁移清单的单源；结构由 `../schemas/host-assets.schema.json` 约束。`capabilityMatrix.hosts` 必须覆盖 `platforms` 声明的每一个 id——必需宿主集合由平台数据派生，运行时不维护宿主名单常量。
+- `contract-registry.json`: registry of the contract digests injected by hooks/plugins.
+- `host-assets.json`: single source for host platforms, asset ownership, skill read roots and host discovery channels (`skillReadRoot` / `skillDiscovery[]`, entries are repo-relative paths plus `gates` / `evidence`; machine-level payloads do not participate as skill sources), machine-level plugin payload declarations (`payload`: the package-relative payload directory and plugin manifest name; `null` for hosts without a plugin payload; machine install locations are not declared here), the sync protection policy, and the obsolete-asset migration list. The structure is constrained by `../schemas/host-assets.schema.json`. `capabilityMatrix.hosts` must cover every id declared in `platforms` — the required host set is derived from platform data; the runtime does not maintain a host-name constant.
 
-缺少或损坏的 runtime 文件不能静默放行关键流程能力。宿主插件可使用最小 fallback
-避免崩溃，但必须在 digest 中暴露 warning；doctor/tests 负责发现缺失。
+Missing or corrupted runtime files must not silently grant critical workflow capabilities. Host plugins may use a minimal fallback to avoid crashing, but must expose a warning in the digest; doctor/tests are responsible for detecting absence.
 
-用户自然语言规范不在本目录注册；`task-review` skill 直接读取
-`spec/backend/`、`spec/frontend/`、`spec/guides/` 并输出审查结论。
+User natural-language specs are not registered in this directory; the `task-review` skill reads `spec/backend/`, `spec/frontend/`, and `spec/guides/` directly and reports review findings.
 
-运行时写入边界：
+Runtime write boundaries:
 
-- CLI/宿主/Git 适配层位于 `scripts/adapters/`，用例服务位于 `scripts/services/`。
-- JSON 状态通过 `scripts/infra/storage/` 读写并显式使用 UTF-8。
-- init/sync 通过 Asset Plan、staging、备份和 rollback 提交资产，版本文件最后更新。
-- 旧状态只允许在带迁移测试的读取边界兼容；新写入必须使用当前 schema 和权威路径。
+- CLI/host/Git adaptation lives in `scripts/adapters/`; use-case services live in `scripts/services/`.
+- JSON state is read and written through `scripts/infra/storage/` with explicit UTF-8.
+- init/sync commit assets through Asset Plan, staging, backup, and rollback; the version file is updated last.
+- Old state is only allowed at read boundaries with migration tests; new writes must use the current schema and authoritative paths.
