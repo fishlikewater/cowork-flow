@@ -13,7 +13,11 @@ import { packageRoot } from '../src/lib/paths.js';
 const TEMPLATE_SKILLS_DIR = new URL('../template/skills/', import.meta.url);
 
 const HOST_MANIFEST_FIXTURES = new URL('../tests/fixtures/host-manifest/', import.meta.url);
-const VALID_MANIFEST_FIXTURES = ['valid-minimal.json', 'valid-extra-platform.json'];
+const VALID_MANIFEST_FIXTURES = [
+  'valid-minimal.json',
+  'valid-extra-platform.json',
+  'valid-protected-obsolete.json'
+];
 const INVALID_MANIFEST_FIXTURES = new Map([
   ['invalid-duplicate-alias.json', /duplicate platform alias/i],
   ['invalid-capability-status.json', /illegal host-neutral capability/i],
@@ -292,6 +296,29 @@ test('default host registry exposes manifest platform behavior', async () => {
   );
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/config.yaml'), true);
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/run'), false);
+  // Framework-owned spec assets follow sync; project-owned spec directories
+  // stay protected.
+  assert.equal(
+    registry.isProtectedSyncFile('.cowork-flow/spec/contracts/subagent-dispatch.md'),
+    false
+  );
+  assert.equal(
+    registry.isProtectedSyncFile('.cowork-flow/spec/runtime/contract-registry.json'),
+    false
+  );
+  assert.equal(
+    registry.isProtectedSyncFile('.cowork-flow/spec/schemas/adapter.schema.json'),
+    false
+  );
+  assert.equal(registry.isProtectedSyncFile('.cowork-flow/spec/index.md'), false);
+  assert.equal(
+    registry.isProtectedSyncFile('.cowork-flow/spec/backend/index.md'),
+    true
+  );
+  assert.equal(
+    registry.isProtectedSyncFile('.cowork-flow/spec/references/definition-of-done.md'),
+    true
+  );
   assert.equal(registry.isSafeSyncFile('.codex/hooks.json'), true);
   assert.equal(registry.isSafeSyncFile('.kimi-code/agents/cowork-check.md'), true);
   assert.equal(registry.isManagedBlockFile('AGENTS.md'), true);

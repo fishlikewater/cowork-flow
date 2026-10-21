@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { cp, mkdir, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 import {
   buildReadinessReport,
@@ -22,7 +25,21 @@ const LIVE_SKILL = 'test-first';
 // cannot stand in for the depth the ownership check has to walk.
 const NESTED_SKILL = 'party-mode';
 const RETIRED_SKILL = 'tdd';
-const PROTECTED_SPEC = '.cowork-flow/spec/runtime/rules.json';
+const execFileAsync = promisify(execFile);
+const CLI_BIN = fileURLToPath(new URL('../bin/cowork-flow.js', import.meta.url));
+const MANIFEST_FIXTURES = new URL('../tests/fixtures/host-manifest/', import.meta.url);
+
+async function runSyncWithManifestFixture(fixtureName, target) {
+  const manifest = fileURLToPath(new URL(fixtureName, MANIFEST_FIXTURES));
+  try {
+    const result = await execFileAsync(process.execPath, [CLI_BIN, 'sync', target], {
+      env: { ...process.env, COWORK_FLOW_HOST_ASSET_MANIFEST: manifest }
+    });
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    return { code: error.code, stdout: error.stdout ?? '', stderr: error.stderr ?? '' };
+  }
+}
 
 async function createTarget(t) {
   const target = await createTempDir(t);
@@ -237,20 +254,21 @@ test('a Skill the template no longer carries is kept, not guessed away', async (
 });
 
 // A sync-protected path is user-owned by contract: sync never writes it, so a
-// retirement may not delete it either, however the file got there.
+// retirement may not delete it either, however the file got there. The real
+// manifest no longer protects a retired spec path, so the fixture declares one.
 test('a sync-protected spec path is kept, not deleted', async (t) => {
   const target = await createTarget(t);
-  const spec = join(target, PROTECTED_SPEC);
-  await mkdir(join(target, '.cowork-flow', 'spec', 'runtime'), { recursive: true });
-  await writeFile(spec, '{"schemaVersion":1,"rules":[]}\n', 'utf8');
+  const relative = '.cowork-flow/spec/backend/retired.md';
+  const spec = join(target, relative);
+  await mkdir(join(target, '.cowork-flow', 'spec', 'backend'), { recursive: true });
+  await writeFile(join(target, '.cowork-flow', '.version'), '0.0.0\n', 'utf8');
+  await writeFile(spec, '# Retired framework spec\n', 'utf8');
 
-  const deletions = await plannedDeletions(target);
+  const result = await runSyncWithManifestFixture('valid-protected-obsolete.json', target);
 
-  assert.equal(deletions.includes(PROTECTED_SPEC), false);
-  assert.deepEqual(keptPairs(await collectKeptRetirements(target)), [
-    [PROTECTED_SPEC, 'protected-path']
-  ]);
-  assert.equal(await readText(spec), '{"schemaVersion":1,"rules":[]}\n');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Kept \.cowork-flow\/spec\/backend\/retired\.md \(protected-path\)/);
+  assert.equal(await readText(spec), '# Retired framework spec\n');
 });
 
 test('non-Skill obsolete files are still cleaned up', async (t) => {
@@ -314,14 +332,10 @@ test('the retention warning names every kept path and its reason', async (t) => 
   const retired = join(target, '.agents', 'skills', RETIRED_SKILL);
   await mkdir(retired, { recursive: true });
   await writeFile(join(retired, 'SKILL.md'), 'retired content\n', 'utf8');
-  const spec = join(target, PROTECTED_SPEC);
-  await mkdir(join(target, '.cowork-flow', 'spec', 'runtime'), { recursive: true });
-  await writeFile(spec, '{"schemaVersion":1,"rules":[]}\n', 'utf8');
 
   const message = formatKeptRetirements(await collectKeptRetirements(target));
 
-  assert.match(message, /^Kept 3 unverifiable retirement\(s\):\n/);
+  assert.match(message, /^Kept 2 unverifiable retirement\(s\):\n/);
   assert.match(message, new RegExp(`Kept \\.cowork-flow/skills/${LIVE_SKILL} \\(modified-or-extra\\)`));
   assert.match(message, /Kept \.agents\/skills\/tdd \(original-not-in-template\)/);
-  assert.match(message, /Kept \.cowork-flow\/spec\/runtime\/rules\.json \(protected-path\)/);
 });

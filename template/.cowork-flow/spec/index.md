@@ -12,6 +12,8 @@
 | `guides/` | brainstorming/task-planning 阶段的编码前思考、跨层设计和复用判断指引。 |
 | `references/` | 按需参考材料（DoD、测试清单、安全清单、协作模式）；不自动加载。加载条件见 contract-registry.json 的 references 数组。 |
 
+同步归属：`contracts/`、`runtime/`、`schemas/` 与本文件由框架维护，随 `cwf project sync` 更新；`backend/`、`frontend/`、`guides/`、`references/` 由项目维护，`sync` 不覆盖或删除其中的文件。
+
 流程内核只负责任务状态、文件范围、runtime context、归档一致性等可机器判断的事实。
 动作、阶段指导和专属运行时由各 Skill 的 `manifest.json` 声明；不维护集中式
 Skill registry。

@@ -4,6 +4,10 @@
 
 ### Added
 
+### Changed
+
+- **下游 `project sync` 开始同步框架 spec 资产**：`syncPolicy.protectedPrefixes` 从整个 `.cowork-flow/spec/` 收窄为 `spec/backend/`、`spec/frontend/`、`spec/guides/`、`spec/references/`，让 `spec/contracts/`、`spec/runtime/`（含 `contract-registry.json`、`host-assets.json`、`scope-rules.json`）、`spec/schemas/` 与 `spec/index.md` 随普通 `project sync` 更新——下游不再出现“脚本已升级、契约与宿主 manifest 仍停在安装代际”的混合状态，新增契约、宿主与 schema 能到达已装项目。**迁移**：登记在 `obsoleteFiles` 的过期框架 spec（`spec-checks.md`、`entry-contract.md`、`rules.json`、`skill-registry.json` 及对应 schema）会在下一次 sync 被自动删除，不再要求手动清理；本地修改过框架契约或 `scope-rules.json` 的项目会丢失这些改动，项目定制应写入四个受保护的 spec 目录、`AGENTS.md`、`config.yaml` 或项目自有 Skill。`dev refresh`（源码检出刷新）仍镜像整个 `template/.cowork-flow/spec/`：源码检出里的项目自有 spec 目录也是框架模板内容，因此刷新时不受下游保护前缀限制；任务、计划、`config.yaml`、`.developer` 与 `.runtime` 保持受保护。
+
 ## [2.3.0] - 2026-10-21
 
 ### Added

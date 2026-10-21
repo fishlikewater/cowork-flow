@@ -118,7 +118,13 @@ test('sync updates safe template files and preserves protected files', async (t)
   await writeFile(join(target, '.cowork-flow', 'project-context.md'), 'local generated context\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'workflow.md'), 'old workflow\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md'), 'old state templates\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'contracts', 'subagent-dispatch.md'), 'old contract\n', 'utf8');
   await writeFile(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md'), 'custom entry contract\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'index.md'), 'old spec index\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json'), '{"old":true}\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'runtime', 'host-assets.json'), '{"old":true}\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'runtime', 'scope-rules.json'), '{"old":true}\n', 'utf8');
+  await writeFile(join(target, '.cowork-flow', 'spec', 'backend', 'local-rule.md'), '# Local rule\n', 'utf8');
   await mkdir(join(target, '.codex', 'agents'), { recursive: true });
   await writeFile(join(target, '.codex', 'agents', 'cowork-implement.toml'), 'old agent\n', 'utf8');
   await writeFile(join(target, '.codex', 'hooks.json'), 'old hooks\n', 'utf8');
@@ -171,11 +177,35 @@ test('sync updates safe template files and preserves protected files', async (t)
     await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md')),
     await readText(join(templateRoot, '.cowork-flow', 'spec', 'contracts', 'workflow-state-templates.md'))
   );
-  // A sync-protected path is user-owned: the retired contract is left alone
-  // even though its path is listed as obsolete.
   assert.equal(
-    await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md')),
-    'custom entry contract\n'
+    await readText(join(target, '.cowork-flow', 'spec', 'contracts', 'subagent-dispatch.md')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'contracts', 'subagent-dispatch.md'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'spec', 'runtime', 'host-assets.json')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'runtime', 'host-assets.json'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'spec', 'runtime', 'scope-rules.json')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'runtime', 'scope-rules.json'))
+  );
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'spec', 'index.md')),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'index.md'))
+  );
+  // A retired framework contract is no longer protected: sync deletes it.
+  assert.equal(
+    await exists(join(target, '.cowork-flow', 'spec', 'contracts', 'entry-contract.md')),
+    false
+  );
+  // Project-owned spec directories are still user-owned.
+  assert.equal(
+    await readText(join(target, '.cowork-flow', 'spec', 'backend', 'local-rule.md')),
+    '# Local rule\n'
   );
   assert.equal(
     await readText(join(target, '.codex', 'agents', 'cowork-implement.toml')),
@@ -199,7 +229,7 @@ test('sync updates safe template files and preserves protected files', async (t)
   assert.match(io.stdout, /protected=/);
 });
 
-test('sync keeps sync-protected obsolete spec paths and never overwrites local specs', async (t) => {
+test('sync retires obsolete framework spec files and keeps project-owned specs', async (t) => {
   const target = await createTempDir(t);
   assert.equal(
     await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }),
@@ -220,25 +250,39 @@ test('sync keeps sync-protected obsolete spec paths and never overwrites local s
   await writeFile(rulesPath, '{"schemaVersion":1,"rules":[]}\n', 'utf8');
   await writeFile(rulesSchemaPath, '{"type":"object"}\n', 'utf8');
   await writeFile(removedGatePath, 'old gate registry\n', 'utf8');
-  const localSpecPath = join(
+  const localSpecs = [
+    join(target, '.cowork-flow', 'spec', 'backend', 'local-extension.md'),
+    join(target, '.cowork-flow', 'spec', 'guides', 'local-guide.md'),
+    join(target, '.cowork-flow', 'spec', 'references', 'local-reference.md')
+  ];
+  for (const path of localSpecs) {
+    await writeFile(path, '# Local spec\n', 'utf8');
+  }
+  const frameworkContract = join(
     target,
     '.cowork-flow',
     'spec',
-    'backend',
-    'local-extension.md'
+    'contracts',
+    'subagent-dispatch.md'
   );
-  await writeFile(localSpecPath, '# Local extension\n', 'utf8');
+  await writeFile(frameworkContract, 'old contract\n', 'utf8');
 
   const code = await main(['sync', target], { io: createIo() });
 
   assert.equal(code, 0);
-  // Retired framework metadata under a protected prefix stays: sync never
-  // writes those paths, so it may not delete them either.
-  assert.equal(await readText(rulesPath), '{"schemaVersion":1,"rules":[]}\n');
-  assert.equal(await readText(rulesSchemaPath), '{"type":"object"}\n');
-  // A retired path outside the protected prefixes is still cleaned up.
+  // Retired framework spec assets are framework-owned and no longer protected.
+  assert.equal(await exists(rulesPath), false);
+  assert.equal(await exists(rulesSchemaPath), false);
   assert.equal(await exists(removedGatePath), false);
-  assert.equal(await readText(localSpecPath), '# Local extension\n');
+  // Framework contracts follow sync, even when the local copy was edited.
+  assert.equal(
+    await readText(frameworkContract),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'contracts', 'subagent-dispatch.md'))
+  );
+  // Project-owned spec directories are never written or removed.
+  for (const path of localSpecs) {
+    assert.equal(await readText(path), '# Local spec\n');
+  }
 });
 
 test('sync replaces only the cowork-flow block in AGENTS.md', async (t) => {
@@ -792,6 +836,8 @@ test('source-refresh repairs live runtime and skill replicas without touching lo
   const target = await createTempDir(t);
   const liveTaskContext = join(target, '.cowork-flow', 'scripts', 'services', 'task_context.py');
   const liveContractRegistry = join(target, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json');
+  const localBackendSpec = join(target, '.cowork-flow', 'spec', 'backend', 'index.md');
+  const localReferenceSpec = join(target, '.cowork-flow', 'spec', 'references', 'definition-of-done.md');
   const localTask = join(target, '.cowork-flow', 'tasks', 'demo', 'task.json');
   const localPlan = join(target, '.cowork-flow', 'plans', 'demo.md');
   const runtimeSession = join(target, '.cowork-flow', '.runtime', 'sessions', 'demo.json');
@@ -805,6 +851,10 @@ test('source-refresh repairs live runtime and skill replicas without touching lo
   await writeFile(liveTaskContext, 'old task context\n', 'utf8');
   await mkdir(dirname(liveContractRegistry), { recursive: true });
   await writeFile(liveContractRegistry, '{"old": true}\n', 'utf8');
+  await mkdir(dirname(localBackendSpec), { recursive: true });
+  await writeFile(localBackendSpec, 'old backend spec\n', 'utf8');
+  await mkdir(dirname(localReferenceSpec), { recursive: true });
+  await writeFile(localReferenceSpec, 'old reference spec\n', 'utf8');
   await mkdir(dirname(localTask), { recursive: true });
   await writeFile(localTask, '{"status":"in_progress"}\n', 'utf8');
   await mkdir(dirname(localPlan), { recursive: true });
@@ -841,6 +891,16 @@ test('source-refresh repairs live runtime and skill replicas without touching lo
   assert.equal(
     await readText(liveContractRegistry),
     await readText(join(templateRoot, '.cowork-flow', 'spec', 'runtime', 'contract-registry.json'))
+  );
+  // The source checkout mirrors the whole template spec tree, including the
+  // directories that downstream sync protects as project-owned.
+  assert.equal(
+    await readText(localBackendSpec),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'backend', 'index.md'))
+  );
+  assert.equal(
+    await readText(localReferenceSpec),
+    await readText(join(templateRoot, '.cowork-flow', 'spec', 'references', 'definition-of-done.md'))
   );
   assert.equal(
     await readText(agentSkill),

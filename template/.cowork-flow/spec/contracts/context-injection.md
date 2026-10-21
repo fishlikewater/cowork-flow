@@ -326,9 +326,9 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
   budget/limits come from `.cowork-flow/spec/runtime/scope-rules.json`, the
   single source consumed at runtime; a missing or malformed file degrades to
   embedded defaults that are byte-identical with the shipped file (locked by
-  `tests/test_scope_rules.py`). The file is template-managed
-  (`syncPolicy.safeFiles`): `cwf project sync` refreshes it, so local edits to
-  it do not survive a sync.
+  `tests/test_scope_rules.py`). The file is framework-managed: `cwf project
+  sync` refreshes it as part of the synced `spec/runtime/` tree, so local edits
+  to it do not survive a sync.
 - Absent for `no_task` / `planning` / `completed` states. Block content is
   byte-identical across host lines for the whole fixture matrix
   (`test/fixtures/stage-contract-matrix.json` drives the equality test:

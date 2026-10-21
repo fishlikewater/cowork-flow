@@ -16,7 +16,7 @@ Supports Codex, Claude Code, OpenCode, ZCode, Qoder, Kimi Code, and DeepSeek Har
 - Keeps requirements, decisions, plans, and the allowed change scope inside the project.
 - Makes the assistant read the current task before working, instead of continuing from memory.
 - Separates implementation from checking, so a problem sends the work back to implementation.
-- Protects custom configuration, specs, tasks, and plans in an existing project.
+- Protects custom configuration, project-owned specs, tasks, and plans in an existing project.
 
 cowork-flow is not tied to a tech stack and does not rewrite an existing project with a
 scaffold. It only adds a collaboration convention and the files that go with it.
@@ -120,10 +120,12 @@ cwf project sync . --dry-run
 cwf project sync .
 ```
 
-`project sync` only updates files cowork-flow manages. Existing configuration, `spec/`,
-tasks, and plans are kept by default; **retired-asset cleanup** deletes obsolete
-cowork-flow files listed in the release manifest and touches nothing else. For upgrading
-machine-level host components, see [host integration](docs/hosts.md).
+`project sync` only updates files cowork-flow manages. Existing configuration,
+`spec/backend|frontend|guides|references`, tasks, and plans are kept by default;
+framework-managed `spec/contracts|runtime|schemas` and `spec/index.md` follow the
+sync. **Retired-asset cleanup** deletes obsolete cowork-flow files listed in the
+release manifest and touches nothing else. For upgrading machine-level host
+components, see [host integration](docs/hosts.md).
 
 ## Troubleshooting
 

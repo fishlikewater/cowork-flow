@@ -153,13 +153,17 @@ async function appendSkillReadRootActions(actions, {
   }
 }
 
+// The source checkout's `.cowork-flow/spec` tree is a mirror of the template,
+// not a downstream project's spec tree: project-owned directories are framework
+// content here too, so dev refresh rewrites every spec directory and keeps only
+// task/plan state and the project config protected.
 function isSourceCheckoutProtected(relativePath) {
   const normalized = toTemplatePath(relativePath);
   if (hostRegistry.syncPolicy.protectedFiles.includes(normalized)) {
     return true;
   }
   return hostRegistry.syncPolicy.protectedPrefixes
-    .filter((prefix) => prefix !== '.cowork-flow/spec/')
+    .filter((prefix) => !prefix.startsWith('.cowork-flow/spec/'))
     .some((prefix) => normalized.startsWith(prefix))
     || normalized.startsWith('.cowork-flow/.runtime/');
 }

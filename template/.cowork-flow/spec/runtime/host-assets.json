@@ -451,7 +451,10 @@
       ".cowork-flow/.developer"
     ],
     "protectedPrefixes": [
-      ".cowork-flow/spec/",
+      ".cowork-flow/spec/backend/",
+      ".cowork-flow/spec/frontend/",
+      ".cowork-flow/spec/guides/",
+      ".cowork-flow/spec/references/",
       ".cowork-flow/tasks/",
       ".cowork-flow/plans/"
     ],
@@ -459,9 +462,7 @@
       ".cowork-flow/.gitignore",
       ".cowork-flow/.version",
       ".cowork-flow/run",
-      ".cowork-flow/run.cmd",
-      ".cowork-flow/spec/contracts/workflow-state-templates.md",
-      ".cowork-flow/spec/runtime/scope-rules.json"
+      ".cowork-flow/run.cmd"
     ],
     "safePrefixes": [
       ".cowork-flow/"

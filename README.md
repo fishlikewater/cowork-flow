@@ -13,7 +13,7 @@
 - 把需求、决定、计划和允许修改的范围留在项目里。
 - 让助手每次工作前先读取当前任务，不凭印象继续。
 - 把实现和检查分开，发现问题后再回到实现阶段修正。
-- 在已有项目里保护自定义配置、规格、任务和计划。
+- 在已有项目里保护自定义配置、项目自有规格、任务和计划。
 
 cowork-flow 不绑定技术栈，也不会用脚手架改写现有项目。它只在项目中加入一层协作约定和配套文件。
 
@@ -98,7 +98,7 @@ cwf project sync . --dry-run
 cwf project sync .
 ```
 
-`project sync` 只更新 cowork-flow 管理的文件。已有配置、`spec/`、任务和计划默认保留；**正式版旧资产清理** 会按发布清单删除已废弃的 cowork-flow 文件，不触碰其它内容。机器级宿主组件的升级方式见 [宿主接入](docs/hosts.md)。
+`project sync` 只更新 cowork-flow 管理的文件。已有配置、`spec/backend|frontend|guides|references`、任务和计划默认保留；框架维护的 `spec/contracts|runtime|schemas` 与 `spec/index.md` 随 sync 更新。**正式版旧资产清理** 会按发布清单删除已废弃的 cowork-flow 文件，不触碰其它内容。机器级宿主组件的升级方式见 [宿主接入](docs/hosts.md)。
 
 ## 遇到问题
 

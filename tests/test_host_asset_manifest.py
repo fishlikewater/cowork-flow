@@ -14,7 +14,11 @@ SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 TEMPLATE = ROOT / "template"
 
 FIXTURES = ROOT / "tests" / "fixtures" / "host-manifest"
-VALID_MANIFEST_FIXTURES = ("valid-minimal.json", "valid-extra-platform.json")
+VALID_MANIFEST_FIXTURES = (
+    "valid-minimal.json",
+    "valid-extra-platform.json",
+    "valid-protected-obsolete.json",
+)
 INVALID_MANIFEST_FIXTURES = {
     "invalid-duplicate-alias.json": r"duplicate platform alias",
     "invalid-capability-status.json": r"illegal host-neutral capability",

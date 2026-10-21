@@ -71,7 +71,7 @@
 
 `config.yaml`、`.developer`、规范、任务和计划按同步策略保护。`--force` 会扩大覆盖范围，因此已有项目应先用 `--dry-run` 查看变更。
 
-`.cowork-flow/spec/` 前缀整体受同步保护：既有项目里的规范文件不会被 `sync` 覆盖，模板侧的规范更新只对全新 `init` 生效。具名例外是 `spec/runtime/host-assets.json` 中 `syncPolicy.safeFiles` 列出的文件——`spec/contracts/workflow-state-templates.md` 与 `spec/runtime/scope-rules.json`——它们随 `sync` 更新，使契约勘误与预算默认值能到达已装项目；代价是本地调过 `scope-rules.json` 的项目会在下一次 `sync` 丢掉这些改动。
+`.cowork-flow/spec/` 按归属拆分同步策略。框架维护的 `spec/contracts/`、`spec/runtime/`、`spec/schemas/` 与 `spec/index.md` 随 `sync` 更新：契约勘误、`contract-registry.json`、`host-assets.json`、`scope-rules.json` 和 schema 因此能与脚本同代际到达已装项目，`obsoleteFiles` 中登记的过期框架 spec 文件也会被删除。项目维护的 `spec/backend/`、`spec/frontend/`、`spec/guides/`、`spec/references/` 保持保护，普通 `sync` 不会覆盖或删除其中的文件。代价是本地修改过框架契约或 `scope-rules.json` 的项目会在下一次 `sync` 丢掉这些改动；需要保留的定制应写入四个项目目录、`AGENTS.md`、`config.yaml` 或项目自有 Skill。
 
 ## 扩展规则
 
@@ -80,7 +80,7 @@
 - 项目技能只由 `template/skills/` 分发；机器级载荷不复制同名项目技能。
 - `scripts/services|runtime|infra` 和 `src/lib/` 的通用计划、拷贝模块不能出现宿主分支。
 - 新宿主先更新 Host Asset Manifest 与 schema，再补安装器、doctor 和测试；不要在多个文件各写一份宿主清单。
-- 项目差异写入 `AGENTS.md`、`config.yaml`、`spec/` 或项目自有 Skill，不恢复第二套流程文档。
+- 项目差异写入 `AGENTS.md`、`config.yaml`、`spec/backend|frontend|guides|references` 或项目自有 Skill，不恢复第二套流程文档。
 - 修改 Skill 分发路径时，同时更新 `skillReadRoot`、`skillDiscovery` 和对应宿主证据。
 - 修改命令名时，一次更新命令注册表、README、doctor 提示、Skill 和相关测试。
 

@@ -399,9 +399,11 @@ class SpecReviewContractTest(unittest.TestCase):
     def test_instance_contracts_mirror_the_template_byte_for_byte(self) -> None:
         """The instance this repo is gated by is the tree it ships.
 
-        In the source checkout `.cowork-flow/spec/**` is *not* a protected
-        prefix — `isSourceCheckoutProtected` drops it on purpose — so
-        `dev refresh` does rewrite it, and `self-instance-drift` in
+        In the source checkout `.cowork-flow/spec/**` is refreshed as a mirror
+        of the template: `isSourceCheckoutProtected` keeps a source-checkout
+        specific rule that excludes every spec directory (downstream sync
+        instead protects backend/frontend/guides/references from the manifest),
+        so `dev refresh` rewrites it, and `self-instance-drift` in
         `release:check` already refuses a divergence. That gate only runs where
         `release:check` runs, which is the ubuntu job; the Windows job runs
         `python -m pytest -q` and never calls it, so this assertion is what
