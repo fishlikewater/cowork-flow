@@ -4,6 +4,10 @@
 
 ### Added
 
+## [2.3.0] - 2026-10-21
+
+### Added
+
 - **`cwf project init` 宿主自动判定与 `--host` 主旗标**：省略 `--host` 时先按项目已有的宿主标记（与 `project sync` 同一套探测）判定，交互终端再回退到选择器；`--host` 可重复/逗号分隔，`--platform`、`--platforms` 保留为兼容别名。非交互且探测为空时仍明确报 `Host selection required`，不静默猜宿主。
 
 ### Changed
@@ -403,7 +407,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/fishlikewater/cowork-flow/compare/v1.9.2...v2.0.0
