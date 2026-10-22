@@ -724,6 +724,26 @@ test('init uses the default language when the prompt is blank', async (t) => {
   assert.match(prompts[0], /Project language/);
 });
 
+test('init reports a missing language key without claiming the default wins', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const configFile = join(target, '.cowork-flow', 'config.yaml');
+  await mkdir(join(target, '.cowork-flow'), { recursive: true });
+  await writeFile(configFile, 'custom: true\n', 'utf8');
+  const io = createIo();
+
+  const code = await main(
+    ['init', target, '--developer', 'codex', '--platform', 'codex', '--language', 'en-US'],
+    { io, prompt: null }
+  );
+
+  assert.equal(code, 0, io.stderr);
+  assert.equal(await readText(configFile), 'custom: true\n');
+  assert.match(io.stderr, /has no language setting; using zh-CN/);
+  assert.match(io.stderr, /Add language: en-US and run cwf project sync/);
+  assert.doesNotMatch(io.stderr, /wins over --language/);
+  assert.match(io.stdout, /Language already initialized: zh-CN \(default; no language key\)/);
+});
+
 test('init warns when --language conflicts with the existing config', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const configFile = join(target, '.cowork-flow', 'config.yaml');

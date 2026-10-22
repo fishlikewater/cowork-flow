@@ -69,6 +69,15 @@ test('root help lists every group and every command', async () => {
   }
 });
 
+test('project init help documents --language', async () => {
+  const { code, stdout, stderr } = await runCli(['project', 'init', '--help']);
+
+  assert.equal(code, 0);
+  assert.equal(stderr, '');
+  assert.match(stdout, /--language <zh-CN\|en-US>/);
+  assert.match(stdout, /Output language for task and plan artifacts/);
+});
+
 test('prints version with --version', async () => {
   const io = createIo();
   const packageInfo = await readPackageInfo();

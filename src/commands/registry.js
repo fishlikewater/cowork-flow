@@ -51,18 +51,20 @@ export const COMMANDS = [
   {
     path: ['project', 'init'],
     summary: 'Copy the cowork-flow template into a project',
-    usage: `project init [target] --host <${HOST_TOKENS}> [--developer <name>] [--dry-run] [--force]`,
+    usage: `project init [target] --host <${HOST_TOKENS}> [--developer <name>] [--language <zh-CN|en-US>] [--dry-run] [--force]`,
     flags: [
       { name: '--host', kind: 'value', valueName: 'host', repeatable: true, description: 'Host to set the project up for; repeatable and comma-separated, auto-detected when omitted' },
       { name: '--platform', kind: 'value', valueName: 'host', repeatable: true, description: 'Alias of --host' },
       { name: '--platforms', kind: 'value', valueName: 'host', repeatable: true, description: 'Alias of --host' },
       { name: '--developer', kind: 'value', valueName: 'name', description: 'Developer name recorded in .cowork-flow/.developer; falls back to git user.name' },
+      { name: '--language', kind: 'value', valueName: 'language', description: 'Output language for task and plan artifacts; accepts zh-CN or en-US (default: zh-CN)' },
       flag('--dry-run'),
       flag('--force')
     ],
     positional: { min: 0, max: 1, name: '[target]' },
     examples: [
       'cwf project init --host codex --developer alice',
+      'cwf project init --host codex --developer alice --language en-US',
       'cwf project init ./my-project --host all --dry-run'
     ],
     run: (args, context) => runInit(args, context)
