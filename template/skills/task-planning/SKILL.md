@@ -14,7 +14,7 @@ Before writing a plan, confirm the request has an executable scope, acceptance c
 Read:
 
 - Active task `decision-anchor.md`.
-- The installed `.cowork-flow/plan-template.md`.
+- The installed `.cowork-flow/templates/plan-template.md`.
 - Relevant decision-anchor, design, guide, or spec files.
 - Relevant `.cowork-flow/spec/` indexes and target specs.
 - `.cowork-flow/spec/guides/index.md` for non-trivial, ambiguous, cross-layer, or reusable-work planning.
@@ -24,7 +24,7 @@ Read:
 
 Save plans to `.cowork-flow/plans/YYYY-MM-DD-<slug>.md` unless the user asks for another path.
 
-Use the installed `.cowork-flow/plan-template.md` as the plan skeleton. It carries the execution rule, header table, goal and acceptance sections, global constraints, file boundaries, the per-task brief fields, and the final verification section, so this Skill does not restate them.
+Use the installed `.cowork-flow/templates/plan-template.md` as the plan skeleton. It carries the execution rule, header table, goal and acceptance sections, global constraints, file boundaries, the per-task brief fields, and the final verification section, so this Skill does not restate them.
 
 If the installed template is missing, stop and report it (run `cwf project sync .` to install it); do not invent a replacement shape.
 
@@ -81,7 +81,7 @@ A plan can be marked approved only when all conditions hold:
 - Every task in the plan has clear acceptance criteria.
 - Every task has implementation steps and verification commands.
 - Task dependencies are explicit, including whether work is serial or parallelizable.
-- The plan uses the installed `.cowork-flow/plan-template.md` shape and the configured output language.
+- The plan uses the installed `.cowork-flow/templates/plan-template.md` shape and the configured output language.
 
 `implement.jsonl` is the current task's context index — the files in scope and
 the spec pointers it needs — not the task list. The plan owns the task list.

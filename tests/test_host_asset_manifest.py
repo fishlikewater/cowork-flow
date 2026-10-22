@@ -658,7 +658,7 @@ class HostAssetManifestTest(unittest.TestCase):
         self.assertEqual(
             (
                 ".cowork-flow/spec/contracts/decision-anchor.md",
-                ".cowork-flow/plan-template.md",
+                ".cowork-flow/templates/plan-template.md",
             ),
             manifest.localization.assets["en-US"],
         )
@@ -669,7 +669,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
     def test_manifest_rejects_unknown_localization_language(self) -> None:
         def mutate(data: dict) -> None:
-            data["localization"]["assets"]["fr"] = [".cowork-flow/plan-template.md"]
+            data["localization"]["assets"]["fr"] = [".cowork-flow/templates/plan-template.md"]
 
         errors = self._validate_mutated_manifest(mutate)
 
@@ -680,7 +680,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
     def test_manifest_rejects_overriding_the_default_language(self) -> None:
         def mutate(data: dict) -> None:
-            data["localization"]["assets"]["zh-CN"] = [".cowork-flow/plan-template.md"]
+            data["localization"]["assets"]["zh-CN"] = [".cowork-flow/templates/plan-template.md"]
 
         errors = self._validate_mutated_manifest(mutate)
 
@@ -698,13 +698,14 @@ class HostAssetManifestTest(unittest.TestCase):
                 / "locales"
                 / "en-US"
                 / ".cowork-flow"
+                / "templates"
                 / "plan-template.md"
             ).unlink()
 
             errors = self.host_manifest.validate_host_assets(template)
 
         self.assertIn(
-            "missing localized asset: locales/en-US/.cowork-flow/plan-template.md",
+            "missing localized asset: locales/en-US/.cowork-flow/templates/plan-template.md",
             errors,
         )
 

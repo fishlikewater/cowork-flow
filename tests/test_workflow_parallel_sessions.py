@@ -655,9 +655,17 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_task_planning_skills_require_parallel_scope_fields(self) -> None:
         text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
-        template = (ROOT / "template" / ".cowork-flow" / "plan-template.md").read_text(encoding="utf-8")
+        template = (
+            ROOT / "template" / ".cowork-flow" / "templates" / "plan-template.md"
+        ).read_text(encoding="utf-8")
         english_template = (
-            ROOT / "template" / "locales" / "en-US" / ".cowork-flow" / "plan-template.md"
+            ROOT
+            / "template"
+            / "locales"
+            / "en-US"
+            / ".cowork-flow"
+            / "templates"
+            / "plan-template.md"
         ).read_text(encoding="utf-8")
         self.assertIn("executable scope", text)
         self.assertIn("acceptance criteria", text)
@@ -667,7 +675,7 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("Tiny", text)
         self.assertIn("Normal", text)
         self.assertIn("High-risk", text)
-        self.assertIn(".cowork-flow/plan-template.md", text)
+        self.assertIn(".cowork-flow/templates/plan-template.md", text)
         for marker in (
             "**File Boundaries**",
             "**Key Symbols**",

@@ -22,7 +22,7 @@ import { templateRoot } from '../src/lib/paths.js';
 import { createTempDir, exists, readText } from './helpers/fs.js';
 
 const ANCHOR = '.cowork-flow/spec/contracts/decision-anchor.md';
-const PLAN_TEMPLATE = '.cowork-flow/plan-template.md';
+const PLAN_TEMPLATE = '.cowork-flow/templates/plan-template.md';
 
 function createIo() {
   return {

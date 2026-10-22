@@ -6,13 +6,16 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE_TEMPLATE = ROOT / "template" / ".cowork-flow" / "plan-template.md"
+BASE_TEMPLATE = (
+    ROOT / "template" / ".cowork-flow" / "templates" / "plan-template.md"
+)
 EN_TEMPLATE = (
     ROOT
     / "template"
     / "locales"
     / "en-US"
     / ".cowork-flow"
+    / "templates"
     / "plan-template.md"
 )
 CJK_RE = re.compile(r"[\u4e00-\u9fff]")

@@ -278,7 +278,7 @@ def check_language(repo_root: Path) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
     assets = (
         (".cowork-flow/spec/contracts/decision-anchor.md", "anchor"),
-        (".cowork-flow/plan-template.md", "plan"),
+        (".cowork-flow/templates/plan-template.md", "plan"),
     )
     for relative, kind in assets:
         path = repo_root / relative

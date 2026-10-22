@@ -2284,11 +2284,16 @@ class LanguageCheckTest(unittest.TestCase):
             / "contracts"
             / "decision-anchor.md"
         ).read_text(encoding="utf-8")
-        cls.zh_plan = (TEMPLATE / ".cowork-flow" / "plan-template.md").read_text(
-            encoding="utf-8"
-        )
+        cls.zh_plan = (
+            TEMPLATE / ".cowork-flow" / "templates" / "plan-template.md"
+        ).read_text(encoding="utf-8")
         cls.en_plan = (
-            TEMPLATE / "locales" / "en-US" / ".cowork-flow" / "plan-template.md"
+            TEMPLATE
+            / "locales"
+            / "en-US"
+            / ".cowork-flow"
+            / "templates"
+            / "plan-template.md"
         ).read_text(encoding="utf-8")
 
     def _project(self, config: str, *, anchor: str | None, plan: str | None) -> Path:
@@ -2302,9 +2307,9 @@ class LanguageCheckTest(unittest.TestCase):
             path.parent.mkdir(parents=True)
             path.write_text(anchor, encoding="utf-8")
         if plan is not None:
-            (root / ".cowork-flow" / "plan-template.md").write_text(
-                plan, encoding="utf-8"
-            )
+            plan_path = root / ".cowork-flow" / "templates" / "plan-template.md"
+            plan_path.parent.mkdir(parents=True, exist_ok=True)
+            plan_path.write_text(plan, encoding="utf-8")
         return root
 
     def test_missing_language_key_stays_silent(self) -> None:
@@ -2337,7 +2342,7 @@ class LanguageCheckTest(unittest.TestCase):
         self.assertEqual(
             [
                 ".cowork-flow/spec/contracts/decision-anchor.md",
-                ".cowork-flow/plan-template.md",
+                ".cowork-flow/templates/plan-template.md",
             ],
             [issue["path"] for issue in issues],
         )

@@ -455,7 +455,7 @@
     "assets": {
       "en-US": [
         ".cowork-flow/spec/contracts/decision-anchor.md",
-        ".cowork-flow/plan-template.md"
+        ".cowork-flow/templates/plan-template.md"
       ]
     }
   },
@@ -529,6 +529,7 @@
       ".claude/skills/update-spec",
       ".claude/skills/using-cowork-flow",
       ".claude/skills/writing-plans",
+      ".cowork-flow/plan-template.md",
       ".cowork-flow/project-context.md",
       ".cowork-flow/scripts/application",
       ".cowork-flow/scripts/services/batch_execution.py",

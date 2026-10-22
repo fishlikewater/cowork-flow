@@ -71,7 +71,7 @@
 
 `config.yaml`、`.developer`、规范、任务和计划按同步策略保护。`--force` 会扩大覆盖范围，但 `.cowork-flow/config.yaml` 是 `forceProtectedFiles`：首次创建后 `init --force` 和 `sync --force` 都不再覆盖它。已有项目应先用 `--dry-run` 查看变更。
 
-安装语言写在 `config.yaml` 的 `language`（`zh-CN` 默认，或 `en-US`）。Host Asset Manifest 的 `localization` 声明哪些资产存在语言变体，源文件位于 `template/locales/<language>/<canonical-path>`；`init`、`sync` 与 `dev refresh` 通过 `localizedSource()` 选择源文件，目标路径始终是 canonical path，`locales/` 被 `excludedPrefixes` 排除，不会进入项目。当前只有 `spec/contracts/decision-anchor.md` 与 `.cowork-flow/plan-template.md` 本地化；前者决定新 anchor 的标题语言，后者决定计划产物语言，解析器始终同时接受中英两套标题。
+安装语言写在 `config.yaml` 的 `language`（`zh-CN` 默认，或 `en-US`）。Host Asset Manifest 的 `localization` 声明哪些资产存在语言变体，源文件位于 `template/locales/<language>/<canonical-path>`；`init`、`sync` 与 `dev refresh` 通过 `localizedSource()` 选择源文件，目标路径始终是 canonical path，`locales/` 被 `excludedPrefixes` 排除，不会进入项目。当前只有 `spec/contracts/decision-anchor.md` 与 `.cowork-flow/templates/plan-template.md` 本地化；前者决定新 anchor 的标题语言，后者决定计划产物语言，解析器始终同时接受中英两套标题。
 
 `.cowork-flow/spec/` 按归属拆分同步策略。框架维护的 `spec/contracts/`、`spec/runtime/`、`spec/schemas/` 与 `spec/index.md` 随 `sync` 更新：契约勘误、`contract-registry.json`、`host-assets.json`、`scope-rules.json` 和 schema 因此能与脚本同代际到达已装项目，`obsoleteFiles` 中登记的过期框架 spec 文件也会被删除。项目维护的 `spec/backend/`、`spec/frontend/`、`spec/guides/`、`spec/references/` 保持保护，普通 `sync` 不会覆盖或删除其中的文件。代价是本地修改过框架契约或 `scope-rules.json` 的项目会在下一次 `sync` 丢掉这些改动；需要保留的定制应写入四个项目目录、`AGENTS.md`、`config.yaml` 或项目自有 Skill。
 

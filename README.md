@@ -53,7 +53,7 @@ cwf project init --host codex --developer alice --dry-run
 cwf project init --host codex --developer alice --language en-US
 ```
 
-不传 `--language` 时默认 `zh-CN`；交互终端会询问，非交互环境使用默认值。该选择写入 `.cowork-flow/config.yaml`，只影响任务和计划产物（`decision-anchor.md` 与 `plan-template.md`）。
+不传 `--language` 时默认 `zh-CN`；交互终端会询问，非交互环境使用默认值。该选择写入 `.cowork-flow/config.yaml`，只影响任务和计划产物（`.cowork-flow/spec/contracts/decision-anchor.md` 与 `.cowork-flow/templates/plan-template.md`）。
 
 把 `codex` 换成你正在使用的宿主：
 
@@ -100,7 +100,7 @@ cwf project sync . --dry-run
 cwf project sync .
 ```
 
-`project sync` 只更新 cowork-flow 管理的文件。已有配置、`spec/backend|frontend|guides|references`、任务和计划默认保留；框架维护的 `spec/contracts|runtime|schemas` 与 `spec/index.md` 随 sync 更新。`.cowork-flow/config.yaml` 是项目配置，`sync --force` 也不会覆盖它。sync 会读取其中的 `language`，只分发对应语言的 `decision-anchor.md` 合同与 `plan-template.md`；任务和计划默认跟随该语言，用户明确要求时可以覆盖。**正式版旧资产清理** 会按发布清单删除已废弃的 cowork-flow 文件，不触碰其它内容。机器级宿主组件的升级方式见 [宿主接入](docs/hosts.md)。
+`project sync` 只更新 cowork-flow 管理的文件。已有配置、`spec/backend|frontend|guides|references`、任务和计划默认保留；框架维护的 `spec/contracts|runtime|schemas` 与 `spec/index.md` 随 sync 更新。`.cowork-flow/config.yaml` 是项目配置，`sync --force` 也不会覆盖它。sync 会读取其中的 `language`，只分发对应语言的 `decision-anchor.md` 合同与 `.cowork-flow/templates/plan-template.md`；任务和计划默认跟随该语言，用户明确要求时可以覆盖。**正式版旧资产清理** 会按发布清单删除已废弃的 cowork-flow 文件，不触碰其它内容。机器级宿主组件的升级方式见 [宿主接入](docs/hosts.md)。
 
 ## 遇到问题
 

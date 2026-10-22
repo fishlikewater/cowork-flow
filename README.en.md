@@ -62,7 +62,8 @@ cwf project init --host codex --developer alice --language en-US
 Without `--language` the default is `zh-CN`; an interactive terminal asks, and a
 non-interactive run uses the default. The choice is written to
 `.cowork-flow/config.yaml` and affects only task and plan artifacts
-(`decision-anchor.md` and `plan-template.md`).
+(`.cowork-flow/spec/contracts/decision-anchor.md` and
+`.cowork-flow/templates/plan-template.md`).
 
 Replace `codex` with the host you use:
 
@@ -132,7 +133,7 @@ cwf project sync .
 framework-managed `spec/contracts|runtime|schemas` and `spec/index.md` follow the
 sync. `.cowork-flow/config.yaml` is project configuration and is never overwritten by
 `sync --force`. Sync reads its `language` and distributes only that language's
-`decision-anchor.md` contract and `plan-template.md`; tasks and plans follow that
+`decision-anchor.md` contract and `.cowork-flow/templates/plan-template.md`; tasks and plans follow that
 language by default, and an explicit user request may override it.
 **Retired-asset cleanup** deletes obsolete cowork-flow files listed in the
 release manifest and touches nothing else. For upgrading machine-level host

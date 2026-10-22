@@ -303,15 +303,15 @@ test('default host registry exposes manifest platform behavior', async () => {
   assert.deepEqual(registry.localization.supported, ['zh-CN', 'en-US']);
   assert.deepEqual(registry.localization.assets['en-US'], [
     '.cowork-flow/spec/contracts/decision-anchor.md',
-    '.cowork-flow/plan-template.md'
+    '.cowork-flow/templates/plan-template.md'
   ]);
   assert.equal(
-    registry.localizedSource('.cowork-flow/plan-template.md', 'en-US'),
-    'locales/en-US/.cowork-flow/plan-template.md'
+    registry.localizedSource('.cowork-flow/templates/plan-template.md', 'en-US'),
+    'locales/en-US/.cowork-flow/templates/plan-template.md'
   );
   assert.equal(
-    registry.localizedSource('.cowork-flow/plan-template.md', 'zh-CN'),
-    '.cowork-flow/plan-template.md'
+    registry.localizedSource('.cowork-flow/templates/plan-template.md', 'zh-CN'),
+    '.cowork-flow/templates/plan-template.md'
   );
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/run'), false);
   // Framework-owned spec assets follow sync; project-owned spec directories
