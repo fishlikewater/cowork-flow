@@ -11,7 +11,7 @@ This document explains how to connect cowork-flow to an AI coding host, and how 
 | Project-level files | the current project's `AGENTS.md`, `.cowork-flow/`, and host directories | `cwf project init` / `cwf project sync` |
 | Machine-level components | the host's user configuration directory, such as plugins, presets, or hooks | `cwf host add` / `cwf host remove` |
 
-Every project needs at least one `cwf project init`. When `--host` is omitted, init first detects host markers already in the project (such as `.codex/` or `.claude/`), using the same detection as `cwf project sync`; an interactive terminal offers a picker when none is found, while a non-interactive environment must pass `--host` explicitly. `--platform` / `--platforms` remain accepted aliases.
+Every project needs at least one `cwf project init`. When `--host` is omitted, init first detects host markers already in the project (such as `.codex/` or `.claude/`), using the same detection as `cwf project sync`; an interactive terminal offers a picker when none is found, while a non-interactive environment must pass `--host` explicitly. `--platform` / `--platforms` remain accepted aliases. Task and plan artifacts default to Chinese; pass `--language en-US` when a non-interactive install needs English artifacts, or edit `language` in `.cowork-flow/config.yaml` and run `cwf project sync` to switch after installation.
 
 Whether `cwf host add` is needed depends on the host:
 
