@@ -289,7 +289,8 @@ Verify: npm run test:fast; python3 -m pytest tests/ -q
 - **Gates**: static preview text, identical on all hosts; the delegated
   variant replaces the self-declaration sentence with "scope is inherited
   from the parent task (read-only reference)".
-- **Verify**: `## 验证命令` lines from decision-anchor (first 10, 120 chars
+- **Verify**: `## Verification Commands`/`## 验证命令` lines from
+  decision-anchor (first 10, 120 chars
   each) — the agent's own declared self-checks; omitted when none.
 - **Per-edit warning**: PostToolUse on an edit tool injects at most one
   line when the edited file is outside the task's declared scope —

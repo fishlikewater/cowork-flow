@@ -48,7 +48,8 @@ into `in_progress`:
 - `task.json.meta.planFile` exists.
 - `planFile` is a repo-relative `.cowork-flow/plans/` path.
 - The plan file exists and is non-empty.
-- `decision-anchor.md` contains `## 目标` and `## 验收标准`.
+- `decision-anchor.md` contains `## Goal`/`## 目标` and
+  `## Acceptance Criteria`/`## 验收标准`.
 - `implement.jsonl` passes the existing context validation.
 
 A Tiny task may have no planFile, but must still satisfy the existing anchor and
