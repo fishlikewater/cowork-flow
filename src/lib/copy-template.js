@@ -200,12 +200,16 @@ export async function buildInitPlan(targetDir, options = {}) {
       continue;
     }
 
-    const source = join(templateRoot, file);
+    const source = join(
+      templateRoot,
+      ...hostRegistry.localizedSource(templatePath, options.language).split('/')
+    );
     const destination = join(targetDir, file);
     seen.add(destination);
     const exists = await pathExists(destination);
+    const forceProtected = hostRegistry.isForceProtectedSyncFile(templatePath);
     const action = exists
-      ? (options.force && templatePath !== '.cowork-flow/.developer' ? 'update' : 'skip')
+      ? (forceProtected ? 'protected' : (options.force && templatePath !== '.cowork-flow/.developer' ? 'update' : 'skip'))
       : 'create';
     actions.push({ action, source, destination, relativePath: file });
   }
@@ -452,7 +456,10 @@ export async function buildSourceCheckoutRefreshPlan(targetDir, options = {}) {
     if (!shouldIncludeSourceCheckoutRuntimeFile(templatePath)) {
       continue;
     }
-    const source = join(templateRoot, file);
+    const source = join(
+      templateRoot,
+      ...hostRegistry.localizedSource(templatePath, options.language).split('/')
+    );
     const destination = join(targetDir, file);
     seen.add(destination);
     const exists = await pathExists(destination);
@@ -512,10 +519,17 @@ async function planSyncFile(file, { targetDir, options, platforms, seen }) {
     return null;
   }
 
-  const source = join(templateRoot, file);
+  const source = join(
+    templateRoot,
+    ...hostRegistry.localizedSource(file, options.language).split('/')
+  );
   const exists = await pathExists(destination);
   if (hostRegistry.isManagedBlockFile(file)) {
     return await buildManagedBlockSyncAction({ source, destination, exists, options, relativePath: file });
+  }
+
+  if (exists && hostRegistry.isForceProtectedSyncFile(file)) {
+    return { action: 'protected', source, destination, relativePath: file };
   }
 
   const protectedFile = hostRegistry.isProtectedSyncFile(file) && !options.force && exists;

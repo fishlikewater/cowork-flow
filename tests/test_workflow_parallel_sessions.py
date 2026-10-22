@@ -655,6 +655,10 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
 
     def test_task_planning_skills_require_parallel_scope_fields(self) -> None:
         text = (ROOT / "template" / "skills" / "task-planning" / "SKILL.md").read_text(encoding="utf-8")
+        template = (ROOT / "template" / ".cowork-flow" / "plan-template.md").read_text(encoding="utf-8")
+        english_template = (
+            ROOT / "template" / "locales" / "en-US" / ".cowork-flow" / "plan-template.md"
+        ).read_text(encoding="utf-8")
         self.assertIn("executable scope", text)
         self.assertIn("acceptance criteria", text)
         self.assertIn("Task Briefs, Not Design Docs", text)
@@ -663,13 +667,27 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
         self.assertIn("Tiny", text)
         self.assertIn("Normal", text)
         self.assertIn("High-risk", text)
-        self.assertIn("**File Boundaries**", text)
-        self.assertIn("**Key Symbols**", text)
-        self.assertIn("**Implementation Notes**", text)
-        self.assertIn("**Test Proof**", text)
-        self.assertIn("**Completion Conditions**", text)
-        self.assertIn("**Prohibited Drift**", text)
-        self.assertIn("must stop and report back", text)
+        self.assertIn(".cowork-flow/plan-template.md", text)
+        for marker in (
+            "**File Boundaries**",
+            "**Key Symbols**",
+            "**Implementation Notes**",
+            "**Test Proof**",
+            "**Completion Conditions**",
+            "**Prohibited Drift**",
+        ):
+            self.assertIn(marker, english_template)
+        for marker in (
+            "**文件边界**",
+            "**关键符号**",
+            "**实现说明**",
+            "**测试证明**",
+            "**完成条件**",
+            "**禁止漂移**",
+        ):
+            self.assertIn(marker, template)
+        self.assertIn("must stop and report back", english_template)
+        self.assertIn("停止并报告", template)
         self.assertIn("Execution strategy guide", text)
         self.assertIn("Use serial work when slices share files", text)
         self.assertIn("Use parallel low-conflict slices only when file ownership is clean", text)
@@ -695,6 +713,6 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
             re.findall(
                 r"\*\*(File Boundaries|Key Symbols|Implementation Notes|Test Proof|"
                 r"Verification Command|Completion Conditions|Prohibited Drift)\*\*",
-                text,
+                english_template,
             ),
         )

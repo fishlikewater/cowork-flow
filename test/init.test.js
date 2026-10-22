@@ -591,7 +591,7 @@ test('init uses platform selector and then prompts for developer', async (t) => 
     },
     prompt: async (message) => {
       prompts.push(message);
-      return 'alice';
+      return /language/i.test(message) ? 'en-US' : 'alice';
     }
   });
 
@@ -602,7 +602,9 @@ test('init uses platform selector and then prompts for developer', async (t) => 
     selectorCalls[0].choices.map((choice) => choice.value),
     ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code', 'qoder']
   );
-  assert.match(prompts[0], /Developer name/);
+  assert.match(prompts[0], /Project language/);
+  assert.match(prompts[1], /Developer name/);
+  assert.match(await readText(join(target, '.cowork-flow', 'config.yaml')), /^language: "en-US"$/m);
   assert.equal(await exists(join(target, '.codex')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'codex', 'adapter.yaml')), false);
   assert.equal(await exists(join(target, '.cowork-flow', 'adapters', 'opencode', 'adapter.yaml')), true);
@@ -626,4 +628,115 @@ test('init preserves existing developer identity even with force', async (t) => 
   assert.equal(code, 0);
   assert.equal(await readText(join(target, '.cowork-flow', '.developer')), 'name=existing\ninitialized_at=old\n');
   assert.match(io.stdout, /Developer already initialized: existing/);
+});
+
+test('init writes the selected language into config.yaml', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main(
+    ['init', target, '--developer', 'codex', '--platform', 'codex', '--language', 'en'],
+    { io, prompt: null }
+  );
+
+  assert.equal(code, 0, io.stderr);
+  assert.match(await readText(join(target, '.cowork-flow', 'config.yaml')), /^language: "en-US"$/m);
+  assert.match(io.stdout, /Language initialized: en-US/);
+});
+
+test('init defaults to zh-CN without an interactive language prompt', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main(
+    ['init', target, '--developer', 'codex', '--platform', 'codex'],
+    { io, prompt: null }
+  );
+
+  assert.equal(code, 0, io.stderr);
+  assert.match(await readText(join(target, '.cowork-flow', 'config.yaml')), /^language: "zh-CN"$/m);
+  assert.match(io.stdout, /Language initialized: zh-CN \(default\)/);
+});
+
+test('init rejects an unsupported language before creating the target', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main(
+    ['init', target, '--developer', 'codex', '--platform', 'codex', '--language', 'fr'],
+    { io, prompt: null }
+  );
+
+  assert.equal(code, 2);
+  assert.equal(await exists(target), false);
+  assert.match(io.stderr, /Unsupported language: fr/);
+});
+
+test('init preserves an existing config language even with force', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const configFile = join(target, '.cowork-flow', 'config.yaml');
+  const content = 'custom: true\nlanguage: "en-US"\n';
+  await mkdir(join(target, '.cowork-flow'), { recursive: true });
+  await writeFile(configFile, content, 'utf8');
+  const io = createIo();
+
+  const code = await main(
+    ['init', target, '--force', '--developer', 'codex', '--platform', 'codex', '--language', 'zh-CN'],
+    { io, prompt: null }
+  );
+
+  assert.equal(code, 0, io.stderr);
+  assert.equal(await readText(configFile), content);
+  assert.match(io.stdout, /Language already initialized: en-US/);
+  assert.match(io.stdout, /protected=/);
+});
+
+test('init dry-run reports the selected language without writing config', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+
+  const code = await main(
+    ['init', target, '--dry-run', '--developer', 'codex', '--platform', 'codex', '--language', 'en-US'],
+    { io, prompt: null }
+  );
+
+  assert.equal(code, 0, io.stderr);
+  assert.match(io.stdout, /would-create=\.cowork-flow\/config\.yaml for language en-US/);
+  assert.equal(await exists(join(target, '.cowork-flow', 'config.yaml')), false);
+});
+
+test('init uses the default language when the prompt is blank', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+  const prompts = [];
+
+  const code = await main(['init', target], {
+    io,
+    selectPlatforms: async () => ['codex'],
+    prompt: async (message) => {
+      prompts.push(message);
+      return /language/i.test(message) ? '' : 'alice';
+    }
+  });
+
+  assert.equal(code, 0, io.stderr);
+  assert.match(await readText(join(target, '.cowork-flow', 'config.yaml')), /^language: "zh-CN"$/m);
+  assert.match(prompts[0], /Project language/);
+});
+
+test('init warns when --language conflicts with the existing config', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const configFile = join(target, '.cowork-flow', 'config.yaml');
+  await mkdir(join(target, '.cowork-flow'), { recursive: true });
+  await writeFile(configFile, 'language: "en-US"\n', 'utf8');
+  const io = createIo();
+
+  const code = await main(
+    ['init', target, '--developer', 'codex', '--platform', 'codex', '--language', 'zh-CN'],
+    { io, prompt: null }
+  );
+
+  assert.equal(code, 0, io.stderr);
+  assert.equal(await readText(configFile), 'language: "en-US"\n');
+  assert.match(io.stderr, /wins over --language zh-CN/);
 });

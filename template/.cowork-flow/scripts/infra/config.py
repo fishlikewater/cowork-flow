@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from infra.paths import DIR_WORKFLOW, get_repo_root
@@ -18,7 +19,22 @@ DEFAULT_PARTY_MODE_V2_MAX_DRIFT_WARNINGS = 2
 DEFAULT_PARTY_MODE_V2_FRESH_CONTEXT_PER_ROUND = True
 DEFAULT_PARTY_MODE_V2_REQUIRE_CURRENT_ROUND_ONLY = True
 
+DEFAULT_LANGUAGE = "zh-CN"
+SUPPORTED_LANGUAGES = ("zh-CN", "en-US")
+LANGUAGE_ALIASES = {
+    "zh": "zh-CN",
+    "zh-cn": "zh-CN",
+    "zh_cn": "zh-CN",
+    "en": "en-US",
+    "en-us": "en-US",
+    "en_us": "en-US",
+}
+
 CONFIG_FILE = "config.yaml"
+
+
+class UnsupportedLanguageError(ValueError):
+    """The config declares a language the runtime does not support."""
 
 
 def _unquote(value: str) -> str:
@@ -115,6 +131,75 @@ def _load_config(repo_root: Path | None = None) -> dict:
         return _parse_simple_yaml(content)
     except (OSError, IOError):
         return {}
+
+
+def normalize_language(value: object) -> str | None:
+    """Canonical language for a supported value, otherwise None."""
+    if not isinstance(value, str):
+        return None
+    return LANGUAGE_ALIASES.get(value.strip().lower())
+
+
+_LANGUAGE_KEY_RE = re.compile(r"^language\s*:\s*(.*)$")
+
+
+def _read_language_setting(
+    repo_root: Path | None = None,
+) -> tuple[str | None, bool, bool]:
+    """The explicit top-level language scalar.
+
+    Returns `(raw, present, duplicate)`. Only top-level `language:` lines count.
+    Two keys, an empty value, a glued comment, or trailing junk are left for
+    `normalize_language` to reject, matching the Node reader.
+    """
+    config_file = _get_config_path(repo_root)
+    try:
+        content = config_file.read_text(encoding="utf-8")
+    except (OSError, IOError):
+        return None, False, False
+
+    entries: list[str] = []
+    for raw_line in content.splitlines():
+        if raw_line.startswith((" ", "\t")):
+            continue
+        match = _LANGUAGE_KEY_RE.match(raw_line)
+        if match:
+            entries.append(match.group(1))
+    if not entries:
+        return None, False, False
+    if len(entries) > 1:
+        return None, True, True
+    raw = _unquote(_strip_comment(entries[0].strip())).strip()
+    return raw, True, False
+
+
+def get_language(
+    repo_root: Path | None = None,
+    *,
+    strict: bool = False,
+) -> str:
+    """Task/plan artifact language from the project config.
+
+    A missing file or key yields the default. An explicit unsupported value or
+    duplicate `language` keys raises when strict is set; runtime generation uses
+    the non-strict form so a config typo cannot block task creation.
+    """
+    raw, present, duplicate = _read_language_setting(repo_root)
+    if not present:
+        return DEFAULT_LANGUAGE
+    canonical = None if duplicate else normalize_language(raw)
+    if canonical is not None:
+        return canonical
+    if strict:
+        detail = (
+            "duplicate language keys"
+            if duplicate
+            else f"unsupported language {raw!r}"
+        )
+        raise UnsupportedLanguageError(
+            detail + "; expected one of: " + ", ".join(SUPPORTED_LANGUAGES)
+        )
+    return DEFAULT_LANGUAGE
 
 
 

@@ -17,23 +17,30 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from services.decision_anchor_schema import (
+    ACCEPTANCE,
+    ACCEPTANCE_RE,
+    GOAL,
+    HEADING_RE,
+    REJECTED,
+    SCOPE,
+    VERIFICATION,
+    canonical_section,
+)
+
 GOAL_TRUNCATE = 300
 VERIFY_COMMAND_TRUNCATE = 120
 VERIFY_COMMAND_MAX = 10
 SCOPE_BOUNDARY_TRUNCATE = 160
-ANCHOR_SECTIONS = ("目标", "验收标准", "被拒方案", "验证命令", "范围边界")
-ACCEPTANCE_RE = re.compile(
-    r"^\s*-\s*(?:\[([ xX])\]?\s*)?(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$"
-)
 REJECTED_RE = re.compile(r"^\s*-\s*\*\*(.+?)\*\*")
-_HEADING_RE = re.compile(r"^##\s*(.+?)\s*$")
 
 
 def parse_decision_anchor(text: str) -> dict[str, Any]:
     """Extract goal / acceptance criteria / rejected option names / declared
     verification commands / scope boundary from a decision-anchor.md body.
-    Section format is frozen by spec/contracts/decision-anchor.md; parsing is
-    line-level and degrades to empty values when sections are missing."""
+    Section headings may be the Chinese set or the English aliases (see
+    spec/contracts/decision-anchor.md); parsing is line-level and degrades to
+    empty values when sections are missing."""
     goal_lines: list[str] = []
     acceptance: list[dict[str, str]] = []
     rejected: list[str] = []
@@ -41,15 +48,14 @@ def parse_decision_anchor(text: str) -> dict[str, Any]:
     scope_boundary = ""
     section: str | None = None
     for raw in text.splitlines():
-        heading = _HEADING_RE.match(raw.strip())
+        heading = HEADING_RE.match(raw.strip())
         if heading:
-            name = heading.group(1)
-            section = name if name in ANCHOR_SECTIONS else None
+            section = canonical_section(heading.group(1))
             continue
-        if section == "目标":
+        if section == GOAL:
             if raw.strip():
                 goal_lines.append(raw.strip())
-        elif section == "验收标准":
+        elif section == ACCEPTANCE:
             match = ACCEPTANCE_RE.match(raw)
             if match:
                 acceptance.append(
@@ -59,17 +65,17 @@ def parse_decision_anchor(text: str) -> dict[str, Any]:
                         "checked": match.group(1) in ("x", "X"),
                     }
                 )
-        elif section == "被拒方案":
+        elif section == REJECTED:
             match = REJECTED_RE.match(raw)
             if match:
                 rejected.append(match.group(1).strip())
-        elif section == "验证命令":
+        elif section == VERIFICATION:
             command = raw.strip()
             if command.startswith("- "):
                 command = command[2:].strip()
             if command and len(verify_commands) < VERIFY_COMMAND_MAX:
                 verify_commands.append(command[:VERIFY_COMMAND_TRUNCATE])
-        elif section == "范围边界":
+        elif section == SCOPE:
             if raw.strip() and not scope_boundary:
                 scope_boundary = raw.strip()[:SCOPE_BOUNDARY_TRUNCATE]
     return {

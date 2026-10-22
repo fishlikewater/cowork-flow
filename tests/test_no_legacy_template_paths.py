@@ -156,10 +156,11 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
             self.assertIn("does not force dispatch", text)
             self.assertIn("simple executable plus arguments", text)
             self.assertIn("No shell pipes, redirects, or command chaining", text)
+            self.assertIn("Output language for generated task and plan artifacts", text)
             self.assertNotIn("verification:", text)
             self.assertNotIn("Project-specific commands", text)
             self.assertEqual(
-                ["codex", "party_mode_v2"],
+                ["language", "codex", "party_mode_v2"],
                 re.findall(r"^([a-z0-9_]+):", text, re.MULTILINE),
             )
 

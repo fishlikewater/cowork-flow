@@ -32,6 +32,11 @@ from services.context_paths import (
     normalize_context_path,
     prepare_context_entry,
 )
+from services.decision_anchor_schema import (
+    REQUIRED_SECTIONS,
+    present_sections,
+    section_headings,
+)
 from services.plan_binding import normalize_plan_file, plan_file_blockers
 from services.task_gate_profiles import (
     GATE_PROFILE_STRICT,
@@ -360,13 +365,14 @@ class TaskContextService:
 
     @staticmethod
     def _decision_anchor_section_blockers(anchor_text: str) -> list[str]:
-        blockers: list[str] = []
-        for section in ("## 目标", "## 验收标准"):
-            if section not in anchor_text:
-                blockers.append(
-                    f"decision-anchor.md missing required section: {section}"
-                )
-        return blockers
+        present = present_sections(anchor_text)
+        return [
+            "decision-anchor.md missing required section: "
+            + " (or ".join(f"## {heading}" for heading in section_headings(section))
+            + ")"
+            for section in REQUIRED_SECTIONS
+            if section not in present
+        ]
 
     @staticmethod
     def _is_tiny_task(task_data: dict) -> bool:

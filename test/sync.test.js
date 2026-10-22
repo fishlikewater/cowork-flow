@@ -457,15 +457,19 @@ test('sync keeps unverifiable Skill retirements, cleans non-Skill ones, and touc
   assert.equal(await readText(customSkill), 'custom content\n');
 });
 
-test('sync overwrites protected files with --force', async (t) => {
+test('sync overwrites protected files with --force except force-protected config', async (t) => {
   const target = await createTempDir(t);
   assert.equal(await main(['init', target, '--developer', 'codex', '--platform', 'codex'], { io: createIo() }), 0);
   await writeFile(join(target, 'AGENTS.md'), 'custom agents\n', 'utf8');
+  const configFile = join(target, '.cowork-flow', 'config.yaml');
+  const config = 'language: "en-US"\ncustom: true\n';
+  await writeFile(configFile, config, 'utf8');
 
   const code = await main(['sync', target, '--force'], { io: createIo() });
 
   assert.equal(code, 0);
   assert.notEqual(await readText(join(target, 'AGENTS.md')), 'custom agents\n');
+  assert.equal(await readText(configFile), config);
 });
 
 test('sync dry-run does not write safe file updates', async (t) => {

@@ -106,5 +106,32 @@ class DecisionAnchorSchemaTest(unittest.TestCase):
             )
 
 
+    def test_english_anchor_contract_keeps_the_machine_rules(self) -> None:
+        path = (
+            ROOT
+            / "template"
+            / "locales"
+            / "en-US"
+            / ".cowork-flow"
+            / "spec"
+            / "contracts"
+            / "decision-anchor.md"
+        )
+        content = path.read_text(encoding="utf-8")
+
+        self.assertIn("## Acceptance Criteria", content)
+        self.assertIn("## Verification Commands", content)
+        self.assertIn("LIFECYCLE-REVIEW-003", content)
+        self.assertIn("The formal release does not auto-migrate a legacy `prd.md`", content)
+        self.assertEqual(
+            [["Goal", "Acceptance Criteria", "Rejected Options", "Key Assumptions",
+              "Scope Boundary", "Verification Commands"]],
+            [
+                re.findall(r"^## (.+)$", block, re.MULTILINE)
+                for block in re.findall(r"```markdown\n(.*?)```", content, re.DOTALL)
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

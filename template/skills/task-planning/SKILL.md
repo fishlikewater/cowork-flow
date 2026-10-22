@@ -14,6 +14,7 @@ Before writing a plan, confirm the request has an executable scope, acceptance c
 Read:
 
 - Active task `decision-anchor.md`.
+- The installed `.cowork-flow/plan-template.md`.
 - Relevant decision-anchor, design, guide, or spec files.
 - Relevant `.cowork-flow/spec/` indexes and target specs.
 - `.cowork-flow/spec/guides/index.md` for non-trivial, ambiguous, cross-layer, or reusable-work planning.
@@ -23,111 +24,29 @@ Read:
 
 Save plans to `.cowork-flow/plans/YYYY-MM-DD-<slug>.md` unless the user asks for another path.
 
+Use the installed `.cowork-flow/plan-template.md` as the plan skeleton. It carries the execution rule, header table, goal and acceptance sections, global constraints, file boundaries, the per-task brief fields, and the final verification section, so this Skill does not restate them.
+
+If the installed template is missing, stop and report it (run `cwf project sync .` to install it); do not invent a replacement shape.
+
+The template is distributed at install time for the project language configured in `.cowork-flow/config.yaml` (`zh-CN` by default, or `en-US`). Write the plan in that language. Keep the template's machine-readable goal line and `AC-NNN` identifiers unchanged so task creation and workflow gates can parse them. Do not translate paths, commands, code identifiers, or spec file names.
+
 ### Plan Style: Task Briefs, Not Design Docs
 
 Plans exist to prevent implementation drift. They must guide implementation by pinning task order, file boundaries, key symbols, the core patch shape, test proof, completion conditions, and prohibited drift. They are not architecture essays and must not explain every possible option.
 
 Do not write option-comparison tables unless the user explicitly asks. Do not copy complete implementations into the plan. The plan should expose the core patch shape: where to change, what behavior changes, what key branch or pseudocode should guide the edit, how tests prove it, and which boundaries must not be crossed.
 
-Start with a concise brief:
-
-```markdown
-# <Feature> Implementation Plan
-
-> Execution rule: this plan exists to prevent implementation drift. The implementer must work through tasks in order.
-> If the plan conflicts with current code facts, a plan-external file becomes necessary, or a test fails for an unplanned reason, stop and report back instead of expanding scope.
->
-> For formal fixed-agent work: create a runtime context with `.cowork-flow/run subagent init`, pass `cowork_runtime_context_id: <runtime_context_id>` through the active Host Adapter, then dispatch `cowork-implement` or `cowork-check`. Close the runtime context after verification.
-
-| Field | Content |
-|----|------|
-| **Goal** | <One sentence describing the observable behavior change> |
-| **Task Type** | Tiny / Normal / High-risk: <reason> |
-| **Strategy** | Serial / Parallel: <why> |
-| **Success Criteria** | AC-001 / AC-002 / AC-003 |
-| **Final Verification** | `<command>` -> exit 0; clause-by-clause check against applicable `.cowork-flow/spec/<dev_type>/` rules and project gates -> `pass` / `not_applicable` per clause |
-| **Primary Risk** | Low / Medium / High: <one sentence> |
-
-## Goal
-
-<1-3 sentences describing the expected observable behavior.>
-
-## Acceptance Criteria
-
-- AC-001: <observable behavior>
-- AC-002: <observable behavior>
-
-## Global Constraints
-
-- <Architecture boundary, compatibility requirement, command, or output field that must be preserved>
-- <Explicitly prohibited scope expansion>
-
-## File Boundaries
-
-- `path/a.py`: <responsibility; only change this function or region>
-- `tests/test_a.py`: <responsibility; only add or modify these tests>
-
-## Tasks
-```
-
-Then list task briefs, followed by integrated verification and completion checks.
+Fill the template in order: header table and goal first, then acceptance criteria, global constraints, file boundaries, one task brief per executable step, and a final verification section. Do not add a second plan shape or rename the template sections.
 
 ## Task Rules
 
 - Classify the plan before writing tasks:
   - **Tiny**: pure docs, names, comments, or no-behavior cleanup. Use file boundaries, completion conditions, and one verification command.
-  - **Normal**: ordinary behavior, test, or workflow guidance changes. Use the full task brief below.
+  - **Normal**: ordinary behavior, test, or workflow guidance changes. Use the full task brief.
   - **High-risk**: workflow, runtime, template, spec, hook, state-machine, migration, or security-sensitive changes. Use the full task brief plus code-fact sources and explicit drift boundaries.
 - Each task names exact files to create, modify, or test.
 - Each task is small enough to execute and verify independently.
-- Every Normal or High-risk task must use this brief format:
-
-  ```markdown
-  ### Task N: <small goal>
-
-  **Purpose**
-  - <Observable behavior after this task is complete>
-
-  **Code Fact Sources**
-  - Read: `path/a.py::function_name`
-  - Read: `tests/test_a.py::test_existing_behavior`
-
-  **File Boundaries**
-  - Create / Modify / Test: `path/a.py` (only change <function/region>)
-  - Test: `tests/test_a.py` (only change <test/region>)
-
-  **Key Symbols**
-  - Change: `function_name()`, `ClassName.method()`, `<config-key>`
-  - Preserve: `existing_helper()`, output field `<field>`
-
-  **Implementation Notes**
-  ```python
-  # Core control-flow sketch; adjust names to match existing code.
-  # Do not copy a complete implementation into the plan.
-  ...
-  ```
-
-  **Test Proof**
-  - `tests/test_a.py::test_x`: proves <specific behavior>
-  - Core assertion: <one sentence describing the assertion, not only the test name>
-
-  **Verification Command**
-  ```bash
-  <command>
-  ```
-
-  When changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, add the deciding command or a spec/gate check line (`pass` / `not_applicable` with reason; format example in `decision-anchor.md`) here; it is a strong review reminder, not a hard gate.
-
-  **Completion Conditions**
-  - <2-4 checkable conditions>
-
-  **Prohibited Drift**
-  - <2-5 explicit prohibited changes>
-
-  **Deviation Conditions**
-  - If <plan-external file/layer> becomes necessary, must stop and report back because the file boundary is wrong.
-  ```
-
+- Every Normal or High-risk task fills every required field in the template's task brief: Purpose, Code Fact Sources, File Boundaries, Key Symbols, Implementation Notes, Test Proof, Verification Command, Completion Conditions, Prohibited Drift, and Deviation Conditions.
 - For Tiny tasks, keep the brief short but still name exact file boundaries, completion conditions, and verification commands.
 - For behavior changes, include a failing test before implementation when behavior can be tested.
 - For implementation tasks whose changed files are covered by `.cowork-flow/spec/` requirements, name the covered spec files in the plan and add the clause check to the task's `Verification Command` and the plan's `Final Verification`: run the deciding command when one exists, otherwise check clause by clause and record `pass` / `not_applicable` with reason. This is a strong review reminder, not a separate hard gate.
@@ -149,6 +68,12 @@ Then list task briefs, followed by integrated verification and completion checks
 | "This task does not need a verification command." | No verification means no completion signal. Every task needs an executable verification command. | Add at least one automated check, such as typecheck, test, lint, or build. |
 | "The plan should explore every alternative." | Heavy option analysis slows routine implementation and hides the path to execute. | State the chosen path and drift boundaries. Add option analysis only when the user asks or the decision is genuinely architectural. |
 
+## Fixed-Agent Dispatch
+
+> For formal fixed-agent work: create a runtime context with `.cowork-flow/run subagent init`, pass `cowork_runtime_context_id: <runtime_context_id>` through the active Host Adapter, then dispatch `cowork-implement` or `cowork-check`. Close the runtime context after verification.
+
+Use this path when a task is dispatched to a fixed agent. The plan owns the task boundaries; the runtime context binds the dispatched agent to the current task.
+
 ## Plan Approval Gate
 
 A plan can be marked approved only when all conditions hold:
@@ -156,6 +81,7 @@ A plan can be marked approved only when all conditions hold:
 - Every task in the plan has clear acceptance criteria.
 - Every task has implementation steps and verification commands.
 - Task dependencies are explicit, including whether work is serial or parallelizable.
+- The plan uses the installed `.cowork-flow/plan-template.md` shape and the configured output language.
 
 `implement.jsonl` is the current task's context index — the files in scope and
 the spec pointers it needs — not the task list. The plan owns the task list.
@@ -189,7 +115,8 @@ Before handoff:
 
 1. Confirm every `decision-anchor.md` acceptance criterion maps to a task.
 2. Search the plan for placeholders.
-3. Confirm every Normal or High-risk task has file boundaries, key symbols, implementation notes, test proof, completion conditions, and prohibited drift.
+3. Confirm every Normal or High-risk task fills every required brief field in the template.
 4. Check names, paths, command syntax, and expected outputs.
 5. Confirm the plan says to stop and report back when code facts conflict with the plan, a plan-external file becomes necessary, or a test fails for an unplanned reason.
 6. Confirm Final Verification carries the applicable `.cowork-flow/spec/<dev_type>/` clause check, or states why no spec file applies.
+7. Confirm the plan is written in the configured language and keeps the machine-readable goal line and `AC-NNN` identifiers unchanged.

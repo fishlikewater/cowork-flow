@@ -9,6 +9,7 @@ import {
   formatReadinessReport,
   summarizePlan
 } from '../lib/copy-template.js';
+import { readProjectLanguageStrict } from '../lib/language.js';
 
 import { parseFlags } from '../lib/cli-flags.js';
 
@@ -25,7 +26,10 @@ function parseSourceRefreshArgs(args) {
 
 export async function runSourceRefresh(args, { io, fileSystem } = {}) {
   const options = parseSourceRefreshArgs(args);
-  const plan = await buildSourceCheckoutRefreshPlan(options.target);
+  const language = await readProjectLanguageStrict(options.target);
+  const plan = await buildSourceCheckoutRefreshPlan(options.target, {
+    language: language.language
+  });
 
   await applyPlan(plan, { dryRun: options.dryRun, fileSystem });
   io.writeOut(summarizePlan(plan, options.dryRun));

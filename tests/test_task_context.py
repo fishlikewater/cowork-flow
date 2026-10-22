@@ -495,6 +495,28 @@ class TaskContextServiceTest(unittest.TestCase):
 
             self.assertEqual((), blockers)
 
+    def test_start_blockers_accept_english_anchor_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (task_dir / "task.json").write_text(
+                '{"status": "planning", "meta": {"taskType": "Tiny"}}\n',
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                "## Goal\n\nEnglish goal.\n\n"
+                "## Acceptance Criteria\n\n- [ ] AC-001: English row\n",
+                encoding="utf-8",
+            )
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md", "reason": "Demo"}\n',
+                encoding="utf-8",
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+            self.assertEqual((), blockers)
+
     def test_start_blockers_waive_plan_and_dev_type_for_a_light_strict_task(
         self,
     ) -> None:

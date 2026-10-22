@@ -650,5 +650,87 @@ class HostAssetManifestTest(unittest.TestCase):
                 )
 
 
+    def test_manifest_declares_localization_and_force_protected_config(self) -> None:
+        manifest = self.host_manifest.load_host_manifest(TEMPLATE)
+
+        self.assertEqual("zh-CN", manifest.localization.default)
+        self.assertEqual(("zh-CN", "en-US"), manifest.localization.supported)
+        self.assertEqual(
+            (
+                ".cowork-flow/spec/contracts/decision-anchor.md",
+                ".cowork-flow/plan-template.md",
+            ),
+            manifest.localization.assets["en-US"],
+        )
+        self.assertEqual(
+            (".cowork-flow/config.yaml",),
+            manifest.sync_policy.force_protected_files,
+        )
+
+    def test_manifest_rejects_unknown_localization_language(self) -> None:
+        def mutate(data: dict) -> None:
+            data["localization"]["assets"]["fr"] = [".cowork-flow/plan-template.md"]
+
+        errors = self._validate_mutated_manifest(mutate)
+
+        self.assertTrue(
+            any("language is not supported: fr" in error for error in errors),
+            errors,
+        )
+
+    def test_manifest_rejects_overriding_the_default_language(self) -> None:
+        def mutate(data: dict) -> None:
+            data["localization"]["assets"]["zh-CN"] = [".cowork-flow/plan-template.md"]
+
+        errors = self._validate_mutated_manifest(mutate)
+
+        self.assertTrue(
+            any("must not override the default language" in error for error in errors),
+            errors,
+        )
+
+    def test_manifest_requires_declared_locale_assets_to_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "template"
+            shutil.copytree(TEMPLATE, template)
+            (
+                template
+                / "locales"
+                / "en-US"
+                / ".cowork-flow"
+                / "plan-template.md"
+            ).unlink()
+
+            errors = self.host_manifest.validate_host_assets(template)
+
+        self.assertIn(
+            "missing localized asset: locales/en-US/.cowork-flow/plan-template.md",
+            errors,
+        )
+
+    def test_schema_declares_localization_and_force_protected_config(self) -> None:
+        schema = json.loads(
+            (
+                TEMPLATE
+                / ".cowork-flow"
+                / "spec"
+                / "schemas"
+                / "host-assets.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            {"$ref": "#/$defs/localization"},
+            schema["properties"]["localization"],
+        )
+        sync_policy = schema["$defs"]["syncPolicy"]
+        self.assertIn("forceProtectedFiles", sync_policy["properties"])
+        localization = schema["$defs"]["localization"]
+        self.assertEqual(
+            {"default", "supported", "assets"},
+            set(localization["required"]),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

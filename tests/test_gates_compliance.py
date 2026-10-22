@@ -654,5 +654,46 @@ class ExemptionMetaPayloadTest(unittest.TestCase):
         )
 
 
+class EnglishAcceptanceGateTest(unittest.TestCase):
+    def test_english_acceptance_heading_parses_ac_rows(self) -> None:
+        from services.task_gate_profiles import acceptance_row_blockers
+
+        anchor = (
+            "## Goal\n\nDemo.\n\n"
+            "## Acceptance Criteria\n\n"
+            "- [ ] AC-001: first\n"
+            "- [x] AC-002: second\n"
+        )
+        self.assertEqual([], acceptance_row_blockers(anchor))
+
+    def test_english_acceptance_heading_without_rows_blocks(self) -> None:
+        from services.task_gate_profiles import acceptance_row_blockers
+
+        blockers = acceptance_row_blockers(
+            "## Goal\n\nDemo.\n\n## Acceptance Criteria\n\nNo rows.\n"
+        )
+        self.assertTrue(
+            any("declares no acceptance criterion" in item for item in blockers),
+            blockers,
+        )
+
+    def test_mixed_heading_sets_still_find_acceptance_rows(self) -> None:
+        from services.task_gate_profiles import acceptance_row_blockers
+
+        anchor = "## Goal\n\nDemo.\n\n## 验收标准\n\n- [ ] AC-001: row\n"
+        self.assertEqual([], acceptance_row_blockers(anchor))
+
+    def test_english_acceptance_heading_flags_non_ac_list_rows(self) -> None:
+        from services.task_gate_profiles import acceptance_row_blockers
+
+        blockers = acceptance_row_blockers(
+            "## Acceptance Criteria\n\n- [ ] AC-001: row\n- not an AC row\n"
+        )
+        self.assertTrue(
+            any("not AC rows" in item for item in blockers),
+            blockers,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

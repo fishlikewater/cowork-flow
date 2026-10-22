@@ -50,8 +50,10 @@ cwf project init --host codex --developer alice --dry-run
 确认无误后去掉 `--dry-run`：
 
 ```bash
-cwf project init --host codex --developer alice
+cwf project init --host codex --developer alice --language en-US
 ```
+
+不传 `--language` 时默认 `zh-CN`；交互终端会询问，非交互环境使用默认值。该选择写入 `.cowork-flow/config.yaml`，只影响任务和计划产物（`decision-anchor.md` 与 `plan-template.md`）。
 
 把 `codex` 换成你正在使用的宿主：
 
@@ -59,7 +61,7 @@ cwf project init --host codex --developer alice
 
 命令默认在当前目录初始化；新项目把目标目录作为位置参数传入，例如 `cwf project init ./my-project --host codex`，再进入该目录。省略 `--host` 时，会先按项目里已有的宿主标记（如 `.codex/`、`.claude/`）自动判定；没有标记的交互终端会让你选择，非交互环境则需要显式传入。只有确实会在多个宿主中使用时，才用 `--host all`。
 
-初始化会加入 `AGENTS.md`、`.cowork-flow/` 和对应的宿主文件，不会修改业务代码。已有 `.developer` 不会被覆盖；首次初始化时显式 `--developer` 优先于 `git config user.name`。git 也没有身份时，交互终端会提示，非交互环境报错（`--dry-run` 只报告 `would-skip`，不失败）。`--platform` / `--platforms` 是 `--host` 的兼容别名。已有项目建议始终先跑 `--dry-run`。
+初始化会加入 `AGENTS.md`、`.cowork-flow/` 和对应的宿主文件，不会修改业务代码。已有 `.developer` 不会被覆盖；首次初始化时显式 `--developer` 优先于 `git config user.name`。git 也没有身份时，交互终端会提示，非交互环境报错（`--dry-run` 只报告 `would-skip`，不失败）。`--platform` / `--platforms` 是 `--host` 的兼容别名。已有 `.cowork-flow/config.yaml` 时其中的 `language` 优先，`--force` 也不会重写它；要切换语言请直接编辑该文件后运行 `cwf project sync .`。已有项目建议始终先跑 `--dry-run`。
 
 ### 3. 完成宿主设置
 
@@ -98,7 +100,7 @@ cwf project sync . --dry-run
 cwf project sync .
 ```
 
-`project sync` 只更新 cowork-flow 管理的文件。已有配置、`spec/backend|frontend|guides|references`、任务和计划默认保留；框架维护的 `spec/contracts|runtime|schemas` 与 `spec/index.md` 随 sync 更新。**正式版旧资产清理** 会按发布清单删除已废弃的 cowork-flow 文件，不触碰其它内容。机器级宿主组件的升级方式见 [宿主接入](docs/hosts.md)。
+`project sync` 只更新 cowork-flow 管理的文件。已有配置、`spec/backend|frontend|guides|references`、任务和计划默认保留；框架维护的 `spec/contracts|runtime|schemas` 与 `spec/index.md` 随 sync 更新。`.cowork-flow/config.yaml` 是项目配置，`sync --force` 也不会覆盖它。sync 会读取其中的 `language`，只分发对应语言的 `decision-anchor.md` 合同与 `plan-template.md`；任务和计划默认跟随该语言，用户明确要求时可以覆盖。**正式版旧资产清理** 会按发布清单删除已废弃的 cowork-flow 文件，不触碰其它内容。机器级宿主组件的升级方式见 [宿主接入](docs/hosts.md)。
 
 ## 遇到问题
 
@@ -117,7 +119,7 @@ cwf project sync .
 
 | 命令 | 用途 |
 |---|---|
-| `cwf project init [target] --host <host> [--developer <name>] [--dry-run] [--force]` | 初始化项目 |
+| `cwf project init [target] --host <host> [--developer <name>] [--language zh-CN|en-US] [--dry-run] [--force]` | 初始化项目 |
 | `cwf project sync [target] [--dry-run] [--force]` | 更新项目内由 cowork-flow 管理的文件 |
 | `cwf host add <host> [--component <name>] [--dry-run] [--force] [--prune-old] [--uninstall]` | 安装机器级宿主组件 |
 | `cwf host remove <host> [--component <name>] [--dry-run] [--force]` | 卸载机器级宿主组件 |

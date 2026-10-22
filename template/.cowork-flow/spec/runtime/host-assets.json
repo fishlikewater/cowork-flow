@@ -442,13 +442,30 @@
   ],
   "excludedPrefixes": [
     "skills/",
+    "locales/",
     ".zcode/",
     ".qoder/"
   ],
+  "localization": {
+    "default": "zh-CN",
+    "supported": [
+      "zh-CN",
+      "en-US"
+    ],
+    "assets": {
+      "en-US": [
+        ".cowork-flow/spec/contracts/decision-anchor.md",
+        ".cowork-flow/plan-template.md"
+      ]
+    }
+  },
   "syncPolicy": {
     "protectedFiles": [
       ".cowork-flow/config.yaml",
       ".cowork-flow/.developer"
+    ],
+    "forceProtectedFiles": [
+      ".cowork-flow/config.yaml"
     ],
     "protectedPrefixes": [
       ".cowork-flow/spec/backend/",

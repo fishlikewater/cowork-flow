@@ -54,7 +54,8 @@
 
 - **已拍板（2026-10-21）：详细文档维持中文，README 保持中英双语。** 英文社区是 spec-driven development 讨论的主场，但当前详细文档约 590 行、随 npm 以纯 Markdown 发布，全量双语会引入翻译漂移与文档框架成本。决定：`docs/`、`template/AGENTS.md`、`CHANGELOG.md` 维持中文；`README.md` / `README.en.md` 双语同步；不引入 VuePress/mkdocs 或目录式双语。未来若英文需求被证实，采用并列 `docs/*.en.md`，只覆盖安装面文档，并新增“英文文件与中文源文件标题集合一致”的漂移门禁后再落地。
   - 2026-10-13 澄清：「文档语言：中文」约束的是下游宿主工作时**产出文档**的语言，不要求把随包分发的产品载荷（`template/skills/`、`template/.cowork-flow/spec/contracts/`、`presets/`）翻译成中文。
-  - 2026-10-21（第一步）：随包分发的框架 spec 说明文档统一为英文——`spec/index.md`、`spec/runtime/index.md`、`spec/schemas/index.md`、`spec/references/**`。`decision-anchor.md` 的六个解析标题、`workflow-state-templates.md` 的注入块、`backend/frontend/guides` 与 `template/AGENTS.md` 仍为中文；前两项待双语解析迁移。`references/` 受项目同步保护，已装项目需手动刷新才能拿到英文副本。
+  - 2026-10-21（第一步）：随包分发的框架 spec 说明文档统一为英文——`spec/index.md`、`spec/runtime/index.md`、`spec/schemas/index.md`、`spec/references/**`。`decision-anchor.md` 的六个解析标题、`workflow-state-templates.md` 的注入块、`backend/frontend/guides` 与 `template/AGENTS.md` 仍为中文。
+  - 2026-10-22（第二步）：安装时可选择 `zh-CN` / `en-US`，写入受保护的 `.cowork-flow/config.yaml`，只影响 `decision-anchor.md` 与计划产物。解析器永久接受中英两套标题；`decision-anchor.md` 保留中文合同并新增英文变体，`workflow-state-templates.md`、`AGENTS.md`、spec 文档与 Skill 不随该选项本地化。`references/` 仍受项目同步保护，已装项目需手动刷新才能拿到英文副本。
 - **维持缓行**：MCP 写工具（须先重开 `fact-layer-access` 契约）、新宿主接入、自创跨 agent 协议。
 - **观察项（触发条件已到）**：机器可解析 AC 是与 Spec Kit / OpenSpec 互操作的第一块砖（spec 制品 ↔ decision-anchor 映射），符合「SDD 工具之下的状态层」定位。原定「待 agent-teams 排期落定后议」，而 1.9.0 多执行者协作主线已实现，可排入讨论。
 

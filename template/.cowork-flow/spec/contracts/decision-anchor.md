@@ -8,8 +8,9 @@ the alternatives", which compresses the number of task artifacts.
 
 ## Schema
 
-These section names are literal: the runtime parser matches them exactly, so a
-translated heading would simply stop being read.
+These section names are machine-readable. The runtime parser accepts both the
+Chinese and English heading sets, and new anchors use the language configured in
+`.cowork-flow/config.yaml` (`zh-CN` is the default).
 
 ```markdown
 # Decision Anchor
@@ -38,14 +39,17 @@ translated heading would simply stop being read.
 
 ## Section requirements
 
+Both heading columns below are accepted; the left column is the `zh-CN` output
+and the right column the `en-US` output.
+
 | Section | Required | Why |
 |------|------|------|
-| `## 目标` | required | no goal, no acceptance baseline |
-| `## 验收标准` | required | `task_start` is blocked without acceptance criteria |
-| `## 被拒方案` | optional | required for brainstorming tasks, so a rejected option is not reconsidered during execution |
-| `## 关键假设` | optional | filled in for complex tasks to surface implicit constraints; not read by the runtime parser |
-| `## 范围边界` | optional | prevents scope creep |
-| `## 验证命令` | optional | filled in for complex tasks, as the basis for automated verification; when the changed files are covered by `.cowork-flow/spec/backend/` or `frontend/` rules, it must also carry the spec/gate check for the task's `dev_type` (deciding command, or clause-by-clause `pass` / `not_applicable` with reason) |
+| `## 目标` / `## Goal` | required | no goal, no acceptance baseline |
+| `## 验收标准` / `## Acceptance Criteria` | required | `task_start` is blocked without acceptance criteria |
+| `## 被拒方案` / `## Rejected Options` | optional | required for brainstorming tasks, so a rejected option is not reconsidered during execution |
+| `## 关键假设` / `## Key Assumptions` | optional | filled in for complex tasks to surface implicit constraints; not read by the runtime parser |
+| `## 范围边界` / `## Scope Boundary` | optional | prevents scope creep |
+| `## 验证命令` / `## Verification Commands` | optional | filled in for complex tasks, as the basis for automated verification; when the changed files are covered by `.cowork-flow/spec/backend/` or `frontend/` rules, it must also carry the spec/gate check for the task's `dev_type` (deciding command, or clause-by-clause `pass` / `not_applicable` with reason) |
 
 ### Machine-readable line formats (for injection)
 
@@ -84,15 +88,17 @@ After merging (5 files): `decision-anchor.md` + `implement.jsonl` + `check.jsonl
 ## Lifecycle check coupling
 
 - The preflight for `task next <dir> --run` checks that `decision-anchor.md` is
-  non-empty and requires the `## 目标` and `## 验收标准` sections to be present.
+  non-empty and requires the `## 目标` / `## Goal` and `## 验收标准` /
+  `## Acceptance Criteria` sections to be present.
 - **Gate profile `meta.gateProfile`**: a newly created task is written as
   `"strict"`; an unmarked task is treated as `"legacy"` — existing tasks are not
   retro-fitted with the stricter gate, and the profile is queryable through the
   fact view. On top of the section check, a strict task additionally requires: at
-  least one parseable `- [ ] AC-xxx: ...` row in `## 验收标准`, no duplicate AC ids,
-  no non-AC list rows in that section, and a declared `dev_type` (otherwise
-  `task specs` dev-type dispatch silently comes back shorter).
-- A `## 验收标准` row's checkbox state (`- [ ]` / `- [x]`) and the evidence records
+  least one parseable `- [ ] AC-xxx: ...` row in `## 验收标准` /
+  `## Acceptance Criteria`, no duplicate AC ids, no non-AC list rows in that
+  section, and a declared `dev_type` (otherwise `task specs` dev-type dispatch
+  silently comes back shorter).
+- An acceptance row's checkbox state (`- [ ]` / `- [x]`) and the evidence records
   (the task directory's `evidence.jsonl`) are the fact source of the completion
   gate: completion is blocked when an unchecked AC exists (`LIFECYCLE-AC-001`), a
   declared AC has no evidence (`LIFECYCLE-AC-002`), a strict task cannot read any
@@ -149,4 +155,5 @@ source; if a task directory has only `prd.md` and no `decision-anchor.md`,
 `decision-anchor.md is missing or empty`.
 
 An existing legacy task needs a human to convert the `prd.md` content into
-`decision-anchor.md`, fill in `## 目标` and `## 验收标准`, and only then start.
+`decision-anchor.md`, fill in `## 目标` / `## Goal` and `## 验收标准` /
+`## Acceptance Criteria`, and only then start.

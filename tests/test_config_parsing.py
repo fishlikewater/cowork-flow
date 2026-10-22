@@ -153,3 +153,62 @@ class ConfigHookCommandsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LanguageConfigTest(unittest.TestCase):
+    """The language key selects task/plan artifact localization."""
+
+    def setUp(self) -> None:
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
+        self.addCleanup(self._cleanup_imports)
+        self.config = importlib.import_module("infra.config")
+
+    def _cleanup_imports(self) -> None:
+        for module_name in ("infra.config", "infra.paths"):
+            sys.modules.pop(module_name, None)
+
+    def _language(self, content: str | None, *, strict: bool = False) -> str:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            if content is not None:
+                config_file = root / ".cowork-flow" / "config.yaml"
+                config_file.parent.mkdir(parents=True)
+                config_file.write_text(content, encoding="utf-8")
+            return self.config.get_language(root, strict=strict)
+
+    def test_missing_config_or_key_defaults_to_chinese(self) -> None:
+        self.assertEqual("zh-CN", self._language(None))
+        self.assertEqual("zh-CN", self._language("codex:\n  dispatch_mode: inline\n"))
+
+    def test_supported_values_and_aliases_are_canonicalized(self) -> None:
+        self.assertEqual("en-US", self._language('language: "en-US"\n'))
+        self.assertEqual("en-US", self._language('language: "en-US"\r\n'))
+        self.assertEqual("en-US", self._language("language: en\n"))
+        self.assertEqual("zh-CN", self._language('language: "zh"  # 中文\n'))
+
+    def test_nested_language_key_does_not_select_the_artifact_language(self) -> None:
+        self.assertEqual(
+            "zh-CN",
+            self._language("codex:\n  language: en-US\n"),
+        )
+
+    def test_unsupported_value_defaults_unless_strict(self) -> None:
+        content = 'language: "fr"\n'
+        self.assertEqual("zh-CN", self._language(content))
+        with self.assertRaises(self.config.UnsupportedLanguageError):
+            self._language(content, strict=True)
+
+    def test_malformed_explicit_values_are_invalid(self) -> None:
+        cases = (
+            "language:\n",
+            "language: en-US#not-a-comment\n",
+            'language: "en-US" extra\n',
+            'language: "en-US"\nlanguage: "zh-CN"\n',
+        )
+        for content in cases:
+            with self.subTest(content=content):
+                self.assertEqual("zh-CN", self._language(content))
+                with self.assertRaises(self.config.UnsupportedLanguageError):
+                    self._language(content, strict=True)

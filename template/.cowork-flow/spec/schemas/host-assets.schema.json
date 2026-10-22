@@ -56,6 +56,9 @@
     "excludedPrefixes": {
       "$ref": "#/$defs/stringList"
     },
+    "localization": {
+      "$ref": "#/$defs/localization"
+    },
     "syncPolicy": {
       "$ref": "#/$defs/syncPolicy"
     }
@@ -66,6 +69,31 @@
       "items": {
         "type": "string",
         "minLength": 1
+      }
+    },
+    "localization": {
+      "description": "Per-language asset overrides. Paths are canonical project-relative paths; the base template is the default language.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default",
+        "supported",
+        "assets"
+      ],
+      "properties": {
+        "default": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supported": {
+          "$ref": "#/$defs/stringList"
+        },
+        "assets": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/stringList"
+          }
+        }
       }
     },
     "capabilities": {
@@ -340,6 +368,9 @@
       ],
       "properties": {
         "protectedFiles": {
+          "$ref": "#/$defs/stringList"
+        },
+        "forceProtectedFiles": {
           "$ref": "#/$defs/stringList"
         },
         "protectedPrefixes": {

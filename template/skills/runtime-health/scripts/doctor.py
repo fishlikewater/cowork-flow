@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,6 +32,7 @@ from adapters.host.host_manifest import (
     validate_host_assets,
 )
 from infra.paths import DIR_WORKFLOW, get_repo_root
+from infra.config import UnsupportedLanguageError, get_language
 from infra.skill_manifest import SkillManifestError, action_owners, load_skill_manifests
 from infra.storage.operation_log import OperationLog
 from infra.storage.state_store import DEFAULT_STALE_LOCK_SECONDS, StateStore
@@ -203,6 +205,101 @@ def check_distribution(repo_root: Path) -> list[str]:
         for skill_root_target in sorted(skill_roots):
             _same_file(source, repo_root / skill_root_target / relative, errors)
     return errors
+
+
+_ANCHOR_LANGUAGE_CHECKS = {
+    "zh-CN": ("## 目标", "## 验收标准", "## 被拒方案", "## 验证命令"),
+    "en-US": ("## Goal", "## Acceptance Criteria", "## Rejected Options", "## Verification Commands"),
+}
+_PLAN_LANGUAGE_CHECKS = {
+    "zh-CN": re.compile(r"(?m)^\*\*目标(?::\*\*|\*\*:)"),
+    "en-US": re.compile(r"(?m)^\*\*Goal(?::\*\*|\*\*:)"),
+}
+
+
+def _contract_block(text: str) -> str:
+    """The schema example is the machine-readable heading source."""
+    match = re.search(r"```markdown\n(.*?)```", text, re.DOTALL)
+    return match.group(1) if match else text
+
+
+def _asset_language(path: Path, kind: str) -> str | None:
+    """Detected output language, `mixed`, or None when the asset is absent."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    if kind == "anchor":
+        block = _contract_block(text)
+        present = {
+            language
+            for language, markers in _ANCHOR_LANGUAGE_CHECKS.items()
+            if all(marker in block for marker in markers)
+        }
+    else:
+        present = {
+            language
+            for language, pattern in _PLAN_LANGUAGE_CHECKS.items()
+            if pattern.search(text)
+        }
+    if len(present) > 1:
+        return "mixed"
+    return next(iter(present), None)
+
+
+def check_language(repo_root: Path) -> list[dict[str, str]]:
+    """Report an invalid `language` value and localized-asset drift.
+
+    A missing config key or a missing asset means the project predates the
+    language option: it is not drift, so it stays silent until the first sync.
+    """
+    config_file = repo_root / DIR_WORKFLOW / "config.yaml"
+    try:
+        config_text = config_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    if not re.search(r"(?m)^language\s*:", config_text):
+        return []
+
+    try:
+        language = get_language(repo_root, strict=True)
+    except UnsupportedLanguageError as error:
+        return [
+            _issue(
+                code="CONFIG-LANGUAGE-001",
+                severity="error",
+                path=config_file.relative_to(repo_root).as_posix(),
+                message=str(error),
+                command_hint="Edit .cowork-flow/config.yaml, then run cwf project sync",
+                contract="runtime-health:language",
+            )
+        ]
+
+    issues: list[dict[str, str]] = []
+    assets = (
+        (".cowork-flow/spec/contracts/decision-anchor.md", "anchor"),
+        (".cowork-flow/plan-template.md", "plan"),
+    )
+    for relative, kind in assets:
+        path = repo_root / relative
+        detected = _asset_language(path, kind)
+        if detected is None:
+            continue
+        if detected != language:
+            issues.append(
+                _issue(
+                    code="LANGUAGE-DRIFT-001",
+                    severity="warning",
+                    path=relative,
+                    message=(
+                        f"installed asset language is {detected}, but "
+                        f".cowork-flow/config.yaml selects {language}"
+                    ),
+                    command_hint="cwf project sync",
+                    contract="runtime-health:language",
+                )
+            )
+    return issues
 
 
 def _task_path(repo_root: Path, task_dir: Path) -> str:
@@ -1673,6 +1770,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     host_issues = _host_issues(repo_root)
     runtime_errors = check_runtime(repo_root)
     distribution_errors = check_distribution(repo_root)
+    language_issues = check_language(repo_root)
     task_hygiene_issues = check_task_hygiene(repo_root)
     state_recovery_issues = check_state_recovery(repo_root)
     session_hygiene_issues = check_session_hygiene(repo_root)
@@ -1697,11 +1795,17 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
         {"kind": "distribution", "message": error}
         for error in distribution_errors
     )
+    errors.extend(
+        {"kind": "language", **issue}
+        for issue in language_issues
+        if issue["severity"] == "error"
+    )
     return {
         "ok": not errors,
         "errors": errors,
         "issues": {
             "hostAdapters": host_issues,
+            "language": language_issues,
             "taskHygiene": task_hygiene_issues,
             "stateRecovery": state_recovery_issues,
             "sessionHygiene": session_hygiene_issues,
@@ -1725,6 +1829,12 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
     if structured:
         print(json.dumps(result, ensure_ascii=False))
         return 1 if errors else 0
+    for issue in result["issues"]["language"]:
+        if issue["severity"] == "error":
+            continue
+        print(f"Language ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
     _print_task_hygiene_issues(result["issues"]["taskHygiene"])
     _print_state_recovery_issues(result["issues"]["stateRecovery"])
     _print_session_hygiene_issues(result["issues"]["sessionHygiene"])

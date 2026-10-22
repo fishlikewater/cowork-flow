@@ -12,6 +12,7 @@ import {
 } from '../lib/copy-template.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { formatPlatformList } from '../lib/platforms.js';
+import { readProjectLanguageStrict } from '../lib/language.js';
 import { parseFlags } from '../lib/cli-flags.js';
 
 function parseSyncArgs(args) {
@@ -29,9 +30,11 @@ function parseSyncArgs(args) {
 export async function runSync(args, { io, fileSystem }) {
   const options = parseSyncArgs(args);
   const packageInfo = await readPackageInfo();
+  const language = await readProjectLanguageStrict(options.target);
   const platforms = await detectInstalledPlatforms(options.target);
   const plan = await buildSyncPlan(options.target, {
     force: options.force,
+    language: language.language,
     platforms,
     version: packageInfo.version
   });

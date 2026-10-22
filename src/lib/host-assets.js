@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { packageRoot, templateRoot } from './paths.js';
@@ -37,6 +37,7 @@ const MANIFEST_KEYS = [
   'capabilityMatrix',
   'platforms',
   'excludedPrefixes',
+  'localization',
   'syncPolicy'
 ];
 const PLATFORM_KEYS = [
@@ -57,6 +58,7 @@ const SKILL_DISCOVERY_KEYS = ['scope', 'evidence', 'path', 'gates'];
 const SKILL_DISCOVERY_SCOPES = ['project'];
 const SYNC_POLICY_KEYS = [
   'protectedFiles',
+  'forceProtectedFiles',
   'protectedPrefixes',
   'safeFiles',
   'safePrefixes',
@@ -101,11 +103,33 @@ function aliasIndex(platforms) {
 function normalizedSyncPolicy(policy) {
   return {
     protectedFiles: policy.protectedFiles.map(normalizePath),
+    forceProtectedFiles: (policy.forceProtectedFiles ?? []).map(normalizePath),
     protectedPrefixes: policy.protectedPrefixes.map(normalizePath),
     safeFiles: policy.safeFiles.map(normalizePath),
     safePrefixes: policy.safePrefixes.map(normalizePath),
     managedBlockFiles: policy.managedBlockFiles.map(normalizePath),
     obsoleteFiles: policy.obsoleteFiles.map(normalizePath)
+  };
+}
+
+
+// A manifest without localization keeps every asset in the base template, which
+// is exactly the pre-localization behaviour.
+function normalizedLocalization(localization) {
+  const raw = localization ?? {
+    default: 'zh-CN',
+    supported: ['zh-CN', 'en-US'],
+    assets: {}
+  };
+  return {
+    default: raw.default,
+    supported: [...raw.supported],
+    assets: Object.fromEntries(
+      Object.entries(raw.assets).map(([language, assets]) => [
+        language,
+        assets.map(normalizePath)
+      ])
+    )
   };
 }
 
@@ -120,6 +144,7 @@ function buildHostIndex(manifest) {
   const aliases = aliasIndex(platforms);
   const platformIds = platforms.map((platform) => platform.id);
   const capabilityMatrix = normalizeCapabilityMatrix(manifest.capabilityMatrix);
+  const localization = normalizedLocalization(manifest.localization);
   const syncPolicy = normalizedSyncPolicy(manifest.syncPolicy);
   const assetPrefixes = unique(
     platforms.flatMap((platform) => platform.assetPrefixes)
@@ -140,10 +165,12 @@ function buildHostIndex(manifest) {
     aliases,
     platformIds,
     capabilityMatrix,
+    localization,
     syncPolicy,
     assetPrefixes,
     skillReadRoots,
     protectedFiles: new Set(syncPolicy.protectedFiles),
+    forceProtectedFiles: new Set(syncPolicy.forceProtectedFiles),
     safeFiles: new Set(syncPolicy.safeFiles),
     managedBlockFiles: new Set(syncPolicy.managedBlockFiles)
   };
@@ -226,6 +253,7 @@ function syncRules(index) {
   const {
     syncPolicy,
     protectedFiles,
+    forceProtectedFiles,
     safeFiles,
     managedBlockFiles,
     assetPrefixes,
@@ -250,6 +278,12 @@ function syncRules(index) {
       || syncPolicy.protectedPrefixes.some((prefix) => normalized.startsWith(prefix));
   }
 
+  // A force-protected file is created once and never replaced, even by
+  // `init --force` or `sync --force`.
+  function isForceProtectedSyncFile(relativePath) {
+    return forceProtectedFiles.has(normalizePath(relativePath));
+  }
+
   function isManagedBlockFile(relativePath) {
     return managedBlockFiles.has(normalizePath(relativePath));
   }
@@ -267,7 +301,13 @@ function syncRules(index) {
     });
   }
 
-  return { isSafeSyncFile, isProtectedSyncFile, isManagedBlockFile, obsoleteSyncFiles };
+  return {
+    isSafeSyncFile,
+    isProtectedSyncFile,
+    isForceProtectedSyncFile,
+    isManagedBlockFile,
+    obsoleteSyncFiles
+  };
 }
 
 
@@ -298,6 +338,7 @@ export function createHostRegistry(manifest) {
     platforms: index.platforms,
     platformIds: index.platformIds,
     capabilityMatrix: index.capabilityMatrix,
+    localization: index.localization,
     syncPolicy: index.syncPolicy,
     assetPrefixes: index.assetPrefixes,
     skillReadRoots: index.skillReadRoots,
@@ -323,6 +364,27 @@ export function createHostRegistry(manifest) {
     skillDestination(platformId) {
       return index.byId.get(platformId)?.skillReadRoot ?? null;
     },
+    // Canonical project-relative path for the asset's source. Non-default
+    // languages resolve only declared assets; everything else stays on the
+    // base template.
+    localizedSource(relativePath, language) {
+      const normalized = normalizePath(relativePath);
+      const selected = language ?? index.localization.default;
+      if (!index.localization.supported.includes(selected)) {
+        throw new Error(
+          `Unsupported language: ${selected}. Supported: ${index.localization.supported.join(', ')}`
+        );
+      }
+      const assets = index.localization.assets[selected] ?? [];
+      if (!assets.includes(normalized)) {
+        return normalized;
+      }
+      const localized = `locales/${selected}/${normalized}`;
+      if (!existsSync(join(templateRoot, ...localized.split('/')))) {
+        throw new Error(`Missing localized asset: ${localized}`);
+      }
+      return localized;
+    },
     // A declaration names a directory inside the package;
     // the absolute source dir is resolved once, here.
     platformPayload(platformId) {
@@ -337,6 +399,7 @@ export function createHostRegistry(manifest) {
     },
     isSafeSyncFile: sync.isSafeSyncFile,
     isProtectedSyncFile: sync.isProtectedSyncFile,
+    isForceProtectedSyncFile: sync.isForceProtectedSyncFile,
     isManagedBlockFile: sync.isManagedBlockFile,
     obsoleteSyncFiles: sync.obsoleteSyncFiles
   };
@@ -378,8 +441,57 @@ function validateManifest(manifest) {
     manifest.excludedPrefixes,
     'Host Asset Manifest excludedPrefixes'
   );
+  validateLocalization(manifest.localization);
   validateCapabilityMatrix(manifest.capabilityMatrix, allowed, platformIds);
   validateSyncPolicy(manifest.syncPolicy);
+}
+
+function validateLocalization(localization) {
+  if (localization === undefined) {
+    return;
+  }
+  if (!localization || typeof localization !== 'object' || Array.isArray(localization)) {
+    throw new Error('Host Asset Manifest localization must be an object');
+  }
+  assertKnownKeys(
+    localization,
+    ['default', 'supported', 'assets'],
+    'Host Asset Manifest localization'
+  );
+  validateRequiredString(
+    localization.default,
+    'Host Asset Manifest localization.default'
+  );
+  validateStringArray(
+    localization.supported,
+    'Host Asset Manifest localization.supported',
+    { unique: true }
+  );
+  if (!localization.supported.includes(localization.default)) {
+    throw new Error(
+      'Host Asset Manifest localization.default must be listed in localization.supported'
+    );
+  }
+  if (!localization.assets || typeof localization.assets !== 'object' || Array.isArray(localization.assets)) {
+    throw new Error('Host Asset Manifest localization.assets must be an object');
+  }
+  for (const [language, assets] of Object.entries(localization.assets)) {
+    if (!localization.supported.includes(language)) {
+      throw new Error(
+        `Host Asset Manifest localization.assets language is not supported: ${language}`
+      );
+    }
+    if (language === localization.default) {
+      throw new Error(
+        'Host Asset Manifest localization.assets must not override the default language'
+      );
+    }
+    validateStringArray(
+      assets,
+      `Host Asset Manifest localization.assets.${language}`,
+      { unique: true }
+    );
+  }
 }
 
 function validateCapabilityValues(values) {
@@ -515,6 +627,9 @@ function validateSyncPolicy(syncPolicy) {
   }
   assertKnownKeys(syncPolicy, SYNC_POLICY_KEYS, 'Host Asset Manifest syncPolicy');
   for (const key of SYNC_POLICY_KEYS) {
+    if (key === 'forceProtectedFiles' && syncPolicy[key] === undefined) {
+      continue;
+    }
     validateStringArray(
       syncPolicy[key],
       `Host Asset Manifest syncPolicy.${key}`

@@ -31,11 +31,14 @@ CAPABILITY_STATUS_VALUES = (
     "experimental",
     "unsupported",
 )
-MANIFEST_KEYS = frozenset(("schemaVersion", "capabilityValues", "capabilityMatrix", "platforms", "excludedPrefixes", "syncPolicy"))
+MANIFEST_KEYS = frozenset(("schemaVersion", "capabilityValues", "capabilityMatrix", "platforms", "excludedPrefixes", "localization", "syncPolicy"))
 PLATFORM_KEYS = frozenset(("id", "displayName", "aliases", "detectAny", "assetPrefixes", "assetFiles", "skillReadRoot", "skillDiscovery", "adapterPath", "capabilities", "commandTargets", "payload"))
 SKILL_DISCOVERY_KEYS = frozenset(("scope", "path", "gates", "evidence"))
 SKILL_DISCOVERY_SCOPES = frozenset(("project",))
-SYNC_POLICY_KEYS = frozenset(("protectedFiles", "protectedPrefixes", "safeFiles", "safePrefixes", "managedBlockFiles", "obsoleteFiles"))
+SYNC_POLICY_KEYS = frozenset(("protectedFiles", "forceProtectedFiles", "protectedPrefixes", "safeFiles", "safePrefixes", "managedBlockFiles", "obsoleteFiles"))
+LOCALIZATION_KEYS = frozenset(("default", "supported", "assets"))
+DEFAULT_LANGUAGE = "zh-CN"
+SUPPORTED_LANGUAGES = ("zh-CN", "en-US")
 COMMAND_TARGET_KEYS = frozenset(("config", "format", "target"))
 COMMAND_TARGET_FORMATS = frozenset(("json", "toml", "yaml"))
 CAPABILITY_DECLARATION_KEYS = frozenset(("status", "fallback"))
@@ -108,11 +111,25 @@ class HostPlatform:
 @dataclass(frozen=True)
 class SyncPolicy:
     protected_files: tuple[str, ...]
+    force_protected_files: tuple[str, ...]
     protected_prefixes: tuple[str, ...]
     safe_files: tuple[str, ...]
     safe_prefixes: tuple[str, ...]
     managed_block_files: tuple[str, ...]
     obsolete_files: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Localization:
+    """Language-specific asset overrides.
+
+    The base template always carries the default language. A non-default
+    language may override a declared asset from `locales/<language>/`.
+    """
+
+    default: str
+    supported: tuple[str, ...]
+    assets: dict[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -123,6 +140,7 @@ class HostManifest:
     capability_matrix: dict[str, dict[str, CapabilityDeclaration]]
     platforms: tuple[HostPlatform, ...]
     excluded_prefixes: tuple[str, ...]
+    localization: Localization
     sync_policy: SyncPolicy
 
     @property
@@ -194,6 +212,19 @@ def validate_host_assets(
 
     if not (root / SCHEMA_PATH).is_file():
         errors.append(f"missing host asset schema: {root / SCHEMA_PATH}")
+
+    # Locale sources live in the package template. An installed project keeps
+    # only the resolved canonical path, so absence of `locales/` is normal and
+    # must not turn into a host-asset error.
+    if (root / "locales").is_dir():
+        for language, assets in manifest.localization.assets.items():
+            for asset in assets:
+                if not (root / asset).is_file():
+                    errors.append(f"missing localized base asset: {asset}")
+                if not (root / "locales" / language / asset).is_file():
+                    errors.append(
+                        f"missing localized asset: locales/{language}/{asset}"
+                    )
 
     selected_platforms: list[HostPlatform] = []
     selected_ids = (
@@ -388,8 +419,13 @@ def _build_manifest(raw: dict[str, Any]) -> HostManifest:
         capability_matrix=capability_matrix,
         platforms=platforms,
         excluded_prefixes=_string_tuple(raw.get("excludedPrefixes"), "excludedPrefixes"),
+        localization=_build_localization(raw.get("localization")),
         sync_policy=SyncPolicy(
             protected_files=_string_tuple(sync_raw.get("protectedFiles"), "syncPolicy.protectedFiles"),
+            force_protected_files=_string_tuple(
+                sync_raw.get("forceProtectedFiles", []),
+                "syncPolicy.forceProtectedFiles",
+            ),
             protected_prefixes=_string_tuple(sync_raw.get("protectedPrefixes"), "syncPolicy.protectedPrefixes"),
             safe_files=_string_tuple(sync_raw.get("safeFiles"), "syncPolicy.safeFiles"),
             safe_prefixes=_string_tuple(sync_raw.get("safePrefixes"), "syncPolicy.safePrefixes"),
@@ -397,6 +433,39 @@ def _build_manifest(raw: dict[str, Any]) -> HostManifest:
             obsolete_files=_string_tuple(sync_raw.get("obsoleteFiles"), "syncPolicy.obsoleteFiles"),
         ),
     )
+
+
+def _build_localization(raw: object) -> Localization:
+    if raw is None:
+        return Localization(
+            default=DEFAULT_LANGUAGE,
+            supported=SUPPORTED_LANGUAGES,
+            assets={},
+        )
+    if not isinstance(raw, dict):
+        raise HostManifestError("localization must be an object")
+    _reject_unknown_fields(raw, LOCALIZATION_KEYS, "localization")
+    default = raw.get("default")
+    if not isinstance(default, str) or not default.strip():
+        raise HostManifestError("localization.default must be a non-empty string")
+    supported = _string_tuple(raw.get("supported"), "localization.supported")
+    if default not in supported:
+        raise HostManifestError("localization.default must be listed in localization.supported")
+    assets_raw = raw.get("assets")
+    if not isinstance(assets_raw, dict):
+        raise HostManifestError("localization.assets must be an object")
+    assets: dict[str, tuple[str, ...]] = {}
+    for language, paths in assets_raw.items():
+        if language not in supported:
+            raise HostManifestError(
+                f"localization.assets language is not supported: {language}"
+            )
+        if language == default:
+            raise HostManifestError(
+                "localization.assets must not override the default language"
+            )
+        assets[language] = _string_tuple(paths, f"localization.assets.{language}")
+    return Localization(default=default, supported=supported, assets=assets)
 
 def _build_capability_matrix(
     raw: object,

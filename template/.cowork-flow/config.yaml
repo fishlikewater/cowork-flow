@@ -4,6 +4,14 @@
 # All values have sensible defaults. Only override what you need.
 
 #-------------------------------------------------------------------------------
+# Language
+#-------------------------------------------------------------------------------
+
+# Output language for generated task and plan artifacts: zh-CN or en-US.
+# This file is never overwritten by project sync, including sync --force.
+language: "zh-CN"
+
+#-------------------------------------------------------------------------------
 # Codex Runtime
 #-------------------------------------------------------------------------------
 

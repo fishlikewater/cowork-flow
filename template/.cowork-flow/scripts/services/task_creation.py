@@ -6,7 +6,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import re
 
+from infra.config import get_language
+from services.decision_anchor_schema import (
+    ACCEPTANCE,
+    GOAL,
+    heading_for,
+)
 from services.task_tree import TaskTreeError, TaskTreeService
 from services import task_graph
 from infra.paths import (
@@ -17,6 +24,20 @@ from infra.paths import (
 from services.plan_binding import PlanBindingError, bind_plan_file
 from services.task_gate_profiles import GATE_PROFILE_STRICT
 from services.task_repository import TaskRepository, TaskRepositoryError
+
+
+_GOAL_LINE_RE = re.compile(r"^\*\*(?:Goal|目标):\*\*\s*(.+?)\s*$")
+_GOAL_BOLD_COLON_RE = re.compile(r"^\*\*(?:Goal|目标)\*\*:\s*(.+?)\s*$")
+_GOAL_TABLE_RE = re.compile(
+    r"^\|\s*\*\*(?:Goal|目标)\*\*\s*\|\s*(.+?)\s*\|\s*$"
+)
+
+_ANCHOR_PLACEHOLDERS = {
+    ("zh-CN", GOAL): "<!-- 用一句话描述可观察的目标。 -->",
+    ("zh-CN", ACCEPTANCE): "<!-- 至少一条，例如：- [ ] AC-001: ... -->",
+    ("en-US", GOAL): "<!-- One sentence describing the observable outcome. -->",
+    ("en-US", ACCEPTANCE): "<!-- At least one, e.g. - [ ] AC-001: ... -->",
+}
 
 
 class TaskCreationError(RuntimeError):
@@ -66,6 +87,25 @@ class TaskCreationResult:
     linked_parent: str | None
     missing_parent: str | None
     generated_anchor: bool
+    generated_anchor_from_plan: bool
+
+
+def _extract_plan_goal(plan_text: str) -> str | None:
+    """First machine-readable goal line, then the legacy table row."""
+    for raw in plan_text.splitlines():
+        line = raw.strip()
+        for pattern in (_GOAL_LINE_RE, _GOAL_BOLD_COLON_RE, _GOAL_TABLE_RE):
+            match = pattern.match(line)
+            if match:
+                return match.group(1).strip()
+    return None
+
+
+def _anchor_placeholder(section: str, language: str) -> str:
+    return _ANCHOR_PLACEHOLDERS.get(
+        (language, section),
+        _ANCHOR_PLACEHOLDERS[("zh-CN", section)],
+    )
 
 
 def ensure_tasks_dir(repo_root: Path) -> Path:
@@ -122,7 +162,7 @@ class TaskCreationService:
             created_files.append(task_dir / FILE_TASK_JSON)
 
             linked_parent, missing_parent = self._link_parent(request, task_dir)
-            generated_anchor = self._generate_anchor(
+            generated_anchor, generated_anchor_from_plan = self._generate_anchor(
                 task_dir,
                 bound_plan_path,
             )
@@ -136,6 +176,7 @@ class TaskCreationService:
             linked_parent=linked_parent,
             missing_parent=missing_parent,
             generated_anchor=generated_anchor,
+            generated_anchor_from_plan=generated_anchor_from_plan,
         )
 
     def _task_data(
@@ -316,41 +357,42 @@ class TaskCreationService:
             "plan file must live under .cowork-flow/plans",
         )
 
-    @staticmethod
     def _generate_anchor(
+        self,
         task_dir: Path,
         plan_path: Path | None,
-    ) -> bool:
-        if plan_path is None:
-            return False
-        if not plan_path.is_file():
-            return False
+    ) -> tuple[bool, bool]:
+        """Create a language-specific anchor scaffold.
 
-        try:
-            plan_text = plan_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as error:
-            raise TaskCreationError(
-                "TASK-CREATE-PLAN-001",
-                plan_path,
-                "plan cannot be read as UTF-8",
-            ) from error
-
-        goal = next(
-            (
-                line.split(":", 1)[1].strip()
-                for line in plan_text.splitlines()
-                if line.startswith("**Goal:**")
-                or line.startswith("**目标:**")
-            ),
-            None,
-        )
+        A bound plan's goal line (or legacy table row) fills the goal section;
+        otherwise the scaffold carries a localized placeholder. An anchor that
+        already exists is never overwritten.
+        """
         anchor_file = task_dir / "decision-anchor.md"
-        if not goal or anchor_file.exists():
-            return False
+        if anchor_file.exists():
+            return False, False
+
+        goal: str | None = None
+        if plan_path is not None and plan_path.is_file():
+            try:
+                plan_text = plan_path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as error:
+                raise TaskCreationError(
+                    "TASK-CREATE-PLAN-001",
+                    plan_path,
+                    "plan cannot be read as UTF-8",
+                ) from error
+            goal = _extract_plan_goal(plan_text)
+
+        language = get_language(self.repo_root)
+        goal_heading = heading_for(GOAL, language)
+        acceptance_heading = heading_for(ACCEPTANCE, language)
+        goal_body = goal or _anchor_placeholder(GOAL, language)
+        acceptance_body = _anchor_placeholder(ACCEPTANCE, language)
         try:
             anchor_file.write_text(
-                f"## 目标\n\n{goal}\n\n## 验收标准\n"
-                "<!-- 至少一条，例如：- [ ] AC-001: ... -->\n",
+                f"## {goal_heading}\n\n{goal_body}\n\n"
+                f"## {acceptance_heading}\n\n{acceptance_body}\n",
                 encoding="utf-8",
             )
         except OSError as error:
@@ -363,7 +405,7 @@ class TaskCreationService:
                 anchor_file,
                 "decision anchor could not be written",
             ) from error
-        return True
+        return True, goal is not None
 
 
 def _validate_dev_type(dev_type: str | None, path: Path) -> None:

@@ -112,6 +112,101 @@ class TaskCreationServiceTest(unittest.TestCase):
             )
             self.assertNotIn("planFile", task_data["meta"])
             self.assertEqual("strict", task_data["meta"]["gateProfile"])
+            anchor = (result.task_dir / "decision-anchor.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("## 目标", anchor)
+            self.assertIn("## 验收标准", anchor)
+            self.assertIn("<!--", anchor)
+            self.assertTrue(result.generated_anchor)
+            self.assertFalse(result.generated_anchor_from_plan)
+
+    def test_create_with_english_config_and_plan_uses_english_headings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workflow = root / ".cowork-flow"
+            plans_dir = workflow / "plans"
+            plans_dir.mkdir(parents=True)
+            (workflow / "config.yaml").write_text(
+                'language: "en-US"\n', encoding="utf-8"
+            )
+            plan_path = plans_dir / "english-plan.md"
+            plan_path.write_text("**Goal:** Ship the English path\n", encoding="utf-8")
+
+            result = self.TaskCreationService(root).create(
+                self.TaskCreationRequest(
+                    title="English task",
+                    slug="english-task",
+                    assignee="codex",
+                    priority="P2",
+                    from_plan=plan_path,
+                    created_at="2026-07-10",
+                    date_prefix="07-10",
+                )
+            )
+
+            anchor = (result.task_dir / "decision-anchor.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("## Goal", anchor)
+            self.assertIn("## Acceptance Criteria", anchor)
+            self.assertIn("Ship the English path", anchor)
+            self.assertNotIn("## 目标", anchor)
+            self.assertTrue(result.generated_anchor)
+            self.assertTrue(result.generated_anchor_from_plan)
+
+    def test_create_extracts_goal_from_legacy_table_row(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            plans_dir = root / ".cowork-flow" / "plans"
+            plans_dir.mkdir(parents=True)
+            plan_path = plans_dir / "table-plan.md"
+            plan_path.write_text(
+                "| Field | Content |\n| --- | --- |\n"
+                "| **Goal** | Table goal |\n",
+                encoding="utf-8",
+            )
+
+            result = self.TaskCreationService(root).create(
+                self.TaskCreationRequest(
+                    title="Table task",
+                    slug="table-task",
+                    assignee="codex",
+                    priority="P2",
+                    from_plan=plan_path,
+                    created_at="2026-07-10",
+                    date_prefix="07-10",
+                )
+            )
+
+            anchor = (result.task_dir / "decision-anchor.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("Table goal", anchor)
+            self.assertTrue(result.generated_anchor_from_plan)
+
+    def test_create_does_not_overwrite_an_existing_anchor(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            plans_dir = root / ".cowork-flow" / "plans"
+            plans_dir.mkdir(parents=True)
+            plan_path = plans_dir / "plan.md"
+            plan_path.write_text("**Goal:** New goal\n", encoding="utf-8")
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-existing-anchor"
+            task_dir.mkdir(parents=True)
+            existing = "## 目标\n\n手写内容\n\n## 验收标准\n\n- [ ] AC-001: keep\n"
+            (task_dir / "decision-anchor.md").write_text(existing, encoding="utf-8")
+
+            created, from_plan = self.TaskCreationService(root)._generate_anchor(
+                task_dir, plan_path
+            )
+
+            self.assertFalse(created)
+            self.assertFalse(from_plan)
+            self.assertEqual(
+                existing,
+                (task_dir / "decision-anchor.md").read_text(encoding="utf-8"),
+            )
 
 
     def test_create_from_noncanonical_plan_path_uses_shared_policy(self) -> None:

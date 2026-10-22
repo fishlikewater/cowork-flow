@@ -133,10 +133,12 @@ def _print_create_result(result) -> None:
             file=sys.stderr,
         )
     if result.generated_anchor:
-        print(
-            f"  {colored('[OK]', Colors.GREEN)} "
+        message = (
             "Generated decision-anchor.md from plan"
+            if result.generated_anchor_from_plan
+            else "Created decision-anchor.md scaffold"
         )
+        print(f"  {colored('[OK]', Colors.GREEN)} {message}")
 
     print(
         colored(f"Created task: {dir_name}", Colors.GREEN),
@@ -150,7 +152,7 @@ def _print_next_steps() -> None:
     print("", file=sys.stderr)
     print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
     print(
-        "  1. Create decision-anchor.md with requirements",
+        "  1. Fill in decision-anchor.md (a scaffold is created)",
         file=sys.stderr,
     )
     print(

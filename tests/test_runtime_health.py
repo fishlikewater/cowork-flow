@@ -2266,3 +2266,105 @@ class RuntimeHealthTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LanguageCheckTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+        cls.zh_anchor = (
+            TEMPLATE / ".cowork-flow" / "spec" / "contracts" / "decision-anchor.md"
+        ).read_text(encoding="utf-8")
+        cls.en_anchor = (
+            TEMPLATE
+            / "locales"
+            / "en-US"
+            / ".cowork-flow"
+            / "spec"
+            / "contracts"
+            / "decision-anchor.md"
+        ).read_text(encoding="utf-8")
+        cls.zh_plan = (TEMPLATE / ".cowork-flow" / "plan-template.md").read_text(
+            encoding="utf-8"
+        )
+        cls.en_plan = (
+            TEMPLATE / "locales" / "en-US" / ".cowork-flow" / "plan-template.md"
+        ).read_text(encoding="utf-8")
+
+    def _project(self, config: str, *, anchor: str | None, plan: str | None) -> Path:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = Path(temp.name)
+        (root / ".cowork-flow").mkdir()
+        (root / ".cowork-flow" / "config.yaml").write_text(config, encoding="utf-8")
+        if anchor is not None:
+            path = root / ".cowork-flow" / "spec" / "contracts" / "decision-anchor.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(anchor, encoding="utf-8")
+        if plan is not None:
+            (root / ".cowork-flow" / "plan-template.md").write_text(
+                plan, encoding="utf-8"
+            )
+        return root
+
+    def test_missing_language_key_stays_silent(self) -> None:
+        root = self._project(
+            "codex:\n  dispatch_mode: inline\n",
+            anchor=self.zh_anchor,
+            plan=self.zh_plan,
+        )
+        self.assertEqual([], self.doctor.check_language(root))
+
+    def test_matching_language_has_no_issues(self) -> None:
+        root = self._project(
+            'language: "en-US"\n',
+            anchor=self.en_anchor,
+            plan=self.en_plan,
+        )
+        self.assertEqual([], self.doctor.check_language(root))
+
+    def test_asset_language_drift_is_a_warning(self) -> None:
+        root = self._project(
+            'language: "en-US"\n',
+            anchor=self.zh_anchor,
+            plan=self.zh_plan,
+        )
+        issues = self.doctor.check_language(root)
+        self.assertEqual(
+            ["LANGUAGE-DRIFT-001", "LANGUAGE-DRIFT-001"],
+            [issue["code"] for issue in issues],
+        )
+        self.assertEqual(
+            [
+                ".cowork-flow/spec/contracts/decision-anchor.md",
+                ".cowork-flow/plan-template.md",
+            ],
+            [issue["path"] for issue in issues],
+        )
+        self.assertTrue(all(issue["severity"] == "warning" for issue in issues))
+        self.assertTrue(
+            all(issue["commandHint"] == "cwf project sync" for issue in issues)
+        )
+
+    def test_missing_plan_template_is_not_drift_before_the_first_sync(self) -> None:
+        root = self._project(
+            'language: "en-US"\n',
+            anchor=self.en_anchor,
+            plan=None,
+        )
+        self.assertEqual([], self.doctor.check_language(root))
+
+    def test_invalid_language_is_a_fatal_error(self) -> None:
+        root = self._project(
+            'language: "fr"\n',
+            anchor=self.zh_anchor,
+            plan=self.zh_plan,
+        )
+        issues = self.doctor.check_language(root)
+        self.assertEqual(["CONFIG-LANGUAGE-001"], [issue["code"] for issue in issues])
+        self.assertEqual("error", issues[0]["severity"])
+        result = self.doctor._all_check_result(root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any(error.get("kind") == "language" for error in result["errors"])
+        )

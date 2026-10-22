@@ -661,8 +661,8 @@ class TaskCommandsTest(FlowScriptTestCase):
 
         self.assertEqual(
             [
-                "decision-anchor.md missing required section: ## 目标",
-                "decision-anchor.md missing required section: ## 验收标准",
+                "decision-anchor.md missing required section: ## 目标 (or ## Goal)",
+                "decision-anchor.md missing required section: ## 验收标准 (or ## Acceptance Criteria)",
             ],
             blockers,
         )

@@ -17,6 +17,14 @@ import {
   platformLabel
 } from '../lib/platforms.js';
 import { parseFlags, UsageError } from '../lib/cli-flags.js';
+import {
+  DEFAULT_LANGUAGE,
+  SUPPORTED_LANGUAGES,
+  normalizeLanguage,
+  readProjectLanguage,
+  withLanguage
+} from '../lib/language.js';
+import { templateRoot } from '../lib/paths.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -34,7 +42,7 @@ function parsePlatformSelectionOrUsage(values) {
 function parseInitArgs(args) {
   const { flags, positionals } = parseFlags(args, {
     boolean: ['--dry-run', '--force'],
-    value: ['--host', '--platform', '--platforms', '--developer'],
+    value: ['--host', '--platform', '--platforms', '--developer', '--language'],
     repeatable: ['--host', '--platform', '--platforms'],
     positional: { min: 0, max: 1, name: '[target]' }
   });
@@ -42,6 +50,7 @@ function parseInitArgs(args) {
     developer: flags['--developer'] ?? null,
     dryRun: Boolean(flags['--dry-run']),
     force: Boolean(flags['--force']),
+    language: flags['--language'] ?? null,
     platforms: [
       ...(flags['--host'] ?? []),
       ...(flags['--platform'] ?? []),
@@ -165,6 +174,97 @@ async function resolvePlatforms(options, selectPlatforms) {
   return parsePlatformSelectionOrUsage(selected);
 }
 
+function normalizeLanguageOrUsage(value) {
+  const language = normalizeLanguage(value);
+  if (!language) {
+    throw new UsageError(
+      `Unsupported language: ${value}. Supported: ${SUPPORTED_LANGUAGES.join(', ')}`
+    );
+  }
+  return language;
+}
+
+// An existing config is authoritative: the choice is never re-prompted or
+// rewritten, even by --force. A missing config prompts once, with zh-CN as the
+// default for both non-interactive and dry-run runs.
+async function resolveLanguage(options, prompt) {
+  const requested = options.language
+    ? normalizeLanguageOrUsage(options.language)
+    : null;
+  const existing = await readProjectLanguage(options.target);
+  if (existing.present) {
+    return {
+      existing: true,
+      language: existing.language,
+      valid: existing.valid,
+      raw: existing.raw,
+      requested,
+      source: 'existing'
+    };
+  }
+
+  if (requested) {
+    return {
+      existing: false,
+      language: requested,
+      requested,
+      source: 'flag'
+    };
+  }
+
+  if (options.dryRun || typeof prompt !== 'function') {
+    return {
+      existing: false,
+      language: DEFAULT_LANGUAGE,
+      requested,
+      source: 'default'
+    };
+  }
+
+  const answer = String(
+    await prompt(`Project language (${SUPPORTED_LANGUAGES.join('/')}) [${DEFAULT_LANGUAGE}]: `) ?? ''
+  ).trim();
+  return {
+    existing: false,
+    language: normalizeLanguageOrUsage(answer || DEFAULT_LANGUAGE),
+    requested,
+    source: answer ? 'prompt' : 'default'
+  };
+}
+
+function emitLanguageWarnings(io, language) {
+  if (!language.existing) {
+    return;
+  }
+  if (!language.valid) {
+    io.writeErr(
+      `Warning: unsupported language ${JSON.stringify(language.raw)} in .cowork-flow/config.yaml; using ${language.language}. Edit the file to change it.\n`
+    );
+    return;
+  }
+  if (language.requested && language.requested !== language.language) {
+    io.writeErr(
+      `Warning: existing .cowork-flow/config.yaml language ${language.language} wins over --language ${language.requested}.\n`
+    );
+  }
+}
+
+async function buildConfigActions(target, language, existing) {
+  if (existing) {
+    return [];
+  }
+  const source = join(templateRoot, '.cowork-flow', 'config.yaml');
+  const content = withLanguage(await readFile(source, 'utf8'), language);
+  return [{
+    action: 'create',
+    source,
+    destination: join(target, '.cowork-flow', 'config.yaml'),
+    relativePath: '.cowork-flow/config.yaml',
+    content,
+    targetExists: false
+  }];
+}
+
 
 async function buildDeveloperActions(target, developer) {
   const workflowDir = join(target, '.cowork-flow');
@@ -195,14 +295,22 @@ export async function runInitWithOptions(
 ) {
   const options = parseInitArgs(args);
   const platforms = await resolvePlatforms(options, selectPlatforms);
+  const language = await resolveLanguage(options, prompt);
+  emitLanguageWarnings(io, language);
   const developer = await resolveDeveloperName(options, prompt);
   const packageInfo = await readPackageInfo();
   const developerActions = developer.name
     ? await buildDeveloperActions(options.target, developer)
     : [];
+  const configActions = await buildConfigActions(
+    options.target,
+    language.language,
+    language.existing
+  );
   const plan = await buildInitPlan(options.target, {
-    additionalActions: developerActions,
+    additionalActions: [...developerActions, ...configActions],
     force: options.force,
+    language: language.language,
     platforms,
     version: packageInfo.version
   });
@@ -220,6 +328,11 @@ export async function runInitWithOptions(
     } else {
       io.writeOut('dry-run would-skip=.cowork-flow/.developer (no developer identity; pass --developer)\n');
     }
+    if (language.existing) {
+      io.writeOut(`dry-run preserve-existing=.cowork-flow/config.yaml for language ${language.language}\n`);
+    } else {
+      io.writeOut(`dry-run would-create=.cowork-flow/config.yaml for language ${language.language}\n`);
+    }
     io.writeOut('Next: update AGENTS.md and .cowork-flow/config.yaml for this project.\n');
     return 0;
   }
@@ -229,6 +342,12 @@ export async function runInitWithOptions(
   } else {
     const source = developer.source === 'git' ? ' (from git user.name)' : '';
     io.writeOut(`Developer initialized: ${developer.name}${source}\n`);
+  }
+  if (language.existing) {
+    io.writeOut(`Language already initialized: ${language.language}\n`);
+  } else {
+    const source = language.source === 'default' ? ' (default)' : '';
+    io.writeOut(`Language initialized: ${language.language}${source}\n`);
   }
   io.writeOut('Next: update AGENTS.md and .cowork-flow/config.yaml for this project.\n');
   return 0;

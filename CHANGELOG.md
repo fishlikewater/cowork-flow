@@ -4,7 +4,12 @@
 
 ### Added
 
+- **安装语言选项与任务/计划产物本地化**：`cwf project init --language zh-CN|en-US`（别名 `zh` / `en`，默认 `zh-CN`）把选择写入 `.cowork-flow/config.yaml` 的 `language`；`decision-anchor.md` 新增英文合同变体，计划结构抽为可分发的 `.cowork-flow/plan-template.md` 并提供英文版本。`init`、`sync` 与 `dev refresh` 按 config 语言选择 locale 源，目标路径不变，`locales/` 不进入项目。任务创建始终生成对应语言的 anchor 骨架，`**Goal:**` / `**目标:**` / 表格行三种计划目标均可提取；中文、英文、混合标题的 anchor 都能被 fact view、启动前置检查、strict gate 与证据完成门禁读取。
+- **doctor 语言一致性检查**：`CONFIG-LANGUAGE-001` 报告非法 `language`（error），`LANGUAGE-DRIFT-001` 报告已安装合同/计划模板与配置语言不一致（warning，提示 `cwf project sync`）；缺少 `language` 键或旧安装尚未分发 `plan-template.md` 时保持静默。
+
 ### Changed
+
+- **`config.yaml` 成为强制保护文件**：Host Asset Manifest 新增 `syncPolicy.forceProtectedFiles`，`.cowork-flow/config.yaml` 首次创建后不再被 `init --force` 或 `sync --force` 覆盖；切换语言需编辑该文件后运行 `sync`。已有配置中的 `language` 优先于 `--language`，冲突时输出警告但不改写配置。
 
 - **分发 spec 说明文档英文化（第一步）**：`spec/index.md`、`spec/runtime/index.md`、`spec/schemas/index.md` 与 `spec/references/**` 的说明文字改为英文，保留文件列表、相对链接、DoD 的 G5 标记与协作模式约束编号。`decision-anchor.md` 的六个解析标题、`workflow-state-templates.md` 的注入块、`backend/frontend/guides` 与 `template/AGENTS.md` 本步不动，前两项待双语解析迁移。**可达性**：三个索引随 `project sync` 更新；`references/` 仍受项目同步保护，已装项目不会自动收到英文副本，需手动刷新或重新安装。
 

@@ -41,6 +41,16 @@ ANCHOR_WITHOUT_ACS = """# Decision Anchor
 没有验收标准章节的锚点。
 """
 
+ANCHOR_WITH_ENGLISH_ACS = """# Decision Anchor
+
+## Goal
+Keep the evidence chain readable.
+
+## Acceptance Criteria
+- [ ] AC-001: English anchor exposes check state
+- [x] AC-002: Evidence rows still bind by id
+"""
+
 
 def ac_evidence():
     return importlib.import_module("services.ac_evidence")
@@ -64,6 +74,13 @@ class AcceptanceParsingTest(unittest.TestCase):
         # id/text remain the contract keys for existing consumers
         self.assertEqual("AC-001", criteria[0]["id"])
         self.assertIn("勾选状态", criteria[0]["text"])
+
+    def test_parse_captures_checked_state_from_english_heading(self) -> None:
+        fact_view = importlib.import_module("services.fact_view")
+        parsed = fact_view.parse_decision_anchor(ANCHOR_WITH_ENGLISH_ACS)
+        criteria = parsed["acceptanceCriteria"]
+        self.assertEqual(["AC-001", "AC-002"], [item["id"] for item in criteria])
+        self.assertEqual([False, True], [item["checked"] for item in criteria])
 
     def test_parse_row_without_checkbox_is_unchecked(self) -> None:
         fact_view = importlib.import_module("services.fact_view")

@@ -56,8 +56,13 @@ cwf project init --host codex --developer alice --dry-run
 Drop `--dry-run` once the list looks right:
 
 ```bash
-cwf project init --host codex --developer alice
+cwf project init --host codex --developer alice --language en-US
 ```
+
+Without `--language` the default is `zh-CN`; an interactive terminal asks, and a
+non-interactive run uses the default. The choice is written to
+`.cowork-flow/config.yaml` and affects only task and plan artifacts
+(`decision-anchor.md` and `plan-template.md`).
 
 Replace `codex` with the host you use:
 
@@ -76,7 +81,9 @@ not touch application code. An existing `.developer` is never overwritten; on fi
 initialization an explicit `--developer` wins over `git config user.name`. With no git
 identity, an interactive terminal prompts and a non-interactive run fails (`--dry-run`
 only reports `would-skip`). `--platform` / `--platforms` remain accepted aliases of
-`--host`. On an existing project, always run `--dry-run` first.
+`--host`. An existing `.cowork-flow/config.yaml` owns its `language`, even under
+`--force`; edit that file and run `cwf project sync .` to switch languages. On an
+existing project, always run `--dry-run` first.
 
 ### 3. Finish host setup
 
@@ -123,7 +130,11 @@ cwf project sync .
 `project sync` only updates files cowork-flow manages. Existing configuration,
 `spec/backend|frontend|guides|references`, tasks, and plans are kept by default;
 framework-managed `spec/contracts|runtime|schemas` and `spec/index.md` follow the
-sync. **Retired-asset cleanup** deletes obsolete cowork-flow files listed in the
+sync. `.cowork-flow/config.yaml` is project configuration and is never overwritten by
+`sync --force`. Sync reads its `language` and distributes only that language's
+`decision-anchor.md` contract and `plan-template.md`; tasks and plans follow that
+language by default, and an explicit user request may override it.
+**Retired-asset cleanup** deletes obsolete cowork-flow files listed in the
 release manifest and touches nothing else. For upgrading machine-level host
 components, see [host integration](docs/hosts.md).
 
@@ -145,7 +156,7 @@ how the project is organized, see [architecture and extension](docs/architecture
 
 | Command | Purpose |
 |---|---|
-| `cwf project init [target] --host <host> [--developer <name>] [--dry-run] [--force]` | Initialize a project |
+| `cwf project init [target] --host <host> [--developer <name>] [--language zh-CN|en-US] [--dry-run] [--force]` | Initialize a project |
 | `cwf project sync [target] [--dry-run] [--force]` | Update the cowork-flow-managed files in a project |
 | `cwf host add <host> [--component <name>] [--dry-run] [--force] [--prune-old] [--uninstall]` | Install a machine-level host component |
 | `cwf host remove <host> [--component <name>] [--dry-run] [--force]` | Remove a machine-level host component |

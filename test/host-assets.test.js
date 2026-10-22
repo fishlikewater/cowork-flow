@@ -122,6 +122,7 @@ test('valid host manifest fixtures expose normalized registry summaries', () => 
     target: '.codex/agents/cowork-implement.toml'
   });
   assert.deepEqual(minimal.syncPolicy.managedBlockFiles, ['AGENTS.md']);
+  assert.deepEqual(minimal.syncPolicy.forceProtectedFiles, []);
   assert.deepEqual(
     minimal.capabilitySummary.zcode.file_write,
     { status: 'unsupported', fallback: 'project_root_init_or_sync' }
@@ -295,6 +296,23 @@ test('default host registry exposes manifest platform behavior', async () => {
     ['qoder']
   );
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/config.yaml'), true);
+  assert.equal(registry.isForceProtectedSyncFile('.cowork-flow/config.yaml'), true);
+  assert.equal(registry.isForceProtectedSyncFile('.cowork-flow/run'), false);
+  assert.deepEqual(registry.syncPolicy.forceProtectedFiles, ['.cowork-flow/config.yaml']);
+  assert.equal(registry.localization.default, 'zh-CN');
+  assert.deepEqual(registry.localization.supported, ['zh-CN', 'en-US']);
+  assert.deepEqual(registry.localization.assets['en-US'], [
+    '.cowork-flow/spec/contracts/decision-anchor.md',
+    '.cowork-flow/plan-template.md'
+  ]);
+  assert.equal(
+    registry.localizedSource('.cowork-flow/plan-template.md', 'en-US'),
+    'locales/en-US/.cowork-flow/plan-template.md'
+  );
+  assert.equal(
+    registry.localizedSource('.cowork-flow/plan-template.md', 'zh-CN'),
+    '.cowork-flow/plan-template.md'
+  );
   assert.equal(registry.isProtectedSyncFile('.cowork-flow/run'), false);
   // Framework-owned spec assets follow sync; project-owned spec directories
   // stay protected.

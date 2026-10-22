@@ -4,7 +4,7 @@ A task created today carries `meta.gateProfile = "strict"`; a task without the
 marker keeps the historical gate (legacy), so nothing that already exists is
 retroactively re-gated.
 
-The strict gate exists because the old one only checked that the `## 验收标准`
+The strict gate exists because the old one only checked that the acceptance
 heading was present. An anchor with an empty acceptance section passed, the
 acceptance/evidence gates then found no AC rows to check, and the whole chain
 silently did nothing.
@@ -12,19 +12,16 @@ silently did nothing.
 
 from __future__ import annotations
 
-import re
-
-from services.fact_view import ACCEPTANCE_RE
+from services.decision_anchor_schema import (
+    ACCEPTANCE_RE,
+    LIST_ITEM_RE,
+    acceptance_section_lines,
+)
 
 GATE_PROFILE_STRICT = "strict"
 GATE_PROFILE_LEGACY = "legacy"
 
 LIGHT_TASK_TYPE = "tiny"
-
-ACCEPTANCE_HEADING = "验收标准"
-
-_HEADING_RE = re.compile(r"^##\s*(.+?)\s*$")
-_LIST_ITEM_RE = re.compile(r"^\s*[-*]\s")
 
 
 def resolve_gate_profile(task_data: dict) -> str:
@@ -72,20 +69,6 @@ def is_light_task(task_data: dict) -> bool:
     return declares_light_profile(task_data)
 
 
-def acceptance_section_lines(anchor_text: str) -> list[str]:
-    """Raw lines under `## 验收标准`, up to the next heading."""
-    lines: list[str] = []
-    inside = False
-    for raw in anchor_text.splitlines():
-        heading = _HEADING_RE.match(raw.strip())
-        if heading:
-            inside = heading.group(1) == ACCEPTANCE_HEADING
-            continue
-        if inside:
-            lines.append(raw)
-    return lines
-
-
 def acceptance_row_blockers(anchor_text: str) -> list[str]:
     """Why the acceptance section cannot start a strict task.
 
@@ -101,7 +84,7 @@ def acceptance_row_blockers(anchor_text: str) -> list[str]:
         if match:
             ids.append(match.group(2))
             continue
-        if _LIST_ITEM_RE.match(raw):
+        if LIST_ITEM_RE.match(raw):
             malformed.append(raw.strip()[:80])
     blockers: list[str] = []
     if not ids:
