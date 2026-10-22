@@ -23,6 +23,10 @@ Tell the user this repository has no cowork-flow runtime, then offer (replace
 
 ```bash
 npx cowork-flow project init --host <host>
+
+The default artifact language is `zh-CN`. When the user asks for English task or
+plan artifacts, append `--language en-US`. An existing
+`.cowork-flow/config.yaml` remains authoritative.
 ```
 
 After init the project carries its own Skills (`.agents/skills/`), the task

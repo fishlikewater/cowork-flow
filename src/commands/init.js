@@ -195,6 +195,7 @@ async function resolveLanguage(options, prompt) {
   if (existing.present) {
     return {
       existing: true,
+      configured: existing.configured,
       language: existing.language,
       valid: existing.valid,
       raw: existing.raw,
@@ -239,6 +240,12 @@ function emitLanguageWarnings(io, language) {
   if (!language.valid) {
     io.writeErr(
       `Warning: unsupported language ${JSON.stringify(language.raw)} in .cowork-flow/config.yaml; using ${language.language}. Edit the file to change it.\n`
+    );
+    return;
+  }
+  if (language.requested && !language.configured) {
+    io.writeErr(
+      `Warning: .cowork-flow/config.yaml has no language setting; using ${language.language}. Add language: ${language.requested} and run cwf project sync to switch.\n`
     );
     return;
   }
@@ -344,7 +351,8 @@ export async function runInitWithOptions(
     io.writeOut(`Developer initialized: ${developer.name}${source}\n`);
   }
   if (language.existing) {
-    io.writeOut(`Language already initialized: ${language.language}\n`);
+    const missing = language.configured ? '' : ' (default; no language key)';
+    io.writeOut(`Language already initialized: ${language.language}${missing}\n`);
   } else {
     const source = language.source === 'default' ? ' (default)' : '';
     io.writeOut(`Language initialized: ${language.language}${source}\n`);

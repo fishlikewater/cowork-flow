@@ -11,7 +11,7 @@
 | 项目级文件 | 当前项目的 `AGENTS.md`、`.cowork-flow/` 和宿主目录 | `cwf project init` / `cwf project sync` |
 | 机器级组件 | 宿主的用户配置目录，如插件、预设或 hook | `cwf host add` / `cwf host remove` |
 
-每个项目至少需要执行一次 `cwf project init`。省略 `--host` 时，init 先按项目里已有的宿主标记（如 `.codex/`、`.claude/`）自动判定，与 `cwf project sync` 使用同一套探测；没有标记的交互终端会给出选择器，非交互环境则必须显式传 `--host`。`--platform` / `--platforms` 仍是兼容别名。
+每个项目至少需要执行一次 `cwf project init`。省略 `--host` 时，init 先按项目里已有的宿主标记（如 `.codex/`、`.claude/`）自动判定，与 `cwf project sync` 使用同一套探测；没有标记的交互终端会给出选择器，非交互环境则必须显式传 `--host`。`--platform` / `--platforms` 仍是兼容别名。任务与计划产物默认中文；非交互安装需要英文产物时传 `--language en-US`，安装后也可编辑 `.cowork-flow/config.yaml` 的 `language` 并运行 `cwf project sync` 切换。
 
 是否需要 `cwf host add`，取决于宿主：
 
