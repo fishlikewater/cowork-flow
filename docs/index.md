@@ -1,5 +1,7 @@
 # cowork-flow 文档
 
+[English](index.en.md) | 中文
+
 第一次安装和使用请先看 [README](../README.md)。需要了解宿主接入、工作原理或开发流程时，再从下面的入口选择文档。
 
 ## 按问题查找

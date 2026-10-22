@@ -9,14 +9,24 @@ import { packageRoot } from '../src/lib/paths.js';
 // root or the repository front page.
 const DOC_FILES = [
   'README.md',
+  'README.en.md',
   'CONTRIBUTING.md',
   'SECURITY.md',
   'CHANGELOG.md',
   'docs/index.md',
+  'docs/index.en.md',
   'docs/architecture.md',
+  'docs/architecture.en.md',
   'docs/hosts.md',
-  'docs/release.md'
+  'docs/hosts.en.md',
+  'docs/release.md',
+  'docs/release.en.md',
+  'docs/direction.md',
+  'docs/direction.en.md'
 ];
+
+const DOCS_DIR = 'docs';
+const ENGLISH_SUFFIX = '.en.md';
 
 // Headings the README used to carry before the detail moved into docs/. They
 // must not creep back: a second copy of the same facts is what drifts. Stored
@@ -86,6 +96,47 @@ function relativeTargets(markdown) {
 }
 
 
+function isEnglishDoc(name) {
+  return name.endsWith(ENGLISH_SUFFIX);
+}
+
+
+function chinesePeer(name) {
+  return isEnglishDoc(name)
+    ? name.slice(0, -ENGLISH_SUFFIX.length) + '.md'
+    : name;
+}
+
+
+function englishPeer(name) {
+  return isEnglishDoc(name) ? name : name.slice(0, -'.md'.length) + ENGLISH_SUFFIX;
+}
+
+
+async function docsSiblings() {
+  return (await readdir(join(packageRoot, DOCS_DIR))).filter((name) => name.endsWith('.md'));
+}
+
+
+// The Chinese page is the source of truth and the English page its translation.
+// Comparing heading levels keeps the English page from silently dropping,
+// merging, or inventing sections while leaving the wording free to differ.
+function headingLevels(markdown) {
+  return headings(markdown).map((heading) => heading.level);
+}
+
+
+function headings(markdown) {
+  return stripFences(markdown)
+    .split('\n')
+    .filter((line) => /^#{1,6}\s/.test(line))
+    .map((line) => ({
+      level: line.match(/^#+/)[0].length,
+      text: line.replace(/^#+\s*/, '').trim()
+    }));
+}
+
+
 test('every documentation file exists', async () => {
   for (const relativePath of DOC_FILES) {
     await access(join(packageRoot, ...relativePath.split('/')));
@@ -114,14 +165,76 @@ test('every relative link in the documentation resolves', async () => {
 });
 
 
-test('the docs index links every document beside it', async () => {
-  const index = await readDoc('docs/index.md');
-  const linked = new Set(relativeTargets(index));
+// Each language has its own index: a Chinese reader stays in the Chinese set,
+// an English reader in the English set. A page missing from its index is
+// effectively invisible from that entry point.
+test('each documentation index links every document of its own language', async () => {
+  const files = await docsSiblings();
+  const chinese = files.filter((name) => !isEnglishDoc(name) && name !== 'index.md');
+  const english = files.filter((name) => isEnglishDoc(name) && name !== 'index.en.md');
 
-  const siblings = (await readdir(join(packageRoot, 'docs')))
-    .filter((name) => name.endsWith('.md') && name !== 'index.md');
+  const chineseLinked = new Set(relativeTargets(await readDoc('docs/index.md')));
+  const englishLinked = new Set(relativeTargets(await readDoc('docs/index.en.md')));
 
-  assert.deepEqual(siblings.filter((name) => !linked.has(name)), []);
+  assert.deepEqual(chinese.filter((name) => !chineseLinked.has(name)), []);
+  assert.deepEqual(english.filter((name) => !englishLinked.has(name)), []);
+});
+
+
+// Translation drift starts with a page that exists in one language only: the
+// reader switches language and lands on a missing file. Every docs/ page must
+// have its counterpart.
+test('every documentation page has a counterpart in the other language', async () => {
+  const names = new Set(await docsSiblings());
+  const missing = [];
+
+  for (const name of names) {
+    const peer = isEnglishDoc(name) ? chinesePeer(name) : englishPeer(name);
+    if (!names.has(peer)) {
+      missing.push(`${name} -> ${peer}`);
+    }
+  }
+
+  assert.deepEqual(missing, [], 'every docs page needs a peer in the other language');
+});
+
+
+// The English page is a translation of the Chinese source: the section
+// structure must match exactly (headings may be translated, not added, merged,
+// or dropped), and no heading may be left in Chinese.
+test('English documentation mirrors the Chinese heading structure', async () => {
+  const names = await docsSiblings();
+  const english = names.filter(isEnglishDoc);
+
+  assert.ok(english.length > 0, 'the docs surface must keep its English pages');
+
+  for (const name of english) {
+    const source = chinesePeer(name);
+    assert.deepEqual(
+      headingLevels(await readDoc(`${DOCS_DIR}/${name}`)),
+      headingLevels(await readDoc(`${DOCS_DIR}/${source}`)),
+      `${name} must keep the section structure of ${source}`
+    );
+
+    for (const heading of headings(await readDoc(`${DOCS_DIR}/${name}`))) {
+      assert.doesNotMatch(
+        heading.text,
+        /\p{Script=Han}/u,
+        `${name} has an untranslated heading: ${heading.text}`
+      );
+    }
+  }
+});
+
+
+// The language switch is the way in for a reader who lands on either version;
+// it must exist in both directions or the pairing stays invisible.
+test('each documentation page links its counterpart language', async () => {
+  for (const name of await docsSiblings()) {
+    const peer = isEnglishDoc(name) ? chinesePeer(name) : englishPeer(name);
+    const linked = new Set(relativeTargets(await readDoc(`${DOCS_DIR}/${name}`)));
+    assert.ok(linked.has(peer), `${name} must link its counterpart ${peer}`);
+  }
 });
 
 

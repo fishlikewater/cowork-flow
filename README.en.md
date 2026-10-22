@@ -186,16 +186,18 @@ Old command names still work; use the new names in new scripts.
 
 ## Documentation
 
-The detailed documentation is written in Chinese.
+The detailed documentation is available in English and Chinese; each page links to its
+counterpart at the top.
 
 | Document | Contents |
 |---|---|
-| [Documentation index](docs/index.md) | Entry point for every document |
-| [Architecture and extension](docs/architecture.md) | How the project files are organized, how the sync policy and protected files work |
-| [Host integration](docs/hosts.md) | Install, restart, troubleshoot, and uninstall for each host |
-| [Release and maintenance](docs/release.md) | Tests, CI, and maintainer commands |
-| [Contributing](CONTRIBUTING.md) | Local setup, commit conventions, and PR checks |
-| [Changelog](CHANGELOG.md) | What changed in each version |
+| [Documentation index](docs/index.en.md) | Entry point for every document |
+| [Architecture and extension](docs/architecture.en.md) | How the project files are organized, how the sync policy and protected files work |
+| [Host integration](docs/hosts.en.md) | Install, restart, troubleshoot, and uninstall for each host |
+| [Release and maintenance](docs/release.en.md) | Tests, CI, and maintainer commands |
+| [Direction](docs/direction.en.md) | Positioning, settled trade-offs, version line, and open items |
+| [Contributing](CONTRIBUTING.md) | Local setup, commit conventions, and PR checks (Chinese) |
+| [Changelog](CHANGELOG.md) | What changed in each version (Chinese) |
 
 ## License
 

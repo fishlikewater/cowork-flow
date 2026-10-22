@@ -1,5 +1,7 @@
 # cowork-flow 方向规划：Agent 运行时上下文与协作事实层
 
+[English](direction.en.md) | 中文
+
 > 状态：**已批准** · 创建：2026-08-27 · 最近更新：2026-10-19
 > 本文档是后续阶段立项的权威输入。任何方向的修订必须先更新本文档，再立项。
 > 已完成阶段的实施细节与提交记录见 [CHANGELOG](../CHANGELOG.md)；本文只保留仍然生效的定位、取舍、边界和待决项。
@@ -52,7 +54,8 @@
 
 ## 6. 待决项与缓行
 
-- **已拍板（2026-10-21）：详细文档维持中文，README 保持中英双语。** 英文社区是 spec-driven development 讨论的主场，但当前详细文档约 590 行、随 npm 以纯 Markdown 发布，全量双语会引入翻译漂移与文档框架成本。决定：`docs/`、`template/AGENTS.md`、`CHANGELOG.md` 维持中文；`README.md` / `README.en.md` 双语同步；不引入 VuePress/mkdocs 或目录式双语。未来若英文需求被证实，采用并列 `docs/*.en.md`，只覆盖安装面文档，并新增“英文文件与中文源文件标题集合一致”的漂移门禁后再落地。
+- **已拍板（2026-10-21）：详细文档维持中文，README 保持中英双语。** 英文社区是 spec-driven development 讨论的主场，但当前详细文档约 590 行、随 npm 以纯 Markdown 发布，全量双语会引入翻译漂移与文档框架成本。决定：`docs/`、`template/AGENTS.md`、`CHANGELOG.md` 维持中文；`README.md` / `README.en.md` 双语同步；不引入 VuePress/mkdocs 或目录式双语。
+  - **2026-10-22（第三步）：英文需求被证实，`docs/` 并入并列 `docs/*.en.md`。** 五份文档（index、architecture、hosts、release、direction）各新增英文版，中英页面顶部互链，仍随 npm 以纯 Markdown 发布。翻译漂移由 `test/docs.test.js` 的成对与标题结构门禁守住：英文文件缺失、标题层级不一致或互链缺失都会失败。
   - 2026-10-13 澄清：「文档语言：中文」约束的是下游宿主工作时**产出文档**的语言，不要求把随包分发的产品载荷（`template/skills/`、`template/.cowork-flow/spec/contracts/`、`presets/`）翻译成中文。
   - 2026-10-21（第一步）：随包分发的框架 spec 说明文档统一为英文——`spec/index.md`、`spec/runtime/index.md`、`spec/schemas/index.md`、`spec/references/**`。`decision-anchor.md` 的六个解析标题、`workflow-state-templates.md` 的注入块、`backend/frontend/guides` 与 `template/AGENTS.md` 仍为中文。
   - 2026-10-22（第二步）：安装时可选择 `zh-CN` / `en-US`，写入受保护的 `.cowork-flow/config.yaml`，只影响 `decision-anchor.md` 与计划产物。解析器永久接受中英两套标题；`decision-anchor.md` 保留中文合同并新增英文变体，`workflow-state-templates.md`、`AGENTS.md`、spec 文档与 Skill 不随该选项本地化。`references/` 仍受项目同步保护，已装项目需手动刷新才能拿到英文副本。

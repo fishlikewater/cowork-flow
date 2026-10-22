@@ -1,5 +1,7 @@
 # 架构与扩展
 
+[English](architecture.en.md) | 中文
+
 本文面向维护 cowork-flow 的开发者，说明项目文件如何分层、宿主差异放在哪里，以及新增能力时应遵守的边界。只想安装和使用时，看 [README](../README.md)；排查某个宿主时看 [宿主接入](hosts.md)。
 
 ## 先记住三条边界

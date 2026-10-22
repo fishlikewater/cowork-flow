@@ -1,5 +1,7 @@
 # 发布与维护
 
+[English](release.en.md) | 中文
+
 本文面向 cowork-flow 仓库维护者。普通用户只需要 [README](../README.md)；提交代码前先看 [参与开发](../CONTRIBUTING.md)。
 
 ## 发布前检查
