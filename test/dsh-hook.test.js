@@ -469,6 +469,17 @@ async function createScopeProject(t) {
 }
 
 
+// A real DSH session renders the workflow state at session start (15s budget)
+// before any edit, so the edit-scope check never pays Python's cold-start
+// compile. Reproduce that order here: without the warm-up the first timed
+// check can exceed its own 2.5s timeout under parallel test load and get
+// dropped, which turns the scope assertions into a flake.
+async function warmScopeProject(project) {
+  resetWorkingPython();
+  assert.match(await runWorkflowState(project), /<workflow-state/);
+}
+
+
 const SCOPE_WARNING = (path) =>
   `⚠️ ${path} is outside the task's declared scope. ` +
   "If intended, declare it in the task's `implement.jsonl` (agent-mutable) " +
@@ -497,7 +508,7 @@ test('runEditScopeCheck reports an out-of-scope edit and stays silent otherwise'
   });
 
   process.env.DSH_SESSION_ID = 's1';
-  resetWorkingPython();
+  await warmScopeProject(project);
   assert.equal(
     await runEditScopeCheck(project, 'src/outside.py'),
     SCOPE_WARNING('src/outside.py')
@@ -524,7 +535,7 @@ test('apply merges the edit-scope notice into the finished tool result', async (
     resetWorkingPython();
   });
   process.env.DSH_SESSION_ID = 's1';
-  resetWorkingPython();
+  await warmScopeProject(project);
 
   const { ctx, handlers } = createFakeCtx();
   apply(ctx);
