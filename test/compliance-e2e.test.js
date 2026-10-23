@@ -109,7 +109,7 @@ async function writePlanningArtifacts(instance, name, { anchor = true, specs = [
   if (anchor) {
     await writeFile(
       join(taskDir, 'decision-anchor.md'),
-      `# Decision Anchor\n\n## 目标\ncompliance scenario\n\n## 验收标准\n- [ ] AC-001: scenario reaches its end state\n`,
+      `# Decision Anchor\n\n## 目标\ncompliance scenario\n\n## 验收标准\n- [ ] AC-001: scenario reaches its end state\n\n## 验证命令\n规范核对：逐条核对 \`.cowork-flow/spec/backend/\` 适用规范 → pass（理由：scenario）。\n`,
       'utf8'
     );
   }
@@ -125,6 +125,33 @@ async function writePlanningArtifacts(instance, name, { anchor = true, specs = [
     entries.map((entry) => `${JSON.stringify(entry)}\n`).join(''),
     'utf8'
   );
+}
+
+function strictPlanText(name) {
+  return [
+    `# ${name} 实施计划`,
+    '',
+    '**目标:** compliance scenario',
+    '',
+    '## 目标',
+    'compliance scenario',
+    '',
+    '## 验收标准',
+    '- AC-001: scenario reaches its end state',
+    '',
+    '## 全局约束',
+    '- Do not expand the scenario.',
+    '',
+    '## 文件边界',
+    '- `src/scenario.js`',
+    '',
+    '## 任务',
+    '### 任务 1：scenario',
+    '',
+    '## 最终验证',
+    '规范核对：逐条核对 `.cowork-flow/spec/backend/` 适用规范 → pass（理由：scenario）。',
+    ''
+  ].join('\n');
 }
 
 async function closeOutEvidence(instance, name) {
@@ -153,7 +180,7 @@ async function createStartedTask(instance, name, { specs = [] } = {}) {
   await mkdir(join(instance.dir, '.cowork-flow', 'plans'), { recursive: true });
   await writeFile(
     join(instance.dir, '.cowork-flow', 'plans', `${name}.md`),
-    '# Plan\n',
+    strictPlanText(name),
     'utf8'
   );
   const created = instance.run([
@@ -508,6 +535,36 @@ test('an installed instance runs the strict task path and refuses to complete it
     existsSync(join(instance.dir, '.cowork-flow', 'tasks', 'archive', '2026-10', name)),
     true
   );
+});
+
+test('an installed instance blocks a strict task whose bound plan is not template-shaped', async (t) => {
+  const instance = await installedInstance(t, 'compliance_plan_shape');
+  if (instance.unavailable) {
+    t.skip(instance.unavailable);
+    return;
+  }
+
+  const name = '10-23-plan-shape';
+  await mkdir(join(instance.dir, '.cowork-flow', 'plans'), { recursive: true });
+  const planPath = join(instance.dir, '.cowork-flow', 'plans', `${name}.md`);
+  await writeFile(planPath, '# Plan\n', 'utf8');
+  const created = instance.run([
+    'task', 'next', '--run',
+    '--title', name, '--slug', name, '--assignee', 'compliance',
+    '--type', 'backend', '--from-plan', `.cowork-flow/plans/${name}.md`
+  ]);
+  assert.equal(created.status, 0, created.stderr);
+  await writePlanningArtifacts(instance, name);
+
+  const blocked = instance.run(['task', 'next', instance.taskDir(name), '--run']);
+  assert.notEqual(blocked.status, 0, blocked.stdout + blocked.stderr);
+  assert.match(blocked.stdout + blocked.stderr, /实施计划|plan title/);
+  assert.equal(await taskStatus(instance, name), 'planning');
+
+  await writeFile(planPath, strictPlanText(name), 'utf8');
+  const started = instance.run(['task', 'next', instance.taskDir(name), '--run']);
+  assert.equal(started.status, 0, started.stderr);
+  assert.equal(await taskStatus(instance, name), 'in_progress');
 });
 
 test('an installed instance still completes a pre-strict tiny task', async (t) => {

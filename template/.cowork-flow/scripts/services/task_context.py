@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from infra.config import get_language
 from infra.files import read_text_utf8
 from infra.paths import FILE_TASK_JSON
 from services.context_discovery import (
@@ -34,10 +35,20 @@ from services.context_paths import (
 )
 from services.decision_anchor_schema import (
     REQUIRED_SECTIONS,
+    VERIFICATION,
+    heading_for,
+    headings,
+    is_spec_check_result_line,
     present_sections,
     section_headings,
+    spec_check_example,
+    verification_section_lines,
 )
-from services.plan_binding import normalize_plan_file, plan_file_blockers
+from services.plan_binding import (
+    normalize_plan_file,
+    plan_file_blockers,
+    plan_template_blockers,
+)
 from services.task_gate_profiles import (
     GATE_PROFILE_STRICT,
     acceptance_row_blockers,
@@ -335,6 +346,9 @@ class TaskContextService:
         task_dir = Path(task_dir)
         blockers: list[str] = []
         task_data = self._task_data(task_dir)
+        strict = resolve_gate_profile(task_data) == GATE_PROFILE_STRICT
+        light = self._is_tiny_task(task_data)
+        language = get_language(self.repo_root)
         if not (task_dir / FILE_TASK_JSON).is_file():
             blockers.append("task.json is missing")
         anchor_text = read_text_utf8(task_dir / "decision-anchor.md")
@@ -342,14 +356,27 @@ class TaskContextService:
             blockers.append("decision-anchor.md is missing or empty")
         else:
             blockers.extend(self._decision_anchor_section_blockers(anchor_text))
-            if resolve_gate_profile(task_data) == GATE_PROFILE_STRICT:
+            if strict:
                 blockers.extend(acceptance_row_blockers(anchor_text))
+                if not light:
+                    blockers.extend(
+                        self._anchor_spec_check_blockers(
+                            anchor_text,
+                            language,
+                            task_data.get("dev_type"),
+                        )
+                    )
         for context_file in ("implement.jsonl",):
             if not read_text_utf8(task_dir / context_file):
                 blockers.append(f"{context_file} is missing or empty")
-        if (task_dir / FILE_TASK_JSON).is_file() and not self._is_tiny_task(task_data):
-            blockers.extend(self._plan_file_blockers(task_data))
-        if resolve_gate_profile(task_data) == GATE_PROFILE_STRICT:
+        if (task_dir / FILE_TASK_JSON).is_file() and not light:
+            plan_blockers = self._plan_file_blockers(task_data)
+            blockers.extend(plan_blockers)
+            if strict and not plan_blockers:
+                blockers.extend(
+                    plan_template_blockers(self.repo_root, task_data, language)
+                )
+        if strict:
             blockers.extend(dev_type_blocker(task_data))
         return tuple(blockers)
 
@@ -373,6 +400,45 @@ class TaskContextService:
             for section in REQUIRED_SECTIONS
             if section not in present
         ]
+
+    @staticmethod
+    def _anchor_spec_check_blockers(
+        anchor_text: str,
+        language: str,
+        dev_type: str | None,
+    ) -> list[str]:
+        expected = heading_for(VERIFICATION, language)
+        actual = headings(anchor_text)
+        normalized_dev_type = (
+            dev_type.strip()
+            if isinstance(dev_type, str) and dev_type.strip()
+            else None
+        )
+        example = spec_check_example(language, normalized_dev_type)
+        if expected not in actual:
+            other = heading_for(
+                VERIFICATION,
+                "en-US" if language == "zh-CN" else "zh-CN",
+            )
+            if other in actual:
+                return [
+                    f"decision-anchor.md uses `## {other}`; a strict {language} "
+                    f"task requires `## {expected}` with a filled spec-check "
+                    f"result, e.g. {example}"
+                ]
+            return [
+                f"decision-anchor.md is missing `## {expected}` with a filled "
+                f"spec-check result, e.g. {example}"
+            ]
+        if not any(
+            is_spec_check_result_line(line, language)
+            for line in verification_section_lines(anchor_text)
+        ):
+            return [
+                f"decision-anchor.md `## {expected}` is missing a filled "
+                f"spec-check result, e.g. {example}"
+            ]
+        return []
 
     @staticmethod
     def _is_tiny_task(task_data: dict) -> bool:

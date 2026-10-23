@@ -71,7 +71,7 @@ Tiny plans may keep a shorter brief, but must still name exact file boundaries, 
 <command>
 ```
 
-When changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, add the deciding command or a spec/gate check line (`pass` / `not_applicable` with reason) here; it is a strong review reminder, not a hard gate.
+When changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, add the deciding command or a spec/gate check line (`pass` / `not_applicable` with reason) here. Before a strict non-Tiny task starts, replace `<pass / not_applicable + reason>` with the actual result; the start gate rejects the template placeholder.
 
 **Completion Conditions**
 - <2-4 checkable conditions>

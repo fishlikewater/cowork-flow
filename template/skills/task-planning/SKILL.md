@@ -49,7 +49,7 @@ Fill the template in order: header table and goal first, then acceptance criteri
 - Every Normal or High-risk task fills every required field in the template's task brief: Purpose, Code Fact Sources, File Boundaries, Key Symbols, Implementation Notes, Test Proof, Verification Command, Completion Conditions, Prohibited Drift, and Deviation Conditions.
 - For Tiny tasks, keep the brief short but still name exact file boundaries, completion conditions, and verification commands.
 - For behavior changes, include a failing test before implementation when behavior can be tested.
-- For implementation tasks whose changed files are covered by `.cowork-flow/spec/` requirements, name the covered spec files in the plan and add the clause check to the task's `Verification Command` and the plan's `Final Verification`: run the deciding command when one exists, otherwise check clause by clause and record `pass` / `not_applicable` with reason. This is a strong review reminder, not a separate hard gate.
+- For implementation tasks whose changed files are covered by `.cowork-flow/spec/` requirements, name the covered spec files in the plan and add the clause check to the task's `Verification Command` and the plan's `Final Verification`: run the deciding command when one exists, otherwise check clause by clause and record `pass` / `not_applicable` with reason. For strict non-Tiny tasks this is a hard start gate: the bound plan and the task anchor must use the configured-language verification heading and carry a filled spec-check result. The template placeholder `<pass / not_applicable + reason>` blocks start; replace it before starting. The content remains self-declared and is reviewed by the check agent.
 - Do not add shallow tests just to satisfy process. Avoid tests that only assert existence, mirror implementation details, count mock calls without behavior, or snapshot empty structure.
 - For complex problems, test depth first: business invariants, cross-layer contracts, state transitions, error boundaries, and real regression paths before narrow unit cases.
 - Map behavior-changing tests to stable `decision-anchor.md` acceptance IDs when useful; do not create `tdd.jsonl` or write TDD evidence records into `check.jsonl`.
@@ -81,7 +81,7 @@ A plan can be marked approved only when all conditions hold:
 - Every task in the plan has clear acceptance criteria.
 - Every task has implementation steps and verification commands.
 - Task dependencies are explicit, including whether work is serial or parallelizable.
-- The plan uses the installed `.cowork-flow/templates/plan-template.md` shape and the configured output language.
+- The plan uses the installed `.cowork-flow/templates/plan-template.md` shape and the configured output language. For strict non-Tiny tasks, the runtime blocks start when the plan or anchor lacks the configured-language verification section or a filled spec-check result.
 
 `implement.jsonl` is the current task's context index — the files in scope and
 the spec pointers it needs — not the task list. The plan owns the task list.
@@ -118,5 +118,5 @@ Before handoff:
 3. Confirm every Normal or High-risk task fills every required brief field in the template.
 4. Check names, paths, command syntax, and expected outputs.
 5. Confirm the plan says to stop and report back when code facts conflict with the plan, a plan-external file becomes necessary, or a test fails for an unplanned reason.
-6. Confirm Final Verification carries the applicable `.cowork-flow/spec/<dev_type>/` clause check, or states why no spec file applies.
+6. Confirm Final Verification carries the applicable `.cowork-flow/spec/<dev_type>/` clause check with an actual `pass` / `not_applicable` result, or states why no spec file applies. For strict non-Tiny tasks the runtime blocks start when this line is missing or still the template placeholder.
 7. Confirm the plan is written in the configured language and keeps the machine-readable goal line and `AC-NNN` identifiers unchanged.

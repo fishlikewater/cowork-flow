@@ -108,6 +108,7 @@
       "digest": [
         "Plan binding records repo-relative task.json.meta.planFile.",
         "Task start blocks clear missing plan facts for non-Tiny tasks.",
+        "Strict non-Tiny start requires the configured-language plan template shape and a filled spec-check line.",
         "V1 does not parse plan steps, AC text, or verification evidence."
       ],
       "readWhen": [

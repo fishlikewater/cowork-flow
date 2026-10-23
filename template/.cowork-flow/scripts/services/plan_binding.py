@@ -9,6 +9,7 @@ from pathlib import Path
 
 from infra.files import read_text_utf8
 from infra.paths import DIR_WORKFLOW
+from services.plan_schema import plan_template_blockers as plan_text_blockers
 from services.task_repository import TaskRepository
 
 
@@ -165,3 +166,36 @@ def plan_file_blockers(repo_root: Path, task_data: dict) -> list[str]:
             return [f"planFile is empty: {error.normalized}"]
         return [error.detail]
     return []
+
+
+def plan_template_blockers(
+    repo_root: Path,
+    task_data: dict,
+    language: str,
+) -> list[str]:
+    """Structure blockers for an already-bound, non-empty plan."""
+    meta = task_data.get("meta")
+    plan_file = meta.get("planFile") if isinstance(meta, dict) else None
+    if not isinstance(plan_file, str) or not plan_file.strip():
+        return []
+    try:
+        bound = bind_plan_file(
+            repo_root,
+            plan_file,
+            allow_absolute=False,
+            require_exists=True,
+            require_non_empty=True,
+        )
+    except PlanBindingError:
+        # plan_file_blockers already reported the binding fact.
+        return []
+    text = read_text_utf8(bound.path)
+    if not text.strip():
+        return []
+    dev_type = task_data.get("dev_type")
+    if not isinstance(dev_type, str) or not dev_type.strip():
+        dev_type = None
+    return [
+        f"plan {bound.normalized}: {message}"
+        for message in plan_text_blockers(text, language, dev_type=dev_type)
+    ]

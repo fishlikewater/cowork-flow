@@ -22,6 +22,51 @@ from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
 
 ANCHOR_TEXT = "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- AC-001: Demo.\n"
 
+STRICT_PLAN_TEXT = "\n".join(
+    [
+        "# 演示实施计划",
+        "",
+        "**目标:** 演示",
+        "",
+        "## 目标",
+        "演示。",
+        "",
+        "## 验收标准",
+        "- AC-001: 演示。",
+        "",
+        "## 全局约束",
+        "- 不扩大范围。",
+        "",
+        "## 文件边界",
+        "- `AGENTS.md`",
+        "",
+        "## 任务",
+        "### 任务 1：演示",
+        "",
+        "## 最终验证",
+        "规范核对：逐条核对 `.cowork-flow/spec/backend/` 适用规范 "
+        "→ pass（理由：演示）。",
+        "",
+    ]
+)
+
+STRICT_ANCHOR_TEXT = "\n".join(
+    [
+        "# Decision Anchor",
+        "",
+        "## 目标",
+        "演示。",
+        "",
+        "## 验收标准",
+        "- [ ] AC-001: 演示。",
+        "",
+        "## 验证命令",
+        "规范核对：逐条核对 `.cowork-flow/spec/backend/` 适用规范 "
+        "→ pass（理由：演示）。",
+        "",
+    ]
+)
+
 
 class TaskCommandsTest(FlowScriptTestCase):
     @staticmethod
@@ -666,6 +711,122 @@ class TaskCommandsTest(FlowScriptTestCase):
             ],
             blockers,
         )
+
+    def _write_strict_start_fixture(
+        self,
+        root: Path,
+        *,
+        plan_text: str = STRICT_PLAN_TEXT,
+        anchor_text: str = STRICT_ANCHOR_TEXT,
+    ) -> Path:
+        task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+        plan_file = root / ".cowork-flow" / "plans" / "2026-05-19-demo.md"
+        task_dir.mkdir(parents=True)
+        plan_file.parent.mkdir(parents=True)
+        plan_file.write_text(plan_text, encoding="utf-8")
+        (task_dir / "task.json").write_text(
+            json.dumps(
+                {
+                    "status": "planning",
+                    "dev_type": "backend",
+                    "meta": {
+                        "planFile": ".cowork-flow/plans/2026-05-19-demo.md",
+                        "gateProfile": "strict",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (task_dir / "decision-anchor.md").write_text(
+            anchor_text, encoding="utf-8"
+        )
+        (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+        for name in ("implement.jsonl", "check.jsonl", "debug.jsonl"):
+            (task_dir / name).write_text(
+                '{"file": "AGENTS.md"}\n', encoding="utf-8"
+            )
+        return task_dir
+
+    def test_strict_start_accepts_template_plan_and_anchor(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_strict_start_fixture(root)
+
+            blockers = self._start_readiness_blockers(root, task_dir)
+
+        self.assertEqual([], blockers)
+
+    def test_strict_start_blocks_non_template_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_strict_start_fixture(root, plan_text="# Plan\n")
+
+            blockers = self._start_readiness_blockers(root, task_dir)
+
+        joined = "\n".join(blockers)
+        self.assertGreaterEqual(len(blockers), 1, blockers)
+        self.assertIn("plan .cowork-flow/plans/2026-05-19-demo.md", joined)
+        self.assertIn("实施计划", joined)
+
+    def test_cmd_start_blocks_strict_task_with_placeholder_plan_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_strict_start_fixture(
+                root,
+                plan_text=STRICT_PLAN_TEXT.replace(
+                    "→ pass（理由：演示）。",
+                    "→ <pass / not_applicable + 理由>。",
+                ),
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}),
+                    contextlib.redirect_stdout(io.StringIO()) as stdout,
+                    contextlib.redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    result = self.task.cmd_start(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-demo")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(1, result)
+            self.assertEqual("planning", data["status"])
+            self.assertIn(
+                "spec-check",
+                stdout.getvalue() + stderr.getvalue(),
+            )
+
+    def test_cmd_start_accepts_strict_template_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_strict_start_fixture(root)
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with (
+                    patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}),
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    result = self.task.cmd_start(
+                        argparse.Namespace(dir=".cowork-flow/tasks/05-19-demo")
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            data = json.loads(
+                (task_dir / "task.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(0, result)
+            self.assertEqual("in_progress", data["status"])
 
     def test_cmd_start_blocks_unprepared_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

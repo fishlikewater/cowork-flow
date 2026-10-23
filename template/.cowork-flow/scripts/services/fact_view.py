@@ -26,6 +26,7 @@ from services.decision_anchor_schema import (
     SCOPE,
     VERIFICATION,
     canonical_section,
+    is_spec_check_line,
 )
 
 GOAL_TRUNCATE = 300
@@ -73,6 +74,11 @@ def parse_decision_anchor(text: str) -> dict[str, Any]:
             command = raw.strip()
             if command.startswith("- "):
                 command = command[2:].strip()
+            if command.startswith("<!--"):
+                # Scaffold instructions and author notes are not commands.
+                continue
+            if is_spec_check_line(command):
+                continue
             if command and len(verify_commands) < VERIFY_COMMAND_MAX:
                 verify_commands.append(command[:VERIFY_COMMAND_TRUNCATE])
         elif section == SCOPE:

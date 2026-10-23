@@ -23,6 +23,11 @@ REQUIRED_SECTIONS = (GOAL, ACCEPTANCE)
 
 DEFAULT_LANGUAGE = "zh-CN"
 
+SPEC_CHECK_LABELS: dict[str, str] = {
+    "zh-CN": "规范核对：",
+    "en-US": "Spec check:",
+}
+
 LANGUAGE_HEADINGS: dict[str, dict[str, str]] = {
     "zh-CN": {
         GOAL: "目标",
@@ -53,6 +58,10 @@ ACCEPTANCE_RE = re.compile(
     r"^\s*-\s*(?:\[([ xX])\]?\s*)?(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$"
 )
 LIST_ITEM_RE = re.compile(r"^\s*[-*]\s")
+LIST_PREFIX_RE = re.compile(r"^\s*[-*+]\s*")
+FENCE_MARKER_RE = re.compile(r"^(```|~~~)")
+SPEC_CHECK_RESULT_RE = re.compile(r"(?i)\b(?:pass|not_applicable)\b")
+ANGLE_SPAN_RE = re.compile(r"[<＜][^>＞]*[>＞]")
 
 
 def canonical_section(heading: str) -> str | None:
@@ -77,6 +86,130 @@ def section_headings(section: str) -> tuple[str, ...]:
     )
 
 
+def spec_check_label(language: str) -> str:
+    """The spec-check label for a language, falling back to the default."""
+    return SPEC_CHECK_LABELS.get(language, SPEC_CHECK_LABELS[DEFAULT_LANGUAGE])
+
+
+def _spec_check_remainder(line: str, language: str | None) -> str | None:
+    text = LIST_PREFIX_RE.sub("", line.strip(), count=1)
+    labels = (
+        (spec_check_label(language),)
+        if language is not None
+        else tuple(SPEC_CHECK_LABELS.values())
+    )
+    for label in labels:
+        if text.startswith(label):
+            return text[len(label):]
+    return None
+
+
+def is_spec_check_line(line: str, language: str | None = None) -> bool:
+    """Whether a line starts with the configured or any spec-check label."""
+    return _spec_check_remainder(line, language) is not None
+
+
+def is_spec_check_result_line(line: str, language: str | None = None) -> bool:
+    """Whether a spec-check line carries an actual result.
+
+    Angle-bracket spans are the template's placeholder syntax, so a result
+    mentioned only inside `<...>`/`＜...＞` does not count.
+    """
+    remainder = _spec_check_remainder(line, language)
+    if remainder is None:
+        return False
+    return SPEC_CHECK_RESULT_RE.search(ANGLE_SPAN_RE.sub("", remainder)) is not None
+
+
+def _spec_scope(dev_type: str | None) -> str:
+    """The spec source a task's dev_type dispatches to.
+
+    `spec` is the whole-spec dev type and its reading list starts at the spec
+    index, not at a `.cowork-flow/spec/spec/` directory.
+    """
+    if dev_type == "spec":
+        return ".cowork-flow/spec/"
+    return f".cowork-flow/spec/{dev_type or '<dev_type>'}/"
+
+
+def spec_check_placeholder(language: str, dev_type: str | None = None) -> str:
+    """The localized scaffold line that the start gate treats as unfilled."""
+    spec_dir = _spec_scope(dev_type)
+    if language == "en-US":
+        return (
+            f"- Spec check: clause-by-clause check against applicable "
+            f"`{spec_dir}` rules -> <pass / not_applicable + reason>."
+        )
+    return (
+        f"- 规范核对：逐条核对 `{spec_dir}` 适用规范 "
+        "→ <pass / not_applicable + 理由>。"
+    )
+
+
+def spec_check_example(language: str, dev_type: str | None = None) -> str:
+    """A filled spec-check example for start-gate error messages."""
+    spec_dir = _spec_scope(dev_type)
+    if language == "en-US":
+        return (
+            f"- Spec check: clause-by-clause check against applicable "
+            f"`{spec_dir}` rules -> pass (reason: ...)"
+        )
+    return (
+        f"- 规范核对：逐条核对 `{spec_dir}` 适用规范 → pass（理由：...）"
+    )
+
+
+def structural_lines(text: str) -> list[str]:
+    """Lines outside fenced code blocks, for structural Markdown checks."""
+    lines: list[str] = []
+    fence: str | None = None
+    for raw in text.splitlines():
+        marker = FENCE_MARKER_RE.match(raw.strip())
+        if marker is not None:
+            if fence is None:
+                fence = marker.group(1)
+            elif marker.group(1) == fence:
+                fence = None
+            continue
+        if fence is None:
+            lines.append(raw)
+    return lines
+
+
+def section_lines(
+    text: str,
+    section: str,
+    *,
+    skip_fenced: bool = False,
+) -> list[str]:
+    """Raw lines under a recognized heading, up to the next `##` heading."""
+    lines: list[str] = []
+    inside = False
+    source = structural_lines(text) if skip_fenced else text.splitlines()
+    for raw in source:
+        heading = HEADING_RE.match(raw.strip())
+        if heading:
+            inside = canonical_section(heading.group(1)) == section
+            continue
+        if inside:
+            lines.append(raw)
+    return lines
+
+
+def verification_section_lines(text: str) -> list[str]:
+    """Raw verification lines, ignoring fenced command examples."""
+    return section_lines(text, VERIFICATION, skip_fenced=True)
+
+
+def headings(text: str) -> tuple[str, ...]:
+    """Every `##` heading text in the document order."""
+    return tuple(
+        heading.group(1)
+        for raw in text.splitlines()
+        if (heading := HEADING_RE.match(raw.strip()))
+    )
+
+
 def present_sections(text: str) -> set[str]:
     """Canonical keys of the recognized `##` sections present in the text."""
     present: set[str] = set()
@@ -92,13 +225,4 @@ def present_sections(text: str) -> set[str]:
 
 def acceptance_section_lines(text: str) -> list[str]:
     """Raw lines under the acceptance heading, up to the next heading."""
-    lines: list[str] = []
-    inside = False
-    for raw in text.splitlines():
-        heading = HEADING_RE.match(raw.strip())
-        if heading:
-            inside = canonical_section(heading.group(1)) == ACCEPTANCE
-            continue
-        if inside:
-            lines.append(raw)
-    return lines
+    return section_lines(text, ACCEPTANCE)

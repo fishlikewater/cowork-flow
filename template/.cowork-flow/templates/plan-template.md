@@ -71,7 +71,7 @@ Tiny 任务可保留简化 brief，但仍须写明精确文件边界、完成条
 <command>
 ```
 
-当改动文件受 `.cowork-flow/spec/<dev_type>/` 规则覆盖时，在这里加入决定命令或规范门禁核对行（`pass` / `not_applicable` 并附理由）；这是强复核提醒，不是硬门禁。
+当改动文件受 `.cowork-flow/spec/<dev_type>/` 规则覆盖时，在这里加入决定命令或规范门禁核对行（`pass` / `not_applicable` 并附理由）。strict 非 Tiny 任务启动前必须把 `<pass / not_applicable + 理由>` 替换为实际核对结果；保留模板占位符会被 start 门禁阻断。
 
 **完成条件**
 - <2-4 条可检查条件>

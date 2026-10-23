@@ -117,6 +117,9 @@ class TaskCreationServiceTest(unittest.TestCase):
             )
             self.assertIn("## 目标", anchor)
             self.assertIn("## 验收标准", anchor)
+            self.assertIn("## 验证命令", anchor)
+            self.assertIn("规范核对：", anchor)
+            self.assertIn("<dev_type>", anchor)
             self.assertIn("<!--", anchor)
             self.assertTrue(result.generated_anchor)
             self.assertFalse(result.generated_anchor_from_plan)
@@ -150,8 +153,11 @@ class TaskCreationServiceTest(unittest.TestCase):
             )
             self.assertIn("## Goal", anchor)
             self.assertIn("## Acceptance Criteria", anchor)
+            self.assertIn("## Verification Commands", anchor)
+            self.assertIn("Spec check:", anchor)
             self.assertIn("Ship the English path", anchor)
             self.assertNotIn("## 目标", anchor)
+            self.assertNotIn("## 验证命令", anchor)
             self.assertTrue(result.generated_anchor)
             self.assertTrue(result.generated_anchor_from_plan)
 
@@ -207,6 +213,46 @@ class TaskCreationServiceTest(unittest.TestCase):
                 existing,
                 (task_dir / "decision-anchor.md").read_text(encoding="utf-8"),
             )
+
+    def test_anchor_scaffold_uses_dev_type_or_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            plans_dir = root / ".cowork-flow" / "plans"
+            plans_dir.mkdir(parents=True)
+            plan_path = plans_dir / "plan.md"
+            plan_path.write_text("**目标:** 演示\n", encoding="utf-8")
+
+            typed = self.TaskCreationService(root).create(
+                self.TaskCreationRequest(
+                    title="后端任务",
+                    slug="typed-task",
+                    assignee="codex",
+                    priority="P2",
+                    from_plan=plan_path,
+                    dev_type="backend",
+                    created_at="2026-07-10",
+                    date_prefix="07-10",
+                )
+            ).task_dir
+            untyped = self.TaskCreationService(root).create(
+                self.TaskCreationRequest(
+                    title="未声明类型",
+                    slug="untyped-task",
+                    assignee="codex",
+                    priority="P2",
+                    created_at="2026-07-10",
+                    date_prefix="07-10",
+                )
+            ).task_dir
+
+            typed_anchor = (typed / "decision-anchor.md").read_text(encoding="utf-8")
+            untyped_anchor = (untyped / "decision-anchor.md").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertIn(".cowork-flow/spec/backend/", typed_anchor)
+        self.assertNotIn(".cowork-flow/spec/<dev_type>/", typed_anchor)
+        self.assertIn(".cowork-flow/spec/<dev_type>/", untyped_anchor)
 
 
     def test_create_from_noncanonical_plan_path_uses_shared_policy(self) -> None:

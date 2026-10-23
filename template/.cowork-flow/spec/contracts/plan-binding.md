@@ -51,9 +51,29 @@ into `in_progress`:
 - `decision-anchor.md` contains `## Goal`/`## 目标` and
   `## Acceptance Criteria`/`## 验收标准`.
 - `implement.jsonl` passes the existing context validation.
+- For a strict non-Tiny task, the plan title contains the configured-language
+  marker (`实施计划` / `Implementation Plan`).
+- The plan contains the six configured-language `##` template headings in
+  template order: `目标` / `验收标准` / `全局约束` / `文件边界` / `任务` /
+  `最终验证`, or their `en-US` equivalents. Extra custom sections are allowed;
+  fenced code is ignored; a known template heading from the other language is
+  rejected.
+- Any `### 任务` / `### Task` task heading uses the configured-language prefix.
+- `## 最终验证` / `## Final Verification` contains a line starting with
+  `规范核对：` / `Spec check:` and carrying an actual `pass` or
+  `not_applicable` result. The template placeholder (`<pass / not_applicable +
+  理由>` / `<pass / not_applicable + reason>`) does not satisfy the gate.
+- The strict non-Tiny anchor carries the configured-language `## 验证命令` /
+  `## Verification Commands` section with the same filled spec-check result;
+  see `decision-anchor.md`.
 
-A Tiny task may have no planFile, but must still satisfy the existing anchor and
-implement-scope requirements.
+Creation and `--from-plan` binding stay permissive: a planning task may create
+and bind a plan before its structure is final. These checks run only at the
+planning → `in_progress` start gate.
+
+A Tiny task may have no planFile and is exempt from the plan-shape and anchor
+spec-check gates. A legacy task (no `meta.gateProfile: "strict"`) keeps the
+historical checks; this contract does not retro-fit either profile.
 
 ## Implementation recovery
 
@@ -79,6 +99,8 @@ The recovery output lists paths only and never expands the plan prose.
 - No Markdown AST or DSL.
 - No comparing AC text against plan task prose.
 - No matching verification commands against evidence records.
+- No semantic validation of the spec-check result or reason; the structural
+  check only requires an actual `pass` / `not_applicable` token.
 - No plan-approval data model.
 
 These capabilities are considered only after warning noise and real payoff have been

@@ -17,12 +17,20 @@ from services.decision_anchor_schema import (  # noqa: E402
     GOAL,
     REJECTED,
     SCOPE,
+    SPEC_CHECK_LABELS,
     VERIFICATION,
     acceptance_section_lines,
     canonical_section,
     heading_for,
+    is_spec_check_line,
+    is_spec_check_result_line,
     present_sections,
     section_headings,
+    spec_check_example,
+    spec_check_label,
+    spec_check_placeholder,
+    structural_lines,
+    verification_section_lines,
 )
 from services.fact_view import parse_decision_anchor  # noqa: E402
 
@@ -134,6 +142,90 @@ class DecisionAnchorSchemaTest(unittest.TestCase):
     def test_acceptance_regex_accepts_both_colons(self) -> None:
         self.assertIsNotNone(ACCEPTANCE_RE.match("- [ ] AC-001: ascii"))
         self.assertIsNotNone(ACCEPTANCE_RE.match("- [x] AC-002：full width"))
+
+    def test_spec_check_labels_are_language_specific(self) -> None:
+        self.assertEqual("规范核对：", spec_check_label("zh-CN"))
+        self.assertEqual("Spec check:", spec_check_label("en-US"))
+        self.assertEqual("规范核对：", spec_check_label("fr-FR"))
+        self.assertEqual(
+            {"zh-CN": "规范核对：", "en-US": "Spec check:"},
+            SPEC_CHECK_LABELS,
+        )
+
+    def test_spec_check_result_accepts_filled_results(self) -> None:
+        zh_line = (
+            "- 规范核对：逐条核对 `.cowork-flow/spec/backend/` 适用规范 "
+            "→ pass（理由：已核对）。"
+        )
+        en_line = (
+            "- Spec check: clause-by-clause check against applicable "
+            "`.cowork-flow/spec/backend/` rules -> not_applicable (reason: no rules)."
+        )
+        self.assertTrue(is_spec_check_line(zh_line, "zh-CN"))
+        self.assertTrue(is_spec_check_result_line(zh_line, "zh-CN"))
+        self.assertTrue(is_spec_check_result_line(en_line, "en-US"))
+        self.assertFalse(is_spec_check_result_line(zh_line, "en-US"))
+
+    def test_spec_check_placeholder_is_not_a_result(self) -> None:
+        placeholder = spec_check_placeholder("zh-CN", "backend")
+        self.assertTrue(is_spec_check_line(placeholder, "zh-CN"))
+        self.assertFalse(is_spec_check_result_line(placeholder, "zh-CN"))
+        self.assertFalse(
+            is_spec_check_result_line(
+                spec_check_placeholder("en-US", "backend"), "en-US"
+            )
+        )
+
+    def test_spec_check_example_is_filled(self) -> None:
+        example = spec_check_example("zh-CN", "backend")
+        self.assertIn("backend", example)
+        self.assertTrue(is_spec_check_result_line(example, "zh-CN"))
+        self.assertTrue(
+            is_spec_check_result_line(spec_check_example("en-US", "backend"), "en-US")
+        )
+
+    def test_spec_check_scope_matches_the_spec_dev_type_dispatch(self) -> None:
+        for language in ("zh-CN", "en-US"):
+            with self.subTest(language=language):
+                for line in (
+                    spec_check_placeholder(language, "spec"),
+                    spec_check_example(language, "spec"),
+                ):
+                    self.assertIn("`.cowork-flow/spec/`", line)
+                    self.assertNotIn("spec/spec/", line)
+
+    def test_verification_section_lines_ignore_fenced_code(self) -> None:
+        text = "\n".join(
+            [
+                "## 验证命令",
+                "- `pytest -q` → pass",
+                "```text",
+                "- 规范核对：fenced result → pass",
+                "```",
+                "## 范围边界",
+                "范围内。",
+            ]
+        )
+        lines = verification_section_lines(text)
+        self.assertIn("- `pytest -q` → pass", lines)
+        self.assertNotIn("- 规范核对：fenced result → pass", lines)
+        self.assertNotIn("范围内。", lines)
+
+    def test_structural_lines_drops_fenced_content(self) -> None:
+        text = "\n".join(
+            [
+                "# Title",
+                "```markdown",
+                "## 这不是实际标题",
+                "```",
+                "## 目标",
+                "演示。",
+            ]
+        )
+        self.assertEqual(
+            ["# Title", "## 目标", "演示。"],
+            structural_lines(text),
+        )
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ and the right column the `en-US` output.
 | `## 被拒方案` / `## Rejected Options` | optional | required for brainstorming tasks, so a rejected option is not reconsidered during execution |
 | `## 关键假设` / `## Key Assumptions` | optional | filled in for complex tasks to surface implicit constraints; not read by the runtime parser |
 | `## 范围边界` / `## Scope Boundary` | optional | prevents scope creep |
-| `## 验证命令` / `## Verification Commands` | optional | filled in for complex tasks, as the basis for automated verification; when the changed files are covered by `.cowork-flow/spec/backend/` or `frontend/` rules, it must also carry the spec/gate check for the task's `dev_type` (deciding command, or clause-by-clause `pass` / `not_applicable` with reason) |
+| `## 验证命令` / `## Verification Commands` | required for strict non-Tiny; optional for legacy/Tiny | filled in for complex tasks, as the basis for automated verification; a strict non-Tiny task also needs the configured-language section and a filled spec/gate check for the task's `dev_type` (deciding command, or clause-by-clause `pass` / `not_applicable` with reason) |
 
 ### Machine-readable line formats (for injection)
 
@@ -59,11 +59,13 @@ fact view (`services/fact_view.parse_decision_anchor`). Line-format conventions:
 - `## 验证命令`: one command per line (an optional `- ` prefix), truncated to 120
   characters, at most 10 lines; the implementing agent runs them itself
   (self-declared, self-checked) and the reviewer verifies the execution evidence.
-  When the changed files are covered by `.cowork-flow/spec/<dev_type>/` rules, the
-  section must also carry the spec/gate check for the task's `dev_type`: a deciding
-  command, or a `规范核对:` line reviewed clause by clause (`pass` /
-  `not_applicable` + reason). This is a strong review reminder, not a `spec-check`
-  hard gate.
+  A strict non-Tiny task must also carry a `规范核对：` line in the configured
+  language's section, with the actual `pass` / `not_applicable` result and a
+  reason. The template placeholder (`<pass / not_applicable + 理由>`) does not
+  satisfy the start gate. This line is a hard start gate for strict non-Tiny
+  tasks, while its content remains self-declared and is reviewed by the check
+  agent. The fact view recognizes the line and does not return it as a shell
+  command.
 - `## 范围边界`: only the first non-empty line is taken, truncated to 160
   characters.
 
@@ -98,6 +100,13 @@ After merging (5 files): `decision-anchor.md` + `implement.jsonl` + `check.jsonl
   `## Acceptance Criteria`, no duplicate AC ids, no non-AC list rows in that
   section, and a declared `dev_type` (otherwise `task specs` dev-type dispatch
   silently comes back shorter).
+- A strict non-Tiny task also requires the configured-language
+  `## 验证命令` / `## Verification Commands` section with a filled
+  `规范核对：` / `Spec check:` line. A missing section, the other-language
+  heading, or the template placeholder blocks start. Tiny tasks and legacy tasks
+  are exempt. The bound plan's `## 最终验证` / `## Final Verification` section
+  carries the same filled check; plan structure and language are covered by
+  `plan-binding.md`.
 - An acceptance row's checkbox state (`- [ ]` / `- [x]`) and the evidence records
   (the task directory's `evidence.jsonl`) are the fact source of the completion
   gate: completion is blocked when an unchecked AC exists (`LIFECYCLE-AC-001`), a

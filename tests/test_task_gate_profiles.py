@@ -28,9 +28,45 @@ from services.task_gate_profiles import (  # noqa: E402
 )
 
 
-def _anchor(acceptance_lines: list[str]) -> str:
+def _anchor(acceptance_lines: list[str], verification: str | None = None) -> str:
     body = "\n".join(acceptance_lines)
-    return f"# Decision Anchor\n\n## 目标\n\n演示。\n\n## 验收标准\n{body}\n"
+    text = f"# Decision Anchor\n\n## 目标\n\n演示。\n\n## 验收标准\n{body}\n"
+    if verification is not None:
+        text += f"\n## 验证命令\n\n{verification}\n"
+    return text
+
+
+STRICT_VERIFICATION = (
+    "- 规范核对：逐条核对 `.cowork-flow/spec/backend/` 适用规范 "
+    "→ pass（理由：演示）。"
+)
+
+STRICT_PLAN = "\n".join(
+    [
+        "# 演示实施计划",
+        "",
+        "**目标:** 演示",
+        "",
+        "## 目标",
+        "演示。",
+        "",
+        "## 验收标准",
+        "- AC-001: 演示。",
+        "",
+        "## 全局约束",
+        "- 不扩大范围。",
+        "",
+        "## 文件边界",
+        "- `src/a.py`",
+        "",
+        "## 任务",
+        "### 任务 1：演示",
+        "",
+        "## 最终验证",
+        STRICT_VERIFICATION,
+        "",
+    ]
+)
 
 
 class ResolveGateProfileTest(unittest.TestCase):
@@ -255,6 +291,8 @@ class StartGateIntegrationTest(unittest.TestCase):
         dev_type: str | None,
         acceptance_lines: list[str],
         task_type: str | None = "tiny",
+        verification: str | None = None,
+        plan_text: str | None = None,
     ) -> Path:
         task_dir = root / ".cowork-flow" / "tasks" / "10-09-demo"
         task_dir.mkdir(parents=True)
@@ -263,6 +301,11 @@ class StartGateIntegrationTest(unittest.TestCase):
             meta["taskType"] = task_type
         if gate_profile is not None:
             meta["gateProfile"] = gate_profile
+        if plan_text is not None:
+            plan_path = root / ".cowork-flow" / "plans" / "demo.md"
+            plan_path.parent.mkdir(parents=True, exist_ok=True)
+            plan_path.write_text(plan_text, encoding="utf-8")
+            meta["planFile"] = ".cowork-flow/plans/demo.md"
         (task_dir / "task.json").write_text(
             json.dumps(
                 {"status": "planning", "dev_type": dev_type, "meta": meta},
@@ -271,7 +314,7 @@ class StartGateIntegrationTest(unittest.TestCase):
             encoding="utf-8",
         )
         (task_dir / "decision-anchor.md").write_text(
-            _anchor(acceptance_lines), encoding="utf-8"
+            _anchor(acceptance_lines, verification), encoding="utf-8"
         )
         (task_dir / "implement.jsonl").write_text(
             json.dumps({"file": "src/a.py", "type": "planned-file"}) + "\n",
@@ -300,6 +343,9 @@ class StartGateIntegrationTest(unittest.TestCase):
         self.assertTrue(
             any("declares no dev_type" in b for b in blockers), blockers
         )
+        self.assertTrue(
+            any("验证命令" in b and "规范核对" in b for b in blockers), blockers
+        )
 
     def test_strict_valid_acceptance_and_dev_type_passes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -308,6 +354,20 @@ class StartGateIntegrationTest(unittest.TestCase):
                 gate_profile="strict",
                 dev_type="backend",
                 acceptance_lines=["- [ ] AC-001: 真标准"],
+            )
+
+        self.assertEqual((), blockers)
+
+    def test_strict_non_light_valid_artifacts_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            blockers = self._blockers(
+                Path(temp_dir),
+                gate_profile="strict",
+                dev_type="backend",
+                acceptance_lines=["- [ ] AC-001: 真标准"],
+                task_type=None,
+                verification=STRICT_VERIFICATION,
+                plan_text=STRICT_PLAN,
             )
 
         self.assertEqual((), blockers)
@@ -360,10 +420,16 @@ class StartGateIntegrationTest(unittest.TestCase):
                 dev_type=None,
                 acceptance_lines=["- [ ] AC-001: 真标准"],
                 task_type=None,
+                verification=STRICT_VERIFICATION,
+                plan_text=STRICT_PLAN,
             )
 
-        self.assertTrue(
-            any("declares no dev_type" in b for b in blockers), blockers
+        self.assertEqual(
+            (
+                "strict task declares no dev_type; pass --type <dev-type> at "
+                "creation (or backfill it on a planning task)",
+            ),
+            blockers,
         )
 
     def test_created_task_is_strict_and_gated(self) -> None:
@@ -406,6 +472,12 @@ class StartGateIntegrationTest(unittest.TestCase):
         )
         self.assertTrue(
             any("declares no dev_type" in b for b in blockers), blockers
+        )
+        self.assertTrue(
+            any("实施计划" in b for b in blockers), blockers
+        )
+        self.assertTrue(
+            any("规范核对" in b for b in blockers), blockers
         )
 
     def test_created_light_task_persists_the_marker_and_starts(self) -> None:

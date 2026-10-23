@@ -4,6 +4,12 @@
 
 ### Added
 
+- **新任务 anchor 预置规范核对脚手架**：`task create` 生成的 `decision-anchor.md` 在目标/验收标准后追加配置语言的 `## 验证命令` / `## Verification Commands`，并写入带 `<dev_type>` 与 `<pass / not_applicable + 理由>` 的 `规范核对：` / `Spec check:` 占位行和启动前替换说明。创建与 `--from-plan` 绑定仍保持宽松，占位行在 start 时才被门禁拒绝。
+
+### Changed
+
+- **strict 非 Tiny 任务的计划模板与规范核对硬门禁**：start 前校验绑定计划使用配置语言的标题标记、六个模板章节顺序、`### 任务` / `### Task` 前缀，以及 `## 最终验证` / `## Final Verification` 中已填写的 `规范核对：` / `Spec check:` 结果；同时要求 anchor 具有配置语言的验证节和已填写结果。模板占位符不算通过；事实视图不再把规范核对行当作 shell 命令。Tiny 与 legacy 任务保持原有行为，创建/绑定阶段不新增拒绝路径。
+
 ## [2.4.0] - 2026-10-23
 
 ### Added

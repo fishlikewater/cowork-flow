@@ -107,6 +107,112 @@ class TaskContextServiceTest(unittest.TestCase):
         (spec_dir / "index.md").write_text("# Backend\n", encoding="utf-8")
         return task_dir
 
+    @staticmethod
+    def _strict_plan_text(
+        *,
+        language: str = "zh-CN",
+        dev_type: str = "backend",
+        filled: bool = True,
+    ) -> str:
+        if language == "en-US":
+            result = (
+                "Spec check: clause-by-clause check against applicable "
+                f"`.cowork-flow/spec/{dev_type}/` rules -> pass (reason: demo)."
+                if filled
+                else "Spec check: clause-by-clause check against applicable "
+                f"`.cowork-flow/spec/{dev_type}/` rules -> "
+                "<pass / not_applicable + reason>."
+            )
+            return "\n".join(
+                [
+                    "# Demo Implementation Plan",
+                    "",
+                    "**Goal:** Demo",
+                    "",
+                    "## Goal",
+                    "Demo.",
+                    "",
+                    "## Acceptance Criteria",
+                    "- AC-001: Demo.",
+                    "",
+                    "## Global Constraints",
+                    "- None.",
+                    "",
+                    "## File Boundaries",
+                    "- `AGENTS.md`",
+                    "",
+                    "## Tasks",
+                    "### Task 1: Demo",
+                    "",
+                    "## Final Verification",
+                    result,
+                    "",
+                ]
+            )
+        result = (
+            f"规范核对：逐条核对 `.cowork-flow/spec/{dev_type}/` 适用规范 "
+            "→ pass（理由：演示）。"
+            if filled
+            else f"规范核对：逐条核对 `.cowork-flow/spec/{dev_type}/` 适用规范 "
+            "→ <pass / not_applicable + 理由>。"
+        )
+        return "\n".join(
+            [
+                "# Demo 实施计划",
+                "",
+                "**目标:** 演示",
+                "",
+                "## 目标",
+                "演示。",
+                "",
+                "## 验收标准",
+                "- AC-001: 演示。",
+                "",
+                "## 全局约束",
+                "- 不扩大范围。",
+                "",
+                "## 文件边界",
+                "- `AGENTS.md`",
+                "",
+                "## 任务",
+                "### 任务 1：演示",
+                "",
+                "## 最终验证",
+                result,
+                "",
+            ]
+        )
+
+    @staticmethod
+    def _strict_anchor_text(
+        *,
+        language: str = "zh-CN",
+        dev_type: str = "backend",
+        filled: bool = True,
+    ) -> str:
+        if language == "en-US":
+            verification = (
+                "## Verification Commands\n\n"
+                "Spec check: clause-by-clause check against applicable "
+                f"`.cowork-flow/spec/{dev_type}/` rules -> "
+                + ("pass (reason: demo)." if filled else "<pass / not_applicable + reason>.")
+            )
+            return (
+                "# Decision Anchor\n\n## Goal\nDemo.\n\n"
+                "## Acceptance Criteria\n- [ ] AC-001: Demo.\n\n"
+                f"{verification}\n"
+            )
+        verification = (
+            "## 验证命令\n\n"
+            f"规范核对：逐条核对 `.cowork-flow/spec/{dev_type}/` 适用规范 "
+            + ("→ pass（理由：演示）。" if filled else "→ <pass / not_applicable + 理由>。")
+        )
+        return (
+            "# Decision Anchor\n\n## 目标\n演示。\n\n"
+            "## 验收标准\n- [ ] AC-001: 演示。\n\n"
+            f"{verification}\n"
+        )
+
     def test_initialize_preserves_existing_context_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -561,7 +667,7 @@ class TaskContextServiceTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (task_dir / "decision-anchor.md").write_text(
-                "# Demo\n\n## 目标\n\nDemo\n\n## 验收标准\n\n- [ ] AC-001: Demo.\n",
+                self._strict_anchor_text(),
                 encoding="utf-8",
             )
             (task_dir / "implement.jsonl").write_text(
@@ -579,6 +685,187 @@ class TaskContextServiceTest(unittest.TestCase):
                 ),
                 blockers,
             )
+
+    @staticmethod
+    def _write_bound_task(
+        root: Path,
+        task_dir: Path,
+        *,
+        plan_text: str,
+        anchor_text: str,
+        gate_profile: str | None = "strict",
+        dev_type: str | None = "backend",
+        plan_file: str = ".cowork-flow/plans/demo.md",
+    ) -> None:
+        plan_path = root / plan_file
+        plan_path.parent.mkdir(parents=True, exist_ok=True)
+        plan_path.write_text(plan_text, encoding="utf-8")
+        meta: dict = {"planFile": plan_file}
+        if gate_profile is not None:
+            meta["gateProfile"] = gate_profile
+        (task_dir / "task.json").write_text(
+            json.dumps(
+                {"status": "planning", "dev_type": dev_type, "meta": meta}
+            ),
+            encoding="utf-8",
+        )
+        (task_dir / "decision-anchor.md").write_text(anchor_text, encoding="utf-8")
+        (task_dir / "implement.jsonl").write_text(
+            '{"file": "AGENTS.md", "reason": "Demo"}\n',
+            encoding="utf-8",
+        )
+
+    def test_start_blockers_require_anchor_spec_check_for_strict_non_light(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            self._write_bound_task(
+                root,
+                task_dir,
+                plan_text=self._strict_plan_text(),
+                anchor_text="# Demo\n\n## 目标\n\n演示。\n\n## 验收标准\n\n- [ ] AC-001: 演示。\n",
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        self.assertEqual(1, len(blockers), blockers)
+        self.assertIn("验证命令", blockers[0])
+        self.assertIn("规范核对", blockers[0])
+
+    def test_start_blockers_reject_placeholder_anchor_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            self._write_bound_task(
+                root,
+                task_dir,
+                plan_text=self._strict_plan_text(),
+                anchor_text=self._strict_anchor_text(filled=False),
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        self.assertEqual(1, len(blockers), blockers)
+        self.assertIn("规范核对", blockers[0])
+        self.assertIn("filled", blockers[0])
+
+    def test_start_blockers_require_plan_template_for_strict_non_light(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            self._write_bound_task(
+                root,
+                task_dir,
+                plan_text="# Plan\n",
+                anchor_text=self._strict_anchor_text(),
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        joined = "\n".join(blockers)
+        self.assertGreaterEqual(len(blockers), 1, blockers)
+        self.assertIn("plan .cowork-flow/plans/demo.md", joined)
+        self.assertIn("实施计划", joined)
+
+    def test_start_blockers_reject_plan_template_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            self._write_bound_task(
+                root,
+                task_dir,
+                plan_text=self._strict_plan_text(filled=False),
+                anchor_text=self._strict_anchor_text(),
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        self.assertEqual(1, len(blockers), blockers)
+        self.assertIn("spec-check", blockers[0])
+
+    def test_start_blockers_accept_english_artifacts_for_en_us(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (root / ".cowork-flow" / "config.yaml").write_text(
+                'language: "en-US"\n', encoding="utf-8"
+            )
+            self._write_bound_task(
+                root,
+                task_dir,
+                plan_text=self._strict_plan_text(language="en-US"),
+                anchor_text=self._strict_anchor_text(language="en-US"),
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        self.assertEqual((), blockers)
+
+    def test_start_blockers_keep_legacy_non_template_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            self._write_bound_task(
+                root,
+                task_dir,
+                plan_text="# Plan\n",
+                anchor_text="# Demo\n\n## 目标\n\n演示。\n\n## 验收标准\n\n- [ ] AC-001: 演示。\n",
+                gate_profile=None,
+                dev_type=None,
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        self.assertEqual((), blockers)
+
+    def test_start_blockers_keep_strict_tiny_placeholder_anchor(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            (task_dir / "task.json").write_text(
+                json.dumps(
+                    {
+                        "status": "planning",
+                        "meta": {"gateProfile": "strict", "taskType": "tiny"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (task_dir / "decision-anchor.md").write_text(
+                self._strict_anchor_text(filled=False),
+                encoding="utf-8",
+            )
+            (task_dir / "implement.jsonl").write_text(
+                '{"file": "AGENTS.md", "reason": "Demo"}\n',
+                encoding="utf-8",
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        self.assertEqual((), blockers)
+
+    def test_start_blockers_reject_wrong_language_verification_heading(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._prepare_root(root)
+            self._write_bound_task(
+                root,
+                task_dir,
+                plan_text=self._strict_plan_text(),
+                anchor_text=(
+                    "# Decision Anchor\n\n## 目标\n演示。\n\n"
+                    "## 验收标准\n- [ ] AC-001: 演示。\n\n"
+                    "## Verification Commands\n\n"
+                    "Spec check: clause-by-clause check against applicable "
+                    "`.cowork-flow/spec/backend/` rules -> pass (reason: demo).\n"
+                ),
+            )
+
+            blockers = self.TaskContextService(root).start_blockers(task_dir)
+
+        self.assertEqual(1, len(blockers), blockers)
+        self.assertIn("## 验证命令", blockers[0])
+        self.assertIn("## Verification Commands", blockers[0])
 
     def test_start_blockers_require_plan_for_non_tiny_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

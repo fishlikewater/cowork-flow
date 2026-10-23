@@ -86,6 +86,33 @@ class ParseDecisionAnchorTest(unittest.TestCase):
         )
         self.assertEqual(commands[:10], parsed["validationCommands"])
 
+    def test_spec_check_lines_are_not_validation_commands(self) -> None:
+        text = "\n".join(
+            [
+                "## 验证命令",
+                "- npm run test:fast",
+                "- 规范核对：逐条核对 `.cowork-flow/spec/backend/` 适用规范 "
+                "→ pass（理由：已核对）。",
+                "- Spec check: clause-by-clause check against applicable "
+                "`.cowork-flow/spec/backend/` rules -> not_applicable (reason: none).",
+            ]
+        )
+        parsed = parse_decision_anchor(text)
+        self.assertEqual(["npm run test:fast"], parsed["validationCommands"])
+
+    def test_comments_in_verification_are_not_validation_commands(self) -> None:
+        text = "\n".join(
+            [
+                "## 验证命令",
+                "- npm run test:fast",
+                "<!-- strict tasks: replace the placeholder before starting -->",
+                "- 规范核对：逐条核对 `.cowork-flow/spec/backend/` 适用规范 "
+                "→ <pass / not_applicable + 理由>。",
+            ]
+        )
+        parsed = parse_decision_anchor(text)
+        self.assertEqual(["npm run test:fast"], parsed["validationCommands"])
+
 
 class BuildFactViewTest(unittest.TestCase):
     def _make_project(self, root: Path) -> Path:

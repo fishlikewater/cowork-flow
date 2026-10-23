@@ -1,11 +1,27 @@
 from __future__ import annotations
 
 import re
+import sys
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from services.decision_anchor_schema import (  # noqa: E402
+    spec_check_label,
+    spec_check_placeholder,
+    structural_lines,
+)
+from services.plan_schema import (  # noqa: E402
+    PLAN_SECTION_HEADINGS,
+    PLAN_TASK_PREFIXES,
+    PLAN_TITLE_MARKERS,
+)
+
 BASE_TEMPLATE = (
     ROOT / "template" / ".cowork-flow" / "templates" / "plan-template.md"
 )
@@ -92,6 +108,61 @@ class PlanTemplateTest(unittest.TestCase):
             self.assertIn("cowork_runtime_context_id", text)
             self.assertIn("cowork-implement", text)
             self.assertIn("cowork-check", text)
+
+    @staticmethod
+    def _headings(path: Path, level: int) -> list[str]:
+        prefix = "#" * level + " "
+        headings: list[str] = []
+        for raw in structural_lines(path.read_text(encoding="utf-8")):
+            line = raw.strip()
+            if line.startswith(prefix) and not line.startswith(prefix + "#"):
+                headings.append(line[len(prefix):].strip())
+        return headings
+
+    def test_schema_constants_match_template_headings(self) -> None:
+        self.assertEqual(
+            list(PLAN_SECTION_HEADINGS["zh-CN"]),
+            self._headings(BASE_TEMPLATE, 2),
+        )
+        self.assertEqual(
+            list(PLAN_SECTION_HEADINGS["en-US"]),
+            self._headings(EN_TEMPLATE, 2),
+        )
+
+    def test_template_titles_and_task_prefixes_match_schema(self) -> None:
+        for language, path in (("zh-CN", BASE_TEMPLATE), ("en-US", EN_TEMPLATE)):
+            with self.subTest(language=language):
+                title = self._headings(path, 1)[0]
+                self.assertIn(PLAN_TITLE_MARKERS[language], title)
+                task_headings = [
+                    heading
+                    for heading in self._headings(path, 3)
+                    if heading.startswith(("任务", "Task"))
+                ]
+                self.assertTrue(task_headings)
+                self.assertTrue(
+                    all(
+                        heading.startswith(PLAN_TASK_PREFIXES[language])
+                        for heading in task_headings
+                    ),
+                    task_headings,
+                )
+
+    def test_templates_carry_the_spec_check_placeholder(self) -> None:
+        for language, path, result_placeholder in (
+            ("zh-CN", BASE_TEMPLATE, "<pass / not_applicable + 理由>"),
+            ("en-US", EN_TEMPLATE, "<pass / not_applicable + reason>"),
+        ):
+            with self.subTest(language=language):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn(spec_check_label(language), text)
+                self.assertIn(result_placeholder, text)
+                self.assertIn(
+                    spec_check_placeholder(language, "<dev_type>").split(
+                        "`", 2
+                    )[1],
+                    text,
+                )
 
 
 if __name__ == "__main__":

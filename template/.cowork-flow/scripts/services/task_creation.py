@@ -12,7 +12,9 @@ from infra.config import get_language
 from services.decision_anchor_schema import (
     ACCEPTANCE,
     GOAL,
+    VERIFICATION,
     heading_for,
+    spec_check_placeholder,
 )
 from services.task_tree import TaskTreeError, TaskTreeService
 from services import task_graph
@@ -165,6 +167,7 @@ class TaskCreationService:
             generated_anchor, generated_anchor_from_plan = self._generate_anchor(
                 task_dir,
                 bound_plan_path,
+                request.dev_type,
             )
             if generated_anchor:
                 created_files.append(task_dir / "decision-anchor.md")
@@ -361,6 +364,7 @@ class TaskCreationService:
         self,
         task_dir: Path,
         plan_path: Path | None,
+        dev_type: str | None = None,
     ) -> tuple[bool, bool]:
         """Create a language-specific anchor scaffold.
 
@@ -387,12 +391,25 @@ class TaskCreationService:
         language = get_language(self.repo_root)
         goal_heading = heading_for(GOAL, language)
         acceptance_heading = heading_for(ACCEPTANCE, language)
+        verification_heading = heading_for(VERIFICATION, language)
         goal_body = goal or _anchor_placeholder(GOAL, language)
         acceptance_body = _anchor_placeholder(ACCEPTANCE, language)
+        verification_comment = (
+            "<!-- strict 任务启动前：把 <dev_type> 和 "
+            "<pass / not_applicable + 理由> 替换为实际核对结果；"
+            "保留模板占位符会被启动门禁阻断。 -->"
+            if language == "zh-CN"
+            else "<!-- Before a strict task starts: replace <dev_type> and "
+            "<pass / not_applicable + reason> with the actual result; "
+            "the start gate rejects the template placeholder. -->"
+        )
+        verification_body = spec_check_placeholder(language, dev_type)
         try:
             anchor_file.write_text(
                 f"## {goal_heading}\n\n{goal_body}\n\n"
-                f"## {acceptance_heading}\n\n{acceptance_body}\n",
+                f"## {acceptance_heading}\n\n{acceptance_body}\n\n"
+                f"## {verification_heading}\n\n{verification_comment}\n"
+                f"{verification_body}\n",
                 encoding="utf-8",
             )
         except OSError as error:
