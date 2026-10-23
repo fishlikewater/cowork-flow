@@ -49,6 +49,7 @@ from services.plan_binding import (
     plan_file_blockers,
     plan_template_blockers,
 )
+from services.plan_readiness import plan_ready_snapshot_blockers
 from services.task_gate_profiles import (
     GATE_PROFILE_STRICT,
     acceptance_row_blockers,
@@ -376,6 +377,17 @@ class TaskContextService:
                 blockers.extend(
                     plan_template_blockers(self.repo_root, task_data, language)
                 )
+        if strict and not light:
+            meta = task_data.get("meta")
+            meta = meta if isinstance(meta, dict) else {}
+            blockers.extend(
+                plan_ready_snapshot_blockers(
+                    self.repo_root,
+                    task_dir,
+                    task_data,
+                    required=meta.get("planReadyRequired") is True,
+                )
+            )
         if strict:
             blockers.extend(dev_type_blocker(task_data))
         return tuple(blockers)

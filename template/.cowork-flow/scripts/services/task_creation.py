@@ -6,7 +6,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-import re
 
 from infra.config import get_language
 from services.decision_anchor_schema import (
@@ -16,6 +15,7 @@ from services.decision_anchor_schema import (
     heading_for,
     spec_check_placeholder,
 )
+from services.plan_schema import plan_acceptance_criteria, plan_goal
 from services.task_tree import TaskTreeError, TaskTreeService
 from services import task_graph
 from infra.paths import (
@@ -24,15 +24,9 @@ from infra.paths import (
     get_tasks_dir,
 )
 from services.plan_binding import PlanBindingError, bind_plan_file
-from services.task_gate_profiles import GATE_PROFILE_STRICT
+from services.task_gate_profiles import GATE_PROFILE_STRICT, LIGHT_TASK_TYPE
 from services.task_repository import TaskRepository, TaskRepositoryError
 
-
-_GOAL_LINE_RE = re.compile(r"^\*\*(?:Goal|目标):\*\*\s*(.+?)\s*$")
-_GOAL_BOLD_COLON_RE = re.compile(r"^\*\*(?:Goal|目标)\*\*:\s*(.+?)\s*$")
-_GOAL_TABLE_RE = re.compile(
-    r"^\|\s*\*\*(?:Goal|目标)\*\*\s*\|\s*(.+?)\s*\|\s*$"
-)
 
 _ANCHOR_PLACEHOLDERS = {
     ("zh-CN", GOAL): "<!-- 用一句话描述可观察的目标。 -->",
@@ -92,21 +86,16 @@ class TaskCreationResult:
     generated_anchor_from_plan: bool
 
 
-def _extract_plan_goal(plan_text: str) -> str | None:
-    """First machine-readable goal line, then the legacy table row."""
-    for raw in plan_text.splitlines():
-        line = raw.strip()
-        for pattern in (_GOAL_LINE_RE, _GOAL_BOLD_COLON_RE, _GOAL_TABLE_RE):
-            match = pattern.match(line)
-            if match:
-                return match.group(1).strip()
-    return None
-
-
 def _anchor_placeholder(section: str, language: str) -> str:
     return _ANCHOR_PLACEHOLDERS.get(
         (language, section),
         _ANCHOR_PLACEHOLDERS[("zh-CN", section)],
+    )
+
+
+def _render_acceptance(rows: list[dict[str, str]]) -> str:
+    return "\n".join(
+        f"- [ ] {row['id']}: {row['text']}" for row in rows
     )
 
 
@@ -192,6 +181,10 @@ class TaskCreationService:
         created_at = request.created_at or datetime.now().strftime("%Y-%m-%d")
         meta = dict(plan_metadata) if isinstance(plan_metadata, dict) else {}
         meta.setdefault("gateProfile", GATE_PROFILE_STRICT)
+        if meta.get("gateProfile") == GATE_PROFILE_STRICT and (
+            request.task_type != LIGHT_TASK_TYPE
+        ):
+            meta["planReadyRequired"] = True
         # The light profile is declarable at creation only: this is the sole
         # write of the field, and no lifecycle command changes it later.
         if request.task_type:
@@ -368,15 +361,17 @@ class TaskCreationService:
     ) -> tuple[bool, bool]:
         """Create a language-specific anchor scaffold.
 
-        A bound plan's goal line (or legacy table row) fills the goal section;
-        otherwise the scaffold carries a localized placeholder. An anchor that
+        A bound plan's goal and AC rows fill the corresponding sections;
+        otherwise each section carries a localized placeholder. An anchor that
         already exists is never overwritten.
         """
         anchor_file = task_dir / "decision-anchor.md"
         if anchor_file.exists():
             return False, False
 
+        language = get_language(self.repo_root)
         goal: str | None = None
+        acceptance_rows: list[dict[str, str]] = []
         if plan_path is not None and plan_path.is_file():
             try:
                 plan_text = plan_path.read_text(encoding="utf-8")
@@ -386,14 +381,18 @@ class TaskCreationService:
                     plan_path,
                     "plan cannot be read as UTF-8",
                 ) from error
-            goal = _extract_plan_goal(plan_text)
+            goal = plan_goal(plan_text)
+            acceptance_rows = plan_acceptance_criteria(plan_text, language)
 
-        language = get_language(self.repo_root)
         goal_heading = heading_for(GOAL, language)
         acceptance_heading = heading_for(ACCEPTANCE, language)
         verification_heading = heading_for(VERIFICATION, language)
         goal_body = goal or _anchor_placeholder(GOAL, language)
-        acceptance_body = _anchor_placeholder(ACCEPTANCE, language)
+        acceptance_body = (
+            _render_acceptance(acceptance_rows)
+            if acceptance_rows
+            else _anchor_placeholder(ACCEPTANCE, language)
+        )
         verification_comment = (
             "<!-- strict 任务启动前：把 <dev_type> 和 "
             "<pass / not_applicable + 理由> 替换为实际核对结果；"

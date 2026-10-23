@@ -135,6 +135,7 @@ class PythonRunnerTest(unittest.TestCase):
             {
                 "resume": "adapters/cli/resume.py",
                 "task": "adapters/cli/task.py",
+                "plan": "adapters/cli/plan.py",
                 "get-context": "adapters/cli/get_context.py",
                 "get_context": "adapters/cli/get_context.py",
                 "get-developer": "adapters/cli/get_developer.py",

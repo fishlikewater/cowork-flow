@@ -544,7 +544,10 @@ class StartGateIntegrationTest(unittest.TestCase):
         self.assertFalse(is_light_task(task_data))
         self.assertNotIn("taskType", task_data.get("meta", {}))
         self.assertEqual(GATE_PROFILE_STRICT, resolve_gate_profile(task_data))
-        self.assertEqual({"gateProfile": "strict"}, task_data["meta"])
+        self.assertEqual(
+            {"gateProfile": "strict", "planReadyRequired": True},
+            task_data["meta"],
+        )
 
 
 if __name__ == "__main__":

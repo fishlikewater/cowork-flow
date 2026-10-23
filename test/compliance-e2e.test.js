@@ -148,6 +148,40 @@ function strictPlanText(name) {
     '## 任务',
     '### 任务 1：scenario',
     '',
+    '**目的**',
+    '- Reach the scenario end state.',
+    '',
+    '**代码事实来源**',
+    '- Read: `src/scenario.js`',
+    '',
+    '**文件边界**',
+    '- Modify: `src/scenario.js`',
+    '',
+    '**关键符号**',
+    '- Change: `scenario`',
+    '',
+    '**实现说明**',
+    '```javascript',
+    'const scenario = true;',
+    '```',
+    '',
+    '**测试证明**',
+    '- The scenario reaches its end state.',
+    '',
+    '**验证命令**',
+    '```bash',
+    'node --check src/scenario.js',
+    '```',
+    '',
+    '**完成条件**',
+    '- The verification command exits 0.',
+    '',
+    '**禁止漂移**',
+    '- Do not expand the scenario.',
+    '',
+    '**偏差条件**',
+    '- Stop if the scenario conflicts with the code facts.',
+    '',
     '## 最终验证',
     '规范核对：逐条核对 `.cowork-flow/spec/backend/` 适用规范 → pass（理由：scenario）。',
     ''
@@ -174,8 +208,13 @@ async function taskStatus(instance, name) {
   return JSON.parse(raw).status;
 }
 
-// A strict task needs its declared shape before it can start: a dev type, a
-// bound plan, and a non-empty context index.
+async function finalizeTask(instance, name) {
+  const finalized = instance.run(['plan', 'finalize', instance.taskDir(name)]);
+  assert.equal(finalized.status, 0, finalized.stderr);
+}
+
+// A strict task needs its declared shape and a finalized plan before it can
+// start: a dev type, a bound plan, and a non-empty context index.
 async function createStartedTask(instance, name, { specs = [] } = {}) {
   await mkdir(join(instance.dir, '.cowork-flow', 'plans'), { recursive: true });
   await writeFile(
@@ -190,6 +229,7 @@ async function createStartedTask(instance, name, { specs = [] } = {}) {
   ]);
   assert.equal(created.status, 0, created.stderr);
   await writePlanningArtifacts(instance, name, { specs });
+  await finalizeTask(instance, name);
   const started = instance.run(['task', 'next', instance.taskDir(name), '--run']);
   assert.equal(started.status, 0, started.stderr);
   return JSON.parse(await readText(join(instance.dir, instance.taskDir(name), 'task.json')));
@@ -562,6 +602,7 @@ test('an installed instance blocks a strict task whose bound plan is not templat
   assert.equal(await taskStatus(instance, name), 'planning');
 
   await writeFile(planPath, strictPlanText(name), 'utf8');
+  await finalizeTask(instance, name);
   const started = instance.run(['task', 'next', instance.taskDir(name), '--run']);
   assert.equal(started.status, 0, started.stderr);
   assert.equal(await taskStatus(instance, name), 'in_progress');

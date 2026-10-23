@@ -4,7 +4,11 @@
 
 ### Added
 
+- **计划骨架生成与定稿门禁**：新增 `./.cowork-flow/run plan new --title ... --slug ...`，从已安装的本地化 `.cowork-flow/templates/plan-template.md` 生成计划骨架并替换标题占位符，默认拒绝覆盖已有计划；新增 `plan finalize [task-dir]`，校验计划模板形状、目标、AC、章节内容、任务简报字段、验证命令、anchor 的 AC/目标/规范核对和 `implement.jsonl`，通过后写入 `task.json.meta.planReady` 的 plan/anchor 摘要。模板中的角括号占位内容以及示例路径/符号（如 `path/a.py`、`function_name`）不算已填充，必须替换后才能定稿。任务创建会把计划 AC 自动填入 anchor 的验收标准。新 strict 非 Tiny 任务默认带 `planReadyRequired`，start 要求快照存在且摘要未变；人验收后修改计划或 anchor 会阻断 start，需重新 finalize 并重新验收。Tiny、legacy 与未标记旧任务保持原行为。
+
 ### Changed
+
+- **计划流程改为“生成骨架 → 填充 → finalize → 人验收 → start”**：`task-planning` 技能、`plan-binding.md` 契约与 `plan finalize` 检查共同约束计划完整性；start 保留结构 backstop，并把新任务的完整性主检查前移到 finalize。契约摘要同步更新，未新增第二套计划模板。
 
 ## [2.4.1] - 2026-10-23
 

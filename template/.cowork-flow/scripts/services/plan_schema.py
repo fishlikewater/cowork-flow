@@ -52,6 +52,15 @@ H1_RE = re.compile(r"^#(?!#)\s+(.+?)\s*$")
 H2_RE = re.compile(r"^##(?!#)\s+(.+?)\s*$")
 H3_RE = re.compile(r"^###\s+(.+?)\s*$")
 
+GOAL_LINE_RE = re.compile(r"^\*\*(?:Goal|目标):\*\*\s*(.+?)\s*$")
+GOAL_BOLD_COLON_RE = re.compile(r"^\*\*(?:Goal|目标)\*\*:\s*(.+?)\s*$")
+GOAL_TABLE_RE = re.compile(
+    r"^\|\s*\*\*(?:Goal|目标)\*\*\s*\|\s*(.+?)\s*\|\s*$"
+)
+PLAN_AC_RE = re.compile(
+    r"^\s*-\s*(?:\[[ xX]\]\s*)?(AC-\d{3})\s*[:：]\s*(.+?)\s*$"
+)
+
 
 def _language(language: str) -> str:
     return language if language in PLAN_SECTION_HEADINGS else DEFAULT_LANGUAGE
@@ -104,6 +113,37 @@ def _task_prefix_blocker(heading: str, language: str, prefix: str) -> str | None
         else f"plan task heading '### {heading}' must use the {language} prefix "
         f"'### {prefix} N:'"
     )
+
+
+def plan_goal(text: str) -> str | None:
+    """First machine-readable plan goal line, then the legacy table row."""
+    for raw in structural_lines(text):
+        line = raw.strip()
+        for pattern in (GOAL_LINE_RE, GOAL_BOLD_COLON_RE, GOAL_TABLE_RE):
+            match = pattern.match(line)
+            if match:
+                return match.group(1).strip()
+    return None
+
+
+def plan_acceptance_criteria(
+    text: str,
+    language: str,
+) -> list[dict[str, str]]:
+    """Acceptance rows declared by the plan, in document order."""
+    resolved = _language(language)
+    heading = PLAN_SECTION_HEADINGS[resolved][1]
+    rows: list[dict[str, str]] = []
+    for raw in _section_lines(structural_lines(text), heading):
+        match = PLAN_AC_RE.match(raw)
+        if match:
+            rows.append({"id": match.group(1), "text": match.group(2).strip()})
+    return rows
+
+
+def section_body(text: str, heading: str) -> list[str]:
+    """Raw lines under one `##` heading, excluding fenced code."""
+    return _section_lines(structural_lines(text), heading)
 
 
 def plan_template_blockers(

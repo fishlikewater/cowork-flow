@@ -109,7 +109,8 @@
         "Plan binding records repo-relative task.json.meta.planFile.",
         "Task start blocks clear missing plan facts for non-Tiny tasks.",
         "Strict non-Tiny start requires the configured-language plan template shape and a filled spec-check line.",
-        "V1 does not parse plan steps, AC text, or verification evidence."
+        "New strict non-Tiny tasks require a plan-ready snapshot from `plan finalize`; edits after finalize invalidate it.",
+        "V1 does not parse plan step status or verification evidence; AC text is only compared between plan and anchor."
       ],
       "readWhen": [
         "when changing task creation plan binding",

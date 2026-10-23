@@ -30,6 +30,28 @@ If the installed template is missing, stop and report it (run `cwf project sync 
 
 The template is distributed at install time for the project language configured in `.cowork-flow/config.yaml` (`zh-CN` by default, or `en-US`). Write the plan in that language. Keep the template's machine-readable goal line and `AC-NNN` identifiers unchanged so task creation and workflow gates can parse them. Do not translate paths, commands, code identifiers, or spec file names.
 
+### Skeleton Generation
+
+Generate the first version from the installed template instead of retyping its structure:
+
+```bash
+./.cowork-flow/run plan new --title "<plan title>" --slug <ascii-slug>
+```
+
+`plan new` replaces the title placeholder, writes `.cowork-flow/plans/YYYY-MM-DD-<slug>.md`, and refuses to overwrite an existing plan unless `--force` is explicit. Fill the generated skeleton; do not invent a second plan shape. If the installed template is missing, the command stops with a `cwf project sync .` hint.
+
+### Plan Readiness Gate
+
+After filling the plan and anchor, finalize them before human review:
+
+```bash
+./.cowork-flow/run plan finalize <task-dir>
+```
+
+`plan finalize` checks the plan and anchor for template shape, concrete section content, AC rows, complete task briefs, verification commands, matching goal/AC text, the spec-check result, and a non-empty `implement.jsonl`. On success it writes `task.json.meta.planReady` with plan/anchor digests.
+
+New strict non-Tiny tasks require this snapshot at start. Present the finalized plan and anchor for human review; start only verifies that the reviewed files have not changed. If either file changes after finalize, run `plan finalize` again and re-review before starting. Tiny and legacy tasks keep their existing exemptions.
+
 ### Plan Style: Task Briefs, Not Design Docs
 
 Plans exist to prevent implementation drift. They must guide implementation by pinning task order, file boundaries, key symbols, the core patch shape, test proof, completion conditions, and prohibited drift. They are not architecture essays and must not explain every possible option.
@@ -82,6 +104,7 @@ A plan can be marked approved only when all conditions hold:
 - Every task has implementation steps and verification commands.
 - Task dependencies are explicit, including whether work is serial or parallelizable.
 - The plan uses the installed `.cowork-flow/templates/plan-template.md` shape and the configured output language. For strict non-Tiny tasks, the runtime blocks start when the plan or anchor lacks the configured-language verification section or a filled spec-check result.
+- For new strict non-Tiny tasks, the plan and anchor have passed `plan finalize` and the human has reviewed that snapshot. Any later edit requires another finalize and review.
 
 `implement.jsonl` is the current task's context index — the files in scope and
 the spec pointers it needs — not the task list. The plan owns the task list.
@@ -120,3 +143,4 @@ Before handoff:
 5. Confirm the plan says to stop and report back when code facts conflict with the plan, a plan-external file becomes necessary, or a test fails for an unplanned reason.
 6. Confirm Final Verification carries the applicable `.cowork-flow/spec/<dev_type>/` clause check with an actual `pass` / `not_applicable` result, or states why no spec file applies. For strict non-Tiny tasks the runtime blocks start when this line is missing or still the template placeholder.
 7. Confirm the plan is written in the configured language and keeps the machine-readable goal line and `AC-NNN` identifiers unchanged.
+8. Run `plan finalize <task-dir>` and fix every reported blocker before handing the plan to the user for review.

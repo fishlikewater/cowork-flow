@@ -650,6 +650,49 @@ class DevTypeWiringTest(unittest.TestCase):
                 }
                 self.assertNotEqual(base, dispatched)
 
+    def test_create_extracts_plan_acceptance_rows_into_anchor(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            plans_dir = root / ".cowork-flow" / "plans"
+            plans_dir.mkdir(parents=True)
+            plan_path = plans_dir / "2026-10-09-ac-demo.md"
+            plan_path.write_text(
+                """**目标:** 演示目标
+
+## 验收标准
+
+- AC-001: 第一条行为。
+- [ ] AC-002: 第二条行为。
+""",
+                encoding="utf-8",
+            )
+
+            task_dir = self._create(root, from_plan=plan_path, dev_type="backend")
+            anchor = (task_dir / "decision-anchor.md").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertIn("- [ ] AC-001: 第一条行为。", anchor)
+        self.assertIn("- [ ] AC-002: 第二条行为。", anchor)
+        self.assertNotIn("至少一条", anchor)
+
+    def test_create_marks_strict_tasks_for_plan_ready_finalize(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._create(root, dev_type="backend")
+            meta = self._task_json(task_dir)["meta"]
+            tiny_dir = self._create(
+                root,
+                title="tiny demo",
+                slug="tiny-demo",
+                task_type="tiny",
+            )
+            tiny_meta = self._task_json(tiny_dir)["meta"]
+
+        self.assertTrue(meta["planReadyRequired"])
+        self.assertNotIn("planReadyRequired", tiny_meta)
+
+
 
 if __name__ == "__main__":
     unittest.main()

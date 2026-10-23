@@ -23,6 +23,7 @@ configure_cli_encoding()
 COMMAND_SCRIPTS = {
     "resume": "adapters/cli/resume.py",
     "task": "adapters/cli/task.py",
+    "plan": "adapters/cli/plan.py",
     "get-context": "adapters/cli/get_context.py",
     "get_context": "adapters/cli/get_context.py",
     "get-developer": "adapters/cli/get_developer.py",
@@ -35,7 +36,7 @@ COMMAND_SCRIPTS = {
 }
 RESERVED_COMMAND_NAMES = (*COMMAND_SCRIPTS, "python", "help", "-h", "--help")
 
-CONTEXT_AWARE_COMMANDS = {"resume", "task", "subagent"}
+CONTEXT_AWARE_COMMANDS = {"resume", "task", "plan", "subagent"}
 
 
 def print_usage() -> None:
@@ -49,6 +50,7 @@ def print_usage() -> None:
 Common commands:
   resume
   task
+  plan
   state
   get-context
   get-developer
