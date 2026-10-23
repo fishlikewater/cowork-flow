@@ -4,6 +4,12 @@
 
 ### Added
 
+### Changed
+
+## [2.4.1] - 2026-10-23
+
+### Added
+
 - **新任务 anchor 预置规范核对脚手架**：`task create` 生成的 `decision-anchor.md` 在目标/验收标准后追加配置语言的 `## 验证命令` / `## Verification Commands`，并写入带 `<dev_type>` 与 `<pass / not_applicable + 理由>` 的 `规范核对：` / `Spec check:` 占位行和启动前替换说明。创建与 `--from-plan` 绑定仍保持宽松，占位行在 start 时才被门禁拒绝。
 
 ### Changed
@@ -429,7 +435,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.1.0...v2.2.0
