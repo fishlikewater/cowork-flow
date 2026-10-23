@@ -238,6 +238,29 @@ test('each documentation page links its counterpart language', async () => {
 });
 
 
+// The English README is the entry point for an English reader. If a link target
+// has an English counterpart, the reader must land on the English page rather
+// than being sent back to the Chinese source.
+test('README.en.md links English pages when a counterpart exists', async () => {
+  const misplaced = [];
+
+  for (const target of relativeTargets(await readDoc('README.en.md'))) {
+    if (!target.startsWith(`${DOCS_DIR}/`) || !target.endsWith('.md') || isEnglishDoc(target)) {
+      continue;
+    }
+    const english = englishPeer(target);
+    try {
+      await access(join(packageRoot, ...english.split('/')));
+    } catch {
+      continue;
+    }
+    misplaced.push(`${target} -> ${english}`);
+  }
+
+  assert.deepEqual(misplaced, [], 'README.en.md must link the English docs');
+});
+
+
 test('README carries no heading that was migrated into docs/', async () => {
   const headings = new Set(
     (await readDoc('README.md'))

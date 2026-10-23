@@ -154,6 +154,7 @@ cwf project sync .
 | [架构与扩展](docs/architecture.md) | 项目文件如何组织、同步策略与受保护文件 |
 | [宿主接入](docs/hosts.md) | 各宿主的安装、重启、排障和卸载方式 |
 | [发布与维护](docs/release.md) | 测试、CI 和维护者命令 |
+| [方向规划](docs/direction.md) | 项目定位、已定取舍、版本主线与待决项 |
 | [参与开发](CONTRIBUTING.md) | 本地开发、提交和 PR 检查 |
 | [更新日志](CHANGELOG.md) | 版本变化 |
 

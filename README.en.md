@@ -95,7 +95,7 @@ DeepSeek Harness, and Kimi Code also need a machine-level component:
 cwf host add <host>
 ```
 
-See [host integration](docs/hosts.md) for each host's exact command, restart
+See [host integration](docs/hosts.en.md) for each host's exact command, restart
 requirements, and special cases.
 
 ### 4. Start inside the host
@@ -137,7 +137,7 @@ sync. `.cowork-flow/config.yaml` is project configuration and is never overwritt
 language by default, and an explicit user request may override it.
 **Retired-asset cleanup** deletes obsolete cowork-flow files listed in the
 release manifest and touches nothing else. For upgrading machine-level host
-components, see [host integration](docs/hosts.md).
+components, see [host integration](docs/hosts.en.md).
 
 ## Troubleshooting
 
@@ -149,8 +149,8 @@ components, see [host integration](docs/hosts.md).
 | Skills, plugins, hooks, or project files look wrong | Run `./.cowork-flow/run doctor --all` |
 | You are unsure how to write a command or flag | Run `cwf --help` or `cwf <group> <command> --help` |
 
-For host-specific problems, start with [host integration](docs/hosts.md). To understand
-how the project is organized, see [architecture and extension](docs/architecture.md).
+For host-specific problems, start with [host integration](docs/hosts.en.md). To understand
+how the project is organized, see [architecture and extension](docs/architecture.en.md).
 
 <details>
 <summary>Command reference</summary>
