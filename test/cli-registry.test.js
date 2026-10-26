@@ -205,6 +205,21 @@ test('host remove documents the component selector, dry-run and force', () => {
   assert.deepEqual(declared, ['--component', '--dry-run', '--force']);
 });
 
+test('host inspect is documented as read-only and host list points at it', () => {
+  const inspect = commandFor(['host', 'inspect']);
+  assert.match(inspect.summary, /without changing it/);
+  assert.deepEqual((inspect.flags ?? []).map((entry) => entry.name), ['--json']);
+  assert.ok(
+    inspect.notes.some((note) => note.includes('Read-only')),
+    'the help must state that inspect never repairs installs'
+  );
+  const list = commandFor(['host', 'list']);
+  assert.ok(
+    list.notes.some((note) => note.includes('cwf host inspect')),
+    'host list must point at the installed-state reader'
+  );
+});
+
 // Every installer reached through `host add` has to be reachable through
 // `host remove` too: an install path without an uninstall path is a machine
 // that can only accumulate state.

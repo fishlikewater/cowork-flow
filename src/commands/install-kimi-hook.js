@@ -20,6 +20,7 @@ const HOOK_TIMEOUT = 30;
 // would append a second block.
 const MANAGED_START = '# cowork-flow: kimi hook start. Managed by "cowork-flow install-kimi-hook"; edits inside this block are replaced.';
 const MANAGED_END = '# cowork-flow: kimi hook end.';
+const HOOK_START_MARK = '# cowork-flow: kimi hook start.';
 
 // Rendered by `host add`/`host remove`. No --force:
 // installing always rewrites the shim and its managed
@@ -28,8 +29,8 @@ const MANAGED_END = '# cowork-flow: kimi hook end.';
 export const FLAGS = ['--dry-run', '--uninstall'];
 
 
-function getKimiHome() {
-  return process.env.KIMI_CODE_HOME || join(homedir(), '.kimi-code');
+function getKimiHome(env = process.env) {
+  return env.KIMI_CODE_HOME || join(homedir(), '.kimi-code');
 }
 
 
@@ -368,4 +369,79 @@ export async function runInstallKimiHook(args = []) {
   }
 
   await installHook({ config, home, shim, marker });
+}
+
+
+// Read-only installed-state facts for `host inspect`.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const home = getKimiHome(env);
+  const config = configFile(home);
+  const shim = shimDest(home);
+  const marker = markerDest(home);
+  const configText = await readIfExists(config);
+  if (configText === null) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: shim,
+      registeredSource: config,
+      enabled: null,
+      reason: 'config file is absent'
+    };
+  }
+  if (!configText.includes(HOOK_START_MARK)) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: shim,
+      registeredSource: config,
+      enabled: null,
+      reason: 'hook block is absent'
+    };
+  }
+  if (!(await pathExists(shim))) {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath: shim,
+      registeredSource: config,
+      enabled: true,
+      reason: 'shim is missing'
+    };
+  }
+  const markerDocument = await readIfExists(marker);
+  if (markerDocument === null) {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath: shim,
+      registeredSource: config,
+      enabled: true,
+      reason: 'version marker is missing'
+    };
+  }
+  let version = null;
+  try {
+    version = JSON.parse(markerDocument).version ?? null;
+  } catch {
+    version = null;
+  }
+  if (typeof version !== 'string' || version === '') {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath: shim,
+      registeredSource: config,
+      enabled: true,
+      reason: 'version marker is unreadable'
+    };
+  }
+  return {
+    status: 'installed',
+    version,
+    payloadPath: shim,
+    registeredSource: config,
+    enabled: true,
+    reason: null
+  };
 }

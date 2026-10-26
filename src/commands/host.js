@@ -3,15 +3,16 @@ import { join, resolve } from 'node:path';
 import { UsageError, extractValueFlag, parseFlags } from '../lib/cli-flags.js';
 import { hostRegistry } from '../lib/host-assets.js';
 import { pathExists } from '../lib/install-support.js';
-import { runInstallCodexPlugin, FLAGS as CODEX_PLUGIN_FLAGS } from './install-codex-plugin.js';
-import { runInstallClaudeCodePlugin, FLAGS as CLAUDE_CODE_PLUGIN_FLAGS } from './install-claude-code-plugin.js';
-import { runInstallDshHook, FLAGS as DSH_HOOK_FLAGS } from './install-dsh-hook.js';
-import { runInstallDshPreset, FLAGS as DSH_PRESET_FLAGS } from './install-dsh-preset.js';
-import { runInstallKimiPlugin, FLAGS as KIMI_PLUGIN_FLAGS } from './install-kimi-code-plugin.js';
-import { runInstallKimiHook, FLAGS as KIMI_HOOK_FLAGS } from './install-kimi-hook.js';
-import { runInstallOpenCodePlugin, FLAGS as OPENCODE_PLUGIN_FLAGS } from './install-opencode-plugin.js';
-import { runInstallQoderPlugin, FLAGS as QODER_PLUGIN_FLAGS } from './install-qoder-plugin.js';
-import { runInstallZCodePlugin, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zcode-plugin.js';
+import { runInstallCodexPlugin, inspectInstalledState as inspectCodex, FLAGS as CODEX_PLUGIN_FLAGS } from './install-codex-plugin.js';
+import { runInstallClaudeCodePlugin, inspectInstalledState as inspectClaude, FLAGS as CLAUDE_CODE_PLUGIN_FLAGS } from './install-claude-code-plugin.js';
+import { runInstallDshHook, inspectInstalledState as inspectDshHook, FLAGS as DSH_HOOK_FLAGS } from './install-dsh-hook.js';
+import { runInstallDshPreset, inspectInstalledState as inspectDshPreset, FLAGS as DSH_PRESET_FLAGS } from './install-dsh-preset.js';
+import { runInstallKimiPlugin, inspectInstalledState as inspectKimiPlugin, FLAGS as KIMI_PLUGIN_FLAGS } from './install-kimi-code-plugin.js';
+import { runInstallKimiHook, inspectInstalledState as inspectKimiHook, FLAGS as KIMI_HOOK_FLAGS } from './install-kimi-hook.js';
+import { runInstallOpenCodePlugin, inspectInstalledState as inspectOpenCode, FLAGS as OPENCODE_PLUGIN_FLAGS } from './install-opencode-plugin.js';
+import { runInstallQoderPlugin, inspectInstalledState as inspectQoder, FLAGS as QODER_PLUGIN_FLAGS } from './install-qoder-plugin.js';
+import { runInstallZCodePlugin, inspectInstalledState as inspectZCode, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zcode-plugin.js';
+import { inspectHosts, renderInspectLine } from './host-inspect.js';
 
 const KIMI_ALL_FLAGS = [...new Set([...KIMI_HOOK_FLAGS, ...KIMI_PLUGIN_FLAGS])].sort();
 
@@ -25,45 +26,45 @@ export const HOST_COMPONENTS = {
   codex: {
     default: 'plugin',
     components: {
-      plugin: { summary: 'Codex plugin: marketplace source plus the bootstrap skill', flags: CODEX_PLUGIN_FLAGS, run: runInstallCodexPlugin }
+      plugin: { summary: 'Codex plugin: marketplace source plus the bootstrap skill', flags: CODEX_PLUGIN_FLAGS, run: runInstallCodexPlugin, inspect: inspectCodex }
     }
   },
   'claude-code': {
     default: 'plugin',
     components: {
-      plugin: { summary: 'Claude Code skills-directory plugin: the bootstrap skill', flags: CLAUDE_CODE_PLUGIN_FLAGS, run: runInstallClaudeCodePlugin }
+      plugin: { summary: 'Claude Code skills-directory plugin: the bootstrap skill', flags: CLAUDE_CODE_PLUGIN_FLAGS, run: runInstallClaudeCodePlugin, inspect: inspectClaude }
     }
   },
   opencode: {
     default: 'plugin',
     components: {
-      plugin: { summary: 'OpenCode plugin: the plugin file plus the bootstrap skill it registers', flags: OPENCODE_PLUGIN_FLAGS, run: runInstallOpenCodePlugin }
+      plugin: { summary: 'OpenCode plugin: the plugin file plus the bootstrap skill it registers', flags: OPENCODE_PLUGIN_FLAGS, run: runInstallOpenCodePlugin, inspect: inspectOpenCode }
     }
   },
   zcode: {
     default: 'plugin',
     components: {
-      plugin: { summary: 'ZCode plugin: hooks, agents and the bootstrap skill', flags: ZCODE_PLUGIN_FLAGS, run: runInstallZCodePlugin }
+      plugin: { summary: 'ZCode plugin: hooks, agents and the bootstrap skill', flags: ZCODE_PLUGIN_FLAGS, run: runInstallZCodePlugin, inspect: inspectZCode }
     }
   },
   qoder: {
     default: 'plugin',
     components: {
-      plugin: { summary: 'Qoder plugin: payload, registry entry and enable flag', flags: QODER_PLUGIN_FLAGS, run: runInstallQoderPlugin }
+      plugin: { summary: 'Qoder plugin: payload, registry entry and enable flag', flags: QODER_PLUGIN_FLAGS, run: runInstallQoderPlugin, inspect: inspectQoder }
     }
   },
   dsh: {
     default: 'preset',
     components: {
-      preset: { summary: 'DSH agent preset (bundles the hook, the primary path)', flags: DSH_PRESET_FLAGS, run: runInstallDshPreset },
-      hook: { summary: 'DSH workflow-state hook as a machine-level patch row', flags: DSH_HOOK_FLAGS, run: runInstallDshHook }
+      preset: { summary: 'DSH agent preset (bundles the hook, the primary path)', flags: DSH_PRESET_FLAGS, run: runInstallDshPreset, inspect: inspectDshPreset },
+      hook: { summary: 'DSH workflow-state hook as a machine-level patch row', flags: DSH_HOOK_FLAGS, run: runInstallDshHook, inspect: inspectDshHook }
     }
   },
   'kimi-code': {
     default: 'all',
     components: {
-      plugin: { summary: 'Kimi Code plugin: the bootstrap Skill it loads at session start', flags: KIMI_PLUGIN_FLAGS, run: runInstallKimiPlugin },
-      hook: { summary: 'Kimi Code context-injection hook as a user-level config.toml [[hooks]] row', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook },
+      plugin: { summary: 'Kimi Code plugin: the bootstrap Skill it loads at session start', flags: KIMI_PLUGIN_FLAGS, run: runInstallKimiPlugin, inspect: inspectKimiPlugin },
+      hook: { summary: 'Kimi Code context-injection hook as a user-level config.toml [[hooks]] row', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook, inspect: inspectKimiHook },
       all: { summary: 'Kimi Code hook plus plugin, installed in one command (the default)', flags: KIMI_ALL_FLAGS, run: runInstallKimiAll }
     }
   }
@@ -148,6 +149,29 @@ export async function runHostAdd(args = []) {
 export async function runHostRemove(args = []) {
   const { component, forwarded } = splitHostArgs(args);
   return await component.run(['--uninstall', ...forwarded]);
+}
+
+
+// Read-only inspection of machine-level installs. The installer for each host
+// owns its layout; this command only asks and renders the normalized facts.
+export async function runHostInspect(args = [], { io, env = process.env } = {}) {
+  const { flags, positionals } = parseFlags(args, {
+    boolean: ['--json'],
+    positional: { max: 1, name: '[host]' }
+  });
+  const hostIds = positionals[0] === undefined
+    ? [...hostRegistry.platformIds]
+    : [resolveHost(positionals[0]).id];
+
+  const report = await inspectHosts(HOST_COMPONENTS, hostIds, { env });
+  if (flags['--json']) {
+    io.writeOut(`${JSON.stringify(report, null, 2)}\n`);
+    return 0;
+  }
+  for (const row of report.hosts) {
+    io.writeOut(renderInspectLine(row));
+  }
+  return 0;
 }
 
 

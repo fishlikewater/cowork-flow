@@ -19,8 +19,8 @@ export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
 // $XDG_CONFIG_HOME/opencode, falling back to ~/.config/opencode — on every platform.
-function opencodeHome() {
-  const configured = (process.env.XDG_CONFIG_HOME || '').trim();
+function opencodeHome(env = process.env) {
+  const configured = (env.XDG_CONFIG_HOME || '').trim();
   return configured ? join(configured, 'opencode') : join(homedir(), '.config', 'opencode');
 }
 
@@ -87,4 +87,56 @@ export async function runInstallOpenCodePlugin(args = []) {
     },
     onDone: () => console.log('  Loads in the next OpenCode session; no marketplace, registry or enable step.')
   });
+}
+
+
+// Read-only installed-state facts for `host inspect`. OpenCode has no version
+// manifest, so version stays null; the doctor compares file contents.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const home = opencodeHome(env);
+  const plugin = pluginPath(home);
+  const payload = payloadPath(home);
+  let installed;
+  try {
+    installed = await readFile(plugin, 'utf8');
+  } catch {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: payload,
+      registeredSource: plugin,
+      enabled: null,
+      reason: 'no plugin file'
+    };
+  }
+  if (!installed.includes(PLUGIN_MARKER)) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: payload,
+      registeredSource: plugin,
+      enabled: null,
+      reason: 'a different plugin owns this file'
+    };
+  }
+  for (const relative of ['plugin-core.js', 'skills/cowork-flow-bootstrap/SKILL.md']) {
+    if (!(await pathExists(join(payload, ...relative.split('/'))))) {
+      return {
+        status: 'broken',
+        version: null,
+        payloadPath: payload,
+        registeredSource: plugin,
+        enabled: true,
+        reason: `missing cowork-flow/${relative}`
+      };
+    }
+  }
+  return {
+    status: 'installed',
+    version: null,
+    payloadPath: payload,
+    registeredSource: plugin,
+    enabled: true,
+    reason: null
+  };
 }

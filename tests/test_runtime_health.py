@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -14,6 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "template"
 DOCTOR_PATH = TEMPLATE / "skills" / "runtime-health" / "scripts" / "doctor.py"
+REPO_CLI = ROOT / "bin" / "cowork-flow.js"
+PACKAGE_VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 
 
 def _load_doctor():
@@ -38,12 +41,16 @@ class DshPresetCheckTest(unittest.TestCase):
         self.project = root / "project"
         (self.project / ".cowork-flow").mkdir(parents=True)
         (self.project / ".cowork-flow" / ".version").write_text(
-            "1.5.0\n", encoding="utf-8"
+            f"{PACKAGE_VERSION}\n", encoding="utf-8"
         )
         self.preset_dir = self.dsh_home / ".agent-presets" / "cowork-flow"
 
     def _check(self) -> list[dict[str, str]]:
-        with mock.patch.dict("os.environ", {"DSH_HOME": str(self.dsh_home)}):
+        with mock.patch.dict(
+            "os.environ",
+            {"DSH_HOME": str(self.dsh_home), "COWORK_FLOW_CLI": str(REPO_CLI)},
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             return self.doctor.check_dsh_preset(self.project)
 
     def test_absent_preset_is_silent(self) -> None:
@@ -76,19 +83,49 @@ class DshPresetCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("PRESET-STALE", issues[0]["code"])
         self.assertIn("0.0.1", issues[0]["message"])
-        self.assertIn("1.5.0", issues[0]["message"])
+        self.assertIn(PACKAGE_VERSION, issues[0]["message"])
         self.assertIn("cwf host add dsh --component preset --force", issues[0]["commandHint"])
+
+    def test_project_newer_than_the_install_reports_stale(self) -> None:
+        # Staleness is project-relative: a plugin installed by an older release
+        # is behind a project that has since been synced forward.
+        self.preset_dir.mkdir(parents=True)
+        (self.preset_dir / ".cowork-flow-preset.json").write_text(
+            json.dumps({"version": PACKAGE_VERSION}), encoding="utf-8"
+        )
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "9.9.9\n", encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(["PRESET-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("9.9.9", issues[0]["message"])
+
+    def test_cli_skew_with_matching_project_version_is_silent(self) -> None:
+        # Inspect calls the payload stale against the running CLI; the doctor
+        # answers for the project runtime, which still matches the payload.
+        self.preset_dir.mkdir(parents=True)
+        (self.preset_dir / ".cowork-flow-preset.json").write_text(
+            '{"version": "1.0.0"}', encoding="utf-8"
+        )
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.0.0\n", encoding="utf-8"
+        )
+        self.assertEqual([], self._check())
 
     def test_matching_version_is_silent(self) -> None:
         self.preset_dir.mkdir(parents=True)
         (self.preset_dir / ".cowork-flow-preset.json").write_text(
-            '{"version": "1.5.0"}', encoding="utf-8"
+            json.dumps({"version": PACKAGE_VERSION}), encoding="utf-8"
         )
         self.assertEqual([], self._check())
 
     def test_preset_check_never_enters_doctor_errors(self) -> None:
         self.preset_dir.mkdir(parents=True)
-        with mock.patch.dict("os.environ", {"DSH_HOME": str(self.dsh_home)}):
+        with mock.patch.dict(
+            "os.environ",
+            {"DSH_HOME": str(self.dsh_home), "COWORK_FLOW_CLI": str(REPO_CLI)},
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             result = self.doctor._all_check_result(self.project)
         self.assertEqual("warning", result["issues"]["dshPreset"][0]["severity"])
         for error in result["errors"]:
@@ -108,7 +145,7 @@ class KimiHookCheckTest(unittest.TestCase):
         self.project = root / "project"
         (self.project / ".cowork-flow").mkdir(parents=True)
         (self.project / ".cowork-flow" / ".version").write_text(
-            "1.5.0\n", encoding="utf-8"
+            f"{PACKAGE_VERSION}\n", encoding="utf-8"
         )
         self.config = self.kimi_home / "config.toml"
         self.shim = self.kimi_home / "hooks" / "cowork-flow-inject.mjs"
@@ -116,8 +153,13 @@ class KimiHookCheckTest(unittest.TestCase):
 
     def _check(self) -> list[dict[str, str]]:
         with mock.patch.dict(
-            "os.environ", {"KIMI_CODE_HOME": str(self.kimi_home)}
+            "os.environ",
+            {
+                "KIMI_CODE_HOME": str(self.kimi_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
         ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             return self.doctor.check_kimi_hook(self.project)
 
     def _install_block(self, command: str = 'command = "node shim.mjs"') -> None:
@@ -126,7 +168,7 @@ class KimiHookCheckTest(unittest.TestCase):
             "[providers.moonshot]\n"
             'api_key = "sk-test"\n'
             "\n"
-            f"{self.doctor._HOOK_START_MARK}\n"
+            "# cowork-flow: kimi hook start.\n"
             "[[hooks]]\n"
             'event = "UserPromptSubmit"\n'
             f"{command}\n"
@@ -191,13 +233,22 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual(1, len(issues))
         self.assertEqual("HOOK-STALE", issues[0]["code"])
         self.assertIn("0.0.1", issues[0]["message"])
-        self.assertIn("1.5.0", issues[0]["message"])
+        self.assertIn(PACKAGE_VERSION, issues[0]["message"])
         self.assertEqual("cwf host add kimi-code --component hook", issues[0]["commandHint"])
 
     def test_matching_version_is_silent(self) -> None:
         self._install_block()
         self._install_shim()
-        self._write_marker('{"version": "1.5.0"}')
+        self._write_marker(json.dumps({"version": PACKAGE_VERSION}))
+        self.assertEqual([], self._check())
+
+    def test_cli_skew_with_matching_project_version_is_silent(self) -> None:
+        self._install_block()
+        self._install_shim()
+        self._write_marker('{"version": "1.0.0"}')
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.0.0\n", encoding="utf-8"
+        )
         self.assertEqual([], self._check())
 
     def test_missing_project_version_is_silent(self) -> None:
@@ -211,8 +262,13 @@ class KimiHookCheckTest(unittest.TestCase):
         self._install_block()
         with mock.patch.dict(
             "os.environ",
-            {"KIMI_CODE_HOME": str(self.kimi_home), "DSH_HOME": str(self.kimi_home)},
+            {
+                "KIMI_CODE_HOME": str(self.kimi_home),
+                "DSH_HOME": str(self.kimi_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
         ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             result = self.doctor._all_check_result(self.project)
         self.assertEqual("warning", result["issues"]["kimiHook"][0]["severity"])
         for error in result["errors"]:
@@ -222,8 +278,13 @@ class KimiHookCheckTest(unittest.TestCase):
         self._write_marker("not json")
         with mock.patch.dict(
             "os.environ",
-            {"KIMI_CODE_HOME": str(self.kimi_home), "DSH_HOME": str(self.kimi_home)},
+            {
+                "KIMI_CODE_HOME": str(self.kimi_home),
+                "DSH_HOME": str(self.kimi_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
         ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             result = self.doctor._all_check_result(self.project)
         self.assertEqual(
             "HOOK-UNKNOWN-VERSION", result["issues"]["kimiHook"][0]["code"]
@@ -251,8 +312,10 @@ class QoderPluginCheckTest(unittest.TestCase):
         (self.project / ".cowork-flow" / "adapters" / "qoder" / "adapter.yaml").write_text(
             "schemaVersion: 1\nhost: qoder\n", encoding="utf-8"
         )
-        (self.project / ".cowork-flow" / ".version").write_text("1.5.0\n", encoding="utf-8")
-        self.version = "1.5.0"
+        (self.project / ".cowork-flow" / ".version").write_text(
+            f"{PACKAGE_VERSION}\n", encoding="utf-8"
+        )
+        self.version = PACKAGE_VERSION
         self.install_path = (
             self.qoder_home
             / "plugins"
@@ -263,7 +326,14 @@ class QoderPluginCheckTest(unittest.TestCase):
         )
 
     def _check(self) -> list[dict[str, str]]:
-        with mock.patch.dict("os.environ", {"QODER_CONFIG_DIR": str(self.qoder_home)}):
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "QODER_CONFIG_DIR": str(self.qoder_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
+        ):
             return self.doctor.check_qoder_plugin(self.project)
 
     def _write_payload(
@@ -355,23 +425,12 @@ class QoderPluginCheckTest(unittest.TestCase):
             json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
-    def test_payload_manifest_path_follows_the_declaration(self) -> None:
-        # The declaration is the only place naming the payload manifest: a
-        # payload carrying exactly the declared name is healthy, and the same
-        # payload is reported missing once the declaration points elsewhere.
+    def test_project_payload_declaration_does_not_override_the_cli(self) -> None:
+        # Machine install state belongs to the CLI that wrote it; a project
+        # manifest cannot rename the payload the installed plugin actually has.
+        self._install()
         self._write_host_manifest(".qoder-plugin/plugin-alt.json")
-        self._write_payload(manifest="plugin-alt.json")
-        self._write_registry()
-        self._write_settings(True)
         self.assertEqual([], self._check())
-
-        self._write_host_manifest(".qoder-plugin/plugin.json")
-        issues = self._check()
-        self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
-        self.assertTrue(
-            str(issues[0]["path"]).endswith("plugin.json"),
-            issues[0]["path"],
-        )
 
     def test_payload_without_hook_shim_reports_incomplete(self) -> None:
         self._write_payload(shim=False)
@@ -397,6 +456,34 @@ class QoderPluginCheckTest(unittest.TestCase):
         self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
         self.assertIn("1.4.0", issues[0]["message"])
 
+    def test_project_newer_than_the_install_reports_stale(self) -> None:
+        self._install()
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "9.9.9\n", encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("9.9.9", issues[0]["message"])
+
+    def test_cli_skew_with_matching_project_version_is_silent(self) -> None:
+        # Inspect reports stale against the running CLI; the project runtime
+        # still matches the payload, so the project-scoped check stays quiet.
+        self._install(version="1.0.0")
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.0.0\n", encoding="utf-8"
+        )
+        self.assertEqual([], self._check())
+
+    def test_install_without_a_readable_version_reports_stale(self) -> None:
+        self._install()
+        registry = self.qoder_home / "plugins" / "installed_plugins_v2.json"
+        data = json.loads(registry.read_text(encoding="utf-8"))
+        data["plugins"]["cowork-flow@cowork-flow-local"][0].pop("version")
+        registry.write_text(json.dumps(data), encoding="utf-8")
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("an unknown version", issues[0]["message"])
+
     def test_unreadable_registry_is_reported_as_not_installed(self) -> None:
         registry = self.qoder_home / "plugins" / "installed_plugins_v2.json"
         registry.parent.mkdir(parents=True, exist_ok=True)
@@ -405,7 +492,14 @@ class QoderPluginCheckTest(unittest.TestCase):
         self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
 
     def test_plugin_check_never_enters_doctor_errors(self) -> None:
-        with mock.patch.dict("os.environ", {"QODER_CONFIG_DIR": str(self.qoder_home)}):
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "QODER_CONFIG_DIR": str(self.qoder_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
+        ):
             result = self.doctor._all_check_result(self.project)
         self.assertEqual("PLUGIN-NOT-INSTALLED", result["issues"]["qoderPlugin"][0]["code"])
         for error in result["errors"]:
@@ -433,13 +527,23 @@ class ZcodePluginCheckTest(unittest.TestCase):
         (adapter / "adapter.yaml").write_text(
             "schemaVersion: 1\nhost: zcode\n", encoding="utf-8"
         )
-        (self.project / ".cowork-flow" / ".version").write_text("1.5.0\n", encoding="utf-8")
+        (self.project / ".cowork-flow" / ".version").write_text(
+            f"{PACKAGE_VERSION}\n", encoding="utf-8"
+        )
+        self.version = PACKAGE_VERSION
 
     def _check(self) -> list[dict[str, str]]:
-        with mock.patch.dict("os.environ", {"ZCODE_HOME": str(self.zcode_home)}):
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "ZCODE_HOME": str(self.zcode_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
+        ):
             return self.doctor.check_zcode_plugin(self.project)
 
-    def _install(self, *, version: str = "1.5.0", manifest: bool = True) -> None:
+    def _install(self, *, version: str = PACKAGE_VERSION, manifest: bool = True) -> None:
         payload = (
             self.zcode_home / "cli" / "plugins" / "cache" / "cowork-flow-local"
             / "cowork-flow" / version
@@ -492,7 +596,7 @@ class ZcodePluginCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
         self.assertIn("1.4.0", issues[0]["message"])
-        self.assertIn("1.5.0", issues[0]["message"])
+        self.assertIn(PACKAGE_VERSION, issues[0]["message"])
         self.assertEqual("cwf host add zcode --force", issues[0]["commandHint"])
 
     def test_payload_without_a_readable_manifest_reports_unknown_version(self) -> None:
@@ -500,22 +604,46 @@ class ZcodePluginCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(["PLUGIN-UNKNOWN-VERSION"], [issue["code"] for issue in issues])
         self.assertTrue(
-            str(issues[0]["path"]).replace("\\", "/").endswith(".zcode-plugin/plugin.json"),
+            str(issues[0]["path"]).replace("\\", "/").endswith(
+                f"cowork-flow/{self.version}"
+            ),
             issues[0]["path"],
         )
 
-    def test_missing_project_version_skips_the_comparison(self) -> None:
-        # A project that never recorded a version has nothing to compare
-        # against; the check stays silent rather than inventing drift.
+    def test_missing_project_version_is_silent(self) -> None:
+        # Without a project runtime version there is no project-scoped staleness
+        # to report; inspect's own CLI-relative stale stays a machine fact.
         (self.project / ".cowork-flow" / ".version").unlink()
         self._install(version="1.4.0")
+        self.assertEqual([], self._check())
+
+    def test_project_newer_than_the_payload_reports_stale(self) -> None:
+        self._install()
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "9.9.9\n", encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("9.9.9", issues[0]["message"])
+
+    def test_cli_skew_with_matching_project_version_is_silent(self) -> None:
+        self._install(version="1.0.0")
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.0.0\n", encoding="utf-8"
+        )
         self.assertEqual([], self._check())
 
     def test_text_output_prints_the_zcode_plugin_section(self) -> None:
         self._install(version="1.4.0")
         stdout = io.StringIO()
-        with mock.patch.dict("os.environ", {"ZCODE_HOME": str(self.zcode_home)}), \
-                contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "ZCODE_HOME": str(self.zcode_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
+        ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
             self.doctor._run_checks(self.project)
         lines = stdout.getvalue().splitlines()
         self.assertTrue(
@@ -525,7 +653,14 @@ class ZcodePluginCheckTest(unittest.TestCase):
 
     def test_plugin_check_never_enters_doctor_errors(self) -> None:
         self._install(version="1.4.0")
-        with mock.patch.dict("os.environ", {"ZCODE_HOME": str(self.zcode_home)}):
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "ZCODE_HOME": str(self.zcode_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
+        ):
             result = self.doctor._all_check_result(self.project)
         self.assertEqual("PLUGIN-STALE", result["issues"]["zcodePlugin"][0]["code"])
         for error in result["errors"]:
@@ -552,12 +687,18 @@ class CodexPluginCheckTest(unittest.TestCase):
         (self.project / ".cowork-flow" / "adapters" / "codex" / "adapter.yaml").write_text(
             "schemaVersion: 1\nhost: codex\n", encoding="utf-8"
         )
-        (self.project / ".cowork-flow" / ".version").write_text("1.6.0\n", encoding="utf-8")
+        (self.project / ".cowork-flow" / ".version").write_text(
+            f"{PACKAGE_VERSION}\n", encoding="utf-8"
+        )
         self.source = self.codex_home / "plugins" / "marketplaces" / "cowork-flow-local"
         self.config = self.codex_home / "config.toml"
 
     def _check(self) -> list[dict[str, str]]:
-        with mock.patch.dict("os.environ", {"CODEX_HOME": str(self.codex_home)}):
+        with mock.patch.dict(
+            "os.environ",
+            {"CODEX_HOME": str(self.codex_home), "COWORK_FLOW_CLI": str(REPO_CLI)},
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             return self.doctor.check_codex_plugin(self.project)
 
     def _write_config(self, *, source: str | None = None, enabled: bool | None = True) -> None:
@@ -590,7 +731,8 @@ class CodexPluginCheckTest(unittest.TestCase):
         path = self.source / "plugins" / "cowork-flow" / Path(manifest)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            json.dumps({"name": "cowork-flow", "version": "1.6.0"}), encoding="utf-8"
+            json.dumps({"name": "cowork-flow", "version": PACKAGE_VERSION}),
+            encoding="utf-8",
         )
 
     def _install(self, *, enabled: bool | None = True) -> None:
@@ -646,15 +788,17 @@ class CodexPluginCheckTest(unittest.TestCase):
             json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
-    def test_payload_manifest_path_follows_the_declaration(self) -> None:
-        # A payload carrying exactly the declared manifest name is healthy; the
-        # same payload is reported missing once the declaration points elsewhere.
+    def test_project_payload_declaration_does_not_override_the_cli(self) -> None:
+        # The CLI owns machine install state. A project-level host manifest that
+        # renames the payload manifest cannot redirect the check: the CLI still
+        # reads the layout it installs, so a payload at that layout is healthy.
         self._write_host_manifest(".codex-plugin/plugin-alt.json")
-        self._write_payload(".codex-plugin/plugin-alt.json")
+        self._write_payload(".codex-plugin/plugin.json")
         self._write_config(source=str(self.source))
         self.assertEqual([], self._check())
 
-        self._write_host_manifest(".codex-plugin/plugin.json")
+        (self.source / "plugins" / "cowork-flow" / ".codex-plugin" / "plugin.json").unlink()
+        self._write_payload(".codex-plugin/plugin-alt.json")
         issues = self._check()
         self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
         # codex reports the payload directory, not the manifest path.
@@ -682,6 +826,15 @@ class CodexPluginCheckTest(unittest.TestCase):
         self._install()
         self.assertEqual([], self._check())
 
+    def test_project_newer_than_the_payload_reports_stale(self) -> None:
+        self._install()
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "9.9.9\n", encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("9.9.9", issues[0]["message"])
+
     def test_unreadable_config_is_reported_as_not_installed(self) -> None:
         self.config.parent.mkdir(parents=True, exist_ok=True)
         self.config.write_text("{ broken", encoding="utf-8")
@@ -704,7 +857,11 @@ class CodexPluginCheckTest(unittest.TestCase):
         self.assertEqual([], self._check())
 
     def test_plugin_check_never_enters_doctor_errors(self) -> None:
-        with mock.patch.dict("os.environ", {"CODEX_HOME": str(self.codex_home)}):
+        with mock.patch.dict(
+            "os.environ",
+            {"CODEX_HOME": str(self.codex_home), "COWORK_FLOW_CLI": str(REPO_CLI)},
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             result = self.doctor._all_check_result(self.project)
         self.assertEqual("PLUGIN-NOT-INSTALLED", result["issues"]["codexPlugin"][0]["code"])
         for error in result["errors"]:
@@ -733,15 +890,20 @@ class ClaudeCodePluginCheckTest(unittest.TestCase):
             "schemaVersion: 1\nhost: claude-code\n", encoding="utf-8"
         )
         (self.project / ".cowork-flow" / ".version").write_text(
-            "1.6.0\n", encoding="utf-8"
+            f"{PACKAGE_VERSION}\n", encoding="utf-8"
         )
-        self.version = "1.6.0"
+        self.version = PACKAGE_VERSION
         self.install_path = self.claude_home / "skills" / "cowork-flow"
 
     def _check(self) -> list[dict[str, str]]:
         with mock.patch.dict(
-            "os.environ", {"CLAUDE_CONFIG_DIR": str(self.claude_home)}
+            "os.environ",
+            {
+                "CLAUDE_CONFIG_DIR": str(self.claude_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
         ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             return self.doctor.check_claude_code_plugin(self.project)
 
     def _write_payload(
@@ -802,10 +964,25 @@ class ClaudeCodePluginCheckTest(unittest.TestCase):
         (self.project / ".cowork-flow" / ".version").unlink()
         self.assertEqual([], self._check())
 
+    def test_project_newer_than_the_install_reports_stale(self) -> None:
+        self._write_payload()
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "9.9.9\n", encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("9.9.9", issues[0]["message"])
+
+    def test_cli_skew_with_matching_project_version_is_silent(self) -> None:
+        self._write_payload(version="1.0.0")
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.0.0\n", encoding="utf-8"
+        )
+        self.assertEqual([], self._check())
+
     def _write_host_manifest(self, manifest_relative: str) -> None:
         """Deliver the host asset manifest with claude-code's declared payload
-        manifest renamed, so the check can be observed following the
-        declaration."""
+        manifest renamed, so a project-level declaration can be observed."""
         data = json.loads(
             (
                 TEMPLATE / ".cowork-flow" / "spec" / "runtime" / "host-assets.json"
@@ -823,23 +1000,29 @@ class ClaudeCodePluginCheckTest(unittest.TestCase):
             json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
-    def test_payload_manifest_path_follows_the_declaration(self) -> None:
-        # The declaration is the only place naming the payload manifest: a
-        # payload carrying exactly the declared name is healthy, and the same
-        # payload is reported missing once the declaration points elsewhere.
+    def test_project_payload_declaration_does_not_override_the_cli(self) -> None:
+        # The CLI owns machine install state. A project-level host manifest that
+        # renames the payload manifest cannot redirect the check: the payload
+        # the CLI installs is the one it reads.
         self._write_host_manifest(".claude-plugin/plugin-alt.json")
-        self._write_payload(manifest="plugin-alt.json")
+        self._write_payload(manifest="plugin.json")
         self.assertEqual([], self._check())
 
-        self._write_host_manifest(".claude-plugin/plugin.json")
+        (self.install_path / ".claude-plugin" / "plugin.json").unlink()
+        self._write_payload(manifest="plugin-alt.json")
         issues = self._check()
         self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
         self.assertTrue(str(issues[0]["path"]).endswith("cowork-flow"), issues[0]["path"])
 
     def test_plugin_check_never_enters_doctor_errors(self) -> None:
         with mock.patch.dict(
-            "os.environ", {"CLAUDE_CONFIG_DIR": str(self.claude_home)}
+            "os.environ",
+            {
+                "CLAUDE_CONFIG_DIR": str(self.claude_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
         ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             result = self.doctor._all_check_result(self.project)
         self.assertEqual(
             "PLUGIN-NOT-INSTALLED", result["issues"]["claudeCodePlugin"][0]["code"]
@@ -872,7 +1055,11 @@ class OpenCodePluginCheckTest(unittest.TestCase):
         )
 
     def _check(self) -> list[dict[str, str]]:
-        with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(self.xdg)}):
+        with mock.patch.dict(
+            "os.environ",
+            {"XDG_CONFIG_HOME": str(self.xdg), "COWORK_FLOW_CLI": str(REPO_CLI)},
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             return self.doctor.check_opencode_plugin(self.project)
 
     def _write_install(self, *, plugin: str = "// CoworkFlowPlugin\n", core: bool = True,
@@ -957,7 +1144,11 @@ class OpenCodePluginCheckTest(unittest.TestCase):
         self.assertEqual([], self._check())
 
     def test_plugin_check_never_enters_doctor_errors(self) -> None:
-        with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(self.xdg)}):
+        with mock.patch.dict(
+            "os.environ",
+            {"XDG_CONFIG_HOME": str(self.xdg), "COWORK_FLOW_CLI": str(REPO_CLI)},
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             result = self.doctor._all_check_result(self.project)
         self.assertEqual(
             "PLUGIN-NOT-INSTALLED", result["issues"]["opencodePlugin"][0]["code"]
@@ -987,14 +1178,21 @@ class KimiCodePluginCheckTest(unittest.TestCase):
             "schemaVersion: 1\nhost: kimi-code\n", encoding="utf-8"
         )
         (self.project / ".cowork-flow" / ".version").write_text(
-            "1.6.0\n", encoding="utf-8"
+            f"{PACKAGE_VERSION}\n", encoding="utf-8"
         )
-        self.version = "1.6.0"
+        self.version = PACKAGE_VERSION
         self.managed = self.kimi_home / "plugins" / "managed" / "cowork-flow"
         self.source = self.kimi_home / "plugins" / "sources" / "cowork-flow"
 
     def _check(self) -> list[dict[str, str]]:
-        with mock.patch.dict("os.environ", {"KIMI_CODE_HOME": str(self.kimi_home)}):
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "KIMI_CODE_HOME": str(self.kimi_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             return self.doctor.check_kimi_code_plugin(self.project)
 
     def _write_managed(self, *, version: str | None = None, skill: bool = True) -> None:
@@ -1132,7 +1330,14 @@ class KimiCodePluginCheckTest(unittest.TestCase):
         self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in self._check()])
 
     def test_plugin_check_never_enters_doctor_errors(self) -> None:
-        with mock.patch.dict("os.environ", {"KIMI_CODE_HOME": str(self.kimi_home)}):
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "KIMI_CODE_HOME": str(self.kimi_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
             result = self.doctor._all_check_result(self.project)
         self.assertEqual(
             "PLUGIN-NOT-INSTALLED", result["issues"]["kimiCodePlugin"][0]["code"]
@@ -1164,6 +1369,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
                 "QODER_CONFIG_DIR": str(self.qoder_home),
                 "ZCODE_HOME": str(self.zcode_home),
                 "CODEX_HOME": str(self.codex_home),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
             },
         )
         patcher.start()
@@ -1371,6 +1577,7 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         project = self._project("qoder")
         self._project_skills(project, "task-review")
         self._install_qoder_plugin("1.5.0")
+        self.doctor._HOST_INSPECT_CACHE.clear()
         self.assertEqual(
             ["PLUGIN-STALE"],
             [issue["code"] for issue in self.doctor.check_qoder_plugin(project)],
@@ -2394,3 +2601,157 @@ class LanguageCheckTest(unittest.TestCase):
         self.assertTrue(
             any(error.get("kind") == "language" for error in result["errors"])
         )
+
+
+class HostInspectDelegationTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.project = root / "project"
+        for host in ("qoder", "zcode"):
+            adapter = self.project / ".cowork-flow" / "adapters" / host
+            adapter.mkdir(parents=True)
+            (adapter / "adapter.yaml").write_text(
+                f"schemaVersion: 1\nhost: {host}\n", encoding="utf-8"
+            )
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.5.0\n", encoding="utf-8"
+        )
+
+    def _facts(self, **rows: dict[str, object]) -> dict[str, object]:
+        components = {
+            f"{host}:{row.get('component') or 'plugin'}": row
+            for host, row in rows.items()
+        }
+        return {"available": True, "reason": "", "hosts": rows, "components": components}
+
+    def _row(self, host: str, status: str, **overrides: object) -> dict[str, object]:
+        row: dict[str, object] = {
+            "id": host,
+            "displayName": host,
+            "component": "plugin",
+            "status": status,
+            "version": "1.5.0",
+            "payloadPath": None,
+            "registeredSource": None,
+            "enabled": None,
+            "reason": None,
+        }
+        row.update(overrides)
+        return row
+
+    def test_qoder_and_zcode_checks_consume_inspect_facts(self) -> None:
+        healthy = self._facts(
+            qoder=self._row(
+                "qoder",
+                "installed",
+                payloadPath="/payload/qoder",
+                registeredSource="/registry.json",
+                enabled=True,
+            ),
+            zcode=self._row(
+                "zcode",
+                "installed",
+                payloadPath="/payload/zcode",
+                registeredSource="/marketplace.json",
+            ),
+        )
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.object(self.doctor, "_run_host_inspect", return_value=healthy):
+            self.assertEqual([], self.doctor.check_qoder_plugin(self.project))
+            self.assertEqual([], self.doctor.check_zcode_plugin(self.project))
+
+        broken = self._facts(
+            qoder=self._row(
+                "qoder",
+                "broken",
+                payloadPath="/payload/qoder",
+                registeredSource="/registry.json",
+                reason="missing hooks/inject-context.mjs",
+            ),
+            zcode=self._row(
+                "zcode",
+                "broken",
+                payloadPath="/payload/zcode",
+                registeredSource="/marketplace.json",
+                reason="payload directory is missing",
+            ),
+        )
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.object(self.doctor, "_run_host_inspect", return_value=broken):
+            qoder = self.doctor.check_qoder_plugin(self.project)
+            zcode = self.doctor.check_zcode_plugin(self.project)
+        self.assertEqual(["PLUGIN-PAYLOAD-INCOMPLETE"], [issue["code"] for issue in qoder])
+        self.assertEqual(
+            "/payload/qoder/hooks/inject-context.mjs",
+            qoder[0]["path"].replace("\\", "/"),
+        )
+        self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in zcode])
+
+    def test_inspect_runs_once_per_doctor_pass(self) -> None:
+        facts = self._facts(
+            qoder=self._row("qoder", "missing"),
+            zcode=self._row("zcode", "missing"),
+        )
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.object(
+            self.doctor, "_run_host_inspect", return_value=facts
+        ) as run:
+            self.doctor.check_qoder_plugin(self.project)
+            self.doctor.check_zcode_plugin(self.project)
+        self.assertEqual(1, run.call_count)
+
+    def test_inspect_omitting_the_needed_row_is_unavailable(self) -> None:
+        facts = self._facts(zcode=self._row("zcode", "missing"))
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.object(self.doctor, "_run_host_inspect", return_value=facts):
+            issues = self.doctor.check_qoder_plugin(self.project)
+        self.assertEqual(
+            ["HOST-INSPECT-UNAVAILABLE"], [issue["code"] for issue in issues]
+        )
+        self.assertNotIn("PLUGIN-NOT-INSTALLED", [issue["code"] for issue in issues])
+
+    def test_unavailable_inspect_is_not_reported_as_missing(self) -> None:
+        cases = {
+            "cli missing": FileNotFoundError("cwf not found"),
+            "timeout": subprocess.TimeoutExpired("cwf", 5),
+            "non-zero exit": subprocess.CompletedProcess(
+                ["cwf"], 1, stdout="", stderr="boom"
+            ),
+            "invalid json": subprocess.CompletedProcess(
+                ["cwf"], 0, stdout="not json", stderr=""
+            ),
+            "schema mismatch": subprocess.CompletedProcess(
+                ["cwf"], 0, stdout=json.dumps({"schemaVersion": 2, "hosts": []}), stderr=""
+            ),
+        }
+        for label, outcome in cases.items():
+            with self.subTest(case=label):
+                self.doctor._HOST_INSPECT_CACHE.clear()
+                with mock.patch.dict(
+                    "os.environ",
+                    {
+                        "COWORK_FLOW_CLI": "cwf-stub",
+                        "QODER_CONFIG_DIR": str(Path(self._tmp.name) / "qoder"),
+                        "ZCODE_HOME": str(Path(self._tmp.name) / "zcode"),
+                    },
+                ), mock.patch.object(
+                    self.doctor.subprocess, "run", side_effect=outcome
+                ) if isinstance(outcome, BaseException) else mock.patch.object(
+                    self.doctor.subprocess, "run", return_value=outcome
+                ):
+                    qoder = self.doctor.check_qoder_plugin(self.project)
+                    self.doctor._HOST_INSPECT_CACHE.clear()
+                    zcode = self.doctor.check_zcode_plugin(self.project)
+                for issues, host in ((qoder, "qoder"), (zcode, "zcode")):
+                    codes = [issue["code"] for issue in issues]
+                    self.assertEqual(
+                        ["HOST-INSPECT-UNAVAILABLE"], codes, f"{host}: {codes}"
+                    )
+                    self.assertNotIn("PLUGIN-NOT-INSTALLED", codes)
+                    self.assertIn("npm install -g cowork-flow@latest", issues[0]["commandHint"])

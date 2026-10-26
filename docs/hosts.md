@@ -57,6 +57,20 @@ cwf host remove <host>
 
 机器级 hook 与项目运行时各自升级，而它会在任何工作区触发——包括运行时比它旧的项目。四个机器级注入 shim（Qoder、ZCode、Kimi Code、OpenCode）因此是 **fail-open** 的：项目运行时失败时只在宿主运行日志留原因并返回 0，不注入，也不把「hook 失败」变成「拒绝你的输入」；项目级 Edit 期 hook（Claude Code / Codex）自 2.0.0 起同样不再返回非零退出，一律 advisory。旧项目上注入会静默不生效，跑一次 `cwf project sync .` 即可恢复。
 
+## 安装态检查
+
+`cwf host list` 只回答“声明了哪些宿主、项目选了哪些”；机器上实际装了什么，用只读的 `cwf host inspect`：
+
+```bash
+cwf host inspect
+cwf host inspect qoder
+cwf host inspect --json
+```
+
+每个可安装组件一行，状态为 `installed`、`missing`、`stale`、`broken` 或 `unsupported`。`stale` 表示已装载荷版本与当前 CLI 版本不同；`broken` 表示宿主有注册但载荷缺件。doctor 会再拿同一版本与本项目 `.cowork-flow/.version` 比较：CLI 比项目新、但插件仍匹配项目运行时不报；项目已 sync 到新版本、插件落后时仍报 `PLUGIN-STALE`。`kimi-code` 的 `all` 只是命令组合，不会单独出现。命令只读，不修复、不安装、不卸载；安装态异常是数据，不是命令失败，只有未知宿主等用法错误才返回 2。
+
+`run doctor` 的宿主检查消费同一份读模型（`cwf host inspect --json`），不再自己解析宿主目录、注册表、设置文件或 TOML。CLI 不在 PATH、退出码非 0、超时或 `schemaVersion` 不匹配时，doctor 报 `HOST-INSPECT-UNAVAILABLE` 并给出升级提示，而不是误报 `PLUGIN-NOT-INSTALLED`——“读不到”和“读到没装”是两件事。完整契约见 `spec/contracts/host-install-inspection.md`。
+
 ## Codex
 
 ```bash
@@ -291,6 +305,7 @@ claude mcp add -s user cowork-flow -- cwf mcp serve
 | `COWORK_FLOW_CONTEXT_ID` | 显式指定会话身份；宿主不提供会话变量时使用 |
 | `COWORK_FLOW_HOST` | 显式指定宿主 id |
 | `COWORK_FLOW_CODEX` | 指定 Codex CLI 可执行文件 |
+| `COWORK_FLOW_CLI` | 指定 doctor 读取安装态时调用的 cowork-flow CLI；`.js` 路径用 node 执行 |
 | `DSH_HOME` | 覆盖 DeepSeek Harness 配置根目录 |
 | `KIMI_CODE_HOME` | 覆盖 Kimi Code 配置根目录 |
 | `CODEX_HOME` | 覆盖 Codex 配置根目录 |

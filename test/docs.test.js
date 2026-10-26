@@ -352,6 +352,22 @@ test('every manifest host appears in README and hosts docs', async () => {
 });
 
 
+test('host docs describe the single install-state read model', async () => {
+  const cases = [
+    ['docs/hosts.md', ['cwf host inspect', 'HOST-INSPECT-UNAVAILABLE', 'host-install-inspection.md']],
+    ['docs/hosts.en.md', ['cwf host inspect', 'HOST-INSPECT-UNAVAILABLE', 'host-install-inspection.md']],
+    ['docs/architecture.md', ['HOST-INSPECT-UNAVAILABLE', 'host-install-inspection.md']],
+    ['docs/architecture.en.md', ['HOST-INSPECT-UNAVAILABLE', 'host-install-inspection.md']]
+  ];
+  for (const [path, needles] of cases) {
+    const text = await readDoc(path);
+    for (const needle of needles) {
+      assert.ok(text.includes(needle), `${path} must mention ${needle}`);
+    }
+  }
+});
+
+
 test('CHANGELOG follows Keep a Changelog', async () => {
   const changelog = await readDoc('CHANGELOG.md');
 

@@ -15,8 +15,8 @@ const LOADS = '  Loads as cowork-flow@skills-dir in the next Claude Code session
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
-function claudeHome() {
-  const configured = (process.env.CLAUDE_CONFIG_DIR || '').trim();
+function claudeHome(env = process.env) {
+  const configured = (env.CLAUDE_CONFIG_DIR || '').trim();
   return configured || join(homedir(), '.claude');
 }
 
@@ -87,4 +87,51 @@ export async function runInstallClaudeCodePlugin(args = []) {
     onInstalled: () => stampPayloadManifest(target, manifest, version),
     onDone: () => console.log(LOADS)
   });
+}
+
+
+// Read-only installed-state facts for `host inspect`.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const target = installPath(claudeHome(env));
+  const { manifest } = pluginPayload('claude-code');
+  const installed = await readManifest(target, manifest);
+  if (!installed) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: target,
+      registeredSource: target,
+      enabled: null,
+      reason: 'no plugin manifest'
+    };
+  }
+  if (installed.name !== PLUGIN_NAME) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: target,
+      registeredSource: target,
+      enabled: null,
+      reason: 'a different plugin owns this directory'
+    };
+  }
+  const skill = join(target, 'skills', 'cowork-flow-bootstrap', 'SKILL.md');
+  if (!(await pathExists(skill))) {
+    return {
+      status: 'broken',
+      version: typeof installed.version === 'string' ? installed.version : null,
+      payloadPath: target,
+      registeredSource: target,
+      enabled: true,
+      reason: 'missing skills/cowork-flow-bootstrap/SKILL.md'
+    };
+  }
+  return {
+    status: 'installed',
+    version: typeof installed.version === 'string' ? installed.version : null,
+    payloadPath: target,
+    registeredSource: target,
+    enabled: true,
+    reason: null
+  };
 }

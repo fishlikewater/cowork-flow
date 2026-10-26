@@ -205,3 +205,50 @@ export async function runInstallDshHook(args = []) {
     console.log('  Keep only one to avoid duplicate injection: remove the preset, or run "cwf host remove dsh --component hook".');
   }
 }
+
+
+// Read-only installed-state facts for `host inspect`.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const home = getDshHome(env);
+  const pluginDest = join(home, 'plugins', 'cowork-flow', 'workflow-state.js');
+  const patchFile = join(home, 'cordis.patch.yml');
+  const patch = await readIfExists(patchFile);
+  if (patch === null) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: pluginDest,
+      registeredSource: patchFile,
+      enabled: null,
+      reason: 'no patch file'
+    };
+  }
+  if (!patch.includes(`- id: ${ROW_ID}`)) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: pluginDest,
+      registeredSource: patchFile,
+      enabled: null,
+      reason: 'no managed hook row'
+    };
+  }
+  if (!(await pathExists(pluginDest))) {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath: pluginDest,
+      registeredSource: patchFile,
+      enabled: true,
+      reason: 'plugin file is missing'
+    };
+  }
+  return {
+    status: 'installed',
+    version: null,
+    payloadPath: pluginDest,
+    registeredSource: patchFile,
+    enabled: true,
+    reason: null
+  };
+}

@@ -2,7 +2,7 @@ import { cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { parseInstallArgs, pathExists, writeJsonAtomic } from '../lib/install-support.js';
+import { parseInstallArgs, pathExists, readJsonFile, writeJsonAtomic } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
 
@@ -16,8 +16,8 @@ const REGISTRY_FILE = 'installed_plugins_v2.json';
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
-function qoderHome() {
-  const configured = (process.env.QODER_CONFIG_DIR || '').trim();
+function qoderHome(env = process.env) {
+  const configured = (env.QODER_CONFIG_DIR || '').trim();
   return configured || join(homedir(), '.qoder');
 }
 
@@ -201,4 +201,62 @@ export async function runInstallQoderPlugin(args = []) {
   console.log(`✓ cowork-flow Qoder plugin installed to ${target.installPath}`);
   console.log('  Restart Qoder to load the plugin (the IDE has no hook hot reload).');
   return 0;
+}
+
+
+// Read-only installed-state facts for `host inspect`. The registry and the
+// settings flag are the host's records; the payload files are what a session
+// actually loads.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const home = qoderHome(env);
+  const paths = pluginPaths(home, null);
+  const registry = await readJsonFile(paths.registry);
+  const entries = registry?.plugins?.[PLUGIN_KEY];
+  const entry = Array.isArray(entries) ? entries[0] : null;
+  if (!entry || typeof entry !== 'object') {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: null,
+      registeredSource: paths.registry,
+      enabled: null,
+      reason: 'no registry entry'
+    };
+  }
+  const version = typeof entry.version === 'string' ? entry.version : null;
+  const installPath = typeof entry.installPath === 'string' ? entry.installPath : '';
+  if (!installPath) {
+    return {
+      status: 'broken',
+      version,
+      payloadPath: null,
+      registeredSource: paths.registry,
+      enabled: null,
+      reason: 'registry entry has no installPath'
+    };
+  }
+  const { manifest } = pluginPayload('qoder');
+  for (const relative of [manifest, 'hooks/hooks.json', 'hooks/inject-context.mjs']) {
+    if (!(await pathExists(join(installPath, ...relative.split('/'))))) {
+      const role = relative === manifest ? 'payload manifest' : 'required file';
+      return {
+        status: 'broken',
+        version,
+        payloadPath: installPath,
+        registeredSource: paths.registry,
+        enabled: null,
+        reason: `missing ${relative} (${role})`
+      };
+    }
+  }
+  const settings = await readJsonFile(paths.settings);
+  const enabled = settings?.enabledPlugins?.[PLUGIN_KEY] === true;
+  return {
+    status: 'installed',
+    version,
+    payloadPath: installPath,
+    registeredSource: paths.registry,
+    enabled,
+    reason: enabled ? null : 'enable flag is not true'
+  };
 }

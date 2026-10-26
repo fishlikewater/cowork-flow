@@ -124,6 +124,7 @@ cwf project sync .
 | `cwf host add <host> [--component <name>] [--dry-run] [--force] [--prune-old] [--uninstall]` | 安装机器级宿主组件 |
 | `cwf host remove <host> [--component <name>] [--dry-run] [--force]` | 卸载机器级宿主组件 |
 | `cwf host list [target] [--json]` | 查看支持的宿主和项目选择情况 |
+| `cwf host inspect [host] [--json]` | 只读查看机器级宿主安装态（doctor 消费同一读模型） |
 | `cwf self update [--dry-run]` | 更新全局安装的 CLI |
 | `cwf dev refresh [target] [--dry-run]` | 维护 cowork-flow 仓库时刷新自实例 |
 | `cwf mcp serve [args...]` | 向 MCP 客户端提供任务事实 |

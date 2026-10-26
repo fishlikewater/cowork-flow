@@ -23,8 +23,8 @@ const LABEL = 'Kimi Code plugin';
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
-function kimiHome() {
-  const configured = (process.env.KIMI_CODE_HOME || '').trim();
+function kimiHome(env = process.env) {
+  const configured = (env.KIMI_CODE_HOME || '').trim();
   // The host rejects a relative plugin root; the resolved path is printed to paste.
   return configured ? resolve(configured) : join(homedir(), '.kimi-code');
 }
@@ -149,4 +149,56 @@ export async function runInstallKimiPlugin(args = []) {
   console.log(`  Registered in ${installedRegistryPath(home)} (enabled).`);
   console.log('  Restart Kimi Code to load the plugin.');
   return 0;
+}
+
+
+// Read-only installed-state facts for `host inspect`.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const home = kimiHome(env);
+  const registry = installedRegistryPath(home);
+  const data = await readJsonFile(registry);
+  const entries = Array.isArray(data?.plugins) ? data.plugins : [];
+  const record = entries.find(
+    (entry) => entry && typeof entry === 'object' && entry.id === KIMI_PLUGIN_ID
+  );
+  if (!record) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: null,
+      registeredSource: registry,
+      enabled: null,
+      reason: 'no registry record'
+    };
+  }
+  const root = typeof record.root === 'string' && record.root
+    ? record.root
+    : managedDir(home);
+  const enabled = record.enabled !== false;
+  const { manifest } = pluginPayload('kimi-code');
+  for (const relative of [manifest, 'skills/cowork-flow-bootstrap/SKILL.md']) {
+    if (!(await pathExists(join(root, ...relative.split('/'))))) {
+      return {
+        status: 'broken',
+        version: null,
+        payloadPath: root,
+        registeredSource: registry,
+        enabled,
+        reason: `missing ${relative}`
+      };
+    }
+  }
+  const payloadManifest = await readJsonFile(join(root, ...manifest.split('/')));
+  const version = typeof payloadManifest?.version === 'string'
+    ? payloadManifest.version
+    : null;
+  const sourceMissing = !(await pathExists(sourceDir(home)));
+  return {
+    status: 'installed',
+    version,
+    payloadPath: root,
+    registeredSource: registry,
+    enabled,
+    reason: sourceMissing ? 'stable reinstall source directory is missing' : null
+  };
 }

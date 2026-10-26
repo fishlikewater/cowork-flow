@@ -44,6 +44,8 @@
 
 机器级安装器只能通过 `cwf host add` / `cwf host remove` 写入宿主配置目录，不应把用户主目录路径硬编码到 `template/`。
 
+机器级安装态的读取同样只有一条路径：各安装器导出 `inspectInstalledState` 描述自己写下的布局，`cwf host inspect` 把它归一化为 `schemaVersion: 1` 的只读行，`doctor` 只消费这份事实。Python 运行时不解析宿主注册表、TOML、设置文件或载荷清单；读取不可用时 doctor 报 `HOST-INSPECT-UNAVAILABLE`，不会把“读不到”误判为“未安装”。契约见 `spec/contracts/host-install-inspection.md`。
+
 ## 运行时分层
 
 运行时代码位于 `template/.cowork-flow/scripts/`。仓库根的 `scripts/` 只负责构建和发布。

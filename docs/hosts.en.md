@@ -57,6 +57,20 @@ Use `--force` only once you have confirmed that an existing installation needs t
 
 Machine-level hooks and the project runtime upgrade independently, yet a machine-level hook fires in any workspace — including projects whose runtime is older than the hook. The four machine-level injection shims (Qoder, ZCode, Kimi Code, OpenCode) are therefore **fail-open**: when the project runtime fails, they only record the reason in the host's run log and return 0; they do not inject, and they never turn "hook failed" into "your input is rejected". The project-level Edit-time hooks (Claude Code / Codex) have likewise stopped returning a non-zero exit since 2.0.0 and are always advisory. In an old project, injection silently has no effect; run `cwf project sync .` once to restore it.
 
+## Install-state inspection
+
+`cwf host list` only answers "which hosts are declared and which did the project select"; to see what is actually installed on the machine, use the read-only `cwf host inspect`:
+
+```bash
+cwf host inspect
+cwf host inspect qoder
+cwf host inspect --json
+```
+
+One row per installable component, with status `installed`, `missing`, `stale`, `broken`, or `unsupported`. `stale` means the installed payload version differs from the running CLI version; `broken` means the host knows about cowork-flow but a required payload artifact is absent. The doctor then compares that same version with the project's `.cowork-flow/.version`: a CLI newer than the project with a payload that still matches the project's runtime stays silent, while a payload that lags a synced project is still `PLUGIN-STALE`. `kimi-code`'s `all` is only a command composition and never appears as a row. The command is read-only and never repairs, installs, or uninstalls; an unhealthy install is data, not a command failure, and only usage errors such as an unknown host exit with 2.
+
+The doctor's host checks consume the same read model (`cwf host inspect --json`) and no longer parse host directories, registries, settings, or TOML themselves. When the CLI is not on `PATH`, exits non-zero, times out, or reports an unexpected `schemaVersion`, the doctor emits `HOST-INSPECT-UNAVAILABLE` with an upgrade hint instead of falsely reporting `PLUGIN-NOT-INSTALLED` — "could not read" and "read as not installed" are different facts. See `spec/contracts/host-install-inspection.md` for the full contract.
+
 ## Codex
 
 ```bash
@@ -291,6 +305,7 @@ Hosts support different manifest fields, so do not copy the same set of fields i
 | `COWORK_FLOW_CONTEXT_ID` | Explicitly set the session identity; use when the host provides no session variable |
 | `COWORK_FLOW_HOST` | Explicitly set the host id |
 | `COWORK_FLOW_CODEX` | Set the Codex CLI executable |
+| `COWORK_FLOW_CLI` | Set the cowork-flow CLI the doctor uses to read install state; a `.js` path runs through node |
 | `DSH_HOME` | Override the DeepSeek Harness configuration root |
 | `KIMI_CODE_HOME` | Override the Kimi Code configuration root |
 | `CODEX_HOME` | Override the Codex configuration root |

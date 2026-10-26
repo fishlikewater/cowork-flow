@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 
-import { parseInstallArgs, pathExists } from '../lib/install-support.js';
+import { parseInstallArgs, pathExists, readJsonFile } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
 import { readPluginMetadata } from '../lib/plugin-metadata.js';
 import { pluginPayload, stampPayloadManifest } from '../lib/plugin-payload.js';
@@ -19,9 +19,68 @@ const MARKETPLACE_MANIFEST = join('.agents', 'plugins', 'marketplace.json');
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
-function codexHome() {
-  const configured = (process.env.CODEX_HOME || '').trim();
+function codexHome(env = process.env) {
+  const configured = (env.CODEX_HOME || '').trim();
   return configured || join(homedir(), '.codex');
+}
+
+
+function stripTomlInlineComment(value) {
+  let quote = '';
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (escaped) {
+      escaped = false;
+    } else if (quote === '"' && char === '\\') {
+      escaped = true;
+    } else if (quote) {
+      if (char === quote) {
+        quote = '';
+      }
+    } else if (index === 0 && (char === '"' || char === "'")) {
+      quote = char;
+    } else if (char === '#' && (index === 0 || value[index - 1] === ' ' || value[index - 1] === '\t')) {
+      return value.slice(0, index).trimEnd();
+    }
+  }
+  return value;
+}
+
+
+// The two flat sections cowork-flow owns in Codex's config.toml. Everything
+// else in the file stays unread; this is registration state, not install layout.
+async function readCodexConfig(home) {
+  const path = join(home, 'config.toml');
+  const sections = {};
+  let text;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch {
+    return { path, sections };
+  }
+  let current = null;
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+    if (line.startsWith('[') && line.endsWith(']')) {
+      const name = line.slice(1, -1).trim().replaceAll('"', '');
+      current = sections[name] = {};
+      continue;
+    }
+    if (!current || !line.includes('=')) {
+      continue;
+    }
+    const index = line.indexOf('=');
+    const key = line.slice(0, index).trim().replace(/^["']|["']$/g, '');
+    const value = stripTomlInlineComment(line.slice(index + 1).trim())
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    current[key] = value;
+  }
+  return { path, sections };
 }
 
 function marketplaceRoot(home) {
@@ -309,4 +368,50 @@ export async function runInstallCodexPlugin(args = []) {
       : `  Plugin is registered but not enabled; check codex plugin list for ${PLUGIN_KEY}.`
   );
   return 0;
+}
+
+
+// Read-only installed-state facts for `host inspect`.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const home = codexHome(env);
+  const root = marketplaceRoot(home);
+  const config = await readCodexConfig(home);
+  const marketplace = config.sections[`marketplaces.${MARKETPLACE_NAME}`];
+  const plugin = config.sections[`plugins.${PLUGIN_KEY}`];
+  // A registered source is where the marketplace actually lives; fall back to
+  // the installer's own root only when the source is absent or unusable.
+  const registeredSource = marketplace?.source || root;
+  const payload = marketplace?.source
+    ? join(marketplace.source, 'plugins', PLUGIN_NAME)
+    : pluginTarget(home);
+  const { manifest } = pluginPayload('codex');
+  const payloadManifest = await readJsonFile(join(payload, ...manifest.split('/')));
+  if (!marketplace) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: payloadManifest ? payload : null,
+      registeredSource: config.path,
+      enabled: null,
+      reason: 'marketplace is not registered'
+    };
+  }
+  if (!payloadManifest) {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath: payload,
+      registeredSource,
+      enabled: plugin?.enabled === 'true',
+      reason: `missing ${manifest}`
+    };
+  }
+  return {
+    status: 'installed',
+    version: typeof payloadManifest.version === 'string' ? payloadManifest.version : null,
+    payloadPath: payload,
+    registeredSource,
+    enabled: plugin?.enabled === 'true',
+    reason: null
+  };
 }

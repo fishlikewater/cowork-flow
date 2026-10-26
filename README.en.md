@@ -162,6 +162,7 @@ how the project is organized, see [architecture and extension](docs/architecture
 | `cwf host add <host> [--component <name>] [--dry-run] [--force] [--prune-old] [--uninstall]` | Install a machine-level host component |
 | `cwf host remove <host> [--component <name>] [--dry-run] [--force]` | Remove a machine-level host component |
 | `cwf host list [target] [--json]` | List supported hosts and what the project selected |
+| `cwf host inspect [host] [--json]` | Read machine-level host install state (the model doctor consumes) |
 | `cwf self update [--dry-run]` | Update the globally installed CLI |
 | `cwf dev refresh [target] [--dry-run]` | Refresh the self-instance while maintaining the cowork-flow repo |
 | `cwf mcp serve [args...]` | Serve task facts to an MCP client |

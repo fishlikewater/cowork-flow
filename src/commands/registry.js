@@ -1,6 +1,6 @@
 import { UsageError } from '../lib/cli-flags.js';
 import { hostRegistry } from '../lib/host-assets.js';
-import { HOST_COMPONENTS, HOST_FLAGS, runHostAdd, runHostList, runHostRemove } from './host.js';
+import { HOST_COMPONENTS, HOST_FLAGS, runHostAdd, runHostInspect, runHostList, runHostRemove } from './host.js';
 import { runInit } from './init.js';
 import { runMcpState } from './mcp-state.js';
 import { runSourceRefresh } from './source-refresh.js';
@@ -108,12 +108,25 @@ export const COMMANDS = [
     run: (args) => runHostRemove(args)
   },
   {
+    path: ['host', 'inspect'],
+    summary: 'Report machine-level host installation state without changing it',
+    usage: 'host inspect [host] [--json]',
+    flags: [flag('--json')],
+    positional: { min: 0, max: 1, name: '[host]' },
+    notes: [
+      'Read-only: it reports installed, missing, stale, broken or unsupported and never repairs, installs or removes.',
+      'Without a host, every declared host is inspected; an unknown host is a usage error.'
+    ],
+    examples: ['cwf host inspect', 'cwf host inspect qoder --json'],
+    run: (args, context) => runHostInspect(args, context)
+  },
+  {
     path: ['host', 'list'],
     summary: 'List declared hosts and whether this project selected them',
     usage: 'host list [target] [--json]',
     flags: [flag('--json')],
     positional: { min: 0, max: 1, name: '[target]' },
-    notes: ['Reports declarations and project selection only; installed-state health is what `./.cowork-flow/run doctor` checks.'],
+    notes: ['Reports declarations and project selection only; `cwf host inspect` reads each host\'s installed state, and doctor consumes that read model.'],
     examples: ['cwf host list', 'cwf host list --json'],
     run: (args, context) => runHostList(args, context)
   },

@@ -45,5 +45,29 @@ class FallbackRegistryTest(unittest.TestCase):
                 self.assertEqual(shipped[entry["id"]]["readWhen"], entry["readWhen"])
 
 
+class ShippedRegistryTest(unittest.TestCase):
+    def test_host_install_inspection_contract_is_registered(self) -> None:
+        registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
+        entry = next(
+            (
+                contract
+                for contract in registry["contracts"]
+                if contract["id"] == "HOST_INSTALL_INSPECTION_V1"
+            ),
+            None,
+        )
+        self.assertIsNotNone(entry, "HOST_INSTALL_INSPECTION_V1 must be registered")
+        self.assertEqual(
+            ".cowork-flow/spec/contracts/host-install-inspection.md",
+            entry["path"],
+        )
+        contract_path = ROOT / "template" / entry["path"]
+        self.assertTrue(contract_path.is_file(), contract_path)
+        self.assertTrue(entry["digest"], "a registered contract needs digest lines")
+        self.assertTrue(all(line.strip() for line in entry["digest"]))
+        self.assertIn("cwf host inspect", " ".join(entry["digest"]))
+        self.assertTrue(entry["readWhen"], "a registered contract needs read-when hints")
+
+
 if __name__ == "__main__":
     unittest.main()

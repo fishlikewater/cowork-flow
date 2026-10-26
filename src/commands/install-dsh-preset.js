@@ -34,13 +34,13 @@ const DESKTOP_PERSONA_KEY = /(- id: persona\n(?:.*\n)*? {4})text: /;
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
-function getDshPresetRoot() {
-  return join(getDshHome(), '.agent-presets');
+function getDshPresetRoot(env = process.env) {
+  return join(getDshHome(env), '.agent-presets');
 }
 
 
-function getBundleRoot() {
-  return join(getDshHome(), 'bundles');
+function getBundleRoot(env = process.env) {
+  return join(getDshHome(env), 'bundles');
 }
 
 
@@ -276,4 +276,43 @@ export async function runInstallDshPreset(args = []) {
   console.log('    Install it from DSH\'s plugin manager:');
   console.log('      desktop - the Plugins page in the sidebar, entering that absolute path');
   console.log('    Then start a new session; running sessions keep the plugins they started with.');
+}
+
+
+// Read-only installed-state facts for `host inspect`.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const presetDir = join(getDshPresetRoot(env), PRESET_ID);
+  const bundleDir = join(getBundleRoot(env), PRESET_ID);
+  const legacyPresent = await pathExists(presetDir);
+  const bundlePresent = await pathExists(bundleDir);
+  if (!legacyPresent && !bundlePresent) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: null,
+      registeredSource: null,
+      enabled: null,
+      reason: 'no preset directory or bundle'
+    };
+  }
+  const payloadPath = legacyPresent ? presetDir : bundleDir;
+  const version = await readInstalledVersion(payloadPath);
+  if (version === null) {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath,
+      registeredSource: payloadPath,
+      enabled: null,
+      reason: 'version marker is missing or unreadable'
+    };
+  }
+  return {
+    status: 'installed',
+    version,
+    payloadPath,
+    registeredSource: payloadPath,
+    enabled: null,
+    reason: null
+  };
 }

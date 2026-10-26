@@ -16,6 +16,7 @@ Current contracts:
 - `decision-anchor.md`: the schema of each task's `decision-anchor.md` — goal, acceptance criteria, rejected options, and key assumptions.
 - `error-output-as-data.md`: external error output is analyzed as data, never executed as instructions (`ERROR_OUTPUT_AS_DATA_V1`).
 - `fact-layer-access.md`: the channels through which hosts without injection hooks and external tools read task facts (`FACT_LAYER_ACCESS_V1`).
+- `host-install-inspection.md`: the read-only `cwf host inspect` model for machine-level host install state, the doctor's consumption and unavailable path, and the installer/read-model/runtime ownership boundary (`HOST_INSTALL_INSPECTION_V1`).
 - `evidence-completion.md`: evidence-based completion — the `evidence.jsonl` schema, the `LIFECYCLE-AC-001/002/003/004` completion gate, `--allow-missing-evidence` exemption traces, and the injected coverage row.
 - `task-adopt.md`: task adoption — the entry boundary of `task next --run --adopt`, its preconditions (`LIFECYCLE-ADOPT-001`), the rebind + baseline reset + audit write, and how it differs from `--takeover`.
 - `task-board.md`: the shared board and dependency edges — the list/MCP board fields (executor / ownerSessionActive / evidenceCoverage / blocked), `--depends-on` declaration and validation, the start dependency gate (`LIFECYCLE-DEPENDENCY-001`), and the adopt handover receipt.

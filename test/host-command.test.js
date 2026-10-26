@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
-import { HOST_COMPONENTS, runHostAdd, runHostList, runHostRemove } from '../src/commands/host.js';
+import { HOST_COMPONENTS, runHostAdd, runHostInspect, runHostList, runHostRemove } from '../src/commands/host.js';
 import { loadHostAssetManifest } from '../src/lib/host-assets.js';
 import { installedRegistryPath } from '../src/lib/kimi-installed-registry.js';
 
@@ -255,6 +255,57 @@ test('host list prints a table of every host and its components', async (t) => {
   // documentation of the invariant, not coverage: restoring the removed `-`
   // branch would still pass, because nothing can reach it.
   assert.doesNotMatch(io.stdout, /\s-\s/m);
+});
+
+test('host inspect --json reports one row per component across all hosts', async (t) => {
+  const home = await createTempDir(t, 'cowork-flow-host-inspect-');
+  useEnv(t, {
+    CLAUDE_CONFIG_DIR: join(home, 'claude'),
+    CODEX_HOME: join(home, 'codex'),
+    DSH_HOME: join(home, 'dsh'),
+    KIMI_CODE_HOME: join(home, 'kimi'),
+    QODER_CONFIG_DIR: join(home, 'qoder'),
+    XDG_CONFIG_HOME: join(home, 'xdg'),
+    ZCODE_HOME: join(home, 'zcode')
+  });
+  const io = createIo();
+
+  const code = await main(['host', 'inspect', '--json'], { io });
+
+  assert.equal(code, 0);
+  const report = JSON.parse(io.stdout);
+  assert.equal(report.schemaVersion, 1);
+  const expected = loadHostAssetManifest().platforms.flatMap((platform) =>
+    Object.keys(HOST_COMPONENTS[platform.id].components)
+      .filter((name) => name !== 'all')
+      .map((name) => `${platform.id}:${name}`)
+  );
+  assert.deepEqual(
+    report.hosts.map((row) => `${row.id}:${row.component}`),
+    expected
+  );
+  assert.ok(
+    report.hosts.every((row) => row.status === 'missing'),
+    'an empty machine has no installed host state'
+  );
+});
+
+test('host inspect accepts a host filter and rejects an unknown host', async (t) => {
+  const home = await createTempDir(t, 'cowork-flow-host-inspect-filter-');
+  useEnv(t, { KIMI_CODE_HOME: join(home, 'kimi') });
+
+  const io = createIo();
+  assert.equal(await runHostInspect(['kimi-code', '--json'], { io, env: process.env }), 0);
+  const filtered = JSON.parse(io.stdout);
+  assert.deepEqual(
+    filtered.hosts.map((row) => row.component),
+    ['plugin', 'hook'],
+    'the composite `all` component is not an installed artifact'
+  );
+
+  const errorIo = createIo();
+  assert.equal(await main(['host', 'inspect', 'nope'], { io: errorIo }), 2);
+  assert.match(errorIo.stderr, /Unknown host: nope/);
 });
 
 test('host list rejects a second positional argument', async () => {

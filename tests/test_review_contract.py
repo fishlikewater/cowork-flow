@@ -130,8 +130,12 @@ class SpecReviewContractTest(unittest.TestCase):
             ],
         )
         # The remaining contracts still ship their entries.
-        self.assertEqual(9, len(ids))
-        for remaining in ("RUNTIME_CONTEXT_DISPATCH_V2", "PLAN_BINDING_LITE_V1"):
+        self.assertEqual(10, len(ids))
+        for remaining in (
+            "RUNTIME_CONTEXT_DISPATCH_V2",
+            "PLAN_BINDING_LITE_V1",
+            "HOST_INSTALL_INSPECTION_V1",
+        ):
             self.assertIn(remaining, ids)
 
     def test_runtime_spec_documents_real_storage_layer_path(self) -> None:

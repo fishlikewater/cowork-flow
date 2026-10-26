@@ -18,8 +18,8 @@ const LOCAL_MARKETPLACE_DESCRIPTION = 'Local marketplace registration for cowork
 export const FLAGS = ['--dry-run', '--force', '--prune-old', '--uninstall'];
 
 
-function getZCodePluginsRoot() {
-  const base = process.env.ZCODE_HOME || join(homedir(), '.zcode');
+function getZCodePluginsRoot(env = process.env) {
+  const base = env.ZCODE_HOME || join(homedir(), '.zcode');
   return join(base, 'cli', 'plugins');
 }
 
@@ -323,4 +323,74 @@ export async function runInstallZCodePlugin(args = []) {
 
   console.log(`✓ cowork-flow ZCode plugin installed to ${destDir}`);
   console.log('  Restart ZCode to load the plugin.');
+}
+
+
+// Read-only installed-state facts for `host inspect`. The active marketplace
+// record is the registration; the payload manifest carries the installed
+// version.
+export async function inspectInstalledState({ env = process.env } = {}) {
+  const pluginsRoot = getZCodePluginsRoot(env);
+  const { activeMarketplacePath } = marketplacePaths(pluginsRoot);
+  const market = await readJsonFile(activeMarketplacePath);
+  const plugins = Array.isArray(market?.plugins) ? market.plugins : [];
+  const entry = plugins.find((plugin) => plugin?.name === PLUGIN_NAME) ?? null;
+  if (!entry) {
+    return {
+      status: 'missing',
+      version: null,
+      payloadPath: null,
+      registeredSource: activeMarketplacePath,
+      enabled: null,
+      reason: 'no marketplace entry'
+    };
+  }
+  const source = entry.source;
+  const payloadPath = source && typeof source === 'object'
+    && typeof source.path === 'string'
+    ? source.path
+    : null;
+  if (!payloadPath) {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath: null,
+      registeredSource: activeMarketplacePath,
+      enabled: null,
+      reason: 'marketplace entry has no payload path'
+    };
+  }
+  if (!(await pathExists(payloadPath))) {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath,
+      registeredSource: activeMarketplacePath,
+      enabled: null,
+      reason: 'payload directory is missing'
+    };
+  }
+  const { manifest } = pluginPayload('zcode');
+  const payloadManifest = await readJsonFile(join(payloadPath, ...manifest.split('/')));
+  const version = typeof payloadManifest?.version === 'string'
+    ? payloadManifest.version
+    : null;
+  if (version === null) {
+    return {
+      status: 'broken',
+      version: null,
+      payloadPath,
+      registeredSource: activeMarketplacePath,
+      enabled: null,
+      reason: 'payload manifest has no version'
+    };
+  }
+  return {
+    status: 'installed',
+    version,
+    payloadPath,
+    registeredSource: activeMarketplacePath,
+    enabled: null,
+    reason: null
+  };
 }

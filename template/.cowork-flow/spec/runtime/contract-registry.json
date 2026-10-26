@@ -51,6 +51,20 @@
       ]
     },
     {
+      "id": "HOST_INSTALL_INSPECTION_V1",
+      "path": ".cowork-flow/spec/contracts/host-install-inspection.md",
+      "digest": [
+        "cwf host inspect is the read-only, schemaVersion 1 source of machine-level host install state.",
+        "Doctor consumes cwf host inspect --json and reports HOST-INSPECT-UNAVAILABLE instead of guessing when it cannot.",
+        "Python runtime must not resolve host homes or parse registries, TOML, settings or payload manifests."
+      ],
+      "readWhen": [
+        "before adding or changing a host installed-state reader",
+        "when changing Doctor host checks",
+        "when debugging a host install state that Doctor reports incorrectly"
+      ]
+    },
+    {
       "id": "WORKFLOW_STATE_TEMPLATES_V1",
       "path": ".cowork-flow/spec/contracts/workflow-state-templates.md",
       "digest": [

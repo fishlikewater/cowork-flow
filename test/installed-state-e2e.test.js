@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 
 import { main } from '../src/cli.js';
 import { runHostAdd, runHostRemove } from '../src/commands/host.js';
@@ -11,14 +12,18 @@ import { readPackageInfo } from '../src/lib/package-info.js';
 import { createTempDir } from './helpers/fs.js';
 
 const execFileAsync = promisify(execFile);
+const REPO_CLI = fileURLToPath(new URL('../bin/cowork-flow.js', import.meta.url));
 
 const HOME_KEYS = [
   'CLAUDE_CONFIG_DIR',
   'CODEX_HOME',
+  'COWORK_FLOW_CLI',
   'COWORK_FLOW_CODEX',
   'DSH_HOME',
+  'HOME',
   'KIMI_CODE_HOME',
   'QODER_CONFIG_DIR',
+  'USERPROFILE',
   'XDG_CONFIG_HOME',
   'ZCODE_HOME'
 ];
@@ -118,6 +123,7 @@ test('qoder install is visible to doctor and removal is observable', async (t) =
   useEnv(t, {
     HOME: home,
     USERPROFILE: home,
+    COWORK_FLOW_CLI: REPO_CLI,
     QODER_CONFIG_DIR: qoderHome
   });
   const project = await initProject(t, 'qoder');
@@ -155,6 +161,7 @@ test('zcode install is visible to doctor and removal is observable', async (t) =
   useEnv(t, {
     HOME: home,
     USERPROFILE: home,
+    COWORK_FLOW_CLI: REPO_CLI,
     ZCODE_HOME: zcodeHome
   });
   const project = await initProject(t, 'zcode');
@@ -194,5 +201,150 @@ test('zcode install is visible to doctor and removal is observable', async (t) =
   assert.ok(
     removedIssues.zcodePlugin.some((issue) => issue.code === 'PLUGIN-NOT-INSTALLED'),
     `removal must be observable, got ${JSON.stringify(removedIssues.zcodePlugin)}`
+  );
+});
+
+test('codex install is visible to doctor once the host registers the marketplace', async (t) => {
+  const home = await createTempDir(t);
+  const codexHome = join(home, 'codex');
+  useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
+    COWORK_FLOW_CLI: REPO_CLI,
+    CODEX_HOME: codexHome
+  });
+  const project = await initProject(t, 'codex');
+
+  // Without a codex binary the installer only materializes the marketplace;
+  // the registration itself is the host's job, so record what it writes.
+  await install('codex');
+  const source = join(codexHome, 'plugins', 'marketplaces', 'cowork-flow-local');
+  await writeFile(
+    join(codexHome, 'config.toml'),
+    [
+      '[marketplaces.cowork-flow-local]',
+      `source = '${source}'`,
+      '',
+      '[plugins."cowork-flow@cowork-flow-local"]',
+      'enabled = true'
+    ].join('\n') + '\n',
+    'utf8'
+  );
+
+  const installedIssues = await doctorIssues(project);
+  assert.deepEqual(
+    installedIssues.codexPlugin,
+    [],
+    'a registered codex marketplace with the installer payload must be clean'
+  );
+});
+
+test('claude-code install is visible to doctor and removal is observable', async (t) => {
+  const home = await createTempDir(t);
+  useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
+    COWORK_FLOW_CLI: REPO_CLI,
+    CLAUDE_CONFIG_DIR: join(home, 'claude')
+  });
+  const project = await initProject(t, 'claude-code');
+
+  await install('claude-code');
+  const installedIssues = await doctorIssues(project);
+  assert.deepEqual(
+    installedIssues.claudeCodePlugin,
+    [],
+    'a fresh claude-code install must be clean for the claude-code plugin contract'
+  );
+
+  await remove('claude-code');
+  const removedIssues = await doctorIssues(project);
+  assert.ok(
+    removedIssues.claudeCodePlugin.some((issue) => issue.code === 'PLUGIN-NOT-INSTALLED'),
+    `removal must be observable, got ${JSON.stringify(removedIssues.claudeCodePlugin)}`
+  );
+});
+
+test('opencode install is visible to doctor and removal is observable', async (t) => {
+  const home = await createTempDir(t);
+  useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
+    COWORK_FLOW_CLI: REPO_CLI,
+    XDG_CONFIG_HOME: join(home, 'xdg')
+  });
+  const project = await initProject(t, 'opencode');
+
+  await install('opencode');
+  const installedIssues = await doctorIssues(project);
+  assert.deepEqual(
+    installedIssues.opencodePlugin,
+    [],
+    'a fresh opencode install must be clean for the opencode plugin contract'
+  );
+
+  await remove('opencode');
+  const removedIssues = await doctorIssues(project);
+  assert.ok(
+    removedIssues.opencodePlugin.some((issue) => issue.code === 'PLUGIN-NOT-INSTALLED'),
+    `removal must be observable, got ${JSON.stringify(removedIssues.opencodePlugin)}`
+  );
+});
+
+test('kimi-code install is visible to doctor and removal is observable', async (t) => {
+  const home = await createTempDir(t);
+  useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
+    COWORK_FLOW_CLI: REPO_CLI,
+    KIMI_CODE_HOME: join(home, 'kimi')
+  });
+  const project = await initProject(t, 'kimi-code');
+
+  await install('kimi-code');
+  const installedIssues = await doctorIssues(project);
+  assert.deepEqual(
+    installedIssues.kimiCodePlugin,
+    [],
+    'a fresh kimi-code plugin install must be clean'
+  );
+  assert.deepEqual(
+    installedIssues.kimiHook,
+    [],
+    'a fresh kimi-code hook install must be clean'
+  );
+
+  await remove('kimi-code');
+  const removedIssues = await doctorIssues(project);
+  assert.ok(
+    removedIssues.kimiCodePlugin.some((issue) => issue.code === 'PLUGIN-NOT-INSTALLED'),
+    `plugin removal must be observable, got ${JSON.stringify(removedIssues.kimiCodePlugin)}`
+  );
+});
+
+test('dsh preset install is visible to doctor and removal is silent', async (t) => {
+  const home = await createTempDir(t);
+  useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
+    COWORK_FLOW_CLI: REPO_CLI,
+    DSH_HOME: join(home, 'dsh')
+  });
+  const project = await initProject(t, 'dsh');
+
+  await install('dsh');
+  const installedIssues = await doctorIssues(project);
+  assert.deepEqual(
+    installedIssues.dshPreset,
+    [],
+    'a fresh dsh preset install must be clean'
+  );
+
+  await remove('dsh');
+  const removedIssues = await doctorIssues(project);
+  assert.deepEqual(
+    removedIssues.dshPreset,
+    [],
+    'an absent preset stays silent by contract'
   );
 });
