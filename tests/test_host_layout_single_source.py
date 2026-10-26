@@ -197,25 +197,53 @@ class HostLayoutSingleSourceTest(unittest.TestCase):
         self.assertEqual([], layout_violations(sample, "sample.py"))
 
     def test_every_host_check_consumes_inspect_rows(self) -> None:
+        missing = []
         for name in HOST_STATE_CHECKS:
-            self.assertIn(name, self.functions)
+            if name not in self.functions:
+                missing.append(f"{name}: missing function")
+                continue
             source = ast.get_source_segment(self.text, self.functions[name]) or ""
-            self.assertIn("_inspect_row", source, name)
-            if name == "_legacy_machine_skills_issues":
-                self.assertIn("facts", source, name)
-            else:
-                self.assertIn("_host_inspect_facts", source, name)
+            reader = (
+                "_inspect_row"
+                if name == "_legacy_machine_skills_issues"
+                else "_inspect_component_row"
+            )
+            if reader not in source:
+                missing.append(f"{name}: {reader}")
+            if name == "_legacy_machine_skills_issues" and "facts" not in source:
+                missing.append(f"{name}: facts")
+        self.assertEqual(
+            [],
+            missing,
+            "host checks must consume the CLI-owned inspect rows",
+        )
 
     def test_host_checks_do_not_parse_install_layouts(self) -> None:
+        violations = []
         for name in HOST_STATE_CHECKS:
             source = ast.get_source_segment(self.text, self.functions[name]) or ""
-            for token in FORBIDDEN_IN_CHECK_BODY:
-                self.assertNotIn(token, source, f"{name} reintroduced {token}")
+            violations.extend(
+                (name, token)
+                for token in FORBIDDEN_IN_CHECK_BODY
+                if token in source
+            )
+        self.assertEqual(
+            [],
+            violations,
+            "host checks must not resolve or parse install layouts",
+        )
 
     def test_removed_python_layout_helpers_stay_removed(self) -> None:
-        for name in REMOVED_HELPERS:
-            self.assertNotIn(name, self.functions, name)
-            self.assertNotIn(name, self.text, name)
+        present = [
+            name
+            for name in REMOVED_HELPERS
+            if name in self.functions or name in self.text
+        ]
+        self.assertEqual(
+            [],
+            present,
+            "deleted layout helpers must not grow back",
+        )
 
 
 if __name__ == "__main__":

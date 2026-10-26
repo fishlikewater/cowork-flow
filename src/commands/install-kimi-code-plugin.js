@@ -166,6 +166,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: null,
+      detailPath: registry,
       registeredSource: registry,
       enabled: null,
       reason: 'no registry record'
@@ -182,6 +183,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
         status: 'broken',
         version: null,
         payloadPath: root,
+        detailPath: join(root, ...relative.split('/')),
         registeredSource: registry,
         enabled,
         reason: `missing ${relative}`
@@ -197,6 +199,11 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version,
     payloadPath: root,
+    detailPath: !enabled
+      ? registry
+      : (sourceMissing
+        ? sourceDir(home)
+        : join(root, ...manifest.split('/'))),
     registeredSource: registry,
     enabled,
     reason: sourceMissing ? 'stable reinstall source directory is missing' : null

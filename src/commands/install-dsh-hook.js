@@ -218,6 +218,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: pluginDest,
+      detailPath: patchFile,
       registeredSource: patchFile,
       enabled: null,
       reason: 'no patch file'
@@ -228,6 +229,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: pluginDest,
+      detailPath: patchFile,
       registeredSource: patchFile,
       enabled: null,
       reason: 'no managed hook row'
@@ -238,6 +240,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath: pluginDest,
+      detailPath: pluginDest,
       registeredSource: patchFile,
       enabled: true,
       reason: 'plugin file is missing'
@@ -247,6 +250,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version: null,
     payloadPath: pluginDest,
+    detailPath: pluginDest,
     registeredSource: patchFile,
     enabled: true,
     reason: null

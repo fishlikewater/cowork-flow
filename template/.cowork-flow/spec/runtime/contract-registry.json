@@ -56,6 +56,7 @@
       "digest": [
         "cwf host inspect is the read-only, schemaVersion 1 source of machine-level host install state.",
         "Doctor consumes cwf host inspect --json and reports HOST-INSPECT-UNAVAILABLE instead of guessing when it cannot.",
+        "Each row carries detailPath, the most specific artifact for its status, so Doctor never reconstructs a host path from reason text.",
         "Python runtime must not resolve host homes or parse registries, TOML, settings or payload manifests."
       ],
       "readWhen": [

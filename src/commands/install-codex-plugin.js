@@ -391,6 +391,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: payloadManifest ? payload : null,
+      detailPath: config.path,
       registeredSource: config.path,
       enabled: null,
       reason: 'marketplace is not registered'
@@ -401,6 +402,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath: payload,
+      detailPath: payload,
       registeredSource,
       enabled: plugin?.enabled === 'true',
       reason: `missing ${manifest}`
@@ -410,6 +412,9 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version: typeof payloadManifest.version === 'string' ? payloadManifest.version : null,
     payloadPath: payload,
+    detailPath: plugin?.enabled === 'true'
+      ? join(payload, ...manifest.split('/'))
+      : config.path,
     registeredSource,
     enabled: plugin?.enabled === 'true',
     reason: null

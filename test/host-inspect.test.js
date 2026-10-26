@@ -152,6 +152,10 @@ test('inspect reports installed qoder and zcode with version and payload path', 
   assert.match(qoder.registeredSource, /installed_plugins_v2\.json$/);
   assert.equal(qoder.enabled, true);
   assert.ok(qoder.payloadPath.endsWith(join('cowork-flow', version)));
+  assert.ok(
+    qoder.detailPath.endsWith(join('cowork-flow', version, '.qoder-plugin', 'plugin.json')),
+    qoder.detailPath
+  );
   const zcode = row(report, 'zcode');
   assert.equal(zcode.status, 'installed');
   assert.equal(zcode.version, version);
@@ -161,6 +165,10 @@ test('inspect reports installed qoder and zcode with version and payload path', 
     join(home, 'zcode', 'cli', 'plugins', 'cache', 'cowork-flow-local', 'cowork-flow', version)
       .split('\\')
       .join('/')
+  );
+  assert.ok(
+    zcode.detailPath.endsWith(join('.zcode-plugin', 'plugin.json')),
+    zcode.detailPath
   );
   assert.equal(row(report, 'codex').status, 'missing');
 });
@@ -183,7 +191,9 @@ test('inspect reports missing, stale, broken and disabled without failing', asyn
   const missing = await inspectIo(['--json']);
   assert.equal(missing.code, 0);
   assert.equal(row(missing.report, 'qoder').status, 'missing');
+  assert.equal(row(missing.report, 'qoder').detailPath, qoderPaths(qoderHome).registry);
   assert.equal(row(missing.report, 'zcode').status, 'missing');
+  assert.equal(row(missing.report, 'zcode').detailPath, zcodePaths(zcodeHome).marketplace);
 
   await install('qoder');
   await install('zcode');
@@ -198,6 +208,10 @@ test('inspect reports missing, stale, broken and disabled without failing', asyn
   const staleQoder = row(stale.report, 'qoder');
   assert.equal(staleQoder.status, 'stale');
   assert.equal(staleQoder.version, '0.0.1');
+  assert.ok(
+    staleQoder.detailPath.endsWith(join('.qoder-plugin', 'plugin.json')),
+    staleQoder.detailPath
+  );
   assert.match(staleQoder.reason, new RegExp(version.replaceAll('.', '\\.')));
 
   const market = await readJson(zcode.marketplace);
@@ -208,6 +222,7 @@ test('inspect reports missing, stale, broken and disabled without failing', asyn
   const brokenZcode = row(broken.report, 'zcode');
   assert.equal(brokenZcode.status, 'broken');
   assert.equal(brokenZcode.payloadPath, payloadPath);
+  assert.equal(brokenZcode.detailPath, join(payloadPath, '.zcode-plugin', 'plugin.json'));
   assert.match(brokenZcode.reason, /payload manifest has no version/);
 
   const settings = await readJson(qoder.settings);
@@ -219,6 +234,7 @@ test('inspect reports missing, stale, broken and disabled without failing', asyn
   const disabledQoder = row(disabled.report, 'qoder');
   assert.equal(disabledQoder.status, 'installed');
   assert.equal(disabledQoder.enabled, false);
+  assert.equal(disabledQoder.detailPath, qoder.settings);
   assert.match(disabledQoder.reason, /enable flag is not true/);
 
   const codex = await inspectIo(['codex', '--json']);
@@ -252,6 +268,7 @@ test('inspect report locks schemaVersion 1, the row fields and the status enum',
       Object.keys(row).sort(),
       [
         'component',
+        'detailPath',
         'displayName',
         'enabled',
         'id',

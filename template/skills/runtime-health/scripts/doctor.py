@@ -864,16 +864,13 @@ def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
     asset installed once, so it does not update with npm or sync. Report an
     unknown or stale installed version instead of assuming the injection logic
     matches this project."""
-    facts = _host_inspect_facts(repo_root)
-    if not facts["available"]:
-        return _host_inspect_unavailable_issue("dsh", facts)
-    row = _inspect_row(facts, "dsh", "preset")
-    if row is None:
-        return _host_inspect_unavailable_issue(
-            "dsh", {"reason": "host inspect omitted the dsh preset"}
-        )
+    row, unavailable = _inspect_component_row(
+        repo_root, "dsh", "preset", "the dsh preset"
+    )
+    if unavailable is not None:
+        return unavailable
     status = row.get("status")
-    payload = Path(str(row["payloadPath"])) if row.get("payloadPath") else None
+    path = _inspect_path(row, "dsh")
     reason = str(row.get("reason") or "")
 
     if status == "missing":
@@ -883,7 +880,7 @@ def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
             _issue(
                 code="PRESET-UNKNOWN-VERSION",
                 severity="warning",
-                path=str(payload or "dsh"),
+                path=str(path),
                 message=(
                     f"DSH preset is installed without a readable version marker "
                     f"({reason}); its injection logic may predate the current "
@@ -901,21 +898,20 @@ def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
                 _issue(
                     code="PRESET-STALE",
                     severity="warning",
-                    path=str(payload or "dsh"),
-                    message=(
-                        f"DSH preset was installed from {recorded} but this "
-                        f"project runs {project_version}; the preset does not "
-                        "update with sync or npm, so injection may lag the "
-                        "project runtime"
+                    path=str(path),
+                    message=_project_stale_message(
+                        "DSH preset",
+                        recorded,
+                        project_version,
+                        "the preset does not update with sync or npm, so "
+                        "injection may lag the project runtime",
                     ),
                     command_hint="cwf host add dsh --component preset --force",
                     contract="runtime-health:dsh-preset",
                 )
             ]
         return []
-    return _host_inspect_unavailable_issue(
-        "dsh", {"reason": f"host inspect reported status {status!r}"}
-    )
+    return _unexpected_inspect_status("dsh", status)
 
 
 def _project_version(repo_root: Path) -> str:
@@ -965,17 +961,13 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
     config.toml, so it does not update with npm or sync. Report an unknown or
     stale installed version instead of assuming the injection logic matches
     this project."""
-    facts = _host_inspect_facts(repo_root)
-    if not facts["available"]:
-        return _host_inspect_unavailable_issue("kimi-code", facts)
-    row = _inspect_row(facts, "kimi-code", "hook")
-    if row is None:
-        return _host_inspect_unavailable_issue(
-            "kimi-code", {"reason": "host inspect omitted the kimi-code hook"}
-        )
+    row, unavailable = _inspect_component_row(
+        repo_root, "kimi-code", "hook", "the kimi-code hook"
+    )
+    if unavailable is not None:
+        return unavailable
     status = row.get("status")
-    registered = Path(str(row.get("registeredSource") or "kimi-code"))
-    payload = Path(str(row["payloadPath"])) if row.get("payloadPath") else registered
+    path = _inspect_path(row, "kimi-code")
     reason = str(row.get("reason") or "")
 
     if status == "missing":
@@ -983,7 +975,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             return []
         return _kimi_hook_warning(
             "HOOK-NOT-INSTALLED",
-            registered,
+            path,
             "Kimi Code is configured but no cowork-flow hook is registered; "
             "sessions inject no workflow context",
             "cwf host add kimi-code --component hook",
@@ -992,7 +984,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
         if reason == "shim is missing":
             return _kimi_hook_warning(
                 "HOOK-SHIM-MISSING",
-                payload,
+                path,
                 "config.toml registers the cowork-flow hook but its shim is "
                 "missing; the host runs a command that cannot start",
                 "cwf host add kimi-code --component hook",
@@ -1000,7 +992,7 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
         if reason.startswith("version marker"):
             return _kimi_hook_warning(
                 "HOOK-UNKNOWN-VERSION",
-                payload,
+                path,
                 f"Kimi Code hook {reason}; its injection logic may predate the "
                 "current release",
                 "cwf host add kimi-code --component hook",
@@ -1014,16 +1006,18 @@ def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
             recorded = row.get("version") or "an unknown version"
             return _kimi_hook_warning(
                 "HOOK-STALE",
-                payload,
-                f"Kimi Code hook was installed from {recorded} but this project "
-                f"runs {project_version}; the hook does not update with sync or "
-                "npm, so injection may lag the project runtime",
+                path,
+                _project_stale_message(
+                    "Kimi Code hook",
+                    recorded,
+                    project_version,
+                    "the hook does not update with sync or npm, so injection "
+                    "may lag the project runtime",
+                ),
                 "cwf host add kimi-code --component hook",
             )
         return []
-    return _host_inspect_unavailable_issue(
-        "kimi-code", {"reason": f"host inspect reported status {status!r}"}
-    )
+    return _unexpected_inspect_status("kimi-code", status)
 
 
 _QODER_PLUGIN_CONTRACT = "runtime-health:qoder-plugin"
@@ -1154,6 +1148,53 @@ def _host_inspect_facts(repo_root: Path) -> dict[str, object]:
     return cached
 
 
+def _inspect_component_row(
+    repo_root: Path, host_id: str, component: str, label: str
+) -> tuple[dict[str, object] | None, list[dict[str, str]] | None]:
+    """The inspect row for one component, or the shared unavailable warning."""
+    facts = _host_inspect_facts(repo_root)
+    if not facts["available"]:
+        return None, _host_inspect_unavailable_issue(host_id, facts)
+    row = _inspect_row(facts, host_id, component)
+    if row is None:
+        return None, _host_inspect_unavailable_issue(
+            host_id, {"reason": f"host inspect omitted {label}"}
+        )
+    return row, None
+
+
+def _unexpected_inspect_status(
+    host_id: str, status: object
+) -> list[dict[str, str]]:
+    return _host_inspect_unavailable_issue(
+        host_id, {"reason": f"host inspect reported status {status!r}"}
+    )
+
+
+def _inspect_path(row: dict[str, object], fallback: str = "cowork-flow") -> Path:
+    """The most specific path for a warning.
+
+    The read model owns host layout, so the doctor never derives the path from
+    the human-readable reason: detail path, payload root, then registration."""
+    return Path(
+        str(
+            row.get("detailPath")
+            or row.get("payloadPath")
+            or row.get("registeredSource")
+            or fallback
+        )
+    )
+
+
+def _project_stale_message(
+    subject: str, recorded: object, project_version: str, consequence: str
+) -> str:
+    return (
+        f"{subject} was installed from {recorded or 'an unknown version'} but "
+        f"this project runs {project_version}; {consequence}"
+    )
+
+
 def _host_inspect_unavailable_issue(
     platform_id: str, facts: dict[str, object]
 ) -> list[dict[str, str]]:
@@ -1185,24 +1226,20 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
     if not adapter.is_file():
         return []
 
-    facts = _host_inspect_facts(repo_root)
-    if not facts["available"]:
-        return _host_inspect_unavailable_issue("qoder", facts)
-
-    row = _inspect_row(facts, "qoder", "plugin")
-    if row is None:
-        return _host_inspect_unavailable_issue(
-            "qoder", {"reason": "host inspect omitted qoder"}
-        )
+    row, unavailable = _inspect_component_row(
+        repo_root, "qoder", "plugin", "qoder"
+    )
+    if unavailable is not None:
+        return unavailable
     status = row.get("status")
-    registered = Path(str(row.get("registeredSource") or "qoder"))
-    payload = Path(str(row["payloadPath"])) if row.get("payloadPath") else registered
+    payload = Path(str(row.get("payloadPath") or row.get("registeredSource") or "qoder"))
+    path = _inspect_path(row, "qoder")
     reason = str(row.get("reason") or "")
 
     if status == "missing":
         return _qoder_warning(
             "PLUGIN-NOT-INSTALLED",
-            registered,
+            path,
             "this project declares the Qoder host, but cowork-flow is not "
             "registered in the Qoder plugin cache, so Qoder sessions inject no "
             "workflow context; loading also needs a Qoder restart and a "
@@ -1210,12 +1247,6 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
             "cwf host add qoder",
         )
     if status == "broken":
-        missing = (
-            reason[len("missing "):].split(" ", 1)[0]
-            if reason.startswith("missing ")
-            else ""
-        )
-        path = payload / missing if missing and row.get("payloadPath") else payload
         code = (
             "PLUGIN-PAYLOAD-MISSING"
             if "manifest" in reason or "installPath" in reason
@@ -1232,7 +1263,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
         if row.get("enabled") is False:
             return _qoder_warning(
                 "PLUGIN-DISABLED",
-                registered,
+                path,
                 'the Qoder plugin is installed but not enabled '
                 f'(`enabledPlugins["{QODER_PLUGIN_KEY}"]`); no hook fires',
                 "cwf host add qoder --force",
@@ -1242,16 +1273,18 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
             recorded = row.get("version") or "an unknown version"
             return _qoder_warning(
                 "PLUGIN-STALE",
-                registered,
-                f"the Qoder plugin was installed from {recorded} but this project "
-                f"runs {project_version}; the plugin does not update with sync or "
-                "npm, so injection may lag the project runtime",
+                path,
+                _project_stale_message(
+                    "the Qoder plugin",
+                    recorded,
+                    project_version,
+                    "the plugin does not update with sync or npm, so injection "
+                    "may lag the project runtime",
+                ),
                 "cwf host add qoder --force",
             )
         return []
-    return _host_inspect_unavailable_issue(
-        "qoder", {"reason": f"host inspect reported status {status!r}"}
-    )
+    return _unexpected_inspect_status("qoder", status)
 
 
 def check_zcode_plugin(repo_root: Path) -> list[dict[str, str]]:
@@ -1264,23 +1297,19 @@ def check_zcode_plugin(repo_root: Path) -> list[dict[str, str]]:
     if not adapter.is_file():
         return []
 
-    facts = _host_inspect_facts(repo_root)
-    if not facts["available"]:
-        return _host_inspect_unavailable_issue("zcode", facts)
-
-    row = _inspect_row(facts, "zcode", "plugin")
-    if row is None:
-        return _host_inspect_unavailable_issue(
-            "zcode", {"reason": "host inspect omitted zcode"}
-        )
+    row, unavailable = _inspect_component_row(
+        repo_root, "zcode", "plugin", "zcode"
+    )
+    if unavailable is not None:
+        return unavailable
     status = row.get("status")
-    registered = Path(str(row.get("registeredSource") or "zcode"))
-    payload = Path(str(row["payloadPath"])) if row.get("payloadPath") else registered
+    payload = Path(str(row.get("payloadPath") or row.get("registeredSource") or "zcode"))
+    path = _inspect_path(row, "zcode")
 
     if status == "missing":
         return _zcode_warning(
             "PLUGIN-NOT-INSTALLED",
-            registered,
+            path,
             "this project declares the ZCode host, but no cowork-flow plugin is "
             "installed in the ZCode config directory, so ZCode sessions inject no "
             "workflow context",
@@ -1295,7 +1324,7 @@ def check_zcode_plugin(repo_root: Path) -> list[dict[str, str]]:
         )
         return _zcode_warning(
             code,
-            payload,
+            path,
             f"the ZCode plugin at {payload} is incomplete ({reason}); the host "
             "cannot load it",
             "cwf host add zcode --force",
@@ -1306,16 +1335,18 @@ def check_zcode_plugin(repo_root: Path) -> list[dict[str, str]]:
             recorded = row.get("version") or "an unknown version"
             return _zcode_warning(
                 "PLUGIN-STALE",
-                payload,
-                f"the ZCode plugin was installed from {recorded} but this project "
-                f"runs {project_version}; the plugin does not update with sync or "
-                "npm, so injection may lag the project runtime",
+                path,
+                _project_stale_message(
+                    "the ZCode plugin",
+                    recorded,
+                    project_version,
+                    "the plugin does not update with sync or npm, so injection "
+                    "may lag the project runtime",
+                ),
                 "cwf host add zcode --force",
             )
         return []
-    return _host_inspect_unavailable_issue(
-        "zcode", {"reason": f"host inspect reported status {status!r}"}
-    )
+    return _unexpected_inspect_status("zcode", status)
 
 
 _CLAUDE_CODE_PLUGIN_CONTRACT = "runtime-health:claude-code-plugin"
@@ -1349,16 +1380,13 @@ def check_claude_code_plugin(repo_root: Path) -> list[dict[str, str]]:
     if not adapter.is_file():
         return []
 
-    facts = _host_inspect_facts(repo_root)
-    if not facts["available"]:
-        return _host_inspect_unavailable_issue("claude-code", facts)
-    row = _inspect_row(facts, "claude-code", "plugin")
-    if row is None:
-        return _host_inspect_unavailable_issue(
-            "claude-code", {"reason": "host inspect omitted claude-code"}
-        )
+    row, unavailable = _inspect_component_row(
+        repo_root, "claude-code", "plugin", "claude-code"
+    )
+    if unavailable is not None:
+        return unavailable
     status = row.get("status")
-    payload = Path(str(row.get("payloadPath") or row.get("registeredSource") or "claude"))
+    path = _inspect_path(row, "claude")
     reason = str(row.get("reason") or "")
 
     if status == "missing":
@@ -1366,15 +1394,13 @@ def check_claude_code_plugin(repo_root: Path) -> list[dict[str, str]]:
             return []
         return _claude_code_warning(
             "PLUGIN-NOT-INSTALLED",
-            payload,
+            path,
             "this project declares the Claude Code host, but no cowork-flow "
             "skills-directory plugin is installed, so Claude Code sessions see "
             "no cowork-flow plugin Skill",
             "cwf host add claude-code",
         )
     if status == "broken":
-        missing = reason[len("missing "):] if reason.startswith("missing ") else ""
-        path = payload / missing if missing else payload
         return _claude_code_warning(
             "PLUGIN-PAYLOAD-INCOMPLETE",
             path,
@@ -1388,16 +1414,17 @@ def check_claude_code_plugin(repo_root: Path) -> list[dict[str, str]]:
             recorded = row.get("version") or "an unknown version"
             return _claude_code_warning(
                 "PLUGIN-STALE",
-                payload,
-                f"the Claude Code plugin was installed from {recorded} "
-                f"but this project runs {project_version}; the plugin does not "
-                "update with sync or npm",
+                path,
+                _project_stale_message(
+                    "the Claude Code plugin",
+                    recorded,
+                    project_version,
+                    "the plugin does not update with sync or npm",
+                ),
                 "cwf host add claude-code --force",
             )
         return []
-    return _host_inspect_unavailable_issue(
-        "claude-code", {"reason": f"host inspect reported status {status!r}"}
-    )
+    return _unexpected_inspect_status("claude-code", status)
 
 
 _OPENCODE_PLUGIN_CONTRACT = "runtime-health:opencode-plugin"
@@ -1435,17 +1462,15 @@ def check_opencode_plugin(repo_root: Path) -> list[dict[str, str]]:
     if not adapter.is_file():
         return []
 
-    facts = _host_inspect_facts(repo_root)
-    if not facts["available"]:
-        return _host_inspect_unavailable_issue("opencode", facts)
-    row = _inspect_row(facts, "opencode", "plugin")
-    if row is None:
-        return _host_inspect_unavailable_issue(
-            "opencode", {"reason": "host inspect omitted opencode"}
-        )
+    row, unavailable = _inspect_component_row(
+        repo_root, "opencode", "plugin", "opencode"
+    )
+    if unavailable is not None:
+        return unavailable
     status = row.get("status")
     registered = Path(str(row.get("registeredSource") or "opencode"))
     payload = Path(str(row["payloadPath"])) if row.get("payloadPath") else registered
+    path = _inspect_path(row, "opencode")
     reason = str(row.get("reason") or "")
 
     if status == "missing":
@@ -1454,17 +1479,13 @@ def check_opencode_plugin(repo_root: Path) -> list[dict[str, str]]:
             return []
         return _opencode_warning(
             "PLUGIN-NOT-INSTALLED",
-            registered,
+            path,
             "this project declares the OpenCode host, but no cowork-flow plugin "
             "is installed in the OpenCode config directory, so OpenCode sessions "
             "see no cowork-flow plugin Skill",
             "cwf host add opencode",
         )
     if status == "broken":
-        relative = reason[len("missing "):] if reason.startswith("missing ") else ""
-        if relative.startswith("cowork-flow/"):
-            relative = relative.split("/", 1)[1]
-        path = payload / relative if relative else payload
         return _opencode_warning(
             "PLUGIN-PAYLOAD-INCOMPLETE",
             path,
@@ -1473,9 +1494,7 @@ def check_opencode_plugin(repo_root: Path) -> list[dict[str, str]]:
             "cwf host add opencode --force",
         )
     if status not in ("installed", "stale"):
-        return _host_inspect_unavailable_issue(
-            "opencode", {"reason": f"host inspect reported status {status!r}"}
-        )
+        return _unexpected_inspect_status("opencode", status)
 
     for installed_path, project_relative in (
         (registered, _OPENCODE_PROJECT_PLUGIN),
@@ -1532,23 +1551,19 @@ def check_kimi_code_plugin(repo_root: Path) -> list[dict[str, str]]:
     if not adapter.is_file():
         return []
 
-    facts = _host_inspect_facts(repo_root)
-    if not facts["available"]:
-        return _host_inspect_unavailable_issue("kimi-code", facts)
-    row = _inspect_row(facts, "kimi-code", "plugin")
-    if row is None:
-        return _host_inspect_unavailable_issue(
-            "kimi-code", {"reason": "host inspect omitted kimi-code"}
-        )
+    row, unavailable = _inspect_component_row(
+        repo_root, "kimi-code", "plugin", "kimi-code"
+    )
+    if unavailable is not None:
+        return unavailable
     status = row.get("status")
-    registered = Path(str(row.get("registeredSource") or "kimi-code"))
-    payload = Path(str(row["payloadPath"])) if row.get("payloadPath") else registered
+    path = _inspect_path(row, "kimi-code")
     reason = str(row.get("reason") or "")
 
     if status == "missing":
         return _kimi_plugin_warning(
             "PLUGIN-NOT-INSTALLED",
-            registered,
+            path,
             "this project declares the Kimi Code host, but cowork-flow is not "
             "registered as a Kimi Code plugin, so sessions load no cowork-flow "
             "plugin Skill",
@@ -1557,14 +1572,12 @@ def check_kimi_code_plugin(repo_root: Path) -> list[dict[str, str]]:
     if row.get("enabled") is False:
         return _kimi_plugin_warning(
             "PLUGIN-DISABLED",
-            registered,
+            path,
             "the cowork-flow Kimi Code plugin is installed but disabled, so its "
             "bootstrap Skill never loads",
             "/plugins enable cowork-flow",
         )
     if status == "broken":
-        relative = reason[len("missing "):] if reason.startswith("missing ") else ""
-        path = payload / relative if relative else payload
         return _kimi_plugin_warning(
             "PLUGIN-PAYLOAD-INCOMPLETE",
             path,
@@ -1573,24 +1586,25 @@ def check_kimi_code_plugin(repo_root: Path) -> list[dict[str, str]]:
             "cwf host add kimi-code --force",
         )
     if status not in ("installed", "stale"):
-        return _host_inspect_unavailable_issue(
-            "kimi-code", {"reason": f"host inspect reported status {status!r}"}
-        )
+        return _unexpected_inspect_status("kimi-code", status)
     project_version = _project_stale_version(row, repo_root)
     if project_version is not None:
         recorded = row.get("version") or "an unknown version"
         return _kimi_plugin_warning(
             "PLUGIN-STALE",
-            payload,
-            f"the Kimi Code plugin was installed from {recorded} but this "
-            f"project runs {project_version}; the plugin does not update with "
-            "sync or npm",
+            path,
+            _project_stale_message(
+                "the Kimi Code plugin",
+                recorded,
+                project_version,
+                "the plugin does not update with sync or npm",
+            ),
             "cwf host add kimi-code --force",
         )
     if reason == "stable reinstall source directory is missing":
         return _kimi_plugin_warning(
             "PLUGIN-SOURCES-MISSING",
-            registered,
+            path,
             "the cowork-flow Kimi Code plugin is registered but its stable "
             "reinstall source directory is gone",
             "cwf host add kimi-code",
@@ -1625,23 +1639,19 @@ def check_codex_plugin(repo_root: Path) -> list[dict[str, str]]:
     if not adapter.is_file():
         return []
 
-    facts = _host_inspect_facts(repo_root)
-    if not facts["available"]:
-        return _host_inspect_unavailable_issue("codex", facts)
-    row = _inspect_row(facts, "codex", "plugin")
-    if row is None:
-        return _host_inspect_unavailable_issue(
-            "codex", {"reason": "host inspect omitted codex"}
-        )
+    row, unavailable = _inspect_component_row(
+        repo_root, "codex", "plugin", "codex"
+    )
+    if unavailable is not None:
+        return unavailable
     status = row.get("status")
-    registered = Path(str(row.get("registeredSource") or "codex"))
-    payload = Path(str(row["payloadPath"])) if row.get("payloadPath") else registered
+    path = _inspect_path(row, "codex")
     reason = str(row.get("reason") or "")
 
     if status == "missing":
         return _codex_warning(
             "PLUGIN-NOT-INSTALLED",
-            registered,
+            path,
             "this project declares the Codex host, but cowork-flow's marketplace "
             "is not registered in the Codex config, so Codex sessions see no "
             "cowork-flow plugin Skills",
@@ -1650,19 +1660,17 @@ def check_codex_plugin(repo_root: Path) -> list[dict[str, str]]:
     if status == "broken":
         return _codex_warning(
             "PLUGIN-PAYLOAD-MISSING",
-            payload,
+            path,
             f"the Codex marketplace is registered but its payload is incomplete "
             f"({reason}); the host cannot load a missing payload",
             "cwf host add codex --force",
         )
     if status not in ("installed", "stale"):
-        return _host_inspect_unavailable_issue(
-            "codex", {"reason": f"host inspect reported status {status!r}"}
-        )
+        return _unexpected_inspect_status("codex", status)
     if row.get("enabled") is not True:
         return _codex_warning(
             "PLUGIN-DISABLED",
-            registered,
+            path,
             "the Codex plugin is registered but not enabled "
             f'(`[plugins."{CODEX_PLUGIN_KEY}"] enabled = true`), so its Skills '
             "stay invisible to sessions",
@@ -1673,10 +1681,13 @@ def check_codex_plugin(repo_root: Path) -> list[dict[str, str]]:
         recorded = row.get("version") or "an unknown version"
         return _codex_warning(
             "PLUGIN-STALE",
-            payload,
-            f"the Codex plugin was installed from {recorded} but this project "
-            f"runs {project_version}; the plugin does not update with sync or "
-            "npm",
+            path,
+            _project_stale_message(
+                "the Codex plugin",
+                recorded,
+                project_version,
+                "the plugin does not update with sync or npm",
+            ),
             "cwf host add codex --force",
         )
     return []

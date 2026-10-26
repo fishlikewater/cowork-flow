@@ -37,6 +37,7 @@ cwf host inspect [host] [--json]
       "status": "installed",
       "version": "2.4.2",
       "payloadPath": "/home/user/.qoder/plugins/cache/cowork-flow-local/cowork-flow/2.4.2",
+      "detailPath": "/home/user/.qoder/plugins/cache/cowork-flow-local/cowork-flow/2.4.2/.qoder-plugin/plugin.json",
       "registeredSource": "/home/user/.qoder/plugins/installed_plugins_v2.json",
       "enabled": true,
       "reason": null
@@ -56,6 +57,7 @@ command composition, not an installed artifact, so it has no row.
 | `status` | One of the five statuses below. |
 | `version` | Installed payload version, or `null` when the host records none. |
 | `payloadPath` | Absolute path of the installed payload, or `null` when none exists. |
+| `detailPath` | Most specific artifact for the reported status: the registration file that should hold the record, the payload or install directory when that is what is missing, the absent or unreadable file, the enable settings file when `enabled` is false, or the version manifest/marker/file the host loads. `null` when no more specific path applies. |
 | `registeredSource` | Registry, config file or marketplace path the host reads, or `null`. |
 | `enabled` | `true`/`false` when the host has an enable flag; `null` when it has none or the state is unknown. |
 | `reason` | Human-readable explanation, or `null` when there is nothing to explain. |
@@ -112,8 +114,8 @@ The doctor executes:
 cwf host inspect --json
 ```
 
-- CLI resolution: `COWORK_FLOW_CLI` when set (a `.js` path is run through
-  `node`), otherwise `cwf`, then `cowork-flow` from `PATH`.
+- CLI resolution: `COWORK_FLOW_CLI` when set (a `.js`, `.mjs` or `.cjs` path is
+  run through `node`), otherwise `cwf`, then `cowork-flow` from `PATH`.
 - One inspection per doctor pass. Facts are cached for that pass, not across
   processes.
 - Timeout: 5 seconds.
@@ -135,6 +137,13 @@ The doctor maps rows to host-specific issue codes:
 | `stale` | `PLUGIN-STALE` | `PLUGIN-STALE` (versionless in practice) | `PRESET-STALE` | `HOOK-STALE` |
 | `installed`, `enabled: false` | `PLUGIN-DISABLED` for hosts with an enable flag (Qoder, Codex, Kimi Code plugin) | not applicable | not applicable | not applicable |
 | `installed` | silent | silent, unless a project copy differs (`PLUGIN-STALE`) | silent | silent |
+
+A host install-state warning's `path` is the row's `detailPath` when present,
+then `payloadPath`, then `registeredSource`. The doctor never reconstructs a
+host path from the `reason` string, so the read model remains the only owner of
+host layout. Content-drift warnings (OpenCode) name the file they compared, and
+the skill-delivery check names `payloadPath/skills`; both point at the artifact
+that actually differs rather than the install record.
 
 The `stale` row above is the inspect status. The doctor's code depends on the
 project-relative comparison described under statuses: an `installed` row whose

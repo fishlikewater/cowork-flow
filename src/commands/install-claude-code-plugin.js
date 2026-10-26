@@ -100,6 +100,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: target,
+      detailPath: target,
       registeredSource: target,
       enabled: null,
       reason: 'no plugin manifest'
@@ -110,6 +111,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: target,
+      detailPath: target,
       registeredSource: target,
       enabled: null,
       reason: 'a different plugin owns this directory'
@@ -121,6 +123,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: typeof installed.version === 'string' ? installed.version : null,
       payloadPath: target,
+      detailPath: skill,
       registeredSource: target,
       enabled: true,
       reason: 'missing skills/cowork-flow-bootstrap/SKILL.md'
@@ -130,6 +133,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version: typeof installed.version === 'string' ? installed.version : null,
     payloadPath: target,
+    detailPath: join(target, ...manifest.split('/')),
     registeredSource: target,
     enabled: true,
     reason: null

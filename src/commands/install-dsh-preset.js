@@ -290,6 +290,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: null,
+      detailPath: null,
       registeredSource: null,
       enabled: null,
       reason: 'no preset directory or bundle'
@@ -302,6 +303,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath,
+      detailPath: join(payloadPath, MARKER_FILE),
       registeredSource: payloadPath,
       enabled: null,
       reason: 'version marker is missing or unreadable'
@@ -311,6 +313,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version,
     payloadPath,
+    detailPath: join(payloadPath, MARKER_FILE),
     registeredSource: payloadPath,
     enabled: null,
     reason: null

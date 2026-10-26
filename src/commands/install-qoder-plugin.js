@@ -218,6 +218,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: null,
+      detailPath: paths.registry,
       registeredSource: paths.registry,
       enabled: null,
       reason: 'no registry entry'
@@ -230,6 +231,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version,
       payloadPath: null,
+      detailPath: paths.registry,
       registeredSource: paths.registry,
       enabled: null,
       reason: 'registry entry has no installPath'
@@ -243,6 +245,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
         status: 'broken',
         version,
         payloadPath: installPath,
+        detailPath: join(installPath, ...relative.split('/')),
         registeredSource: paths.registry,
         enabled: null,
         reason: `missing ${relative} (${role})`
@@ -255,6 +258,9 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version,
     payloadPath: installPath,
+    detailPath: enabled
+      ? join(installPath, ...manifest.split('/'))
+      : paths.settings,
     registeredSource: paths.registry,
     enabled,
     reason: enabled ? null : 'enable flag is not true'

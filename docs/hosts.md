@@ -305,7 +305,7 @@ claude mcp add -s user cowork-flow -- cwf mcp serve
 | `COWORK_FLOW_CONTEXT_ID` | 显式指定会话身份；宿主不提供会话变量时使用 |
 | `COWORK_FLOW_HOST` | 显式指定宿主 id |
 | `COWORK_FLOW_CODEX` | 指定 Codex CLI 可执行文件 |
-| `COWORK_FLOW_CLI` | 指定 doctor 读取安装态时调用的 cowork-flow CLI；`.js` 路径用 node 执行 |
+| `COWORK_FLOW_CLI` | 指定 doctor 读取安装态时调用的 cowork-flow CLI；`.js`/`.mjs`/`.cjs` 路径用 node 执行 |
 | `DSH_HOME` | 覆盖 DeepSeek Harness 配置根目录 |
 | `KIMI_CODE_HOME` | 覆盖 Kimi Code 配置根目录 |
 | `CODEX_HOME` | 覆盖 Codex 配置根目录 |

@@ -384,6 +384,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: shim,
+      detailPath: config,
       registeredSource: config,
       enabled: null,
       reason: 'config file is absent'
@@ -394,6 +395,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: shim,
+      detailPath: config,
       registeredSource: config,
       enabled: null,
       reason: 'hook block is absent'
@@ -404,6 +406,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath: shim,
+      detailPath: shim,
       registeredSource: config,
       enabled: true,
       reason: 'shim is missing'
@@ -415,6 +418,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath: shim,
+      detailPath: marker,
       registeredSource: config,
       enabled: true,
       reason: 'version marker is missing'
@@ -431,6 +435,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath: shim,
+      detailPath: marker,
       registeredSource: config,
       enabled: true,
       reason: 'version marker is unreadable'
@@ -440,6 +445,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version,
     payloadPath: shim,
+    detailPath: marker,
     registeredSource: config,
     enabled: true,
     reason: null

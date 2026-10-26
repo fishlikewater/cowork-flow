@@ -104,6 +104,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: payload,
+      detailPath: plugin,
       registeredSource: plugin,
       enabled: null,
       reason: 'no plugin file'
@@ -114,6 +115,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: payload,
+      detailPath: plugin,
       registeredSource: plugin,
       enabled: null,
       reason: 'a different plugin owns this file'
@@ -125,6 +127,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
         status: 'broken',
         version: null,
         payloadPath: payload,
+        detailPath: join(payload, ...relative.split('/')),
         registeredSource: plugin,
         enabled: true,
         reason: `missing cowork-flow/${relative}`
@@ -135,6 +138,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version: null,
     payloadPath: payload,
+    detailPath: plugin,
     registeredSource: plugin,
     enabled: true,
     reason: null

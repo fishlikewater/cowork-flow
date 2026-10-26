@@ -340,6 +340,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'missing',
       version: null,
       payloadPath: null,
+      detailPath: activeMarketplacePath,
       registeredSource: activeMarketplacePath,
       enabled: null,
       reason: 'no marketplace entry'
@@ -355,6 +356,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath: null,
+      detailPath: activeMarketplacePath,
       registeredSource: activeMarketplacePath,
       enabled: null,
       reason: 'marketplace entry has no payload path'
@@ -365,6 +367,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath,
+      detailPath: payloadPath,
       registeredSource: activeMarketplacePath,
       enabled: null,
       reason: 'payload directory is missing'
@@ -380,6 +383,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath,
+      detailPath: join(payloadPath, ...manifest.split('/')),
       registeredSource: activeMarketplacePath,
       enabled: null,
       reason: 'payload manifest has no version'
@@ -389,6 +393,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
     status: 'installed',
     version,
     payloadPath,
+    detailPath: join(payloadPath, ...manifest.split('/')),
     registeredSource: activeMarketplacePath,
     enabled: null,
     reason: null

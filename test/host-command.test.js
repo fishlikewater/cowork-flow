@@ -288,6 +288,10 @@ test('host inspect --json reports one row per component across all hosts', async
     report.hosts.every((row) => row.status === 'missing'),
     'an empty machine has no installed host state'
   );
+  assert.ok(
+    report.hosts.every((row) => Object.hasOwn(row, 'detailPath')),
+    'every component reports the diagnostic path field'
+  );
 });
 
 test('host inspect accepts a host filter and rejects an unknown host', async (t) => {

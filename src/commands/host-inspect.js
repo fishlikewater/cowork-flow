@@ -19,6 +19,7 @@ function normalizedRow(facts, cliVersion) {
     status: stale ? 'stale' : facts.status,
     version: facts.version ?? null,
     payloadPath: facts.payloadPath ?? null,
+    detailPath: facts.detailPath ?? null,
     registeredSource: facts.registeredSource ?? null,
     enabled: facts.enabled ?? null,
     reason: stale
@@ -33,6 +34,7 @@ function unsupportedRow(hostId, componentName) {
     status: 'unsupported',
     version: null,
     payloadPath: null,
+    detailPath: null,
     registeredSource: null,
     enabled: null,
     reason: `${hostId} component ${componentName} does not expose an installed-state reader`

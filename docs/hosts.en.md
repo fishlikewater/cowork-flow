@@ -305,7 +305,7 @@ Hosts support different manifest fields, so do not copy the same set of fields i
 | `COWORK_FLOW_CONTEXT_ID` | Explicitly set the session identity; use when the host provides no session variable |
 | `COWORK_FLOW_HOST` | Explicitly set the host id |
 | `COWORK_FLOW_CODEX` | Set the Codex CLI executable |
-| `COWORK_FLOW_CLI` | Set the cowork-flow CLI the doctor uses to read install state; a `.js` path runs through node |
+| `COWORK_FLOW_CLI` | Set the cowork-flow CLI the doctor uses to read install state; a `.js`, `.mjs` or `.cjs` path runs through node |
 | `DSH_HOME` | Override the DeepSeek Harness configuration root |
 | `KIMI_CODE_HOME` | Override the Kimi Code configuration root |
 | `CODEX_HOME` | Override the Codex configuration root |

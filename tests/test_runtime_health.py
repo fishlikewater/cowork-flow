@@ -84,6 +84,10 @@ class DshPresetCheckTest(unittest.TestCase):
         self.assertEqual("PRESET-STALE", issues[0]["code"])
         self.assertIn("0.0.1", issues[0]["message"])
         self.assertIn(PACKAGE_VERSION, issues[0]["message"])
+        self.assertTrue(
+            str(issues[0]["path"]).endswith(".cowork-flow-preset.json"),
+            issues[0]["path"],
+        )
         self.assertIn("cwf host add dsh --component preset --force", issues[0]["commandHint"])
 
     def test_project_newer_than_the_install_reports_stale(self) -> None:
@@ -234,7 +238,22 @@ class KimiHookCheckTest(unittest.TestCase):
         self.assertEqual("HOOK-STALE", issues[0]["code"])
         self.assertIn("0.0.1", issues[0]["message"])
         self.assertIn(PACKAGE_VERSION, issues[0]["message"])
+        self.assertTrue(
+            str(issues[0]["path"]).endswith(".cowork-flow-kimi-hook.json"),
+            issues[0]["path"],
+        )
         self.assertEqual("cwf host add kimi-code --component hook", issues[0]["commandHint"])
+
+    def test_project_newer_than_the_marker_reports_stale(self) -> None:
+        self._install_block()
+        self._install_shim()
+        self._write_marker(json.dumps({"version": PACKAGE_VERSION}))
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "9.9.9\n", encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(["HOOK-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("9.9.9", issues[0]["message"])
 
     def test_matching_version_is_silent(self) -> None:
         self._install_block()
@@ -445,6 +464,7 @@ class QoderPluginCheckTest(unittest.TestCase):
         self._write_settings(False)
         issues = self._check()
         self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in issues])
+        self.assertTrue(str(issues[0]["path"]).endswith("settings.json"), issues[0]["path"])
 
     def test_healthy_install_reports_nothing(self) -> None:
         self._install()
@@ -455,6 +475,12 @@ class QoderPluginCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
         self.assertIn("1.4.0", issues[0]["message"])
+        self.assertTrue(
+            str(issues[0]["path"]).replace("\\", "/").endswith(
+                ".qoder-plugin/plugin.json"
+            ),
+            issues[0]["path"],
+        )
 
     def test_project_newer_than_the_install_reports_stale(self) -> None:
         self._install()
@@ -605,10 +631,24 @@ class ZcodePluginCheckTest(unittest.TestCase):
         self.assertEqual(["PLUGIN-UNKNOWN-VERSION"], [issue["code"] for issue in issues])
         self.assertTrue(
             str(issues[0]["path"]).replace("\\", "/").endswith(
-                f"cowork-flow/{self.version}"
+                f"cowork-flow/{self.version}/.zcode-plugin/plugin.json"
             ),
             issues[0]["path"],
         )
+
+    def test_registered_entry_with_a_missing_payload_reports_payload_missing(
+        self,
+    ) -> None:
+        self._install()
+        payload = (
+            self.zcode_home / "cli" / "plugins" / "cache" / "cowork-flow-local"
+            / "cowork-flow" / self.version
+        )
+        shutil.rmtree(payload)
+        issues = self._check()
+        self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
+        self.assertEqual(str(payload), issues[0]["path"])
+        self.assertIn("payload directory is missing", issues[0]["message"])
 
     def test_missing_project_version_is_silent(self) -> None:
         # Without a project runtime version there is no project-scoped staleness
@@ -646,10 +686,14 @@ class ZcodePluginCheckTest(unittest.TestCase):
         ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
             self.doctor._run_checks(self.project)
         lines = stdout.getvalue().splitlines()
-        self.assertTrue(
-            any(line.startswith("ZCode plugin (PLUGIN-STALE):") for line in lines), lines
+        stale_lines = [
+            line for line in lines if line.startswith("ZCode plugin (PLUGIN-STALE):")
+        ]
+        self.assertEqual(1, len(stale_lines), lines)
+        self.assertEqual(
+            "  fix: cwf host add zcode --force",
+            lines[lines.index(stale_lines[0]) + 1],
         )
-        self.assertIn("  fix: cwf host add zcode --force", lines)
 
     def test_plugin_check_never_enters_doctor_errors(self) -> None:
         self._install(version="1.4.0")
@@ -816,11 +860,17 @@ class CodexPluginCheckTest(unittest.TestCase):
         self._install(enabled=False)
         issues = self._check()
         self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in issues])
+        self.assertTrue(
+            str(issues[0]["path"]).endswith("config.toml"), issues[0]["path"]
+        )
 
     def test_installed_without_an_enable_entry_reports_disabled(self) -> None:
         self._install(enabled=None)
         issues = self._check()
         self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in issues])
+        self.assertTrue(
+            str(issues[0]["path"]).endswith("config.toml"), issues[0]["path"]
+        )
 
     def test_healthy_install_reports_nothing(self) -> None:
         self._install()
@@ -834,6 +884,12 @@ class CodexPluginCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
         self.assertIn("9.9.9", issues[0]["message"])
+        self.assertTrue(
+            str(issues[0]["path"]).replace("\\", "/").endswith(
+                ".codex-plugin/plugin.json"
+            ),
+            issues[0]["path"],
+        )
 
     def test_unreadable_config_is_reported_as_not_installed(self) -> None:
         self.config.parent.mkdir(parents=True, exist_ok=True)
@@ -952,6 +1008,12 @@ class ClaudeCodePluginCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
         self.assertIn("1.5.0", issues[0]["message"])
+        self.assertTrue(
+            str(issues[0]["path"]).replace("\\", "/").endswith(
+                ".claude-plugin/plugin.json"
+            ),
+            issues[0]["path"],
+        )
 
     def test_foreign_skills_directory_is_silent(self) -> None:
         # A hand-made folder at the same path is not cowork-flow's to report on.
@@ -1268,7 +1330,11 @@ class KimiCodePluginCheckTest(unittest.TestCase):
 
     def test_disabled_record_reports_disabled(self) -> None:
         self._install(enabled=False)
-        self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in self._check()])
+        issues = self._check()
+        self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in issues])
+        self.assertTrue(
+            str(issues[0]["path"]).endswith("installed.json"), issues[0]["path"]
+        )
 
     def test_missing_bootstrap_skill_reports_incomplete(self) -> None:
         self._write_managed(skill=False)
@@ -1288,6 +1354,28 @@ class KimiCodePluginCheckTest(unittest.TestCase):
         issues = self._check()
         self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
         self.assertIn("1.5.0", issues[0]["message"])
+        self.assertTrue(
+            str(issues[0]["path"]).replace("\\", "/").endswith(
+                ".kimi-plugin/plugin.json"
+            ),
+            issues[0]["path"],
+        )
+
+    def test_project_newer_than_the_payload_reports_stale(self) -> None:
+        self._install()
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "9.9.9\n", encoding="utf-8"
+        )
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("9.9.9", issues[0]["message"])
+
+    def test_cli_skew_with_matching_project_version_is_silent(self) -> None:
+        self._install(version="1.0.0")
+        (self.project / ".cowork-flow" / ".version").write_text(
+            "1.0.0\n", encoding="utf-8"
+        )
+        self.assertEqual([], self._check())
 
     def test_missing_source_reports_sources_missing(self) -> None:
         # The registry records where the plugin came from, so a source that is
@@ -1296,6 +1384,7 @@ class KimiCodePluginCheckTest(unittest.TestCase):
         self._write_registry()
         issues = self._check()
         self.assertEqual(["PLUGIN-SOURCES-MISSING"], [issue["code"] for issue in issues])
+        self.assertEqual(str(self.source), issues[0]["path"])
 
     def test_another_plugins_record_does_not_count_as_ours(self) -> None:
         # The registry holds one entry per plugin, so picking any record instead
@@ -2638,6 +2727,7 @@ class HostInspectDelegationTest(unittest.TestCase):
             "status": status,
             "version": "1.5.0",
             "payloadPath": None,
+            "detailPath": None,
             "registeredSource": None,
             "enabled": None,
             "reason": None,
@@ -2671,6 +2761,7 @@ class HostInspectDelegationTest(unittest.TestCase):
                 "qoder",
                 "broken",
                 payloadPath="/payload/qoder",
+                detailPath="/payload/qoder/hooks/inject-context.mjs",
                 registeredSource="/registry.json",
                 reason="missing hooks/inject-context.mjs",
             ),
@@ -2678,6 +2769,7 @@ class HostInspectDelegationTest(unittest.TestCase):
                 "zcode",
                 "broken",
                 payloadPath="/payload/zcode",
+                detailPath="/payload/zcode",
                 registeredSource="/marketplace.json",
                 reason="payload directory is missing",
             ),
@@ -2692,6 +2784,10 @@ class HostInspectDelegationTest(unittest.TestCase):
             qoder[0]["path"].replace("\\", "/"),
         )
         self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in zcode])
+        self.assertEqual(
+            "/payload/zcode",
+            zcode[0]["path"].replace("\\", "/"),
+        )
 
     def test_inspect_runs_once_per_doctor_pass(self) -> None:
         facts = self._facts(
@@ -2699,12 +2795,18 @@ class HostInspectDelegationTest(unittest.TestCase):
             zcode=self._row("zcode", "missing"),
         )
         self.doctor._HOST_INSPECT_CACHE.clear()
-        with mock.patch.object(
-            self.doctor, "_run_host_inspect", return_value=facts
-        ) as run:
-            self.doctor.check_qoder_plugin(self.project)
-            self.doctor.check_zcode_plugin(self.project)
-        self.assertEqual(1, run.call_count)
+        snapshots = []
+
+        def inspect_once():
+            snapshots.append(facts)
+            return facts
+
+        with mock.patch.object(self.doctor, "_run_host_inspect", side_effect=inspect_once):
+            qoder = self.doctor.check_qoder_plugin(self.project)
+            zcode = self.doctor.check_zcode_plugin(self.project)
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in qoder])
+        self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in zcode])
+        self.assertEqual([facts], snapshots, "one snapshot serves both checks")
 
     def test_inspect_omitting_the_needed_row_is_unavailable(self) -> None:
         facts = self._facts(zcode=self._row("zcode", "missing"))
