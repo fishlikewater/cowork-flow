@@ -43,6 +43,11 @@ class DshPresetCheckTest(unittest.TestCase):
         (self.project / ".cowork-flow" / ".version").write_text(
             f"{PACKAGE_VERSION}\n", encoding="utf-8"
         )
+        adapter = self.project / ".cowork-flow" / "adapters" / "dsh"
+        adapter.mkdir(parents=True)
+        (adapter / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: dsh\n", encoding="utf-8"
+        )
         self.preset_dir = self.dsh_home / ".agent-presets" / "cowork-flow"
 
     def _check(self) -> list[dict[str, str]]:
@@ -54,6 +59,33 @@ class DshPresetCheckTest(unittest.TestCase):
             return self.doctor.check_dsh_preset(self.project)
 
     def test_absent_preset_is_silent(self) -> None:
+        self.assertEqual([], self._check())
+
+    def test_project_without_the_host_adapter_is_silent_when_inspect_is_unavailable(self) -> None:
+        shutil.rmtree(self.project / ".cowork-flow" / "adapters" / "dsh")
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "DSH_HOME": str(self.dsh_home),
+                "COWORK_FLOW_CLI": str(self.project / "missing-cli.js"),
+            },
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
+            with mock.patch.object(
+                self.doctor,
+                "_run_host_inspect",
+                side_effect=AssertionError(
+                    "host inspect must not run without the host adapter"
+                ),
+            ):
+                self.assertEqual([], self.doctor.check_dsh_preset(self.project))
+
+    def test_project_without_the_host_adapter_ignores_a_stale_preset(self) -> None:
+        self.preset_dir.mkdir(parents=True)
+        (self.preset_dir / ".cowork-flow-preset.json").write_text(
+            '{"version": "0.0.1"}', encoding="utf-8"
+        )
+        shutil.rmtree(self.project / ".cowork-flow" / "adapters" / "dsh")
         self.assertEqual([], self._check())
 
     def test_preset_without_marker_reports_unknown_version(self) -> None:
@@ -151,6 +183,11 @@ class KimiHookCheckTest(unittest.TestCase):
         (self.project / ".cowork-flow" / ".version").write_text(
             f"{PACKAGE_VERSION}\n", encoding="utf-8"
         )
+        adapter = self.project / ".cowork-flow" / "adapters" / "kimi-code"
+        adapter.mkdir(parents=True)
+        (adapter / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: kimi-code\n", encoding="utf-8"
+        )
         self.config = self.kimi_home / "config.toml"
         self.shim = self.kimi_home / "hooks" / "cowork-flow-inject.mjs"
         self.marker = self.kimi_home / "hooks" / ".cowork-flow-kimi-hook.json"
@@ -165,6 +202,32 @@ class KimiHookCheckTest(unittest.TestCase):
         ):
             self.doctor._HOST_INSPECT_CACHE.clear()
             return self.doctor.check_kimi_hook(self.project)
+
+    def test_project_without_the_host_adapter_is_silent_when_inspect_is_unavailable(self) -> None:
+        shutil.rmtree(self.project / ".cowork-flow" / "adapters" / "kimi-code")
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "KIMI_CODE_HOME": str(self.kimi_home),
+                "COWORK_FLOW_CLI": str(self.project / "missing-cli.js"),
+            },
+        ):
+            self.doctor._HOST_INSPECT_CACHE.clear()
+            with mock.patch.object(
+                self.doctor,
+                "_run_host_inspect",
+                side_effect=AssertionError(
+                    "host inspect must not run without the host adapter"
+                ),
+            ):
+                self.assertEqual([], self.doctor.check_kimi_hook(self.project))
+
+    def test_project_without_the_host_adapter_ignores_a_stale_hook(self) -> None:
+        self._install_block()
+        self._install_shim()
+        self._write_marker('{"version": "0.0.1"}')
+        shutil.rmtree(self.project / ".cowork-flow" / "adapters" / "kimi-code")
+        self.assertEqual([], self._check())
 
     def _install_block(self, command: str = 'command = "node shim.mjs"') -> None:
         self.kimi_home.mkdir(parents=True, exist_ok=True)
@@ -845,11 +908,10 @@ class CodexPluginCheckTest(unittest.TestCase):
         self._write_payload(".codex-plugin/plugin-alt.json")
         issues = self._check()
         self.assertEqual(["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues])
-        # codex reports the payload directory, not the manifest path.
-        self.assertTrue(
-            str(issues[0]["path"]).endswith("cowork-flow"),
-            issues[0]["path"],
-        )
+        # codex points at the missing manifest, like the other hosts.
+        path = Path(str(issues[0]["path"]))
+        self.assertEqual(".codex-plugin", path.parent.name)
+        self.assertEqual("plugin.json", path.name)
 
     def test_registered_marketplace_without_payload_reports_payload_missing(self) -> None:
         self._write_config(source=str(self.source))
@@ -1597,6 +1659,18 @@ class SkillDeliveryCheckTest(unittest.TestCase):
 
     def test_project_without_a_selected_host_is_silent(self) -> None:
         self.assertEqual([], self.doctor.check_skill_delivery(self._project(None)))
+
+    def test_project_without_a_selected_host_skips_inspect(self) -> None:
+        project = self._project(None)
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.object(
+            self.doctor,
+            "_run_host_inspect",
+            side_effect=AssertionError(
+                "host inspect must not run when no host is selected"
+            ),
+        ):
+            self.assertEqual([], self.doctor.check_skill_delivery(project))
 
     def test_missing_read_root_is_reported_with_the_sync_hint(self) -> None:
         issues = self.doctor.check_skill_delivery(self._project("qoder"))

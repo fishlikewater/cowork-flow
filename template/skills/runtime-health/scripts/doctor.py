@@ -860,10 +860,13 @@ def check_mcp_registration(repo_root: Path) -> list[dict[str, str]]:
 def check_dsh_preset(repo_root: Path) -> list[dict[str, str]]:
     """DSH preset freshness from the CLI-owned install-state read model.
 
-    Advisory only, and silent when the preset is absent: it is a machine-level
-    asset installed once, so it does not update with npm or sync. Report an
-    unknown or stale installed version instead of assuming the injection logic
-    matches this project."""
+    Advisory only, and silent while the project never selected DSH or when the
+    preset is absent: it is a machine-level asset installed once, so it does
+    not update with npm or sync. Report an unknown or stale installed version
+    instead of assuming the injection logic matches this project."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "dsh" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
     row, unavailable = _inspect_component_row(
         repo_root, "dsh", "preset", "the dsh preset"
     )
@@ -956,11 +959,11 @@ def _kimi_hook_warning(
 def check_kimi_hook(repo_root: Path) -> list[dict[str, str]]:
     """Kimi Code hook health from the CLI-owned install-state read model.
 
-    Advisory only, and silent while Kimi Code is not configured at all: the
-    hook is a machine-level asset installed once into the user-level
-    config.toml, so it does not update with npm or sync. Report an unknown or
-    stale installed version instead of assuming the injection logic matches
-    this project."""
+    Silent while unselected or unconfigured; report unknown or stale versions
+    instead of assuming the machine-level hook matches this project."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "kimi-code" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
     row, unavailable = _inspect_component_row(
         repo_root, "kimi-code", "hook", "the kimi-code hook"
     )
@@ -1771,6 +1774,8 @@ def check_skill_delivery(repo_root: Path) -> list[dict[str, str]]:
     try:
         platforms = detect_installed_platforms(repo_root)
     except HostManifestError:
+        return []
+    if not platforms:
         return []
     issues: list[dict[str, str]] = []
     facts = _host_inspect_facts(repo_root)

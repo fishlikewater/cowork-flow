@@ -78,7 +78,7 @@ export async function inspectHosts(components, hostIds, { env = process.env } = 
 export function renderInspectLine(row) {
   const detail = [
     row.version ? `version ${row.version}` : null,
-    row.payloadPath,
+    row.detailPath || row.payloadPath,
     row.enabled === false ? 'not enabled' : null,
     row.reason
   ].filter(Boolean).join('; ');

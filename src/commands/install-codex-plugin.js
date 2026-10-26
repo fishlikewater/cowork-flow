@@ -402,7 +402,7 @@ export async function inspectInstalledState({ env = process.env } = {}) {
       status: 'broken',
       version: null,
       payloadPath: payload,
-      detailPath: payload,
+      detailPath: join(payload, ...manifest.split('/')),
       registeredSource,
       enabled: plugin?.enabled === 'true',
       reason: `missing ${manifest}`

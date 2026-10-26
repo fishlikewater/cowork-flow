@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { main } from '../src/cli.js';
 import { runHostAdd, runHostInspect } from '../src/commands/host.js';
-import { INSPECT_SCHEMA_VERSION, INSPECT_STATUSES } from '../src/commands/host-inspect.js';
+import {
+  INSPECT_SCHEMA_VERSION,
+  INSPECT_STATUSES,
+  renderInspectLine
+} from '../src/commands/host-inspect.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { createTempDir } from './helpers/fs.js';
 
@@ -243,6 +247,38 @@ test('inspect reports missing, stale, broken and disabled without failing', asyn
   assert.equal(row(codex.report, 'codex').reason, 'marketplace is not registered');
 });
 
+test('inspect reports codex broken with the missing manifest path', async (t) => {
+  const home = await createTempDir(t);
+  const codexHome = join(home, 'codex');
+  const source = join(codexHome, 'plugins', 'marketplaces', 'cowork-flow-local');
+  const payload = join(source, 'plugins', 'cowork-flow');
+  const manifest = join(payload, '.codex-plugin', 'plugin.json');
+  useEnv(t, { CODEX_HOME: codexHome });
+  await mkdir(join(payload, '.codex-plugin'), { recursive: true });
+  await writeFile(
+    join(codexHome, 'config.toml'),
+    [
+      '[marketplaces.cowork-flow-local]',
+      'source_type = "local"',
+      `source = '${source}'`,
+      '',
+      '[plugins."cowork-flow@cowork-flow-local"]',
+      'enabled = true',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+
+  const { code, report } = await inspectIo(['codex', '--json']);
+
+  assert.equal(code, 0);
+  const codex = row(report, 'codex');
+  assert.equal(codex.status, 'broken');
+  assert.equal(codex.payloadPath, payload);
+  assert.equal(codex.detailPath, manifest);
+  assert.equal(codex.reason, 'missing .codex-plugin/plugin.json');
+});
+
 test('inspect report locks schemaVersion 1, the row fields and the status enum', async (t) => {
   const home = await createTempDir(t);
   useEnv(t, {
@@ -285,6 +321,48 @@ test('inspect report locks schemaVersion 1, the row fields and the status enum',
       `${row.id}:${row.component} reported ${row.status}`
     );
   }
+});
+
+test('inspect text output prefers detailPath and falls back to payloadPath', () => {
+  const missing = renderInspectLine({
+    id: 'codex',
+    displayName: 'Codex',
+    component: 'plugin',
+    status: 'missing',
+    version: null,
+    payloadPath: null,
+    detailPath: 'C:/codex/config.toml',
+    enabled: null,
+    reason: 'marketplace is not registered'
+  });
+  assert.ok(missing.includes(' - C:/codex/config.toml; marketplace is not registered'), missing);
+
+  const broken = renderInspectLine({
+    id: 'opencode',
+    displayName: 'OpenCode',
+    component: 'plugin',
+    status: 'broken',
+    version: null,
+    payloadPath: 'C:/payload',
+    detailPath: 'C:/payload/cowork-flow.js',
+    enabled: null,
+    reason: 'no plugin file'
+  });
+  assert.ok(broken.includes(' - C:/payload/cowork-flow.js; no plugin file'), broken);
+  assert.ok(!broken.includes(' - C:/payload;'), broken);
+
+  const fallback = renderInspectLine({
+    id: 'qoder',
+    displayName: 'Qoder',
+    component: 'plugin',
+    status: 'installed',
+    version: null,
+    payloadPath: 'C:/payload',
+    detailPath: null,
+    enabled: null,
+    reason: null
+  });
+  assert.ok(fallback.includes(' - C:/payload'), fallback);
 });
 
 test('inspect reports both dsh components once each is installed', async (t) => {
