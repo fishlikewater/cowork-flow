@@ -6,6 +6,23 @@
 
 ### Changed
 
+## [2.5.0] - 2026-10-26
+
+### Added
+
+- **`cwf host inspect` 机器级安装态读模型**：新增只读命令 `cwf host inspect [host] [--json]`，按宿主组件输出 `schemaVersion: 1` 的 `status`、`version`、`payloadPath`、`detailPath`、`registeredSource`、`enabled` 与 `reason` 行；各安装器在自身布局内提供 installed-state facts，doctor 的宿主检查改为消费该模型，Python 不再解析宿主注册表、TOML、设置文件或载荷清单。读取不可用时 doctor 报 `HOST-INSPECT-UNAVAILABLE`，不会把“读不到”误判为未安装。
+- **安装前置与实例级测试补齐**：`project init` 探测 Python 3.10+ 并给出缺失或过旧告警；新增 EOL 门禁并重物化 CRLF 工作区文件；补齐 zcode 宿主契约断言、manifest 能力错配测试与安装→doctor→移除的实例级 e2e。
+
+### Changed
+
+- **anchor 解析与文档事实收敛**：`parse_decision_anchor` 迁入 `decision_anchor_schema`，`fact_view` 保留 re-export；文档宿主清单从 `host-assets.json` 派生并覆盖中英文；新增 Node/Python 共享语言配置夹具，锁定 YAML 读取事实。
+- **`review-check` 路径解析统一**：复用 `TaskRepository` 的 slug、相对路径与绝对路径解析，不再依赖调用方传入的任务目录形状；统一别名到期口径并删除零引用工具函数。
+
+### Fixed
+
+- **inspect 诊断路径与宿主噪音**：inspect 行新增 `detailPath` 并让 doctor 直接消费；codex broken 指向缺失的 `.codex-plugin/plugin.json`，文本输出优先显示 `detailPath`；未选用 DSH/Kimi 的项目不再出现 `HOST-INSPECT-UNAVAILABLE`，无已选平台时跳过 inspect；补齐 zcode/kimi 的路径与版本回归测试。
+- **doctor TOML 行内注释解析**：修正 Codex 配置读取对行内注释的处理，避免带注释的注册值被误读。
+
 ## [2.4.2] - 2026-10-23
 
 ### Added
@@ -445,7 +462,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.2...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.2...v2.5.0
 [2.4.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.3.0...v2.4.0
