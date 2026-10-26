@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from adapters.host.policy_base import DEFAULT_DIGEST_POLICY, HostPolicy, default_policy
+from services.decision_anchor_schema import parse_decision_anchor
 
 
 TAG_RE = re.compile(
@@ -358,8 +359,6 @@ def _decision_anchor_block(
     if effective_status not in DECISION_ANCHOR_STATES:
         return None
     try:
-        from services.fact_view import parse_decision_anchor
-
         text = (root / task_path / "decision-anchor.md").read_text(
             encoding="utf-8"
         )
@@ -428,7 +427,6 @@ def _stage_contract_block(
         from services.fact_view import (
             build_stage_contract,
             file_scope_whitelist,
-            parse_decision_anchor,
             spec_digest_items,
             spec_pointer_files,
         )

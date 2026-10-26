@@ -10,6 +10,7 @@ SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+from services import fact_view  # noqa: E402
 from services.decision_anchor_schema import (  # noqa: E402
     ACCEPTANCE,
     ACCEPTANCE_RE,
@@ -24,6 +25,7 @@ from services.decision_anchor_schema import (  # noqa: E402
     heading_for,
     is_spec_check_line,
     is_spec_check_result_line,
+    parse_decision_anchor,
     present_sections,
     section_headings,
     spec_check_example,
@@ -32,7 +34,6 @@ from services.decision_anchor_schema import (  # noqa: E402
     structural_lines,
     verification_section_lines,
 )
-from services.fact_view import parse_decision_anchor  # noqa: E402
 
 
 ENGLISH_ANCHOR = "\n".join(
@@ -72,6 +73,9 @@ MIXED_ANCHOR = "\n".join(
 
 
 class DecisionAnchorSchemaTest(unittest.TestCase):
+    def test_parse_decision_anchor_has_one_definition(self) -> None:
+        self.assertIs(fact_view.parse_decision_anchor, parse_decision_anchor)
+
     def test_canonical_section_accepts_both_heading_sets(self) -> None:
         for heading, expected in (
             ("目标", GOAL),

@@ -1,0 +1,52 @@
+{
+  "missing-key.yaml": {
+    "present": false,
+    "raw": null,
+    "duplicate": false
+  },
+  "default-zh-cn.yaml": {
+    "present": true,
+    "raw": "zh-CN",
+    "duplicate": false
+  },
+  "alias-en.yaml": {
+    "present": true,
+    "raw": "en",
+    "duplicate": false
+  },
+  "quoted.yaml": {
+    "present": true,
+    "raw": "zh_cn",
+    "duplicate": false
+  },
+  "inline-comment.yaml": {
+    "present": true,
+    "raw": "en-US",
+    "duplicate": false
+  },
+  "hash-in-quotes.yaml": {
+    "present": true,
+    "raw": "en-US#frag",
+    "duplicate": false
+  },
+  "duplicate-key.yaml": {
+    "present": true,
+    "raw": null,
+    "duplicate": true
+  },
+  "empty-value.yaml": {
+    "present": true,
+    "raw": "",
+    "duplicate": false
+  },
+  "unsupported.yaml": {
+    "present": true,
+    "raw": "fr",
+    "duplicate": false
+  },
+  "indented.yaml": {
+    "present": false,
+    "raw": null,
+    "duplicate": false
+  }
+}

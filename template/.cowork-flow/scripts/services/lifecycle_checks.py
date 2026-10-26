@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from infra.git_snapshot import collect_changed_paths_since
+from services.decision_anchor_schema import parse_decision_anchor
 from services.fact_view import (
-    parse_decision_anchor,
     spec_pointer_files,
     task_baseline,
     task_data,

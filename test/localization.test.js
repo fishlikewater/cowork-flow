@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -23,6 +23,7 @@ import { createTempDir, exists, readText } from './helpers/fs.js';
 
 const ANCHOR = '.cowork-flow/spec/contracts/decision-anchor.md';
 const PLAN_TEMPLATE = '.cowork-flow/templates/plan-template.md';
+const LANGUAGE_FIXTURES = new URL('../tests/fixtures/language-config/', import.meta.url);
 
 function createIo() {
   return {
@@ -71,6 +72,21 @@ test('language parsing accepts quotes and whitespace-separated comments only', (
   assert.equal(parseLanguage("language: 'zh_CN'\n"), 'zh-CN');
   assert.equal(parseLanguage('codex:\n  language: en-US\n'), null);
   assert.equal(parseLanguage('language: "en-US"#not-a-comment\n'), null);
+});
+
+test('node reader matches the shared language fixtures', async () => {
+  const expected = JSON.parse(
+    await readFile(new URL('expected.json', LANGUAGE_FIXTURES), 'utf8')
+  );
+  const names = (await readdir(LANGUAGE_FIXTURES))
+    .filter((name) => name.endsWith('.yaml'))
+    .sort();
+  assert.deepEqual(names, Object.keys(expected).sort());
+
+  for (const name of names) {
+    const content = await readFile(new URL(name, LANGUAGE_FIXTURES), 'utf8');
+    assert.deepEqual(readLanguageSetting(content), expected[name], name);
+  }
 });
 
 test('explicit malformed language settings are detected rather than ignored', () => {

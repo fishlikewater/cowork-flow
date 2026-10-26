@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from services.fact_view import parse_decision_anchor
+from services.decision_anchor_schema import parse_decision_anchor
 
 EVIDENCE_FILE = "evidence.jsonl"
 EVIDENCE_KINDS = ("test", "command", "manual")

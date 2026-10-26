@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 
 import { packageRoot } from '../src/lib/paths.js';
+import { loadHostAssetManifest } from '../src/lib/host-assets.js';
 
 // The documentation surface: everything a reader can land on from the package
 // root or the repository front page.
@@ -110,6 +111,33 @@ function chinesePeer(name) {
 
 function englishPeer(name) {
   return isEnglishDoc(name) ? name : name.slice(0, -'.md'.length) + ENGLISH_SUFFIX;
+}
+
+
+function setDifference(left, right) {
+  return [...left].filter((name) => !right.has(name)).sort();
+}
+
+
+function readmeHostNames(text, language) {
+  const pattern = language === 'en' ? /^Supports (.+)\.$/m : /^支持 (.+)。$/m;
+  const match = text.match(pattern);
+  assert.ok(match, `missing ${language} host support line`);
+  const parts = language === 'en'
+    ? match[1].replace(/,\s*and\s+/i, ', ').split(',')
+    : match[1].replace(/\s+和\s+/g, '、').split('、');
+  return new Set(parts.map((part) => part.trim()).filter(Boolean));
+}
+
+
+function documentedHostNames(text, manifestNames) {
+  return new Set(
+    text
+      .split('\n')
+      .filter((line) => line.startsWith('## '))
+      .map((line) => line.slice(3).trim())
+      .filter((name) => manifestNames.has(name))
+  );
 }
 
 
@@ -290,6 +318,37 @@ test('the npm package ships every root document the README links to', async () =
   assert.ok(rootDocs.length > 0, 'the README must still link its root documents');
 
   assert.deepEqual(rootDocs.filter((target) => !shipped.has(target)), []);
+});
+
+
+test('every manifest host appears in README and hosts docs', async () => {
+  const manifestNames = new Set(
+    loadHostAssetManifest().platforms.map((platform) => platform.displayName)
+  );
+  assert.ok(manifestNames.size > 0, 'the host manifest must declare platforms');
+
+  for (const [path, language] of [['README.md', 'zh'], ['README.en.md', 'en']]) {
+    const documented = readmeHostNames(await readDoc(path), language);
+    assert.deepEqual(
+      setDifference(documented, manifestNames),
+      [],
+      `${path} lists hosts the manifest does not declare`
+    );
+    assert.deepEqual(
+      setDifference(manifestNames, documented),
+      [],
+      `${path} is missing manifest hosts`
+    );
+  }
+
+  for (const path of ['docs/hosts.md', 'docs/hosts.en.md']) {
+    const documented = documentedHostNames(await readDoc(path), manifestNames);
+    assert.deepEqual(
+      setDifference(manifestNames, documented),
+      [],
+      `${path} is missing manifest hosts`
+    );
+  }
 });
 
 

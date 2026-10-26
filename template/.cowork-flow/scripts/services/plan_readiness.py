@@ -18,6 +18,7 @@ from services.decision_anchor_schema import (
     heading_for,
     headings,
     is_spec_check_result_line,
+    parse_decision_anchor,
     present_sections,
     section_headings,
     spec_check_example,
@@ -619,8 +620,6 @@ def _anchor_spec_check_blockers(
 
 
 def _acceptance_sync_blockers(plan_rows: list[dict[str, str]], anchor_text: str) -> list[str]:
-    from services.fact_view import parse_decision_anchor
-
     anchor_rows = parse_decision_anchor(anchor_text).get("acceptanceCriteria") or []
     plan_ids = [row["id"] for row in plan_rows]
     anchor_ids = [row.get("id") for row in anchor_rows]
@@ -641,8 +640,6 @@ def _acceptance_sync_blockers(plan_rows: list[dict[str, str]], anchor_text: str)
 def _goal_sync_blockers(plan_goal_text: str | None, anchor_text: str) -> list[str]:
     if not plan_goal_text:
         return []
-    from services.fact_view import parse_decision_anchor
-
     anchor_goal = str(parse_decision_anchor(anchor_text).get("goal") or "").strip()
     if not anchor_goal:
         return ["decision-anchor.md has no goal text"]

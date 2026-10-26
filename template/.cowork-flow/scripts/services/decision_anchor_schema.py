@@ -11,6 +11,7 @@ which set a newly generated anchor uses.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 GOAL = "goal"
 ACCEPTANCE = "acceptance"
@@ -57,6 +58,13 @@ HEADING_RE = re.compile(r"^##\s*(.+?)\s*$")
 ACCEPTANCE_RE = re.compile(
     r"^\s*-\s*(?:\[([ xX])\]?\s*)?(AC-[A-Za-z0-9-]+)\s*[:：]\s*(.+?)\s*$"
 )
+REJECTED_RE = re.compile(r"^\s*-\s*\*\*(.+?)\*\*")
+
+GOAL_TRUNCATE = 300
+VERIFY_COMMAND_TRUNCATE = 120
+VERIFY_COMMAND_MAX = 10
+SCOPE_BOUNDARY_TRUNCATE = 160
+
 LIST_ITEM_RE = re.compile(r"^\s*[-*]\s")
 LIST_PREFIX_RE = re.compile(r"^\s*[-*+]\s*")
 FENCE_MARKER_RE = re.compile(r"^(```|~~~)")
@@ -226,3 +234,60 @@ def present_sections(text: str) -> set[str]:
 def acceptance_section_lines(text: str) -> list[str]:
     """Raw lines under the acceptance heading, up to the next heading."""
     return section_lines(text, ACCEPTANCE)
+
+
+def parse_decision_anchor(text: str) -> dict[str, Any]:
+    """Extract goal / acceptance criteria / rejected option names / declared
+    verification commands / scope boundary from a decision-anchor.md body.
+    Section headings may be the Chinese set or the English aliases (see
+    spec/contracts/decision-anchor.md); parsing is line-level and degrades to
+    empty values when sections are missing."""
+    goal_lines: list[str] = []
+    acceptance: list[dict[str, str]] = []
+    rejected: list[str] = []
+    verify_commands: list[str] = []
+    scope_boundary = ""
+    section: str | None = None
+    for raw in text.splitlines():
+        heading = HEADING_RE.match(raw.strip())
+        if heading:
+            section = canonical_section(heading.group(1))
+            continue
+        if section == GOAL:
+            if raw.strip():
+                goal_lines.append(raw.strip())
+        elif section == ACCEPTANCE:
+            match = ACCEPTANCE_RE.match(raw)
+            if match:
+                acceptance.append(
+                    {
+                        "id": match.group(2),
+                        "text": match.group(3),
+                        "checked": match.group(1) in ("x", "X"),
+                    }
+                )
+        elif section == REJECTED:
+            match = REJECTED_RE.match(raw)
+            if match:
+                rejected.append(match.group(1).strip())
+        elif section == VERIFICATION:
+            command = raw.strip()
+            if command.startswith("- "):
+                command = command[2:].strip()
+            if command.startswith("<!--"):
+                # Scaffold instructions and author notes are not commands.
+                continue
+            if is_spec_check_line(command):
+                continue
+            if command and len(verify_commands) < VERIFY_COMMAND_MAX:
+                verify_commands.append(command[:VERIFY_COMMAND_TRUNCATE])
+        elif section == SCOPE:
+            if raw.strip() and not scope_boundary:
+                scope_boundary = raw.strip()[:SCOPE_BOUNDARY_TRUNCATE]
+    return {
+        "goal": "\n".join(goal_lines)[:GOAL_TRUNCATE],
+        "acceptanceCriteria": acceptance,
+        "rejectedOptions": rejected,
+        "validationCommands": verify_commands,
+        "scopeBoundary": scope_boundary,
+    }
