@@ -109,6 +109,102 @@ async function readGitDeveloper(target) {
   }
 }
 
+// `init` itself only needs Node, but the generated project runs on the
+// Python runner. Probe the same candidate order template/.cowork-flow/run
+// uses so a missing interpreter is reported here instead of at first use.
+const PYTHON_VERSION_PROBE = "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}'); "
+  + 'raise SystemExit(0 if sys.version_info >= (3, 10) else 1)';
+
+function pythonCandidates(env) {
+  for (const name of ['COWORK_FLOW_PYTHON', 'PYTHON']) {
+    const value = String(env[name] ?? '').trim();
+    if (value) {
+      // An explicit override is authoritative: the runner fails instead of
+      // falling through to another interpreter.
+      return [{ explicit: name, command: value, args: [] }];
+    }
+  }
+  return [
+    { explicit: null, command: 'python3', args: [] },
+    { explicit: null, command: 'python', args: [] },
+    { explicit: null, command: 'py', args: ['-3'] }
+  ];
+}
+
+function pythonVersionFrom(stdout) {
+  const match = /^(\d+\.\d+)/m.exec(String(stdout ?? ''));
+  return match ? match[1] : null;
+}
+
+async function probePython({ env = process.env } = {}) {
+  let older = null;
+  for (const candidate of pythonCandidates(env)) {
+    try {
+      const { stdout } = await execFileAsync(
+        candidate.command,
+        [...candidate.args, '-c', PYTHON_VERSION_PROBE],
+        { timeout: 5000, windowsHide: true }
+      );
+      return {
+        found: true,
+        version: pythonVersionFrom(stdout),
+        command: candidate.command,
+        explicit: candidate.explicit,
+        tooOld: false
+      };
+    } catch (error) {
+      if (error && error.code === 1) {
+        older = {
+          version: pythonVersionFrom(error.stdout),
+          command: candidate.command,
+          explicit: candidate.explicit
+        };
+        if (candidate.explicit) {
+          break;
+        }
+        continue;
+      }
+      if (candidate.explicit) {
+        return {
+          found: false,
+          version: null,
+          command: candidate.command,
+          explicit: candidate.explicit,
+          tooOld: false
+        };
+      }
+    }
+  }
+  return older
+    ? { found: false, ...older, tooOld: true }
+    : { found: false, version: null, command: null, explicit: null, tooOld: false };
+}
+
+function emitPythonWarning(io, probe) {
+  if (!probe || probe.found) {
+    return;
+  }
+  if (probe.tooOld) {
+    io.writeErr(
+      `Warning: Python ${probe.version ?? ''} (${probe.command}) is older than 3.10; `
+      + '.cowork-flow/run needs Python 3.10+. Install a newer interpreter or set COWORK_FLOW_PYTHON.\n'
+    );
+    return;
+  }
+  if (probe.explicit) {
+    io.writeErr(
+      `Warning: ${probe.explicit} does not point to a usable Python 3.10+ interpreter; `
+      + '.cowork-flow/run needs Python 3.10+.\n'
+    );
+    return;
+  }
+  io.writeErr(
+    'Warning: no usable Python 3.10+ interpreter found '
+    + '(tried COWORK_FLOW_PYTHON, PYTHON, python3, python, py -3); '
+    + '.cowork-flow/run needs Python 3.10+.\n'
+  );
+}
+
 async function readExistingDeveloper(target) {
   const developerFile = join(target, '.cowork-flow', '.developer');
   if (!await pathExists(developerFile)) {
@@ -292,13 +388,13 @@ async function buildDeveloperActions(target, developer) {
   return actions;
 }
 
-export async function runInit(args, { io, prompt, selectPlatforms }) {
-  return runInitWithOptions(args, { io, prompt, selectPlatforms });
+export async function runInit(args, { io, prompt, selectPlatforms, pythonProbe }) {
+  return runInitWithOptions(args, { io, prompt, selectPlatforms, pythonProbe });
 }
 
 export async function runInitWithOptions(
   args,
-  { io, prompt, selectPlatforms, fileSystem }
+  { io, prompt, selectPlatforms, fileSystem, pythonProbe }
 ) {
   const options = parseInitArgs(args);
   const platforms = await resolvePlatforms(options, selectPlatforms);
@@ -325,6 +421,7 @@ export async function runInitWithOptions(
   await applyPlan(plan, { dryRun: options.dryRun, fileSystem });
   io.writeOut(summarizePlan(plan, options.dryRun));
   io.writeOut(`Hosts: ${formatPlatformList(platforms)}\n`);
+  emitPythonWarning(io, await (pythonProbe ?? probePython)());
 
   if (options.dryRun) {
     if (developer.existing) {

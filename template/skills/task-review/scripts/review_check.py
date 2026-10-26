@@ -30,6 +30,7 @@ from infra.git_snapshot import collect_changed_paths
 from infra.quality_sources import quality_source_entries
 from services.lifecycle_checks import LifecycleCheckRunner
 from services.task_context import TaskContextService
+from services.task_repository import TaskRepository
 from runtime.session_state import is_main_session
 
 
@@ -78,10 +79,12 @@ def _repo_root() -> Path:
 
 
 def _task_dir(repo_root: Path, raw: str) -> Path:
-    path = Path(raw)
-    if not path.is_absolute():
-        path = repo_root / path
-    return path.resolve()
+    """Resolve a task name, workflow-relative path, or absolute path.
+
+    `task next` accepts all three forms; an advisory report that only
+    understood paths silently produced facts about a non-existent directory.
+    """
+    return TaskRepository(repo_root).resolve(raw)
 
 
 def _relative(repo_root: Path, path: Path) -> str:
@@ -596,7 +599,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Print advisory review facts for task-review.",
     )
-    parser.add_argument("task_dir", help="Task directory to inspect.")
+    parser.add_argument(
+        "task_dir",
+        help="Task directory, repository-relative path, or task name to inspect.",
+    )
     parser.add_argument(
         "--json",
         action="store_true",
@@ -605,7 +611,28 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo_root = _repo_root()
-    report = build_report(repo_root, _task_dir(repo_root, args.task_dir))
+    task_dir = _task_dir(repo_root, args.task_dir)
+    if not (task_dir / "task.json").is_file():
+        print(
+            json.dumps(
+                {
+                    "error": {
+                        "code": "TASK-NOT-FOUND",
+                        "task": args.task_dir,
+                        "path": _relative(repo_root, task_dir),
+                        "message": (
+                            f"No task.json found for {args.task_dir!r}; "
+                            "pass a task name, a repository-relative path, "
+                            "or an absolute task directory."
+                        ),
+                    }
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 2
+    report = build_report(repo_root, task_dir)
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=False))
     return 0
 

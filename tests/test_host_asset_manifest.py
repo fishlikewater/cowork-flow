@@ -390,6 +390,36 @@ class HostAssetManifestTest(unittest.TestCase):
             errors,
         )
 
+    def test_capability_mismatch_between_adapter_and_manifest_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "template"
+            shutil.copytree(TEMPLATE, template)
+            adapter = (
+                template
+                / ".cowork-flow"
+                / "adapters"
+                / "zcode"
+                / "adapter.yaml"
+            )
+            text = adapter.read_text(encoding="utf-8")
+            adapter.write_text(
+                text.replace(
+                    "runtimeContextBinding: shim",
+                    "runtimeContextBinding: native",
+                ),
+                encoding="utf-8",
+            )
+
+            errors = self.host_manifest.validate_host_assets(template)
+
+        self.assertTrue(
+            any(
+                "capability mismatch between manifest and adapter: zcode" in error
+                for error in errors
+            ),
+            errors,
+        )
+
     def test_semantic_validation_rejects_missing_host_neutral_capability(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             template = Path(temp_dir) / "template"

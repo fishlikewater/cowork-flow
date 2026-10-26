@@ -477,6 +477,89 @@ test('init rolls back template and developer assets after an injected commit fai
   assert.equal(await exists(join(target, '.cowork-flow', '.version')), false);
 });
 
+test('init distinguishes a missing Python from an older one', async (t) => {
+  const cases = [
+    {
+      name: 'missing',
+      expected: /no usable Python 3\.10\+ interpreter found/,
+      rejected: /older than 3\.10/,
+      pythonProbe: async () => ({
+        found: false,
+        version: null,
+        command: null,
+        explicit: null,
+        tooOld: false
+      })
+    },
+    {
+      name: 'too old',
+      expected: /Python 3\.9 \(python\) is older than 3\.10/,
+      rejected: /no usable Python 3\.10\+ interpreter found/,
+      pythonProbe: async () => ({
+        found: false,
+        version: '3.9',
+        command: 'python',
+        explicit: null,
+        tooOld: true
+      })
+    },
+    {
+      name: 'invalid explicit override',
+      expected: /COWORK_FLOW_PYTHON does not point to a usable Python 3\.10\+ interpreter/,
+      rejected: /no usable Python 3\.10\+ interpreter found/,
+      pythonProbe: async () => ({
+        found: false,
+        version: null,
+        command: '/missing/python',
+        explicit: 'COWORK_FLOW_PYTHON',
+        tooOld: false
+      })
+    }
+  ];
+
+  for (const testCase of cases) {
+    const target = join(await createTempDir(t), testCase.name);
+    const io = createIo();
+    const code = await runInitWithOptions(
+      [target, '--dry-run', '--developer', 'codex', '--platform', 'codex'],
+      {
+        io,
+        prompt: null,
+        selectPlatforms: null,
+        pythonProbe: testCase.pythonProbe
+      }
+    );
+
+    assert.equal(code, 0, `${testCase.name}: ${io.stderr}`);
+    assert.match(io.stderr, /Warning:/);
+    assert.match(io.stderr, testCase.expected);
+    assert.doesNotMatch(io.stderr, testCase.rejected);
+  }
+});
+
+test('init stays quiet when Python meets the floor', async (t) => {
+  const target = join(await createTempDir(t), 'demo');
+  const io = createIo();
+  const code = await runInitWithOptions(
+    [target, '--dry-run', '--developer', 'codex', '--platform', 'codex'],
+    {
+      io,
+      prompt: null,
+      selectPlatforms: null,
+      pythonProbe: async () => ({
+        found: true,
+        version: '3.12',
+        command: 'python',
+        explicit: null,
+        tooOld: false
+      })
+    }
+  );
+
+  assert.equal(code, 0, io.stderr);
+  assert.doesNotMatch(io.stderr, /Python 3\.10/);
+});
+
 test('init dry-run does not write files', async (t) => {
   const target = join(await createTempDir(t), 'demo');
   const io = createIo();

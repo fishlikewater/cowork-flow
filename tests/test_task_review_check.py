@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -428,6 +430,59 @@ class TaskReviewCheckTest(unittest.TestCase):
                     for issue in report["normalizedIssues"]
                 ],
             )
+
+
+    def test_slug_relative_and_absolute_forms_resolve_the_same_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            self._init_git_repo(root)
+            task_dir = self._write_task(root)
+            self._write_specs(root)
+            self._commit_all(root, "baseline")
+
+            reports = []
+            for target in (
+                "05-19-demo",
+                ".cowork-flow/tasks/05-19-demo",
+                str(task_dir),
+            ):
+                output = io.StringIO()
+                with unittest.mock.patch.object(
+                    self.module, "_repo_root", return_value=root
+                ), contextlib.redirect_stdout(output):
+                    code = self.module.main([target, "--json"])
+
+                self.assertEqual(0, code)
+                reports.append(json.loads(output.getvalue()))
+
+            expected = {
+                "dir": ".cowork-flow/tasks/05-19-demo",
+                "state": "review",
+                "devType": "backend",
+            }
+            for report in reports:
+                self.assertEqual(expected, report["task"])
+                self.assertEqual([], report["scopeFacts"]["unlistedChangedFiles"])
+                self.assertEqual([], report["scopeFacts"]["contextIssues"])
+
+    def test_unknown_task_returns_a_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            self._init_git_repo(root)
+            self._write_specs(root)
+            self._commit_all(root, "baseline")
+
+            output = io.StringIO()
+            with unittest.mock.patch.object(
+                self.module, "_repo_root", return_value=root
+            ), contextlib.redirect_stdout(output):
+                code = self.module.main(["missing-task", "--json"])
+
+            self.assertEqual(2, code)
+            payload = json.loads(output.getvalue())
+            self.assertEqual("TASK-NOT-FOUND", payload["error"]["code"])
+            self.assertEqual("missing-task", payload["error"]["task"])
+            self.assertIn("No task.json found", payload["error"]["message"])
 
 
 if __name__ == "__main__":

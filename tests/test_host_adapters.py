@@ -324,7 +324,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code", "dsh", "kimi-code", "qoder"):
+            for host in ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(1, adapter["schemaVersion"])
                 self.assertEqual(host, adapter["host"])
@@ -379,6 +379,12 @@ class HostAdaptersTest(unittest.TestCase):
                     self.assertEqual("AGENTS.md", adapter["dispatch"]["memoryPath"])
                     self.assertEqual("plugin", capabilities["stateInjection"])
                     self.assertEqual("shim", capabilities["runtimeContextBinding"])
+                if host == "zcode":
+                    self.assertEqual("subagent", adapter["dispatch"]["primitive"])
+                    self.assertEqual("external", capabilities["stateInjection"])
+                    self.assertEqual("shim", capabilities["runtimeContextBinding"])
+                    self.assertEqual("native", capabilities["runtimeContextCleanup"])
+                    self.assertEqual("plugin", capabilities["editScopeWarning"])
 
     def test_adapter_dispatch_paths_are_project_relative_and_exist(self) -> None:
         """dispatch.*Path names where a host's assets live inside a generated
@@ -473,7 +479,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code", "dsh", "kimi-code", "qoder"):
+            for host in ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(
                     "inline_or_manual",

@@ -33,7 +33,7 @@ system, read up first and decide whether to adopt it.
 
 ## Getting started
 
-Node.js 20 or later is required.
+Node.js 20 or later is required. Python 3.10 or later is also required: the generated `./.cowork-flow/run` and its diagnostics run on Python, and `cwf project init` warns when no suitable interpreter is found.
 
 ### 1. Install the CLI
 

@@ -607,6 +607,27 @@ class CodexPluginCheckTest(unittest.TestCase):
         self.assertEqual("warning", issues[0]["severity"])
         self.assertEqual("cwf host add codex", issues[0]["commandHint"])
 
+    def test_source_with_inline_comment_is_recognized(self) -> None:
+        self._install()
+        text = self.config.read_text(encoding="utf-8").replace(
+            f"source = '{self.source}'",
+            f"source = '{self.source}' # local marketplace",
+        )
+        self.config.write_text(text, encoding="utf-8")
+
+        self.assertEqual([], self._check())
+
+    def test_hash_inside_quotes_is_preserved(self) -> None:
+        self.source = (
+            self.codex_home
+            / "plugins"
+            / "marketplaces"
+            / "cowork-flow-local#frag"
+        )
+        self._install()
+
+        self.assertEqual([], self._check())
+
     def _write_host_manifest(self, manifest_relative: str) -> None:
         """Deliver the host asset manifest with codex's declared payload manifest
         renamed, so the check can be observed following the declaration."""

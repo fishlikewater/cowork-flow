@@ -575,6 +575,35 @@ class PlanReadinessTest(FlowScriptTestCase):
             blockers,
         )
 
+    def test_acceptance_id_order_must_match_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            anchor = ANCHOR_TEXT.replace(
+                "- [ ] AC-001: 演示行为。\n- [ ] AC-002: 演示验证。",
+                "- [ ] AC-002: 演示验证。\n- [ ] AC-001: 演示行为。",
+            )
+            task_dir = self._write_task(root, anchor_text=anchor)
+
+            blockers = self._blockers(root, task_dir)
+
+        self.assertTrue(
+            any("acceptance IDs do not match the plan" in item for item in blockers),
+            blockers,
+        )
+
+    def test_anchor_goal_must_match_plan_goal(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            anchor = ANCHOR_TEXT.replace("演示行为。", "另一个目标。", 1)
+            task_dir = self._write_task(root, anchor_text=anchor)
+
+            blockers = self._blockers(root, task_dir)
+
+        self.assertTrue(
+            any("goal differs from the plan goal" in item for item in blockers),
+            blockers,
+        )
+
     def test_placeholder_spec_check_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

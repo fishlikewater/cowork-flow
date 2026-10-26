@@ -28,7 +28,7 @@ cowork-flow 不绑定技术栈，也不会用脚手架改写现有项目。它�
 
 ## 开始使用
 
-需要 Node.js 20 或更高版本。
+需要 Node.js 20 或更高版本。还需要 Python 3.10 或更高版本：项目里的 `./.cowork-flow/run` 与诊断脚本由 Python 运行；`cwf project init` 检测不到合适版本时会给出警告。
 
 ### 1. 安装命令
 

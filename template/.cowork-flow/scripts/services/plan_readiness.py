@@ -143,13 +143,7 @@ def plan_readiness_blockers(
     repo_root = Path(repo_root)
     task_dir = Path(task_dir)
     resolved_language = language or get_language(repo_root)
-    status = task_data.get("status")
-    blockers: list[str] = []
-    if status != "planning":
-        blockers.append(
-            "plan finalize only runs on a planning task; "
-            f"current status is {status or 'missing'}"
-        )
+    blockers = _planning_status_blockers(task_data)
 
     blocking_plan_facts = plan_file_blockers(repo_root, task_data)
     blockers.extend(blocking_plan_facts)
@@ -165,6 +159,56 @@ def plan_readiness_blockers(
         blockers.append(f"plan is empty: {_display(repo_root, plan_path)}")
         return blockers
 
+    goal, acceptance, content_blockers = _plan_content_blockers(
+        plan_text, resolved_language
+    )
+    blockers.extend(content_blockers)
+
+    template_path = repo_root / PLAN_TEMPLATE_PATH
+    template_text = (
+        read_text_utf8(template_path) if template_path.is_file() else ""
+    )
+    if not template_text.strip():
+        blockers.append(
+            "installed plan template is missing or empty; run "
+            "`cwf project sync .` before finalizing"
+        )
+        return blockers
+    blockers.extend(
+        _plan_structure_blockers(
+            plan_text,
+            template_text,
+            task_data,
+            resolved_language,
+        )
+    )
+    blockers.extend(
+        _anchor_artifact_blockers(
+            task_dir,
+            task_data,
+            goal,
+            acceptance,
+            resolved_language,
+        )
+    )
+    return blockers
+
+
+def _planning_status_blockers(task_data: dict) -> list[str]:
+    status = task_data.get("status")
+    if status == "planning":
+        return []
+    return [
+        "plan finalize only runs on a planning task; "
+        f"current status is {status or 'missing'}"
+    ]
+
+
+def _plan_content_blockers(
+    plan_text: str,
+    language: str,
+) -> tuple[str | None, list[dict[str, str]], list[str]]:
+    blockers: list[str] = []
     goal = plan_goal(plan_text)
     if not goal:
         blockers.append(
@@ -177,7 +221,7 @@ def plan_readiness_blockers(
             "replace it with the observable behavior"
         )
 
-    acceptance = plan_acceptance_criteria(plan_text, resolved_language)
+    acceptance = plan_acceptance_criteria(plan_text, language)
     if not acceptance:
         blockers.append(
             "plan `## 验收标准` / `## Acceptance Criteria` has no AC-NNN rows"
@@ -193,24 +237,26 @@ def plan_readiness_blockers(
                 "plan acceptance criterion(s) still use template placeholders: "
                 + ", ".join(placeholder_rows)
             )
+    return goal, acceptance, blockers
 
-    expected_sections = {
+
+def _expected_sections(language: str) -> tuple[str, ...]:
+    return {
         "zh-CN": ("目标", "全局约束", "文件边界", "任务"),
         "en-US": ("Goal", "Global Constraints", "File Boundaries", "Tasks"),
     }.get(
-        resolved_language,
+        language,
         ("目标", "全局约束", "文件边界", "任务"),
     )
-    template_path = repo_root / PLAN_TEMPLATE_PATH
-    template_text = (
-        read_text_utf8(template_path) if template_path.is_file() else ""
-    )
-    if not template_text.strip():
-        blockers.append(
-            "installed plan template is missing or empty; run "
-            "`cwf project sync .` before finalizing"
-        )
-        return blockers
+
+
+def _plan_structure_blockers(
+    plan_text: str,
+    template_text: str,
+    task_data: dict,
+    language: str,
+) -> list[str]:
+    expected_sections = _expected_sections(language)
     template_sections = {
         heading: _raw_section_lines(template_text, heading)
         for heading in expected_sections
@@ -218,6 +264,7 @@ def plan_readiness_blockers(
     template_fields = _task_fields(
         template_sections.get(expected_sections[-1], [])
     )
+    blockers: list[str] = []
 
     for heading in expected_sections[:-1]:
         if not _has_meaningful_lines(
@@ -235,64 +282,92 @@ def plan_readiness_blockers(
             "plan `## 任务` / `## Tasks` has no `### 任务 N` / `### Task N` block"
         )
     else:
-        tiny = declares_light_profile(task_data)
-        required_fields = TINY_TASK_FIELDS.get(
-            resolved_language, TINY_TASK_FIELDS["zh-CN"]
-        ) if tiny else TASK_FIELDS.get(
-            resolved_language, TASK_FIELDS["zh-CN"]
-        )
-        missing_template_fields = [
-            field for field in required_fields if field not in template_fields
-        ]
-        if missing_template_fields:
-            blockers.append(
-                "installed plan template is missing task brief field(s): "
-                + ", ".join(missing_template_fields)
+        blockers.extend(
+            _task_block_blockers(
+                task_blocks,
+                task_data,
+                language,
+                template_fields,
             )
-        verification_field = (
-            "Verification Command"
-            if resolved_language == "en-US"
-            else "验证命令"
         )
-        for block in task_blocks:
-            fields = _task_fields(block["lines"])
-            missing = [
-                field for field in required_fields if field not in fields
-            ]
-            if missing:
-                blockers.append(
-                    f"plan task `### {block['heading']}` is missing brief "
-                    f"field(s): {', '.join(missing)}"
-                )
-                continue
-            empty = [
-                field
-                for field in required_fields
-                if (
-                    not _has_verification_command(fields[field])
-                    if field == verification_field
-                    else not _has_meaningful_lines(
-                        fields[field], template_fields.get(field, [])
-                    )
-                )
-            ]
-            if empty:
-                blockers.append(
-                    f"plan task `### {block['heading']}` has empty brief "
-                    f"field(s): {', '.join(empty)}"
-                )
+    return blockers
 
+
+def _task_block_blockers(
+    task_blocks: list[dict],
+    task_data: dict,
+    language: str,
+    template_fields: dict[str, list[str]],
+) -> list[str]:
+    blockers: list[str] = []
+    tiny = declares_light_profile(task_data)
+    required_fields = TINY_TASK_FIELDS.get(
+        language, TINY_TASK_FIELDS["zh-CN"]
+    ) if tiny else TASK_FIELDS.get(
+        language, TASK_FIELDS["zh-CN"]
+    )
+    missing_template_fields = [
+        field for field in required_fields if field not in template_fields
+    ]
+    if missing_template_fields:
+        blockers.append(
+            "installed plan template is missing task brief field(s): "
+            + ", ".join(missing_template_fields)
+        )
+    verification_field = (
+        "Verification Command"
+        if language == "en-US"
+        else "验证命令"
+    )
+    for block in task_blocks:
+        fields = _task_fields(block["lines"])
+        missing = [
+            field for field in required_fields if field not in fields
+        ]
+        if missing:
+            blockers.append(
+                f"plan task `### {block['heading']}` is missing brief "
+                f"field(s): {', '.join(missing)}"
+            )
+            continue
+        empty = [
+            field
+            for field in required_fields
+            if (
+                not _has_verification_command(fields[field])
+                if field == verification_field
+                else not _has_meaningful_lines(
+                    fields[field], template_fields.get(field, [])
+                )
+            )
+        ]
+        if empty:
+            blockers.append(
+                f"plan task `### {block['heading']}` has empty brief "
+                f"field(s): {', '.join(empty)}"
+            )
+    return blockers
+
+
+def _anchor_artifact_blockers(
+    task_dir: Path,
+    task_data: dict,
+    goal: str | None,
+    acceptance: list[dict[str, str]],
+    language: str,
+) -> list[str]:
+    blockers: list[str] = []
     anchor_path = task_dir / "decision-anchor.md"
     anchor_text = read_text_utf8(anchor_path)
     if not anchor_text.strip():
         blockers.append("decision-anchor.md is missing or empty")
     else:
-        blockers.extend(_anchor_blockers(anchor_text, resolved_language))
+        blockers.extend(_anchor_blockers(anchor_text, language))
         blockers.extend(acceptance_row_blockers(anchor_text))
         blockers.extend(
             _anchor_spec_check_blockers(
                 anchor_text,
-                resolved_language,
+                language,
                 _dev_type(task_data),
             )
         )

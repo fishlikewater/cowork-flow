@@ -149,7 +149,9 @@ export const COMMANDS = [
 // Old names. `permanent` aliases are spellings already
 // written outside this repository (MCP client configs);
 // the rest print a migration note on stderr and go away
-// after two minor releases.
+// after the shared retirement policy.
+const ALIAS_RETIREMENT_POLICY = 'two more minor releases';
+
 export const ALIASES = [
   { name: 'init', command: ['project', 'init'], args: [], permanent: true },
   { name: 'sync', command: ['project', 'sync'], args: [], permanent: true },
@@ -211,7 +213,7 @@ export function aliasReplacement(alias) {
 
 export function aliasNotice(alias) {
   return `note: "${PROGRAM} ${alias.name}" is now "${aliasReplacement(alias)}"; `
-    + 'the old name keeps working for two more minor releases.\n';
+    + `the old name keeps working for ${ALIAS_RETIREMENT_POLICY}.\n`;
 }
 
 
@@ -282,7 +284,7 @@ function renderRootHelp() {
   );
   const aliasWidth = Math.max(...ALIASES.map((alias) => alias.name.length));
   for (const alias of ALIASES) {
-    const suffix = alias.permanent ? '(permanent)' : '(removed after two minor releases)';
+    const suffix = alias.permanent ? '(permanent)' : `(removed after ${ALIAS_RETIREMENT_POLICY})`;
     lines.push(`  ${alias.name.padEnd(aliasWidth)}  -> ${aliasReplacement(alias)}  ${suffix}`);
   }
   return `${lines.join('\n')}\n`;

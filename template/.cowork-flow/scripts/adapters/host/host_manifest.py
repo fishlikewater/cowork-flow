@@ -283,6 +283,10 @@ def _validate_platform(
                 errors.append(
                     f"illegal capability {platform.id}:{name}={value}"
                 )
+        # The manifest carries the platform facts that ship into projects; the
+        # adapter is the copy the project runtime reads. The duplication is
+        # deliberate, so this equality check is what keeps both sides in step:
+        # editing either one alone is a validation error.
         if capabilities != platform.capabilities:
             errors.append(
                 f"capability mismatch between manifest and adapter: {platform.id}"

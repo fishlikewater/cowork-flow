@@ -7,6 +7,7 @@ import {
   ALIASES,
   COMMANDS,
   GROUPS,
+  aliasNotice,
   aliasReplacement,
   groupFor,
   helpPath,
@@ -68,6 +69,22 @@ test('the permanent aliases are exactly the ones users already wrote down', () =
   const permanent = ALIASES.filter((alias) => alias.permanent).map((alias) => alias.name).sort();
   assert.deepEqual(permanent, ['init', 'mcp-state', 'sync']);
   assert.equal(ALIASES.length, 11);
+});
+
+test('alias notices and help share one retirement policy', () => {
+  const policy = 'two more minor releases';
+  const help = renderHelp([]);
+  for (const alias of ALIASES.filter((entry) => !entry.permanent)) {
+    assert.ok(
+      aliasNotice(alias).includes(policy),
+      `alias notice for ${alias.name} omits the shared policy`
+    );
+    assert.ok(
+      help.includes(`(removed after ${policy})`),
+      'help does not use the shared retirement policy'
+    );
+  }
+  assert.equal(help.includes('(removed after two minor releases)'), false);
 });
 
 test('the root help renders every command from the registry', () => {

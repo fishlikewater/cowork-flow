@@ -1539,6 +1539,30 @@ def _codex_home() -> Path:
     return Path(configured) if configured else Path.home() / ".codex"
 
 
+def _strip_toml_inline_comment(value: str) -> str:
+    """Drop a `#` comment that sits outside a quoted TOML scalar.
+
+    Only a quote at the start of the scalar opens a quoted region, so a bare
+    `#` in `source = /path#frag` stays part of the value while `" /path" # note`
+    loses the note.
+    """
+    quote = ""
+    escaped = False
+    for index, char in enumerate(value):
+        if escaped:
+            escaped = False
+        elif quote == '"' and char == "\\":
+            escaped = True
+        elif quote:
+            if char == quote:
+                quote = ""
+        elif index == 0 and char in ("'", '"'):
+            quote = char
+        elif char == "#" and (index == 0 or value[index - 1] in " \t"):
+            return value[:index].rstrip()
+    return value
+
+
 def _codex_config_sections(config_path: Path) -> dict[str, dict[str, str]]:
     """Flat key/value pairs for the two sections cowork-flow owns.
 
@@ -1566,7 +1590,11 @@ def _codex_config_sections(config_path: Path) -> dict[str, dict[str, str]]:
         if current is None or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        current[key.strip().strip('"').strip("'")] = value.strip().strip('"').strip("'")
+        current[key.strip().strip('"').strip("'")] = (
+            _strip_toml_inline_comment(value.strip())
+            .strip('"')
+            .strip("'")
+        )
     return sections
 
 
