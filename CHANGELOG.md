@@ -4,6 +4,8 @@
 
 ### Added
 
+- **根级 CONTRIBUTING 与 SECURITY 英文对页**：新增 `CONTRIBUTING.en.md` 与 `SECURITY.en.md`，中文源同步环境要求、仓库位置、宿主测试模式与支持版本；`README.en.md`、`docs/index.en.md`、`docs/release.en.md` 改指英文对页，`test/docs.test.js` 与 npm 随包清单纳入两份新文档。
+
 ### Changed
 
 ## [2.5.0] - 2026-10-26
