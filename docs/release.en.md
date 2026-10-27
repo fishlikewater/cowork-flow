@@ -2,7 +2,7 @@
 
 [中文](release.md) | English
 
-This document is for maintainers of the cowork-flow repository. Regular users only need the [README](../README.en.md); before submitting code, read [Contributing](../CONTRIBUTING.md) (Chinese) first.
+This document is for maintainers of the cowork-flow repository. Regular users only need the [README](../README.en.md); before submitting code, read [Contributing](../CONTRIBUTING.en.md) first.
 
 ## Pre-release checks
 

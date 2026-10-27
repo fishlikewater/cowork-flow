@@ -197,7 +197,7 @@ counterpart at the top.
 | [Host integration](docs/hosts.en.md) | Install, restart, troubleshoot, and uninstall for each host |
 | [Release and maintenance](docs/release.en.md) | Tests, CI, and maintainer commands |
 | [Direction](docs/direction.en.md) | Positioning, settled trade-offs, version line, and open items |
-| [Contributing](CONTRIBUTING.md) | Local setup, commit conventions, and PR checks (Chinese) |
+| [Contributing](CONTRIBUTING.en.md) | Local setup, commit conventions, and PR checks |
 | [Changelog](CHANGELOG.md) | What changed in each version (Chinese) |
 
 ## License

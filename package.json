@@ -43,6 +43,7 @@
     "README.en.md",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
+    "CONTRIBUTING.en.md",
     "!template/**/__pycache__/**",
     "!template/**/*.pyc"
   ],

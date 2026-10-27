@@ -1,8 +1,10 @@
 # 安全策略
 
+[English](SECURITY.en.md) | 中文
+
 ## 支持的版本
 
-只维护最新的 minor 版本（当前 `1.x`）。安全修复进入下一个 patch 版本，不回补旧 minor。历史版本的内容见 [CHANGELOG.md](CHANGELOG.md)。
+只维护最新的 minor 版本系列；当前主线是 `2.x`。安全修复进入下一个 patch 版本，不回补更早的 minor。当前发布版本以 [npm](https://www.npmjs.com/package/cowork-flow) 为准，历史版本的内容见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 上报漏洞
 
@@ -16,7 +18,7 @@ cowork-flow 是一个零运行时依赖的 CLI。它自己不发起网络请求�
 
 | 面 | 相关命令 | 典型问题 |
 |---|---|---|
-| 写入目标项目 | `cwf project init` / `cwf project sync` | 路径穿越、写到目标目录之外、覆盖它声明会保护的文件（`config.yaml`、`.developer`、`spec/backend\|frontend\|guides\|references`、任务与计划） |
+| 写入目标项目 | `cwf project init` / `cwf project sync` | 路径穿越、写到目标目录之外、覆盖它声明会保护的文件（`config.yaml`、`.developer`、`spec/backend/`、`spec/frontend/`、`spec/guides/`、`spec/references/`、`tasks/`、`plans/`） |
 | 写入宿主配置目录 | `cwf host add` / `cwf host remove` | 写到宿主目录之外、破坏宿主自己的配置、卸载时删掉不属于 cowork-flow 的条目 |
 | 转发给宿主 CLI | `cwf host add codex` 等 | 参数/路径拼进宿主命令时被当成额外选项执行 |
 | 宿主 hook 与注入脚本 | 各宿主的 `PostToolUse` hook | 把工具输入（文件路径、工具输出、任务事实）当成指令执行，而不是当成数据 |

@@ -11,7 +11,7 @@ If this is your first time installing and using cowork-flow, read [README](../RE
 | Install, initialize a project, or start a task | [README](../README.en.md) | The shortest path to get started, day-to-day commands, and common questions |
 | Connect cowork-flow to an AI coding host | [Host integration](hosts.en.md) | Installation components, restart requirements, upgrades, uninstallation, and troubleshooting for each host |
 | Understand how project files are organized | [Architecture and extension](architecture.en.md) | The runtime, `template/`, `presets/`, sync policy, and extension boundaries |
-| Contribute to project development | [Contributing](../CONTRIBUTING.md) (Chinese) | Local setup, code conventions, tests, and PR checks |
+| Contribute to project development | [Contributing](../CONTRIBUTING.en.md) | Local setup, code conventions, tests, and PR checks |
 | Understand the test and release process | [Release and maintenance](release.en.md) | Test layers, CI, version releases, and maintainer commands |
 | Understand project direction and version planning | [Direction](direction.en.md) | The positioning statement, settled trade-offs, the version mainline, and open items |
 | See what changed in a given version | [Changelog](../CHANGELOG.md) (Chinese) | Feature changes, fixes, and migration notes recorded by version |
