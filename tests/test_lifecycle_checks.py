@@ -8,7 +8,7 @@ import json
 import os
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -642,7 +642,8 @@ class LifecycleChecksTest(FlowScriptTestCase):
             self.assertEqual(0, review_result, review_stderr)
             self.assertEqual(0, complete_result, complete_stderr)
             self.assertEqual("completed", data["status"])
-            self.assertEqual(datetime.now().strftime("%Y-%m-%d"), data["completedAt"])
+            completed = datetime.strptime(data["completedAt"], "%Y-%m-%d").date()
+            self.assertLessEqual(abs((date.today() - completed).days), 1)
 
     def test_cmd_complete_allows_missing_task_local_review_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

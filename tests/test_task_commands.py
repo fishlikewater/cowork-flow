@@ -11,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -480,7 +479,6 @@ class TaskCommandsTest(FlowScriptTestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / ".cowork-flow").mkdir()
-            date_prefix = datetime.now().strftime("%m-%d")
 
             previous_cwd = Path.cwd()
             try:
@@ -502,9 +500,18 @@ class TaskCommandsTest(FlowScriptTestCase):
             finally:
                 os.chdir(previous_cwd)
 
-            dir_name = f"{date_prefix}-demo-task"
             self.assertEqual(0, result)
-            self.assertTrue((root / ".cowork-flow" / "tasks" / dir_name / "task.json").is_file())
+            task_root = root / ".cowork-flow" / "tasks"
+            created = [
+                path for path in task_root.iterdir()
+                if path.is_dir() and path.name.endswith("-demo-task")
+            ]
+            self.assertEqual(1, len(created))
+            dir_name = created[0].name
+            created_at = json.loads(
+                (created[0] / "task.json").read_text(encoding="utf-8")
+            )["createdAt"]
+            self.assertEqual(f"{created_at[5:10]}-demo-task", dir_name)
             self.assertIn(dir_name, stdout.getvalue())
             self.assertIn("planned-file", stderr.getvalue())
 
@@ -512,7 +519,7 @@ class TaskCommandsTest(FlowScriptTestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / ".cowork-flow").mkdir()
-            date_prefix = datetime.now().strftime("%m-%d")
+            date_prefix = "03-15"
             slug = f"{date_prefix}-demo-task"
 
             previous_cwd = Path.cwd()
@@ -546,7 +553,6 @@ class TaskCommandsTest(FlowScriptTestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / ".cowork-flow").mkdir()
-            date_prefix = datetime.now().strftime("%m-%d")
 
             previous_cwd = Path.cwd()
             try:
@@ -579,8 +585,19 @@ class TaskCommandsTest(FlowScriptTestCase):
                 ).read_text(encoding="utf-8")
             )
             self.assertEqual(0, result)
+            task_root = root / ".cowork-flow" / "tasks"
+            created = [
+                path for path in task_root.iterdir()
+                if path.is_dir() and path.name.endswith("-demo-task")
+            ]
+            self.assertEqual(1, len(created))
+            dir_name = created[0].name
+            created_at = json.loads(
+                (created[0] / "task.json").read_text(encoding="utf-8")
+            )["createdAt"]
+            self.assertEqual(f"{created_at[5:10]}-demo-task", dir_name)
             self.assertEqual(
-                f".cowork-flow/tasks/{date_prefix}-demo-task",
+                f".cowork-flow/tasks/{dir_name}",
                 session["active_task_path"],
             )
 

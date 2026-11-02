@@ -7,6 +7,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -25,6 +26,9 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.10"
+
+      - name: Install pytest
+        run: pip install "pytest>=8"
 
       # The full release gate runs here so a pull request exercises exactly the
       # command publish.yml runs before npm publish. POSIX-only cases are
@@ -46,13 +50,9 @@ jobs:
           tail -20 gate.log >> failing-lines.txt
           while IFS= read -r line; do echo "::error::$line"; done < failing-lines.txt
 
-      - name: Run Python repository tests
-        run: |
-          pip install "pytest>=8"
-          python -m pytest -q
-
   windows-core:
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -92,3 +92,55 @@ jobs:
         run: |
           pip install "pytest>=8"
           python -m pytest -q
+
+  # Compatibility jobs cover the newest supported runtimes without running the
+  # full release gate four times. The main test job above stays on the declared
+  # minimum (Node 20 / Python 3.10); these two only exercise the suites most
+  # likely to expose runtime drift.
+  compat-node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run fast suite on the newest Node
+        run: npm run test:fast
+
+  compat-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: pip install "pytest>=8"
+
+      - name: Run Python repository tests
+        run: python -m pytest -q

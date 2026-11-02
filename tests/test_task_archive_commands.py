@@ -15,8 +15,13 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-
 from tests.flow_test_support import FlowScriptTestCase, ROOT, SCRIPTS
+
+
+class _FixedDatetime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return cls(2026, 3, 15, 12, 0, 0)
 
 
 class TaskArchiveCommandsTest(FlowScriptTestCase):
@@ -48,8 +53,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
                 '{"name": "demo", "status": "completed", "assignee": "codex"}',
                 encoding="utf-8",
             )
-            month = datetime.now().strftime("%Y-%m")
-            archive_dest = tasks_dir / "archive" / month / "05-19-demo"
+            archive_dest = tasks_dir / "archive" / "2026-03" / "05-19-demo"
             archive_dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(task_dir, archive_dest)
 
@@ -57,6 +61,7 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
             try:
                 os.chdir(root)
                 with (
+                    patch("adapters.cli.task_archive_commands.datetime", _FixedDatetime),
                     contextlib.redirect_stdout(io.StringIO()) as stdout,
                     contextlib.redirect_stderr(io.StringIO()) as stderr,
                 ):
@@ -66,6 +71,12 @@ class TaskArchiveCommandsTest(FlowScriptTestCase):
 
             self.assertEqual(0, result, stderr.getvalue())
             self.assertFalse(task_dir.exists())
+            archived = sorted(
+                path.relative_to(tasks_dir / "archive").as_posix()
+                for path in (tasks_dir / "archive").glob("*/*")
+                if path.is_dir()
+            )
+            self.assertEqual(["2026-03/05-19-demo"], archived)
             self.assertTrue((archive_dest / "task.json").is_file())
             self.assertIn(".cowork-flow/tasks/archive/", stdout.getvalue())
 

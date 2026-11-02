@@ -153,6 +153,7 @@ test('package metadata exposes release script and synchronized lockfile version'
   assert.match(windowsCore, / && npm run pack:check && npm run test:template$/);
   assert.match(packageInfo.scripts['test:all'], /npm run test:node:full/);
   assert.match(packageInfo.scripts['test:all'], /npm run test:template:full/);
+  assert.match(packageInfo.scripts['test:all'], /python -m pytest -q/);
   assert.match(packageInfo.scripts['test:all'], /npm run pack:check/);
   // Both names are the same entry point, so whichever one a user types runs
   // the same CLI. The path carries no leading "./": npm rewrites a "./" bin at
@@ -272,13 +273,62 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
     return nextJob === -1 ? remainder : remainder.slice(0, nextJob);
   };
 
-  assert.match(ci, /windows-core:/);
+  const ciJobBlock = (jobName) => {
+    const marker = `  ${jobName}:\n`;
+    const start = ci.indexOf(marker);
+    assert.notEqual(start, -1, `missing CI job: ${jobName}`);
+    const remainder = ci.slice(start + marker.length);
+    const nextJob = remainder.search(/^  [A-Za-z0-9_-]+:\n/m);
+    return nextJob === -1 ? remainder : remainder.slice(0, nextJob);
+  };
+  const jobTimeoutBeforeSteps = (block) => {
+    const timeout = block.indexOf('timeout-minutes:');
+    const steps = block.indexOf('    steps:');
+    return timeout !== -1 && (steps === -1 || timeout < steps);
+  };
+
   assert.match(ci, /runs-on: windows-latest/);
   assert.match(ci, /run: npm run test:windows:core/);
-  assert.match(ci, /pip install "pytest>=8"/);
-  assert.equal((ci.match(/python -m pytest -q/g) ?? []).length, 2);
-  // A pull request must exercise the same gate publish.yml runs before publish.
-  assert.match(ci, /run: npm run release:check/);
+
+  const ciTest = ciJobBlock('test');
+  const ciWindows = ciJobBlock('windows-core');
+  const ciCompatNode = ciJobBlock('compat-node');
+  const ciCompatPython = ciJobBlock('compat-python');
+
+  // Main gate: minimum versions, pytest installed before the gate, no separate
+  // pytest step, and a job-level timeout.
+  assert.match(ciTest, /node-version: 20/);
+  assert.match(ciTest, /python-version: "3.10"/);
+  assert.match(ciTest, /run: npm run release:check/);
+  assert.match(ciTest, /timeout-minutes: 45/);
+  assert.ok(jobTimeoutBeforeSteps(ciTest));
+  const pytestInstall = ciTest.indexOf('name: Install pytest');
+  const releaseGate = ciTest.indexOf('name: Run full release gate');
+  assert.ok(
+    pytestInstall !== -1 && releaseGate !== -1 && pytestInstall < releaseGate,
+    'pytest must be installed before the release gate runs'
+  );
+  assert.doesNotMatch(ciTest, /python -m pytest -q/);
+
+  // Windows keeps its own pytest step and a job-level timeout.
+  assert.match(ciWindows, /run: npm run test:windows:core/);
+  assert.match(ciWindows, /python -m pytest -q/);
+  assert.match(ciWindows, /timeout-minutes: 45/);
+  assert.ok(jobTimeoutBeforeSteps(ciWindows));
+
+  // Compatibility jobs only run the lightweight suites, on the newest
+  // runtimes, with their own job-level timeouts.
+  assert.match(ciCompatNode, /node-version: 24/);
+  assert.match(ciCompatNode, /run: npm run test:fast/);
+  assert.doesNotMatch(ciCompatNode, /release:check/);
+  assert.match(ciCompatNode, /timeout-minutes: 20/);
+  assert.ok(jobTimeoutBeforeSteps(ciCompatNode));
+
+  assert.match(ciCompatPython, /python-version: "3.13"/);
+  assert.match(ciCompatPython, /python -m pytest -q/);
+  assert.doesNotMatch(ciCompatPython, /release:check/);
+  assert.match(ciCompatPython, /timeout-minutes: 20/);
+  assert.ok(jobTimeoutBeforeSteps(ciCompatPython));
 
   const ubuntuVerify = jobBlock('verify-ubuntu');
   const windowsVerify = jobBlock('verify-windows');
