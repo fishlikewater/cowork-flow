@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -571,9 +571,11 @@ test('an installed instance runs the strict task path and refuses to complete it
 
   const archived = instance.run(['task', 'next', instance.taskDir(name), '--run', '--intent', 'archive']);
   assert.equal(archived.status, 0, archived.stderr);
-  assert.equal(
-    existsSync(join(instance.dir, '.cowork-flow', 'tasks', 'archive', '2026-10', name)),
-    true
+  const archiveRoot = join(instance.dir, '.cowork-flow', 'tasks', 'archive');
+  const archivedMonths = readdirSync(archiveRoot).filter((entry) => /^\d{4}-\d{2}$/.test(entry));
+  assert.ok(
+    archivedMonths.some((month) => existsSync(join(archiveRoot, month, name))),
+    `task ${name} must be archived under a YYYY-MM directory`
   );
 });
 

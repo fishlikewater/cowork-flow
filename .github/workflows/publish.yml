@@ -168,4 +168,10 @@ jobs:
         run: npm ci
 
       - name: Publish
-        run: npm publish
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "cowork-flow@${version}" version >/dev/null 2>&1; then
+            echo "cowork-flow@${version} is already published; skipping npm publish."
+          else
+            npm publish
+          fi

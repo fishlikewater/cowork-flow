@@ -1,8 +1,36 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+function bytecodeOffenders(root) {
+  const offenders = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === '__pycache__') {
+          offenders.push(path);
+        } else {
+          walk(path);
+        }
+      } else if (entry.name.endsWith('.pyc')) {
+        offenders.push(path);
+      }
+    }
+  };
+  walk(root);
+  return offenders;
+}
+
+const offenders = bytecodeOffenders('template');
+if (offenders.length > 0) {
+  process.stderr.write(
+    `pack:check found Python bytecode in the shipped template tree:\n${offenders.join('\n')}\n`
+  );
+  process.exit(1);
+}
 
 const npmCache = join(tmpdir(), 'cowork-flow-npm-cache');
 mkdirSync(npmCache, { recursive: true });
