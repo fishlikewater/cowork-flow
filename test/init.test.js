@@ -126,6 +126,9 @@ test('init copies the template into a new target directory', async (t) => {
   const code = await main(['init', target, '--developer', 'codex', '--host', 'codex'], { io });
 
   assert.equal(code, 0);
+  assert.match(io.stdout, /Next: open codex in this project, start a new session/);
+  assert.match(io.stdout, /cwf host add <host>/);
+  assert.match(io.stdout, /docs\/hosts\.md/);
   assert.equal(await exists(join(target, 'AGENTS.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'cowork-flow', 'SKILL.md')), true);
   assert.equal(await exists(join(target, '.agents', 'skills', 'adversarial-review', 'SKILL.md')), true);
@@ -575,6 +578,8 @@ test('init dry-run does not write files', async (t) => {
   assert.equal(await exists(target), false);
   assert.match(io.stdout, /dry-run/);
   assert.match(io.stdout, /would-create=/);
+  assert.match(io.stdout, /Next: open codex in this project, start a new session/);
+  assert.match(io.stdout, /cwf host add <host>/);
 });
 
 test('init dry-run reports existing developer without rewriting', async (t) => {

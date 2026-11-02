@@ -342,6 +342,11 @@ def _print_json_route(
     print(json.dumps(payload, ensure_ascii=False, sort_keys=False))
 
 
+def _text_source(source: str) -> str:
+    """Text output shows the source category, not the internal context key."""
+    return source.split(":", 1)[0]
+
+
 def _print_text_payload(payload: dict[str, object]) -> None:
     action = payload["action"]
     if not isinstance(action, dict):
@@ -390,7 +395,7 @@ def _navigation_target(args, repo_root: Path, structured: bool):
         print(json.dumps(payload, ensure_ascii=False, sort_keys=False))
     else:
         print("Status: no_task")
-        print(f"Source: {source}")
+        print(f"Source: {_text_source(source)}")
         payload = build_navigation_payload(
             args=args,
             status="no_task",
@@ -418,7 +423,7 @@ def _print_stale_route(args, task_path: str, source: str, active_target: bool) -
         )
         return
     print("Status: stale")
-    print(f"Source: {source}")
+    print(f"Source: {_text_source(source)}")
     payload = build_navigation_payload(
         args=args,
         status="stale",
@@ -438,7 +443,7 @@ def _print_text_route(
     active_target: bool,
 ) -> None:
     print(f"Status: {status}")
-    print(f"Source: {source}")
+    print(f"Source: {_text_source(source)}")
     payload = build_navigation_payload(
         args=args,
         status=status,

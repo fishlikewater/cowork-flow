@@ -87,6 +87,25 @@ class TaskNavigationTest(FlowScriptTestCase):
                 " ".join(str(blocker) for blocker in payload["blockers"]),
             )
 
+    def test_cmd_next_text_hides_process_fallback_session_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._seed_fallback_binding(root, "in_progress")
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ, {"ZCODE_PROCESS_LABEL": "local-1"}, clear=True):
+                    with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        result = self.task.cmd_next(argparse.Namespace(dir=None))
+            finally:
+                os.chdir(previous_cwd)
+
+            output = stdout.getvalue()
+            self.assertEqual(0, result)
+            self.assertIn("Source: session", output)
+            self.assertNotIn("zcode_local-1", output)
+
     def test_fallback_blocker_text_gives_an_actionable_recovery_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -157,6 +176,65 @@ class TaskNavigationTest(FlowScriptTestCase):
 
             self.assertEqual(0, result)
             self.assertEqual("in_progress", payload["status"])
+
+    def _seed_trusted_binding(self, root: Path, task_path: str) -> None:
+        sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "main.json").write_text(
+            json.dumps(
+                {
+                    "active_task_path": task_path,
+                    "scope": "main",
+                    "platform": "manual",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def _run_cmd_next_text(self, root: Path, *, env: dict[str, str]) -> tuple[int, str]:
+        previous_cwd = Path.cwd()
+        try:
+            os.chdir(root)
+            with patch.dict(os.environ, env, clear=True):
+                with contextlib.redirect_stdout(io.StringIO()) as stdout:
+                    result = self.task.cmd_next(argparse.Namespace(dir=None))
+        finally:
+            os.chdir(previous_cwd)
+        return result, stdout.getvalue()
+
+    def test_cmd_next_text_hides_session_key_for_active_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            task_dir.mkdir(parents=True)
+            (task_dir / "task.json").write_text(
+                json.dumps({"title": "Demo", "status": "in_progress"}),
+                encoding="utf-8",
+            )
+            self._seed_trusted_binding(root, ".cowork-flow/tasks/05-19-demo")
+
+            result, output = self._run_cmd_next_text(
+                root, env={"COWORK_FLOW_CONTEXT_ID": "main"}
+            )
+
+            self.assertEqual(0, result)
+            self.assertIn("Source: session\n", output)
+            self.assertNotIn("Source: session:main", output)
+
+    def test_cmd_next_text_hides_session_key_for_stale_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow" / "tasks").mkdir(parents=True)
+            self._seed_trusted_binding(root, ".cowork-flow/tasks/missing")
+
+            result, output = self._run_cmd_next_text(
+                root, env={"COWORK_FLOW_CONTEXT_ID": "main"}
+            )
+
+            self.assertEqual(0, result)
+            self.assertIn("Status: stale", output)
+            self.assertIn("Source: session\n", output)
+            self.assertNotIn("Source: session:main", output)
 
     def test_task_next_parser_accepts_structured_output_options(self) -> None:
         args = self.task.build_parser().parse_args(
@@ -870,6 +948,11 @@ class TaskNavigationTest(FlowScriptTestCase):
             self.assertEqual(0, result)
             self.assertIn("Status: no_task", output)
             self.assertIn("Next action: create a planned task", output)
+            self.assertIn("Source: empty-session", output)
+            self.assertNotIn("Source: empty-session:main", output)
+            # The create_task command carries the plan path; the text adapter
+            # adds no phase instruction of its own (skill-owned-actions).
+            self.assertIn("--from-plan .cowork-flow/plans/", output)
             self.assertIn("./.cowork-flow/run task next --run --title", output)
             self.assertNotIn("./.cowork-flow/run task create", output)
             self.assertNotIn("delegated prompt", output)

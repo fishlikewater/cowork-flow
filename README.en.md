@@ -109,7 +109,17 @@ requirements, the plan, and the change scope first, and wait for confirmation be
 editing code.
 ```
 
-To inspect progress by hand, run this in the project root:
+On your first task, walk through the whole sequence:
+
+1. **State the goal**: describe the problem and what counts as done.
+2. **Confirm the plan**: the assistant writes the goal into a plan, lists the files it
+   may change, and waits for your approval.
+3. **Edit code only after that**: implementation starts after the plan is approved; the
+   assistant self-checks, then you review.
+4. **Archive the task**: once accepted, the task is archived and its state stays in the
+   project.
+
+At any step, run the command below to see the current stage and next action:
 
 ```bash
 ./.cowork-flow/run task next

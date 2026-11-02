@@ -423,6 +423,15 @@ export async function runInitWithOptions(
   io.writeOut(`Hosts: ${formatPlatformList(platforms)}\n`);
   emitPythonWarning(io, await (pythonProbe ?? probePython)());
 
+  const emitNextSteps = () => {
+    io.writeOut(
+      `Next: open ${formatPlatformList(platforms)} in this project, start a new session, and describe what you want to build.\n`
+    );
+    io.writeOut(
+      'If the host needs machine-level setup, run: cwf host add <host>   (see docs/hosts.md)\n'
+    );
+  };
+
   if (options.dryRun) {
     if (developer.existing) {
       io.writeOut(`dry-run preserve-existing=.cowork-flow/.developer for developer ${developer.name}\n`);
@@ -437,7 +446,7 @@ export async function runInitWithOptions(
     } else {
       io.writeOut(`dry-run would-create=.cowork-flow/config.yaml for language ${language.language}\n`);
     }
-    io.writeOut('Next: update AGENTS.md and .cowork-flow/config.yaml for this project.\n');
+    emitNextSteps();
     return 0;
   }
 
@@ -454,6 +463,6 @@ export async function runInitWithOptions(
     const source = language.source === 'default' ? ' (default)' : '';
     io.writeOut(`Language initialized: ${language.language}${source}\n`);
   }
-  io.writeOut('Next: update AGENTS.md and .cowork-flow/config.yaml for this project.\n');
+  emitNextSteps();
   return 0;
 }
