@@ -21,7 +21,7 @@
 
 - **发布通道**：发布前查询 npm 已存在版本，避免重复 `npm publish` 红叉；`pack:check` 在打包前拦截交付树中的 `__pycache__`/`.pyc`；修正归档 e2e 对 `archive/2026-10` 的硬编码。
 - **DSH 桌面预设**：0.2.x bundle 的 persona 去掉未注册的 `{{cwd}}` 变量（0.2.1 的 persona section 只注册 `provider`/`model`，工作目录由 `dsh-working-directory` 注入），修复桌面版加载预设时报 `Unknown prompt variable`；0.1.x legacy 目录保持原文案。
-- **hook 测试隔离**：测试夹具共享 scrub 清除宿主 session 变量（`ZCODE_SESSION_ID` 等），zcode 探针显式传 fixture `cwd`，避免在已绑定会话内读到开发者的真实活动任务。
+- **测试隔离**：JS hook 测试共享 scrub 清除宿主 session 变量（`ZCODE_SESSION_ID` 等）并让 zcode 探针显式传 fixture `cwd`；Python 测试基类在 `setUp` 清除 `COWORK_FLOW_*` 与宿主 session 变量并在 cleanup 还原，避免在已绑定会话内读到开发者的真实活动任务。
 
 ## [2.5.0] - 2026-10-26
 
