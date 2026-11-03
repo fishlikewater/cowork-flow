@@ -4,9 +4,24 @@
 
 ### Added
 
+### Changed
+
+## [2.5.1] - 2026-11-03
+
+### Added
+
+- **首次旅程引导**：`cwf project init` 完成后的 `Next:` 提示改为“打开宿主、新开会话、描述需求”，并在需要机器级组件时提示 `cwf host add <host>`；`task next` 无任务时保留 `create a planned task` 与携带 `--from-plan .cowork-flow/plans/YYYY-MM-DD-<task-name>.md` 的创建命令；文本 `Source:` 只显示会话类别，不再暴露进程级 session key；README 中英文补充第一个任务“说清目标 → 确认计划 → 再改代码 → 验收归档”的四步说明。
 - **根级 CONTRIBUTING 与 SECURITY 英文对页**：新增 `CONTRIBUTING.en.md` 与 `SECURITY.en.md`，中文源同步环境要求、仓库位置、宿主测试模式与支持版本；`README.en.md`、`docs/index.en.md`、`docs/release.en.md` 改指英文对页，`test/docs.test.js` 覆盖两份新文档，npm 随包清单纳入 `CONTRIBUTING.en.md`（`SECURITY.en.md` 与中文版一样只在仓库分发）。
 
 ### Changed
+
+- **测试信号与 CI 矩阵**：`test:all` 纳入 `python -m pytest -q`；修正 4 处时间依赖测试（归档目录跨月、`completedAt`、任务目录日期前缀）；新增 Node 24 与 Python 3.13 兼容 job，核心 job 增加 45 分钟超时。
+
+### Fixed
+
+- **发布通道**：发布前查询 npm 已存在版本，避免重复 `npm publish` 红叉；`pack:check` 在打包前拦截交付树中的 `__pycache__`/`.pyc`；修正归档 e2e 对 `archive/2026-10` 的硬编码。
+- **DSH 桌面预设**：0.2.x bundle 的 persona 去掉未注册的 `{{cwd}}` 变量（0.2.1 的 persona section 只注册 `provider`/`model`，工作目录由 `dsh-working-directory` 注入），修复桌面版加载预设时报 `Unknown prompt variable`；0.1.x legacy 目录保持原文案。
+- **hook 测试隔离**：测试夹具共享 scrub 清除宿主 session 变量（`ZCODE_SESSION_ID` 等），zcode 探针显式传 fixture `cwd`，避免在已绑定会话内读到开发者的真实活动任务。
 
 ## [2.5.0] - 2026-10-26
 
@@ -464,7 +479,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.1...HEAD
+[2.5.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.2...v2.5.0
 [2.4.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.0...v2.4.1
