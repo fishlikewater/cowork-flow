@@ -335,6 +335,16 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
   const publishJob = jobBlock('publish');
   assert.match(ubuntuVerify, /run: npm run release:check/);
   assert.match(windowsVerify, /run: npm run release:check/);
+  // test:all runs pytest, and a runner only has what the job installs. Without
+  // this step both verify jobs fail before publish on a clean runner.
+  for (const [name, block] of [['verify-ubuntu', ubuntuVerify], ['verify-windows', windowsVerify]]) {
+    const install = block.indexOf('pip install "pytest>=8"');
+    const gate = block.indexOf('run: npm run release:check');
+    assert.ok(
+      install !== -1 && install < gate,
+      `${name} must install pytest before it runs release:check`
+    );
+  }
   assert.match(publishJob, /needs: \[verify-ubuntu, verify-windows\]/);
 
   // Publishing runs on Trusted Publishing: the runner presents a GitHub OIDC

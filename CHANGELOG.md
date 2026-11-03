@@ -6,6 +6,12 @@
 
 ### Changed
 
+## [2.5.2] - 2026-11-03
+
+### Fixed
+
+- **发布工作流**：`publish.yml` 的 `verify-ubuntu` 与 `verify-windows` 在 `release:check` 前安装 pytest。2.5.1 起 `test:all` 纳入 `python -m pytest`，而干净 runner 默认没有 pytest，两个 verify job 会在发布前失败并跳过 publish。
+
 ## [2.5.1] - 2026-11-03
 
 ### Added
@@ -479,7 +485,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.1...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.2...HEAD
+[2.5.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.2...v2.5.0
 [2.4.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.1...v2.4.2
