@@ -7,6 +7,7 @@ import { test } from "node:test"
 import { pathToFileURL } from "node:url"
 
 import "./helpers/bytecode-isolation.js"
+import { isHostSessionEnv } from "./helpers/session-env.js"
 import { packageRoot } from "../src/lib/paths.js"
 import { CoworkFlowPlugin } from "../template/.opencode/plugins/cowork-flow.js"
 
@@ -24,13 +25,14 @@ const PLUGIN_MODULE = PLUGIN_MODULES[0]
 const TEMPLATE_SCRIPTS = join(packageRoot, "template", ".cowork-flow", "scripts")
 
 // The transform spawns the Python runtime with this process's environment; a
-// developer running the suite inside a bound cowork-flow session has
-// COWORK_FLOW_* set, and the env layer outranks the hook payload, so every
-// render here runs with those variables removed (plus any test overrides).
+// developer running the suite inside a bound cowork-flow session has workflow
+// and host session variables set, and the env layer outranks the hook payload,
+// so every render here runs with those variables removed (plus any test
+// overrides).
 async function withScrubbedEnv(overrides, fn) {
   const saved = {}
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("COWORK_FLOW_")) {
+    if (isHostSessionEnv(key)) {
       saved[key] = process.env[key]
       delete process.env[key]
     }
@@ -40,7 +42,7 @@ async function withScrubbedEnv(overrides, fn) {
     return await fn()
   } finally {
     for (const key of Object.keys(process.env)) {
-      if (key.startsWith("COWORK_FLOW_")) {
+      if (isHostSessionEnv(key)) {
         delete process.env[key]
       }
     }

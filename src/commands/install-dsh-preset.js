@@ -25,9 +25,13 @@ const DESKTOP_ROW_SWAP = {
   from: { id: 'workflow-worker-thread', name: '@deepseek-ai/dsh-workflow-worker-thread' },
   to: { id: 'workflow-ptc', name: '@deepseek-ai/dsh-workflow-ptc' },
 };
-// 0.2.0's `dsh-persona` takes `prefix`/`suffix` where 0.1.x takes one `text`;
-// the wording moves to `prefix` unchanged and `suffix` keeps its default.
+// 0.2.0's `dsh-persona` takes `prefix`/`suffix` where 0.1.x takes one `text`.
+// Its persona section resolves only `provider`/`model` — the working directory
+// arrives as user-role context from `dsh-working-directory` — so the 0.1.x
+// `{{cwd}}` clause is dropped; 0.1.x resolves that variable from the agent's
+// workspace.
 const DESKTOP_PERSONA_KEY = /(- id: persona\n(?:.*\n)*? {4})text: /;
+const DESKTOP_CWD_CLAUSE = ' Your working directory is {{cwd}}.';
 
 // Rendered by `host add`/`host remove`; the installer's
 // own vocabulary.
@@ -85,8 +89,8 @@ function quoteScalar(value) {
 }
 
 
-// Apply the desktop's row rewrites to the 0.1.x composition. Only rows whose
-// host API differs between the two lines belong here.
+// Apply the desktop's rewrites to the 0.1.x composition. Only what the host
+// APIs force to differ between the two lines belongs here.
 function toDesktopComposition(text) {
   return text
     .replace(`- id: ${DESKTOP_ROW_SWAP.from.id}`, `- id: ${DESKTOP_ROW_SWAP.to.id}`)
@@ -94,7 +98,8 @@ function toDesktopComposition(text) {
       `name: '${DESKTOP_ROW_SWAP.from.name}'`,
       `name: '${DESKTOP_ROW_SWAP.to.name}'`
     )
-    .replace(DESKTOP_PERSONA_KEY, '$1prefix: ');
+    .replace(DESKTOP_PERSONA_KEY, '$1prefix: ')
+    .replace(DESKTOP_CWD_CLAUSE, '');
 }
 
 

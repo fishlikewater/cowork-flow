@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import './helpers/bytecode-isolation.js';
+import { scrubHostSessionEnv } from './helpers/session-env.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 const NODE = process.execPath;
@@ -178,13 +179,10 @@ print(context)
 }
 
 // A probe must not inherit this checkout's own workflow session: a
-// developer running the suite from inside a bound session has
-// COWORK_FLOW_* set, and the env layer outranks the probe's payload.
+// developer running the suite from inside a bound session carries workflow
+// and host session variables, and the env layer outranks the probe's payload.
 function probeEnv(overrides = {}) {
-  const clean = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !key.startsWith('COWORK_FLOW_'))
-  );
-  return { ...clean, ...overrides };
+  return { ...scrubHostSessionEnv(process.env), ...overrides };
 }
 
 function runZcodeBlock(root, caseDef) {
@@ -192,6 +190,10 @@ function runZcodeBlock(root, caseDef) {
   const delegated = caseDef.status === 'delegated_subtask';
   const input = {
     hook_event_name: 'UserPromptSubmit',
+    // The shim falls back to ZCODE_PROJECT_DIR / CLAUDE_PROJECT_DIR before
+    // process.cwd(); the probe's own root must win over the developer's
+    // checkout, or the zcode line renders the live task instead of the case.
+    cwd: root,
     ...(delegated ? {} : { session_id: 'probe' }),
   };
   const env = probeEnv(delegated ? { COWORK_FLOW_RUNTIME_CONTEXT_ID: 'rtx_probe' } : {});
@@ -292,7 +294,11 @@ function runZcodeAnchor(root) {
       encoding: 'utf8',
       cwd: root,
       env: probeEnv(),
-      input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'probe' }),
+      input: JSON.stringify({
+        hook_event_name: 'UserPromptSubmit',
+        session_id: 'probe',
+        cwd: root,
+      }),
     }
   );
   assert.equal(zcode.status, 0, `zcode hook failed: ${zcode.stderr}`);

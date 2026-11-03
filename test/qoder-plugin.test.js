@@ -9,6 +9,7 @@ import { runInstallQoderPlugin } from '../src/commands/install-qoder-plugin.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { templateRoot } from '../src/lib/paths.js';
 import { readPluginMetadata } from '../src/lib/plugin-metadata.js';
+import { scrubHostSessionEnv } from './helpers/session-env.js';
 
 const PLUGIN_KEY = 'cowork-flow@cowork-flow-local';
 const FOREIGN_PLUGIN_KEY = 'someone-else@their-market';
@@ -29,7 +30,7 @@ function runShim(input, cwd, extraEnv = {}) {
     input: `${JSON.stringify(input)}\n`,
     encoding: 'utf8',
     env: {
-      ...process.env,
+      ...scrubHostSessionEnv(process.env),
       ...extraEnv,
       COWORK_FLOW_CONTEXT_ID: '',
       COWORK_FLOW_RUNTIME_CONTEXT_ID: '',

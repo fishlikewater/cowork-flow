@@ -206,6 +206,27 @@ test('each delivered line carries the persona key that line schema takes', async
 });
 
 
+test('the desktop persona drops a variable its prompt registry does not define', async (t) => {
+  const { legacyDir, bundleDir } = await withDshHome(t);
+
+  await runInstallDshPreset([]);
+
+  const patch = await readFile(join(bundleDir, 'cordis.patch.yml'), 'utf8');
+  const legacy = await readFile(join(legacyDir, 'agent.cordis.yml'), 'utf8');
+
+  // 0.2.x's `deployment:persona-prefix` section resolves only `provider` and
+  // `model`; the working directory arrives from `dsh-working-directory` as
+  // user-role context. An unknown variable fails the whole preset, so the
+  // 0.1.x clause must not reach the bundle.
+  assert.match(patch, /\{\{model\}\}/);
+  assert.doesNotMatch(patch, /\{\{cwd\}\}/);
+
+  // 0.1.x resolves `{{cwd}}` from the agent's workspace; its directory keeps
+  // the source composition byte-for-byte.
+  assert.match(legacy, /\{\{cwd\}\}/);
+});
+
+
 test('the two lines differ only in the rows the host APIs force them to', async (t) => {
   const { legacyDir, bundleDir } = await withDshHome(t);
 
