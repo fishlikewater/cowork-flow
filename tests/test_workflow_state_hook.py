@@ -11,6 +11,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.flow_test_support import (
+    restore_host_session_env,
+    scrub_host_session_env,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
@@ -80,6 +85,8 @@ def _isolated_session_env():
 
 class WorkflowStateHookTest(unittest.TestCase):
     def setUp(self) -> None:
+        saved = scrub_host_session_env()
+        self.addCleanup(restore_host_session_env, saved)
         self.module = _load_module()
 
     def test_no_active_task_renders_no_task_breadcrumb_and_digest(self) -> None:

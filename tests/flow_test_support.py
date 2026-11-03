@@ -17,9 +17,44 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 
+# Host session variables identify the developer's own agent session. Tests bind
+# their own sessions; inheriting these would let the runtime resolve the
+# developer's live task, because the env layer outranks payload/fixture values.
+HOST_SESSION_ENV = (
+    "ZCODE_SESSION_ID",
+    "ZCODE_PROCESS_LABEL",
+    "OPENCODE_SESSION_ID",
+    "CLAUDE_SESSION_ID",
+    "CLAUDE_CODE_SESSION_ID",
+    "CODEX_SESSION_ID",
+    "CODEX_THREAD_ID",
+    "DSH_SESSION_ID",
+    "QODER_SESSION_ID",
+    "COWORK_FLOW_CONTEXT_ID",
+    "COWORK_FLOW_RUNTIME_CONTEXT_ID",
+)
+
+
+def scrub_host_session_env() -> dict[str, str]:
+    names = [
+        name
+        for name in os.environ
+        if name.startswith("COWORK_FLOW_") or name in HOST_SESSION_ENV
+    ]
+    saved = {name: os.environ[name] for name in names}
+    for name in names:
+        os.environ.pop(name, None)
+    return saved
+
+
+def restore_host_session_env(saved: dict[str, str]) -> None:
+    os.environ.update(saved)
+
 
 class FlowScriptTestCase(unittest.TestCase):
     def setUp(self) -> None:
+        saved = scrub_host_session_env()
+        self.addCleanup(restore_host_session_env, saved)
         if str(SCRIPTS) not in sys.path:
             sys.path.insert(0, str(SCRIPTS))
             self.addCleanup(sys.path.remove, str(SCRIPTS))

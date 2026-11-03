@@ -8,6 +8,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.flow_test_support import (
+    restore_host_session_env,
+    scrub_host_session_env,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SUBAGENT = ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" / "subagent.py"
@@ -15,6 +20,11 @@ SUBAGENT = ROOT / "template" / ".cowork-flow" / "scripts" / "adapters" / "cli" /
 
 class SubagentDispatchTest(unittest.TestCase):
     def setUp(self) -> None:
+        # Drop the developer's host session first: `detect_host` walks the host
+        # table, so a live ZCode/Claude session would outrank the codex identity
+        # these dispatch tests declare.
+        saved = scrub_host_session_env()
+        self.addCleanup(restore_host_session_env, saved)
         # `subagent init` no longer guesses a host when the process carries no
         # host evidence (AC-004). These dispatch tests assert codex-prefixed
         # identities, so they declare a codex session the way a real one does.
