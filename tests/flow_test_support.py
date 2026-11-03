@@ -23,13 +23,17 @@ SCRIPTS = ROOT / "template" / ".cowork-flow" / "scripts"
 HOST_SESSION_ENV = (
     "ZCODE_SESSION_ID",
     "ZCODE_PROCESS_LABEL",
+    "ZCODE_PROJECT_DIR",
     "OPENCODE_SESSION_ID",
     "CLAUDE_SESSION_ID",
     "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_PROJECT_DIR",
     "CODEX_SESSION_ID",
     "CODEX_THREAD_ID",
     "DSH_SESSION_ID",
     "QODER_SESSION_ID",
+    "QODER_PROJECT_DIR",
+    "QODER_WORKING_DIR",
     "COWORK_FLOW_CONTEXT_ID",
     "COWORK_FLOW_RUNTIME_CONTEXT_ID",
 )
@@ -48,6 +52,11 @@ def scrub_host_session_env() -> dict[str, str]:
 
 
 def restore_host_session_env(saved: dict[str, str]) -> None:
+    # Restore means the pre-scrub state: a host variable the test itself set
+    # must be dropped rather than kept alongside the saved values.
+    for name in list(os.environ):
+        if name.startswith("COWORK_FLOW_") or name in HOST_SESSION_ENV:
+            del os.environ[name]
     os.environ.update(saved)
 
 

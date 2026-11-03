@@ -6,6 +6,7 @@ import { join, relative } from 'node:path';
 import { test } from 'node:test';
 
 import { runInstallZCodePlugin } from '../src/commands/install-zcode-plugin.js';
+import { scrubHostSessionEnv } from './helpers/session-env.js';
 import { readPackageInfo } from '../src/lib/package-info.js';
 import { packageRoot, templateRoot } from '../src/lib/paths.js';
 import { marketplaceIconUrl, readPluginMetadata } from '../src/lib/plugin-metadata.js';
@@ -91,7 +92,7 @@ function spawnZCodeHook(input, options = {}) {
     input: `${JSON.stringify(input)}\n`,
     encoding: 'utf8',
     env: {
-      ...process.env,
+      ...scrubHostSessionEnv(process.env),
       ...(options.env || {}),
       ZCODE_PLUGIN_ROOT: join(packageRoot, 'presets', 'zcode'),
       ZCODE_PROJECT_DIR: '',

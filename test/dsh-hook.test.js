@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { apply, candidateUnavailable, editedFilePath, findCoworkRoot, isLifecycleCommand, resetWorkingPython, runEditScopeCheck, runWorkflowState } from '../presets/dsh/plugins/workflow-state.js';
+import { removeHostSessionEnv, restoreHostSessionEnv } from './helpers/session-env.js';
 import { packageRoot } from '../src/lib/paths.js';
 
 // The hook's python child writes bytecode into the temp project
@@ -27,6 +28,27 @@ async function removeDirWithRetries(dir, removeImpl = rm) {
   }
   throw new Error(`cleanup of ${dir} is still blocked by a lock after 20 attempts`);
 }
+
+test('restoreHostSessionEnv returns the environment to its pre-scrub state', () => {
+  const unrelatedKey = 'CFF_TEST_UNRELATED';
+  const beforeHost = process.env.COWORK_FLOW_HOST;
+  const beforeDsh = process.env.DSH_SESSION_ID;
+  process.env[unrelatedKey] = 'kept';
+  const saved = removeHostSessionEnv();
+  try {
+    process.env.COWORK_FLOW_HOST = 'test-created';
+    process.env.DSH_SESSION_ID = 'test-created';
+    restoreHostSessionEnv(saved);
+    assert.equal(process.env.COWORK_FLOW_HOST, beforeHost);
+    assert.equal(process.env.DSH_SESSION_ID, beforeDsh);
+    // A non-host variable survives both the scrub and the restore.
+    assert.equal(process.env[unrelatedKey], 'kept');
+  } finally {
+    restoreHostSessionEnv(saved);
+    delete process.env[unrelatedKey];
+  }
+});
+
 
 // The workflow runtime under the repository root is a gitignored live
 // checkout (source-refresh), so CI checkouts do not have it. Every test that
@@ -497,13 +519,9 @@ test('editedFilePath reads only fs edit tools carrying a file path', () => {
 
 test('runEditScopeCheck reports an out-of-scope edit and stays silent otherwise', async (t) => {
   const project = await createScopeProject(t);
-  const previous = process.env.DSH_SESSION_ID;
+  const saved = removeHostSessionEnv();
   t.after(() => {
-    if (previous === undefined) {
-      delete process.env.DSH_SESSION_ID;
-    } else {
-      process.env.DSH_SESSION_ID = previous;
-    }
+    restoreHostSessionEnv(saved);
     resetWorkingPython();
   });
 
@@ -525,13 +543,9 @@ test('runEditScopeCheck reports an out-of-scope edit and stays silent otherwise'
 
 test('apply merges the edit-scope notice into the finished tool result', async (t) => {
   const project = await createScopeProject(t);
-  const previous = process.env.DSH_SESSION_ID;
+  const saved = removeHostSessionEnv();
   t.after(() => {
-    if (previous === undefined) {
-      delete process.env.DSH_SESSION_ID;
-    } else {
-      process.env.DSH_SESSION_ID = previous;
-    }
+    restoreHostSessionEnv(saved);
     resetWorkingPython();
   });
   process.env.DSH_SESSION_ID = 's1';
