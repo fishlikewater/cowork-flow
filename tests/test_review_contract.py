@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import unittest
@@ -268,6 +269,54 @@ class SpecReviewContractTest(unittest.TestCase):
         )
         missing = [marker for marker in required_markers if marker not in skill]
         self.assertEqual([], missing)
+
+    def test_adversarial_review_skill_rejects_padding_and_follows_response_language(
+        self,
+    ) -> None:
+        skill = (TEMPLATE / "skills" / "adversarial-review" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        required_markers = (
+            "A finding is real only when all three parts exist",
+            "**Location**",
+            "**Trigger**",
+            "**Consequence**",
+            "Report nothing when nothing qualifies",
+            "no real problems found",
+            "Do not pad",
+            "hypothetical risk with no reachable trigger",
+            "the same finding twice under a different label",
+            "Do not mix languages inside one heading",
+            "## 结论",
+            "## 发现",
+            "## 待确认",
+            "## Verdict",
+            "## Findings",
+            "## Open questions",
+            "Omit any section that would be empty",
+        )
+        missing = [marker for marker in required_markers if marker not in skill]
+        self.assertEqual([], missing)
+
+    def test_adversarial_review_skill_copies_match(self) -> None:
+        template_path = TEMPLATE / "skills" / "adversarial-review" / "SKILL.md"
+        root_path = ROOT / ".agents" / "skills" / "adversarial-review" / "SKILL.md"
+        if not root_path.is_file():
+            # The source-checkout replica is gitignored, so a clean checkout has
+            # no installed copy to compare against.
+            self.skipTest(f"installed Skill replica missing: {root_path}")
+
+        template = template_path.read_bytes()
+        root = root_path.read_bytes()
+
+        self.assertEqual(
+            template,
+            root,
+            "template and installed adversarial-review SKILL.md bytes drifted: "
+            f"template sha256={hashlib.sha256(template).hexdigest()} "
+            f"installed sha256={hashlib.sha256(root).hexdigest()}",
+        )
 
     def test_task_review_skill_avoids_review_evidence_artifact_pressure(self) -> None:
         skill = (TEMPLATE / "skills" / "task-review" / "SKILL.md").read_text(
