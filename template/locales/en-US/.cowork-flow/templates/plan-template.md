@@ -55,6 +55,11 @@ Tiny plans may keep a shorter brief, but must still name exact file boundaries, 
 - Change: `function_name()`, `ClassName.method()`, `<config-key>`
 - Preserve: `existing_helper()`, output field `<field>`
 
+**Hotspot and Change Shape**
+- Hotspot: <no / yes: function is N lines / N branches / executable source file touched by N commits in the last 180 days; evidence: `<command>`>
+- Change shape: replace / extract / delete / append (multiple allowed; "append" requires why the old path cannot be replaced or extracted)
+- Target structure: <which function/module owns what responsibility after this change; if unchanged, say "unchanged" and why>
+
 **Implementation Notes**
 ```python
 # Core control-flow sketch; adjust names to match existing code.

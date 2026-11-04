@@ -191,6 +191,47 @@ class SpecReviewContractTest(unittest.TestCase):
         self.assertEqual([], [marker for marker in required_markers if marker not in skill])
         self.assertEqual([], [marker for marker in forbidden_markers if marker in skill])
 
+    def test_task_planning_and_review_structure_rules(self) -> None:
+        """Hotspot and change-shape judgment ships in the Skills agents read.
+
+        The plan brief field is the only hard gate; these two Skills carry the
+        judgment that keeps a declared shape honest — planning classifies the
+        hotspot, review checks the diff against it. Only the shipped tree is
+        read, so a clean CI checkout without the gitignored `.agents/` replica
+        still runs the check.
+        """
+        planning = (
+            TEMPLATE / "skills" / "task-planning" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        review = (
+            TEMPLATE / "skills" / "task-review" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        planning_markers = (
+            "git log --oneline -10",
+            "The churn criterion does not apply to docs, skills, or templates",
+            "This change is only 10 lines",
+            "The old path cannot move",
+            "Extracting a helper counts as restructuring",
+            "Confirm every Normal/High-risk brief",
+        )
+        review_markers = (
+            "Structure fit",
+            "Declared replace/extract/delete",
+            "A new helper that only moves code",
+            "Structural findings are",
+            "never `minor`",
+            "disposition",
+            "negativeProof",
+        )
+
+        self.assertEqual(
+            [], [marker for marker in planning_markers if marker not in planning]
+        )
+        self.assertEqual(
+            [], [marker for marker in review_markers if marker not in review]
+        )
+
     def test_spec_sync_skill_declares_no_check_declaration_duty(self) -> None:
         """Sync still owns concrete spec updates, but the `checks:` frontmatter
         declaration went away with `spec-check`; re-teaching it would point

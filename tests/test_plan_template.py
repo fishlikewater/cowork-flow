@@ -58,6 +58,7 @@ BRIEF_MARKERS = {
     "sources": ("**代码事实来源**", "**Code Fact Sources**"),
     "files": ("**文件边界**", "**File Boundaries**"),
     "symbols": ("**关键符号**", "**Key Symbols**"),
+    "hotspot": ("**热点与改动形状**", "**Hotspot and Change Shape**"),
     "notes": ("**实现说明**", "**Implementation Notes**"),
     "proof": ("**测试证明**", "**Test Proof**"),
     "verify": ("**验证命令**", "**Verification Command**"),

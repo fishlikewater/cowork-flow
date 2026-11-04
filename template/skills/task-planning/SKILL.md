@@ -19,6 +19,7 @@ Read:
 - Relevant `.cowork-flow/spec/` indexes and target specs.
 - `.cowork-flow/spec/guides/index.md` for non-trivial, ambiguous, cross-layer, or reusable-work planning.
 - Files that define the contracts being changed.
+- Recent history of every target file: `git log --oneline -10 -- <file>`; for a gitignored live copy, query its tracked `template/` source path. When an existing function already exceeds the 60-line soft budget, `git blame -L <start>,<end> -- <file>`.
 
 ## Plan Shape
 
@@ -69,6 +70,7 @@ Fill the template in order: header table and goal first, then acceptance criteri
 - Each task names exact files to create, modify, or test.
 - Each task is small enough to execute and verify independently.
 - Every Normal or High-risk task fills every required field in the template's task brief: Purpose, Code Fact Sources, File Boundaries, Key Symbols, Implementation Notes, Test Proof, Verification Command, Completion Conditions, Prohibited Drift, and Deviation Conditions.
+- Every Normal or High-risk task fills the hotspot and change-shape brief field (immediately after Key Symbols in the installed template). Treat the target as a hotspot when any of these is true: the target function already exceeds the 60-line soft budget; it has 6+ control-flow branches or 3+ nesting levels; the target file is an executable source file touched by 5+ commits in the last 180 days (query the tracked `template/` source path for gitignored live copies); or this change adds a parameter, boolean flag, or mode branch to an existing function. The churn criterion does not apply to docs, skills, or templates. A hotspot defaults to replace/extract/delete; append requires a concrete reason why the old path cannot be changed.
 - For Tiny tasks, keep the brief short but still name exact file boundaries, completion conditions, and verification commands.
 - For behavior changes, include a failing test before implementation when behavior can be tested.
 - For implementation tasks whose changed files are covered by `.cowork-flow/spec/` requirements, name the covered spec files in the plan and add the clause check to the task's `Verification Command` and the plan's `Final Verification`: run the deciding command when one exists, otherwise check clause by clause and record `pass` / `not_applicable` with reason. For strict non-Tiny tasks this is a hard start gate: the bound plan and the task anchor must use the configured-language verification heading and carry a filled spec-check result. The template placeholder `<pass / not_applicable + reason>` blocks start; replace it before starting. The content remains self-declared and is reviewed by the check agent.
@@ -89,6 +91,9 @@ Fill the template in order: header table and goal first, then acceptance criteri
 | "Skip the plan since we already have decision-anchor." | `decision-anchor.md` defines what to do; the plan defines how to do it and in what order. Without a plan, dependency mistakes surface mid-implementation and increase rework. | Derive ACs from `decision-anchor.md`, then map each AC to concrete files and verification commands. |
 | "This task does not need a verification command." | No verification means no completion signal. Every task needs an executable verification command. | Add at least one automated check, such as typecheck, test, lint, or build. |
 | "The plan should explore every alternative." | Heavy option analysis slows routine implementation and hides the path to execute. | State the chosen path and drift boundaries. Add option analysis only when the user asks or the decision is genuinely architectural. |
+| "This change is only 10 lines, no refactor needed." | Patch size is not the criterion; 10 lines added to an 80-line function is still a patch. | Classify the hotspot, then choose the shape. |
+| "The old path cannot move, so append is the only option." | "Cannot move" must name the call site, compatibility constraint, or missing baseline test; otherwise add the test and replace. | State the concrete obstacle, or change the shape. |
+| "Extracting a helper counts as restructuring." | Moving code without reducing responsibilities is a fake refactor. | The target structure must say which responsibility moved out. |
 
 ## Fixed-Agent Dispatch
 
@@ -144,3 +149,4 @@ Before handoff:
 6. Confirm Final Verification carries the applicable `.cowork-flow/spec/<dev_type>/` clause check with an actual `pass` / `not_applicable` result, or states why no spec file applies. For strict non-Tiny tasks the runtime blocks start when this line is missing or still the template placeholder.
 7. Confirm the plan is written in the configured language and keeps the machine-readable goal line and `AC-NNN` identifiers unchanged.
 8. Run `plan finalize <task-dir>` and fix every reported blocker before handing the plan to the user for review.
+9. Confirm every Normal/High-risk brief has a non-placeholder hotspot and change-shape field, and that the declared shape matches the planned diff.

@@ -54,6 +54,11 @@ PLAN_TEXT = """# 演示实施计划
 **关键符号**
 - Change: `demo`
 
+**热点与改动形状**
+- 热点判定：否；示例文件是单次演示，无历史热点。
+- 本次改动形状：追加。
+- 目标结构：演示字段由示例函数承担。
+
 **实现说明**
 ```python
 value = 1
@@ -558,6 +563,66 @@ class PlanReadinessTest(FlowScriptTestCase):
             blockers = self._blockers(root, task_dir)
 
         self.assertTrue(any("测试证明" in item for item in blockers), blockers)
+
+    def test_missing_hotspot_field_is_rejected(self) -> None:
+        en_template = (
+            ROOT
+            / "template"
+            / "locales"
+            / "en-US"
+            / ".cowork-flow"
+            / "templates"
+            / "plan-template.md"
+        )
+        en_plan = self._plan_from_template(
+            en_template.read_text(encoding="utf-8"),
+            "en-US",
+            "Hotspot and Change Shape",
+        )
+        hotspot_start = en_plan.index("**Hotspot and Change Shape**")
+        en_plan = (
+            en_plan[:hotspot_start]
+            + en_plan[en_plan.index("**Implementation Notes**", hotspot_start):]
+        )
+        cases = (
+            (
+                "zh-CN",
+                PLAN_TEXT.replace(
+                    "**热点与改动形状**\n"
+                    "- 热点判定：否；示例文件是单次演示，无历史热点。\n"
+                    "- 本次改动形状：追加。\n"
+                    "- 目标结构：演示字段由示例函数承担。\n\n",
+                    "",
+                ),
+                ANCHOR_TEXT,
+                "热点与改动形状",
+                None,
+            ),
+            (
+                "en-US",
+                en_plan,
+                ANCHOR_TEXT_EN,
+                "Hotspot and Change Shape",
+                en_template,
+            ),
+        )
+        for language, plan, anchor_text, field, template_source in cases:
+            with self.subTest(language=language):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    task_dir = self._write_task(
+                        root,
+                        plan_text=plan,
+                        anchor_text=anchor_text,
+                        language=language,
+                        template_source=template_source,
+                    )
+
+                    blockers = self._blockers(root, task_dir)
+
+                self.assertTrue(
+                    any(field in item for item in blockers), blockers
+                )
 
     def test_anchor_acceptance_and_goal_must_match_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

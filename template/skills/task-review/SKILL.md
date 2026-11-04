@@ -42,6 +42,12 @@ Read only what is needed for the current task:
 - **User specs**: every applicable backend/frontend requirement is verified against the diff and marked `pass`, `finding`, or `not_applicable` with reason. Every `finding` is fixed during review; an unfixed spec violation blocks completion and is never accepted as-is or deferred to the user. For each requirement, also ask whether it is machine-checkable (可机检) and name the command that decides it together with what that command reports when the clause is broken: a machine-checkable clause left with no deciding command is itself a finding. Review never rewrites the clause text — a conflict between a clause and the implementation is raised through the review for the user to decide. Delegated subagents do not edit specs; they report candidates up.
 - **Specs**: project specs are updated when behavior/contracts changed, or the review states why no spec update is needed.
 - **Code quality**: naming, layering, error handling, state boundaries, security-sensitive paths, and complexity are reviewed against applicable user specs.
+- **Structure fit**: the plan's declared hotspot and change shape match the diff, and the change actually reduces responsibility.
+  - Declared replace/extract/delete: the diff must delete or rewrite the old path. Additions alone mean the strategy was not executed.
+  - Declared append: the plan must name the concrete obstacle (call site, compatibility, missing baseline test), not "minimal change".
+  - A new helper that only moves code without reducing responsibilities is not a fix.
+  - Evidence: `git diff -- <path>`; when the plan says "not a hotspot", independently run `git log --oneline -10 -- <file>` or `git blame -L <start>,<end> -- <file>` on the tracked source path.
+  - Record each structural finding with `disposition`: `fixed` or `accepted`. An accepted finding carries `acceptedBy` and `acceptedAt` in the receipt.
 - **Lifecycle blockers**: state/scope blockers are fixed before acceptance; review does not invent hard blockers for natural-language specs.
 - **Delegated acceptance**: when the implementation came from a delegated subagent, verify the changed paths against the task scope and the applicable `spec/` requirements before accepting its report — delegated sessions receive no edit-phase hook feedback on some hosts, so the report can be silently out of scope or out of spec; every violation is fixed or blocks acceptance.
 - **Advisory facts**: helper output is used to focus review, not to declare pass/fail or block completion.
@@ -62,6 +68,12 @@ A finding is a machine-readable fact, not prose: the completion path and `subage
 {"clause": "所有源文件 UTF-8 无 BOM", "command": "python scripts/check_bom.py", "negativeProof": "写入 BOM 后该命令退出码 1 并打印 offending file"}
 ```
 
+Structural example:
+
+```json
+{"clause": "The plan declares replace but the diff only adds lines", "command": "git diff -- path/to/file.py", "negativeProof": "deleted=0 and the old branch is still present", "disposition": "fixed"}
+```
+
 `./.cowork-flow/run subagent check-review <subagent-id> --task-dir <dir> --result pass --changed-fingerprint <fp> --finding '<json>'` (repeatable).
 
 The receipt is only as good as its provenance: completion re-reads the runtime
@@ -75,6 +87,7 @@ than presenting the review as session-verified.
 - `critical`: correctness, security, data loss, lifecycle bypass, or completion would be invalid. Blocks completion.
 - `important`: maintainability, missing meaningful tests, spec drift, or likely future bug. Fix before completion unless explicitly accepted.
 - `minor`: clarity or polish that does not invalidate completion. May be noted without blocking.
+- Structural findings are `important` or `critical`, never `minor`.
 - Violations of user-defined backend/frontend specs are not eligible for acceptance at any severity; they are fixed or block completion.
 
 ## Output
