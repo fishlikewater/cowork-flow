@@ -295,6 +295,17 @@ class SpecReviewContractTest(unittest.TestCase):
             "## Findings",
             "## Open questions",
             "Omit any section that would be empty",
+            "Severity labels follow the report language",
+            "致命 / `critical`",
+            "次要 / `minor`",
+            "one short block per finding",
+            "### 1.",
+            "- 位置：",
+            "- 触发：",
+            "- 后果：",
+            "- 修复：",
+            "`Location` /",
+            "`Trigger` / `Consequence` / `Fix`",
         )
         missing = [marker for marker in required_markers if marker not in skill]
         self.assertEqual([], missing)

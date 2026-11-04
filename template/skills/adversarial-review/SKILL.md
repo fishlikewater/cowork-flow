@@ -65,28 +65,44 @@ finding. Ask it only when the answer would change the conclusion.
 
 Use severity to keep doubt actionable instead of theatrical.
 
-- `critical`: invalidates correctness, safety, lifecycle boundaries, data integrity, or completion readiness.
-- `important`: likely bug, missing meaningful verification, spec drift, or maintainability risk that should be fixed before completion.
-- `minor`: clarity, naming, or polish that should be noted but does not block progress.
+Severity labels follow the report language: Chinese `致命` / `重要` / `次要`;
+English `critical` / `important` / `minor`.
 
-`minor` findings still need the three-part evidence. Cosmetic observations that
-fail it stay out of the report.
+- 致命 / `critical`: invalidates correctness, safety, lifecycle boundaries, data integrity, or completion readiness.
+- 重要 / `important`: likely bug, missing meaningful verification, spec drift, or maintainability risk that should be fixed before completion.
+- 次要 / `minor`: clarity, naming, or polish that should be noted but does not block progress.
+
+Every level still needs the three-part evidence. Cosmetic observations that fail
+it stay out of the report.
 
 ## Output
 
 Keep the report short and use the language of the surrounding conversation for
-both body and headings. Do not mix languages inside one heading.
+the body, headings, severity labels, and field labels.
+Do not mix languages inside one heading.
 
-- Chinese response: `## 结论`, `## 发现`, `## 待确认`.
-- English response: `## Verdict`, `## Findings`, `## Open questions`.
+- Chinese response: `## 结论`, `## 发现`, `## 待确认`; severity `致命` / `重要` / `次要`.
+- English response: `## Verdict`, `## Findings`, `## Open questions`; severity `critical` / `important` / `minor`.
 
 Each section:
 
 - **结论 / Verdict**: one or two sentences with the outcome and the number of
   real findings.
-- **发现 / Findings**: one line per finding, ordered by severity:
-  `[severity] location — trigger → consequence. Fix: ...`
+- **发现 / Findings**: one short block per finding, ordered by severity. Start
+  each block with a numbered one-line problem statement, then give location,
+  trigger, consequence, and fix one per line.
 - **待确认 / Open questions**: only questions whose answer changes the verdict.
+
+Finding block shape (Chinese example; in an English report use `Location` /
+`Trigger` / `Consequence` / `Fix`):
+
+```markdown
+### 1. `parse([])` 抛 IndexError（重要）
+- 位置：`parser.py:42`
+- 触发：`parse([])`
+- 后果：调用方无法区分空输入与错误
+- 修复：入口处返回空结果
+```
 
 Omit any section that would be empty. Do not restate the artifact, walk through
 areas with no findings, or repeat the findings in a summary list.
