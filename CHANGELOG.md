@@ -6,6 +6,17 @@
 
 ### Changed
 
+## [2.6.0] - 2026-11-04
+
+### Added
+
+- **热点与改动形状计划门禁**：中英文计划模板在 Key Symbols 后新增 `热点与改动形状` / `Hotspot and Change Shape`，`plan_readiness.TASK_FIELDS` 同步校验；缺失或保留模板占位时 `plan finalize` 阻断 strict Normal/High-risk 计划，Tiny 保持豁免。热点判据覆盖函数 60 行软预算、6+ 分支或 3+ 嵌套、可执行源码文件近 180 天 5+ 提交，以及给既有函数新增参数、布尔开关或模式分支；热点默认替换、抽取或删除，追加必须给出具体障碍。
+
+### Changed
+
+- **计划与复核规则**：`task-planning` 要求先查目标文件历史，并把热点判据、改动形状与目标结构写入任务 brief，新增三条反合理化与 Self-Review；`task-review` 增加 `Structure fit`，声明替换/抽取/删除必须删除或重写旧路径，只搬家不算重构，结构类 finding 不得为 `minor`，接受记录带 `disposition`。
+- **AGENTS.md 四主题整合**：重组为入口与门禁、工作方式、改动规则、验证规则；新增 §2.3 热点规则与 Tiny 限制，保留 `## 项目定制位` 与 COWORK-FLOW 标记块。
+
 ## [2.5.2] - 2026-11-03
 
 ### Fixed
@@ -485,7 +496,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.2...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.2...v2.6.0
 [2.5.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.4.2...v2.5.0
