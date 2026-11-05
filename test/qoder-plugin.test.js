@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { access, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { test } from 'node:test';
 
 import { runInstallQoderPlugin } from '../src/commands/install-qoder-plugin.js';
@@ -16,7 +16,13 @@ const FOREIGN_PLUGIN_KEY = 'someone-else@their-market';
 
 const pluginRoot = join(templateRoot, '..', 'presets', 'qoder');
 const SHIM = join(pluginRoot, 'hooks', 'inject-context.mjs');
-const FIXED_AGENTS = ['cowork-implement', 'cowork-check', 'cowork-research'];
+const FIXED_AGENTS = ['cowork-check', 'cowork-implement', 'cowork-research'];
+const USER_AGENT_MARKER = '<!-- cowork-flow-managed: qoder user agent -->';
+
+
+function userAgentPath(home, name) {
+  return join(home, 'agents', `${name}.md`);
+}
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
@@ -344,7 +350,12 @@ test('install-qoder-plugin writes payload, registry entry and enable flag', asyn
       'the installed manifest must agree with its cache directory name'
     );
     await readFile(join(installPath, 'hooks', 'hooks.json'), 'utf8');
-    await readFile(join(installPath, 'agents', 'cowork-implement.md'), 'utf8');
+    const userAgent = await readFile(join(home, 'agents', 'cowork-implement.md'), 'utf8');
+    assert.match(userAgent, /cowork-flow-managed: qoder user agent/);
+    await assert.rejects(
+      access(join(installPath, 'agents')),
+      'the plugin cache must not expose a namespaced agents directory'
+    );
     const payloadSkills = join(installPath, 'skills');
     await readFile(join(payloadSkills, 'cowork-flow-bootstrap', 'SKILL.md'), 'utf8');
     for (const name of await readdir(payloadSkills)) {
@@ -405,7 +416,7 @@ test('install-qoder-plugin refuses to overwrite a healthy install without --forc
   try {
     await withQoderHome(home, () => runInstallQoderPlugin([]));
     const { installPath } = await installTargets(home);
-    const marker = join(installPath, 'agents', 'user-edit.md');
+    const marker = join(installPath, '.qoder-plugin', 'user-edit.md');
     await writeFile(marker, 'user kept\n', 'utf8');
 
     await withQoderHome(home, () => runInstallQoderPlugin([]));
@@ -515,7 +526,121 @@ test('install-qoder-plugin covers every present Qoder edition', async () => {
       assert.equal(registry.plugins[PLUGIN_KEY][0].installPath, installPath);
       const settings = await readJson(join(home, 'settings.json'));
       assert.equal(settings.enabledPlugins[PLUGIN_KEY], true);
+      for (const name of FIXED_AGENTS) {
+        const content = await readFile(userAgentPath(home, name), 'utf8');
+        assert.ok(content.includes(USER_AGENT_MARKER), `${home}/${name} must be marked as managed`);
+      }
+      assert.deepEqual(
+        (await readdir(join(home, 'agents'))).sort(),
+        FIXED_AGENTS.map((name) => `${name}.md`).sort(),
+        'user agents must use plain file names without the plugin namespace'
+      );
+      await assert.rejects(
+        access(join(installPath, 'agents')),
+        'the plugin cache must not keep a namespaced agents directory'
+      );
     }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin migrates a healthy install to user-level agents', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-migrate-'));
+  try {
+    const home = await seedEditionHome(root, '.qoder');
+    await withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([]));
+    const { installPath } = await installTargets(home);
+
+    // Simulate a payload installed before agents moved out of the plugin:
+    // the cache carries agents/ and the user-level copies are absent.
+    await rm(join(home, 'agents'), { recursive: true, force: true });
+    await mkdir(join(installPath, 'agents'), { recursive: true });
+    await writeFile(join(installPath, 'agents', 'legacy.md'), 'legacy\n', 'utf8');
+    await writeFile(join(installPath, 'sentinel.txt'), 'kept\n', 'utf8');
+
+    const output = await withQoderEnv(
+      { HOME: root, USERPROFILE: root },
+      () => captureConsole(() => runInstallQoderPlugin([]))
+    );
+
+    assert.match(output, /already installed/);
+    assert.equal(await readFile(join(installPath, 'sentinel.txt'), 'utf8'), 'kept\n');
+    await assert.rejects(access(join(installPath, 'agents')));
+    for (const name of FIXED_AGENTS) {
+      assert.match(await readFile(userAgentPath(home, name), 'utf8'), /cowork-flow-managed/);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin keeps a healthy payload when migration hits an unmanaged agent', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-migrate-conflict-'));
+  try {
+    const home = await seedEditionHome(root, '.qoder');
+    await withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([]));
+    const { installPath } = await installTargets(home);
+
+    // A pre-user-level healthy install: cache agents exist, user copies do
+    // not, and the user owns one of the target names without our marker.
+    await rm(join(home, 'agents'), { recursive: true, force: true });
+    await mkdir(join(installPath, 'agents'), { recursive: true });
+    await writeFile(join(installPath, 'agents', 'legacy.md'), 'legacy\n', 'utf8');
+    const collision = userAgentPath(home, 'cowork-research');
+    await mkdir(dirname(collision), { recursive: true });
+    await writeFile(collision, 'user owned\n', 'utf8');
+
+    await assert.rejects(
+      () => withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([])),
+      /not managed by cowork-flow/
+    );
+
+    assert.equal(await readFile(collision, 'utf8'), 'user owned\n');
+    await readFile(join(installPath, 'agents', 'legacy.md'), 'utf8');
+    for (const name of ['cowork-check', 'cowork-implement']) {
+      await assert.rejects(access(userAgentPath(home, name)));
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin refuses an unmanaged user agent without touching the other edition', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-collision-'));
+  try {
+    const intl = await seedEditionHome(root, '.qoder');
+    const cn = await seedEditionHome(root, '.qoder-cn');
+    // The last target exercises the all-targets-first validation: a writer
+    // that validates lazily would already have created the earlier agents.
+    const collision = userAgentPath(intl, 'cowork-research');
+    await mkdir(dirname(collision), { recursive: true });
+    await writeFile(collision, 'user owned\n', 'utf8');
+
+    await assert.rejects(
+      () => withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([])),
+      (error) => {
+        assert.match(error.message, /install failed for 1 edition\(s\): Qoder \(/);
+        assert.ok(error.message.includes(collision), error.message);
+        assert.ok(!error.message.includes(cn), error.message);
+        return true;
+      }
+    );
+
+    assert.equal(await readFile(collision, 'utf8'), 'user owned\n');
+    for (const name of ['cowork-check', 'cowork-implement']) {
+      await assert.rejects(
+        access(userAgentPath(intl, name)),
+        `the failed home must not receive a partial user agent set (${name})`
+      );
+    }
+    await assert.rejects(
+      access(join(intl, 'plugins', 'installed_plugins_v2.json')),
+      'a failed home must not be registered as installed'
+    );
+    const cnRegistry = await readJson(join(cn, 'plugins', 'installed_plugins_v2.json'));
+    assert.equal(cnRegistry.plugins[PLUGIN_KEY][0].installPath, (await installTargets(cn)).installPath);
+    assert.match(await readFile(userAgentPath(cn, 'cowork-check'), 'utf8'), /cowork-flow-managed/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -617,12 +742,17 @@ test('install-qoder-plugin dry-run lists every present edition without writing',
 
     assert.match(output, new RegExp(escapeRegExp(intl)));
     assert.match(output, new RegExp(escapeRegExp(cn)));
+    assert.match(output, /Would install Qoder user agent: .*cowork-check\.md/);
     for (const home of [intl, cn]) {
       const { cacheRoot } = await installTargets(home);
       await assert.rejects(access(cacheRoot), 'a dry run must not create payload state');
       await assert.rejects(
         access(join(home, 'plugins', 'installed_plugins_v2.json')),
         'a dry run must not register the plugin'
+      );
+      await assert.rejects(
+        access(userAgentPath(home, 'cowork-check')),
+        'a dry run must not create user agents'
       );
     }
   } finally {
@@ -714,7 +844,35 @@ test('install-qoder-plugin uninstall removes every present edition', async () =>
       assert.equal(settings.enabledPlugins[PLUGIN_KEY], undefined);
       const { installPath } = await installTargets(home);
       await assert.rejects(access(installPath));
+      for (const name of FIXED_AGENTS) {
+        await assert.rejects(access(userAgentPath(home, name)));
+      }
     }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin uninstall keeps unmanaged user agents', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-unmanaged-'));
+  try {
+    const home = await seedEditionHome(root, '.qoder');
+    await withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([]));
+
+    const unmanaged = userAgentPath(home, 'cowork-check');
+    const other = join(home, 'agents', 'user-agent.md');
+    await writeFile(unmanaged, 'user owned\n', 'utf8');
+    await writeFile(other, 'other\n', 'utf8');
+
+    await withQoderEnv(
+      { HOME: root, USERPROFILE: root },
+      () => runInstallQoderPlugin(['--uninstall'])
+    );
+
+    assert.equal(await readFile(unmanaged, 'utf8'), 'user owned\n');
+    assert.equal(await readFile(other, 'utf8'), 'other\n');
+    await assert.rejects(access(userAgentPath(home, 'cowork-implement')));
+    await assert.rejects(access(userAgentPath(home, 'cowork-research')));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

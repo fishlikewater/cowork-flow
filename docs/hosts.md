@@ -147,7 +147,7 @@ cwf host remove qoder
 
 Qoder 有两个用户级安装目录：`~/.qoder`（国际版）和 `~/.qoder-cn`（Qoder CN）。裸命令覆盖机器上所有已存在的 edition；安装/卸载时 `QODER_CONFIG_DIR` / `QODERCN_CONFIG_DIR` 是完整路径覆盖，显式设置时只处理对应目标（两个都设置则两者都处理），目录名可用 `QODER_CONFIG_DIR_NAME` / `QODERCN_CONFIG_DIR_NAME` 覆盖。
 
-`cwf host inspect qoder` 每个存在的 edition 一行，文本输出用 `Qoder` / `Qoder CN` 区分；显式配置的目录即使不存在也按 `missing` 报告，且不会掩盖另一个已存在的 edition。插件提供 hook、三个 fixed subagent 和引导技能；项目级 `init` / `sync` 只写单一 `qoder` 适配声明和共享技能（Qoder CN 的项目配置目录同样叫 `.qoder`）。
+`cwf host inspect qoder` 每个存在的 edition 一行，文本输出用 `Qoder` / `Qoder CN` 区分；显式配置的目录即使不存在也按 `missing` 报告，且不会掩盖另一个已存在的 edition。插件提供 hook 和引导技能；三个 fixed agent 安装为每个 edition 的用户级 `<home>/agents/`（plain name，不经插件命名空间），避免 Windows 上插件 agent 名里的 `:` 被拼进子代理文件名导致派发失败。项目级 `init` / `sync` 只写单一 `qoder` 适配声明和共享技能（Qoder CN 的项目配置目录同样叫 `.qoder`）。
 
 ## DeepSeek Harness
 

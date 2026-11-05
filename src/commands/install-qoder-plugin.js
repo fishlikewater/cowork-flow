@@ -1,6 +1,6 @@
-import { cp, mkdir, readFile, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { parseInstallArgs, pathExists, readJsonFile, writeJsonAtomic } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
@@ -10,6 +10,8 @@ const QODER_MARKETPLACE = 'cowork-flow-local';
 const PLUGIN_NAME = 'cowork-flow';
 const PLUGIN_KEY = `${PLUGIN_NAME}@${QODER_MARKETPLACE}`;
 const REGISTRY_FILE = 'installed_plugins_v2.json';
+const QODER_USER_AGENT_NAMES = ['cowork-check', 'cowork-implement', 'cowork-research'];
+const QODER_USER_AGENT_MARKER = '<!-- cowork-flow-managed: qoder user agent -->';
 
 // Rendered by `host add`/`host remove`; the installer's
 // own vocabulary.
@@ -217,13 +219,116 @@ function failureSummary(failures) {
 }
 
 
-async function uninstallQoderHome(paths, { variant, dryRun }) {
+// Qoder namespaces plugin agents as `plugin:agent` and writes that name into
+// subagent transcript paths; Windows rejects the colon with EINVAL. The fixed
+// agents therefore live in the host's user-level `agents/` directory, whose
+// loader keeps the plain file name. The marker lets uninstall distinguish our
+// files from a user's own agent with the same name.
+function qoderUserAgentTargets(home) {
+  return QODER_USER_AGENT_NAMES.map((name) => ({
+    name,
+    target: join(home, 'agents', `${name}.md`)
+  }));
+}
+
+
+function managedAgentContent(source) {
+  const body = source.endsWith('\n') ? source : `${source}\n`;
+  return `${body}\n${QODER_USER_AGENT_MARKER}\n`;
+}
+
+
+function agentIsManaged(content) {
+  return content.includes(QODER_USER_AGENT_MARKER);
+}
+
+
+async function readOptionalFile(path) {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+
+async function syncQoderUserAgents(home, { sourceDir, dryRun }) {
+  // Validate every target before writing any of them: a user's unmanaged
+  // `cowork-check.md` must stop the whole home, not leave a partial set.
+  const pending = [];
+  for (const { name, target } of qoderUserAgentTargets(home)) {
+    const source = join(sourceDir, `${name}.md`);
+    let body;
+    try {
+      body = await readFile(source, 'utf8');
+    } catch (error) {
+      throw new Error(`Qoder user agent source missing or unreadable at ${source}: ${error.message}`);
+    }
+    const expected = managedAgentContent(body);
+    const existing = await readOptionalFile(target);
+    if (existing !== null && !agentIsManaged(existing)) {
+      throw new Error(
+        `Qoder user agent at ${target} is not managed by cowork-flow; file was left unchanged`
+      );
+    }
+    if (existing === expected) continue;
+    pending.push({ target, expected });
+  }
+
+  for (const { target, expected } of pending) {
+    if (dryRun) {
+      console.log(`[dry-run] Would install Qoder user agent: ${target}`);
+      continue;
+    }
+    await mkdir(dirname(target), { recursive: true });
+    const temporary = `${target}.tmp`;
+    await writeFile(temporary, expected, 'utf8');
+    try {
+      await rename(temporary, target);
+    } catch (error) {
+      await rm(temporary, { force: true });
+      throw error;
+    }
+    console.log(`  User agent: ${target}`);
+  }
+}
+
+
+async function removeQoderUserAgents(home, { dryRun }) {
+  for (const { target } of qoderUserAgentTargets(home)) {
+    const current = await readOptionalFile(target);
+    if (current === null || !agentIsManaged(current)) continue;
+    if (dryRun) {
+      console.log(`[dry-run] Would remove Qoder user agent: ${target}`);
+      continue;
+    }
+    await rm(target, { force: true });
+    console.log(`  Removed user agent: ${target}`);
+  }
+}
+
+
+async function stripBundledQoderAgents(installPath, { dryRun }) {
+  const bundled = join(installPath, 'agents');
+  if (!(await pathExists(bundled))) return;
+  if (dryRun) {
+    console.log(`[dry-run] Would remove bundled plugin agents: ${bundled}`);
+    return;
+  }
+  await rm(bundled, { recursive: true, force: true });
+  console.log(`  Removed bundled plugin agents: ${bundled}`);
+}
+
+
+async function uninstallQoderHome(paths, { variant, home, dryRun }) {
   const label = editionLabel(variant);
   const { registry, settings } = await loadConfigs(paths);
   const owned = registry.plugins[PLUGIN_KEY];
   if (dryRun) {
     console.log(`[dry-run] Would remove ${PLUGIN_KEY} from ${paths.registry}`);
     console.log(`[dry-run] Would remove ${paths.cacheRoot}`);
+    await removeQoderUserAgents(home, { dryRun: true });
     return 0;
   }
   if (owned) {
@@ -235,6 +340,7 @@ async function uninstallQoderHome(paths, { variant, dryRun }) {
     await writeJsonAtomic(paths.settings, settings);
   }
   await rm(paths.cacheRoot, { recursive: true, force: true });
+  await removeQoderUserAgents(home, { dryRun: false });
   console.log(
     owned
       ? `✓ cowork-flow ${label} plugin uninstalled (${PLUGIN_KEY})`
@@ -248,7 +354,7 @@ async function uninstallQoderEditions(homes, dryRun) {
   const failures = [];
   for (const { variant, home } of homes) {
     try {
-      await uninstallQoderHome(pluginPaths(home, null), { variant, dryRun });
+      await uninstallQoderHome(pluginPaths(home, null), { variant, home, dryRun });
     } catch (error) {
       failures.push({ variant, home, error });
     }
@@ -261,7 +367,7 @@ async function uninstallQoderEditions(homes, dryRun) {
   return 0;
 }
 
-async function installQoderHome(target, { version, pluginSrc, manifest, force, variant, dryRun }) {
+async function installQoderHome(target, { version, pluginSrc, manifest, force, variant, home, dryRun }) {
   const label = editionLabel(variant);
   const configs = await loadConfigs(target);
   console.log(`  ${label}: ${pluginSrc} -> ${target.installPath}`);
@@ -276,6 +382,13 @@ async function installQoderHome(target, { version, pluginSrc, manifest, force, v
     pluginRegistered &&
     pluginEnabled
   ) {
+    // Migration path for a payload installed before agents moved to the user
+    // level: repair the agent files without recopying the healthy plugin.
+    // Sync first: it validates every target before writing, so an unmanaged
+    // file leaves the existing plugin payload intact instead of a home whose
+    // bundled agents were already stripped.
+    await syncQoderUserAgents(home, { sourceDir: join(pluginSrc, 'agents'), dryRun: false });
+    await stripBundledQoderAgents(target.installPath, { dryRun: false });
     console.log(`cowork-flow ${label} plugin already installed at ${target.installPath}`);
     console.log('Use --force to overwrite.');
     return;
@@ -283,6 +396,8 @@ async function installQoderHome(target, { version, pluginSrc, manifest, force, v
 
   const now = new Date().toISOString();
   if (dryRun) {
+    await syncQoderUserAgents(home, { sourceDir: join(pluginSrc, 'agents'), dryRun: true });
+    await stripBundledQoderAgents(target.installPath, { dryRun: true });
     await updateRegistry(configs.registry, target, version, now, true);
     await enablePlugin(configs.settings, target, true);
     return;
@@ -292,6 +407,11 @@ async function installQoderHome(target, { version, pluginSrc, manifest, force, v
   await rm(target.installPath, { recursive: true, force: true });
   await cp(pluginSrc, target.installPath, { recursive: true });
   await stampPayloadManifest(target.installPath, manifest, version);
+  // The payload source still owns the canonical agent Markdown, but Qoder
+  // must not discover it as a plugin agent on Windows. Sync first so a
+  // conflicting user file cannot leave the payload half-migrated.
+  await syncQoderUserAgents(home, { sourceDir: join(pluginSrc, 'agents'), dryRun: false });
+  await stripBundledQoderAgents(target.installPath, { dryRun: false });
   // Registry and enable flag come last: a half-copied
   // payload must never be advertised as installed.
   await updateRegistry(configs.registry, target, version, now, false);
@@ -324,6 +444,7 @@ export async function runInstallQoderPlugin(args = []) {
         manifest,
         force,
         variant,
+        home,
         dryRun
       });
     } catch (error) {

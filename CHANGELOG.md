@@ -6,6 +6,10 @@
 
 ### Changed
 
+### Fixed
+
+- **Qoder fixed agents 改为用户级安装**：三个 fixed agent 从插件 `agents/`（Qoder 会拼成 `cowork-flow:cowork-check`）迁到每个 edition 的用户级 `<home>/agents/`，文件名保持 `cowork-check.md` 等 plain name，避免 Windows 把插件命名空间里的 `:` 拼进子代理文件路径导致 `EINVAL`。`host add qoder` 会同步用户级 agent 并从插件缓存移除 `agents/`；已健康安装（无 `--force`）也会自动迁移。`host remove qoder` 只删除带 cowork-flow 管理标记的文件，不覆盖或删除用户自建 agent。
+
 ## [2.7.0] - 2026-11-05
 
 ### Added

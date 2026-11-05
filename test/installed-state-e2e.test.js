@@ -148,6 +148,10 @@ test('qoder install is visible to doctor and removal is observable', async (t) =
     version,
     'doctor must see the version the installer recorded'
   );
+  assert.match(
+    await readFile(join(qoderHome, 'agents', 'cowork-check.md'), 'utf8'),
+    /cowork-flow-managed: qoder user agent/
+  );
 
   await remove('qoder');
 
@@ -155,6 +159,10 @@ test('qoder install is visible to doctor and removal is observable', async (t) =
   assert.ok(
     removedIssues.qoderPlugin.some((issue) => issue.code === 'PLUGIN-NOT-INSTALLED'),
     `removal must be observable, got ${JSON.stringify(removedIssues.qoderPlugin)}`
+  );
+  await assert.rejects(
+    readFile(join(qoderHome, 'agents', 'cowork-check.md')),
+    'removal must clean the managed user agent'
   );
 });
 

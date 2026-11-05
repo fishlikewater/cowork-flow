@@ -147,7 +147,7 @@ cwf host remove qoder
 
 Qoder has two user-level install directories: `~/.qoder` (international) and `~/.qoder-cn` (Qoder CN). The bare command covers every edition present on the machine; for install and removal, `QODER_CONFIG_DIR` / `QODERCN_CONFIG_DIR` are full-path overrides, and setting either restricts the command to that target (setting both covers both). The directory names can be overridden with `QODER_CONFIG_DIR_NAME` / `QODERCN_CONFIG_DIR_NAME`.
 
-`cwf host inspect qoder` prints one row per present edition, labelled `Qoder` or `Qoder CN`; an explicitly configured home is reported as `missing` even when it does not exist, and never hides another present edition. The plugin provides hooks, the three fixed subagents, and the bootstrap Skill; the project-level `init` / `sync` commands only write the single `qoder` adaptation declaration and shared Skills (Qoder CN also uses `.qoder` as its project config directory).
+`cwf host inspect qoder` prints one row per present edition, labelled `Qoder` or `Qoder CN`; an explicitly configured home is reported as `missing` even when it does not exist, and never hides another present edition. The plugin provides hooks and the bootstrap Skill; the three fixed agents are installed as user-level `<home>/agents/` files (plain names, outside the plugin namespace), so Windows never puts the plugin's `:` into a subagent file name. The project-level `init` / `sync` commands only write the single `qoder` adaptation declaration and shared Skills (Qoder CN also uses `.qoder` as its project config directory).
 
 ## DeepSeek Harness
 
