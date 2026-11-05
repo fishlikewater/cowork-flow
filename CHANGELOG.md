@@ -6,6 +6,8 @@
 
 ### Changed
 
+## [2.7.1] - 2026-11-05
+
 ### Fixed
 
 - **Qoder fixed agents 改为用户级安装**：三个 fixed agent 从插件 `agents/`（Qoder 会拼成 `cowork-flow:cowork-check`）迁到每个 edition 的用户级 `<home>/agents/`，文件名保持 `cowork-check.md` 等 plain name，避免 Windows 把插件命名空间里的 `:` 拼进子代理文件路径导致 `EINVAL`。`host add qoder` 会同步用户级 agent 并从插件缓存移除 `agents/`；已健康安装（无 `--force`）也会自动迁移。`host remove qoder` 只删除带 cowork-flow 管理标记的文件，不覆盖或删除用户自建 agent。
@@ -506,7 +508,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.0...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.1...HEAD
+[2.7.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.2...v2.6.0
 [2.5.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.1...v2.5.2
