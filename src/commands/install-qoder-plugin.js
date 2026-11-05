@@ -1,6 +1,6 @@
 import { cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { parseInstallArgs, pathExists, readJsonFile, writeJsonAtomic } from '../lib/install-support.js';
 import { readPackageInfo } from '../lib/package-info.js';
@@ -16,9 +16,96 @@ const REGISTRY_FILE = 'installed_plugins_v2.json';
 export const FLAGS = ['--dry-run', '--force', '--uninstall'];
 
 
-function qoderHome(env = process.env) {
-  const configured = (env.QODER_CONFIG_DIR || '').trim();
-  return configured || join(homedir(), '.qoder');
+// Qoder and Qoder CN share one plugin model and differ only in
+// their user-level config home. The CN build keeps the project
+// config directory at `.qoder`, so the project-level adapter stays
+// single; only machine-level installs fan out.
+const QODER_EDITIONS = [
+  {
+    variant: 'intl',
+    configEnv: 'QODER_CONFIG_DIR',
+    nameEnv: 'QODER_CONFIG_DIR_NAME',
+    defaultName: '.qoder'
+  },
+  {
+    variant: 'cn',
+    configEnv: 'QODERCN_CONFIG_DIR',
+    nameEnv: 'QODERCN_CONFIG_DIR_NAME',
+    defaultName: '.qoder-cn'
+  }
+];
+
+
+function editionLabel(variant) {
+  return variant === 'cn' ? 'Qoder CN' : 'Qoder';
+}
+
+
+function qoderHomeForEdition(edition, env) {
+  const configured = (env[edition.configEnv] || '').trim();
+  if (configured) return configured;
+  // The host lets the directory name be renamed; `*_CONFIG_DIR` is
+  // the full-path override, `*_CONFIG_DIR_NAME` only the basename.
+  const name = (env[edition.nameEnv] || '').trim() || edition.defaultName;
+  return join(homedir(), name);
+}
+
+
+async function editionIsPresent(home) {
+  return (
+    (await pathExists(join(home, 'settings.json')))
+    || (await pathExists(join(home, 'plugins')))
+  );
+}
+
+
+// Install targets: an explicit config env is a single-target
+// instruction and suppresses discovery; otherwise every edition with
+// product state on disk is covered; a machine with no Qoder state yet
+// keeps the historical `.qoder` default.
+async function qoderHomes(env = process.env) {
+  return await resolveQoderHomes(env, { includePresentWithExplicit: false });
+}
+
+
+// Inspect reports every edition that exists on the machine, plus an
+// explicitly named home even when it does not exist yet. An install
+// override must not hide another present edition from the doctor.
+async function qoderInspectHomes(env = process.env) {
+  return await resolveQoderHomes(env, { includePresentWithExplicit: true });
+}
+
+
+async function resolveQoderHomes(env, { includePresentWithExplicit }) {
+  const editions = QODER_EDITIONS.map((edition) => ({
+    edition,
+    home: qoderHomeForEdition(edition, env),
+    explicit: Boolean((env[edition.configEnv] || '').trim())
+  }));
+  const discovered = await Promise.all(
+    editions.map(async (item) => ({
+      ...item,
+      present: await editionIsPresent(item.home)
+    }))
+  );
+  let selected;
+  if (includePresentWithExplicit) {
+    selected = discovered.filter((item) => item.explicit || item.present);
+  } else {
+    const explicit = discovered.filter((item) => item.explicit);
+    selected = explicit.length > 0
+      ? explicit
+      : discovered.filter((item) => item.present);
+  }
+  const seen = new Set();
+  const homes = [];
+  for (const item of selected.length > 0 ? selected : [discovered[0]]) {
+    const key = resolve(item.home);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    homes.push({ variant: item.edition.variant, home: item.home });
+  }
+  return homes;
 }
 
 function pluginPaths(home, version) {
@@ -123,7 +210,15 @@ async function enablePlugin(settings, paths, dryRun) {
   await writeJsonAtomic(paths.settings, settings);
 }
 
-async function uninstall(paths, dryRun) {
+function failureSummary(failures) {
+  return failures
+    .map(({ variant, home, error }) => `${editionLabel(variant)} (${home}): ${error.message}`)
+    .join('; ');
+}
+
+
+async function uninstallQoderHome(paths, { variant, dryRun }) {
+  const label = editionLabel(variant);
   const { registry, settings } = await loadConfigs(paths);
   const owned = registry.plugins[PLUGIN_KEY];
   if (dryRun) {
@@ -142,30 +237,34 @@ async function uninstall(paths, dryRun) {
   await rm(paths.cacheRoot, { recursive: true, force: true });
   console.log(
     owned
-      ? `✓ cowork-flow Qoder plugin uninstalled (${PLUGIN_KEY})`
-      : `cowork-flow Qoder plugin was not registered; removed any cached copy at ${paths.cacheRoot}`
+      ? `✓ cowork-flow ${label} plugin uninstalled (${PLUGIN_KEY})`
+      : `cowork-flow ${label} plugin was not registered; removed any cached copy at ${paths.cacheRoot}`
   );
   return 0;
 }
 
-export async function runInstallQoderPlugin(args = []) {
-  const { dryRun, force, uninstall: remove } = parseInstallArgs(args);
-  const home = qoderHome();
-  const { version } = await readPackageInfo();
-  const target = pluginPaths(home, version);
 
-  if (remove) {
-    return uninstall(target, dryRun);
+async function uninstallQoderEditions(homes, dryRun) {
+  const failures = [];
+  for (const { variant, home } of homes) {
+    try {
+      await uninstallQoderHome(pluginPaths(home, null), { variant, dryRun });
+    } catch (error) {
+      failures.push({ variant, home, error });
+    }
   }
-
-  const { sourceDir: pluginSrc, manifest } = pluginPayload('qoder');
-  if (!(await pathExists(pluginSrc))) {
-    throw new Error(`Qoder plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
+  if (failures.length > 0) {
+    throw new Error(
+      `Qoder plugin uninstall failed for ${failures.length} edition(s): ${failureSummary(failures)}`
+    );
   }
+  return 0;
+}
 
+async function installQoderHome(target, { version, pluginSrc, manifest, force, variant, dryRun }) {
+  const label = editionLabel(variant);
   const configs = await loadConfigs(target);
-  console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow Qoder plugin:`);
-  console.log(`  Plugin: ${pluginSrc} -> ${target.installPath}`);
+  console.log(`  ${label}: ${pluginSrc} -> ${target.installPath}`);
 
   const registeredEntries = configs.registry.plugins[PLUGIN_KEY];
   const pluginRegistered = Array.isArray(registeredEntries) && registeredEntries.length > 0;
@@ -177,16 +276,16 @@ export async function runInstallQoderPlugin(args = []) {
     pluginRegistered &&
     pluginEnabled
   ) {
-    console.log(`cowork-flow Qoder plugin already installed at ${target.installPath}`);
+    console.log(`cowork-flow ${label} plugin already installed at ${target.installPath}`);
     console.log('Use --force to overwrite.');
-    return 0;
+    return;
   }
 
   const now = new Date().toISOString();
   if (dryRun) {
     await updateRegistry(configs.registry, target, version, now, true);
     await enablePlugin(configs.settings, target, true);
-    return 0;
+    return;
   }
 
   await mkdir(target.cacheRoot, { recursive: true });
@@ -198,17 +297,66 @@ export async function runInstallQoderPlugin(args = []) {
   await updateRegistry(configs.registry, target, version, now, false);
   await enablePlugin(configs.settings, target, false);
 
-  console.log(`✓ cowork-flow Qoder plugin installed to ${target.installPath}`);
-  console.log('  Restart Qoder to load the plugin (the IDE has no hook hot reload).');
+  console.log(`✓ cowork-flow ${label} plugin installed to ${target.installPath}`);
+}
+
+
+export async function runInstallQoderPlugin(args = []) {
+  const { dryRun, force, uninstall: remove } = parseInstallArgs(args);
+  const homes = await qoderHomes();
+  if (remove) {
+    return await uninstallQoderEditions(homes, dryRun);
+  }
+
+  const { version } = await readPackageInfo();
+  const { sourceDir: pluginSrc, manifest } = pluginPayload('qoder');
+  if (!(await pathExists(pluginSrc))) {
+    throw new Error(`Qoder plugin source missing at ${pluginSrc}. Reinstall cowork-flow.`);
+  }
+
+  console.log(`${dryRun ? '[dry-run] Would install' : 'Installing'} cowork-flow Qoder plugin:`);
+  const failures = [];
+  for (const { variant, home } of homes) {
+    try {
+      await installQoderHome(pluginPaths(home, version), {
+        version,
+        pluginSrc,
+        manifest,
+        force,
+        variant,
+        dryRun
+      });
+    } catch (error) {
+      failures.push({ variant, home, error });
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `Qoder plugin install failed for ${failures.length} edition(s): ${failureSummary(failures)}`
+    );
+  }
+  if (!dryRun) {
+    console.log('  Restart Qoder to load the plugin (the IDE has no hook hot reload).');
+  }
   return 0;
 }
 
 
 // Read-only installed-state facts for `host inspect`. The registry and the
 // settings flag are the host's records; the payload files are what a session
-// actually loads.
+// actually loads. One facts object per present edition.
 export async function inspectInstalledState({ env = process.env } = {}) {
-  const home = qoderHome(env);
+  const homes = await qoderInspectHomes(env);
+  return await Promise.all(
+    homes.map(async ({ variant, home }) => ({
+      ...(await inspectQoderHome(home)),
+      variant
+    }))
+  );
+}
+
+
+async function inspectQoderHome(home) {
   const paths = pluginPaths(home, null);
   const registry = await readJsonFile(paths.registry);
   const entries = registry?.plugins?.[PLUGIN_KEY];

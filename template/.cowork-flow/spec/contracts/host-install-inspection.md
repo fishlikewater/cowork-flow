@@ -27,27 +27,46 @@ cwf host inspect [host] [--json]
 
 ```json
 {
-  "schemaVersion": 1,
-  "cliVersion": "2.4.2",
+  "schemaVersion": 2,
+  "cliVersion": "2.7.0",
   "hosts": [
     {
       "id": "qoder",
       "displayName": "Qoder",
       "component": "plugin",
       "status": "installed",
-      "version": "2.4.2",
-      "payloadPath": "/home/user/.qoder/plugins/cache/cowork-flow-local/cowork-flow/2.4.2",
-      "detailPath": "/home/user/.qoder/plugins/cache/cowork-flow-local/cowork-flow/2.4.2/.qoder-plugin/plugin.json",
+      "version": "2.7.0",
+      "payloadPath": "/home/user/.qoder/plugins/cache/cowork-flow-local/cowork-flow/2.7.0",
+      "detailPath": "/home/user/.qoder/plugins/cache/cowork-flow-local/cowork-flow/2.7.0/.qoder-plugin/plugin.json",
       "registeredSource": "/home/user/.qoder/plugins/installed_plugins_v2.json",
       "enabled": true,
-      "reason": null
+      "reason": null,
+      "variant": "intl"
+    },
+    {
+      "id": "qoder",
+      "displayName": "Qoder",
+      "component": "plugin",
+      "status": "installed",
+      "version": "2.7.0",
+      "payloadPath": "/home/user/.qoder-cn/plugins/cache/cowork-flow-local/cowork-flow/2.7.0",
+      "detailPath": "/home/user/.qoder-cn/plugins/cache/cowork-flow-local/cowork-flow/2.7.0/.qoder-plugin/plugin.json",
+      "registeredSource": "/home/user/.qoder-cn/plugins/installed_plugins_v2.json",
+      "enabled": true,
+      "reason": null,
+      "variant": "cn"
     }
   ]
 }
 ```
 
-There is one row per installable component. `kimi-code`'s `all` component is a
-command composition, not an installed artifact, so it has no row.
+There is one row per installable component instance. A host with several
+user-level editions reports one row per present edition: `qoder` has `intl`
+(`~/.qoder`) and `cn` (`~/.qoder-cn`), distinguished by `variant`. Row identity
+is `(id, component, variant)`; an edition that is absent on the machine is
+omitted unless its config directory was explicitly named. `kimi-code`'s `all`
+component is a command composition, not an installed artifact, so it has no
+row.
 
 | Field | Meaning |
 |---|---|
@@ -61,10 +80,13 @@ command composition, not an installed artifact, so it has no row.
 | `registeredSource` | Registry, config file or marketplace path the host reads, or `null`. |
 | `enabled` | `true`/`false` when the host has an enable flag; `null` when it has none or the state is unknown. |
 | `reason` | Human-readable explanation, or `null` when there is nothing to explain. |
+| `variant` | Optional edition discriminator for hosts with several user-level installs. Today only `qoder` sets it: `intl` or `cn`. Absent for single-edition hosts. |
 
 Unknown fields are ignored by consumers. A breaking change to the shape, the
 statuses or the meaning of a field bumps `schemaVersion`; the doctor then
-reports `HOST-INSPECT-UNAVAILABLE` instead of guessing.
+reports `HOST-INSPECT-UNAVAILABLE` instead of guessing. `schemaVersion` 2 adds
+the multi-instance row shape (`variant`); version 1 was one row per component.
+The doctor understands both; any other version is unavailable.
 
 ## Statuses
 
@@ -122,7 +144,7 @@ cwf host inspect --json
 - The command runs with stdin closed and its output parsed as UTF-8.
 
 If the CLI is absent, exits non-zero, times out, emits invalid JSON, reports a
-`schemaVersion` other than 1, omits the `hosts` list, or omits the row the
+`schemaVersion` other than 1 or 2, omits the `hosts` list, or omits the row the
 caller needs, the doctor emits one `HOST-INSPECT-UNAVAILABLE` warning for that
 host check. It must not translate an unavailable inspection into
 `PLUGIN-NOT-INSTALLED`: "could not read" and "read as missing" are different
@@ -144,6 +166,10 @@ host path from the `reason` string, so the read model remains the only owner of
 host layout. Content-drift warnings (OpenCode) name the file they compared, and
 the skill-delivery check names `payloadPath/skills`; both point at the artifact
 that actually differs rather than the install record.
+
+When a component reports several edition rows, the doctor evaluates each row
+independently and emits one issue per affected edition; a healthy edition never
+masks a missing, broken, disabled or stale one.
 
 The `stale` row above is the inspect status. The doctor's code depends on the
 project-relative comparison described under statuses: an `installed` row whose
@@ -169,6 +195,8 @@ command yet.
 ## Compatibility
 
 - Adding a host platform or component is additive.
+- Adding a row for another edition of an existing component is additive; row
+  identity is `(id, component, variant)`.
 - Renaming or removing a field or status is breaking (`schemaVersion` bump).
 - `unsupported` stays a valid status so a future component can be declared
   before its reader exists.

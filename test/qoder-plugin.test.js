@@ -243,6 +243,60 @@ async function withQoderHome(home, run) {
   }
 }
 
+const QODER_ENV_KEYS = [
+  'HOME',
+  'USERPROFILE',
+  'QODER_CONFIG_DIR',
+  'QODERCN_CONFIG_DIR',
+  'QODER_CONFIG_DIR_NAME',
+  'QODERCN_CONFIG_DIR_NAME'
+];
+
+// Discovery reads the user home, so these tests point USERPROFILE/HOME at a
+// temp root instead of the developer's real `~/.qoder*` directories.
+async function withQoderEnv(overrides, run) {
+  const previous = new Map(QODER_ENV_KEYS.map((key) => [key, process.env[key]]));
+  for (const key of QODER_ENV_KEYS) delete process.env[key];
+  Object.assign(process.env, overrides);
+  try {
+    return await run();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+async function seedEditionHome(root, name) {
+  const home = join(root, name);
+  await mkdir(join(home, 'plugins'), { recursive: true });
+  await writeFile(
+    join(home, 'settings.json'),
+    JSON.stringify({ enabledPlugins: {} }, null, 2) + '\n',
+    'utf8'
+  );
+  return home;
+}
+
+async function captureConsole(fn) {
+  const lines = [];
+  const original = console.log;
+  console.log = (...args) => {
+    lines.push(args.join(' '));
+  };
+  try {
+    await fn();
+  } finally {
+    console.log = original;
+  }
+  return lines.join('\n');
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function seedQoderHome() {
   const home = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-home-'));
   const foreignInstall = join(home, 'plugins', 'cache', 'their-market', 'someone-else', '1.0.0');
@@ -439,5 +493,229 @@ test('install-qoder-plugin uninstall removes only cowork-flow state', async () =
     assert.deepEqual(settings.mcpServers, { docs: { command: './scripts/docs-mcp' } });
   } finally {
     await rm(home, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin covers every present Qoder edition', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-editions-'));
+  try {
+    const intl = await seedEditionHome(root, '.qoder');
+    const cn = await seedEditionHome(root, '.qoder-cn');
+
+    await withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([]));
+
+    for (const home of [intl, cn]) {
+      const { version, installPath } = await installTargets(home);
+      assert.equal(
+        (await readJson(join(installPath, '.qoder-plugin', 'plugin.json'))).version,
+        version,
+        `${home} must receive the shipped payload`
+      );
+      const registry = await readJson(join(home, 'plugins', 'installed_plugins_v2.json'));
+      assert.equal(registry.plugins[PLUGIN_KEY][0].installPath, installPath);
+      const settings = await readJson(join(home, 'settings.json'));
+      assert.equal(settings.enabledPlugins[PLUGIN_KEY], true);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin targets only the CN edition when it is the only one present', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-cn-only-'));
+  try {
+    const cn = await seedEditionHome(root, '.qoder-cn');
+    const intl = join(root, '.qoder');
+
+    await withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([]));
+
+    const { installPath } = await installTargets(cn);
+    await readFile(join(installPath, '.qoder-plugin', 'plugin.json'), 'utf8');
+    await assert.rejects(
+      access(join(intl, 'plugins', 'installed_plugins_v2.json')),
+      'an absent intl edition must not be created as a side effect'
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin treats an explicit config dir as the only target', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-explicit-'));
+  try {
+    const intl = await seedEditionHome(root, '.qoder');
+    const cn = await seedEditionHome(root, '.qoder-cn');
+
+    await withQoderEnv(
+      { HOME: root, USERPROFILE: root, QODER_CONFIG_DIR: intl },
+      () => runInstallQoderPlugin([])
+    );
+
+    const { installPath } = await installTargets(intl);
+    await readFile(join(installPath, '.qoder-plugin', 'plugin.json'), 'utf8');
+    await assert.rejects(
+      access(join(cn, 'plugins', 'installed_plugins_v2.json')),
+      'a second present edition must stay untouched when one home is explicit'
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin covers both editions when both config dirs are explicit', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-explicit-both-'));
+  try {
+    const intl = await seedEditionHome(root, '.qoder');
+    const cn = await seedEditionHome(root, '.qoder-cn');
+
+    await withQoderEnv(
+      { QODER_CONFIG_DIR: intl, QODERCN_CONFIG_DIR: cn },
+      () => runInstallQoderPlugin([])
+    );
+
+    for (const home of [intl, cn]) {
+      const { installPath } = await installTargets(home);
+      await readFile(join(installPath, '.qoder-plugin', 'plugin.json'), 'utf8');
+      const registry = await readJson(join(home, 'plugins', 'installed_plugins_v2.json'));
+      assert.equal(registry.plugins[PLUGIN_KEY][0].installPath, installPath);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin deduplicates two config dirs that resolve to one home', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-dedupe-'));
+  try {
+    const shared = await seedEditionHome(root, 'shared');
+
+    const output = await withQoderEnv(
+      { QODER_CONFIG_DIR: shared, QODERCN_CONFIG_DIR: join(shared, '.') },
+      () => captureConsole(() => runInstallQoderPlugin([]))
+    );
+
+    assert.doesNotMatch(output, /Qoder CN/, 'the same resolved home must not install twice');
+    assert.equal(
+      (output.match(/✓ cowork-flow Qoder plugin installed/g) || []).length,
+      1
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin dry-run lists every present edition without writing', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-dry-'));
+  try {
+    const intl = await seedEditionHome(root, '.qoder');
+    const cn = await seedEditionHome(root, '.qoder-cn');
+
+    const output = await withQoderEnv(
+      { HOME: root, USERPROFILE: root },
+      () => captureConsole(() => runInstallQoderPlugin(['--dry-run']))
+    );
+
+    assert.match(output, new RegExp(escapeRegExp(intl)));
+    assert.match(output, new RegExp(escapeRegExp(cn)));
+    for (const home of [intl, cn]) {
+      const { cacheRoot } = await installTargets(home);
+      await assert.rejects(access(cacheRoot), 'a dry run must not create payload state');
+      await assert.rejects(
+        access(join(home, 'plugins', 'installed_plugins_v2.json')),
+        'a dry run must not register the plugin'
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin keeps installing after one edition fails', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-partial-'));
+  try {
+    const broken = join(root, '.qoder');
+    await mkdir(broken, { recursive: true });
+    // `plugins` as a regular file makes every registry/payload path under the
+    // intl home uncreatable; the CN home must still receive its install.
+    await writeFile(join(broken, 'plugins'), 'not a directory', 'utf8');
+    const healthy = await seedEditionHome(root, '.qoder-cn');
+
+    await assert.rejects(
+      () => withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([])),
+      (error) => {
+        assert.match(error.message, /install failed for 1 edition\(s\): Qoder \(/);
+        assert.ok(error.message.includes(broken), error.message);
+        assert.ok(!error.message.includes(healthy), error.message);
+        return true;
+      }
+    );
+
+    const { installPath } = await installTargets(healthy);
+    await readFile(join(installPath, '.qoder-plugin', 'plugin.json'), 'utf8');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin keeps uninstalling after one edition fails', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-remove-partial-'));
+  try {
+    const healthy = await seedEditionHome(root, '.qoder-cn');
+    await withQoderEnv(
+      { QODERCN_CONFIG_DIR: healthy },
+      () => runInstallQoderPlugin([])
+    );
+    const broken = join(root, '.qoder');
+    await mkdir(broken, { recursive: true });
+    // A corrupt settings file makes the intl cleanup fail before it can touch
+    // any state; the CN home must still be cleaned.
+    await writeFile(join(broken, 'settings.json'), '{ not json\n', 'utf8');
+
+    await assert.rejects(
+      () => withQoderEnv(
+        { HOME: root, USERPROFILE: root },
+        () => runInstallQoderPlugin(['--uninstall'])
+      ),
+      (error) => {
+        assert.match(error.message, /uninstall failed for 1 edition\(s\): Qoder \(/);
+        assert.ok(error.message.includes(broken), error.message);
+        assert.ok(!error.message.includes(healthy), error.message);
+        return true;
+      }
+    );
+
+    const { installPath } = await installTargets(healthy);
+    const registry = await readJson(join(healthy, 'plugins', 'installed_plugins_v2.json'));
+    const settings = await readJson(join(healthy, 'settings.json'));
+    assert.equal(registry.plugins[PLUGIN_KEY], undefined);
+    assert.equal(settings.enabledPlugins[PLUGIN_KEY], undefined);
+    await assert.rejects(access(installPath), 'the healthy home must still be cleaned');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('install-qoder-plugin uninstall removes every present edition', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'cowork-flow-qoder-remove-both-'));
+  try {
+    const intl = await seedEditionHome(root, '.qoder');
+    const cn = await seedEditionHome(root, '.qoder-cn');
+    await withQoderEnv({ HOME: root, USERPROFILE: root }, () => runInstallQoderPlugin([]));
+
+    await withQoderEnv(
+      { HOME: root, USERPROFILE: root },
+      () => runInstallQoderPlugin(['--uninstall'])
+    );
+
+    for (const home of [intl, cn]) {
+      const registry = await readJson(join(home, 'plugins', 'installed_plugins_v2.json'));
+      const settings = await readJson(join(home, 'settings.json'));
+      assert.equal(registry.plugins[PLUGIN_KEY], undefined);
+      assert.equal(settings.enabledPlugins[PLUGIN_KEY], undefined);
+      const { installPath } = await installTargets(home);
+      await assert.rejects(access(installPath));
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

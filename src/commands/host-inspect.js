@@ -1,7 +1,7 @@
 import { hostRegistry } from '../lib/host-assets.js';
 import { readPackageInfo } from '../lib/package-info.js';
 
-export const INSPECT_SCHEMA_VERSION = 1;
+export const INSPECT_SCHEMA_VERSION = 2;
 
 export const INSPECT_STATUSES = Object.freeze([
   'installed',
@@ -26,6 +26,14 @@ function normalizedRow(facts, cliVersion) {
       ? `installed ${facts.version} but the CLI runs ${cliVersion}`
       : facts.reason ?? null
   };
+}
+
+
+// A component may install more than one user-level edition (today only
+// qoder); its reader returns one facts object per present edition. Single
+// edition components keep returning one object.
+function componentFacts(facts) {
+  return Array.isArray(facts) ? facts : [facts];
 }
 
 
@@ -59,12 +67,15 @@ export async function inspectHosts(components, hostIds, { env = process.env } = 
       const facts = typeof component.inspect === 'function'
         ? await component.inspect({ env })
         : unsupportedRow(hostId, componentName);
-      hosts.push({
-        id: hostId,
-        displayName: platform.displayName,
-        component: componentName,
-        ...normalizedRow(facts, cliVersion)
-      });
+      for (const instance of componentFacts(facts)) {
+        hosts.push({
+          id: hostId,
+          displayName: platform.displayName,
+          component: componentName,
+          ...normalizedRow(instance, cliVersion),
+          ...(instance.variant ? { variant: instance.variant } : {})
+        });
+      }
     }
   }
   return {
@@ -82,5 +93,6 @@ export function renderInspectLine(row) {
     row.enabled === false ? 'not enabled' : null,
     row.reason
   ].filter(Boolean).join('; ');
-  return `${row.id} (${row.displayName}, ${row.component}): ${row.status}${detail ? ` - ${detail}` : ''}\n`;
+  const name = row.variant === 'cn' ? `${row.displayName} CN` : row.displayName;
+  return `${row.id} (${name}, ${row.component}): ${row.status}${detail ? ` - ${detail}` : ''}\n`;
 }

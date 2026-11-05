@@ -16,6 +16,9 @@ const HOME_KEYS = [
   'DSH_HOME',
   'KIMI_CODE_HOME',
   'QODER_CONFIG_DIR',
+  'QODER_CONFIG_DIR_NAME',
+  'QODERCN_CONFIG_DIR',
+  'QODERCN_CONFIG_DIR_NAME',
   'XDG_CONFIG_HOME',
   'ZCODE_HOME'
 ];
@@ -260,6 +263,8 @@ test('host list prints a table of every host and its components', async (t) => {
 test('host inspect --json reports one row per component across all hosts', async (t) => {
   const home = await createTempDir(t, 'cowork-flow-host-inspect-');
   useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
     CLAUDE_CONFIG_DIR: join(home, 'claude'),
     CODEX_HOME: join(home, 'codex'),
     DSH_HOME: join(home, 'dsh'),
@@ -274,7 +279,7 @@ test('host inspect --json reports one row per component across all hosts', async
 
   assert.equal(code, 0);
   const report = JSON.parse(io.stdout);
-  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.schemaVersion, 2);
   const expected = loadHostAssetManifest().platforms.flatMap((platform) =>
     Object.keys(HOST_COMPONENTS[platform.id].components)
       .filter((name) => name !== 'all')

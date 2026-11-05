@@ -22,6 +22,9 @@ const HOME_KEYS = [
   'HOME',
   'KIMI_CODE_HOME',
   'QODER_CONFIG_DIR',
+  'QODER_CONFIG_DIR_NAME',
+  'QODERCN_CONFIG_DIR',
+  'QODERCN_CONFIG_DIR_NAME',
   'USERPROFILE',
   'XDG_CONFIG_HOME',
   'ZCODE_HOME'
@@ -133,6 +136,8 @@ function zcodePaths(home) {
 test('inspect reports installed qoder and zcode with version and payload path', async (t) => {
   const home = await createTempDir(t);
   useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
     QODER_CONFIG_DIR: join(home, 'qoder'),
     ZCODE_HOME: join(home, 'zcode'),
     CLAUDE_CONFIG_DIR: join(home, 'claude'),
@@ -148,7 +153,7 @@ test('inspect reports installed qoder and zcode with version and payload path', 
   const { code, report } = await inspectIo(['--json']);
 
   assert.equal(code, 0);
-  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.schemaVersion, 2);
   assert.equal(report.cliVersion, version);
   const qoder = row(report, 'qoder');
   assert.equal(qoder.status, 'installed');
@@ -182,6 +187,8 @@ test('inspect reports missing, stale, broken and disabled without failing', asyn
   const qoderHome = join(home, 'qoder');
   const zcodeHome = join(home, 'zcode');
   useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
     QODER_CONFIG_DIR: qoderHome,
     ZCODE_HOME: zcodeHome,
     CLAUDE_CONFIG_DIR: join(home, 'claude'),
@@ -279,9 +286,11 @@ test('inspect reports codex broken with the missing manifest path', async (t) =>
   assert.equal(codex.reason, 'missing .codex-plugin/plugin.json');
 });
 
-test('inspect report locks schemaVersion 1, the row fields and the status enum', async (t) => {
+test('inspect report locks schemaVersion 2, the row fields and the status enum', async (t) => {
   const home = await createTempDir(t);
   useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
     CLAUDE_CONFIG_DIR: join(home, 'claude'),
     CODEX_HOME: join(home, 'codex'),
     DSH_HOME: join(home, 'dsh'),
@@ -293,27 +302,32 @@ test('inspect report locks schemaVersion 1, the row fields and the status enum',
 
   const { report } = await inspectIo(['--json']);
 
-  assert.equal(INSPECT_SCHEMA_VERSION, 1);
+  assert.equal(INSPECT_SCHEMA_VERSION, 2);
   assert.equal(report.schemaVersion, INSPECT_SCHEMA_VERSION);
   assert.deepEqual(
     [...INSPECT_STATUSES].sort(),
     ['broken', 'installed', 'missing', 'stale', 'unsupported']
   );
   for (const row of report.hosts) {
+    const expected = [
+      'component',
+      'detailPath',
+      'displayName',
+      'enabled',
+      'id',
+      'payloadPath',
+      'reason',
+      'registeredSource',
+      'status',
+      'version'
+    ];
+    if (row.variant !== undefined) {
+      expected.push('variant');
+    }
+    expected.sort();
     assert.deepEqual(
       Object.keys(row).sort(),
-      [
-        'component',
-        'detailPath',
-        'displayName',
-        'enabled',
-        'id',
-        'payloadPath',
-        'reason',
-        'registeredSource',
-        'status',
-        'version'
-      ],
+      expected,
       `${row.id}:${row.component} must keep the contract row shape`
     );
     assert.ok(
@@ -321,6 +335,104 @@ test('inspect report locks schemaVersion 1, the row fields and the status enum',
       `${row.id}:${row.component} reported ${row.status}`
     );
   }
+});
+
+test('inspect reports one row per present qoder edition', async (t) => {
+  const root = await createTempDir(t);
+  for (const name of ['.qoder', '.qoder-cn']) {
+    await mkdir(join(root, name, 'plugins'), { recursive: true });
+    await writeFile(join(root, name, 'settings.json'), '{}\n', 'utf8');
+  }
+  useEnv(t, {
+    HOME: root,
+    USERPROFILE: root,
+    CLAUDE_CONFIG_DIR: join(root, 'claude'),
+    CODEX_HOME: join(root, 'codex'),
+    DSH_HOME: join(root, 'dsh'),
+    KIMI_CODE_HOME: join(root, 'kimi'),
+    XDG_CONFIG_HOME: join(root, 'xdg'),
+    ZCODE_HOME: join(root, 'zcode')
+  });
+
+  await install('qoder');
+  const { code, report } = await inspectIo(['qoder', '--json']);
+
+  assert.equal(code, 0);
+  const rows = report.hosts.filter((entry) => entry.id === 'qoder');
+  assert.deepEqual(rows.map((entry) => entry.variant), ['intl', 'cn']);
+  assert.ok(rows.every((entry) => entry.status === 'installed'), rows);
+  assert.ok(rows[0].payloadPath.includes(join('.qoder', 'plugins')), rows[0].payloadPath);
+  assert.ok(rows[1].payloadPath.includes(join('.qoder-cn', 'plugins')), rows[1].payloadPath);
+});
+
+test('inspect reports present editions alongside an explicit config dir', async (t) => {
+  const root = await createTempDir(t);
+  const custom = join(root, 'custom-qoder');
+  await mkdir(join(root, '.qoder-cn', 'plugins'), { recursive: true });
+  await writeFile(join(root, '.qoder-cn', 'settings.json'), '{}\n', 'utf8');
+  useEnv(t, {
+    HOME: root,
+    USERPROFILE: root,
+    QODER_CONFIG_DIR: custom
+  });
+
+  const { report } = await inspectIo(['qoder', '--json']);
+  const rows = report.hosts.filter((entry) => entry.id === 'qoder');
+
+  // The explicit intl override must not hide the present CN edition.
+  assert.deepEqual(rows.map((entry) => entry.variant), ['intl', 'cn']);
+  assert.equal(rows[0].status, 'missing');
+  assert.equal(
+    rows[0].detailPath,
+    join(custom, 'plugins', 'installed_plugins_v2.json'),
+    'an explicitly named home is reported even when it does not exist'
+  );
+});
+
+test('inspect omits an absent qoder edition', async (t) => {
+  const root = await createTempDir(t);
+  await mkdir(join(root, '.qoder-cn', 'plugins'), { recursive: true });
+  await writeFile(join(root, '.qoder-cn', 'settings.json'), '{}\n', 'utf8');
+  useEnv(t, { HOME: root, USERPROFILE: root });
+
+  const { report } = await inspectIo(['qoder', '--json']);
+  const rows = report.hosts.filter((entry) => entry.id === 'qoder');
+
+  assert.deepEqual(rows.map((entry) => entry.variant), ['cn']);
+});
+
+test('inspect keeps the intl default when no qoder home exists', async (t) => {
+  const root = await createTempDir(t);
+  useEnv(t, { HOME: root, USERPROFILE: root });
+
+  const { report } = await inspectIo(['qoder', '--json']);
+  const rows = report.hosts.filter((entry) => entry.id === 'qoder');
+
+  assert.deepEqual(rows.map((entry) => entry.variant), ['intl']);
+  assert.equal(rows[0].status, 'missing');
+  assert.equal(
+    rows[0].detailPath,
+    join(root, '.qoder', 'plugins', 'installed_plugins_v2.json')
+  );
+});
+
+test('inspect text labels the CN edition', () => {
+  const base = {
+    id: 'qoder',
+    displayName: 'Qoder',
+    component: 'plugin',
+    status: 'missing',
+    version: null,
+    payloadPath: null,
+    detailPath: 'C:/qoder-state',
+    enabled: null,
+    reason: null
+  };
+  const cn = renderInspectLine({ ...base, variant: 'cn' });
+  const intl = renderInspectLine(base);
+
+  assert.match(cn, /^qoder \(Qoder CN, plugin\): missing/);
+  assert.match(intl, /^qoder \(Qoder, plugin\): missing/);
 });
 
 test('inspect text output prefers detailPath and falls back to payloadPath', () => {
@@ -394,6 +506,8 @@ test('inspect rejects an unknown host with a usage error', async () => {
 test('inspect does not write to the host configuration', async (t) => {
   const home = await createTempDir(t);
   useEnv(t, {
+    HOME: home,
+    USERPROFILE: home,
     QODER_CONFIG_DIR: join(home, 'qoder'),
     ZCODE_HOME: join(home, 'zcode'),
     CLAUDE_CONFIG_DIR: join(home, 'claude'),

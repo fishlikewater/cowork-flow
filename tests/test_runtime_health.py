@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -388,7 +389,9 @@ class QoderPluginCheckTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         root = Path(self._tmp.name)
+        self.root = root
         self.qoder_home = root / "qoder-home"
+        self.qoder_cn_home = root / "qoder-cn-home"
         self.project = root / "project"
         (self.project / ".cowork-flow" / "adapters" / "qoder").mkdir(parents=True)
         (self.project / ".cowork-flow" / "adapters" / "qoder" / "adapter.yaml").write_text(
@@ -407,15 +410,24 @@ class QoderPluginCheckTest(unittest.TestCase):
             / self.version
         )
 
-    def _check(self) -> list[dict[str, str]]:
+    def _check(
+        self, env: dict[str, str] | None = None
+    ) -> list[dict[str, str]]:
+        overrides = (
+            dict(env)
+            if env is not None
+            else {"QODER_CONFIG_DIR": str(self.qoder_home)}
+        )
+        overrides["COWORK_FLOW_CLI"] = str(REPO_CLI)
+        # Inspect reports every present edition, so point the user home at the
+        # empty fixture root: a developer's real ~/.qoder* must not leak in.
+        overrides.setdefault("HOME", str(self.root))
+        overrides.setdefault("USERPROFILE", str(self.root))
         self.doctor._HOST_INSPECT_CACHE.clear()
-        with mock.patch.dict(
-            "os.environ",
-            {
-                "QODER_CONFIG_DIR": str(self.qoder_home),
-                "COWORK_FLOW_CLI": str(REPO_CLI),
-            },
-        ):
+        with mock.patch.dict("os.environ", overrides):
+            for key in ("QODER_CONFIG_DIR", "QODERCN_CONFIG_DIR"):
+                if key not in overrides:
+                    os.environ.pop(key, None)
             return self.doctor.check_qoder_plugin(self.project)
 
     def _write_payload(
@@ -472,6 +484,56 @@ class QoderPluginCheckTest(unittest.TestCase):
             data = json.loads(registry.read_text(encoding="utf-8"))
             data["plugins"]["cowork-flow@cowork-flow-local"][0]["version"] = version
             registry.write_text(json.dumps(data), encoding="utf-8")
+
+    def _install_home(self, home: Path) -> Path:
+        """A healthy install in an arbitrary edition home (CN fixtures)."""
+        install_path = (
+            home
+            / "plugins"
+            / "cache"
+            / "cowork-flow-local"
+            / "cowork-flow"
+            / self.version
+        )
+        (install_path / ".qoder-plugin").mkdir(parents=True, exist_ok=True)
+        (install_path / ".qoder-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "cowork-flow", "version": self.version}),
+            encoding="utf-8",
+        )
+        (install_path / "hooks").mkdir(parents=True, exist_ok=True)
+        (install_path / "hooks" / "hooks.json").write_text(
+            json.dumps({"hooks": {}}), encoding="utf-8"
+        )
+        (install_path / "hooks" / "inject-context.mjs").write_text(
+            "// shim\n", encoding="utf-8"
+        )
+        registry = home / "plugins" / "installed_plugins_v2.json"
+        registry.parent.mkdir(parents=True, exist_ok=True)
+        registry.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "plugins": {
+                        "cowork-flow@cowork-flow-local": [
+                            {
+                                "scope": "user",
+                                "installPath": str(install_path),
+                                "version": self.version,
+                            }
+                        ]
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        (home / "settings.json").write_text(
+            json.dumps(
+                {"enabledPlugins": {"cowork-flow@cowork-flow-local": True}}
+            ),
+            encoding="utf-8",
+        )
+        return install_path
 
     def test_project_without_qoder_adapter_is_silent(self) -> None:
         (self.project / ".cowork-flow" / "adapters" / "qoder" / "adapter.yaml").unlink()
@@ -579,6 +641,109 @@ class QoderPluginCheckTest(unittest.TestCase):
         registry.write_text("{ broken", encoding="utf-8")
         issues = self._check()
         self.assertEqual(["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues])
+
+    def test_cn_only_install_is_clean(self) -> None:
+        self._install_home(self.qoder_cn_home)
+        self.assertEqual(
+            [], self._check({"QODERCN_CONFIG_DIR": str(self.qoder_cn_home)})
+        )
+
+    def test_missing_cn_edition_is_reported_separately(self) -> None:
+        self._install()
+        (self.qoder_cn_home / "plugins").mkdir(parents=True)
+        issues = self._check(
+            {
+                "QODER_CONFIG_DIR": str(self.qoder_home),
+                "QODERCN_CONFIG_DIR": str(self.qoder_cn_home),
+            }
+        )
+        self.assertEqual(
+            ["PLUGIN-NOT-INSTALLED"], [issue["code"] for issue in issues]
+        )
+        self.assertIn("Qoder CN", issues[0]["message"])
+        self.assertTrue(
+            str(issues[0]["path"]).replace("\\", "/").endswith(
+                "qoder-cn-home/plugins/installed_plugins_v2.json"
+            ),
+            issues[0]["path"],
+        )
+
+    def test_broken_cn_payload_reports_payload_missing(self) -> None:
+        install_path = self._install_home(self.qoder_cn_home)
+        (install_path / ".qoder-plugin" / "plugin.json").unlink()
+        issues = self._check({"QODERCN_CONFIG_DIR": str(self.qoder_cn_home)})
+        self.assertEqual(
+            ["PLUGIN-PAYLOAD-MISSING"], [issue["code"] for issue in issues]
+        )
+        self.assertIn("Qoder CN", issues[0]["message"])
+
+    def test_disabled_cn_reports_disabled(self) -> None:
+        self._install_home(self.qoder_cn_home)
+        (self.qoder_cn_home / "settings.json").write_text(
+            json.dumps(
+                {"enabledPlugins": {"cowork-flow@cowork-flow-local": False}}
+            ),
+            encoding="utf-8",
+        )
+        issues = self._check({"QODERCN_CONFIG_DIR": str(self.qoder_cn_home)})
+        self.assertEqual(["PLUGIN-DISABLED"], [issue["code"] for issue in issues])
+        self.assertIn("Qoder CN", issues[0]["message"])
+
+    def test_stale_cn_reports_stale(self) -> None:
+        self._install_home(self.qoder_cn_home)
+        registry = self.qoder_cn_home / "plugins" / "installed_plugins_v2.json"
+        data = json.loads(registry.read_text(encoding="utf-8"))
+        data["plugins"]["cowork-flow@cowork-flow-local"][0]["version"] = "1.4.0"
+        registry.write_text(json.dumps(data), encoding="utf-8")
+        issues = self._check({"QODERCN_CONFIG_DIR": str(self.qoder_cn_home)})
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("Qoder CN", issues[0]["message"])
+
+    def test_both_editions_installed_is_clean(self) -> None:
+        self._install()
+        self._install_home(self.qoder_cn_home)
+        self.assertEqual(
+            [],
+            self._check(
+                {
+                    "QODER_CONFIG_DIR": str(self.qoder_home),
+                    "QODERCN_CONFIG_DIR": str(self.qoder_cn_home),
+                }
+            ),
+        )
+
+    def test_schema_version_1_rows_remain_consumable(self) -> None:
+        row = {
+            "id": "qoder",
+            "displayName": "Qoder",
+            "component": "plugin",
+            "status": "missing",
+            "version": None,
+            "payloadPath": None,
+            "detailPath": "C:/qoder/registry.json",
+            "registeredSource": "C:/qoder/registry.json",
+            "enabled": None,
+            "reason": "no registry entry",
+        }
+        completed = mock.Mock(
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "cliVersion": self.version,
+                    "hosts": [row],
+                }
+            ),
+        )
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.dict("os.environ", {"COWORK_FLOW_CLI": str(REPO_CLI)}):
+            with mock.patch("subprocess.run", return_value=completed):
+                rows, unavailable = self.doctor._inspect_component_rows(
+                    self.project, "qoder", "plugin", "qoder"
+                )
+        self.assertIsNone(unavailable)
+        self.assertEqual(1, len(rows))
+        self.assertEqual("missing", rows[0]["status"])
 
     def test_plugin_check_never_enters_doctor_errors(self) -> None:
         self.doctor._HOST_INSPECT_CACHE.clear()
@@ -1517,6 +1682,8 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         patcher = mock.patch.dict(
             "os.environ",
             {
+                "HOME": str(self.root),
+                "USERPROFILE": str(self.root),
                 "QODER_CONFIG_DIR": str(self.qoder_home),
                 "ZCODE_HOME": str(self.zcode_home),
                 "CODEX_HOME": str(self.codex_home),
@@ -2788,7 +2955,7 @@ class HostInspectDelegationTest(unittest.TestCase):
 
     def _facts(self, **rows: dict[str, object]) -> dict[str, object]:
         components = {
-            f"{host}:{row.get('component') or 'plugin'}": row
+            f"{host}:{row.get('component') or 'plugin'}": [row]
             for host, row in rows.items()
         }
         return {"available": True, "reason": "", "hosts": rows, "components": components}

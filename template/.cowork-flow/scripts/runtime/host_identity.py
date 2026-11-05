@@ -139,22 +139,24 @@ HOST_IDENTITIES: tuple[HostIdentity, ...] = (
         input_keys=(),
         process_label_env=None,
     ),
-    # Qoder documents QODER_SESSION_ID as a session env var and
-    # puts the generic `session_id` in every hook payload; that
-    # key is shared with codex/claude-code/kimi-code, so only
-    # the declared host may resolve it. Payload `cwd` is the
-    # project-root evidence that matters here: Qoder host
-    # assets live in a machine-level plugin, not the project.
+    # Qoder and Qoder CN are one host with two user-level editions:
+    # both export their session id, but the CN CLI prefixes the
+    # environment namespace (`QODERCN_SESSION_ID`) while the hook
+    # payload keys stay the same. Payload `cwd` is the project-root
+    # evidence that matters here: host assets live in a machine-level
+    # plugin, not the project.
     HostIdentity(
         id="qoder",
         prefix="qoder",
         adapter="qoder.hooks",
         policy_module="adapters.host.qoder_policy",
         injects_context=True,
-        session_env=("QODER_SESSION_ID",),
+        session_env=("QODER_SESSION_ID", "QODERCN_SESSION_ID"),
         input_keys=(
             "QODER_SESSION_ID",
             "qoder_session_id",
+            "QODERCN_SESSION_ID",
+            "qodercn_session_id",
             "session_id",
         ),
         process_label_env=None,

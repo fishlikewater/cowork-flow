@@ -67,7 +67,7 @@ cwf host inspect qoder
 cwf host inspect --json
 ```
 
-One row per installable component, with status `installed`, `missing`, `stale`, `broken`, or `unsupported`. `stale` means the installed payload version differs from the running CLI version; `broken` means the host knows about cowork-flow but a required payload artifact is absent. The doctor then compares that same version with the project's `.cowork-flow/.version`: a CLI newer than the project with a payload that still matches the project's runtime stays silent, while a payload that lags a synced project is still `PLUGIN-STALE`. `kimi-code`'s `all` is only a command composition and never appears as a row. The command is read-only and never repairs, installs, or uninstalls; an unhealthy install is data, not a command failure, and only usage errors such as an unknown host exit with 2.
+One row per installable component instance, with status `installed`, `missing`, `stale`, `broken`, or `unsupported`. Qoder's intl and CN editions each get a row (`variant` distinguishes them); an absent edition is omitted. `stale` means the installed payload version differs from the running CLI version; `broken` means the host knows about cowork-flow but a required payload artifact is absent. The doctor then compares that same version with the project's `.cowork-flow/.version`: a CLI newer than the project with a payload that still matches the project's runtime stays silent, while a payload that lags a synced project is still `PLUGIN-STALE`. `kimi-code`'s `all` is only a command composition and never appears as a row. The command is read-only and never repairs, installs, or uninstalls; an unhealthy install is data, not a command failure, and only usage errors such as an unknown host exit with 2.
 
 The doctor's host checks consume the same read model (`cwf host inspect --json`) and no longer parse host directories, registries, settings, or TOML themselves. When the CLI is not on `PATH`, exits non-zero, times out, or reports an unexpected `schemaVersion`, the doctor emits `HOST-INSPECT-UNAVAILABLE` with an upgrade hint instead of falsely reporting `PLUGIN-NOT-INSTALLED` — "could not read" and "read as not installed" are different facts. See `spec/contracts/host-install-inspection.md` for the full contract.
 
@@ -145,7 +145,9 @@ cwf host add qoder --force
 cwf host remove qoder
 ```
 
-The install location is determined by `QODER_CONFIG_DIR`, or `~/.qoder` when that variable is unset. The plugin provides hooks, the three fixed subagents, and the bootstrap Skill; the project-level `init` / `sync` commands only write the adaptation declarations and shared Skills.
+Qoder has two user-level install directories: `~/.qoder` (international) and `~/.qoder-cn` (Qoder CN). The bare command covers every edition present on the machine; for install and removal, `QODER_CONFIG_DIR` / `QODERCN_CONFIG_DIR` are full-path overrides, and setting either restricts the command to that target (setting both covers both). The directory names can be overridden with `QODER_CONFIG_DIR_NAME` / `QODERCN_CONFIG_DIR_NAME`.
+
+`cwf host inspect qoder` prints one row per present edition, labelled `Qoder` or `Qoder CN`; an explicitly configured home is reported as `missing` even when it does not exist, and never hides another present edition. The plugin provides hooks, the three fixed subagents, and the bootstrap Skill; the project-level `init` / `sync` commands only write the single `qoder` adaptation declaration and shared Skills (Qoder CN also uses `.qoder` as its project config directory).
 
 ## DeepSeek Harness
 

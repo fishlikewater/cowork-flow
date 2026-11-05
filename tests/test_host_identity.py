@@ -47,6 +47,8 @@ class HostIdentityTest(unittest.TestCase):
             ("CODEX_SESSION_ID", "codex"),
             ("CODEX_THREAD_ID", "codex"),
             ("DSH_SESSION_ID", "dsh"),
+            ("QODER_SESSION_ID", "qoder"),
+            ("QODERCN_SESSION_ID", "qoder"),
         )
         for env_name, expected_host in cases:
             with self.subTest(env_name=env_name):
@@ -142,21 +144,30 @@ class HostIdentityTest(unittest.TestCase):
 
     def test_qoder_row_owns_only_its_prefixed_keys(self) -> None:
         # Qoder hook payloads also carry the generic session_id, so the row may
-        # declare it and still never resolve it alone. Its two prefixed keys stay
-        # exclusive, and QODER_SESSION_ID is the only Bash-side host evidence.
+        # declare it and still never resolve it alone. Its prefixed keys stay
+        # exclusive; the intl and CN editions each export one session env var.
         qoder = self.host_identity.identity_for("qoder")
         self.assertEqual("qoder", qoder.prefix)
         self.assertEqual("qoder.hooks", qoder.adapter)
         self.assertTrue(qoder.injects_context)
-        self.assertEqual(("QODER_SESSION_ID",), qoder.session_env)
         self.assertEqual(
-            ("QODER_SESSION_ID", "qoder_session_id"),
+            ("QODER_SESSION_ID", "QODERCN_SESSION_ID"), qoder.session_env
+        )
+        self.assertEqual(
+            (
+                "QODER_SESSION_ID",
+                "qoder_session_id",
+                "QODERCN_SESSION_ID",
+                "qodercn_session_id",
+            ),
             self.host_identity.sole_owned_input_keys("qoder"),
         )
-        self.assertEqual(
-            "qoder",
-            self.host_identity.detect_host({"QODER_SESSION_ID": "s1"}),
-        )
+        for env_name in ("QODER_SESSION_ID", "QODERCN_SESSION_ID"):
+            with self.subTest(env_name=env_name):
+                self.assertEqual(
+                    "qoder",
+                    self.host_identity.detect_host({env_name: "s1"}),
+                )
         self.assertIsNone(self.host_identity.detect_host({"session_id": "s1"}))
         self.assertEqual(
             "qoder", self.host_identity.identity_for_prefix("qoder").id

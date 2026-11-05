@@ -751,10 +751,11 @@ class InjectEntryTest(unittest.TestCase):
             ("claude-code", "CLAUDE_SESSION_ID", "claude"),
             ("codex", "CODEX_SESSION_ID", "codex"),
             ("qoder", "QODER_SESSION_ID", "qoder"),
+            ("qoder", "QODERCN_SESSION_ID", "qoder"),
             ("opencode", "OPENCODE_SESSION_ID", "opencode"),
         )
         for host, env_name, prefix in hosts:
-            with self.subTest(host=host):
+            with self.subTest(host=host, env_name=env_name):
                 with tempfile.TemporaryDirectory() as temp_dir:
                     root = Path(temp_dir)
                     self._make_project(root)

@@ -1110,21 +1110,21 @@ def _run_host_inspect() -> dict[str, object]:
         payload = json.loads(completed.stdout)
     except (json.JSONDecodeError, ValueError):
         return _host_inspect_unavailable("host inspect returned invalid JSON")
-    if not isinstance(payload, dict) or payload.get("schemaVersion") != 1:
+    if not isinstance(payload, dict) or payload.get("schemaVersion") not in (1, 2):
         return _host_inspect_unavailable(
-            "host inspect does not support schemaVersion 1; upgrade cowork-flow"
+            "host inspect does not support schemaVersion 1 or 2; upgrade cowork-flow"
         )
     rows = payload.get("hosts")
     if not isinstance(rows, list):
         return _host_inspect_unavailable("host inspect returned no hosts list")
     hosts: dict[str, dict[str, object]] = {}
-    components: dict[str, dict[str, object]] = {}
+    components: dict[str, list[dict[str, object]]] = {}
     for row in rows:
         if not isinstance(row, dict) or not isinstance(row.get("id"), str):
             continue
         host_id = row["id"]
         component = str(row.get("component") or "")
-        components[f"{host_id}:{component}"] = row
+        components.setdefault(f"{host_id}:{component}", []).append(row)
         hosts.setdefault(host_id, row)
     return {
         "available": True,
@@ -1134,11 +1134,19 @@ def _run_host_inspect() -> dict[str, object]:
     }
 
 
+def _inspect_rows(
+    facts: dict[str, object], host_id: str, component: str
+) -> list[dict[str, object]]:
+    """Every row for one component; a multi-edition host reports several."""
+    rows = facts.get("components", {}).get(f"{host_id}:{component}", [])
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def _inspect_row(
     facts: dict[str, object], host_id: str, component: str
 ) -> dict[str, object] | None:
-    row = facts.get("components", {}).get(f"{host_id}:{component}")
-    return row if isinstance(row, dict) else None
+    rows = _inspect_rows(facts, host_id, component)
+    return rows[0] if rows else None
 
 
 def _host_inspect_facts(repo_root: Path) -> dict[str, object]:
@@ -1151,19 +1159,29 @@ def _host_inspect_facts(repo_root: Path) -> dict[str, object]:
     return cached
 
 
-def _inspect_component_row(
+def _inspect_component_rows(
     repo_root: Path, host_id: str, component: str, label: str
-) -> tuple[dict[str, object] | None, list[dict[str, str]] | None]:
-    """The inspect row for one component, or the shared unavailable warning."""
+) -> tuple[list[dict[str, object]] | None, list[dict[str, str]] | None]:
+    """The inspect rows for one component, or the shared unavailable warning."""
     facts = _host_inspect_facts(repo_root)
     if not facts["available"]:
         return None, _host_inspect_unavailable_issue(host_id, facts)
-    row = _inspect_row(facts, host_id, component)
-    if row is None:
+    rows = _inspect_rows(facts, host_id, component)
+    if not rows:
         return None, _host_inspect_unavailable_issue(
             host_id, {"reason": f"host inspect omitted {label}"}
         )
-    return row, None
+    return rows, None
+
+
+def _inspect_component_row(
+    repo_root: Path, host_id: str, component: str, label: str
+) -> tuple[dict[str, object] | None, list[dict[str, str]] | None]:
+    """The first inspect row for one component (single-edition callers)."""
+    rows, unavailable = _inspect_component_rows(repo_root, host_id, component, label)
+    if unavailable is not None:
+        return None, unavailable
+    return rows[0], None
 
 
 def _unexpected_inspect_status(
@@ -1223,17 +1241,28 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
     """Qoder plugin health from the CLI-owned install-state read model.
 
     Advisory, and silent while the project never selected the Qoder host: the
-    plugin is a machine-level asset installed once into `~/.qoder/plugins`, so
-    it never updates through sync or npm."""
+    plugin is a machine-level asset installed once into the Qoder user config
+    directory (`~/.qoder` or `~/.qoder-cn`), so it never updates through sync
+    or npm. Each present edition is checked independently."""
     adapter = repo_root / DIR_WORKFLOW / "adapters" / "qoder" / "adapter.yaml"
     if not adapter.is_file():
         return []
 
-    row, unavailable = _inspect_component_row(
+    rows, unavailable = _inspect_component_rows(
         repo_root, "qoder", "plugin", "qoder"
     )
     if unavailable is not None:
         return unavailable
+    issues: list[dict[str, str]] = []
+    for row in rows:
+        issues.extend(_qoder_row_issues(row, repo_root))
+    return issues
+
+
+def _qoder_row_issues(
+    row: dict[str, object], repo_root: Path
+) -> list[dict[str, str]]:
+    label = "Qoder CN" if row.get("variant") == "cn" else "Qoder"
     status = row.get("status")
     payload = Path(str(row.get("payloadPath") or row.get("registeredSource") or "qoder"))
     path = _inspect_path(row, "qoder")
@@ -1243,9 +1272,9 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
         return _qoder_warning(
             "PLUGIN-NOT-INSTALLED",
             path,
-            "this project declares the Qoder host, but cowork-flow is not "
-            "registered in the Qoder plugin cache, so Qoder sessions inject no "
-            "workflow context; loading also needs a Qoder restart and a "
+            f"this project declares the Qoder host, but cowork-flow is not "
+            f"registered in the {label} plugin cache, so {label} sessions inject "
+            "no workflow context; loading also needs a Qoder restart and a "
             "trusted workspace",
             "cwf host add qoder",
         )
@@ -1258,7 +1287,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
         return _qoder_warning(
             code,
             path,
-            f"the Qoder plugin at {payload} is incomplete ({reason}); the host "
+            f"the {label} plugin at {payload} is incomplete ({reason}); the host "
             "cannot load it",
             "cwf host add qoder --force",
         )
@@ -1267,7 +1296,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
             return _qoder_warning(
                 "PLUGIN-DISABLED",
                 path,
-                'the Qoder plugin is installed but not enabled '
+                f'the {label} plugin is installed but not enabled '
                 f'(`enabledPlugins["{QODER_PLUGIN_KEY}"]`); no hook fires',
                 "cwf host add qoder --force",
             )
@@ -1278,7 +1307,7 @@ def check_qoder_plugin(repo_root: Path) -> list[dict[str, str]]:
                 "PLUGIN-STALE",
                 path,
                 _project_stale_message(
-                    "the Qoder plugin",
+                    f"the {label} plugin",
                     recorded,
                     project_version,
                     "the plugin does not update with sync or npm, so injection "

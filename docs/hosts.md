@@ -67,7 +67,7 @@ cwf host inspect qoder
 cwf host inspect --json
 ```
 
-每个可安装组件一行，状态为 `installed`、`missing`、`stale`、`broken` 或 `unsupported`。`stale` 表示已装载荷版本与当前 CLI 版本不同；`broken` 表示宿主有注册但载荷缺件。doctor 会再拿同一版本与本项目 `.cowork-flow/.version` 比较：CLI 比项目新、但插件仍匹配项目运行时不报；项目已 sync 到新版本、插件落后时仍报 `PLUGIN-STALE`。`kimi-code` 的 `all` 只是命令组合，不会单独出现。命令只读，不修复、不安装、不卸载；安装态异常是数据，不是命令失败，只有未知宿主等用法错误才返回 2。
+每个可安装组件实例一行，状态为 `installed`、`missing`、`stale`、`broken` 或 `unsupported`。Qoder 的 intl 与 CN edition 各占一行（`variant` 区分），不存在的 edition 不出现。`stale` 表示已装载荷版本与当前 CLI 版本不同；`broken` 表示宿主有注册但载荷缺件。doctor 会再拿同一版本与本项目 `.cowork-flow/.version` 比较：CLI 比项目新、但插件仍匹配项目运行时不报；项目已 sync 到新版本、插件落后时仍报 `PLUGIN-STALE`。`kimi-code` 的 `all` 只是命令组合，不会单独出现。命令只读，不修复、不安装、不卸载；安装态异常是数据，不是命令失败，只有未知宿主等用法错误才返回 2。
 
 `run doctor` 的宿主检查消费同一份读模型（`cwf host inspect --json`），不再自己解析宿主目录、注册表、设置文件或 TOML。CLI 不在 PATH、退出码非 0、超时或 `schemaVersion` 不匹配时，doctor 报 `HOST-INSPECT-UNAVAILABLE` 并给出升级提示，而不是误报 `PLUGIN-NOT-INSTALLED`——“读不到”和“读到没装”是两件事。完整契约见 `spec/contracts/host-install-inspection.md`。
 
@@ -145,7 +145,9 @@ cwf host add qoder --force
 cwf host remove qoder
 ```
 
-安装位置由 `QODER_CONFIG_DIR` 决定，未设置时为 `~/.qoder`。插件提供 hook、三个 fixed subagent 和引导技能；项目级 `init` / `sync` 只写适配声明和共享技能。
+Qoder 有两个用户级安装目录：`~/.qoder`（国际版）和 `~/.qoder-cn`（Qoder CN）。裸命令覆盖机器上所有已存在的 edition；安装/卸载时 `QODER_CONFIG_DIR` / `QODERCN_CONFIG_DIR` 是完整路径覆盖，显式设置时只处理对应目标（两个都设置则两者都处理），目录名可用 `QODER_CONFIG_DIR_NAME` / `QODERCN_CONFIG_DIR_NAME` 覆盖。
+
+`cwf host inspect qoder` 每个存在的 edition 一行，文本输出用 `Qoder` / `Qoder CN` 区分；显式配置的目录即使不存在也按 `missing` 报告，且不会掩盖另一个已存在的 edition。插件提供 hook、三个 fixed subagent 和引导技能；项目级 `init` / `sync` 只写单一 `qoder` 适配声明和共享技能（Qoder CN 的项目配置目录同样叫 `.qoder`）。
 
 ## DeepSeek Harness
 

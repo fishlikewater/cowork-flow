@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Qoder CN 支持**：`cwf host add qoder` / `host remove qoder` 覆盖 `~/.qoder`（intl）与 `~/.qoder-cn`（CN）两个用户级 edition；安装/卸载时 `QODER_CONFIG_DIR` / `QODERCN_CONFIG_DIR` 显式设置只处理对应目标，目录名支持 `*_CONFIG_DIR_NAME`。`cwf host inspect qoder` 每个存在的 edition 输出一行并带 `variant`，报告 `schemaVersion` 升到 2（doctor 同时接受 1 与 2）；doctor 的 Qoder 检查逐 edition 告警。运行时身份补 `QODERCN_SESSION_ID`，CN 会话的 Bash 侧任务能绑定到 `qoder` 宿主。项目级仍是单一 `qoder` 适配（CN 的项目配置目录同样叫 `.qoder`）。升级动作：`cwf host add qoder --force`。
+
 ### Changed
 
 ## [2.6.0] - 2026-11-04
