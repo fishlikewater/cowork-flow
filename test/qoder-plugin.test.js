@@ -239,13 +239,24 @@ test('qoder shim fails open when the project runtime rejects the host', async ()
 });
 
 async function withQoderHome(home, run) {
-  const previous = process.env.QODER_CONFIG_DIR;
+  // A Qoder CN host exports its own config dir into the shell; clear every
+  // explicit Qoder home so this fixture never reaches the real ~/.qoder-cn.
+  const keys = [
+    'QODER_CONFIG_DIR',
+    'QODERCN_CONFIG_DIR',
+    'QODER_CONFIG_DIR_NAME',
+    'QODERCN_CONFIG_DIR_NAME'
+  ];
+  const previous = new Map(keys.map((key) => [key, process.env[key]]));
+  for (const key of keys) delete process.env[key];
   process.env.QODER_CONFIG_DIR = home;
   try {
     return await run();
   } finally {
-    if (previous === undefined) delete process.env.QODER_CONFIG_DIR;
-    else process.env.QODER_CONFIG_DIR = previous;
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 }
 

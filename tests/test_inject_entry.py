@@ -967,6 +967,9 @@ class InjectEntryTest(unittest.TestCase):
 
         context = data["hookSpecificOutput"]["additionalContext"]
         self.assertIn(MISSING_TASK_TEXT, context)
+        self.assertIn("不要自动创建重复任务", context)
+        self.assertNotIn("当前项目无有效任务", context)
+        self.assertNotIn("创建新任务", context)
         self.assertIn('status="no_task"', context)
         self.assertEqual(
             [

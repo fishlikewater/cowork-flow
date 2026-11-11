@@ -2,7 +2,7 @@
 
 [English](direction.en.md) | 中文
 
-> 状态：**已批准** · 创建：2026-08-27 · 最近更新：2026-10-19
+> 状态：**已批准** · 创建：2026-08-27 · 最近更新：2026-11-10
 > 本文档是后续阶段立项的权威输入。任何方向的修订必须先更新本文档，再立项。
 > 已完成阶段的实施细节与提交记录见 [CHANGELOG](../CHANGELOG.md)；本文只保留仍然生效的定位、取舍、边界和待决项。
 
@@ -50,6 +50,7 @@
 - **1.8.x 已发布**：证据化完成（AC 事实化、`evidence.jsonl`、完成门禁）。
 - **1.9.x 已发布**：多执行者协作事实——看板归属可见、依赖边、交接凭证。
 - **2.0.0 已发布**：spec-check 机制破坏性删除、编辑期越界警告覆盖各宿主、注入容量放宽（Verify 10 条 / 块预算 3400）。详见 [CHANGELOG](../CHANGELOG.md) 的 `[2.0.0]` 段。
+- **2.8.x 规划中**：团队协作基线——运行时忽略卫生（`.runtime` 不入库）、悬空绑定降级语义统一、团队协作文档。
 - 各版本的交付明细一律以 CHANGELOG 为准，本文不重复。
 
 ## 6. 待决项与缓行
@@ -59,6 +60,7 @@
   - 2026-10-13 澄清：「文档语言：中文」约束的是下游宿主工作时**产出文档**的语言，不要求把随包分发的产品载荷（`template/skills/`、`template/.cowork-flow/spec/contracts/`、`presets/`）翻译成中文。
   - 2026-10-21（第一步）：随包分发的框架 spec 说明文档统一为英文——`spec/index.md`、`spec/runtime/index.md`、`spec/schemas/index.md`、`spec/references/**`。`decision-anchor.md` 的六个解析标题、`workflow-state-templates.md` 的注入块、`backend/frontend/guides` 与 `template/AGENTS.md` 仍为中文。
   - 2026-10-22（第二步）：安装时可选择 `zh-CN` / `en-US`，写入受保护的 `.cowork-flow/config.yaml`，只影响 `decision-anchor.md` 与计划产物。解析器永久接受中英两套标题；`decision-anchor.md` 保留中文合同并新增英文变体，`workflow-state-templates.md`、`AGENTS.md`、spec 文档与 Skill 不随该选项本地化。`references/` 仍受项目同步保护，已装项目需手动刷新才能拿到英文副本。
+- **已立项（2026-11-10）：团队协作基线。** 1.9.x 解决了单机多执行者事实；多开发者、多分支与 worktree 场景下 git 层的事实一致性作为下一版本线，范围限定为运行时忽略卫生、悬空绑定降级语义与团队协作文档；跨分支看板与 git 托管不做。
 - **维持缓行**：MCP 写工具（须先重开 `fact-layer-access` 契约）、新宿主接入、自创跨 agent 协议。
 - **观察项（触发条件已到）**：机器可解析 AC 是与 Spec Kit / OpenSpec 互操作的第一块砖（spec 制品 ↔ decision-anchor 映射），符合「SDD 工具之下的状态层」定位。原定「待 agent-teams 排期落定后议」，而 1.9.0 多执行者协作主线已实现，可排入讨论。
 

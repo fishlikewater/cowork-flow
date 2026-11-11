@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from infra.paths import ensure_runtime_gitignore
+
 
 STATE_METADATA_KEY = "_state"
 LOCK_METADATA_SCHEMA_VERSION = 1
@@ -110,6 +112,7 @@ class StateStore:
         operation_id: str,
     ) -> StateSnapshot:
         target = Path(path)
+        ensure_runtime_gitignore(target)
         with self._lock(target):
             current = self._load_unlocked(target, missing_ok=True)
             if current.operation_id == operation_id:

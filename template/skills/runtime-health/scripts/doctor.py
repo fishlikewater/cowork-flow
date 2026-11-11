@@ -604,6 +604,102 @@ def _diagnostic_path(repo_root: Path, path: Path) -> str:
         return str(path)
 
 
+def _git_path_list(repo_root: Path, args: list[str]) -> list[str] | None:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _runtime_git_hygiene_issue(
+    *,
+    kind: str,
+    path: str,
+    message: str,
+    hint: str,
+) -> dict[str, str]:
+    return _issue(
+        code=f"RUNTIME-GIT-HYGIENE-{kind}",
+        severity="warning",
+        path=path,
+        message=message,
+        command_hint=hint,
+        contract="runtime-health:runtime-git-hygiene",
+        kind=kind.lower(),
+        hint=hint,
+    )
+
+
+def check_runtime_git_hygiene(repo_root: Path) -> list[dict[str, str]]:
+    """Warn when runtime state is unignored or tracked by git."""
+    runtime = repo_root / ".cowork-flow" / ".runtime"
+    if not runtime.is_dir() or shutil.which("git") is None:
+        return []
+    pathspec = ["--", ".cowork-flow/.runtime"]
+    tracked = _git_path_list(repo_root, ["ls-files", *pathspec])
+    untracked = _git_path_list(
+        repo_root,
+        ["ls-files", "--others", "--exclude-standard", *pathspec],
+    )
+    if tracked is None or untracked is None:
+        return []
+
+    def state_files(paths: list[str]) -> list[str]:
+        return [p for p in paths if not p.endswith(".runtime/.gitignore")]
+
+    tracked = state_files(tracked)
+    untracked = state_files(untracked)
+    diagnostic = _diagnostic_path(repo_root, runtime)
+    issues: list[dict[str, str]] = []
+    if untracked:
+        issues.append(
+            _runtime_git_hygiene_issue(
+                kind="UNIGNORED",
+                path=diagnostic,
+                message=(
+                    f"{len(untracked)} runtime state file(s) are not "
+                    "git-ignored"
+                ),
+                hint=(
+                    "run any lifecycle command to create "
+                    ".cowork-flow/.runtime/.gitignore, or add "
+                    ".cowork-flow/.runtime/ to .gitignore"
+                ),
+            )
+        )
+    if tracked:
+        issues.append(
+            _runtime_git_hygiene_issue(
+                kind="TRACKED",
+                path=diagnostic,
+                message=(
+                    f"{len(tracked)} runtime state file(s) are tracked by git"
+                ),
+                hint="git rm -r --cached .cowork-flow/.runtime",
+            )
+        )
+    return issues
+
+
+def _print_runtime_git_hygiene_issues(issues: list[dict[str, str]]) -> None:
+    for issue in issues:
+        print(
+            f"WARNING: runtime git hygiene: {issue['path']}: "
+            f"{issue['message']}",
+            file=sys.stderr,
+        )
+        print(f"Hint: {issue['hint']}", file=sys.stderr)
+
+
 def _state_lock_code(status: str) -> str:
     return f"STATE-RECOVERY-LOCK-{status.upper().replace('_', '-')}"
 
@@ -1852,6 +1948,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     task_hygiene_issues = check_task_hygiene(repo_root)
     state_recovery_issues = check_state_recovery(repo_root)
     session_hygiene_issues = check_session_hygiene(repo_root)
+    runtime_git_hygiene_issues = check_runtime_git_hygiene(repo_root)
     mcp_issues = check_mcp_registration(repo_root)
     dsh_preset_issues = check_dsh_preset(repo_root)
     kimi_hook_issues = check_kimi_hook(repo_root)
@@ -1887,6 +1984,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "taskHygiene": task_hygiene_issues,
             "stateRecovery": state_recovery_issues,
             "sessionHygiene": session_hygiene_issues,
+            "runtimeGitHygiene": runtime_git_hygiene_issues,
             "mcpRegistration": mcp_issues,
             "dshPreset": dsh_preset_issues,
             "kimiHook": kimi_hook_issues,
@@ -1916,6 +2014,7 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
     _print_task_hygiene_issues(result["issues"]["taskHygiene"])
     _print_state_recovery_issues(result["issues"]["stateRecovery"])
     _print_session_hygiene_issues(result["issues"]["sessionHygiene"])
+    _print_runtime_git_hygiene_issues(result["issues"]["runtimeGitHygiene"])
     for issue in result["issues"]["mcpRegistration"]:
         print(f"MCP ({issue['status']}): {issue['message']}")
     for issue in result["issues"]["dshPreset"]:

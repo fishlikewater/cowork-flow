@@ -11,6 +11,7 @@
 | 安装、初始化项目或开始一个任务 | [README](../README.md) | 最短使用路径、日常命令和常见问题 |
 | 把 cowork-flow 接到某个 AI 编码宿主 | [宿主接入](hosts.md) | 各宿主的安装组件、重启要求、升级、卸载和排障方式 |
 | 了解项目文件如何组织 | [架构与扩展](architecture.md) | 运行时、`template/`、`presets/`、同步策略和扩展边界 |
+| 多人、多分支或多 worktree 协作 | [团队协作](team.md) | 提交范围、分支与 worktree、executor 与 assignee、跨机器交接和运行时状态清理 |
 | 参与项目开发 | [参与开发](../CONTRIBUTING.md) | 本地环境、代码约定、测试和 PR 检查 |
 | 了解测试与发布流程 | [发布与维护](release.md) | 测试分层、CI、版本发布和维护者命令 |
 | 了解项目方向与版本规划 | [方向规划](direction.md) | 定位声明、已拍板取舍、版本主线与待决项 |

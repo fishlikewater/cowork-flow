@@ -233,8 +233,35 @@ class TaskNavigationTest(FlowScriptTestCase):
 
             self.assertEqual(0, result)
             self.assertIn("Status: stale", output)
+            self.assertIn("task directory not found", output)
+            self.assertIn("another branch or worktree", output)
+            self.assertIn("do not create a duplicate task", output)
             self.assertIn("Source: session\n", output)
             self.assertNotIn("Source: session:main", output)
+
+    def test_cmd_next_json_stale_reports_shared_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".cowork-flow" / "tasks").mkdir(parents=True)
+            self._seed_trusted_binding(root, ".cowork-flow/tasks/missing")
+
+            result, payload = self._run_cmd_next_json(
+                root,
+                env={"COWORK_FLOW_CONTEXT_ID": "main"},
+                target=None,
+            )
+
+            self.assertEqual(0, result)
+            self.assertEqual("stale", payload["status"])
+            self.assertEqual(
+                [
+                    "task directory not found: .cowork-flow/tasks/missing",
+                    "the bound task may live on another branch or worktree; "
+                    "switch back to that branch or rebind explicitly — do not "
+                    "create a duplicate task",
+                ],
+                payload["blockers"],
+            )
 
     def test_task_next_parser_accepts_structured_output_options(self) -> None:
         args = self.task.build_parser().parse_args(

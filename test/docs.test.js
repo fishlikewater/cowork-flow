@@ -20,6 +20,8 @@ const DOC_FILES = [
   'docs/index.en.md',
   'docs/architecture.md',
   'docs/architecture.en.md',
+  'docs/team.md',
+  'docs/team.en.md',
   'docs/hosts.md',
   'docs/hosts.en.md',
   'docs/release.md',

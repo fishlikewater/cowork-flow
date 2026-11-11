@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import os
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -71,6 +72,136 @@ class StateStoreTest(unittest.TestCase):
             self.assertEqual(2, second.revision)
             self.assertEqual("更新", persisted.data["value"])
             self.assertEqual(2, raw["_state"]["revision"])
+
+    def test_first_runtime_write_creates_gitignore(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = (
+                Path(temp_dir)
+                / ".cowork-flow"
+                / ".runtime"
+                / "sessions"
+                / "main.json"
+            )
+            self.StateStore().replace(
+                path,
+                {"value": "x"},
+                expected_revision=0,
+                operation_id="op-runtime-ignore",
+            )
+
+            ignore = path.parents[1] / ".gitignore"
+            self.assertEqual(
+                "*\n!.gitignore\n",
+                ignore.read_text(encoding="utf-8"),
+            )
+
+    def test_existing_runtime_gitignore_is_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ignore = (
+                Path(temp_dir) / ".cowork-flow" / ".runtime" / ".gitignore"
+            )
+            ignore.parent.mkdir(parents=True)
+            ignore.write_text("custom\n", encoding="utf-8")
+            path = ignore.parent / "sessions" / "main.json"
+
+            self.StateStore().replace(
+                path,
+                {"value": "x"},
+                expected_revision=0,
+                operation_id="op-runtime-preserve",
+            )
+
+            self.assertEqual(
+                "custom\n",
+                ignore.read_text(encoding="utf-8"),
+            )
+
+    def test_non_runtime_write_creates_no_gitignore(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = (
+                root
+                / ".cowork-flow"
+                / "tasks"
+                / "05-19-demo"
+                / "task.json"
+            )
+            self.StateStore().replace(
+                path,
+                {"value": "x"},
+                expected_revision=0,
+                operation_id="op-task-write",
+            )
+
+            self.assertFalse(
+                (root / ".cowork-flow" / ".runtime" / ".gitignore").exists()
+            )
+
+    def test_runtime_state_files_are_ignored_by_git(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = (
+                root
+                / ".cowork-flow"
+                / ".runtime"
+                / "sessions"
+                / "main.json"
+            )
+            self.StateStore().replace(
+                path,
+                {"value": "x"},
+                expected_revision=0,
+                operation_id="op-git-ignore",
+            )
+            subprocess.run(
+                ["git", "init", "-q"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "-uall"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            ).stdout
+
+            self.assertIn("?? .cowork-flow/.runtime/.gitignore", status)
+            self.assertNotIn("main.json", status)
+
+    def test_gitignore_write_failure_does_not_break_state_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = (
+                Path(temp_dir)
+                / ".cowork-flow"
+                / ".runtime"
+                / "sessions"
+                / "main.json"
+            )
+            real_open = Path.open
+
+            def open_but_fail_ignore(
+                self_path: Path, *args: object, **kwargs: object
+            ):
+                if self_path.name == ".gitignore":
+                    raise OSError("denied")
+                return real_open(self_path, *args, **kwargs)
+
+            with mock.patch.object(
+                Path, "open", new=open_but_fail_ignore
+            ):
+                snapshot = self.StateStore().replace(
+                    path,
+                    {"value": "x"},
+                    expected_revision=0,
+                    operation_id="op-gitignore-failure",
+                )
+
+            self.assertEqual(1, snapshot.revision)
+            self.assertTrue(path.is_file())
 
     def test_corrupt_json_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

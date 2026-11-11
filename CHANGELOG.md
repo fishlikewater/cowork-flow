@@ -4,7 +4,12 @@
 
 ### Added
 
+- **运行时状态自忽略与 Git 卫生检查**：首次写入 `.cowork-flow/.runtime/` 时自动创建自忽略文件（`*` 与 `!.gitignore`），锁、会话绑定、操作日志与状态快照不再进入 git；`doctor --all` 新增 `RUNTIME-GIT-HYGIENE-UNIGNORED` / `RUNTIME-GIT-HYGIENE-TRACKED` 告警与清理提示。
+- **团队协作文档**：新增 `docs/team.md` 与英文对页，覆盖提交范围、分支与 worktree、executor 与 assignee、跨机器交接、合并冲突修复与 `.runtime` 清理。
+
 ### Changed
+
+- **悬空绑定降级语义统一**：绑定任务目录因切分支或 worktree 消失时，hook 注入与 CLI `task next` 共用同一消息源，提示切回原分支或显式重新绑定，不再默认引导创建重复任务。
 
 ## [2.7.1] - 2026-11-05
 

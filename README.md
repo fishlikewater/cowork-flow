@@ -160,6 +160,7 @@ cwf project sync .
 |---|---|
 | [文档索引](docs/index.md) | 全部文档入口 |
 | [架构与扩展](docs/architecture.md) | 项目文件如何组织、同步策略与受保护文件 |
+| [团队协作](docs/team.md) | 多人、多分支与 worktree 下的提交范围、所有权交接和运行时清理 |
 | [宿主接入](docs/hosts.md) | 各宿主的安装、重启、排障和卸载方式 |
 | [发布与维护](docs/release.md) | 测试、CI 和维护者命令 |
 | [方向规划](docs/direction.md) | 项目定位、已定取舍、版本主线与待决项 |

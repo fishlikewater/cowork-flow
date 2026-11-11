@@ -20,6 +20,7 @@ DIR_SCRIPTS = "scripts"
 # File names
 FILE_DEVELOPER = ".developer"
 FILE_TASK_JSON = "task.json"
+RUNTIME_IGNORE_TEXT = "*\n!.gitignore\n"
 TASK_DATE_PREFIX_PATTERN = re.compile(r"^\d{2}-\d{2}-")
 FULL_DATE_PREFIX_PATTERN = re.compile(r"^\d{4}-(\d{2}-\d{2}-)")
 
@@ -75,6 +76,30 @@ def get_tasks_dir(repo_root: Path | None = None) -> Path:
     if repo_root is None:
         repo_root = get_repo_root()
     return repo_root / DIR_WORKFLOW / DIR_TASKS
+
+
+def runtime_root_for(path: Path) -> Path | None:
+    """The `.cowork-flow/.runtime` root containing path, if any."""
+    for parent in Path(path).absolute().parents:
+        if parent.name == ".runtime" and parent.parent.name == DIR_WORKFLOW:
+            return parent
+    return None
+
+
+def ensure_runtime_gitignore(path: Path) -> None:
+    """Create the runtime self-ignore file once; never overwrite it."""
+    runtime_root = runtime_root_for(path)
+    if runtime_root is None:
+        return
+    ignore = runtime_root / ".gitignore"
+    if ignore.exists():
+        return
+    try:
+        runtime_root.mkdir(parents=True, exist_ok=True)
+        with ignore.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(RUNTIME_IGNORE_TEXT)
+    except OSError:
+        return
 
 
 def generate_task_date_prefix() -> str:

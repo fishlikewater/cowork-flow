@@ -1692,6 +1692,10 @@ class SkillDeliveryCheckTest(unittest.TestCase):
         )
         patcher.start()
         self.addCleanup(patcher.stop)
+        # A Qoder CN host exports these into the shell; clear them so the
+        # fixture machine's editions never leak into the install-state reads.
+        for key in ("QODERCN_CONFIG_DIR", "QODERCN_CONFIG_DIR_NAME"):
+            os.environ.pop(key, None)
 
     def _project(self, platform: str | None, version: str = "1.6.0") -> Path:
         root = self.root / f"project-{platform or 'bare'}"
@@ -3098,3 +3102,111 @@ class HostInspectDelegationTest(unittest.TestCase):
                     )
                     self.assertNotIn("PLUGIN-NOT-INSTALLED", codes)
                     self.assertIn("npm install -g cowork-flow@latest", issues[0]["commandHint"])
+
+
+class RuntimeGitHygieneCheckTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.runtime = self.root / ".cowork-flow" / ".runtime"
+        self.runtime.mkdir(parents=True)
+
+    def _run_git(self, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr)
+        return result.stdout.strip()
+
+    def _init_git_repo(self) -> None:
+        self._run_git("init", "-q")
+        self._run_git("config", "user.name", "Test User")
+        self._run_git("config", "user.email", "test@example.com")
+
+    def _write_session_file(self) -> Path:
+        sessions = self.runtime / "sessions"
+        sessions.mkdir()
+        path = sessions / "main.json"
+        path.write_text("{}\n", encoding="utf-8")
+        return path
+
+    def test_unignored_runtime_files_report_warning(self) -> None:
+        self._write_session_file()
+        self._init_git_repo()
+
+        issues = self.doctor.check_runtime_git_hygiene(self.root)
+
+        self.assertEqual(
+            ["RUNTIME-GIT-HYGIENE-UNIGNORED"],
+            [issue["code"] for issue in issues],
+        )
+        self.assertIn("not git-ignored", issues[0]["message"])
+
+    def test_runtime_gitignore_silences_warning(self) -> None:
+        self._write_session_file()
+        (self.runtime / ".gitignore").write_text(
+            "*\n!.gitignore\n", encoding="utf-8"
+        )
+        self._init_git_repo()
+
+        self.assertEqual(
+            [], self.doctor.check_runtime_git_hygiene(self.root)
+        )
+
+    def test_tracked_runtime_files_report_tracked(self) -> None:
+        self._write_session_file()
+        self._init_git_repo()
+        self._run_git("add", "-A")
+        self._run_git("commit", "-m", "seed")
+
+        issues = self.doctor.check_runtime_git_hygiene(self.root)
+
+        self.assertEqual(
+            ["RUNTIME-GIT-HYGIENE-TRACKED"],
+            [issue["code"] for issue in issues],
+        )
+        self.assertIn("git rm -r --cached", issues[0]["commandHint"])
+
+    def test_non_git_directory_is_silent(self) -> None:
+        self._write_session_file()
+
+        self.assertEqual(
+            [], self.doctor.check_runtime_git_hygiene(self.root)
+        )
+
+    def test_missing_runtime_dir_is_silent(self) -> None:
+        shutil.rmtree(self.runtime)
+        self._init_git_repo()
+
+        self.assertEqual(
+            [], self.doctor.check_runtime_git_hygiene(self.root)
+        )
+
+    def test_structured_output_registers_runtime_git_hygiene(self) -> None:
+        self._write_session_file()
+        self._init_git_repo()
+
+        result = self.doctor._all_check_result(self.root)
+
+        codes = [
+            issue["code"]
+            for issue in result["issues"]["runtimeGitHygiene"]
+        ]
+        self.assertIn("RUNTIME-GIT-HYGIENE-UNIGNORED", codes)
+        self.assertFalse(
+            [
+                error
+                for error in result["errors"]
+                if "RUNTIME-GIT-HYGIENE" in json.dumps(error)
+            ]
+        )

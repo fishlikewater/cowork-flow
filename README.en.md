@@ -204,6 +204,7 @@ counterpart at the top.
 |---|---|
 | [Documentation index](docs/index.en.md) | Entry point for every document |
 | [Architecture and extension](docs/architecture.en.md) | How the project files are organized, how the sync policy and protected files work |
+| [Team collaboration](docs/team.en.md) | Commit scope, ownership handover, and runtime cleanup across people, branches, and worktrees |
 | [Host integration](docs/hosts.en.md) | Install, restart, troubleshoot, and uninstall for each host |
 | [Release and maintenance](docs/release.en.md) | Tests, CI, and maintainer commands |
 | [Direction](docs/direction.en.md) | Positioning, settled trade-offs, version line, and open items |

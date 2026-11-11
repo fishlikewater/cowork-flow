@@ -2,7 +2,7 @@
 
 [中文](direction.md) | English
 
-> Status: **approved** · Created: 2026-08-27 · Last updated: 2026-10-19
+> Status: **approved** · Created: 2026-08-27 · Last updated: 2026-11-10
 > This document is the authoritative input for starting later phases. Any revision to the direction must update this document first, then start the phase.
 > Implementation details and commit history for completed phases are in the [CHANGELOG](../CHANGELOG.md) (Chinese); this document keeps only the positioning, trade-offs, boundaries, and open items that still hold.
 
@@ -50,6 +50,7 @@ The test: a project's consumer is an agent, not a person. So injection formats, 
 - **1.8.x released**: evidence-based completion (ACs as facts, `evidence.jsonl`, completion gates).
 - **1.9.x released**: collaboration facts for multiple executors — visible board ownership, dependency edges, handoff records.
 - **2.0.0 released**: the spec-check mechanism removed in a breaking change, edit-time out-of-scope warnings on every host, and relaxed injection capacity (Verify 10 items / block budget 3400). See the `[2.0.0]` section of the [CHANGELOG](../CHANGELOG.md) (Chinese).
+- **2.8.x in planning**: team collaboration baseline — runtime ignore hygiene (`.runtime` stays out of the repository), unified degradation semantics for dangling bindings, and team collaboration documentation.
 - Per-version delivery details always follow the CHANGELOG; this document does not repeat them.
 
 ## 6. Open items and deferred work
@@ -59,6 +60,7 @@ The test: a project's consumer is an agent, not a person. So injection formats, 
   - 2026-10-13 clarification: "documentation language: Chinese" constrains the language of **documents produced** while working in a downstream host; it does not require translating the product payloads shipped with the package (`template/skills/`, `template/.cowork-flow/spec/contracts/`, `presets/`) into Chinese.
   - 2026-10-21 (step one): the framework spec documentation shipped with the package is unified in English — `spec/index.md`, `spec/runtime/index.md`, `spec/schemas/index.md`, `spec/references/**`. The six parsed headings in `decision-anchor.md`, the injection block in `workflow-state-templates.md`, `backend/frontend/guides`, and `template/AGENTS.md` stay Chinese.
   - 2026-10-22 (step two): installation can choose `zh-CN` / `en-US`, written to the protected `.cowork-flow/config.yaml` and affecting only `decision-anchor.md` and plan artifacts. The parser permanently accepts both the Chinese and English heading sets; `decision-anchor.md` keeps the Chinese contract and adds an English variant, while `workflow-state-templates.md`, `AGENTS.md`, spec documents, and Skills are not localized by that option. `references/` is still protected by project sync, so an installed project needs a manual refresh to receive the English copies.
+- **Started (2026-11-10): team collaboration baseline.** 1.9.x addressed single-machine multi-executor facts; git-level fact consistency across multiple developers, branches, and worktrees becomes the next version line, limited to runtime ignore hygiene, dangling-binding degradation semantics, and team collaboration documentation; cross-branch boards and git hosting are out of scope.
 - **Still deferred**: MCP write tools (the `fact-layer-access` contract must be reopened first), new host integrations, and a home-grown cross-agent protocol.
 - **Watch item (trigger reached)**: machine-parseable ACs are the first building block for interoperability with Spec Kit / OpenSpec (spec artifacts ↔ decision-anchor mapping), and fit the "state layer beneath SDD tools" positioning. It was originally "to be discussed once the agent-teams schedule is settled"; since the 1.9.0 multi-executor collaboration mainline is already implemented, it can be put on the discussion schedule.
 

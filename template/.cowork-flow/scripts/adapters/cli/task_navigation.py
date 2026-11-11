@@ -19,6 +19,7 @@ from runtime.session_state import (
     is_delegated_session,
 )
 from services.task_repository import TaskRepository, TaskRepositoryError
+from services.task_presence import missing_task_blockers
 
 
 from services.task_routing import _default_intent
@@ -411,7 +412,7 @@ def _navigation_target(args, repo_root: Path, structured: bool):
 
 
 def _print_stale_route(args, task_path: str, source: str, active_target: bool) -> None:
-    blockers = [f"task directory not found: {task_path}"]
+    blockers = missing_task_blockers(task_path)
     if bool(getattr(args, "json", False)):
         _print_json_route(
             args=args,

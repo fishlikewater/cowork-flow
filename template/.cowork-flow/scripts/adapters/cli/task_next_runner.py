@@ -20,6 +20,7 @@ from runtime.session_state import (
 from services.plan_binding import PlanBindingError, bind_task_plan
 from services.task_creation import TaskCreationError, set_task_dev_type
 from services.task_lifecycle import ADOPTABLE_STATUSES
+from services.task_presence import missing_task_blockers, missing_task_fact
 
 
 LifecycleCommand = Callable[[argparse.Namespace], int]
@@ -89,7 +90,7 @@ def _next_payload_for_run(args: argparse.Namespace, repo_root: Path) -> dict[str
         return task_navigation.build_navigation_payload(
             args=args,
             status="stale",
-            blockers=[f"task directory not found: {task_path}"],
+            blockers=missing_task_blockers(task_path),
             active_target=active_target,
             task_path=task_path,
         )
@@ -337,7 +338,7 @@ def _run_adopt_action(
         return 1
     if not task_dir.is_dir():
         print(
-            colored(f"Error: task directory not found: {task_path}", Colors.RED),
+            colored(f"Error: {missing_task_fact(task_path)}", Colors.RED),
             file=sys.stderr,
         )
         return 1

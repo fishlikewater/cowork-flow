@@ -21,6 +21,7 @@ from typing import Any, NamedTuple
 
 from adapters.host.policy_base import DEFAULT_DIGEST_POLICY, HostPolicy, default_policy
 from services.decision_anchor_schema import parse_decision_anchor
+from services.task_presence import missing_task_body
 
 
 TAG_RE = re.compile(
@@ -216,7 +217,7 @@ def _render_state_body(
     policy: HostPolicy,
 ) -> str:
     if state.missing_task:
-        body = MISSING_TASK_BODY.format(task_path=state.task_path)
+        body = missing_task_body(state.task_path)
     else:
         body = (
             breadcrumbs.get(state.status)
@@ -590,13 +591,6 @@ def _get_active_task(
     if not isinstance(status, str) or not status.strip():
         status = "unknown"
     return active.task_path, status.strip(), active.source
-
-
-MISSING_TASK_BODY = (
-    "Session 指向的任务目录不存在（{task_path}）。\n"
-    "当前项目无有效任务。请运行 ./.cowork-flow/run task next --run "
-    '--title "<title>" --slug <task-name> --assignee <name> 创建新任务。'
-)
 
 
 def _get_active_task_with_fallback(
