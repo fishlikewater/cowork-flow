@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import ast
+import os
 import re
+import shutil
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -213,6 +217,41 @@ class NoLegacyTemplatePathsTest(unittest.TestCase):
                     offenders.append(str(path.relative_to(ROOT)))
 
         self.assertEqual([], offenders)
+
+    def test_runtime_entry_does_not_write_bytecode_into_template(self) -> None:
+        """The runtime entry must guard its own bytecode, not rely on callers.
+
+        Caller-side guards (Node test runners, release gates, pytest) only
+        cover their own invocation paths. A direct ``run.py`` call with both
+        bytecode env vars stripped must still keep the delivery tree clean:
+        the entry redirects caches before importing runtime modules.
+        """
+        entry = TEMPLATE / ".cowork-flow" / "scripts" / "run.py"
+        before = {path for path in TEMPLATE.rglob("__pycache__") if path.is_dir()}
+        env = os.environ.copy()
+        env.pop("PYTHONDONTWRITEBYTECODE", None)
+        env.pop("PYTHONPYCACHEPREFIX", None)
+        try:
+            completed = subprocess.run(
+                [sys.executable, str(entry), "--help"],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=120,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            offenders = sorted(
+                str(path.relative_to(ROOT))
+                for path in TEMPLATE.rglob("__pycache__")
+                if path.is_dir() and path not in before
+            )
+            self.assertEqual([], offenders)
+        finally:
+            for path in list(TEMPLATE.rglob("__pycache__")):
+                if path.is_dir() and path not in before:
+                    shutil.rmtree(path, ignore_errors=True)
 
 
 if __name__ == "__main__":

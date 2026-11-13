@@ -7,7 +7,14 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+# Entry self-guard: direct calls must not drop __pycache__ next to shipped sources.
+if not sys.pycache_prefix:
+    sys.pycache_prefix = str(Path(tempfile.gettempdir()) / "cowork-flow-pycache")
+if not os.environ.get("PYTHONPYCACHEPREFIX"):
+    os.environ["PYTHONPYCACHEPREFIX"] = sys.pycache_prefix
 
 from adapters.cli.encoding import configure_cli_encoding
 from adapters.cli.execution_context_args import (

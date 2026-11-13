@@ -21,11 +21,11 @@ def runtime_pythonpath_env(
     import `services.*` / `infra.*` from the same runtime this code came from,
     while any caller-provided PYTHONPATH entries are preserved after it.
 
-    `cache_bytecode=False` is the skill-script rule: those children run rarely,
-    the cache buys them nothing measurable, and the `__pycache__` trees they
-    leave behind land next to whatever runtime they resolved to — in a source
-    checkout that is the shipped `template/` tree. High-frequency commands keep
-    the default so they keep their cache.
+    `cache_bytecode=False` is the skill-script rule: those children run rarely
+    and the cache buys them nothing measurable. High-frequency commands keep
+    the default so they keep their cache; the `run.py` entry guard redirects
+    that cache to the system temp prefix, so it never lands next to shipped
+    sources (in a source checkout that is the `template/` tree).
     """
     env = os.environ.copy()
     existing = env.get("PYTHONPATH")
