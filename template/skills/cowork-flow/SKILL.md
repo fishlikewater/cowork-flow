@@ -54,6 +54,12 @@ Dispatch follows the plan's execution strategy:
   `.cowork-flow/spec/contracts/subagent-dispatch.md`.
 - Before completion, arrange the `cowork-check` dispatch the completion gate
   requires — do not wait for the blocker to tell you.
+- Close the review surface before dispatching `cowork-check`: final
+  `implement.jsonl` scope, anchor goal/AC text, bound plan, referenced spec
+  bodies. The receipt hashes their content; a post-check edit — even one
+  appended scope entry — stales it and forces a re-dispatch (task-review
+  `Receipt freshness`). AC ticks and evidence appends are fingerprint-neutral;
+  close them before dispatch so the review judges the final state.
 - Research-heavy work: dispatch two or three `cowork-research` children for
   independent questions instead of widening the main context.
 - Long-running children: prefer background dispatch when the host supports it;

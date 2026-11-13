@@ -23,6 +23,10 @@ Use this Skill only inside fixed subagents such as `cowork-implement`,
 ## Boundaries
 
 - Act as a leaf executor: do not spawn, wait for, list, or close other agents.
+- Run all verification synchronously in the foreground and deliver the role
+  output or receipt within this turn; never end the turn waiting for a
+  background task — the host may reclaim the leaf context and its background
+  children at turn end.
 - Do not start, finish, archive, resume, commit, or push workflow state.
 - Keep edits and reads inside the assigned runtime context and task scope.
 - When the assignment names `owned_paths`, keep every edit inside them; report
