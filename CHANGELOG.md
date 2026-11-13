@@ -2,8 +2,11 @@
 
 ## [Unreleased]
 
+## [2.7.2] - 2026-11-13
+
 ### Added
 
+- **GitHub Release 自动化**：推送 `v*` tag 且 npm 发布成功后，`publish.yml` 新增 `github-release` job 自动创建以 tag 命名的 GitHub Release；release notes 由 `scripts/release-notes.js` 从 CHANGELOG.md 对应版本段落提取（版本号精确匹配，止于下一版本标题或尾部链接引用），Release 已存在时幂等跳过；既有 verify/publish job、触发器与 concurrency 不变。
 - **运行时状态自忽略与 Git 卫生检查**：首次写入 `.cowork-flow/.runtime/` 时自动创建自忽略文件（`*` 与 `!.gitignore`），锁、会话绑定、操作日志与状态快照不再进入 git；`doctor --all` 新增 `RUNTIME-GIT-HYGIENE-UNIGNORED` / `RUNTIME-GIT-HYGIENE-TRACKED` 告警与清理提示。
 - **团队协作文档**：新增 `docs/team.md` 与英文对页，覆盖提交范围、分支与 worktree、executor 与 assignee、跨机器交接、合并冲突修复与 `.runtime` 清理。
 
@@ -513,7 +516,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.1...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.2...HEAD
+[2.7.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.5.2...v2.6.0
