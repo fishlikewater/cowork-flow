@@ -6,6 +6,16 @@
 
 ### Changed
 
+## [2.7.3] - 2026-11-13
+
+### Fixed
+
+- **运行时入口字节码自防护**：`template/.cowork-flow/scripts/run.py` 入口在 `sys.pycache_prefix` 与 `PYTHONPYCACHEPREFIX` 均未设置时，把字节码缓存重定向到系统临时目录（`cowork-flow-pycache`），直接调用运行时入口不再把 `__pycache__` 写进交付树（源码 checkout 即 `template/`）；已有前缀按真值尊重、不覆盖，与调用方既有防护（tests、template-test-runner、release-gates）互补，新增回归测试断言入口调用后 `template/` 无新增 `__pycache__`。
+
+### Changed
+
+- **派发纪律双条目指引**：`cowork-flow` Skill 的 Delegation 段新增「派发 `cowork-check` 前收口指纹覆盖工件」指引——先定稿 `implement.jsonl` 范围、anchor goal/AC 文本、绑定计划与引用 spec 正文，引用 task-review `Receipt freshness` 而非复述机制，避免复核后编辑使回执过期重派；`agent-dispatch` Skill 的 Boundaries 段新增「所有验证前台同步执行、本回合内提交角色输出或回执」纪律，宿主中立措辞，避免叶子上下文在回合结束被回收导致后台失联。
+
 ## [2.7.2] - 2026-11-13
 
 ### Added
@@ -520,7 +530,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.2...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.3...HEAD
+[2.7.3]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.6.0...v2.7.0
