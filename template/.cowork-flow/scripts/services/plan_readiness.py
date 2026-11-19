@@ -42,7 +42,37 @@ TASK_HEADING_RE = re.compile(r"^###\s+(?:任务|Task)\s+\d+\s*[:：]\s*(.+?)\s*$
 H2_RE = re.compile(r"^##(?!#)\s+(.+?)\s*$")
 BOLD_LABEL_RE = re.compile(r"^\*\*(.+?)\*\*\s*$")
 FENCE_RE = re.compile(r"^(```|~~~)")
+OWNED_PATH_RE = re.compile(r"`([^`]+)`")
+PATH_EXT_RE = re.compile(r"\.\w{1,6}$")
+DECISION_TRAILING = "。．.，,；;：:"
 PLAN_TEMPLATE_PATH = f"{DIR_WORKFLOW}/templates/plan-template.md"
+
+DISPATCH_DECISION_FIELD = {
+    "zh-CN": "派发决策",
+    "en-US": "Dispatch Decision",
+}
+DISPATCH_DECISION_LABELS = {
+    "zh-CN": {
+        "decision": "结论",
+        "rationale": "依据",
+        "slice": "切片",
+        "questions": "研究问题",
+        "no_dispatch": "不派发",
+        "research": "派发研究",
+        "implement": "派发实现",
+        "both": "派发研究与实现",
+    },
+    "en-US": {
+        "decision": "Decision",
+        "rationale": "Rationale",
+        "slice": "Slice",
+        "questions": "Research questions",
+        "no_dispatch": "No dispatch",
+        "research": "Research dispatch",
+        "implement": "Implement dispatch",
+        "both": "Research and implement dispatch",
+    },
+}
 
 TASK_FIELDS = {
     "zh-CN": (
@@ -51,6 +81,7 @@ TASK_FIELDS = {
         "文件边界",
         "关键符号",
         "热点与改动形状",
+        "派发决策",
         "实现说明",
         "测试证明",
         "验证命令",
@@ -64,6 +95,7 @@ TASK_FIELDS = {
         "File Boundaries",
         "Key Symbols",
         "Hotspot and Change Shape",
+        "Dispatch Decision",
         "Implementation Notes",
         "Test Proof",
         "Verification Command",
@@ -302,54 +334,184 @@ def _task_block_blockers(
     language: str,
     template_fields: dict[str, list[str]],
 ) -> list[str]:
-    blockers: list[str] = []
     tiny = declares_light_profile(task_data)
     required_fields = TINY_TASK_FIELDS.get(
         language, TINY_TASK_FIELDS["zh-CN"]
     ) if tiny else TASK_FIELDS.get(
         language, TASK_FIELDS["zh-CN"]
     )
-    missing_template_fields = [
-        field for field in required_fields if field not in template_fields
-    ]
-    if missing_template_fields:
-        blockers.append(
-            "installed plan template is missing task brief field(s): "
-            + ", ".join(missing_template_fields)
-        )
     verification_field = (
         "Verification Command"
         if language == "en-US"
         else "验证命令"
     )
+    blockers = _template_field_blockers(required_fields, template_fields)
     for block in task_blocks:
-        fields = _task_fields(block["lines"])
-        missing = [
-            field for field in required_fields if field not in fields
-        ]
-        if missing:
-            blockers.append(
-                f"plan task `### {block['heading']}` is missing brief "
-                f"field(s): {', '.join(missing)}"
+        blockers.extend(
+            _task_brief_blockers(
+                block,
+                required_fields,
+                verification_field,
+                tiny,
+                language,
+                template_fields,
             )
-            continue
-        empty = [
-            field
-            for field in required_fields
-            if (
-                not _has_verification_command(fields[field])
-                if field == verification_field
-                else not _has_meaningful_lines(
-                    fields[field], template_fields.get(field, [])
-                )
-            )
-        ]
-        if empty:
-            blockers.append(
-                f"plan task `### {block['heading']}` has empty brief "
-                f"field(s): {', '.join(empty)}"
-            )
+        )
     return blockers
+
+
+def _template_field_blockers(
+    required_fields: tuple[str, ...],
+    template_fields: dict[str, list[str]],
+) -> list[str]:
+    missing = [field for field in required_fields if field not in template_fields]
+    if not missing:
+        return []
+    return [
+        "installed plan template is missing task brief field(s): "
+        + ", ".join(missing)
+    ]
+
+
+def _task_brief_blockers(
+    block: dict,
+    required_fields: tuple[str, ...],
+    verification_field: str,
+    tiny: bool,
+    language: str,
+    template_fields: dict[str, list[str]],
+) -> list[str]:
+    heading = block["heading"]
+    fields = _task_fields(block["lines"])
+    missing = [field for field in required_fields if field not in fields]
+    if missing:
+        return [
+            f"plan task `### {heading}` is missing brief "
+            f"field(s): {', '.join(missing)}"
+        ]
+    empty = [
+        field
+        for field in required_fields
+        if (
+            not _has_verification_command(fields[field])
+            if field == verification_field
+            else not _has_meaningful_lines(
+                fields[field], template_fields.get(field, [])
+            )
+        )
+    ]
+    if empty:
+        return [
+            f"plan task `### {heading}` has empty brief "
+            f"field(s): {', '.join(empty)}"
+        ]
+    dispatch_field = DISPATCH_DECISION_FIELD.get(
+        language, DISPATCH_DECISION_FIELD["zh-CN"]
+    )
+    if not tiny and dispatch_field in fields:
+        return _dispatch_decision_blockers(
+            fields[dispatch_field],
+            language,
+            heading,
+            template_fields.get(dispatch_field, []),
+        )
+    return []
+
+
+def _labeled_value(
+    lines: list[str],
+    label: str,
+    template_lines: list[str] | tuple[str, ...] = (),
+) -> str | None:
+    """First concrete value after `label：` / `label:`, skipping template lines.
+
+    A value that only echoes the installed template is not a decision, so the
+    template body is excluded before matching."""
+    template = {
+        normalized
+        for raw in template_lines
+        if (normalized := _normalize_placeholder_line(raw.strip()))
+    }
+    for raw in lines:
+        body = _normalize_placeholder_line(raw.strip())
+        if not body or body in template:
+            continue
+        for separator in ("：", ":"):
+            prefix = f"{label}{separator}"
+            if body.startswith(prefix):
+                return body[len(prefix):].strip()
+    return None
+
+
+def _dispatch_kind(value: str, labels: dict[str, str]) -> str | None:
+    """Map a decision value to no_dispatch / research / implement / both.
+
+    The value must be exactly one decision token (trailing punctuation is
+    tolerated). A copied option menu is not a decision, so a prefix match is
+    deliberately not enough."""
+    normalized = value.strip().rstrip(DECISION_TRAILING).strip()
+    for kind in ("both", "implement", "research", "no_dispatch"):
+        if normalized == labels[kind]:
+            return kind
+    return None
+
+
+def _has_owned_path(value: str) -> bool:
+    """Whether a slice line names at least one path-like owned path.
+
+    A backticked slice name alone is not ownership, so the token must look
+    like a repository path: it carries a separator or a file extension."""
+    for token in OWNED_PATH_RE.findall(value):
+        token = token.strip()
+        if "/" in token or "\\" in token or PATH_EXT_RE.search(token):
+            return True
+    return False
+
+
+def _dispatch_decision_blockers(
+    lines: list[str],
+    language: str,
+    heading: str,
+    template_lines: list[str] | tuple[str, ...] = (),
+) -> list[str]:
+    """Structure check for the dispatch decision brief field.
+
+    The field records one decision per task: not dispatching, research
+    dispatch, implement dispatch, or both. Each branch needs its own evidence
+    line so the field cannot pass as a one-word answer."""
+    labels = DISPATCH_DECISION_LABELS.get(
+        language, DISPATCH_DECISION_LABELS["zh-CN"]
+    )
+    prefix = f"plan task `### {heading}` dispatch decision"
+    decision = _labeled_value(lines, labels["decision"], template_lines)
+    if decision is None:
+        return [f"{prefix} has no `{labels['decision']}` line"]
+    kind = _dispatch_kind(decision, labels)
+    if kind is None:
+        options = " / ".join(
+            labels[key]
+            for key in ("no_dispatch", "research", "implement", "both")
+        )
+        return [f"{prefix} `{labels['decision']}` must be one of: {options}"]
+    issues: list[str] = []
+    rationale = _labeled_value(lines, labels["rationale"], template_lines)
+    if not _has_concrete_text(rationale or ""):
+        issues.append(f"{prefix} needs a concrete `{labels['rationale']}` line")
+    if kind in ("implement", "both"):
+        slice_value = _labeled_value(lines, labels["slice"], template_lines)
+        if not _has_owned_path(slice_value or ""):
+            issues.append(
+                f"{prefix} implement dispatch needs a `{labels['slice']}` "
+                "line with a backticked owned path"
+            )
+    if kind in ("research", "both"):
+        questions = _labeled_value(lines, labels["questions"], template_lines)
+        if not _has_concrete_text(questions or ""):
+            issues.append(
+                f"{prefix} research dispatch needs a concrete "
+                f"`{labels['questions']}` line"
+            )
+    return issues
 
 
 def _anchor_artifact_blockers(
@@ -516,7 +678,11 @@ def _raw_section_lines(text: str, heading: str) -> list[str]:
 
 def _normalize_placeholder_line(line: str) -> str:
     """Strip list and code-comment markers before template-line comparison."""
-    body = line[2:].strip() if line.startswith("- ") else line
+    body = line
+    for marker in ("- ", "* ", "+ "):
+        if body.startswith(marker):
+            body = body[2:].strip()
+            break
     body = body.lstrip("#> ").strip()
     return re.sub(r"\s+", " ", body)
 

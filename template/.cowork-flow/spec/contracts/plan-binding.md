@@ -53,7 +53,10 @@ the plan into a second workflow kernel.
   machine-readable concrete goal line, at least one concrete `AC-NNN` row,
   content in `## 目标` / `## 全局约束` / `## 文件边界` beyond the installed
   template body, complete task briefs (full fields for Normal/High-risk; file
-  boundaries, verification command, and completion conditions for Tiny), a
+  boundaries, verification command, and completion conditions for Tiny),
+  including a dispatch decision with an explicit branch and branch evidence
+  (every branch states a concrete rationale; an implement branch names at
+  least one backticked owned path; a research branch names its questions), a
   concrete command inside the task's fenced verification block, a non-empty
   `implement.jsonl`, anchor acceptance rows matching the plan IDs/text, an
   anchor goal matching the plan goal, and the filled anchor spec-check result.

@@ -125,6 +125,7 @@
         "Task start blocks clear missing plan facts for non-Tiny tasks.",
         "Strict non-Tiny start requires the configured-language plan template shape and a filled spec-check line.",
         "New strict non-Tiny tasks require a plan-ready snapshot from `plan finalize`; edits after finalize invalidate it.",
+        "Plan finalize requires a dispatch decision per task brief: no dispatch, research, implement, or both, with rationale and branch evidence.",
         "V1 does not parse plan step status or verification evidence; AC text is only compared between plan and anchor."
       ],
       "readWhen": [

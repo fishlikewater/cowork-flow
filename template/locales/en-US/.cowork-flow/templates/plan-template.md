@@ -60,6 +60,12 @@ Tiny plans may keep a shorter brief, but must still name exact file boundaries, 
 - Change shape: replace / extract / delete / append (multiple allowed; "append" requires why the old path cannot be replaced or extracted)
 - Target structure: <which function/module owns what responsibility after this change; if unchanged, say "unchanged" and why>
 
+**Dispatch Decision**
+- Decision: No dispatch / Research dispatch / Implement dispatch / Research and implement dispatch
+- Rationale: <concrete reason when not dispatching; parallel value or independent verification surface when dispatching>
+- Slice: `<slice name>`: `<owned paths>` (required for implement dispatch)
+- Research questions: <required for research dispatch; list the independent questions handed to cowork-research>
+
 **Implementation Notes**
 ```python
 # Core control-flow sketch; adjust names to match existing code.

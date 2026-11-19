@@ -59,6 +59,7 @@ BRIEF_MARKERS = {
     "files": ("**文件边界**", "**File Boundaries**"),
     "symbols": ("**关键符号**", "**Key Symbols**"),
     "hotspot": ("**热点与改动形状**", "**Hotspot and Change Shape**"),
+    "dispatch": ("**派发决策**", "**Dispatch Decision**"),
     "notes": ("**实现说明**", "**Implementation Notes**"),
     "proof": ("**测试证明**", "**Test Proof**"),
     "verify": ("**验证命令**", "**Verification Command**"),

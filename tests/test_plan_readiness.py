@@ -59,6 +59,10 @@ PLAN_TEXT = """# 演示实施计划
 - 本次改动形状：追加。
 - 目标结构：演示字段由示例函数承担。
 
+**派发决策**
+- 结论：不派发
+- 依据：演示任务只改单文件，无独立验证面。
+
 **实现说明**
 ```python
 value = 1
@@ -131,6 +135,35 @@ python -m pytest tests/test_demo.py -q
 **完成条件**
 - 命令 exit 0。
 """
+
+EN_TEMPLATE = (
+    ROOT
+    / "template"
+    / "locales"
+    / "en-US"
+    / ".cowork-flow"
+    / "templates"
+    / "plan-template.md"
+)
+
+
+def _demo_field_body(label: str, language: str) -> list[str]:
+    """Concrete demo content for one template brief field."""
+    if label in ("验证命令", "Verification Command"):
+        return ["```bash", "python -m pytest tests/test_demo.py -q", "```"]
+    if label in ("实现说明", "Implementation Notes"):
+        return ["```python", "value = 1", "```"]
+    if label in ("派发决策", "Dispatch Decision"):
+        return (
+            ["- 结论：不派发", "- 依据：演示任务只改单文件，无独立验证面。"]
+            if language == "zh-CN"
+            else [
+                "- Decision: No dispatch",
+                "- Rationale: the demo change touches one file and "
+                "has no independent verification surface.",
+            ]
+        )
+    return ["- 已填充内容。"]
 
 
 class PlanReadinessTest(FlowScriptTestCase):
@@ -289,12 +322,7 @@ class PlanReadinessTest(FlowScriptTestCase):
                 if position + 1 < len(field_indexes)
                 else task_end
             )
-            if label in ("验证命令", "Verification Command"):
-                body = ["```bash", "python -m pytest tests/test_demo.py -q", "```"]
-            elif label in ("实现说明", "Implementation Notes"):
-                body = ["```python", "value = 1", "```"]
-            else:
-                body = ["- 已填充内容。"]
+            body = _demo_field_body(label, language)
             lines[index + 1 : body_end] = body
 
         final_start = next(
@@ -623,6 +651,394 @@ class PlanReadinessTest(FlowScriptTestCase):
                 self.assertTrue(
                     any(field in item for item in blockers), blockers
                 )
+
+    def test_missing_dispatch_decision_field_is_rejected(self) -> None:
+        en_template = (
+            ROOT
+            / "template"
+            / "locales"
+            / "en-US"
+            / ".cowork-flow"
+            / "templates"
+            / "plan-template.md"
+        )
+        cases = (
+            (
+                "zh-CN",
+                PLAN_TEXT.replace(
+                    "**派发决策**\n"
+                    "- 结论：不派发\n"
+                    "- 依据：演示任务只改单文件，无独立验证面。\n\n",
+                    "",
+                ),
+                ANCHOR_TEXT,
+                "派发决策",
+                None,
+            ),
+            (
+                "en-US",
+                self._plan_from_template(
+                    en_template.read_text(encoding="utf-8"),
+                    "en-US",
+                    "Dispatch Decision",
+                ),
+                ANCHOR_TEXT_EN,
+                "Dispatch Decision",
+                en_template,
+            ),
+        )
+        for language, plan, anchor_text, field, template_source in cases:
+            with self.subTest(language=language):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    if language == "en-US":
+                        start = plan.index("**Dispatch Decision**")
+                        plan = (
+                            plan[:start]
+                            + plan[
+                                plan.index("**Implementation Notes**", start):
+                            ]
+                        )
+                    task_dir = self._write_task(
+                        root,
+                        plan_text=plan,
+                        anchor_text=anchor_text,
+                        language=language,
+                        template_source=template_source,
+                    )
+
+                    blockers = self._blockers(root, task_dir)
+
+                self.assertTrue(
+                    any(field in item for item in blockers), blockers
+                )
+
+    def test_dispatch_decision_requires_decision_and_rationale(self) -> None:
+        block = (
+            "**派发决策**\n"
+            "- 结论：不派发\n"
+            "- 依据：演示任务只改单文件，无独立验证面。\n"
+        )
+        cases = {
+            "missing decision line": block.replace("- 结论：不派发\n", ""),
+            "unrecognized decision": block.replace(
+                "- 结论：不派发", "- 结论：再看看"
+            ),
+            "template decision placeholder": block.replace(
+                "- 结论：不派发",
+                "- 结论：不派发 / 派发研究 / 派发实现 / 派发研究与实现",
+            ),
+            "template rationale placeholder": block.replace(
+                "- 依据：演示任务只改单文件，无独立验证面。",
+                "- 依据：<不派发写具体理由；派发写并行收益或独立验证面>",
+            ),
+        }
+        for name, replacement in cases.items():
+            with self.subTest(case=name):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    plan = PLAN_TEXT.replace(block, replacement)
+                    task_dir = self._write_task(root, plan_text=plan)
+
+                    blockers = self._blockers(root, task_dir)
+
+                self.assertTrue(
+                    any("dispatch decision" in item for item in blockers),
+                    blockers,
+                )
+
+    def test_implement_dispatch_requires_slice_path(self) -> None:
+        block = (
+            "**派发决策**\n"
+            "- 结论：不派发\n"
+            "- 依据：演示任务只改单文件，无独立验证面。\n"
+        )
+        invalid = (
+            "**派发决策**\n"
+            "- 结论：派发实现\n"
+            "- 依据：两个模块边界清晰，可并行推进。\n"
+            "- 切片：演示切片：无路径\n"
+        )
+        valid = (
+            "**派发决策**\n"
+            "- 结论：派发实现\n"
+            "- 依据：两个模块边界清晰，可并行推进。\n"
+            "- 切片：`demo-slice`：`template/a.py`、`template/b.py`\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(
+                root, plan_text=PLAN_TEXT.replace(block, invalid)
+            )
+            blockers = self._blockers(root, task_dir)
+
+        self.assertTrue(any("切片" in item for item in blockers), blockers)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(
+                root, plan_text=PLAN_TEXT.replace(block, valid)
+            )
+            blockers = self._blockers(root, task_dir)
+
+        self.assertEqual([], blockers)
+
+    def test_research_dispatch_requires_research_questions(self) -> None:
+        block = (
+            "**派发决策**\n"
+            "- 结论：不派发\n"
+            "- 依据：演示任务只改单文件，无独立验证面。\n"
+        )
+        invalid = (
+            "**派发决策**\n"
+            "- 结论：派发研究\n"
+            "- 依据：外部协议事实无法从仓库单独确立。\n"
+            "- 研究问题：\n"
+        )
+        valid = (
+            "**派发决策**\n"
+            "- 结论：派发研究\n"
+            "- 依据：外部协议事实无法从仓库单独确立。\n"
+            "- 研究问题：协议字段与错误码两路独立取证。\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(
+                root, plan_text=PLAN_TEXT.replace(block, invalid)
+            )
+            blockers = self._blockers(root, task_dir)
+
+        self.assertTrue(any("研究问题" in item for item in blockers), blockers)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(
+                root, plan_text=PLAN_TEXT.replace(block, valid)
+            )
+            blockers = self._blockers(root, task_dir)
+
+        self.assertEqual([], blockers)
+
+    def test_dispatch_decision_accepts_all_branches(self) -> None:
+        block = (
+            "**派发决策**\n"
+            "- 结论：不派发\n"
+            "- 依据：演示任务只改单文件，无独立验证面。\n"
+        )
+        branches = {
+            "no dispatch": ["- 结论：不派发", "- 依据：单文件改动，无独立验证面。"],
+            "research": [
+                "- 结论：派发研究",
+                "- 依据：外部协议事实需要并行取证。",
+                "- 研究问题：协议字段与错误码两路独立取证。",
+            ],
+            "implement": [
+                "- 结论：派发实现",
+                "- 依据：两个模块文件边界清晰。",
+                "- 切片：`demo-slice`：`template/a.py`、`template/b.py`",
+            ],
+            "both": [
+                "- 结论：派发研究与实现",
+                "- 依据：研究面与实现面均独立。",
+                "- 切片：`demo-slice`：`template/a.py`",
+                "- 研究问题：协议字段独立取证。",
+            ],
+        }
+        for name, lines in branches.items():
+            with self.subTest(branch=name):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    plan = PLAN_TEXT.replace(
+                        block, "**派发决策**\n" + "\n".join(lines) + "\n"
+                    )
+                    task_dir = self._write_task(root, plan_text=plan)
+
+                    blockers = self._blockers(root, task_dir)
+
+                self.assertEqual([], blockers)
+
+    def test_dispatch_decision_rejects_a_copied_option_menu(self) -> None:
+        block = (
+            "**派发决策**\n"
+            "- 结论：不派发\n"
+            "- 依据：演示任务只改单文件，无独立验证面。\n"
+        )
+        menu = (
+            "**派发决策**\n"
+            "- 结论：不派发 / 派发研究 / 派发实现 / 派发研究与实现（本任务选不派发）\n"
+            "- 依据：演示任务只改单文件，无独立验证面。\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(
+                root, plan_text=PLAN_TEXT.replace(block, menu)
+            )
+            blockers = self._blockers(root, task_dir)
+
+        self.assertTrue(any("must be one of" in item for item in blockers), blockers)
+
+    def test_implement_dispatch_rejects_a_slice_name_without_a_path(self) -> None:
+        block = (
+            "**派发决策**\n"
+            "- 结论：不派发\n"
+            "- 依据：演示任务只改单文件，无独立验证面。\n"
+        )
+        name_only = (
+            "**派发决策**\n"
+            "- 结论：派发实现\n"
+            "- 依据：两个模块边界清晰，可并行推进。\n"
+            "- 切片：`demo-slice`\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(
+                root, plan_text=PLAN_TEXT.replace(block, name_only)
+            )
+            blockers = self._blockers(root, task_dir)
+
+        self.assertTrue(any("切片" in item for item in blockers), blockers)
+
+    def test_combined_dispatch_requires_both_branch_evidence(self) -> None:
+        block = (
+            "**派发决策**\n"
+            "- 结论：不派发\n"
+            "- 依据：演示任务只改单文件，无独立验证面。\n"
+        )
+        cases = {
+            "missing slice": (
+                "**派发决策**\n"
+                "- 结论：派发研究与实现\n"
+                "- 依据：研究面与实现面均独立。\n"
+                "- 研究问题：协议字段独立取证。\n"
+            ),
+            "missing research questions": (
+                "**派发决策**\n"
+                "- 结论：派发研究与实现\n"
+                "- 依据：研究面与实现面均独立。\n"
+                "- 切片：`demo-slice`：`template/a.py`\n"
+            ),
+        }
+        for name, replacement in cases.items():
+            with self.subTest(case=name):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    task_dir = self._write_task(
+                        root, plan_text=PLAN_TEXT.replace(block, replacement)
+                    )
+                    blockers = self._blockers(root, task_dir)
+
+                self.assertTrue(
+                    any("dispatch decision" in item for item in blockers),
+                    blockers,
+                )
+
+    def test_dispatch_decision_accepts_star_bullets(self) -> None:
+        plan = PLAN_TEXT.replace(
+            "- 结论：不派发", "* 结论：不派发"
+        ).replace(
+            "- 依据：演示任务只改单文件，无独立验证面。",
+            "* 依据：演示任务只改单文件，无独立验证面。",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(root, plan_text=plan)
+            blockers = self._blockers(root, task_dir)
+
+        self.assertEqual([], blockers)
+
+    def test_tiny_task_ignores_the_dispatch_decision_block(self) -> None:
+        placeholder_block = (
+            "**派发决策**\n"
+            "- 结论：不派发 / 派发研究 / 派发实现 / 派发研究与实现\n"
+            "- 依据：<不派发写具体理由；派发写并行收益或独立验证面>\n"
+            "- 切片：`<slice 名称>`：`<owned paths>`（派发实现时必填）\n"
+            "- 研究问题：<派发研究时必填；列出交给 cowork-research 的独立问题>\n"
+        )
+        task_block = PLAN_TEXT[
+            PLAN_TEXT.index("### 任务 1") : PLAN_TEXT.index("## 最终验证")
+        ]
+        plan = PLAN_TEXT.replace(
+            "| **任务类型** | Normal |", "| **任务类型** | Tiny |"
+        ).replace(task_block, TINY_TASK + "\n" + placeholder_block + "\n")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(
+                root, plan_text=plan, task_type="tiny"
+            )
+            blockers = self._blockers(root, task_dir)
+
+        self.assertEqual([], blockers)
+
+    def _english_dispatch_plan(self, lines: list[str]) -> str:
+        base = self._plan_from_template(
+            EN_TEMPLATE.read_text(encoding="utf-8"),
+            "en-US",
+            "Dispatch Decision",
+        )
+        label = "**Dispatch Decision**"
+        start = base.index(label)
+        end = base.index("**Implementation Notes**", start)
+        return base[:start] + label + "\n" + "\n".join(lines) + "\n\n" + base[end:]
+
+    def _english_blockers(self, plan: str) -> list[str]:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = self._write_task(
+                root,
+                plan_text=plan,
+                anchor_text=ANCHOR_TEXT_EN,
+                language="en-US",
+                template_source=EN_TEMPLATE,
+            )
+            return self._blockers(root, task_dir)
+
+    def test_english_dispatch_decision_rejects_invalid_branches(self) -> None:
+        cases = {
+            "implement without a path": (
+                [
+                    "- Decision: Implement dispatch",
+                    "- Rationale: two modules can move in parallel.",
+                    "- Slice: `demo-slice`",
+                ],
+                "Slice",
+            ),
+            "research without questions": (
+                [
+                    "- Decision: Research dispatch",
+                    "- Rationale: external protocol facts need parallel evidence.",
+                    "- Research questions:",
+                ],
+                "Research questions",
+            ),
+            "copied option menu": (
+                [
+                    "- Decision: No dispatch / Research dispatch / "
+                    "Implement dispatch / Research and implement dispatch "
+                    "(this task chooses no dispatch)",
+                    "- Rationale: the change touches a single file.",
+                ],
+                "must be one of",
+            ),
+        }
+        for name, (lines, expected) in cases.items():
+            with self.subTest(case=name):
+                blockers = self._english_blockers(
+                    self._english_dispatch_plan(lines)
+                )
+                self.assertTrue(
+                    any(expected in item for item in blockers), blockers
+                )
+
+    def test_english_dispatch_decision_accepts_the_combined_branch(self) -> None:
+        plan = self._english_dispatch_plan(
+            [
+                "- Decision: Research and implement dispatch",
+                "- Rationale: research and implementation surfaces are independent.",
+                "- Slice: `demo-slice`: `template/a.py`, `template/b.py`",
+                "- Research questions: protocol fields and error codes.",
+            ]
+        )
+        self.assertEqual([], self._english_blockers(plan))
 
     def test_anchor_acceptance_and_goal_must_match_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
