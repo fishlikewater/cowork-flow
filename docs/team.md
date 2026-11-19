@@ -17,6 +17,9 @@
 - 重新绑定：回到包含任务的分支后运行 `./.cowork-flow/run task next <task-dir>`；或用 `task next --list` 选一个已存在的任务。
 - 每个 worktree 有独立的 `.runtime/`，会话绑定、锁与状态快照不共享；任务文件随各 worktree 的检出分支变化。
 - 同一任务不要在多个 worktree 并行推进：不同检出的 `task.json` 是不同副本，运行时锁只保护单个工作区。
+- 任务租约：`task.json.meta.lease` 记录任务上次在哪个分支启动（`executor`、`branch`、`head`、`at`）。它回答“这个任务属于哪个分支”，是可查询事实，不是锁；`complete` 时释放。
+- 同一任务在另一分支启动会被 `LIFECYCLE-LEASE-001` 拒绝；确认要迁移时，start 加 `--takeover`、进行中的任务用 `--adopt`，租约会随后按当前分支与 HEAD 重写。无 git 或 detached HEAD 时不比较分支（`lease.branch` 为 `null`），CI 不受影响。
+- 实践约定 **一任务一分支**：需要并行时开不同任务；任务分支合并后，保留与目标分支一致的那份租约，另一方在合并后的分支上 `--adopt` 再继续。
 - 需要并行推进多个任务时，用任务看板（`task next --list --json`）和依赖（`--depends-on`）协调，合并后再统一推进。
 
 ## executor 与 assignee

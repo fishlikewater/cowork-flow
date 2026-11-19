@@ -24,6 +24,7 @@ from runtime.session_state import (
     is_delegated_session,
 )
 from infra.git_snapshot import current_head
+from services import task_lease
 from services.lifecycle_checks import (
     LifecycleCheckResult,
     LifecycleCheckRunner,
@@ -342,12 +343,44 @@ class TaskLifecycleService:
                 ),
                 check_result=check_result,
             )
-        return self._check_executor(
+        executor_failure = self._check_executor(
             stage,
             task_dir,
             task_data,
             executor,
             takeover,
+        )
+        if executor_failure is not None:
+            return executor_failure
+        return self._check_lease(stage, task_dir, task_data, takeover)
+
+    def _check_lease(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict,
+        takeover: bool,
+    ) -> LifecycleResult | None:
+        """Refuse a start on a branch other than the one holding the lease.
+
+        Only the start activation point is enforced; review/complete keep
+        their session-free semantics, and an explicit takeover moves the
+        lease to the current branch."""
+        if stage.name != START_STAGE.name or takeover:
+            return None
+        conflict = task_lease.branch_conflict(task_data, self.repo_root)
+        if conflict is None:
+            return None
+        return self._failure(
+            stage,
+            task_dir,
+            "LIFECYCLE-LEASE-001",
+            title="task lease belongs to another branch",
+            blockers=(
+                conflict,
+                "re-run with --takeover only if you intend to move the "
+                "lease to this branch",
+            ),
         )
 
     def _already_at_target_result(
@@ -551,9 +584,39 @@ class TaskLifecycleService:
     ) -> LifecycleResult | None:
         if not already_at_target or stage.name != START_STAGE.name:
             return None
-        # The executor gate runs before the idempotent shortcut: a
-        # foreign session re-running start on an active task must
-        # not ride through as a no-op success.
+        guard = self._idempotent_guard(
+            stage, task_dir, task_data, executor, takeover
+        )
+        if guard is not None:
+            return guard
+        return LifecycleResult(
+            ok=True,
+            code="LIFECYCLE-IDEMPOTENT",
+            stage=stage,
+            task_dir=task_dir,
+            active_task_path=(
+                self._display_task_path(task_dir)
+                if stage.activates_session
+                else None
+            ),
+            transition=transition,
+            emitted_events=self._success_events(stage),
+        )
+
+    def _idempotent_guard(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        task_data: dict | None,
+        executor: str | None,
+        takeover: bool,
+    ) -> LifecycleResult | None:
+        """Owner and lease gates for a start already at its target.
+
+        The executor gate runs before the idempotent shortcut: a foreign
+        session re-running start on an active task must not ride through as
+        a no-op success. The lease gate then refuses a start from another
+        branch, including this idempotent one."""
         current = task_data.get("executor") if isinstance(task_data, dict) else None
         current = (
             current.strip()
@@ -579,19 +642,13 @@ class TaskLifecycleService:
                         "identify yourself",
                     ),
                 )
-        return LifecycleResult(
-            ok=True,
-            code="LIFECYCLE-IDEMPOTENT",
-            stage=stage,
-            task_dir=task_dir,
-            active_task_path=(
-                self._display_task_path(task_dir)
-                if stage.activates_session
-                else None
-            ),
-            transition=transition,
-            emitted_events=self._success_events(stage),
-        )
+            if takeover:
+                taken_over = self._apply_takeover_on_idempotent(
+                    stage, task_dir, task_data, executor, takeover
+                )
+                if taken_over is not None:
+                    return taken_over
+        return self._check_lease(stage, task_dir, task_data or {}, takeover)
 
     def _run_preflight(
         self,
@@ -741,7 +798,12 @@ class TaskLifecycleService:
                 head = current_head(self.repo_root)
                 if head:
                     meta["baselineCommit"] = head
-                    persisted["meta"] = meta
+            if executor:
+                task_lease.record(
+                    meta, repo_root=self.repo_root, executor=executor
+                )
+            if meta:
+                persisted["meta"] = meta
         if stage.name == COMPLETE_STAGE.name:
             meta = dict(persisted.get("meta") or {})
             # Resolved here rather than reusing resolved_executor: the
@@ -758,6 +820,8 @@ class TaskLifecycleService:
                     ),
                     **payloads["evidenceExempt"],
                 }
+                persisted["meta"] = meta
+            if task_lease.release(meta):
                 persisted["meta"] = meta
         return persisted
 
@@ -880,14 +944,15 @@ class TaskLifecycleService:
         takeover: bool,
     ) -> LifecycleResult | None:
         """Reassign ownership when an already-active task is taken over; a
-        plain idempotent start performs no write."""
+        plain idempotent start performs no write. A takeover by the same
+        identity still rewrites the lease to this branch."""
         if not stage.activates_session or not takeover:
             return None
         current = task_data.get("executor")
         if not isinstance(current, str) or not current.strip():
             return None
         resolved = self._resolve_executor(executor)
-        if resolved is None or resolved == current.strip():
+        if resolved is None:
             return None
         current_task, failure = self._takeover_snapshot(stage, task_dir, task_data)
         if failure is not None:
@@ -963,10 +1028,11 @@ class TaskLifecycleService:
         )
         persisted = dict(task_data)
         persisted["executor"] = resolved
+        meta = dict(persisted.get("meta") or {})
         if adoption is not None:
-            meta = dict(persisted.get("meta") or {})
             meta.update(adoption)
-            persisted["meta"] = meta
+        task_lease.record(meta, repo_root=self.repo_root, executor=resolved)
+        persisted["meta"] = meta
         unit.replace(
             self.repository.task_json_path(task_dir),
             persisted,

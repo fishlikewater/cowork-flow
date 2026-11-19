@@ -51,6 +51,7 @@ binding is not touched; the blockers state the concrete reason.
 | `meta.previousBaseline` | the former `meta.baselineCommit` (`null` when there was none) |
 | `meta.adoptedAt` | UTC timestamp `YYYY-MM-DDTHH:MM:SSZ` |
 | `meta.baselineCommit` | **reset** to the HEAD at adoption time; `null` when there is no git/no HEAD (degraded to status-only) |
+| `meta.lease` | rewritten to `{executor: adopter, branch, head, at}` for the checkout doing the adoption; `branch` is `null` without git or on detached HEAD, `head` is `null` only without git (a detached HEAD records its commit sha). An idempotent `--takeover` shares this write path; a planning-phase `--takeover` moves the lease through the start write. |
 | `status` | unchanged |
 | `_state.revision` / `_state.operation_id` | the revision increments, and the operation_id carries the `adopt` tag (audit-traceable) |
 

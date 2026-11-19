@@ -20,6 +20,7 @@ results, and the closeout blockers.
 | `LIFECYCLE-CONTEXT-001` | A session-activating stage (start/activate) cannot build the active-task session state, so the activation has no session to bind. | `services/task_lifecycle.py:716` |
 | `LIFECYCLE-DEPENDENCY-001` | The start preflight finds a `dependsOn` target that is not `completed`; the blocker text is `task depends on unfinished work: <names>`. | `services/lifecycle_policy.py:93` |
 | `LIFECYCLE-EXECUTOR-001` | The start activation point finds the task already owned by a different executor and no `--takeover` was passed, including the foreign-session idempotent re-run. | `services/task_lifecycle.py:577` (also `:1028`) |
+| `LIFECYCLE-LEASE-001` | The start activation point finds `task.json.meta.lease.branch` different from the current branch, both branches are known, and `--takeover` was not passed. The lease is written only by start/takeover/adopt and released at complete. | `services/task_lifecycle.py:377` |
 | `LIFECYCLE-RECOVERY-001` | An interrupted transaction from an earlier run cannot be replayed by `UnitOfWork.recover_all`, so the task is never loaded. | `services/task_lifecycle.py:538` |
 | `LIFECYCLE-REVIEW-001` | A `strict`, non-light task reaches completion with no independent review receipt at all. | `services/lifecycle_checks.py:658` |
 | `LIFECYCLE-REVIEW-002` | The latest review receipt does not have `result: "pass"`, so the newest review stands as a failure. | `services/lifecycle_checks.py:670` |

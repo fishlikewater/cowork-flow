@@ -91,6 +91,23 @@ def current_head(repo_root: Path) -> str | None:
     return value or None
 
 
+def current_branch(repo_root: Path) -> str | None:
+    """Branch name of this checkout, or None on detached HEAD or no git.
+
+    A detached HEAD resolves to the literal 'HEAD'; callers that compare
+    branches must treat that as unknown rather than as a branch named HEAD.
+    """
+    rc, stdout, _ = _run_git_command(
+        ["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root
+    )
+    if rc != 0:
+        return None
+    value = stdout.strip()
+    if not value or value == "HEAD":
+        return None
+    return value
+
+
 def _run_git_command(args: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
     try:
         completed = subprocess.run(

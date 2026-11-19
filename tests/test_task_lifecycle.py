@@ -145,6 +145,7 @@ class TaskLifecycleServiceTest(unittest.TestCase):
     def _cleanup_imports(self) -> None:
         for module_name in (
             "services.task_lifecycle",
+            "services.task_lease",
             "application",
             "runtime.session_state",
             "kernel.task_state",
@@ -935,6 +936,297 @@ class TaskLifecycleSnapshotTest(TaskLifecycleServiceTest):
                 ".cowork-flow/tasks/07-10-demo",
                 snapshot["activeTaskPath"],
             )
+
+
+class TaskLeaseTest(TaskLifecycleServiceTest):
+    @staticmethod
+    def _read_task(task_dir: Path) -> dict:
+        return json.loads(
+            (task_dir / "task.json").read_text(encoding="utf-8")
+        )
+
+    @staticmethod
+    def _write_lease(task_dir: Path, lease: dict) -> None:
+        data = TaskLeaseTest._read_task(task_dir)
+        data["meta"] = {**data.get("meta", {}), "lease": lease}
+        (task_dir / "task.json").write_text(
+            json.dumps(data), encoding="utf-8"
+        )
+
+    def test_start_records_lease_and_complete_releases_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="dev",
+            ), patch(
+                "services.task_lease.git_snapshot.current_head",
+                return_value="abc123"
+            ):
+                started = service.start(task_dir, executor="ci-bot")
+                self.assertTrue(started.ok, started.blockers)
+                lease = self._read_task(task_dir)["meta"]["lease"]
+                self.assertEqual("ci-bot", lease["executor"])
+                self.assertEqual("dev", lease["branch"])
+                self.assertEqual("abc123", lease["head"])
+                self.assertRegex(lease["at"], r"^\d{4}-\d{2}-\d{2}T")
+
+                self.assertTrue(service.review(task_dir).ok)
+                completed = service.complete(task_dir)
+                self.assertTrue(completed.ok, completed.blockers)
+
+            meta = self._read_task(task_dir)["meta"]
+            self.assertNotIn("lease", meta)
+            self.assertEqual("Tiny", meta["taskType"])
+
+    def test_start_blocks_on_branch_mismatch_and_takeover_rewrites(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            data = self._read_task(task_dir)
+            data["executor"] = "session-a"
+            (task_dir / "task.json").write_text(
+                json.dumps(data), encoding="utf-8"
+            )
+            self._write_lease(
+                task_dir,
+                {
+                    "executor": "session-a",
+                    "branch": "main",
+                    "head": "old-sha",
+                    "at": "2026-11-01T00:00:00Z",
+                },
+            )
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="dev",
+            ), patch(
+                "services.task_lease.git_snapshot.current_head",
+                return_value="new-sha"
+            ):
+                blocked = service.start(task_dir, executor="session-a")
+                self.assertFalse(blocked.ok)
+                self.assertEqual("LIFECYCLE-LEASE-001", blocked.code)
+                self.assertIn("main", " ".join(blocked.blockers))
+                self.assertEqual("planning", self._status(task_dir))
+
+                taken = service.start(
+                    task_dir, executor="session-b", takeover=True
+                )
+                self.assertTrue(taken.ok, taken.blockers)
+
+            lease = self._read_task(task_dir)["meta"]["lease"]
+            self.assertEqual("session-b", lease["executor"])
+            self.assertEqual("dev", lease["branch"])
+            self.assertEqual("new-sha", lease["head"])
+            self.assertNotEqual("2026-11-01T00:00:00Z", lease["at"])
+            self.assertRegex(lease["at"], r"^\d{4}-\d{2}-\d{2}T")
+
+    def test_idempotent_restart_checks_the_lease(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_adoptable_task(
+                task_dir, "in_progress", executor="session-b"
+            )
+            self._write_lease(
+                task_dir,
+                {
+                    "executor": "session-b",
+                    "branch": "dev",
+                    "head": "dev-sha",
+                    "at": "2026-11-01T00:00:00Z",
+                },
+            )
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            # An idempotent re-start is still a start: another branch is
+            # refused until --takeover moves the lease.
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="main",
+            ), patch(
+                "services.task_lease.git_snapshot.current_head",
+                return_value="main-sha"
+            ):
+                rerun = service.start(task_dir, executor="session-b")
+                self.assertFalse(rerun.ok)
+                self.assertEqual("LIFECYCLE-LEASE-001", rerun.code)
+
+                moved = service.start(
+                    task_dir, executor="session-b", takeover=True
+                )
+                self.assertTrue(moved.ok, moved.blockers)
+                self.assertEqual(
+                    "LIFECYCLE-EXECUTOR-TAKEN-OVER", moved.code
+                )
+
+            lease = self._read_task(task_dir)["meta"]["lease"]
+            self.assertEqual("main", lease["branch"])
+            self.assertEqual("main-sha", lease["head"])
+            self.assertEqual("session-b", lease["executor"])
+            self.assertNotEqual("2026-11-01T00:00:00Z", lease["at"])
+
+    def test_start_without_git_records_null_branch_and_never_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value=None,
+            ), patch(
+                "services.task_lease.git_snapshot.current_head",
+                return_value=None
+            ):
+                started = service.start(task_dir, executor="ci-bot")
+                self.assertTrue(started.ok, started.blockers)
+
+            lease = self._read_task(task_dir)["meta"]["lease"]
+            self.assertIsNone(lease["branch"])
+            self.assertIsNone(lease["head"])
+
+            lease_module = importlib.import_module("services.task_lease")
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="main",
+            ):
+                self.assertIsNone(
+                    lease_module.branch_conflict(
+                        {"meta": {"lease": {"branch": None}}}, root
+                    )
+                )
+                self.assertIsNone(
+                    lease_module.branch_conflict({"meta": {}}, root)
+                )
+                self.assertIn(
+                    "main",
+                    lease_module.branch_conflict(
+                        {"meta": {"lease": {"branch": "feat"}}}, root
+                    ),
+                )
+
+    def test_adopt_rewrites_lease_and_keeps_previous_executor(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_adoptable_task(task_dir, "in_progress")
+            self._write_lease(
+                task_dir,
+                {
+                    "executor": "session-a",
+                    "branch": "main",
+                    "head": "old-sha",
+                    "at": "2026-11-01T00:00:00Z",
+                },
+            )
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="dev",
+            ), patch(
+                "services.task_lease.git_snapshot.current_head",
+                return_value="new-sha"
+            ):
+                adopted = service.adopt(task_dir, executor="session-b")
+
+            self.assertTrue(adopted.ok, adopted.blockers)
+            data = self._read_task(task_dir)
+            self.assertEqual("session-b", data["executor"])
+            self.assertEqual("dev", data["meta"]["lease"]["branch"])
+            self.assertEqual("new-sha", data["meta"]["lease"]["head"])
+            self.assertEqual("session-b", data["meta"]["lease"]["executor"])
+            self.assertNotEqual(
+                "2026-11-01T00:00:00Z", data["meta"]["lease"]["at"]
+            )
+            self.assertRegex(
+                data["meta"]["lease"]["at"], r"^\d{4}-\d{2}-\d{2}T"
+            )
+            self.assertEqual("session-a", data["meta"]["previousExecutor"])
+
+    def test_detached_head_never_records_a_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._git(root, "init")
+            self._git(root, "config", "user.name", "Test User")
+            self._git(root, "config", "user.email", "test@example.com")
+            (root / "seed.txt").write_text("seed\n", encoding="utf-8")
+            self._git(root, "add", "-A")
+            self._git(root, "commit", "-m", "seed")
+            self._git(root, "checkout", "--detach")
+
+            git_snapshot = importlib.import_module("infra.git_snapshot")
+            self.assertIsNone(
+                git_snapshot.current_branch(root),
+                "detached HEAD must read as unknown, not as a branch 'HEAD'",
+            )
+            head = git_snapshot.current_head(root)
+            self.assertIsNotNone(head)
+
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_task(task_dir, "planning")
+            self._write_start_ready_context(task_dir)
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            started = service.start(task_dir, executor="ci-bot")
+            self.assertTrue(started.ok, started.blockers)
+            lease = self._read_task(task_dir)["meta"]["lease"]
+            self.assertIsNone(lease["branch"])
+            self.assertEqual(head, lease["head"])
+
+    def test_review_and_complete_do_not_check_the_lease_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_adoptable_task(task_dir, "in_progress")
+            self._write_lease(
+                task_dir,
+                {
+                    "executor": "session-a",
+                    "branch": "main",
+                    "head": "old-sha",
+                    "at": "2026-11-01T00:00:00Z",
+                },
+            )
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="dev",
+            ):
+                reviewed = service.review(task_dir)
+                self.assertTrue(reviewed.ok, reviewed.blockers)
+                completed = service.complete(task_dir)
+                self.assertTrue(completed.ok, completed.blockers)
+
+            self.assertNotIn("lease", self._read_task(task_dir)["meta"])
 
 
 if __name__ == "__main__":
