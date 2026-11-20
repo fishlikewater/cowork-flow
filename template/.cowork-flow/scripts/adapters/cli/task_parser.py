@@ -196,7 +196,10 @@ def _add_next_runtime_inputs(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--takeover",
         action="store_true",
-        help="Take the task over from its current executor on start_task",
+        help=(
+            "Take the task over from its current executor on start_task, or "
+            "confirm completing a task leased to another branch"
+        ),
     )
     parser.add_argument(
         "--adopt",

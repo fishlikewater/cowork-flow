@@ -1199,7 +1199,9 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             self.assertIsNone(lease["branch"])
             self.assertEqual(head, lease["head"])
 
-    def test_review_and_complete_do_not_check_the_lease_branch(self) -> None:
+    def test_review_keeps_session_free_semantics_on_a_foreign_lease_branch(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
@@ -1222,11 +1224,115 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
                 return_value="dev",
             ):
                 reviewed = service.review(task_dir)
-                self.assertTrue(reviewed.ok, reviewed.blockers)
-                completed = service.complete(task_dir)
-                self.assertTrue(completed.ok, completed.blockers)
 
-            self.assertNotIn("lease", self._read_task(task_dir)["meta"])
+            self.assertTrue(reviewed.ok, reviewed.blockers)
+            data = self._read_task(task_dir)
+            self.assertEqual("review", data["status"])
+            self.assertEqual("main", data["meta"]["lease"]["branch"])
+
+    def test_complete_refuses_a_lease_from_another_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_adoptable_task(task_dir, "review")
+            self._write_lease(
+                task_dir,
+                {
+                    "executor": "session-a",
+                    "branch": "main",
+                    "head": "old-sha",
+                    "at": "2026-11-01T00:00:00Z",
+                },
+            )
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="dev",
+            ):
+                completed = service.complete(task_dir)
+
+            self.assertFalse(completed.ok)
+            self.assertEqual("LIFECYCLE-LEASE-001", completed.code)
+            blockers = "\n".join(completed.blockers)
+            self.assertIn("main", blockers)
+            self.assertIn("dev", blockers)
+            self.assertIn("--takeover", blockers)
+            data = self._read_task(task_dir)
+            self.assertEqual("review", data["status"])
+            self.assertIsNone(data.get("completedAt"))
+            self.assertEqual("main", data["meta"]["lease"]["branch"])
+
+    def test_complete_takeover_releases_the_foreign_lease(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            self._write_adoptable_task(task_dir, "review")
+            self._write_lease(
+                task_dir,
+                {
+                    "executor": "session-a",
+                    "branch": "main",
+                    "head": "old-sha",
+                    "at": "2026-11-01T00:00:00Z",
+                },
+            )
+            service = self.TaskLifecycleService(
+                root, check_runner=self._check_runner()
+            )
+
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="dev",
+            ):
+                completed = service.complete(task_dir, takeover=True)
+
+            self.assertTrue(completed.ok, completed.blockers)
+            data = self._read_task(task_dir)
+            self.assertEqual("completed", data["status"])
+            self.assertTrue(data.get("completedAt"))
+            self.assertNotIn("lease", data["meta"])
+
+    def test_complete_allows_matching_absent_or_unknown_lease_branches(
+        self,
+    ) -> None:
+        cases = (
+            ("same branch", "main", "main"),
+            ("unknown current branch", "main", None),
+            ("null lease branch", None, "dev"),
+            ("no lease", "absent", "dev"),
+        )
+        for label, lease_branch, current_branch in cases:
+            with self.subTest(label), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+                self._write_adoptable_task(task_dir, "review")
+                if lease_branch != "absent":
+                    self._write_lease(
+                        task_dir,
+                        {
+                            "executor": "session-a",
+                            "branch": lease_branch,
+                            "head": "old-sha",
+                            "at": "2026-11-01T00:00:00Z",
+                        },
+                    )
+                service = self.TaskLifecycleService(
+                    root, check_runner=self._check_runner()
+                )
+
+                with patch(
+                    "services.task_lease.git_snapshot.current_branch",
+                    return_value=current_branch,
+                ):
+                    completed = service.complete(task_dir)
+
+                self.assertTrue(completed.ok, completed.blockers)
+                self.assertEqual(
+                    "completed", self._read_task(task_dir)["status"]
+                )
 
 
 if __name__ == "__main__":

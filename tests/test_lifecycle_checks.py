@@ -88,6 +88,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
         *,
         allow_missing_evidence: bool = False,
         context_id: str | None = "main",
+        takeover: bool = False,
     ) -> tuple[int, str, str]:
         previous_cwd = Path.cwd()
         environment = (
@@ -106,6 +107,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
                         argparse.Namespace(
                             dir=None,
                             allow_missing_evidence=allow_missing_evidence,
+                            takeover=takeover,
                         )
                     )
         finally:
@@ -657,6 +659,48 @@ class LifecycleChecksTest(FlowScriptTestCase):
             data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
             self.assertEqual(0, result, stderr)
             self.assertEqual("completed", data["status"])
+
+    def test_cmd_complete_takeover_flag_reaches_the_service(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "05-19-demo"
+            self._write_allowed_file_task(root, task_dir, "review")
+            self._write_session_task(root)
+            data = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+            data["meta"] = {
+                **data.get("meta", {}),
+                "lease": {
+                    "executor": "session-a",
+                    "branch": "main",
+                    "head": "old-sha",
+                    "at": "2026-11-01T00:00:00Z",
+                },
+            }
+            (task_dir / "task.json").write_text(json.dumps(data), encoding="utf-8")
+
+            with patch(
+                "services.task_lease.git_snapshot.current_branch",
+                return_value="dev",
+            ):
+                blocked, _stdout, blocked_stderr = self._run_complete(root)
+                blocked_data = json.loads(
+                    (task_dir / "task.json").read_text(encoding="utf-8")
+                )
+                completed, _stdout, completed_stderr = self._run_complete(
+                    root, takeover=True
+                )
+                completed_data = json.loads(
+                    (task_dir / "task.json").read_text(encoding="utf-8")
+                )
+
+            self.assertEqual(1, blocked)
+            self.assertIn("task lease belongs to another branch", blocked_stderr)
+            self.assertIn("--takeover", blocked_stderr)
+            self.assertEqual("review", blocked_data["status"])
+            self.assertIn("lease", blocked_data["meta"])
+            self.assertEqual(0, completed, completed_stderr)
+            self.assertEqual("completed", completed_data["status"])
+            self.assertNotIn("lease", completed_data["meta"])
 
     def _run_next_command(
         self,

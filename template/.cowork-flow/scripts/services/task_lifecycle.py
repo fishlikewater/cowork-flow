@@ -65,6 +65,9 @@ COMPLETE_STAGE = LifecycleStage(
     records_completion_date=True,
 )
 
+# Stages whose mutation is refused when the recorded lease names another branch.
+LEASE_GUARDED_STAGES = (START_STAGE.name, COMPLETE_STAGE.name)
+
 # Adoption repairs ownership on an unfinished task; finished or unstarted
 # tasks have nothing to hand over.
 ADOPTABLE_STATUSES = ("in_progress", "review")
@@ -237,6 +240,7 @@ class TaskLifecycleService:
         allow_spec_file_modifications: bool | None = None,
         allow_missing_evidence: bool = False,
         execution_context: object | None = None,
+        takeover: bool = False,
     ) -> LifecycleResult:
         return self.execute(
             COMPLETE_STAGE,
@@ -245,6 +249,7 @@ class TaskLifecycleService:
             allow_spec_file_modifications=allow_spec_file_modifications,
             allow_missing_evidence=allow_missing_evidence,
             execution_context=execution_context,
+            takeover=takeover,
         )
 
     def execute(
@@ -361,16 +366,36 @@ class TaskLifecycleService:
         task_data: dict,
         takeover: bool,
     ) -> LifecycleResult | None:
-        """Refuse a start on a branch other than the one holding the lease.
+        """Refuse a start or completion from a branch other than the lease's.
 
-        Only the start activation point is enforced; review/complete keep
-        their session-free semantics, and an explicit takeover moves the
-        lease to the current branch."""
-        if stage.name != START_STAGE.name or takeover:
+        Review keeps its session-free semantics; an explicit takeover
+        overrides the gate on both guarded stages."""
+        if takeover or stage.name not in LEASE_GUARDED_STAGES:
             return None
         conflict = task_lease.branch_conflict(task_data, self.repo_root)
         if conflict is None:
             return None
+        return self._lease_failure(stage, task_dir, conflict)
+
+    def _lease_failure(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+        conflict: str,
+    ) -> LifecycleResult:
+        """Stage-specific lease blocker text: complete releases, start moves."""
+        if stage.name == COMPLETE_STAGE.name:
+            return self._failure(
+                stage,
+                task_dir,
+                "LIFECYCLE-LEASE-001",
+                title="task lease belongs to another branch",
+                blockers=(
+                    conflict,
+                    "complete the task from its lease branch, or re-run with "
+                    "--takeover to complete here and release the lease",
+                ),
+            )
         return self._failure(
             stage,
             task_dir,

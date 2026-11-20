@@ -2,8 +2,9 @@
 """Branch-anchored task lease facts for the task lifecycle.
 
 The lease answers one question the rest of the state model cannot: on which
-branch this task was last started. It is a fact, not a lock: only the start
-activation point refuses a mismatch, and an explicit takeover moves it.
+branch this task was last started. It is a fact, not a lock: the start
+activation point and completion refuse a mismatch, and an explicit takeover
+overrides that gate.
 """
 
 from __future__ import annotations

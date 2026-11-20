@@ -444,6 +444,7 @@ def cmd_complete(args: argparse.Namespace) -> int:
         allow_missing_evidence=bool(
             getattr(args, "allow_missing_evidence", False)
         ),
+        takeover=bool(getattr(args, "takeover", False)),
     )
     if not result.ok:
         if result.code == "LIFECYCLE-TRANSITION-001":
