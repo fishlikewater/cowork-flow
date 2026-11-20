@@ -1336,5 +1336,118 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
                 )
 
 
+class TaskLifecycleOpenSliceGateTest(unittest.TestCase):
+    """An open implement slice freezes review (LIFECYCLE-REVIEW-005)."""
+
+    def setUp(self) -> None:
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+            self.addCleanup(sys.path.remove, str(SCRIPTS))
+        self.addCleanup(self._cleanup_imports)
+        lifecycle_module = importlib.import_module("services.task_lifecycle")
+        self.TaskLifecycleService = lifecycle_module.TaskLifecycleService
+        self.REVIEW_STAGE = lifecycle_module.REVIEW_STAGE
+        self.START_STAGE = lifecycle_module.START_STAGE
+        self.COMPLETE_STAGE = lifecycle_module.COMPLETE_STAGE
+
+    def _cleanup_imports(self) -> None:
+        for module_name in (
+            "services.task_lifecycle",
+            "services.task_lease",
+            "services.workflow_runtime",
+            "services.review_receipt",
+            "application",
+            "runtime.session_state",
+            "runtime.host_identity",
+            "infra.storage.state_store",
+            "infra.storage.unit_of_work",
+            "kernel.task_state",
+            "services.task_repository",
+            "services.task_utils",
+            "services.lifecycle_checks",
+            "infra.files",
+            "infra.paths",
+            "common",
+        ):
+            sys.modules.pop(module_name, None)
+
+    @staticmethod
+    def _write_implement_context(
+        root: Path,
+        runtime_context_id: str,
+        *,
+        status: str = "bound",
+    ) -> None:
+        directory = root / ".cowork-flow" / ".runtime" / "subagents"
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / f"{runtime_context_id}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "runtime_context_id": runtime_context_id,
+                    "scope": "subagent",
+                    "agent_type": "cowork-implement",
+                    "task_dir": ".cowork-flow/tasks/07-10-demo",
+                    "assignment": {"title": runtime_context_id},
+                    "status": status,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def _service(self, root: Path):
+        return self.TaskLifecycleService(
+            root, check_runner=TaskLifecycleServiceTest._check_runner()
+        )
+
+    def test_review_is_refused_while_an_implement_slice_is_open(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            TaskLifecycleServiceTest._write_task(task_dir, "in_progress")
+            self._write_implement_context(root, "rtx_open")
+            service = self._service(root)
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                result = service.review(task_dir)
+
+            self.assertFalse(result.ok)
+            self.assertEqual("LIFECYCLE-REVIEW-005", result.code)
+            self.assertIn("rtx_open", " ".join(result.blockers))
+            self.assertEqual("in_progress", TaskLifecycleServiceTest._status(task_dir))
+
+    def test_review_proceeds_once_the_slice_is_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            TaskLifecycleServiceTest._write_task(task_dir, "in_progress")
+            self._write_implement_context(root, "rtx_open", status="closed")
+            service = self._service(root)
+
+            with patch.dict(os.environ, {"COWORK_FLOW_CONTEXT_ID": "main"}):
+                result = service.review(task_dir)
+
+            self.assertTrue(result.ok, result.blockers)
+            self.assertEqual("review", TaskLifecycleServiceTest._status(task_dir))
+
+    def test_start_and_complete_ignore_open_slices(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_dir = root / ".cowork-flow" / "tasks" / "07-10-demo"
+            TaskLifecycleServiceTest._write_task(task_dir, "in_progress")
+            self._write_implement_context(root, "rtx_open")
+            service = self._service(root)
+
+            self.assertIsNone(
+                service._check_open_implement_slices(self.START_STAGE, task_dir)
+            )
+            self.assertIsNone(
+                service._check_open_implement_slices(self.COMPLETE_STAGE, task_dir)
+            )
+            self.assertIsNotNone(
+                service._check_open_implement_slices(self.REVIEW_STAGE, task_dir)
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

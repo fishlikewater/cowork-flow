@@ -190,26 +190,93 @@ class SubagentSliceTest(unittest.TestCase):
                 ).is_file()
             )
 
-    def test_context_without_owned_paths_claims_nothing(self) -> None:
+    def test_context_without_owned_paths_claims_every_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self._root(temp_dir)
             service = self.RuntimeContextService(root)
             service.initialize("rtx_plain", _context("rtx_plain"))
 
-            service.initialize("rtx_slice", _context("rtx_slice", owned=["src/api"]))
-
-            service.initialize("rtx_plain_second", _context("rtx_plain_second"))
-
-            for runtime_context_id in ("rtx_plain", "rtx_slice", "rtx_plain_second"):
-                self.assertTrue(
-                    (
-                        root
-                        / ".cowork-flow"
-                        / ".runtime"
-                        / "subagents"
-                        / f"{runtime_context_id}.json"
-                    ).is_file()
+            with self.assertRaises(self.RuntimeContextError) as raised:
+                service.initialize(
+                    "rtx_slice", _context("rtx_slice", owned=["src/api"])
                 )
+            self.assertEqual("SUBAGENT-SLICE-001", raised.exception.code)
+            self.assertIn("(all paths)", raised.exception.detail)
+            self.assertFalse(
+                (
+                    root
+                    / ".cowork-flow"
+                    / ".runtime"
+                    / "subagents"
+                    / "rtx_slice.json"
+                ).exists()
+            )
+
+            with self.assertRaises(self.RuntimeContextError):
+                service.initialize("rtx_plain_second", _context("rtx_plain_second"))
+
+    def test_owned_slice_blocks_a_later_undeclared_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            service = self.RuntimeContextService(root)
+            service.initialize("rtx_api", _context("rtx_api", owned=["src/api"]))
+
+            with self.assertRaises(self.RuntimeContextError) as raised:
+                service.initialize("rtx_plain", _context("rtx_plain"))
+            self.assertEqual("SUBAGENT-SLICE-001", raised.exception.code)
+            self.assertIn("(all paths)", raised.exception.detail)
+            self.assertIn("rtx_api", raised.exception.detail)
+
+    def test_closing_an_undeclared_context_releases_the_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            service = self.RuntimeContextService(root)
+            service.initialize("rtx_plain", _context("rtx_plain"))
+
+            with self.assertRaises(self.RuntimeContextError):
+                service.initialize(
+                    "rtx_api", _context("rtx_api", owned=["src/api"])
+                )
+
+            service.close("rtx_plain")
+            self.assertEqual("closed", service.load("rtx_plain")["status"])
+
+            service.initialize("rtx_api", _context("rtx_api", owned=["src/api"]))
+            self.assertEqual("pending", service.load("rtx_api")["status"])
+
+    def test_list_renders_undeclared_implement_as_all_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            plain = self._run_cli(
+                root,
+                "--execution-task-dir",
+                TASK,
+                "init",
+                "--title",
+                "Plain implement",
+                "--role",
+                "implement",
+            )
+            check = self._run_cli(
+                root,
+                "--execution-task-dir",
+                TASK,
+                "init",
+                "--title",
+                "Review pass",
+                "--role",
+                "check",
+                "--agent-type",
+                "cowork-check",
+            )
+            for result in (plain, check):
+                self.assertEqual(0, result.returncode, msg=result.stderr)
+
+            listing = self._run_cli(root, "list", "--task", TASK)
+
+        self.assertEqual(0, listing.returncode, msg=listing.stderr)
+        self.assertIn("owns=(all paths)", listing.stdout)
+        self.assertIn("owns=-", listing.stdout)
 
     def test_slash_rooted_absolute_paths_are_recognized(self) -> None:
         """Absoluteness must be decided on the raw value on every platform:

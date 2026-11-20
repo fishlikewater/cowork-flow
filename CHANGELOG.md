@@ -6,6 +6,12 @@
 
 ### Changed
 
+- **发布通道改为 CI 成功后再发 npm**：tag 推送只触发 CI；`publish.yml` 改由 `workflow_run`（CI 完成、成功、且为 `v*` tag 推送）启动，Node 24 / Python 3.13 等兼容任务失败时 npm 不再上架；发布成功后的 GitHub Release 自动创建保留，`release: published` 与 `workflow_dispatch` 手动通道不变。
+- **并行派发指引补齐切片所有权与复核口径**：`cowork-flow` 技能的 Delegation 段要求分片 brief 带 `owned_paths`（否则冲突机检无法判定切片是否交叠），并写明并行 `cowork-research` 可同时跑、额外 `cowork-check` 只算预检，正式复核回执只记录一次。
+- **切片所有权改为默认覆盖全部路径**：implement 上下文不声明 `owned_paths` 时不再视为“不占任何路径”，而是覆盖该任务全部路径——单代理 `init` 照常可用，但第二个同任务实现上下文无论是否声明切片都会被 `SUBAGENT-SLICE-001` 拒绝。
+- **review 在实现切片未关闭时阻断**：新增 `LIFECYCLE-REVIEW-005`，`cowork-implement` 上下文仍 open 时 `review` 拒绝推进（先 `subagent close`），避免复核回执绑定在还会变化的变更集上；`start` / `complete` 不受影响。
+- **并行切片流程文档与集成回归**：`docs/team.md` / `docs/team.en.md` 新增「并行子代理与切片」小节（并行时声明 `owned_paths`、未声明即覆盖全部路径、只对同任务 open 的 implement 生效且关闭即释放、review 前必须关闭）；新增 `tests/test_parallel_slice_flow.py`，覆盖两片并行、交叠与未声明被拒、review 冻结与关闭后放行，并锁住“异任务实现切片与同任务 `cowork-check` 不冻结 review”两条边界。
+
 ## [2.7.5] - 2026-11-20
 
 ### Fixed

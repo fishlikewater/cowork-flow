@@ -71,6 +71,21 @@ def owned_paths_overlap(
     return overlaps
 
 
+ALL_PATHS = "(all paths)"
+
+
+def claims_overlap(left: list[str], right: list[str]) -> bool:
+    """True when two slices cannot run side by side.
+
+    An undeclared claim set is a wildcard, not an empty set: allowing it to
+    pass would let a context without `owned_paths` write into every slice it
+    shares a task with.
+    """
+    if not left or not right:
+        return True
+    return bool(owned_paths_overlap(left, right))
+
+
 @dataclass(frozen=True)
 class RuntimeContextInitResult:
     """Files created for one runtime-context initialization."""
@@ -171,18 +186,17 @@ class RuntimeContextService:
     ) -> list[tuple[str, str, str]]:
         """(other_id, claimed_path, conflicting_path) for open sibling slices.
 
-        Only implement contexts that declare `owned_paths` take part: an
-        init without an ownership claim can neither conflict nor be
-        conflicted with, and a closed context has released its paths.
+        Only implement contexts take part, and within one task: an undeclared
+        `owned_paths` claims every path (see `claims_overlap`), a closed
+        context has released its paths, and other tasks or agent types never
+        collide with this one.
         """
         if context.get("agent_type") != "cowork-implement":
-            return []
-        claimed = self._owned_paths(context)
-        if not claimed:
             return []
         task_dir = self._normalized_task_dir(str(context.get("task_dir") or ""))
         if not task_dir:
             return []
+        claimed = self._owned_paths(context)
         conflicts: list[tuple[str, str, str]] = []
         for other in iter_subagent_contexts(self.repo_root):
             other_id = str(other.get("runtime_context_id") or "")
@@ -194,9 +208,21 @@ class RuntimeContextService:
                 continue
             if self._normalized_task_dir(str(other.get("task_dir") or "")) != task_dir:
                 continue
+            other_owned = self._owned_paths(other)
+            if not claims_overlap(claimed, other_owned):
+                continue
+            if not claimed or not other_owned:
+                conflicts.append(
+                    (
+                        other_id,
+                        claimed[0] if claimed else ALL_PATHS,
+                        other_owned[0] if other_owned else ALL_PATHS,
+                    )
+                )
+                continue
             for claimed_path, other_path in owned_paths_overlap(
                 claimed,
-                self._owned_paths(other),
+                other_owned,
             ):
                 conflicts.append((other_id, claimed_path, other_path))
         return conflicts

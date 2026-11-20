@@ -22,6 +22,14 @@
 - 实践约定 **一任务一分支**：需要并行时开不同任务；任务分支合并后，保留与目标分支一致的那份租约，另一方在合并后的分支上 `--adopt` 再继续；若直接在该分支 `complete`，需先 `--adopt` 或加 `--takeover`。
 - 需要并行推进多个任务时，用任务看板（`task next --list --json`）和依赖（`--depends-on`）协调，合并后再统一推进。
 
+## 并行子代理与切片
+
+- 一片一 owner：并行推进时，每个 implement 子代理在 assignment 中声明切片与 `owned_paths`；同一任务内两个 open 的实现切片之间不得相等，也不得互为路径前缀。切片关闭即释放路径，已完成切片不阻塞同一路径重跑。
+- 未声明 `owned_paths` 等于声明本任务全部路径：任何与之并行的实现上下文都会被 `SUBAGENT-SLICE-001` 拒绝，且不落盘。
+- `review` 是冻结点：仍有 open 的 implement 上下文时复核拒绝推进（`LIFECYCLE-REVIEW-005`），先关闭再复核；`start` 与 `complete` 不受此门禁。
+- 只读工作可以并行多个：`cowork-research` 可同时运行；`cowork-check` 只有正式的那一次写复核回执，额外运行只作预检。
+- 跨 worktree 没有运行期互斥：运行时锁只保护单个工作区（见上文），冲突靠分支与租约约定处理。
+
 ## executor 与 assignee
 
 - `assignee` 是人：任务创建时的 `--assignee`，用于看板归属和筛选（`task next --list --mine`）。

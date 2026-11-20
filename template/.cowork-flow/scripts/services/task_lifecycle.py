@@ -38,6 +38,7 @@ from services.lifecycle_policy import (
 )
 from kernel.task_state import transition_blockers
 from services.task_repository import TaskRepository, TaskRepositoryError
+from services.workflow_runtime import RuntimeContextService
 
 
 @dataclass(frozen=True)
@@ -357,7 +358,46 @@ class TaskLifecycleService:
         )
         if executor_failure is not None:
             return executor_failure
-        return self._check_lease(stage, task_dir, task_data, takeover)
+        lease_failure = self._check_lease(stage, task_dir, task_data, takeover)
+        if lease_failure is not None:
+            return lease_failure
+        return self._check_open_implement_slices(stage, task_dir)
+
+    def _check_open_implement_slices(
+        self,
+        stage: LifecycleStage,
+        task_dir: Path,
+    ) -> LifecycleResult | None:
+        """Review hashes a frozen change set; an open slice can still write.
+
+        A review receipt recorded while an implement context is open would
+        describe a state that no longer exists once that slice writes again,
+        so review waits until every slice reports back and is closed.
+        """
+        if stage.name != REVIEW_STAGE.name:
+            return None
+        open_ids = [
+            str(context.get("runtime_context_id"))
+            for context in RuntimeContextService(self.repo_root).list_contexts(
+                task_dir=str(task_dir),
+                open_only=True,
+            )
+            if context.get("agent_type") == "cowork-implement"
+        ]
+        if not open_ids:
+            return None
+        return self._failure(
+            stage,
+            task_dir,
+            "LIFECYCLE-REVIEW-005",
+            title="implement slice still open",
+            blockers=(
+                "open implement context(s): " + ", ".join(sorted(open_ids)),
+                "close them with `subagent close` before review — review "
+                "hashes the change set, and a slice that keeps writing makes "
+                "the receipt stale",
+            ),
+        )
 
     def _check_lease(
         self,

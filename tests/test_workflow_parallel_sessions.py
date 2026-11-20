@@ -724,3 +724,15 @@ class WorkflowParallelSessionsTest(unittest.TestCase):
                 english_template,
             ),
         )
+
+
+class WorkflowDelegationTextTest(unittest.TestCase):
+    def test_delegation_names_slice_ownership_and_a_single_review_receipt(self) -> None:
+        text = (
+            ROOT / "template" / "skills" / "cowork-flow" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        flat = " ".join(text.split())
+        self.assertIn("including the slice's `owned_paths`", flat)
+        self.assertIn("exactly one `cowork-check` records the review receipt", flat)
+        self.assertIn("stay off every open child's ground", flat)
+        self.assertIn("close every open implement context", flat)

@@ -26,10 +26,11 @@ results, and the closeout blockers.
 | `LIFECYCLE-REVIEW-002` | The latest review receipt does not have `result: "pass"`, so the newest review stands as a failure. | `services/lifecycle_checks.py:670` |
 | `LIFECYCLE-REVIEW-003` | The latest receipt's `changedFingerprint` differs from the fingerprint recomputed now — the change set, plan, goal, acceptance text, or applicable specs moved after the review. | `services/lifecycle_checks.py:681` |
 | `LIFECYCLE-REVIEW-004` | The latest receipt is not backed by a runtime binding: its `contextId` does not resolve to a `cowork-check` subagent context bound to this task, or its binding evidence contradicts the submitting session. | `services/lifecycle_checks.py:693` |
+| `LIFECYCLE-REVIEW-005` | The task reaches `review` while a `cowork-implement` runtime context of that task is still open. Review refuses to advance until every slice is closed, so a receipt never covers a change set a slice can still write; `start` and `complete` are not affected. | `services/task_lifecycle.py:392` |
 | `LIFECYCLE-TASK-001` | The task directory passed to a lifecycle command does not exist. | `services/task_lifecycle.py:529` |
 | `LIFECYCLE-TRANSITION-001` | The task's current status cannot transition to the target status of the stage being run. | `services/task_lifecycle.py:641` |
 | `LIFECYCLE-UOW-001` | The `UnitOfWork` write fails: task metadata cannot be re-read before commit/takeover, changed under it (optimistic-concurrency conflict), or `unit.commit()` raises. | `services/task_lifecycle.py:942` (also `:949`, `:998`, `:1051`, `:1059`, `:1095`) |
-| `SUBAGENT-SLICE-001` | A `cowork-implement` runtime context is initialized with `owned_paths` that equal, or nest with, the `owned_paths` of an open (not yet closed) implement context of the same task; nothing is written for the rejected context. | `services/workflow_runtime.py:144` |
+| `SUBAGENT-SLICE-001` | A `cowork-implement` runtime context claims `owned_paths` that equal, or nest with, the claims of an open (not yet closed) implement context of the same task. An undeclared claim set counts as every path of the task, so it conflicts with any sibling implement context; nothing is written for the rejected context. | `services/workflow_runtime.py:159` |
 
 ## Non-error `LIFECYCLE-*` codes
 

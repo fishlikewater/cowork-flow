@@ -22,6 +22,14 @@ When several people, branches, or worktrees use cowork-flow together, task state
 - Working rule: **one task, one branch**. Start different tasks for parallel work; after merging a task branch, keep the lease that matches the target branch and `--adopt` on that branch to continue; completing on that branch directly needs `--adopt` first, or `--takeover` on `complete`.
 - To advance several tasks in parallel, coordinate through the task board (`task next --list --json`) and dependencies (`--depends-on`), then converge after merging.
 
+## Parallel subagents and slices
+
+- One slice, one owner: when running slices in parallel, each implement subagent declares its slice and `owned_paths` in the assignment; two open implement slices of the same task must not be equal or be a directory prefix of one another. Closing a slice releases its paths, so a finished slice does not block re-running the same path.
+- Omitting `owned_paths` means claiming every path of the task: any implementation context running alongside it is refused with `SUBAGENT-SLICE-001`, and nothing is written.
+- `review` is a freeze point: while an implement context is still open, review refuses to advance (`LIFECYCLE-REVIEW-005`); close it first, then review. `start` and `complete` are not affected.
+- Read-only work may run in parallel: several `cowork-research` contexts at once; only the one formal `cowork-check` records the review receipt — extra runs are pre-checks only.
+- Cross-worktree runs have no runtime mutual exclusion: the runtime lock protects a single working tree only (see above), so conflicts are handled by branch and lease conventions.
+
 ## executor vs assignee
 
 - `assignee` is the person: `--assignee` at task creation, used for board ownership and filtering (`task next --list --mine`).

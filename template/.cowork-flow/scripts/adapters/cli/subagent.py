@@ -32,6 +32,7 @@ from runtime.session_state import (
 )
 from services.review_receipt import ReviewReceiptError, submit_review_receipt
 from services.workflow_runtime import (
+    ALL_PATHS,
     RuntimeContextError,
     RuntimeContextService,
     normalize_relative_path,
@@ -364,13 +365,17 @@ def cmd_list(args: argparse.Namespace) -> int:
         assignment = context.get("assignment")
         assignment = assignment if isinstance(assignment, dict) else {}
         owned = [str(path) for path in (assignment.get("owned_paths") or [])]
+        if not owned and context.get("agent_type") == "cowork-implement":
+            owns = ALL_PATHS
+        else:
+            owns = ",".join(owned) or "-"
         print(
             f"{context.get('runtime_context_id', '?')}  "
             f"{context.get('status', 'unknown')}  "
             f"{context.get('agent_type', 'unknown')}  "
             f"{context.get('task_dir') or '-'}  "
             f"slice={assignment.get('slice') or '-'}  "
-            f"owns={','.join(owned) or '-'}"
+            f"owns={owns}"
         )
     return 0
 

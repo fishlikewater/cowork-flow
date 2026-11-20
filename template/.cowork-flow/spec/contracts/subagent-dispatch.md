@@ -48,12 +48,16 @@ machine-checks slice cleanliness instead of leaving it to prose:
 - Initializing an implement context whose `owned_paths` equal, or nest with,
   those of an open (not yet closed) implement context of the same task fails
   closed with `SUBAGENT-SLICE-001`; nothing is written for the rejected
-  context.
-- A context that declares no `owned_paths` claims nothing, so it neither
-  conflicts with nor blocks anyone — existing plain `init` calls keep working
-  unchanged.
+  context, so a refused init leaves no half-state behind.
+- A context that declares no `owned_paths` claims **every** path of the task,
+  not nothing: any other implement context of the same task is refused beside
+  it, whether that context declares a slice or not. `subagent list` shows such
+  a context as `(all paths)`.
 - Closing a context releases its paths; a finished slice no longer blocks a
   re-run of the same slice.
+- Review is a freeze point: while an implement context of the task is still
+  open, `review` is refused with `LIFECYCLE-REVIEW-005`. Close the slice
+  first; `start` and `complete` are not affected.
 
 `subagent list [--task <task-dir>] [--open]` inventories contexts with their
 status and ownership summary, and `subagent prompt <runtime_context_id>`

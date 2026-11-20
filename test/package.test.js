@@ -370,12 +370,10 @@ test('CI and publish workflows enforce Windows release confidence gates', async 
 });
 
 
-// `on: push: tags` only starts the workflow; each job still runs behind its own
-// `if`. A gate that names only `release` and `inputs.ref` leaves every job
-// skipped on a tag push: the run goes green and publishes nothing, which is
-// exactly the failure `--no-publish` hands publishing to. Every job must admit
-// the push event, or CI is not a publisher at all.
-test('publish workflow lets a tag push through every job gate', async () => {
+// A tag push now only starts CI; npm publish waits for that CI run to finish
+// green. The workflow must not listen to `push` itself, and every job gate
+// must reject a push event — otherwise a red CI could still publish.
+test('publish workflow runs only after a successful CI run for a version tag', async () => {
   const publish = (await readFile(join(packageRoot, '.github', 'workflows', 'publish.yml'), 'utf8'))
     .replaceAll('\r\n', '\n');
   const jobBlock = (jobName) => {
@@ -389,17 +387,21 @@ test('publish workflow lets a tag push through every job gate', async () => {
 
   assert.match(
     publish,
-    /on:\n(?=[\s\S]*push:\n\s+tags:\n\s+- "?v\*"?)/,
-    'the tag push trigger must stay declared'
+    /workflow_run:\n\s+workflows: \["CI"\]\n\s+types:\n\s+- completed/,
+    'publish must be triggered by the CI workflow finishing'
   );
+  assert.doesNotMatch(publish, /^\s*push:/m, 'a tag push must not start the publish workflow');
   for (const jobName of ['verify-ubuntu', 'verify-windows', 'publish']) {
     const condition = jobBlock(jobName).match(/^\s*if: (.+)$/m)?.[1] ?? '';
-    assert.match(
+    assert.doesNotMatch(
       condition,
       /github\.event_name == 'push'/,
-      `${jobName} would be skipped on a tag push, leaving the CI channel inert`
+      `${jobName} must not run for a push event`
     );
+    assert.match(condition, /github\.event\.workflow_run\.conclusion == 'success'/);
+    assert.match(condition, /startsWith\(github\.event\.workflow_run\.head_branch, 'v'\)/);
   }
+  assert.match(jobBlock('github-release'), /github\.event_name == 'workflow_run'/);
 });
 
 

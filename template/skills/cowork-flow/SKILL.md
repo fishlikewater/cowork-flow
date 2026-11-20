@@ -50,27 +50,31 @@ If `test-first` is listed, read it and write the red test before production code
 Dispatch follows the plan's execution strategy:
 
 - Parallel slices: dispatch one `cowork-implement` per slice, carrying the
-  slice brief in the runtime context assignment; the protocol is
-  `.cowork-flow/spec/contracts/subagent-dispatch.md`.
+  slice brief in the runtime context assignment, including the slice's
+  `owned_paths` so the runtime can prove the slices do not overlap; the
+  protocol is `.cowork-flow/spec/contracts/subagent-dispatch.md`.
 - Before completion, arrange the `cowork-check` dispatch the completion gate
-  requires — do not wait for the blocker to tell you.
-- Close the review surface before dispatching `cowork-check`: final
-  `implement.jsonl` scope, anchor goal/AC text, bound plan, referenced spec
-  bodies. The receipt hashes their content; a post-check edit — even one
+  requires — do not wait for the blocker to tell you. Extra `cowork-check`
+  runs are pre-checks only: exactly one `cowork-check` records the review
+  receipt.
+- Close the review surface before dispatching `cowork-check`: close every
+  open implement context, then final `implement.jsonl` scope, anchor goal/AC
+  text, bound plan, referenced spec bodies. The receipt hashes their content; a post-check edit — even one
   appended scope entry — stales it and forces a re-dispatch (task-review
   `Receipt freshness`). AC ticks and evidence appends are fingerprint-neutral;
   close them before dispatch so the review judges the final state.
-- Research-heavy work: dispatch two or three `cowork-research` children for
-  independent questions instead of widening the main context.
+- Parallel read-only work: `cowork-research` children may run side by side;
+  dispatch two or three for independent questions instead of widening the
+  main context.
 - Long-running children: prefer background dispatch when the host supports it;
   the completion signal is the convergence point and acceptance runs after it.
   Use foreground dispatch for short work or hosts without a background mode.
 - While a child runs, the main session keeps working on things that never
   touch the child's ground: read-only investigation, runtime-directory work
   (evidence, board, plan drafts, follow-up task drafts), separate worktrees.
-- Until convergence, stay off the child's ground: no edits to the tracked
-  worktree or this task's anchor/plan, no current-tree git writes or lifecycle
-  transitions, and do not start other tasks.
+- Until convergence, stay off every open child's ground: no edits to the
+  tracked worktree or this task's anchor/plan, no current-tree git writes or
+  lifecycle transitions, and do not start other tasks.
 
 Public Skills carry workflow guidance. Runtime Gates carry hard enforcement.
 Do not recreate an internal protocol layer or another process authority.
