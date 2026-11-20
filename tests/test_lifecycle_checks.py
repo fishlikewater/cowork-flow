@@ -679,7 +679,7 @@ class LifecycleChecksTest(FlowScriptTestCase):
             (task_dir / "task.json").write_text(json.dumps(data), encoding="utf-8")
 
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value="dev",
             ):
                 blocked, _stdout, blocked_stderr = self._run_complete(root)

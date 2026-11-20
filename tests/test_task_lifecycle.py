@@ -964,10 +964,10 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             )
 
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value="dev",
             ), patch(
-                "services.task_lease.git_snapshot.current_head",
+                "services.task_lifecycle.task_lease.git_snapshot.current_head",
                 return_value="abc123"
             ):
                 started = service.start(task_dir, executor="ci-bot")
@@ -1011,10 +1011,10 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             )
 
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value="dev",
             ), patch(
-                "services.task_lease.git_snapshot.current_head",
+                "services.task_lifecycle.task_lease.git_snapshot.current_head",
                 return_value="new-sha"
             ):
                 blocked = service.start(task_dir, executor="session-a")
@@ -1058,10 +1058,10 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             # An idempotent re-start is still a start: another branch is
             # refused until --takeover moves the lease.
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value="main",
             ), patch(
-                "services.task_lease.git_snapshot.current_head",
+                "services.task_lifecycle.task_lease.git_snapshot.current_head",
                 return_value="main-sha"
             ):
                 rerun = service.start(task_dir, executor="session-b")
@@ -1093,10 +1093,10 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             )
 
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value=None,
             ), patch(
-                "services.task_lease.git_snapshot.current_head",
+                "services.task_lifecycle.task_lease.git_snapshot.current_head",
                 return_value=None
             ):
                 started = service.start(task_dir, executor="ci-bot")
@@ -1107,8 +1107,9 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             self.assertIsNone(lease["head"])
 
             lease_module = importlib.import_module("services.task_lease")
-            with patch(
-                "services.task_lease.git_snapshot.current_branch",
+            with patch.object(
+                lease_module.git_snapshot,
+                "current_branch",
                 return_value="main",
             ):
                 self.assertIsNone(
@@ -1145,10 +1146,10 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             )
 
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value="dev",
             ), patch(
-                "services.task_lease.git_snapshot.current_head",
+                "services.task_lifecycle.task_lease.git_snapshot.current_head",
                 return_value="new-sha"
             ):
                 adopted = service.adopt(task_dir, executor="session-b")
@@ -1220,7 +1221,7 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             )
 
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value="dev",
             ):
                 reviewed = service.review(task_dir)
@@ -1249,7 +1250,7 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             )
 
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value="dev",
             ):
                 completed = service.complete(task_dir)
@@ -1284,7 +1285,7 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
             )
 
             with patch(
-                "services.task_lease.git_snapshot.current_branch",
+                "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                 return_value="dev",
             ):
                 completed = service.complete(task_dir, takeover=True)
@@ -1324,7 +1325,7 @@ class TaskLeaseTest(TaskLifecycleServiceTest):
                 )
 
                 with patch(
-                    "services.task_lease.git_snapshot.current_branch",
+                    "services.task_lifecycle.task_lease.git_snapshot.current_branch",
                     return_value=current_branch,
                 ):
                     completed = service.complete(task_dir)
