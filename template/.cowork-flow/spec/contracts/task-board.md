@@ -14,6 +14,7 @@ reused by both surfaces, so field values must stay consistent from one source.
 | Field | Meaning | Boundary |
 |---|---|---|
 | `executor` | the currently owning executor (`task.json.executor`, `null` when unset) | written by start / `--takeover` / `--adopt` |
+| `lease` | the branch-anchored lease as `{executor, branch, head, at}`, or `null` when the task holds none; only these four keys are exposed | same source as `task.json.meta.lease`; `branch` is `null` without git or on detached HEAD, and `complete` releases the lease |
 | `ownerSessionActive` | whether any session is bound to this task (`active_task_path` in `sessions/` points at it) | **a hint, not a verdict**: a session working with an explicit directory is never bound, so `false` only means "no binding points here" and never that the task is orphaned |
 | `evidenceCoverage` | `{total, withEvidence, missing[]}`; `null` for a task with no declared AC | same source as `run state` / the injected coverage row (`ac_evidence`) |
 | `blocked` | whether an unfinished dependency exists | see "dependency semantics" below |

@@ -2384,6 +2384,120 @@ class RuntimeHealthTest(unittest.TestCase):
             ],
         )
 
+    @staticmethod
+    def _lease_task_fixture(
+        root: Path,
+        name: str = "05-22-leased",
+        *,
+        status: str = "in_progress",
+    ) -> Path:
+        tasks = root / ".cowork-flow" / "tasks"
+        task = tasks / name
+        task.mkdir(parents=True)
+        (task / "task.json").write_text(
+            json.dumps(
+                {
+                    "status": status,
+                    "meta": {
+                        "lease": {
+                            "executor": "session-a",
+                            "branch": "main",
+                            "head": "sha",
+                            "at": "2026-11-19T00:00:00Z",
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        for context_file in (
+            "decision-anchor.md",
+            "implement.jsonl",
+            "check.jsonl",
+            "debug.jsonl",
+        ):
+            (task / context_file).write_text("x\n", encoding="utf-8")
+        sessions = root / ".cowork-flow" / ".runtime" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / f"{name}.json").write_text(
+            json.dumps({"active_task_path": f".cowork-flow/tasks/{name}"}),
+            encoding="utf-8",
+        )
+        return task
+
+    def test_task_hygiene_reports_lease_branch_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._lease_task_fixture(root)
+
+            with mock.patch(
+                "infra.git_snapshot.current_branch", return_value="dev"
+            ):
+                issues = self.doctor.check_task_hygiene(root)
+            hits = [
+                issue
+                for issue in issues
+                if issue["code"] == "TASK-HYGIENE-LEASE-BRANCH-MISMATCH"
+            ]
+            self.assertEqual(1, len(hits))
+            self.assertEqual("warning", hits[0]["severity"])
+            self.assertIn("--takeover", hits[0]["hint"])
+            self.assertIn("main", hits[0]["message"])
+            self.assertIn("dev", hits[0]["message"])
+
+    def test_task_hygiene_ignores_matching_or_unknown_lease_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._lease_task_fixture(root)
+
+            with mock.patch(
+                "infra.git_snapshot.current_branch", return_value="main"
+            ):
+                same_branch = self.doctor.check_task_hygiene(root)
+            self.assertNotIn(
+                "TASK-HYGIENE-LEASE-BRANCH-MISMATCH",
+                {issue["code"] for issue in same_branch},
+            )
+
+            with mock.patch(
+                "infra.git_snapshot.current_branch", return_value=None
+            ):
+                unknown_branch = self.doctor.check_task_hygiene(root)
+            self.assertNotIn(
+                "TASK-HYGIENE-LEASE-BRANCH-MISMATCH",
+                {issue["code"] for issue in unknown_branch},
+            )
+
+    def test_task_hygiene_reports_lease_mismatch_on_review_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._lease_task_fixture(root, "05-23-reviewing", status="review")
+
+            with mock.patch(
+                "infra.git_snapshot.current_branch", return_value="dev"
+            ):
+                issues = self.doctor.check_task_hygiene(root)
+            codes = [issue["code"] for issue in issues]
+            self.assertEqual(
+                1, codes.count("TASK-HYGIENE-LEASE-BRANCH-MISMATCH")
+            )
+
+    def test_task_hygiene_skips_lease_mismatch_outside_active_statuses(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._lease_task_fixture(root, "05-24-planned", status="planning")
+            self._lease_task_fixture(root, "05-25-done", status="completed")
+
+            with mock.patch(
+                "infra.git_snapshot.current_branch", return_value="dev"
+            ):
+                issues = self.doctor.check_task_hygiene(root)
+            codes = {issue["code"] for issue in issues}
+            self.assertNotIn("TASK-HYGIENE-LEASE-BRANCH-MISMATCH", codes)
+            self.assertIn("TASK-HYGIENE-COMPLETED-UNARCHIVED", codes)
+
     def test_task_hygiene_warns_on_completed_task_with_open_subagent_contexts(
         self,
     ) -> None:

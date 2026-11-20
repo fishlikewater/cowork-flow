@@ -135,6 +135,50 @@ class TaskBoardTest(unittest.TestCase):
             self.assertFalse(free_facts["blocked"])
             self.assertEqual([], free_facts["blockedBy"])
 
+    def test_board_facts_expose_lease_and_drop_unknown_keys(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            leased = self._write_task(
+                root,
+                "10-03-leased",
+                status="in_progress",
+                meta={
+                    "lease": {
+                        "executor": "session-a",
+                        "branch": "dev",
+                        "head": "abc123",
+                        "at": "2026-11-19T00:00:00Z",
+                        "extra": "drop",
+                    }
+                },
+            )
+            unleased = self._write_task(root, "10-04-unleased", status="planning")
+
+            leased_lease = self.board.board_facts(root, leased)["lease"]
+            self.assertEqual(
+                {
+                    "executor": "session-a",
+                    "branch": "dev",
+                    "head": "abc123",
+                    "at": "2026-11-19T00:00:00Z",
+                },
+                leased_lease,
+                "only the four lease keys may reach the board",
+            )
+            self.assertIsNone(self.board.board_facts(root, unleased)["lease"])
+
+            records, error = self.tree_commands._list_task_records(
+                root, mine=False, status=None
+            )
+            self.assertIsNone(error)
+            state_server = importlib.import_module("adapters.mcp.state_server")
+            payload = state_server._tool_task_list(root, {})
+            by_name = {record["name"]: record["lease"] for record in records}
+            mcp_by_name = {
+                task["name"]: task["lease"] for task in payload["tasks"]
+            }
+            self.assertEqual(by_name, mcp_by_name)
+
     def test_cli_list_and_mcp_task_list_share_board_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

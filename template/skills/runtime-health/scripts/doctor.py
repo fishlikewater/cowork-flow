@@ -400,6 +400,106 @@ def _missing_context_files(task_dir: Path) -> tuple[str, ...]:
     return tuple(name for name in required if not (task_dir / name).is_file())
 
 
+def _completion_issues(
+    *,
+    task: str,
+    status: str,
+    open_ids: list[str] | None,
+) -> list[dict[str, str]]:
+    """Warnings that only an unarchived completed task can carry."""
+    issues = [
+        _task_hygiene_issue(
+            kind="completed_unarchived",
+            task=task,
+            status=status,
+            message="completed task remains in the active task tree",
+            hint=f"./.cowork-flow/run task next {task} --run --intent archive",
+        )
+    ]
+    if open_ids:
+        issues.append(
+            _task_hygiene_issue(
+                kind="completed_with_open_subagents",
+                task=task,
+                status=status,
+                message=(
+                    "completed task still has open subagent context(s): "
+                    + ", ".join(open_ids)
+                ),
+                hint=f"./.cowork-flow/run subagent list --task {task}",
+            )
+        )
+    return issues
+
+
+def _context_issues(
+    *,
+    task: str,
+    status: str,
+    task_dir: Path,
+    bound_tasks: set[str],
+) -> list[dict[str, str]]:
+    """Warnings about the task's session binding and context files."""
+    issues: list[dict[str, str]] = []
+    if status in {"in_progress", "review"} and task not in bound_tasks:
+        issues.append(
+            _task_hygiene_issue(
+                kind="in_progress_unbound",
+                task=task,
+                status=status,
+                message="active task state is not bound to any runtime session",
+                hint=f"./.cowork-flow/run task next {task} --run",
+            )
+        )
+    missing = _missing_context_files(task_dir)
+    if missing:
+        issues.append(
+            _task_hygiene_issue(
+                kind="missing_task_context",
+                task=task,
+                status=status,
+                message=f"missing task context file(s): {', '.join(missing)}",
+                hint=f"./.cowork-flow/run task next {task} --validate",
+            )
+        )
+    return issues
+
+
+def _lease_branch_issue(
+    repo_root: Path,
+    *,
+    task: str,
+    status: str,
+    data: dict[str, object],
+) -> dict[str, str] | None:
+    """Warn when an active task's lease names a different branch.
+
+    This mirrors the start gate without enforcing anything: an unknown
+    branch (no git, detached HEAD) or a missing lease never warns."""
+    if status not in {"in_progress", "review"}:
+        return None
+    meta = data.get("meta")
+    lease = meta.get("lease") if isinstance(meta, dict) else None
+    branch = lease.get("branch") if isinstance(lease, dict) else None
+    if not isinstance(branch, str) or not branch:
+        return None
+    from infra.git_snapshot import current_branch
+
+    current = current_branch(repo_root)
+    if not current or current == branch:
+        return None
+    return _task_hygiene_issue(
+        kind="lease_branch_mismatch",
+        task=task,
+        status=status,
+        message=(
+            f"task lease is held on branch '{branch}', "
+            f"current branch is '{current}'"
+        ),
+        hint=f"./.cowork-flow/run task next {task} --run --takeover",
+    )
+
+
 def check_task_hygiene(repo_root: Path) -> list[dict[str, str]]:
     from services.task_gate_profiles import is_light_task
 
@@ -432,52 +532,28 @@ def check_task_hygiene(repo_root: Path) -> list[dict[str, str]]:
                 )
             )
         if status == "completed":
-            issues.append(
-                _task_hygiene_issue(
-                    kind="completed_unarchived",
+            issues.extend(
+                _completion_issues(
                     task=task,
                     status=status,
-                    message="completed task remains in the active task tree",
-                    hint=f"./.cowork-flow/run task next {task} --run --intent archive",
+                    open_ids=open_subagents.get(
+                        _normalized_task_path(task, repo_root)
+                    ),
                 )
             )
-            open_ids = open_subagents.get(
-                _normalized_task_path(task, repo_root)
+        issues.extend(
+            _context_issues(
+                task=task,
+                status=status,
+                task_dir=task_dir,
+                bound_tasks=bound_tasks,
             )
-            if open_ids:
-                issues.append(
-                    _task_hygiene_issue(
-                        kind="completed_with_open_subagents",
-                        task=task,
-                        status=status,
-                        message=(
-                            "completed task still has open subagent context(s): "
-                            + ", ".join(open_ids)
-                        ),
-                        hint=f"./.cowork-flow/run subagent list --task {task}",
-                    )
-                )
-        if status in {"in_progress", "review"} and task not in bound_tasks:
-            issues.append(
-                _task_hygiene_issue(
-                    kind="in_progress_unbound",
-                    task=task,
-                    status=status,
-                    message="active task state is not bound to any runtime session",
-                    hint=f"./.cowork-flow/run task next {task} --run",
-                )
-            )
-        missing = _missing_context_files(task_dir)
-        if missing:
-            issues.append(
-                _task_hygiene_issue(
-                    kind="missing_task_context",
-                    task=task,
-                    status=status,
-                    message=f"missing task context file(s): {', '.join(missing)}",
-                    hint=f"./.cowork-flow/run task next {task} --validate",
-                )
-            )
+        )
+        lease_issue = _lease_branch_issue(
+            repo_root, task=task, status=status, data=data
+        )
+        if lease_issue is not None:
+            issues.append(lease_issue)
     return issues
 
 

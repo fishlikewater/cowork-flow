@@ -49,6 +49,18 @@ def bound_task_paths(repo_root: Path) -> set[str]:
     return bound
 
 
+def _lease_facts(task_data: dict) -> dict[str, object] | None:
+    """The recorded task lease, narrowed to the four board keys."""
+    meta = task_data.get("meta")
+    lease = meta.get("lease") if isinstance(meta, dict) else None
+    if not isinstance(lease, dict):
+        return None
+    return {
+        key: lease.get(key)
+        for key in ("executor", "branch", "head", "at")
+    }
+
+
 def board_facts(
     repo_root: Path,
     task_dir: Path,
@@ -78,6 +90,7 @@ def board_facts(
         "executor": executor,
         "ownerSessionActive": bool(executor) and relative_path in bound_paths,
         "evidenceCoverage": coverage_summary(task_dir),
+        "lease": _lease_facts(task_data),
         "blocked": bool(unresolved),
         "blockedBy": unresolved,
     }
