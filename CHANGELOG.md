@@ -6,6 +6,17 @@
 
 ### Changed
 
+## [2.7.4] - 2026-11-20
+
+### Added
+
+- **分支锚定任务租约**：`task.json.meta.lease` 在 start 时记录 `executor`、`branch`、`head`、`at`；start 与 complete 在租约分支与当前分支都已知且不同时以 `LIFECYCLE-LEASE-001` 阻断，`--takeover`（start 迁移、complete 确认在当前分支完成并释放）与 `--adopt` 转移租约；`review` 保持不校验，无 git、detached HEAD 或 `lease.branch` 为 `null` 时不比较。看板（`task next --list --json` 与 MCP `task_list`）每条记录带 `lease` 四键对象或 `null`；`doctor` 对 `in_progress`/`review` 的跨分支租约报 `TASK-HYGIENE-LEASE-BRANCH-MISMATCH`。团队文档补一任务一分支与合并后的操作路径。
+- **计划定稿派发决策**：strict Normal/High-risk 计划模板新增 `派发决策` 必填块（结论、依据、切片、研究问题），`plan finalize` 对缺失或保留占位阻断；`task-planning` 指导默认把可独立取证的研究问题派发给 `cowork-research`。
+
+### Changed
+
+- **跨会话冲突模型方向记录**：`docs/direction.md` 与英文对页更新 2026-11-19 调研条目的落地状态——租约第一版（含 complete 校验与看板/doctor 可见性）已实现，`review` 保持不校验；租约信息进入注入模板暂缓，待真实跨分支误操作案例触发；剩余未决为租约过期语义、`task.json` 三方合并规则、显式 claim/release 命令与跨机器 handoff 合并。
+
 ## [2.7.3] - 2026-11-13
 
 ### Fixed
@@ -530,7 +541,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.3...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.4...HEAD
+[2.7.4]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.0...v2.7.1
