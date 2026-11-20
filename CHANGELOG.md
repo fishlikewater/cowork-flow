@@ -6,6 +6,12 @@
 
 ### Changed
 
+## [2.7.5] - 2026-11-20
+
+### Fixed
+
+- **Python 3.12+ 租约测试的模块缓存污染**：`tests/test_task_lifecycle.py` 与 `tests/test_lifecycle_checks.py` 的 patch 目标由 `services.task_lease.git_snapshot...` 改为服务实际绑定的 `services.task_lifecycle.task_lease.git_snapshot...`；直接调用 `branch_conflict` 的用例改为 `patch.object(lease_module.git_snapshot, ...)`。测试清理只删除 `sys.modules` 条目时，`from services import task_lease` 仍会返回 `services` 包上的旧属性，Python 3.12+ 下使 `adopt` 用例在 detached HEAD 上拿到陈旧 `git_snapshot` 并断言失败（`compat-python` 红）；产品行为无变更。
+
 ## [2.7.4] - 2026-11-20
 
 ### Added
@@ -541,7 +547,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.4...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.5...HEAD
+[2.7.5]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.1...v2.7.2
