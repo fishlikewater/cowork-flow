@@ -38,6 +38,7 @@ from services.workflow_runtime import (
     normalize_relative_path,
 )
 from adapters.cli.execution_context_args import build_internal_execution_context_parser
+from adapters.host.host_manifest import HostManifestError, load_host_manifest
 from infra.paths import get_repo_root
 
 VALID_STATUSES = {"pending", "bound", "active", "success", "needs_context", "blocked", "closed"}
@@ -105,6 +106,39 @@ def _resolve_host(host_id: str | None) -> HostIdentity:
             f"unknown host: {resolved}; known hosts: {', '.join(host_ids())}"
         )
     return identity
+
+
+def _host_background(repo_root: Path, host: str) -> str:
+    """Declared background-child capability, or `unknown` when unreadable."""
+    try:
+        manifest = load_host_manifest(repo_root)
+        return manifest.platform(host).capabilities.get("backgroundChild", "unknown")
+    except HostManifestError:
+        return "unknown"
+
+
+def _init_dispatch_facts(
+    context: dict,
+    *,
+    repo_root: Path,
+    task_dir: str | None,
+    runtime_context_id: str,
+) -> tuple[list[str], str]:
+    """Advisory siblings and host background capability for a new context."""
+    assignment = context.get("assignment")
+    assignment = assignment if isinstance(assignment, dict) else {}
+    owned = [str(path) for path in (assignment.get("owned_paths") or [])]
+    siblings = (
+        RuntimeContextService(repo_root).parallel_candidates(
+            task_dir=str(task_dir),
+            agent_type=str(context.get("agent_type") or ""),
+            owned_paths=owned,
+            exclude_id=runtime_context_id,
+        )
+        if task_dir
+        else []
+    )
+    return siblings, _host_background(repo_root, str(context.get("host") or ""))
 
 
 def _host_context_prefix(host: str) -> str:
@@ -175,6 +209,12 @@ def cmd_init(args: argparse.Namespace) -> int:
     except RuntimeContextError as error:
         _print_runtime_error(error)
         return 1
+    siblings, host_background = _init_dispatch_facts(
+        context,
+        repo_root=repo_root,
+        task_dir=task_dir,
+        runtime_context_id=runtime_context_id,
+    )
     payload = _init_payload(
         args,
         repo_root=repo_root,
@@ -184,6 +224,8 @@ def cmd_init(args: argparse.Namespace) -> int:
         agent_type=agent_type,
         task_dir=task_dir,
         dispatch_kind=dispatch_kind,
+        siblings=siblings,
+        host_background=host_background,
     )
     print(json.dumps(payload, ensure_ascii=False))
     return 0
@@ -260,6 +302,8 @@ def _init_payload(
     agent_type: str,
     task_dir: str | None,
     dispatch_kind: str,
+    siblings: list[str],
+    host_background: str,
 ) -> dict:
     host_context_key = _suggest_host_context_key(host, runtime_context_id)
     return {
@@ -272,6 +316,9 @@ def _init_payload(
         "role": args.role,
         "taskDir": task_dir,
         "dispatchKind": dispatch_kind,
+        "siblings": siblings,
+        "parallelizable": bool(siblings) and host_background in ("native", "shim"),
+        "hostBackground": host_background,
         "runtimeContextFile": _relative(
             repo_root,
             runtime_context_path(repo_root, runtime_context_id),
@@ -339,6 +386,28 @@ def cmd_prompt(args: argparse.Namespace) -> int:
         lines.append(f"Slice: {slice_name or '(unnamed)'}")
         if owned:
             lines.append(f"Owned paths: {', '.join(owned)}")
+    task_dir = str(context.get("task_dir") or "")
+    siblings = (
+        RuntimeContextService(repo_root).parallel_candidates(
+            task_dir=task_dir,
+            agent_type=str(context.get("agent_type") or ""),
+            owned_paths=owned,
+            exclude_id=args.subagent_id,
+        )
+        if task_dir
+        else []
+    )
+    host_background = _host_background(repo_root, str(context.get("host") or ""))
+    parallelizable = bool(siblings) and host_background in ("native", "shim")
+    lines.extend(
+        [
+            "",
+            "Parallel dispatch (advisory, not assignment): "
+            f"siblings={', '.join(siblings) if siblings else 'none'} "
+            f"parallelizable={'true' if parallelizable else 'false'} "
+            f"hostBackground={host_background}.",
+        ]
+    )
     print("\n".join(lines))
     return 0
 
@@ -354,7 +423,8 @@ def cmd_list(args: argparse.Namespace) -> int:
             except ValueError:
                 pass
         task_dir = candidate.as_posix()
-    contexts = RuntimeContextService(repo_root).list_contexts(
+    service = RuntimeContextService(repo_root)
+    contexts = service.list_contexts(
         task_dir=task_dir,
         open_only=bool(getattr(args, "open", False)),
     )
@@ -369,13 +439,25 @@ def cmd_list(args: argparse.Namespace) -> int:
             owns = ALL_PATHS
         else:
             owns = ",".join(owned) or "-"
+        context_task_dir = str(context.get("task_dir") or "")
+        siblings = (
+            service.parallel_candidates(
+                task_dir=context_task_dir,
+                agent_type=str(context.get("agent_type") or ""),
+                owned_paths=owned,
+                exclude_id=str(context.get("runtime_context_id") or ""),
+            )
+            if context_task_dir
+            else []
+        )
         print(
             f"{context.get('runtime_context_id', '?')}  "
             f"{context.get('status', 'unknown')}  "
             f"{context.get('agent_type', 'unknown')}  "
             f"{context.get('task_dir') or '-'}  "
             f"slice={assignment.get('slice') or '-'}  "
-            f"owns={owns}"
+            f"owns={owns}  "
+            f"siblings={len(siblings)}"
         )
     return 0
 

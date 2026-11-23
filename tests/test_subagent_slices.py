@@ -154,6 +154,55 @@ class SubagentSliceTest(unittest.TestCase):
                 )
             self.assertEqual("SUBAGENT-SLICE-001", raised.exception.code)
 
+    def test_disjoint_implement_slices_are_parallel_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            service = self.RuntimeContextService(root)
+            service.initialize("rtx_api", _context("rtx_api", owned=["src/api"]))
+            service.initialize("rtx_web", _context("rtx_web", owned=["src/web"]))
+
+            self.assertEqual(
+                ["rtx_web"],
+                service.parallel_candidates(
+                    task_dir=TASK,
+                    agent_type="cowork-implement",
+                    owned_paths=["src/api"],
+                    exclude_id="rtx_api",
+                ),
+            )
+
+    def test_read_only_context_is_sibling_of_implement_wildcard(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            service = self.RuntimeContextService(root)
+            service.initialize("rtx_impl", _context("rtx_impl"))
+            service.initialize(
+                "rtx_research",
+                _context("rtx_research", agent_type="cowork-research"),
+            )
+
+            self.assertEqual(
+                ["rtx_research"],
+                service.parallel_candidates(
+                    task_dir=TASK,
+                    agent_type="cowork-implement",
+                    owned_paths=[],
+                    exclude_id="rtx_impl",
+                ),
+            )
+            self.assertEqual(
+                ["rtx_impl"],
+                service.parallel_candidates(
+                    task_dir=TASK,
+                    agent_type="cowork-research",
+                    owned_paths=[],
+                    exclude_id="rtx_research",
+                ),
+            )
+            with self.assertRaises(self.RuntimeContextError) as raised:
+                service.initialize("rtx_second", _context("rtx_second"))
+            self.assertEqual("SUBAGENT-SLICE-001", raised.exception.code)
+
     def test_closed_context_releases_its_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self._root(temp_dir)

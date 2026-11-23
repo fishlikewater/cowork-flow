@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -812,6 +813,156 @@ class SubagentDispatchTest(unittest.TestCase):
             return bind
         init.payload = payload
         return init
+
+
+class SubagentParallelFactsTest(unittest.TestCase):
+    """Advisory dispatch facts exposed by init, prompt, and list."""
+
+    def setUp(self) -> None:
+        saved = scrub_host_session_env()
+        self.addCleanup(restore_host_session_env, saved)
+        self.addCleanup(os.environ.pop, "COWORK_FLOW_HOST", None)
+
+    def _root(self, *, manifest: bool = True) -> Path:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        runtime_dir = root / ".cowork-flow" / "spec" / "runtime"
+        runtime_dir.mkdir(parents=True)
+        if manifest:
+            shutil.copy2(
+                ROOT
+                / "template"
+                / ".cowork-flow"
+                / "spec"
+                / "runtime"
+                / "host-assets.json",
+                runtime_dir / "host-assets.json",
+            )
+        return root
+
+    def _init(
+        self,
+        root: Path,
+        *,
+        host: str,
+        title: str,
+        role: str = "research",
+        agent_type: str = "cowork-research",
+        owned: list[str] | None = None,
+    ) -> dict:
+        command = [
+            sys.executable,
+            str(SUBAGENT),
+            "--execution-task-dir",
+            ".cowork-flow/tasks/11-23-parallel",
+            "init",
+            "--host",
+            host,
+            "--title",
+            title,
+            "--role",
+            role,
+            "--agent-type",
+            agent_type,
+        ]
+        for path in owned or []:
+            command += ["--owns", path]
+        result = subprocess.run(
+            command,
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(
+            0,
+            result.returncode,
+            msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        return json.loads(result.stdout)
+
+    def _run(self, root: Path, *argv: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(SUBAGENT), *argv],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_two_disjoint_research_contexts_are_siblings(self) -> None:
+        root = self._root()
+        first = self._init(root, host="zcode", title="Research A")
+        second = self._init(root, host="zcode", title="Research B")
+
+        self.assertEqual([], first["siblings"])
+        self.assertEqual([first["runtimeContextId"]], second["siblings"])
+        self.assertTrue(second["parallelizable"])
+        self.assertEqual("native", second["hostBackground"])
+
+    def test_experimental_host_is_not_parallelizable(self) -> None:
+        root = self._root()
+        self._init(root, host="opencode", title="Research A")
+        second = self._init(root, host="opencode", title="Research B")
+
+        self.assertTrue(second["siblings"])
+        self.assertEqual("experimental", second["hostBackground"])
+        self.assertFalse(second["parallelizable"])
+
+    def test_missing_manifest_keeps_init_successful(self) -> None:
+        root = self._root(manifest=False)
+        payload = self._init(root, host="zcode", title="Research A")
+
+        self.assertEqual("unknown", payload["hostBackground"])
+        self.assertFalse(payload["parallelizable"])
+
+    def test_prompt_keeps_transport_lines_and_appends_advisory(self) -> None:
+        root = self._root()
+        first = self._init(root, host="zcode", title="Research A")
+        self._init(root, host="zcode", title="Research B")
+
+        result = self._run(root, "prompt", first["runtimeContextId"])
+
+        self.assertEqual(0, result.returncode, msg=result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertTrue(lines[0].startswith("cowork_runtime_context_id: "))
+        self.assertTrue(lines[1].startswith("cowork_host_context_key: "))
+        self.assertIn("Parallel dispatch (advisory, not assignment):", result.stdout)
+        self.assertIn("advisory, not assignment", result.stdout)
+
+    def test_list_reports_sibling_count(self) -> None:
+        root = self._root()
+        self._init(root, host="zcode", title="Research A")
+        self._init(root, host="zcode", title="Research B")
+
+        result = self._run(
+            root,
+            "list",
+            "--task",
+            ".cowork-flow/tasks/11-23-parallel",
+        )
+
+        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertIn("siblings=1", result.stdout)
+
+    def test_serial_chain_still_succeeds(self) -> None:
+        root = self._root()
+        first = self._init(root, host="zcode", title="Serial A")
+
+        bind = self._run(
+            root, "bind", first["runtimeContextId"], first["hostContextKey"]
+        )
+        self.assertEqual(0, bind.returncode, msg=bind.stderr)
+        close = self._run(root, "close", first["runtimeContextId"])
+        self.assertEqual(0, close.returncode, msg=close.stderr)
+
+        second = self._init(root, host="zcode", title="Serial B")
+        self.assertEqual([], second["siblings"])
+        bind = self._run(
+            root, "bind", second["runtimeContextId"], second["hostContextKey"]
+        )
+        self.assertEqual(0, bind.returncode, msg=bind.stderr)
 
 
 if __name__ == "__main__":

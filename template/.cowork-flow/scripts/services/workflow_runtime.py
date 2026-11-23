@@ -86,6 +86,20 @@ def claims_overlap(left: list[str], right: list[str]) -> bool:
     return bool(owned_paths_overlap(left, right))
 
 
+def claims_compatible(left: list[str], right: list[str]) -> bool:
+    """True when two claim sets can coexist for advisory parallel dispatch.
+
+    Unlike `claims_overlap`, an empty set claims nothing here: read-only
+    roles (research, check) never write paths, so they never conflict. The
+    ALL_PATHS wildcard still conflicts with any non-empty claim.
+    """
+    if not left or not right:
+        return True
+    if ALL_PATHS in left or ALL_PATHS in right:
+        return False
+    return not owned_paths_overlap(left, right)
+
+
 @dataclass(frozen=True)
 class RuntimeContextInitResult:
     """Files created for one runtime-context initialization."""
@@ -226,6 +240,43 @@ class RuntimeContextService:
             ):
                 conflicts.append((other_id, claimed_path, other_path))
         return conflicts
+
+    def parallel_candidates(
+        self,
+        *,
+        task_dir: str,
+        agent_type: str,
+        owned_paths: list[str],
+        exclude_id: str | None = None,
+    ) -> list[str]:
+        """Open contexts of the same task that do not compete for paths.
+
+        Advisory only: disjoint ownership says nothing about dependency, so
+        the dispatcher still decides whether to run them together or in
+        sequence. Read-only roles claim nothing; an implement context
+        without `owned_paths` claims every path, mirroring `slice_conflicts`.
+        """
+        if not self._normalized_task_dir(task_dir):
+            return []
+        mine = self._claim_set(agent_type, owned_paths)
+        candidates: list[str] = []
+        for context in self.list_contexts(task_dir=task_dir, open_only=True):
+            other_id = str(context.get("runtime_context_id") or "")
+            if not other_id or other_id == exclude_id:
+                continue
+            other = self._claim_set(
+                str(context.get("agent_type") or ""),
+                self._owned_paths(context),
+            )
+            if claims_compatible(mine, other):
+                candidates.append(other_id)
+        return candidates
+
+    @staticmethod
+    def _claim_set(agent_type: str, owned_paths: list[str]) -> list[str]:
+        if agent_type != "cowork-implement":
+            return []
+        return list(owned_paths) or [ALL_PATHS]
 
     @staticmethod
     def _task_dir_is_absolute(value: str) -> bool:

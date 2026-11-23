@@ -64,6 +64,25 @@ status and ownership summary, and `subagent prompt <runtime_context_id>`
 renders the transport lines plus the assignment pointers as a paste-ready
 dispatch prompt.
 
+## Parallel Dispatch Facts
+
+`subagent init`, `subagent prompt`, and `subagent list` surface three advisory
+facts for dispatch planning:
+
+- `siblings`: open contexts of the same task whose ownership claims do not
+  conflict. Read-only roles (`cowork-research`, `cowork-check`) claim no
+  paths; an implement context without `owned_paths` claims every path, so it
+  only conflicts with other implement contexts.
+- `hostBackground`: the host's declared `backgroundChild` capability, or
+  `unknown` when the manifest cannot be read.
+- `parallelizable`: true only when `siblings` is non-empty and
+  `hostBackground` is `native` or `shim`.
+
+These facts are advisory, not gates: disjoint ownership does not express
+dependency, and dispatch order remains the orchestrator's decision. A serial
+chain stays valid, and an `experimental` host such as `opencode` never
+defaults to parallel dispatch.
+
 ## Binding Gate
 
 The child hook or plugin may resolve `cowork_runtime_context_id` early and bind

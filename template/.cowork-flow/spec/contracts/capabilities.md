@@ -51,6 +51,12 @@ values, and unsupported actions without fallback as Host validation failures.
 - `stateInjection`: inject workflow or runtime state before task recovery.
 - `backgroundChild`: run a child while the main session continues.
 
+`backgroundChild` is also the host-side fact behind `subagent init`'s
+`hostBackground` field. The runtime exposes `parallelizable` as an advisory
+fact: it is true only when an ownership-disjoint sibling exists and the host
+declares `native` or `shim`. An `experimental` value must not become default
+parallel dispatch.
+
 Formal `cowork-research`, `cowork-implement`, and `cowork-check` require
 `dispatchSubagent`, `freshChildContext`, `waitChild`, `runtimeContextDispatch`,
 `runtimeContextBinding`, and `runtimeContextCleanup`. If a required capability
