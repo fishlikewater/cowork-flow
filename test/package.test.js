@@ -401,7 +401,23 @@ test('publish workflow runs only after a successful CI run for a version tag', a
     assert.match(condition, /github\.event\.workflow_run\.conclusion == 'success'/);
     assert.match(condition, /startsWith\(github\.event\.workflow_run\.head_branch, 'v'\)/);
   }
-  assert.match(jobBlock('github-release'), /github\.event_name == 'workflow_run'/);
+  const releaseJob = jobBlock('github-release');
+  assert.match(releaseJob, /github\.event_name == 'workflow_run'/);
+  assert.match(releaseJob, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(releaseJob, /inputs\.ref != ''/);
+  assert.match(releaseJob, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(releaseJob, /github\.event\.workflow_run\.event == 'push'/);
+  // The checkout and the release tag resolve the same way. A single
+  // workflow_run source leaves the manual dispatch path checking out or
+  // tagging the wrong ref, so both lines must select by event.
+  assert.match(releaseJob, /^\s*ref:.*github\.event_name == 'workflow_run'.*inputs\.ref/m);
+  assert.match(releaseJob, /^\s*RELEASE_TAG:.*github\.event_name == 'workflow_run'.*inputs\.ref/m);
+  assert.match(releaseJob, /RELEASE_TAG#refs\/tags\//);
+  // Creating a Release fires release: published, which re-runs this workflow.
+  // The job must stay out of that event and skip an existing Release, or the
+  // second run tries to create the same Release again.
+  assert.doesNotMatch(releaseJob, /github\.event_name == 'release'/);
+  assert.match(releaseJob, /gh release view "\$tag"/);
 });
 
 
