@@ -463,6 +463,11 @@ test('zcode manifest carries the fields zcode reads', async () => {
   // zcode's manifest display metadata maps author/authorUrl/homepage/version;
   // the display name comes from the marketplace listing, not the manifest.
   assert.equal(manifest.displayName, undefined);
+  // hooks/hooks.json ships at the conventional path the zcode loader
+  // auto-discovers; declaring it would collect the same file twice and the
+  // plugin page reports "Duplicate plugin hooks file ignored". qoder keeps
+  // its declaration because it has no conventional discovery.
+  assert.equal(manifest.hooks, undefined);
   // The entry itself is asserted in test/zcode-plugin.test.js against this same
   // metadata field, which would follow any value; pin the slug zcode's listing
   // parser expects so a bogus category cannot pass both tests.

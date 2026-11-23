@@ -8,7 +8,6 @@
   },
   "homepage": "https://github.com/fishlikewater/cowork-flow",
   "license": "MIT",
-  "hooks": "hooks/hooks.json",
   "agents": "agents",
   "skills": "skills"
 }

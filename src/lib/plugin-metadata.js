@@ -76,7 +76,12 @@ function codexManifest(metadata, base) {
 // zcode maps author/authorUrl/homepage/version from the
 // manifest; its display name comes from the marketplace
 // listing, so none is declared here, and keywords is not
-// part of the schema either.
+// part of the schema either. hooks/hooks.json stays undeclared
+// on purpose: the loader auto-discovers that conventional path,
+// and a manifest declaration of the same file gets collected a
+// second time — the plugin page then reports "Duplicate plugin
+// hooks file ignored". qoder has no conventional discovery, so
+// its manifest declaration is the only hook route and must stay.
 function zcodeManifest(metadata, base) {
   const author = metadata.author;
   return {
@@ -84,7 +89,6 @@ function zcodeManifest(metadata, base) {
     author: { name: author.name, url: author.url },
     homepage: metadata.homepage,
     license: metadata.license,
-    hooks: 'hooks/hooks.json',
     agents: 'agents',
     skills: 'skills'
   };

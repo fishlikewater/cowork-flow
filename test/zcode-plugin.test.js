@@ -431,7 +431,11 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   // a checkout keeps whatever version its source manifest carried.
   const { version } = await readPackageInfo();
   assert.equal(manifest.version, version);
-  assert.equal(manifest.hooks, 'hooks/hooks.json');
+  // The payload ships hooks/hooks.json at the conventional path the zcode
+  // loader auto-discovers; a manifest declaration of the same file would be
+  // collected a second time and the plugin page reports "Duplicate plugin
+  // hooks file ignored".
+  assert.equal(manifest.hooks, undefined);
   assert.equal(manifest.agents, 'agents');
   // The payload carries bootstrap guidance only; project Skills still ship with
   // the project copy. ZCode enumerates the project root and the plugin root
@@ -439,7 +443,7 @@ test('install-zcode-plugin keeps workflow files out of zcode scaffold', async (t
   // template/skills/ — a same-named payload copy would surface as a duplicate.
   assert.equal(manifest.skills, 'skills');
 
-  await access(join(pluginRoot, manifest.hooks));
+  await access(join(pluginRoot, 'hooks', 'hooks.json'));
   await access(join(pluginRoot, manifest.agents, 'cowork-implement.md'));
   await access(join(pluginRoot, manifest.agents, 'cowork-check.md'));
   await access(join(pluginRoot, manifest.agents, 'cowork-research.md'));
