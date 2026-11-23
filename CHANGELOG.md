@@ -4,6 +4,12 @@
 
 ### Added
 
+## [2.8.0] - 2026-11-23
+
+### Added
+
+- **子代理并行派发事实**：`subagent init` / `prompt` / `list` 输出 `siblings`（同任务、未关闭、所有权不冲突的 context）、`parallelizable`（仅当存在 sibling 且宿主 `backgroundChild` 为 `native`/`shim`）与 `hostBackground`；只读角色不占路径，未声明 `owned_paths` 的 implement 仍是全路径通配。字段为 advisory，不参与任何 gate，合法串行与 `experimental` 宿主不受影响。
+
 ### Changed
 
 - **发布通道改为 CI 成功后再发 npm**：tag 推送只触发 CI；`publish.yml` 改由 `workflow_run`（CI 完成、成功、且为 `v*` tag 推送）启动，Node 24 / Python 3.13 等兼容任务失败时 npm 不再上架；发布成功后的 GitHub Release 自动创建保留，`release: published` 与 `workflow_dispatch` 手动通道不变。
@@ -553,7 +559,8 @@
 
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
-[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.5...HEAD
+[Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.8.0...HEAD
+[2.8.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.5...v2.8.0
 [2.7.5]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.2...v2.7.3
