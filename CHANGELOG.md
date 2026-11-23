@@ -4,6 +4,12 @@
 
 ### Added
 
+## [2.8.1] - 2026-11-23
+
+### Fixed
+
+- **ZCode 插件清单不再声明 hooks 键**：ZCode 加载器先按约定路径自动发现 `hooks/hooks.json`，再读清单 `hooks` 字段，同一文件被收集两次即报 "Duplicate plugin hooks file ignored"。清单键删除后由约定发现兜底，三条 hook 事件照常注册；qoder 无约定发现，其清单字段是 hooks 唯一入口，保持不变。`presets/zcode/.zcode-plugin/plugin.json` 快照随投影重新生成，两组测试锁定新行为并经变异自检验证守卫可失败。
+
 ## [2.8.0] - 2026-11-23
 
 ### Added
@@ -560,6 +566,7 @@
 此版本未保留本地条目正文，详情见 [GitHub Release](https://github.com/fishlikewater/cowork-flow/releases/tag/v0.0.47)。
 
 [Unreleased]: https://github.com/fishlikewater/cowork-flow/compare/v2.8.0...HEAD
+[2.8.1]: https://github.com/fishlikewater/cowork-flow/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.5...v2.8.0
 [2.7.5]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/fishlikewater/cowork-flow/compare/v2.7.3...v2.7.4
