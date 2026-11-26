@@ -172,6 +172,21 @@ environments that do not. The extension carries no edit-phase scope advisory
 yet (`editScopeWarning: unsupported`), so `cwf host inspect pi` only reports
 whether the file is in place and still matches the packaged source.
 
+Cindy bundles Pi 1.5.2 and is not registered as a separate host: point Pi's
+config directory at Cindy's agent home and use the same installer.
+
+```powershell
+$env:PI_CODING_AGENT_DIR = "$env:APPDATA\Cindy\pi-agent-home"
+cwf host add pi --dry-run
+cwf host add pi
+```
+
+Cindy's Pi home defaults to `%APPDATA%\Cindy\pi-agent-home` on Windows (the
+corresponding data directory on macOS/Linux). The installer does not detect
+Cindy automatically; set `PI_CODING_AGENT_DIR` explicitly. Cindy's Claude Code
+and Codex harnesses use their own wrappers and are not covered by this Pi
+channel.
+
 ## DeepSeek Harness
 
 Installs the Cowork Flow preset by default:

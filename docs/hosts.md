@@ -162,6 +162,16 @@ cwf host remove pi
 
 Pi 的 shell 工具自带 `PI_SESSION_ID`，CLI 因此把会话识别为 `pi_<session id>`；宿主环境没有这个变量时由扩展自己补上。扩展目前不含编辑期作用域告警（`editScopeWarning: unsupported`），所以 `cwf host inspect pi` 只报告文件是否就位与是否与当前包内版本一致。
 
+Cindy 内置 Pi 1.5.2，不单独登记为宿主：把 Pi 的配置目录指向 Cindy 的 agent home，再走同一条安装命令即可。
+
+```powershell
+$env:PI_CODING_AGENT_DIR = "$env:APPDATA\Cindy\pi-agent-home"
+cwf host add pi --dry-run
+cwf host add pi
+```
+
+Cindy 的 Pi home 在 Windows 上默认是 `%APPDATA%\Cindy\pi-agent-home`（macOS/Linux 对应 Cindy 的数据目录）。安装器不会自动探测 Cindy，需要显式设置 `PI_CODING_AGENT_DIR`；Cindy 的 Claude Code / Codex harness 使用各自的封装，不在这条 Pi 通道内。
+
 ## DeepSeek Harness
 
 默认安装 Cowork Flow 预设：
