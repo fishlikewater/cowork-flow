@@ -29,4 +29,9 @@ def preamble(root: Path) -> tuple[str, ...]:
 POLICY = HostPolicy(
     host="pi",
     preamble=preamble,
+    # The extension is machine-level and loads in every Pi project. A session
+    # outside a cowork-flow project still gets the fixed not_initialized body;
+    # the extension injects it directly because there is no project inject.py
+    # to call there.
+    emit_not_initialized=True,
 )

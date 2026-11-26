@@ -22,6 +22,18 @@ export const COWORK_FLOW_PI_MARKER = "CoworkFlowPiExtension";
 const CUSTOM_TYPE = "cowork-flow";
 const INJECT_RELATIVE = join(".cowork-flow", "scripts", "adapters", "host", "inject.py");
 
+// Mirrors NOT_INITIALIZED_BODY in .cowork-flow/scripts/adapters/host/inject.py.
+// The extension is machine-level, so a directory without a workflow root has
+// no project inject.py to call; this fixed body is the only text it can
+// transport there. A Python test pins both copies byte-for-byte.
+const NOT_INITIALIZED_BODY = `<workflow-state>
+Status: not_initialized
+Source: cowork-flow-plugin
+⚠️ 项目未初始化 cowork-flow 工作流。
+
+请通过显式 init/sync 安装 cowork-flow 模板后再继续；hook 不会在注入阶段创建或复制项目文件。
+</workflow-state>`;
+
 /**
  * @param {string} start
  * @returns {string | null}
@@ -127,7 +139,17 @@ export default function (pi) {
   pi.on("before_agent_start", async (event, ctx) => {
     if (event.messageType === "custom") return;
     const root = findWorkflowRoot(ctx.cwd);
-    if (!root) return;
+    if (!root) {
+      if (lastInjected === NOT_INITIALIZED_BODY) return;
+      lastInjected = NOT_INITIALIZED_BODY;
+      return {
+        message: {
+          customType: CUSTOM_TYPE,
+          content: NOT_INITIALIZED_BODY,
+          display: false,
+        },
+      };
+    }
     const id = sessionId(ctx);
     publishSessionId(id);
     const result = await runInject(root, {

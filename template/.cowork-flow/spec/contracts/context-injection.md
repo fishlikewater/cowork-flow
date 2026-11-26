@@ -24,7 +24,7 @@ would make the digest self-referential).
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 | kimi-code | user-level `config.toml` (`$KIMI_CODE_HOME`, default `~/.kimi-code/`) `[[hooks]]` row on `UserPromptSubmit` → shim (`cowork-flow-inject.mjs`) → `inject.py --host kimi-code` | bare-text stdout appended to the prompt context, no `hookSpecificOutput` envelope |
 | qoder | machine-level plugin `hooks/hooks.json` (node, `${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` plus a top-level `systemMessage` (a CLI-visible trace; the model context is unchanged) |
-| pi | machine-level extension (`cwf host add pi` → `$PI_CODING_AGENT_DIR/extensions/cowork-flow.ts`, default `~/.pi/agent/extensions/`) `before_agent_start` → project `.cowork-flow/scripts/.../inject.py --host pi`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` returned as a Pi custom message (only when the rendered state changed) |
+| pi | machine-level extension (`cwf host add pi` → `$PI_CODING_AGENT_DIR/extensions/cowork-flow.ts`, default `~/.pi/agent/extensions/`) `before_agent_start` → project `.cowork-flow/scripts/.../inject.py --host pi`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` returned as a Pi custom message (only when the rendered state changed); outside a workflow root there is no project `inject.py`, so the extension emits the fixed `not_initialized` body itself (byte-identical to `inject.py`'s constant, pinned by test) |
 
 The qoder row carries one delta beyond the shared envelope: `systemMessage`,
 emitted only on the two injecting events (`SessionStart`, `UserPromptSubmit`)
@@ -167,7 +167,7 @@ event is the session state file probe.
 | codex | none (`UserPromptSubmit` only) | — | session state file probe: no activation file → full; file present → fingerprint |
 | dsh | `agent/session-start`, `agent/inbox/claimed` | `tools/result` on lifecycle commands | refresh source: session-start events → full; tools/result → fingerprint |
 | kimi-code | none (`UserPromptSubmit` only) | — | session state file probe: no activation file → full; file present → fingerprint |
-| pi | none from the host; the extension labels its first injection `SessionStart` per process | every agent start (extension `before_agent_start`) | event name: first injection → full; later injections → fingerprint; the extension keeps one process-wide flag and only injects when the rendering changed |
+| pi | none from the host; the extension labels its first injection `SessionStart` per process | every agent start (extension `before_agent_start`) | event name: first injection → full; later injections → fingerprint; the extension keeps one process-wide flag and only injects when the rendering changed; outside a workflow root it emits the fixed `not_initialized` body once |
 
 ## Digest shape rules
 

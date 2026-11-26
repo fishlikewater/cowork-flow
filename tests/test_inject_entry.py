@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -987,6 +988,47 @@ class InjectEntryTest(unittest.TestCase):
         self.assertIn(NOT_INITIALIZED_TEXT, result.stdout)
         self.assertIn("Status: not_initialized", result.stdout)
         self.assertFalse(result.stdout.lstrip().startswith("{"))
+
+    def test_pi_without_workflow_root_emits_not_initialized(self) -> None:
+        # AC-004: like the other machine-level hosts, a Pi session outside a
+        # cowork-flow project still gets the not_initialized body; the
+        # extension transports it directly because no project inject.py exists.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plain = Path(temp_dir) / "plain"
+            plain.mkdir()
+
+            result = self._run_inject(plain, {}, host="pi", project_dir=plain)
+
+        self.assertEqual(0, result.returncode)
+        payload = json.loads(result.stdout)
+        context = payload["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(NOT_INITIALIZED_TEXT, context)
+        self.assertIn("Status: not_initialized", context)
+        self.assertRegex(
+            context, r'<contract-fingerprint value="[0-9a-f]{16}"/>'
+        )
+
+    def test_pi_extension_not_initialized_body_matches_inject_py(self) -> None:
+        # The machine-level extension cannot call a project inject.py outside
+        # a workflow root, so it carries a fixed copy of the body. Pin both
+        # copies byte-for-byte so a wording change cannot drift between them.
+        inject_source = INJECT.read_text(encoding="utf-8")
+        inject_match = re.search(
+            r"NOT_INITIALIZED_BODY = \(\n([\s\S]*?)\n\)", inject_source
+        )
+        self.assertIsNotNone(inject_match)
+        # The literal is indented inside the assignment's parentheses; wrapping
+        # it back in parentheses lets the parser ignore that indentation.
+        expected = ast.literal_eval("(\n" + inject_match.group(1) + "\n)")
+
+        extension_source = (
+            TEMPLATE / ".pi" / "extensions" / "cowork-flow.ts"
+        ).read_text(encoding="utf-8")
+        extension_match = re.search(
+            r"const NOT_INITIALIZED_BODY = `([\s\S]*?)`;", extension_source
+        )
+        self.assertIsNotNone(extension_match)
+        self.assertEqual(expected, extension_match.group(1))
 
     # -- zcode-only ported behaviors ------------------------------------------
 

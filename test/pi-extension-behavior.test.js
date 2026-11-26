@@ -164,7 +164,7 @@ test('ignores runs started by another custom message', async (t) => {
 });
 
 
-test('stays silent outside a cowork-flow project', async (t) => {
+test('injects the fixed not_initialized body outside a cowork-flow project', async (t) => {
   const handler = await loadExtension(t);
   const plain = await tempDir(t, 'cowork-flow-pi-plain-');
 
@@ -172,8 +172,16 @@ test('stays silent outside a cowork-flow project', async (t) => {
     handler({ messageType: 'user' }, contextFor(plain))
   );
 
-  assert.equal(result, undefined);
-  assert.deepEqual(await readdir(plain), []);
+  assert.ok(result, 'a machine-level extension still answers outside a workflow root');
+  assert.equal(result.message.customType, 'cowork-flow');
+  assert.match(result.message.content, /<workflow-state>/);
+  assert.match(result.message.content, /Status: not_initialized/);
+  assert.deepEqual(await readdir(plain), [], 'the extension never writes project files');
+
+  const repeated = await withNodeAsPython({ context: 'x' }, () =>
+    handler({ messageType: 'user' }, contextFor(plain))
+  );
+  assert.equal(repeated, undefined, 'the fixed body is injected only once');
 });
 
 
