@@ -574,13 +574,7 @@ def cmd_check_review(args: argparse.Namespace) -> int:
     return 0
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Runtime-context scoped subagent state",
-        parents=[build_internal_execution_context_parser()],
-    )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
+def _add_init_command(subparsers: argparse._SubParsersAction) -> None:
     init = subparsers.add_parser("init", help="Create runtime subagent context")
     init.add_argument("--title", required=True)
     init.add_argument("--role", default="subagent")
@@ -601,10 +595,14 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--adapter", default=None)
     init.set_defaults(func=cmd_init)
 
+
+def _add_status_command(subparsers: argparse._SubParsersAction) -> None:
     status = subparsers.add_parser("status", help="Print subagent runtime context")
     status.add_argument("subagent_id")
     status.set_defaults(func=cmd_status)
 
+
+def _add_prompt_command(subparsers: argparse._SubParsersAction) -> None:
     prompt = subparsers.add_parser(
         "prompt",
         help="Render a paste-ready dispatch prompt for a runtime context",
@@ -612,6 +610,8 @@ def build_parser() -> argparse.ArgumentParser:
     prompt.add_argument("subagent_id")
     prompt.set_defaults(func=cmd_prompt)
 
+
+def _add_list_command(subparsers: argparse._SubParsersAction) -> None:
     listing = subparsers.add_parser(
         "list",
         help="List subagent runtime contexts (open-first inventory)",
@@ -620,17 +620,23 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--open", action="store_true", help="Only contexts not yet closed")
     listing.set_defaults(func=cmd_list)
 
+
+def _add_update_command(subparsers: argparse._SubParsersAction) -> None:
     update = subparsers.add_parser("update", help="Update subagent runtime status")
     update.add_argument("subagent_id")
     update.add_argument("--status", required=True)
     update.add_argument("--note")
     update.set_defaults(func=cmd_update)
 
+
+def _add_bind_command(subparsers: argparse._SubParsersAction) -> None:
     bind = subparsers.add_parser("bind", help="Bind host session to runtime context")
     bind.add_argument("subagent_id")
     bind.add_argument("context_key")
     bind.set_defaults(func=cmd_bind)
 
+
+def _add_evidence_command(subparsers: argparse._SubParsersAction) -> None:
     evidence = subparsers.add_parser(
         "evidence",
         help="Append an evidence entry to a runtime context (does not move task status)",
@@ -640,10 +646,14 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument("--artifact", default=None)
     evidence.set_defaults(func=cmd_evidence)
 
+
+def _add_close_command(subparsers: argparse._SubParsersAction) -> None:
     close = subparsers.add_parser("close", help="Close subagent runtime context")
     close.add_argument("subagent_id")
     close.set_defaults(func=cmd_close)
 
+
+def _add_check_review_command(subparsers: argparse._SubParsersAction) -> None:
     check_review = subparsers.add_parser(
         "check-review",
         help=(
@@ -677,6 +687,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check_review.set_defaults(func=cmd_check_review)
 
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Runtime-context scoped subagent state",
+        parents=[build_internal_execution_context_parser()],
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    _add_init_command(subparsers)
+    _add_status_command(subparsers)
+    _add_prompt_command(subparsers)
+    _add_list_command(subparsers)
+    _add_update_command(subparsers)
+    _add_bind_command(subparsers)
+    _add_evidence_command(subparsers)
+    _add_close_command(subparsers)
+    _add_check_review_command(subparsers)
     return parser
 
 
