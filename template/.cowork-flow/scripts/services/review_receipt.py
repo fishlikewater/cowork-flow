@@ -42,23 +42,12 @@ class ReviewReceiptError(Exception):
         super().__init__(f"{code}: {detail}")
 
 
-def submit_review_receipt(
-    runtime_service: RuntimeContextService,
-    task_dir: Path,
-    *,
-    context_id: str,
+def _validated_fingerprint(
     result: str,
     findings: list[dict[str, Any]],
     changed_fingerprint: str,
-    session_context_key: str | None = None,
-) -> dict[str, Any]:
-    """Append one review receipt for `task_dir`, or refuse with a reason.
-
-    `session_context_key` is the host context key the submitting environment
-    resolved, or None when the host offered no session evidence. It is only
-    comparable to a context that was actually bound: a context bound to one
-    key cannot be reported on from another.
-    """
+) -> str:
+    """REVIEW-RECEIPT-006: reject a payload that cannot name a review."""
     if result not in RESULTS:
         raise ReviewReceiptError(
             "REVIEW-RECEIPT-006",
@@ -76,7 +65,15 @@ def submit_review_receipt(
             "REVIEW-RECEIPT-006",
             "findings must be a list of objects",
         )
+    return fingerprint
 
+
+def _load_submittable_context(
+    runtime_service: RuntimeContextService,
+    context_id: str,
+    task_dir: Path,
+) -> dict[str, Any]:
+    """REVIEW-RECEIPT-001..005: the context exists and may submit."""
     context = runtime_service.load(context_id)
     if not context:
         raise ReviewReceiptError(
@@ -107,7 +104,21 @@ def submit_review_receipt(
             f"runtime context status {status!r} cannot submit a review "
             f"receipt; expected {'/'.join(SUBMITTABLE_STATUSES)}",
         )
+    return context
 
+
+def _binding_evidence(
+    context: dict[str, Any],
+    context_id: str,
+    session_context_key: str | None,
+) -> str:
+    """REVIEW-RECEIPT-007 and the session-key/declared evidence decision.
+
+    `session_context_key` is the host context key the submitting environment
+    resolved, or None when the host offered no session evidence. It is only
+    comparable to a context that was actually bound: a context bound to one
+    key cannot be reported on from another.
+    """
     bound_key = context.get("bound_context_key")
     bound_key = bound_key.strip() if isinstance(bound_key, str) else ""
     submitted_key = (
@@ -122,11 +133,27 @@ def submit_review_receipt(
             f"{context_id} ({bound_key}); only the bound session can record "
             "the receipt",
         )
-    binding_evidence = (
+    return (
         BINDING_EVIDENCE_SESSION_KEY
         if submitted_key and bound_key and submitted_key == bound_key
         else BINDING_EVIDENCE_DECLARED
     )
+
+
+def submit_review_receipt(
+    runtime_service: RuntimeContextService,
+    task_dir: Path,
+    *,
+    context_id: str,
+    result: str,
+    findings: list[dict[str, Any]],
+    changed_fingerprint: str,
+    session_context_key: str | None = None,
+) -> dict[str, Any]:
+    """Append one review receipt for `task_dir`, or refuse with a reason."""
+    fingerprint = _validated_fingerprint(result, findings, changed_fingerprint)
+    context = _load_submittable_context(runtime_service, context_id, task_dir)
+    binding_evidence = _binding_evidence(context, context_id, session_context_key)
 
     receipt = {
         "schemaVersion": SCHEMA_VERSION,
