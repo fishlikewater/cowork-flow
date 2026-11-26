@@ -29,6 +29,81 @@ def _load_doctor():
     return module
 
 
+class PiExtensionCheckTest(unittest.TestCase):
+    """Pi extension diagnostics. The extension is a machine-level file installed
+    once into the Pi agent directory, so the check must stay silent for projects
+    that never selected the Pi host and must never turn a lagging install into a
+    hard error."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.doctor = _load_doctor()
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.agent_dir = root / "pi-agent"
+        self.project = root / "project"
+        adapter = self.project / ".cowork-flow" / "adapters" / "pi"
+        adapter.mkdir(parents=True)
+        (adapter / "adapter.yaml").write_text(
+            "schemaVersion: 1\nhost: pi\n", encoding="utf-8"
+        )
+        (self.project / ".cowork-flow" / ".version").write_text(
+            f"{PACKAGE_VERSION}\n", encoding="utf-8"
+        )
+        self.source = (
+            TEMPLATE / ".pi" / "extensions" / "cowork-flow.ts"
+        ).read_text(encoding="utf-8")
+
+    def _check(self) -> list[dict[str, str]]:
+        self.doctor._HOST_INSPECT_CACHE.clear()
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "PI_CODING_AGENT_DIR": str(self.agent_dir),
+                "COWORK_FLOW_CLI": str(REPO_CLI),
+            },
+        ):
+            return self.doctor.check_pi_extension(self.project)
+
+    def _install(self, *, drifted: bool = False) -> Path:
+        target = self.agent_dir / "extensions" / "cowork-flow.ts"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        text = self.source + ("\n// drifted\n" if drifted else "")
+        # newline="" keeps the install byte-identical to the packaged source;
+        # the installer copies bytes and never rewrites line endings.
+        target.write_text(text, encoding="utf-8", newline="")
+        return target
+
+    def test_project_without_the_pi_adapter_is_silent(self) -> None:
+        (self.project / ".cowork-flow" / "adapters" / "pi" / "adapter.yaml").unlink()
+        self.assertEqual([], self._check())
+
+    def test_declared_host_without_the_extension_reports_not_installed(self) -> None:
+        issues = self._check()
+        self.assertEqual(1, len(issues))
+        self.assertEqual("PLUGIN-NOT-INSTALLED", issues[0]["code"])
+        self.assertEqual("warning", issues[0]["severity"])
+        self.assertIn("cwf host add pi", issues[0]["commandHint"])
+        self.assertTrue(
+            str(issues[0]["path"]).replace("\\", "/").endswith("cowork-flow.ts"),
+            issues[0]["path"],
+        )
+
+    def test_healthy_install_reports_nothing(self) -> None:
+        self._install()
+        self.assertEqual([], self._check())
+
+    def test_drifted_extension_reports_stale(self) -> None:
+        self._install(drifted=True)
+        issues = self._check()
+        self.assertEqual(["PLUGIN-STALE"], [issue["code"] for issue in issues])
+        self.assertIn("differs from the packaged source", issues[0]["message"])
+        self.assertEqual("cwf host add pi --force", issues[0]["commandHint"])
+
+
 class DshPresetCheckTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

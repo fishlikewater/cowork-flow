@@ -1553,6 +1553,64 @@ def check_zcode_plugin(repo_root: Path) -> list[dict[str, str]]:
     return _unexpected_inspect_status("zcode", status)
 
 
+_PI_EXTENSION_CONTRACT = "runtime-health:pi-extension"
+
+
+def _pi_extension_warning(
+    code: str, path: Path, message: str, hint: str
+) -> list[dict[str, str]]:
+    return [
+        _issue(
+            code=code,
+            severity="warning",
+            path=str(path),
+            message=message,
+            command_hint=hint,
+            contract=_PI_EXTENSION_CONTRACT,
+        )
+    ]
+
+
+def check_pi_extension(repo_root: Path) -> list[dict[str, str]]:
+    """Pi extension health from the CLI-owned install-state read model.
+
+    Advisory, and silent while the project never selected the Pi host: the
+    extension is a machine-level file installed once into the Pi agent
+    directory, so it never updates through sync or npm."""
+    adapter = repo_root / DIR_WORKFLOW / "adapters" / "pi" / "adapter.yaml"
+    if not adapter.is_file():
+        return []
+
+    row, unavailable = _inspect_component_row(
+        repo_root, "pi", "extension", "pi"
+    )
+    if unavailable is not None:
+        return unavailable
+    status = row.get("status")
+    path = _inspect_path(row, "pi")
+
+    if status == "missing":
+        return _pi_extension_warning(
+            "PLUGIN-NOT-INSTALLED",
+            path,
+            "this project declares the Pi host, but no cowork-flow extension is "
+            "installed in the Pi agent directory, so Pi sessions inject no "
+            "workflow context",
+            "cwf host add pi",
+        )
+    if status == "stale":
+        return _pi_extension_warning(
+            "PLUGIN-STALE",
+            path,
+            "the installed Pi extension differs from the packaged source, so "
+            "injection may lag the project runtime",
+            "cwf host add pi --force",
+        )
+    if status == "installed":
+        return []
+    return _unexpected_inspect_status("pi", status)
+
+
 _CLAUDE_CODE_PLUGIN_CONTRACT = "runtime-health:claude-code-plugin"
 
 
@@ -2033,6 +2091,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
     claude_code_plugin_issues = check_claude_code_plugin(repo_root)
     opencode_plugin_issues = check_opencode_plugin(repo_root)
     zcode_plugin_issues = check_zcode_plugin(repo_root)
+    pi_extension_issues = check_pi_extension(repo_root)
     kimi_code_plugin_issues = check_kimi_code_plugin(repo_root)
     skill_delivery_issues = check_skill_delivery(repo_root)
     errors: list[dict[str, object]] = []
@@ -2069,6 +2128,7 @@ def _all_check_result(repo_root: Path) -> dict[str, object]:
             "claudeCodePlugin": claude_code_plugin_issues,
             "opencodePlugin": opencode_plugin_issues,
             "zcodePlugin": zcode_plugin_issues,
+            "piExtension": pi_extension_issues,
             "kimiCodePlugin": kimi_code_plugin_issues,
             "skillDelivery": skill_delivery_issues,
         },
@@ -2119,6 +2179,10 @@ def _run_checks(repo_root: Path, *, structured: bool = False) -> int:
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["zcodePlugin"]:
         print(f"ZCode plugin ({issue['code']}): {issue['message']}")
+        if issue.get("commandHint"):
+            print(f"  fix: {issue['commandHint']}")
+    for issue in result["issues"]["piExtension"]:
+        print(f"Pi extension ({issue['code']}): {issue['message']}")
         if issue.get("commandHint"):
             print(f"  fix: {issue['commandHint']}")
     for issue in result["issues"]["kimiCodePlugin"]:

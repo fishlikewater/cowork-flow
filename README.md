@@ -6,7 +6,7 @@
 
 开工前先确认目标、计划和改动范围，完成前按项目自己的规则检查。任务状态保存在仓库里，换个会话也能接着做，不用靠聊天记录回忆进度。
 
-支持 Codex、Claude Code、OpenCode、ZCode、Qoder、Kimi Code 和 DeepSeek Harness。
+支持 Codex、Claude Code、OpenCode、ZCode、Qoder、Kimi Code、Pi 和 DeepSeek Harness。
 
 ## 它解决什么
 
@@ -57,7 +57,7 @@ cwf project init --host codex --developer alice --language en-US
 
 把 `codex` 换成你正在使用的宿主：
 
-`codex`、`claude-code`、`opencode`、`zcode`、`qoder`、`kimi-code`、`dsh`。
+`codex`、`claude-code`、`opencode`、`zcode`、`qoder`、`kimi-code`、`dsh`、`pi`。
 
 命令默认在当前目录初始化；新项目把目标目录作为位置参数传入，例如 `cwf project init ./my-project --host codex`，再进入该目录。省略 `--host` 时，会先按项目里已有的宿主标记（如 `.codex/`、`.claude/`）自动判定；没有标记的交互终端会让你选择，非交互环境则需要显式传入。只有确实会在多个宿主中使用时，才用 `--host all`。
 
@@ -65,7 +65,7 @@ cwf project init --host codex --developer alice --language en-US
 
 ### 3. 完成宿主设置
 
-Codex、Claude Code 和 OpenCode 在初始化的项目里就能用；ZCode、Qoder、DeepSeek Harness 和 Kimi Code 还需要安装机器级组件：
+Codex、Claude Code 和 OpenCode 在初始化的项目里就能用；ZCode、Qoder、DeepSeek Harness、Kimi Code 和 Pi 还需要安装机器级组件：
 
 ```bash
 cwf host add <host>

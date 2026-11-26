@@ -49,6 +49,7 @@ class HostIdentityTest(unittest.TestCase):
             ("DSH_SESSION_ID", "dsh"),
             ("QODER_SESSION_ID", "qoder"),
             ("QODERCN_SESSION_ID", "qoder"),
+            ("PI_SESSION_ID", "pi"),
         )
         for env_name, expected_host in cases:
             with self.subTest(env_name=env_name):
@@ -99,6 +100,7 @@ class HostIdentityTest(unittest.TestCase):
             ("opencode_session_id", "opencode"),
             ("claude_session_id", "claude-code"),
             ("claude_code_session_id", "claude-code"),
+            ("pi_session_id", "pi"),
         )
         for key, expected_host in cases:
             with self.subTest(key=key):
@@ -183,6 +185,7 @@ class HostIdentityTest(unittest.TestCase):
                 "kimi-code": "kimi-code.hooks",
                 "opencode": "opencode.task",
                 "qoder": "qoder.hooks",
+                "pi": "pi.extension",
             },
             self.host_identity.context_adapters(),
         )

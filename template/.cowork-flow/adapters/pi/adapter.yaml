@@ -1,0 +1,32 @@
+schemaVersion: 1
+host: pi
+displayName: Pi
+capabilities:
+  dispatchSubagent: native
+  freshChildContext: native
+  sendFollowup: shim
+  waitChild: native
+  listChildren: native
+  cancelChild: native
+  stateInjection: plugin
+  backgroundChild: native
+  runtimeContextDispatch: native
+  runtimeContextBinding: shim
+  runtimeContextCleanup: native
+  editScopeWarning: unsupported
+dispatch:
+  primitive: subagent
+  # The injection shape is owned by host-assets.json and the installer
+  # (`cwf host add pi`), so no package path is declared here.
+  memoryPath: AGENTS.md
+runtimeContext:
+  transport: prompt
+  promptKey: cowork_runtime_context_id
+  envKey: COWORK_FLOW_RUNTIME_CONTEXT_ID
+  metadataKey: cowork_runtime_context_id
+contracts:
+  dispatch: RUNTIME_CONTEXT_DISPATCH_V2
+  leafExecutor: true
+fallback:
+  whenRequiredCapabilityMissing: inline_or_manual
+  whenRuntimeContextMissing: fail_closed

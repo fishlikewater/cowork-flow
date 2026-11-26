@@ -9,7 +9,7 @@ against the project's own rules before calling it done. Task state lives in the
 repository, so you can pick the work back up in a new session instead of reconstructing
 progress from chat history.
 
-Supports Codex, Claude Code, OpenCode, ZCode, Qoder, Kimi Code, and DeepSeek Harness.
+Supports Codex, Claude Code, OpenCode, ZCode, Qoder, Kimi Code, Pi, and DeepSeek Harness.
 
 ## What it solves
 
@@ -89,7 +89,7 @@ existing project, always run `--dry-run` first.
 ### 3. Finish host setup
 
 Codex, Claude Code, and OpenCode work in an initialized project as-is. ZCode, Qoder,
-DeepSeek Harness, and Kimi Code also need a machine-level component:
+DeepSeek Harness, Kimi Code, and Pi also need a machine-level component:
 
 ```bash
 cwf host add <host>

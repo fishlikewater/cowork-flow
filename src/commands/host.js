@@ -10,6 +10,7 @@ import { runInstallDshPreset, inspectInstalledState as inspectDshPreset, FLAGS a
 import { runInstallKimiPlugin, inspectInstalledState as inspectKimiPlugin, FLAGS as KIMI_PLUGIN_FLAGS } from './install-kimi-code-plugin.js';
 import { runInstallKimiHook, inspectInstalledState as inspectKimiHook, FLAGS as KIMI_HOOK_FLAGS } from './install-kimi-hook.js';
 import { runInstallOpenCodePlugin, inspectInstalledState as inspectOpenCode, FLAGS as OPENCODE_PLUGIN_FLAGS } from './install-opencode-plugin.js';
+import { runInstallPiExtension, inspectInstalledState as inspectPi, FLAGS as PI_EXTENSION_FLAGS } from './install-pi-extension.js';
 import { runInstallQoderPlugin, inspectInstalledState as inspectQoder, FLAGS as QODER_PLUGIN_FLAGS } from './install-qoder-plugin.js';
 import { runInstallZCodePlugin, inspectInstalledState as inspectZCode, FLAGS as ZCODE_PLUGIN_FLAGS } from './install-zcode-plugin.js';
 import { inspectHosts, renderInspectLine } from './host-inspect.js';
@@ -66,6 +67,12 @@ export const HOST_COMPONENTS = {
       plugin: { summary: 'Kimi Code plugin: the bootstrap Skill it loads at session start', flags: KIMI_PLUGIN_FLAGS, run: runInstallKimiPlugin, inspect: inspectKimiPlugin },
       hook: { summary: 'Kimi Code context-injection hook as a user-level config.toml [[hooks]] row', flags: KIMI_HOOK_FLAGS, run: runInstallKimiHook, inspect: inspectKimiHook },
       all: { summary: 'Kimi Code hook plus plugin, installed in one command (the default)', flags: KIMI_ALL_FLAGS, run: runInstallKimiAll }
+    }
+  },
+  pi: {
+    default: 'extension',
+    components: {
+      extension: { summary: 'Pi extension: the workflow-state injection file in the Pi agent directory', flags: PI_EXTENSION_FLAGS, run: runInstallPiExtension, inspect: inspectPi }
     }
   }
 };

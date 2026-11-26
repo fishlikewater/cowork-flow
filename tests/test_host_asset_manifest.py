@@ -186,7 +186,7 @@ class HostAssetManifestTest(unittest.TestCase):
 
         self.assertEqual(1, manifest.schema_version)
         self.assertEqual(
-            ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder"),
+            ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder", "pi"),
             manifest.platform_ids,
         )
         self.assertEqual(
@@ -194,7 +194,7 @@ class HostAssetManifestTest(unittest.TestCase):
             manifest.required_host_capabilities,
         )
         self.assertEqual(
-            ("claude-code", "codex", "dsh", "kimi-code", "opencode", "qoder", "zcode"),
+            ("claude-code", "codex", "dsh", "kimi-code", "opencode", "pi", "qoder", "zcode"),
             tuple(sorted(manifest.capability_matrix)),
         )
         self.assertEqual("claude-code", manifest.resolve_alias("claude"))
@@ -243,6 +243,35 @@ class HostAssetManifestTest(unittest.TestCase):
         self.assertEqual((), manifest.platform("qoder").command_targets)
         self.assertEqual("qoder", manifest.resolve_alias("qoder-cli"))
         self.assertIn(".qoder/", manifest.excluded_prefixes)
+        # Pi ships as a machine-level extension: the project carries only the
+        # adapter declaration, so `.pi/` stays package-only and no command
+        # target is declared. Reads and native discovery share `.agents/skills`.
+        pi = manifest.platform("pi")
+        self.assertEqual(".agents/skills", pi.skill_read_root)
+        self.assertEqual(1, len(pi.skill_discovery))
+        self.assertEqual("project", pi.skill_discovery[0].scope)
+        self.assertEqual(".agents/skills", pi.skill_discovery[0].path)
+        self.assertEqual(("project-trust",), pi.skill_discovery[0].gates)
+        self.assertTrue(pi.skill_discovery[0].evidence.startswith("verified:"))
+        self.assertEqual(
+            ".cowork-flow/adapters/pi/adapter.yaml",
+            manifest.platform("pi").adapter_path,
+        )
+        self.assertEqual(
+            (".cowork-flow/adapters/pi",),
+            manifest.platform("pi").detect_any,
+        )
+        self.assertEqual((), manifest.platform("pi").command_targets)
+        self.assertEqual("pi", manifest.resolve_alias("cindy"))
+        self.assertIn(".pi/", manifest.excluded_prefixes)
+        self.assertEqual(
+            "unsupported",
+            manifest.host_capability("pi", "party_board_action").status,
+        )
+        self.assertEqual(
+            "inline_or_manual",
+            manifest.host_capability("pi", "party_board_action").fallback,
+        )
         self.assertEqual(
             "unsupported",
             manifest.host_capability("zcode", "file_write").status,

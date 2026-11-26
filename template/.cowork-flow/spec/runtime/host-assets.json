@@ -116,6 +116,21 @@
         "party_board_action": {
           "status": "native"
         }
+      },
+      "pi": {
+        "task_action": {
+          "status": "native"
+        },
+        "subagent_dispatch": {
+          "status": "native"
+        },
+        "file_write": {
+          "status": "native"
+        },
+        "party_board_action": {
+          "status": "unsupported",
+          "fallback": "inline_or_manual"
+        }
       }
     }
   },
@@ -438,13 +453,57 @@
         "source": "presets/qoder",
         "manifest": ".qoder-plugin/plugin.json"
       }
+    },
+    {
+      "id": "pi",
+      "displayName": "Pi",
+      "aliases": [
+        "pi",
+        "cindy"
+      ],
+      "detectAny": [
+        ".cowork-flow/adapters/pi"
+      ],
+      "assetPrefixes": [
+        ".cowork-flow/adapters/pi/"
+      ],
+      "assetFiles": [],
+      "skillReadRoot": ".agents/skills",
+      "skillDiscovery": [
+        {
+          "scope": "project",
+          "path": ".agents/skills",
+          "gates": [
+            "project-trust"
+          ],
+          "evidence": "verified: Pi skills 文档 “Pi also supports the Agent Skills locations ~/.agents/skills/ and .agents/skills/. Project .agents/skills/ directories are discovered from the working directory through its ancestors, stopping at the repository root when one exists.”（pi 1.5.2 docs/skills.md）；项目级扩展 .pi/extensions 只在项目被信任后加载（docs/extensions.md Extension Locations）"
+        }
+      ],
+      "adapterPath": ".cowork-flow/adapters/pi/adapter.yaml",
+      "capabilities": {
+        "dispatchSubagent": "native",
+        "freshChildContext": "native",
+        "sendFollowup": "shim",
+        "waitChild": "native",
+        "listChildren": "native",
+        "cancelChild": "native",
+        "stateInjection": "plugin",
+        "backgroundChild": "native",
+        "runtimeContextDispatch": "native",
+        "runtimeContextBinding": "shim",
+        "runtimeContextCleanup": "native",
+        "editScopeWarning": "unsupported"
+      },
+      "commandTargets": [],
+      "payload": null
     }
   ],
   "excludedPrefixes": [
     "skills/",
     "locales/",
     ".zcode/",
-    ".qoder/"
+    ".qoder/",
+    ".pi/"
   ],
   "localization": {
     "default": "zh-CN",

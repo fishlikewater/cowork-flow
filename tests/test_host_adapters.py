@@ -77,7 +77,7 @@ class HostAdaptersTest(unittest.TestCase):
         inject = importlib.import_module("adapters.host.inject")
         self.assertEqual(context_adapters(), inject.HOST_ADAPTERS)
         self.assertEqual(
-            {"claude-code", "codex", "dsh", "kimi-code", "opencode", "qoder", "zcode"},
+            {"claude-code", "codex", "dsh", "kimi-code", "opencode", "pi", "qoder", "zcode"},
             set(inject.HOST_ADAPTERS),
         )
         # opencode's JS plugin is a transport shim: rendering goes through
@@ -97,6 +97,7 @@ class HostAdaptersTest(unittest.TestCase):
                 "kimi-code": "adapters.host.kimi_code_policy",
                 "opencode": "adapters.host.opencode_policy",
                 "qoder": "adapters.host.qoder_policy",
+                "pi": "adapters.host.pi_policy",
             },
             declared,
         )
@@ -303,7 +304,7 @@ class HostAdaptersTest(unittest.TestCase):
             required,
         )
         self.assertEqual(
-            {"codex", "claude-code", "opencode", "qoder", "zcode", "dsh", "kimi-code"},
+            {"codex", "claude-code", "opencode", "qoder", "zcode", "dsh", "kimi-code", "pi"},
             set(matrix["hosts"]),
         )
         for host, capabilities in matrix["hosts"].items():
@@ -324,7 +325,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder"):
+            for host in ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder", "pi"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(1, adapter["schemaVersion"])
                 self.assertEqual(host, adapter["host"])
@@ -356,9 +357,12 @@ class HostAdaptersTest(unittest.TestCase):
                 self.assertEqual("COWORK_FLOW_RUNTIME_CONTEXT_ID", runtime_context["envKey"])
                 self.assertEqual("cowork_runtime_context_id", runtime_context["metadataKey"])
                 self.assertEqual("fail_closed", adapter["fallback"]["whenRuntimeContextMissing"])
-                # kimi-code drops PostToolUse stdout; every other host arms
-                # the edit-scope advisory.
-                self.assertEqual("unsupported" if host == "kimi-code" else "plugin", capabilities["editScopeWarning"])
+                # kimi-code drops PostToolUse stdout and pi has no edit-phase
+                # transport yet; every other host arms the edit-scope advisory.
+                self.assertEqual(
+                    "unsupported" if host in {"kimi-code", "pi"} else "plugin",
+                    capabilities["editScopeWarning"],
+                )
                 if host == "claude-code":
                     self.assertEqual(".claude/settings.json", adapter["dispatch"]["settingsPath"])
                     self.assertEqual(".claude/hooks", adapter["dispatch"]["hooksPath"])
@@ -376,6 +380,13 @@ class HostAdaptersTest(unittest.TestCase):
                     self.assertEqual("subagent", adapter["dispatch"]["primitive"])
                     # Qoder host assets live in the machine-level plugin payload,
                     # so no dispatch path may point at a project directory.
+                    self.assertEqual("AGENTS.md", adapter["dispatch"]["memoryPath"])
+                    self.assertEqual("plugin", capabilities["stateInjection"])
+                    self.assertEqual("shim", capabilities["runtimeContextBinding"])
+                if host == "pi":
+                    self.assertEqual("subagent", adapter["dispatch"]["primitive"])
+                    # Pi assets live in the machine-level extension, so the only
+                    # project-side path is AGENTS.md and no asset path is declared.
                     self.assertEqual("AGENTS.md", adapter["dispatch"]["memoryPath"])
                     self.assertEqual("plugin", capabilities["stateInjection"])
                     self.assertEqual("shim", capabilities["runtimeContextBinding"])
@@ -479,7 +490,7 @@ class HostAdaptersTest(unittest.TestCase):
         for base in (
             ROOT / "template" / ".cowork-flow" / "adapters",
         ):
-            for host in ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder"):
+            for host in ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder", "pi"):
                 adapter = parse_simple_yaml(base / host / "adapter.yaml")
                 self.assertEqual(
                     "inline_or_manual",

@@ -153,7 +153,7 @@ test('default host registry exposes manifest platform behavior', async () => {
 
   assert.deepEqual(
     registry.platformIds,
-    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code', 'qoder']
+    ['codex', 'opencode', 'claude-code', 'dsh', 'zcode', 'kimi-code', 'qoder', 'pi']
   );
   assert.deepEqual(
     registry.parsePlatformSelection(['claude']),

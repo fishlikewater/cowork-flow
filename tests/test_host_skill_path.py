@@ -125,7 +125,7 @@ class HostSkillPathTest(unittest.TestCase):
             roots,
         )
         self.assertEqual(
-            ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder"),
+            ("codex", "opencode", "claude-code", "dsh", "zcode", "kimi-code", "qoder", "pi"),
             tuple(roots),
         )
 

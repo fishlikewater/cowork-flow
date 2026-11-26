@@ -44,6 +44,8 @@
 
 机器级安装器只能通过 `cwf host add` / `cwf host remove` 写入宿主配置目录，不应把用户主目录路径硬编码到 `template/`。
 
+Pi 是一个只走机器级安装的宿主：扩展源文件放在 `template/.pi/extensions/`，`.pi/` 被 `excludedPrefixes` 排除，不会随项目落盘；`cwf host add pi` 把它复制到 `$PI_CODING_AGENT_DIR/extensions/cowork-flow.ts`。
+
 机器级安装态的读取同样只有一条路径：各安装器导出 `inspectInstalledState` 描述自己写下的布局，`cwf host inspect` 把它归一化为 `schemaVersion: 1` 的只读行，`doctor` 只消费这份事实。Python 运行时不解析宿主注册表、TOML、设置文件或载荷清单；读取不可用时 doctor 报 `HOST-INSPECT-UNAVAILABLE`，不会把“读不到”误判为“未安装”。契约见 `spec/contracts/host-install-inspection.md`。
 
 ## 运行时分层

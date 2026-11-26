@@ -20,6 +20,9 @@ template/.cowork-flow/run text eol=lf
 *.js text eol=lf
 *.mjs text eol=lf
 
+# TypeScript — the Pi extension source is copied byte-for-byte by `cwf host add pi`
+*.ts text eol=lf
+
 # Version marker — release byte-compares it, keep LF everywhere
 *.version text eol=lf
 

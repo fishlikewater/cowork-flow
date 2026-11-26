@@ -24,6 +24,7 @@ Whether `cwf host add` is needed depends on the host:
 | Qoder | Required | `cwf host add qoder` |
 | DeepSeek Harness | Required | `cwf host add dsh` |
 | Kimi Code | Required | `cwf host add kimi-code` (one command installs both the hook and the plugin) |
+| Pi / Cindy | Required | `cwf host add pi` (installs the workflow-state injection extension) |
 
 ## Common commands
 
@@ -148,6 +149,28 @@ cwf host remove qoder
 Qoder has two user-level install directories: `~/.qoder` (international) and `~/.qoder-cn` (Qoder CN). The bare command covers every edition present on the machine; for install and removal, `QODER_CONFIG_DIR` / `QODERCN_CONFIG_DIR` are full-path overrides, and setting either restricts the command to that target (setting both covers both). The directory names can be overridden with `QODER_CONFIG_DIR_NAME` / `QODERCN_CONFIG_DIR_NAME`.
 
 `cwf host inspect qoder` prints one row per present edition, labelled `Qoder` or `Qoder CN`; an explicitly configured home is reported as `missing` even when it does not exist, and never hides another present edition. The plugin provides hooks and the bootstrap Skill; the three fixed agents are installed as user-level `<home>/agents/` files (plain names, outside the plugin namespace), so Windows never puts the plugin's `:` into a subagent file name. The project-level `init` / `sync` commands only write the single `qoder` adaptation declaration and shared Skills (Qoder CN also uses `.qoder` as its project config directory).
+
+## Pi
+
+```bash
+cwf host add pi --dry-run
+cwf host add pi
+cwf host remove pi
+```
+
+The extension lands at `$PI_CODING_AGENT_DIR/extensions/cowork-flow.ts`
+(`~/.pi/agent/extensions/` when the variable is unset). On `before_agent_start`
+it runs the project's
+`.cowork-flow/scripts/adapters/host/inject.py --host pi` and injects the
+rendered `additionalContext` as a hidden message; an unchanged rendering is not
+injected twice. A failing injection stays silent instead of blocking the run,
+and without `--force` the installer never overwrites a file it does not own.
+
+Pi's shell tools export `PI_SESSION_ID`, so the CLI resolves the session as
+`pi_<session id>`; the extension publishes the same value for host
+environments that do not. The extension carries no edit-phase scope advisory
+yet (`editScopeWarning: unsupported`), so `cwf host inspect pi` only reports
+whether the file is in place and still matches the packaged source.
 
 ## DeepSeek Harness
 

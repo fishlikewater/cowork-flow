@@ -31,6 +31,29 @@ OPENCODE_POLICY_LINE = (
     "read full spec files only before listed actions."
 )
 
+WORKFLOW_STATE_RE = re.compile(
+    r"<workflow-state[^>]*>\n(.*?)\n</workflow-state>", re.DOTALL
+)
+
+
+def workflow_state_body(text: str) -> str:
+    """The rendered task body inside <workflow-state>, without the attributes.
+
+    The attributes carry the host-resolved session key, so two hosts bound to
+    the same task group never match on the whole block."""
+    match = WORKFLOW_STATE_RE.search(text)
+    if match is None:
+        raise AssertionError(f"no <workflow-state> block in: {text[:200]}")
+    return match.group(1)
+
+
+def workflow_state_attrs(text: str) -> dict[str, str]:
+    """The XML attributes of the <workflow-state> opening tag."""
+    match = re.search(r"<workflow-state([^>]*)>", text)
+    if match is None:
+        raise AssertionError(f"no <workflow-state> tag in: {text[:200]}")
+    return dict(re.findall(r'([a-z-]+)="([^"]*)"', match.group(1)))
+
 
 class InjectEntryTest(unittest.TestCase):
     """Host-neutral inject.py entry: one Python source renders every
@@ -129,7 +152,7 @@ class InjectEntryTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("Host-neutral workflow-context injection entry.", result.stdout)
         self.assertIn(
-            "--host {claude-code,codex,dsh,kimi-code,opencode,qoder,zcode}",
+            "--host {claude-code,codex,dsh,kimi-code,opencode,pi,qoder,zcode}",
             result.stdout,
         )
 
@@ -230,6 +253,71 @@ class InjectEntryTest(unittest.TestCase):
             '<cowork-runtime host="qoder" adapter="qoder.hooks">',
             context,
         )
+
+    def test_pi_session_start_emits_json_envelope_with_pi_preamble(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+
+            data = self._run_json(
+                root, {"hook_event_name": "SessionStart"}, host="pi"
+            )
+
+        envelope = data["hookSpecificOutput"]
+        self.assertEqual("SessionStart", envelope["hookEventName"])
+        context = envelope["additionalContext"]
+        self.assertIn("<pi-runtime>", context)
+        self.assertIn(
+            '<cowork-runtime host="pi" adapter="pi.extension">',
+            context,
+        )
+        self.assertIn(PYTHON_CORE_POLICY_LINE, context)
+
+    def test_pi_workflow_state_body_matches_claude_code(self) -> None:
+        # AC-004: the host contributes transport only. The rendered task body
+        # must be the same bytes for pi and claude-code; only the host preamble
+        # and the runtime header may differ.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_project(root)
+            self._write_session(root, "pi_s1", ".cowork-flow/tasks/09-01-demo")
+            self._write_session(
+                root, "claude_s1", ".cowork-flow/tasks/09-01-demo"
+            )
+
+            pi_data = self._run_json(
+                root,
+                {"hook_event_name": "UserPromptSubmit", "PI_SESSION_ID": "s1"},
+                host="pi",
+            )
+            claude_data = self._run_json(
+                root,
+                {
+                    "hook_event_name": "UserPromptSubmit",
+                    "CLAUDE_SESSION_ID": "s1",
+                },
+                host="claude-code",
+            )
+
+        pi_context = pi_data["hookSpecificOutput"]["additionalContext"]
+        claude_context = claude_data["hookSpecificOutput"]["additionalContext"]
+        # The preamble is the only intended delta; assert it so the comparison
+        # below cannot pass by both hosts silently rendering the same header.
+        self.assertIn("<pi-runtime>", pi_context)
+        self.assertNotIn("<pi-runtime>", claude_context)
+        self.assertEqual(
+            workflow_state_body(pi_context),
+            workflow_state_body(claude_context),
+        )
+        # The attributes name the bound task and status; only the host-resolved
+        # session key may differ between the two hosts.
+        pi_attrs = workflow_state_attrs(pi_context)
+        claude_attrs = workflow_state_attrs(claude_context)
+        self.assertEqual(".cowork-flow/tasks/09-01-demo", pi_attrs["task"])
+        self.assertEqual(pi_attrs["task"], claude_attrs["task"])
+        self.assertEqual(pi_attrs["status"], claude_attrs["status"])
+        self.assertEqual("pi_s1", pi_attrs["session"])
+        self.assertEqual("claude_s1", claude_attrs["session"])
 
     def test_qoder_resolves_generic_session_key_only_when_host_declared(self) -> None:
         # Qoder payloads carry the generic session_id, so resolution must come

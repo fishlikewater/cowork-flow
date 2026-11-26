@@ -7,7 +7,7 @@ serialization norm. The workflow facts are rendered by ONE Python source —
 `adapters/host/inject.py` over `workflow_state_hook.py` +
 `services.fact_view.py` — consumed by every declared host: the zcode
 transport shim (node), the opencode plugin transform shim, claude-code,
-codex, dsh, kimi-code, and qoder.
+codex, dsh, kimi-code, qoder, and pi.
 
 This document is a meta-protocol: it describes the injection layer itself and
 is intentionally **not** registered in `contract-registry.json` (registering it
@@ -24,6 +24,7 @@ would make the digest self-referential).
 | dsh | preset plugin system-prompt section | named section, replace semantics |
 | kimi-code | user-level `config.toml` (`$KIMI_CODE_HOME`, default `~/.kimi-code/`) `[[hooks]]` row on `UserPromptSubmit` → shim (`cowork-flow-inject.mjs`) → `inject.py --host kimi-code` | bare-text stdout appended to the prompt context, no `hookSpecificOutput` envelope |
 | qoder | machine-level plugin `hooks/hooks.json` (node, `${QODER_PLUGIN_ROOT}/hooks/inject-context.mjs`) → project `.cowork-flow/scripts/.../inject.py --host qoder`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` plus a top-level `systemMessage` (a CLI-visible trace; the model context is unchanged) |
+| pi | machine-level extension (`cwf host add pi` → `$PI_CODING_AGENT_DIR/extensions/cowork-flow.ts`, default `~/.pi/agent/extensions/`) `before_agent_start` → project `.cowork-flow/scripts/.../inject.py --host pi`, stdout JSON | `hookSpecificOutput.{hookEventName, additionalContext}` returned as a Pi custom message (only when the rendered state changed) |
 
 The qoder row carries one delta beyond the shared envelope: `systemMessage`,
 emitted only on the two injecting events (`SessionStart`, `UserPromptSubmit`)
@@ -67,7 +68,7 @@ test-locked: the contract digest **fingerprint value** and the
 | Host | workflow-state emission | digest policy line wording |
 |---|---|---|
 | zcode | always (main + delegated) | `policy: repeat fingerprint every hook; read full spec files only before listed actions.` |
-| codex / claude-code / kimi-code / dsh / qoder (Python core) | always (main + delegated) | `policy: repeat this short digest every hook; read full spec files only before listed actions.` |
+| codex / claude-code / kimi-code / dsh / qoder / pi (Python core) | always (main + delegated) | `policy: repeat this short digest every hook; read full spec files only before listed actions.` |
 | opencode | always (main + delegated) | `policy: repeat this short digest every plugin transform; read full spec files only before listed actions.` |
 
 The opencode transform fires on every prompt assembly, so its main sessions
@@ -166,6 +167,7 @@ event is the session state file probe.
 | codex | none (`UserPromptSubmit` only) | — | session state file probe: no activation file → full; file present → fingerprint |
 | dsh | `agent/session-start`, `agent/inbox/claimed` | `tools/result` on lifecycle commands | refresh source: session-start events → full; tools/result → fingerprint |
 | kimi-code | none (`UserPromptSubmit` only) | — | session state file probe: no activation file → full; file present → fingerprint |
+| pi | none from the host; the extension labels its first injection `SessionStart` per process | every agent start (extension `before_agent_start`) | event name: first injection → full; later injections → fingerprint; the extension keeps one process-wide flag and only injects when the rendering changed |
 
 ## Digest shape rules
 
@@ -185,7 +187,7 @@ Two shapes, both sha256-based:
    byte-identical everywhere.
 
 The `<workflow-state>` block is emitted independently of digest shape on
-zcode / codex / claude-code / dsh / kimi-code / opencode.
+zcode / codex / claude-code / dsh / kimi-code / opencode / pi.
 
 ## Workflow-state structured header (stage 1)
 

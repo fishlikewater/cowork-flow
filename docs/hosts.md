@@ -24,6 +24,7 @@
 | Qoder | 需要 | `cwf host add qoder` |
 | DeepSeek Harness | 需要 | `cwf host add dsh` |
 | Kimi Code | 需要 | `cwf host add kimi-code`（一条命令装齐 hook 与插件） |
+| Pi / Cindy | 需要 | `cwf host add pi`（安装工作流状态注入扩展） |
 
 ## 通用命令
 
@@ -148,6 +149,18 @@ cwf host remove qoder
 Qoder 有两个用户级安装目录：`~/.qoder`（国际版）和 `~/.qoder-cn`（Qoder CN）。裸命令覆盖机器上所有已存在的 edition；安装/卸载时 `QODER_CONFIG_DIR` / `QODERCN_CONFIG_DIR` 是完整路径覆盖，显式设置时只处理对应目标（两个都设置则两者都处理），目录名可用 `QODER_CONFIG_DIR_NAME` / `QODERCN_CONFIG_DIR_NAME` 覆盖。
 
 `cwf host inspect qoder` 每个存在的 edition 一行，文本输出用 `Qoder` / `Qoder CN` 区分；显式配置的目录即使不存在也按 `missing` 报告，且不会掩盖另一个已存在的 edition。插件提供 hook 和引导技能；三个 fixed agent 安装为每个 edition 的用户级 `<home>/agents/`（plain name，不经插件命名空间），避免 Windows 上插件 agent 名里的 `:` 被拼进子代理文件名导致派发失败。项目级 `init` / `sync` 只写单一 `qoder` 适配声明和共享技能（Qoder CN 的项目配置目录同样叫 `.qoder`）。
+
+## Pi
+
+```bash
+cwf host add pi --dry-run
+cwf host add pi
+cwf host remove pi
+```
+
+扩展装在 `$PI_CODING_AGENT_DIR/extensions/cowork-flow.ts`（未设置时为 `~/.pi/agent/extensions/`）。它在 `before_agent_start` 调用项目里的 `.cowork-flow/scripts/adapters/host/inject.py --host pi`，把渲染出的 `additionalContext` 作为一条不显示的消息注入；渲染文本没变就不重复注入。注入失败只静默跳过，不阻断对话；不带 `--force` 时不覆盖不属于自己的同名文件。
+
+Pi 的 shell 工具自带 `PI_SESSION_ID`，CLI 因此把会话识别为 `pi_<session id>`；宿主环境没有这个变量时由扩展自己补上。扩展目前不含编辑期作用域告警（`editScopeWarning: unsupported`），所以 `cwf host inspect pi` 只报告文件是否就位与是否与当前包内版本一致。
 
 ## DeepSeek Harness
 

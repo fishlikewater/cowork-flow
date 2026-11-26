@@ -161,6 +161,22 @@ HOST_IDENTITIES: tuple[HostIdentity, ...] = (
         ),
         process_label_env=None,
     ),
+    # Pi exposes its session id to the shell tools it runs
+    # (`PI_SESSION_ID`), so the CLI side resolves identity from the
+    # environment; the extension passes the same id in the payload for
+    # hosts whose shell env is stripped. Project assets are limited to
+    # the adapter declaration: the extension itself is a machine-level
+    # install (`cwf host add pi`).
+    HostIdentity(
+        id="pi",
+        prefix="pi",
+        adapter="pi.extension",
+        policy_module="adapters.host.pi_policy",
+        injects_context=True,
+        session_env=("PI_SESSION_ID",),
+        input_keys=("PI_SESSION_ID", "pi_session_id"),
+        process_label_env=None,
+    ),
 )
 
 

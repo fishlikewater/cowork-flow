@@ -44,6 +44,11 @@ The content in `template/` that directly relates to a user project includes:
 
 Machine-level installers may write into host configuration directories only through `cwf host add` / `cwf host remove`, and must not hard-code user home directory paths into `template/`.
 
+Pi is a machine-level-only host: the extension source lives in
+`template/.pi/extensions/`, `.pi/` is excluded by `excludedPrefixes` so it is
+never copied into a project, and `cwf host add pi` installs it to
+`$PI_CODING_AGENT_DIR/extensions/cowork-flow.ts`.
+
 Reading machine-level install state has one path too: each installer exports `inspectInstalledState` describing the layout it writes, `cwf host inspect` normalizes those facts into read-only `schemaVersion: 1` rows, and the doctor consumes only that model. The Python runtime does not parse host registries, TOML, settings, or payload manifests; when the read is unavailable the doctor reports `HOST-INSPECT-UNAVAILABLE` instead of mistaking "could not read" for "not installed". See `spec/contracts/host-install-inspection.md`.
 
 ## Runtime layers
